@@ -191,16 +191,17 @@ type unit struct{ start, target board.CellID }
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	// Every unit stands 2 tall; the board writes where it stands in height, the game only how high
-	// its eye is.
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
+	// Every unit stands 8 tall with its eye at 6, in proportion to hills of 20 and mountains of 40:
+	// the smoothed edge of a plateau is a slope a unit or two below its top, and an eye lower than
+	// that sees the rim, not the valley. The board writes where a unit stands in height.
+	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 8}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	sight := func(eye float64) comp.Comp {
 		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
 	}
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		sight(1.5), comp.Const(vision.SightOutline{}),
+		sight(6), comp.Const(vision.SightOutline{}),
 	)
 	// The hawk flies 40 above the ground on the Air plane: its eye looks over the hills and the
 	// forests a walker's cone climbs and stops at.

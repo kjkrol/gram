@@ -282,7 +282,10 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   against modelling relief as bodies. On a square grid the ground slopes: each corner stands at
   the mean of the cells meeting there (`Board.Corners`), `GroundAt` interpolates between a cell's
   corners, so a hill is a smooth rise, a unit on its slope stands at the slope's height, and the
-  isometric tiles are drawn tilted — Transport Tycoon's terrain without its corner editing.
+  isometric tiles are drawn tilted — Transport Tycoon's terrain without its corner editing. A
+  game must keep its eyes in proportion to its relief: the smoothed edge of a plateau is a slope a
+  unit or two below its top, and an eye lower than that difference sees the rim, not the valley
+  (island-isometric-demo: hills 20, mountains 40, eyes 6).
 - **Sight with heights.** aabbworld v1.7.0's `Cone.Eye/Elevation/Ground/GroundStep`: an entity is
   seen when the line from the eye (`Z.Altitude + Sight.Eye`) to its top clears every nearer ground
   sample and every nearer blocking band within the budget; the reach of an angle is the farthest

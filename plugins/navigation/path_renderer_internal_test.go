@@ -1,0 +1,35 @@
+package navigation
+
+import (
+	"testing"
+
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
+)
+
+func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	for y := uint32(0); y < 4; y++ { // a ridge down the right half
+		for x := uint32(2); x < 4; x++ {
+			c, _ := grid.CellIndex(x, y)
+			brd.Set(c, board.CellKind{Cost: 1, Allows: board.Land, Altitude: 10})
+		}
+	}
+	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
+	r := NewPathRenderer(cam, brd, nil, PathSprites{}, 0)
+
+	slope, _ := grid.CellIndex(1, 1) // its right corners meet the ridge
+	if z := r.spriteHeights(slope); z[0] >= z[1] || z[2] >= z[3] || z[1] != 5 {
+		t.Errorf("sprite heights on the slope = %v, want the tile's corners rising to 5 on the right", z)
+	}
+	flat := board.DefaultGrids{}.Hex(4, 4, 16)
+	hexBoard := board.NewBoard(flat, board.NewTerrainMap())
+	hexBoard.SetAll(board.CellKind{Cost: 1, Allows: board.Land, Altitude: 7})
+	hr := NewPathRenderer(cam, hexBoard, nil, PathSprites{}, 0)
+	c, _ := flat.CellIndex(1, 1)
+	if z := hr.spriteHeights(c); z != [4]float32{7, 7, 7, 7} {
+		t.Errorf("sprite heights on a hex cell = %v, want the cell's altitude on every corner", z)
+	}
+}

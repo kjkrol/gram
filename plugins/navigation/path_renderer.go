@@ -42,8 +42,12 @@ type PathRenderer struct {
 	batch   *render.QuadBatch
 	camera  camera.Camera
 	space   *aabbworld.Space
-	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground.
+	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground;
+	// corners its corner heights on a sloped grid, so a sprite lies on the tile as it is drawn.
 	heights interface{ Altitude(board.CellID) float64 }
+	corners interface {
+		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
+	}
 
 	// finder plans the routes between queued goals for the preview; nil draws the goals alone.
 	finder   *pathFinder
@@ -64,6 +68,9 @@ var _ render.Renderer = (*PathRenderer)(nil)
 func NewPathRenderer(cam camera.Camera, grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
 	r := &PathRenderer{grid: grid, sprites: sprites, batch: render.NewQuadBatch(atlas, cam), camera: cam, selected: selected}
 	r.heights, _ = grid.(interface{ Altitude(board.CellID) float64 })
+	r.corners, _ = grid.(interface {
+		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
+	})
 	return r
 }
 
@@ -191,14 +198,30 @@ func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) 
 	x0, y0 := float32(center.X-half), float32(center.Y-half)
 	x1, y1 := float32(center.X+half), float32(center.Y+half)
 	if _, iso := r.camera.Projection().(camera.Isometric); iso {
-		alt := float32(0)
-		if r.heights != nil {
-			alt = float32(r.heights.Altitude(c))
+		z := r.spriteHeights(c)
+		var dst render.Corners
+		for i, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
+			dst[i][0], dst[i][1] = r.camera.Project(p[0], p[1], z[i])
 		}
-		r.batch.AppendCorners(render.ProjectCorners(r.camera, x0, y0, x1, y1, alt), sprite)
+		r.batch.AppendCorners(dst, sprite)
 		return
 	}
 	r.batch.AppendQuad(x0, y0, x1, y1, sprite)
+}
+
+// spriteHeights is the height of a cell sprite's four corners: the tile's own corners on a sloped
+// grid (the sprite covers a square cell), else the cell's altitude, else the ground at 0.
+func (r *PathRenderer) spriteHeights(c board.CellID) [4]float32 {
+	if r.corners != nil {
+		if hs, _, _, ok := r.corners.Corners(c); ok {
+			return [4]float32{float32(hs[0]), float32(hs[1]), float32(hs[2]), float32(hs[3])}
+		}
+	}
+	alt := float32(0)
+	if r.heights != nil {
+		alt = float32(r.heights.Altitude(c))
+	}
+	return [4]float32{alt, alt, alt, alt}
 }
 
 func hasPassedCenter(cellCenter, entityCenter, travel geom.Vec, width, height uint32, edges aabbworld.Edges) bool {
