@@ -36,6 +36,9 @@ type Renderer struct {
 	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
 	seen  []uint32
 	stamp uint32
+	// tops holds by ordinal what a Submit has read of a cell, good while its stamp is topStamp.
+	tops     []cellTop
+	topStamp uint32
 	// relief draws the sides of raised ground and of tall kinds: an isometric camera's view.
 	relief bool
 }
@@ -50,6 +53,15 @@ const (
 	shadeLevel   = 0.92
 	shadePerUnit = 0.012
 )
+
+// cellTop is a cell as one Submit reads it once: its corners with its kind standing on them,
+// its ground level and its sprite.
+type cellTop struct {
+	z      [4]float32
+	alt    float32
+	sprite render.SpriteID
+	stamp  uint32
+}
 
 // minGridCell is how many pixels a cell must span on screen for the grid to be drawn over it.
 const minGridCell = 6
@@ -99,28 +111,28 @@ func (l *Renderer) gridShown() bool {
 // wherever that top stands above the neighbour's — a wall over grass, a raised edge over the sea.
 func (l *Renderer) Submit(sink *render.Sink, cam camera.Camera) {
 	l.look(cam)
+	l.nextTops()
 	l.eachVisible(func(c CellID) {
 		center := l.board.CellCenter(c)
-		kind := l.board.Kind(c)
-		alt := float32(l.board.Altitude(c))
-		top := l.tops(c)
+		t := l.topOf(c)
+		alt, top, sprite := t.alt, t.z, t.sprite
 		x0, y0 := float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
 		x1, y1 := float32(center.X+l.cellW/2), float32(center.Y+l.cellH/2)
 		depth := l.camera.Depth(float32(center.X), float32(center.Y), alt)
 		if l.relief {
 			// the face along x = x1 shows down to the top of the neighbour across it, likewise y = y1
 			if fa, fb := l.neighbourTops(center.X+l.cellW, center.Y, 0, 2); top[1] > fa || top[3] > fb {
-				sink.Shaded(depth, l.atlas, kind.SpriteID, l.face(x1, y0, x1, y1, top[1], top[3], fa, fb), shadeRight)
+				sink.Shaded(depth, l.atlas, sprite, l.face(x1, y0, x1, y1, top[1], top[3], fa, fb), shadeRight)
 			}
 			if fa, fb := l.neighbourTops(center.X, center.Y+l.cellH, 0, 1); top[2] > fa || top[3] > fb {
-				sink.Shaded(depth, l.atlas, kind.SpriteID, l.face(x0, y1, x1, y1, top[2], top[3], fa, fb), shadeLeft)
+				sink.Shaded(depth, l.atlas, sprite, l.face(x0, y1, x1, y1, top[2], top[3], fa, fb), shadeLeft)
 			}
 		}
 		shade := float32(1)
 		if l.relief {
 			shade = slopeShade(top)
 		}
-		sink.Shaded(depth, l.atlas, kind.SpriteID, l.sloped(x0, y0, x1, y1, top), shade)
+		sink.Shaded(depth, l.atlas, sprite, l.sloped(x0, y0, x1, y1, top), shade)
 	})
 }
 
@@ -161,19 +173,37 @@ func (l *Renderer) Overlay(screen *ebiten.Image, cam camera.Camera) {
 	l.lines.Flush(screen)
 }
 
-// tops is the height of c's four corners with its kind standing on them: the ground's corners on a
-// sloped grid, its altitude everywhere on a flat one.
-func (l *Renderer) tops(c CellID) [4]float32 {
-	var out [4]float32
-	rise := float32(l.board.Kind(c).Height)
-	if hs, _, _, ok := l.board.Corners(c); ok {
-		for i := range out {
-			out[i] = float32(hs[i]) + rise
-		}
-		return out
+// nextTops starts a Submit: every cell read before is read anew.
+func (l *Renderer) nextTops() {
+	if n := l.board.CellCount(); len(l.tops) != n {
+		l.tops, l.topStamp = make([]cellTop, n), 0
 	}
-	alt := float32(l.board.Altitude(c)) + rise
-	return [4]float32{alt, alt, alt, alt}
+	if l.topStamp++; l.topStamp == 0 { // wrapped round: old reads would pass for new
+		clear(l.tops)
+		l.topStamp = 1
+	}
+}
+
+// topOf is c as this Submit sees it, read from the board the first time it is asked for: the
+// ground's corners on a sloped grid, its level everywhere on a flat one, raised by the kind's Height.
+func (l *Renderer) topOf(c CellID) *cellTop {
+	i, _ := l.board.ordinal(c)
+	t := &l.tops[i]
+	if t.stamp == l.topStamp {
+		return t
+	}
+	kind := l.board.kindOf(c)
+	r := l.board.Relief(c)
+	rise := float32(kind.Height)
+	t.alt, t.sprite, t.stamp = float32(r.Level()), kind.SpriteID, l.topStamp
+	if l.board.sloped() {
+		for k := range t.z {
+			t.z[k] = r.Corners[k] + rise
+		}
+	} else {
+		t.z = [4]float32{t.alt + rise, t.alt + rise, t.alt + rise, t.alt + rise}
+	}
+	return t
 }
 
 // neighbourTops is the top of the cell at (x, y) at its corners a and b, the sea level 0 off the board.
@@ -182,8 +212,8 @@ func (l *Renderer) neighbourTops(x, y float64, a, b int) (float32, float32) {
 	if !ok {
 		return 0, 0
 	}
-	t := l.tops(c)
-	return t[a], t[b]
+	t := l.topOf(c)
+	return t.z[a], t.z[b]
 }
 
 // corners projects the four corners of a world box at height z.

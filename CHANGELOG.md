@@ -248,6 +248,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   lattice into a map, and counts the cells across a wrap seam, which the lattice missed; the board
   renderer finds the cells in view the same way (on a hex grid, by sampling marked in a slice).
   A frame's drawing costs 10–25% less CPU in the island demos.
+- The board renderer reads each cell's heights, kind and sprite once a frame, not again for every
+  neighbour's face: island-isometric-demo draws the whole island in 5.5 ms of CPU instead of 6.9.
 
 **Demos**
 - `navigation-hex-demo`, `navigation-vision-demo`, `navigation-vision-hex-demo`, `island-demo`,
