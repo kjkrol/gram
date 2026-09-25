@@ -5,9 +5,11 @@ import (
 	"encoding/gob"
 	"image"
 	"testing"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -15,7 +17,7 @@ import (
 
 // splitRig is two local players with cameras of their own, the screen split into two columns of
 // 400 by 600, each player's orders tagged by the number its binding gives.
-func splitRig(t *testing.T) (*rig, *players.Player, *players.Player) {
+func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
 	left, right := r.local.OwnCamera(), r.p.Local("right").OwnCamera()
@@ -31,9 +33,9 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player) {
 		})); err != nil {
 		t.Fatal(err)
 	}
-	r.start()
+	ecs := r.start()
 	r.p.Viewports(image.Rect(0, 0, 800, 600))
-	return r, left, right
+	return r, left, right, ecs
 }
 
 // cells is what the players ordered this pass, by who ordered it.
@@ -45,8 +47,8 @@ func cells(r *rig) map[control.PlayerID][]int {
 	return out
 }
 
-func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresWhileDown(t *testing.T) {
-	r, left, right := splitRig(t)
+func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresEveryTickWhileDown(t *testing.T) {
+	r, left, right, ecs := splitRig(t)
 	if left.Area() != image.Rect(0, 0, 400, 600) || right.Area() != image.Rect(400, 0, 800, 600) {
 		t.Fatalf("areas %v and %v, want the left and the right half", left.Area(), right.Area())
 	}
@@ -54,24 +56,28 @@ func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresWhileDown(t *testing.T) 
 	ev.AddKeyEvent(ebiten.KeyW, control.ActionPress)
 	ev.AddKeyEvent(ebiten.KeyArrowUp, control.ActionPress)
 	r.handle(ev)
+	ecs.Tick(time.Second / 60) // the keys went down: their commands are issued for the next tick
 	got := cells(r)
 	if len(got[left.ID]) != 1 || got[left.ID][0] != 1 || len(got[right.ID]) != 1 || got[right.ID][0] != 2 {
 		t.Fatalf("orders %v, want one 1 from the left player and one 2 from the right", got)
 	}
-	r.handle(&control.InputEvents{}) // nothing new: both keys still down
-	if got := cells(r); len(got[left.ID]) != 1 || len(got[right.ID]) != 1 {
-		t.Errorf("a pass with the keys still down gave %v, want one order each again", got)
+	for range 3 { // several ticks, no input pass between them: once a tick each
+		ecs.Tick(time.Second / 60)
+		if got := cells(r); len(got[left.ID]) != 1 || len(got[right.ID]) != 1 {
+			t.Fatalf("a tick with the keys still down gave %v, want one order each", got)
+		}
 	}
 	ev = &control.InputEvents{}
 	ev.AddKeyEvent(ebiten.KeyW, control.ActionRelease)
 	r.handle(ev)
+	ecs.Tick(time.Second / 60)
 	if got := cells(r); len(got[left.ID]) != 0 || len(got[right.ID]) != 1 {
 		t.Errorf("after W came up: %v, want only the right player still going", got)
 	}
 }
 
 func TestSplitScreen_TheMouseReachesThePlayerUnderItInItsOwnPixels(t *testing.T) {
-	r, left, right := splitRig(t)
+	r, left, right, _ := splitRig(t)
 	ev := &control.InputEvents{MousePos: geom.NewVec(650, 300)}
 	ev.AddClickEvent(650, 300, ebiten.MouseButtonLeft, control.ActionPress)
 	r.handle(ev)

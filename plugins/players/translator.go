@@ -39,9 +39,7 @@ func (t translator) HandleEvents(ev *control.InputEvents) {
 				pl.steer(k.Key, false)
 			}
 		}
-		for _, key := range pl.steering {
-			t.fire(pl, control.KeyHeld{Key: key}, ctx)
-		}
+		pl.last = ctx
 		mods := pl.withHeld(mods)
 		ctx.Mods = mods
 		for _, c := range ev.ClickQueue {
@@ -98,6 +96,16 @@ func (t translator) fire(pl *Player, trigger control.Trigger, ctx control.Contex
 			if err := t.p.Issue(pl, cmd); err != nil {
 				panic(err)
 			}
+		}
+	}
+}
+
+// hold issues, for every local player, the command of each KeyHeld binding whose key is down, as
+// of the player's last input pass.
+func (t translator) hold() {
+	for _, pl := range t.p.Locals() {
+		for _, key := range pl.steering {
+			t.fire(pl, control.KeyHeld{Key: key}, pl.last)
 		}
 	}
 }

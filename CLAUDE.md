@@ -334,7 +334,8 @@ shows how much of it is boilerplate vs. real behavior.
   draws only the marquee (a `render.WorldRenderer`), the Scene lists every other layer itself.
   `Player.OwnCamera()` (before Use; `world.Plugin.NewCamera`, saved by players) splits the screen
   (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
-  area's pixels; `control.KeyHeld` fires every pass while its key is down. Commands that depend
+  area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
+  players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
   on a camera carry the player's (`selection.Select.Camera`, `Follow{Camera}`). `Player.Bind` refuses two on one
   trigger, Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the

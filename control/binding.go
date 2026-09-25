@@ -40,8 +40,8 @@ type KeyPress struct {
 	Mods Mods
 }
 
-// KeyHeld fires every input pass while Key is down, whatever else is held: steering a vehicle,
-// walking a character.
+// KeyHeld fires once a tick while Key is down, whatever else is held — steering a vehicle, walking
+// a character — its command landing in the tick after; a key tapped between two ticks never fires.
 type KeyHeld struct{ Key ebiten.Key }
 
 // ButtonPress fires when Button goes down with Mods held; Context.Cursor is where.

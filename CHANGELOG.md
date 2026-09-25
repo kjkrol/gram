@@ -109,8 +109,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - Split screen: `Player.OwnCamera()` gives a local player a camera of its own
   (`world.Plugin.NewCamera`), saved with the game; `players.Viewports` lays such players out
   (`Columns`, `WithLayout`) and each keeps its `Area`. Keys reach every local player, the mouse only
-  the one whose part of the screen it is over, in that part's pixels. `control.KeyHeld` fires every
-  input pass while its key is down. `selection.Select.Camera` and `Follow{Camera}` carry the
+  the one whose part of the screen it is over, in that part's pixels. `control.KeyHeld` fires once a
+  tick while its key is down, issued by players at the end of a tick for the next. `selection.Select.Camera` and `Follow{Camera}` carry the
   issuing player's camera; `NewSelectionSystem` and `NewFollowSystem` take none.
 
 **Terrain in the ECS**

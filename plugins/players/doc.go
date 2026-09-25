@@ -35,7 +35,8 @@
 // with cameras of their own share the screen as [Plugin.Viewports] lays it out ([Columns], or a
 // [Layout] given WithLayout), and each keeps its part, [Player.Area]. Every key reaches every local
 // player, each with bindings of its own — WASD for one, the arrows for another, a
-// control.KeyHeld firing every pass while its key is down — and the mouse, there being one, reaches
+// control.KeyHeld firing once a tick while its key is down, issued in RunPlan for the next tick —
+// and the mouse, there being one, reaches
 // the player whose part of the screen it is over, in the pixels of that part.
 //
 // # Order within a tick

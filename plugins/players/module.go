@@ -23,13 +23,15 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) { m.runnable = ecs.RegSys(&cameraSystem{p: m.p}) }
 
-// RunPlan moves the cameras and empties every queue; call it after the plugins that drain theirs.
+// RunPlan moves the cameras and empties every queue, then issues the KeyHeld commands of the keys
+// still down, for the next tick; call it after the plugins that drain theirs.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
 	ctx.Sync()
 	for _, box := range m.p.queues {
 		box.Clear()
 	}
+	translator{m.p}.hold()
 }
 
 // SetupSystems checks the bindings once everything is installed: a command nobody listens to

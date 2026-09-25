@@ -29,6 +29,7 @@ type Player struct {
 	held     map[ebiten.MouseButton]geom.Vec // buttons down and where they went down
 	keys     []ebiten.Key                    // keys down that some binding holds, last pressed last
 	steering []ebiten.Key                    // keys down that some KeyHeld binding is on
+	last     control.Context                 // the context of the last input pass
 }
 
 // OwnCamera gives the player a camera of its own over the world, and its View, saved with the
