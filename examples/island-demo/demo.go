@@ -6,12 +6,13 @@
 package main
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"image/color"
 	"log"
 	"math"
 	"slices"
 	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
@@ -100,6 +101,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
+
+	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
 	s.collision = collision.NewPlugin(s.world)
 	if err := ctx.Use(s.collision); err != nil {

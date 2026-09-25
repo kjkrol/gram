@@ -114,6 +114,14 @@ func (c *isoCamera) MoveTo(x, y float64) {
 	c.place(geom.NewVec(-float64(sx)*float64(c.zoom), -float64(sy)*float64(c.zoom)))
 }
 
+// CenterOn pans so the point (x, y) at height z is drawn in the middle of the screen, as far as
+// the window may go over the projected world.
+func (c *isoCamera) CenterOn(x, y, z float64) {
+	sx, sy := c.proj.Project(float32(x), float32(y), float32(z))
+	z0 := float64(c.zoom)
+	c.place(geom.NewVec(c.viewportSize.X/2-float64(sx)*z0, c.viewportSize.Y/2-float64(sy)*z0))
+}
+
 // Translate shifts the window by a world delta along the ground.
 func (c *isoCamera) Translate(dx, dy float64) {
 	sx, sy := c.proj.Project(float32(dx), float32(dy), 0)

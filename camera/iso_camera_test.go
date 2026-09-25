@@ -166,3 +166,24 @@ func TestTopDownCamera_ProjectIsToScreen(t *testing.T) {
 		t.Error("a point further up the screen is not drawn first")
 	}
 }
+
+func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
+	for name, cam := range map[string]camera.Camera{
+		"isometric": isoCamera(t, 0),
+		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}),
+	} {
+		for _, zoom := range []float32{1, 2} {
+			cam.ZoomIn(zoom, 320, 320)
+			cam.CenterOn(330, 310, 12)
+			w, h := cam.Viewport()
+			if sx, sy := cam.Project(330, 310, 12); !near(sx, w/2) || !near(sy, h/2) {
+				t.Errorf("%s at zoom %v: the point is drawn at (%v, %v), want the middle (%v, %v)", name, cam.Zoom(), sx, sy, w/2, h/2)
+			}
+		}
+	}
+	cam := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300})
+	cam.CenterOn(0, 0, 0)
+	if b := cam.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 {
+		t.Errorf("centred on the corner the window starts at %v, want it held inside the world at (0, 0)", b.TopLeft)
+	}
+}

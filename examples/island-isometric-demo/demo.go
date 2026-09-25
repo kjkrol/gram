@@ -6,12 +6,13 @@
 package main
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"image/color"
 	"log"
 	"math"
 	"slices"
 	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
@@ -104,8 +105,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Quasi3D:  true,
 	})
 	// Start over the island's middle rather than the world's corner.
-	s.world.Camera().MoveTo(WorldWidth/2, WorldHeight/2)
-	s.world.Camera().Pan(-ScreenWidth/2, -ScreenHeight/2)
+	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
 	s.collision = collision.NewPlugin(s.world)
 	if err := ctx.Use(s.collision); err != nil {

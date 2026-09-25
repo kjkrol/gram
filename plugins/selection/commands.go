@@ -19,13 +19,16 @@ type Select struct {
 	Additive bool
 }
 
+// Follow is the command to follow the one selected unit with the camera, or to stop following.
+type Follow struct{}
+
 var _ plugin.Commander = (*Plugin)(nil)
 
-// Commands is the inbox Select lands in — for the players plugin.
-func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.selects} }
+// Commands is the inboxes Select and Follow land in — for the players plugin.
+func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.selects, &p.follows} }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one.
+// drew, Shift for an additive one, and F to follow the one selected unit or stop following.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -35,5 +38,8 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
 		control.Command(control.Drag{Button: ebiten.MouseButtonLeft}, "Select", box(false)),
 		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
+		control.Command(control.KeyPress{Key: ebiten.KeyF}, "Follow the selected unit", func(control.Context) (Follow, bool) {
+			return Follow{}, true
+		}),
 	}
 }

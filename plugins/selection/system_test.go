@@ -1,6 +1,7 @@
 package selection
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ type harness struct {
 	local     *players.Player
 	sel       *Plugin
 	sys       *SelectionSystem
+	follow    *FollowSystem
 	handler   control.EventHandler
 	ecs       *goke.ECS
 	pos       goke.Comp[world.Base]
@@ -42,6 +44,9 @@ type harness struct {
 	tags      Tags
 	selectedQ *goke.Query
 	handle    goke.Runnable
+	followRun goke.Runnable
+	moveQ     *goke.Query
+	moveBase  goke.Comp[world.Base]
 	pending   []pendingSeed
 	items     []aabbworld.Item
 }
@@ -72,10 +77,11 @@ func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	tags := Tags{Selectable: 0, Selected: 1}
+	tags := Tags{Selectable: 0, Selected: 1, Followed: 2}
 	sys := NewSelectionSystem(&sel.selects, space, w.Camera(), tags)
+	follow := NewFollowSystem(&sel.follows, w.Camera(), tags)
 
-	return &harness{t: t, space: space, players: pl, local: local, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
+	return &harness{t: t, space: space, players: pl, local: local, sel: sel, sys: sys, follow: follow, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
 // seed queues a Selectable size x size entity at (x,y); the returned id is filled in by start.
@@ -97,6 +103,7 @@ func (h *harness) start() {
 	h.t.Helper()
 	h.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		h.selectedQ = si.NewQueryBuilder(&h.marks).Build()
+		h.moveQ = si.NewQueryBuilder(&h.moveBase).Build()
 		if len(h.pending) == 0 {
 			return
 		}
@@ -130,8 +137,10 @@ func (h *harness) start() {
 	}})
 
 	h.handle = h.ecs.RegSys(h.sys)
+	h.followRun = h.ecs.RegSys(h.follow)
 	h.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(h.handle, d)
+		ctx.Run(h.followRun, d)
 		ctx.Sync()
 	})
 }
@@ -152,6 +161,108 @@ func (h *harness) drag(x0, y0, x1, y1 int, shift bool) {
 	events.AddClickEvent(x1, y1, ebiten.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(events)
 	h.ecs.Tick(time.Second)
+}
+
+func (h *harness) press(key ebiten.Key) {
+	events := &control.InputEvents{}
+	events.AddKeyEvent(key, control.ActionPress)
+	h.handler.HandleEvents(events)
+	h.ecs.Tick(time.Second)
+}
+
+// moveTo puts id's box with its top-left at (x, y).
+func (h *harness) moveTo(id uid.UID64, x, y float64) {
+	for h.moveQ.All(); h.moveQ.Next(); {
+		cur := h.moveQ.Cursor()
+		for i, got := range cur.IDs {
+			if got == id {
+				pos := &h.moveBase.Slice(cur)[i].Pos
+				pos.AABB = plane.NewAABB(geom.NewVec(x, y), pos.Size.X, pos.Size.Y)
+			}
+		}
+	}
+}
+
+func (h *harness) has(id uid.UID64, tag plugin.Tag[Family]) bool {
+	h.selectedQ.All()
+	for h.selectedQ.Next() {
+		cur := h.selectedQ.Cursor()
+		for i, got := range cur.IDs {
+			if got == id {
+				return h.marks.Slice(cur)[i].Has(tag)
+			}
+		}
+	}
+	return false
+}
+
+// followHarness is a world larger than its 200x200 screen, so the camera has room to follow.
+func followHarness(t *testing.T) *harness {
+	t.Helper()
+	return newHarnessIn(t, world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Camera:   camera.Config{ViewportWidth: 200, ViewportHeight: 200},
+	})
+}
+
+// centred reports whether the camera draws the middle of id's 10x10 box at (x, y) in the middle of its screen.
+func centred(h *harness, x, y float64) bool {
+	sx, sy := h.local.Camera.Project(float32(x+5), float32(y+5), 0)
+	return math.Abs(float64(sx-100)) < 0.5 && math.Abs(float64(sy-100)) < 0.5
+}
+
+func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) {
+	h := followHarness(t)
+	unit := h.seed(150, 150, 10)
+	h.start()
+	h.click(155, 155, false)
+	h.press(ebiten.KeyF)
+	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
+		t.Fatalf("after F: followed %v, centred %v; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
+	}
+	h.moveTo(*unit, 500, 420)
+	h.ecs.Tick(time.Second)
+	if !centred(h, 500, 420) {
+		t.Error("the camera did not follow the unit to its new place")
+	}
+	h.local.Camera.ZoomIn(2, 505, 425)
+	h.ecs.Tick(time.Second)
+	if !h.has(*unit, h.tags.Followed) || !centred(h, 500, 420) {
+		t.Error("zooming ended the following")
+	}
+	h.press(ebiten.KeyF)
+	if h.has(*unit, h.tags.Followed) {
+		t.Error("a second F did not stop the following")
+	}
+}
+
+func TestFollow_MovingTheCameraByHandEndsIt(t *testing.T) {
+	h := followHarness(t)
+	unit := h.seed(150, 150, 10)
+	h.start()
+	h.click(155, 155, false)
+	h.press(ebiten.KeyF)
+	h.local.Camera.Pan(40, 0)
+	h.ecs.Tick(time.Second)
+	if h.has(*unit, h.tags.Followed) {
+		t.Error("the unit is still followed after the player panned the camera away")
+	}
+}
+
+func TestFollow_SeveralSelectedFollowsNone(t *testing.T) {
+	h := followHarness(t)
+	a := h.seed(20, 20, 10)
+	b := h.seed(60, 60, 10)
+	h.start()
+	h.drag(10, 10, 90, 90, false)
+	if !h.isSelected(*a) || !h.isSelected(*b) {
+		t.Fatal("sanity check failed: expected both selected")
+	}
+	h.press(ebiten.KeyF)
+	if h.has(*a, h.tags.Followed) || h.has(*b, h.tags.Followed) {
+		t.Error("F followed one of several selected units, want none")
+	}
 }
 
 func (h *harness) isSelected(id uid.UID64) bool {

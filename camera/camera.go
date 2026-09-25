@@ -47,6 +47,9 @@ type Camera interface {
 	Bounds() AABB
 	// MoveTo repositions the visible window's top-left corner, keeping size.
 	MoveTo(x, y float64)
+	// CenterOn puts the world point (x, y) at height z in the middle of the screen, as far as the
+	// window may go; a top-down camera ignores z.
+	CenterOn(x, y, z float64)
 	// Translate shifts the visible window by a signed delta in world units.
 	Translate(dx, dy float64)
 	// Pan shifts the visible window by a screen-space delta: the same pixels at any zoom.
@@ -307,6 +310,12 @@ func (c *basicCamera) Bounds() AABB {
 			c.effective.TopLeft.Y+c.effective.Size.Y,
 		),
 	}
+}
+
+// CenterOn puts (x, y) in the middle of the window, clamped or wrapped like any move.
+func (c *basicCamera) CenterOn(x, y, _ float64) {
+	w, h := c.effective.Size.X, c.effective.Size.Y
+	c.place(x-w/2, y-h/2, w, h)
 }
 
 // MoveTo repositions the visible window's top-left corner, keeping size.

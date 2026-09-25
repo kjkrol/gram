@@ -2,11 +2,12 @@ package selection
 
 import "github.com/kjkrol/gram/plugin"
 
-// Family is selection's tag family: Selectable and Selected live in it.
+// Family is selection's tag family: Selectable, Selected and Followed live in it.
 type Family struct{}
 
 // Tags is selection's tags: Selectable marks an entity the player may select, Selected one
-// the player has. A kind gives Selectable with comp.Tagged; the plugin flips Selected.
+// the player has, Followed the one the camera follows. A kind gives Selectable with comp.Tagged;
+// the plugin flips Selected and Followed.
 type Tags struct {
-	Selectable, Selected plugin.Tag[Family]
+	Selectable, Selected, Followed plugin.Tag[Family]
 }

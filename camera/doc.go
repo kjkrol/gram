@@ -6,7 +6,8 @@
 //
 // A [Camera] converts between world and screen (ToScreen, FromScreen, ToScreenQuads, which splits
 // a rectangle into the [Quad]s its wrapped images project to), culls (Visible, Bounds) and is
-// controlled (MoveTo and Translate in world units, Pan in screen pixels — the same at any zoom —
+// controlled (MoveTo and Translate in world units, CenterOn a world point at a height in the middle
+// of the screen, Pan in screen pixels — the same at any zoom —
 // ZoomIn, ZoomOut, with min and max zoom). It keeps its own window
 // arithmetic: wrapping on a wrapping axis of the world, held inside the world on any other.
 // [NewFromSpace] builds one over a width x height world with aabbworld edge rules, viewing all of

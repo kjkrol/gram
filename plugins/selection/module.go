@@ -6,10 +6,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// module registers SelectionSystem as selection's single per-tick system.
+// module registers SelectionSystem and, after it, FollowSystem as selection's per-tick systems.
 type module struct {
-	sys      *SelectionSystem
-	runnable goke.Runnable
+	sys            *SelectionSystem
+	follow         *FollowSystem
+	runnable       goke.Runnable
+	followRunnable goke.Runnable
 }
 
 var _ goke.Module = (*module)(nil)
@@ -24,11 +26,18 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 		return
 	}
 	m.runnable = ecs.RegSys(m.sys)
+	if m.follow != nil {
+		m.followRunnable = ecs.RegSys(m.follow)
+	}
 }
 
-// RunPlan runs sys's Update for this tick — call from your own Game.Loop closure.
+// RunPlan runs the selection and then the camera following for this tick — call from your own
+// Game.Loop closure.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
+	if m.followRunnable != nil {
+		ctx.Run(m.followRunnable, d)
+	}
 	ctx.Sync()
 }
 

@@ -305,8 +305,11 @@ shows how much of it is boilerplate vs. real behavior.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`; terrain bodies never do); a bit flip, seen
-  the same tick. A `plugin.Commander`: its `DefaultBindings()` make a left drag one (Shift adds).
-  Depends on `world`.
+  the same tick. A `plugin.Commander`: its `DefaultBindings()` make a left drag one (Shift adds)
+  and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
+  again stops), which the `FollowSystem` keeps in the middle of the camera every tick
+  (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
+  keeps it. Depends on `world`.
 - **`players`** — whoever acts in the game, a carrier over `plugin.Commander`s:
   `players.NewPlugin(world, s.selection, s.nav, ...)` gathers each one's `Commands()` (the
   `control.Inbox[C]` it drains in its own pass) and `DefaultBindings()`; `Defaults()` is all of

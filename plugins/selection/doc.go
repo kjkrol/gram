@@ -1,6 +1,6 @@
 // Package selection turns Select commands into a Selected tag on Selectable world entities;
-// its default bindings make a left drag one (a click is a drag of no length, Shift adds).
-// WithRenderer outlines what is selected.
+// its default bindings make a left drag one (a click is a drag of no length, Shift adds), and F
+// has the camera follow the one selected unit. WithRenderer outlines what is selected.
 //
 // # Selectable, Selected and SelectionSystem
 //
@@ -10,6 +10,14 @@
 // by a box in world units, additive or not; the plugin is a plugin.Commander — [Plugin.Commands]
 // is the inbox, [Plugin.DefaultBindings] a left drag through the player's camera — and the
 // [SelectionSystem] drains the inbox into Selected tags.
+//
+// # Followed and FollowSystem
+//
+// The third tag, Followed, is the unit the camera follows. A [Follow] command (F by default)
+// tags the one Selected unit — none with several selected — or, when one is followed already,
+// untags it. Every tick the [FollowSystem] centres the camera on the followed unit at its
+// altitude (camera.Camera.CenterOn). A player who moves the camera by hand ends the following: at
+// an unchanged zoom, the point centred the tick before is drawn elsewhere; zooming does not.
 //
 // # Renderer
 //

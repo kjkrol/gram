@@ -16,6 +16,7 @@ import (
 type Plugin struct {
 	worldPlugin *world.Plugin
 	selects     control.Inbox[Select]
+	follows     control.Inbox[Follow]
 	camera      camera.Camera
 	module      *module
 	renderer    *Renderer
@@ -31,6 +32,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	tags := Tags{
 		Selectable: reg.DefineTag[Family]("selection.selectable"),
 		Selected:   reg.DefineTag[Family]("selection.selected"),
+		Followed:   reg.DefineTag[Family]("selection.followed"),
 	}
 	return &Plugin{worldPlugin: worldPlugin, camera: worldPlugin.Camera(), tags: tags}
 }
@@ -46,7 +48,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.camera, p.tags)
-	p.module = &module{sys: sys}
+	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.camera, p.tags)}
 	ctx.UseModule(p.module)
 	return nil
 }

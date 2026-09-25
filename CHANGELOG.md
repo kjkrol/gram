@@ -28,7 +28,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   v1.7.0).
 - Routes and legs lose their footing when the terrain changes under them; a unit stuck where its
   domain may not keeps its order.
-- The camera pans in screen pixels at any zoom.
+- The camera pans in screen pixels at any zoom. `Camera.CenterOn(x, y, z)` puts a world point at a
+  height in the middle of the screen.
+- F follows the one selected unit with the camera (`selection.Follow`, tag `Followed`,
+  `FollowSystem`); F again, or moving the camera by hand, stops it; zooming does not.
 - A unit that looks further ahead than half a cell (the hawk) keeps its leg until its centre enters
   the waypoint it passed, instead of re-planning its route every step.
 
