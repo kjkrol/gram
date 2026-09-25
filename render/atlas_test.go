@@ -136,3 +136,20 @@ func TestAtlas_Close_WithNothingRegistered_StillYieldsASheet(t *testing.T) {
 		t.Error("an empty atlas has no sheet to hand a renderer")
 	}
 }
+
+func TestAtlas_KeepsAWhitePatchClearOfTheSprites(t *testing.T) {
+	atlas := NewAtlas()
+	a := atlas.Register(8, func(*ebiten.Image, int) {})
+	b := atlas.Register(16, func(*ebiten.Image, int) {})
+	atlas.Close()
+	u, v := atlas.White()
+	for _, id := range []SpriteID{a, b} {
+		x0, y0, x1, y1 := atlas.UV(id)
+		if u-1.5 < x1 && u+1.5 > x0 && v-1.5 < y1 && v+1.5 > y0 {
+			t.Errorf("the white patch round (%v, %v) overlaps sprite %d", u, v, id)
+		}
+	}
+	if w, h := atlas.Atlas().Bounds().Dx(), atlas.Atlas().Bounds().Dy(); u+1.5 > float32(w) || v+1.5 > float32(h) {
+		t.Errorf("the white patch round (%v, %v) runs off the %dx%d sheet", u, v, w, h)
+	}
+}

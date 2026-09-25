@@ -66,7 +66,7 @@
 // The packages form a strict acyclic graph; each imports only layers below it:
 //
 //	Layer 0   camera              — a Camera over a world: screen conversion, culling, move and zoom
-//	Layer 1   render              — drawing primitives: Renderer, Atlas, QuadBatch, sprites          (→ camera)
+//	Layer 1   render              — drawing: Renderer, Composer, Frame, Atlas, sprites                (→ camera)
 //	          control             — the input vocabulary: InputEvents, KeyEvent, ClickEvent, EventHandler;
 //	                                commands and bindings: Queue, Issued, Binding, Command, the triggers   (→ camera)
 //	Layer 2   plugin              — the extension contract: Plugin, Installer, Tick, Between and Each,

@@ -1,78 +1,113 @@
-# Rendering: one composer per view — a design note
+# Rendering: one composer per view
 
 [← Back to README](../README.md)
 
-> A proposal, not a contract, and not built. It records how the world is drawn today, what a single
-> composer per viewport would change, and the questions to settle before writing it.
+> How the world is drawn: one `render.Composer` per scene, drawing every plugin's pieces as one
+> picture per viewport. It started as a proposal; the answers to its questions are in §5.
 
-## 1. How a frame is drawn today
+## 1. Screen layers and the world
 
 - A **Scene** lists its layers bottom to top (`game.Scene.Layers`). A `render.Renderer` draws once
   on the screen, in pixels: a background, a menu, telemetry. A `render.WorldRenderer` shows the
   world and is drawn once per `render.Viewport` — a camera and a rectangle of the screen — of a
   Scene that is a `game.Viewer`; the engine hands it the viewport's camera and an image the size of
   the viewport. No renderer keeps a camera.
-- **Order is list order.** The board, then the entities, then the vision fans, the routes, the
-  selection outlines. That is enough from above, where nothing stands in front of anything.
-- **An isometric view needs depth.** There `render.Sorted` gathers the quads of the board and the
-  world (`Submitter.Submit` into a `Sink`, each quad with a depth) and draws them back to front, so a
-  wall in front hides a unit behind it. Everything after the `Sorted` layer — fans, routes,
-  outlines — is still drawn over the whole picture: a route behind a mountain shows through it.
-- **Primitives in use.** Textured quads from an atlas (`QuadBatch`, `Sink`), and vector paths
-  filled or stroked (`vector.FillPath`, `vector.StrokePath`): the vision fans and their shadows, the
-  selection outlines, the grid lines. There are no shaders.
+- **The world is one layer**: a `render.Composer` over the plugins' renderers, which are
+  `render.Source`s. The board, the entities, sight, the routes and the selection do not draw; each
+  hands its pieces to the composer's `render.Frame`, and the composer orders them and draws them.
+  A split screen and a minimap run the same composer through another camera.
 
-## 2. The proposal
+```go
+render.NewComposer(board.Renderer(), world.Renderer(), vision.Renderer(), selection.Renderer(), nav.Renderer())
+```
 
-One composer per viewport. World renderers stop drawing: each hands the composer **draw items**
-for the frame, and the composer sorts them and draws them in as few calls as the sheets allow.
+The order of the sources does not matter; tiers and depths do.
 
-- **Key.** An item carries `(layer, depth)`. Layers are named constants, ordered by value, not by
-  the Scene's list:
-  - `Ground` — the tiles, their faces and the grid lines on them;
-  - `Objects` — what stands: tall terrain (walls, forests) and entities, interleaved by depth, as
-    `Sorted` does today;
-  - `Overlays` — routes, selection outlines, vision fans and shadows; in an isometric view they
-    may take the depth of what they lie on and so hide behind what stands in front;
-  - `Marks` — what must always show: the box being dragged, labels.
-  From above, depth within a layer is the world y, or nothing at all; the key still orders layers.
-- **Items.** Two kinds cover everything drawn now:
-  - a textured quad from an atlas sheet — what `Sink.Quad` and `Sink.Shaded` already take;
-  - a coloured triangle mesh — a vector path turned into vertices and indices
-    (`vector.Path.AppendVerticesAndIndicesForFilling` / `ForStroke`), for fans, shadows, outlines,
-    lines and routes drawn as lines.
-  The composer batches consecutive items of one sheet (quads) or one colour mode (meshes) into one
-  `DrawTriangles`, as `Sorted` batches quads now.
-- **Scenes.** A Scene would list one composer for its world instead of several world layers, and
-  the plugins' renderers would become the composer's sources. Screen layers stay as they are.
-- **Split screen and minimap.** Unchanged in spirit: the composer runs once per viewport, with that
-  viewport's camera, over the same sources.
+## 2. Pieces, tiers and depth
 
-## 3. What it buys and what it costs
+A source hands the frame pieces in screen pixels, each with a **tier** and a **depth**:
 
-Buys:
-- in an isometric view, overlays that respect depth: a route or a cone behind a mountain is hidden
-  by it, a selection outline is not drawn through a wall;
-- one sort and as few draw calls per viewport as the sheets and meshes allow, where today every
-  overlay renderer issues its own vector draws;
-- one place that knows the order of what is drawn, instead of the order of a list in each demo.
+| Piece | What for |
+|:--|:--|
+| `Sprite(tier, depth, atlas, id, corners, shade)` | a sprite over four projected corners: a tile, a face, a billboard |
+| `SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1)` | a sprite over a world box from above, split where it crosses a wrap seam |
+| `Line(tier, depth, x0, y0, x1, y1, width, colour)` | a line whose sides fade over a pixel instead of stepping |
+| `Fan(tier, depth, points, colour)` | a filled polygon every point of which sees the first one whole |
+| `Soft(tier, depth, corners, colour, fade)` | a quad fading towards the sides `fade` names, over so many pixels each |
 
-Costs:
-- rewriting the renderers of vision, selection, navigation and the board's grid lines to emit
-  meshes instead of drawing paths;
-- a frame list of items with their vertices, kept between frames so it does not allocate, but
-  larger than today's `Sink` of quads;
-- anti-aliasing: `vector` draws paths anti-aliased; triangles drawn with `DrawTriangles` need its
-  `AntiAlias` option or a wider stroke to look the same;
-- a Scene loses the freedom to put a world layer between two others by listing it there; it
-  chooses a layer constant instead.
+Tiers are numbers with room between them, drawn in order:
 
-## 4. Questions before code
+| Tier | Value | What is on it |
+|:--|--:|:--|
+| `Ground` | 100 | tiles and the faces of raised ground; the board's grid at 110 |
+| `Objects` | 200 | entities |
+| `Overlays` | 300 | what lies on the world: routes, cones of sight and their shadows |
+| `Marks` | 400 | what must always show: the selection's outline, the box being dragged |
 
-1. Are four fixed layers enough, or does a game need its own between them (numbers with room, like
-   100, 200, …)?
-2. Should an overlay in an isometric view take the depth of the ground it lies on (hidden behind
-   a mountain) or always draw on top of the objects (always readable)? Per item, or per layer?
-3. Does the composer replace `render.Sorted` and the plain world layers at once, or live beside
-   them while the plugins move over one by one?
-4. Is a coloured mesh enough, or do the vision shadows want a shader (soft edges, a gradient)?
+A game may put its own pieces between (250, say) without touching the engine.
+
+- **From above** depth does not matter: tiers in order, and within a tier the order pieces came in.
+- **Through an isometric camera** everything below `Marks` is drawn back to front by depth, ties by
+  tier, then arrival; `Marks` and above come last, by tier. The depth is the camera's
+  (`camera.Camera.Depth`): the diagonal row of the cell under a point, so everything in one cell
+  ties with its tile, and what stands on it (a higher tier) is drawn over it and under the row in
+  front. A mountain in front hides the route and the cone behind it; the selection is never hidden.
+- **A piece lying across cells takes the depth of its nearest end.** It is drawn after every tile
+  it lies on; with the depth of its middle the nearer tile would cover half of it. This is why the
+  cone's edges and its shadows are cut into pieces a ground step long, each draped over the ground
+  with a depth of its own, and why the board's grid edges take the depth of the neighbours they
+  border.
+
+## 3. One shader, few calls
+
+Every piece is drawn with one Kage shader (`render/compose.kage`): the sheet's texel times the
+vertex colour, times a fade towards up to four edges. A plain colour — a line, a fan, a shadow —
+samples its sheet's white texel (`AtlasSource.White`; `Atlas.Close` bakes a white patch in), so
+the pieces of one sheet go in one `DrawTrianglesShader` call whatever mix of sprites and colours
+they are. A colour that comes before any sheet uses the composer's own white image. Consecutive
+quads with the same tier, depth and sheet are kept as one item, so a frame of a thousand sprites
+from above is sorted as one.
+
+The fade is in the vertices: `Custom0..3` hold, per edge, 1 plus the distance to it in units of its
+fade (0 for an edge that stays hard, so a sprite sets nothing). A `Line` fades its two sides over
+half a pixel each, which stands in for anti-aliasing; a `Soft` quad fades the sides it is asked to,
+by as many pixels as it is asked.
+
+## 4. Sight on the ground
+
+The vision renderer hands its style a ring of `vision.ConePoint`s: the observer at its altitude,
+out along one edge of the cone in steps of the ground, round the boundary and back down the other
+edge, every point on the ground under it with its screen position and depth. `DefaultConeStyle`
+strokes it with lines, each at the depth of its nearer end.
+
+The ground out of sight (the shadows of aabbworld's `View.Shadows`) is veiled in `Soft` pieces:
+per angle, per band, cut every ground step. A piece fades in at the near end of its band and at the
+far end, and sideways only where the next angle has no shadow at all — so neighbouring angles join
+without seams and the silhouette of a shadow is soft. `vision.Shadow{Color, Fade}` sets the veil
+(`Plugin.WithShadow`); the fade is in world units, scaled by the zoom.
+
+## 5. The questions it answered
+
+1. **Layers.** Named tiers on a scale with gaps (100, 200, …), not a fixed set.
+2. **Depth of overlays.** Routes and cones lie on the ground and sort with it, so what stands in
+   front hides them; the selection and the dragged box are always on top (`Marks`).
+3. **Migration.** At once: `render.Sorted`, `Submitter`, `Sink`, `Overlayer`, `QuadBatch` and
+   `LineBatch` are gone, and every plugin renderer is a `Source`.
+4. **Shaders.** One shader for everything, with soft edges for the shadows and the lines.
+
+## 6. What it cost and bought
+
+Measured on 2026-09-26, the old and the new tree run alternately, 300 frames each, in a virtual
+session with software GL:
+
+| Demo, view | Frame before | Frame after | CPU drawing before | after |
+|:--|--:|--:|--:|--:|
+| island-demo, whole island | 20.2 ms | 12.1 ms | 2.0 ms | 1.4 ms |
+| island-demo, close | 22.5 ms | 9.1 ms | 1.3 ms | 0.5 ms |
+| island-isometric-demo, whole island | 18.0 ms | 13.7 ms | 4.0 ms | 3.6 ms |
+| island-isometric-demo, close | 27.1 ms | 16.4 ms | 3.3 ms | 3.1 ms |
+
+The frames are shorter because far fewer calls reach the GPU: the vector paths of the cones, the
+shadows, the routes and the outlines each used to be draws of their own. Gathering alone costs a
+little more than it did — `Benchmark_World_Draw`, 5,000 sprites composed without a screen, is about
+18% slower for the ordering the composer keeps (see BENCHMARKS.md).

@@ -30,8 +30,12 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
   Heights: `world.Config{Quasi3D: true}`, `world.Z`, the board as the world's `Ground`, sight from
   `Sight.Eye` over walls, forests and hills, and the ground out of sight kept as shadows, holes in
   the drawn view (aabbworld v1.8.0) — [movement §14](movement.md).
-- An isometric view: `camera.Projection`, `render.Sorted`, sloped and shaded tiles, billboards,
-  picking on the ground and where entities are drawn, `island-isometric-demo`.
+- An isometric view: `camera.Projection`, sloped and shaded tiles, billboards, picking on the
+  ground and where entities are drawn, `island-isometric-demo`.
+- One composer per view: the world of a scene is a `render.Composer` over the plugins' `Source`s,
+  pieces on tiers with gaps (`Ground`, `Objects`, `Overlays`, `Marks`) and depths; through an
+  isometric camera a hill hides the routes and cones behind it, the selection stays on top; one
+  shader, one call per sheet, soft shadows and lines — [rendering](rendering.md).
 - Tags as bits of families, one component per family; `Between(a, b, fn)` by value; behaviors
   built by the hosting plugin (`vision.Between`, `board.Each`, `world.Every`), `plugin/host` for
   plugin authors.
@@ -53,22 +57,19 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
 
 ## Next
 
-1. **One composer per view** — decide the questions in [rendering.md](rendering.md) (layers,
-   depth of overlays, how to migrate), then build it: overlays hidden behind what stands in front
-   in an isometric view, one sort and few draw calls per viewport.
-2. **Hover** — what is under the cursor, a `Space.Query` at a point in players' event handler —
+1. **Hover** — what is under the cursor, a `Space.Query` at a point in players' event handler —
    [views §2](views.md).
-3. **Canals and building on shaped ground** — turn a cell lowered to the sea into water, a
+2. **Canals and building on shaped ground** — turn a cell lowered to the sea into water, a
    preview of a shaping drag (lost with the players' marquee), the costs of shaping.
-4. **`RouteStyle`** — `CellArrows` by default, `SmoothRoute` opt-in, arcs from the profile,
+3. **`RouteStyle`** — `CellArrows` by default, `SmoothRoute` opt-in, arcs from the profile,
    computed when the route changes — [movement §8](movement.md).
-5. **Effects over the whole board** — weather and seasons as effects on an entity standing for
+4. **Effects over the whole board** — weather and seasons as effects on an entity standing for
    the board — [movement §13](movement.md).
-6. **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
-7. **Networking** — `netview` over players: deltas from the `View`, one mask per client, a frame
+5. **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
+6. **Networking** — `netview` over players: deltas from the `View`, one mask per client, a frame
    a tick, a client without an ECS — [views §3](views.md). Commands that carry a camera today
    (`Select`, `Follow`, `Marquee`) will carry the player instead.
-8. **Turn-based movement** and **arbitration** — when a game needs them — [movement §9, §10](movement.md).
+7. **Turn-based movement** and **arbitration** — when a game needs them — [movement §9, §10](movement.md).
 
 Also on the list: a thumbnail in a save (the frame at the moment of saving, for a load screen);
 saves written before tag families and before the cell entities do not load, to be noted at the

@@ -76,8 +76,9 @@
 // [Appearance] is the sprite an entity is drawn from; [Plugin.WithRenderer] builds the entity
 // [Renderer] over an atlas, and the Each behaviors of a [Drawing] registered on the plugin settle
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
-// ready-made ones. The Renderer draws the
-// entities in the camera's [View] and nothing else.
+// ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
+// entities in the camera's [View] and nothing else, on the render.Objects tier: from above their
+// boxes, through an isometric camera billboards at the depth of their centres.
 //
 // # View and EntitySet
 //

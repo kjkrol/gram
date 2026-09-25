@@ -127,6 +127,25 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - Screen rectangles are `geom.AABB`: `render.Viewport.Area`, `render.Whole`,
   `game.Viewer.Viewports`, `players.Layout`, `players.Columns`, `Player.Area`.
 
+**Composer**
+- The world of a scene is one `render.Composer` over the plugins' renderers, which are
+  `render.Source`s (`Compose(frame, cam)`): each hands its pieces to a `render.Frame` — `Sprite`,
+  `SpriteRect`, `Line`, `Fan`, `Soft` — with a `render.Tier` (`Ground` 100, `Objects` 200,
+  `Overlays` 300, `Marks` 400, a game's own between) and a depth. Tiers are drawn in order; through
+  an isometric camera everything below `Marks` back to front by depth, so a hill hides the routes
+  and the cones behind it and the selection stays on top. Gone: `render.Sorted`, `Submitter`,
+  `Sink`, `Overlayer`, `QuadBatch`, `LineBatch`; a `Source` listed straight in a scene is refused,
+  naming the composer.
+- One Kage shader draws every piece; a plain colour samples its sheet's white texel
+  (`AtlasSource.White`, baked by `Atlas.Close`), so a view is one call per sheet. Lines fade their
+  sides over a pixel; the shadows of sight fade in at their ends and at an exposed side
+  (`vision.Shadow`, `Plugin.WithShadow`, `DefaultShadow`).
+- `vision.ConeStyle.Compose(frame, ring)` takes the view's ring of `ConePoint`s, draped over the
+  ground with the cone's edges in steps of it, each point with its depth; `ConeShader` is gone.
+  `selection.HighlightStyle.Compose(frame, cam, box, alt)` composes on `Marks`.
+- The island demos' frames are 25–60% shorter (doc/rendering.md §6); gathering 5,000 sprites
+  costs about 18% more (BENCHMARKS.md). An isometric camera no longer allocates for `Projection`.
+
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
   cell and its `Relief`, the heights of its four corners) and `Ground` (its kind). They carry no
@@ -240,9 +259,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - `render`: `Hexagon`; `QuadBatch` draws in chunks under the 16-bit index limit.
 - A tick running a `world.Moving` behavior allocates nothing any more (the per-chunk accessor was a
   fresh method value).
-- `render.LineBatch` draws screen-space lines in one `DrawTriangles` call per 16k lines; the
-  board's grid goes through it instead of one `vector.StrokeLine` a line, and is left out where a
-  cell spans fewer than 6 pixels. island-isometric-demo draws a frame in 4.2 ms of CPU instead of
+- The board's grid is drawn in one batch (now `render.Frame.Line`) instead of one
+  `vector.StrokeLine` a line, and is left out where a cell spans fewer than 6 pixels. island-isometric-demo draws a frame in 4.2 ms of CPU instead of
   6.9 with the grid on, and 5.9 instead of 17.5 zoomed out to the whole island.
 - A square grid's `CellsUnder` walks the rows and columns a box touches instead of sampling a
   lattice into a map, and counts the cells across a wrap seam, which the lattice missed; the board

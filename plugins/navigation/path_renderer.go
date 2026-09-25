@@ -1,7 +1,6 @@
 package navigation
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -39,8 +38,10 @@ func pathCells(cell board.Cell, mt MoveOrder) []board.CellID {
 type PathRenderer struct {
 	grid    board.Grid
 	sprites PathSprites
-	batch   *render.QuadBatch
-	camera  camera.Camera // the one of the frame being drawn
+	atlas   render.AtlasSource
+	frame   *render.Frame // the one being composed
+	camera  camera.Camera // the one of the frame being composed
+	iso     bool
 	space   *aabbworld.Space
 	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground;
 	// corners its corner heights on a sloped grid, so a sprite lies on the tile as it is drawn.
@@ -63,10 +64,10 @@ type PathRenderer struct {
 	mover goke.OptComp[board.Mover]
 }
 
-var _ render.WorldRenderer = (*PathRenderer)(nil)
+var _ render.Source = (*PathRenderer)(nil)
 
 func NewPathRenderer(grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
-	r := &PathRenderer{grid: grid, sprites: sprites, batch: render.NewQuadBatch(atlas), selected: selected}
+	r := &PathRenderer{grid: grid, sprites: sprites, atlas: atlas, selected: selected}
 	r.heights, _ = grid.(interface{ Altitude(board.CellID) float64 })
 	r.corners, _ = grid.(interface {
 		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
@@ -82,10 +83,11 @@ func (r *PathRenderer) Init(si *goke.SysInit) {
 		Build()
 }
 
-// DrawWorld draws the routes of the selected units through cam.
-func (r *PathRenderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
-	r.camera = cam
-	r.batch.Reset(cam)
+// Compose hands f the routes of the selected units on the Overlays tier, each sprite at the depth of
+// its cell, so what stands in front of the cell hides it.
+func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
+	r.frame, r.camera = f, cam
+	_, r.iso = cam.Projection().(camera.Isometric)
 	if r.space != nil {
 		r.query.All()
 		for r.query.Next() {
@@ -107,7 +109,6 @@ func (r *PathRenderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 			}
 		}
 	}
-	r.batch.Flush(screen)
 }
 
 func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []board.CellID) {
@@ -192,23 +193,28 @@ func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) 
 }
 
 // appendCellSprite lays sprite as a square reaching the cell's nearest edges, so a spoke ends where
-// the neighbour's begins; through an isometric camera it lies on the ground at the cell's altitude.
+// the neighbour's begins; through an isometric camera it lies on the ground at the cell's altitude,
+// at the depth of the cell's tile.
 func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) {
 	center := r.grid.CellCenter(c)
 	w, h := r.grid.CellBounds()
 	half := min(w, h) / 2
 	x0, y0 := float32(center.X-half), float32(center.Y-half)
 	x1, y1 := float32(center.X+half), float32(center.Y+half)
-	if _, iso := r.camera.Projection().(camera.Isometric); iso {
-		z := r.spriteHeights(c)
-		var dst render.Corners
-		for i, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
-			dst[i][0], dst[i][1] = r.camera.Project(p[0], p[1], z[i])
-		}
-		r.batch.AppendCorners(dst, sprite)
+	if !r.iso {
+		r.frame.SpriteRect(render.Overlays, 0, r.atlas, sprite, x0, y0, x1, y1)
 		return
 	}
-	r.batch.AppendQuad(x0, y0, x1, y1, sprite)
+	z := r.spriteHeights(c)
+	var dst render.Corners
+	for i, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
+		dst[i][0], dst[i][1] = r.camera.Project(p[0], p[1], z[i])
+	}
+	alt := float32(0)
+	if r.heights != nil {
+		alt = float32(r.heights.Altitude(c))
+	}
+	r.frame.Sprite(render.Overlays, r.camera.Depth(float32(center.X), float32(center.Y), alt), r.atlas, sprite, dst, 1)
 }
 
 // spriteHeights is the height of a cell sprite's four corners: the tile's own corners on a sloped

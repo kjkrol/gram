@@ -56,7 +56,7 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	return ctx.start(b, w.RunPlan)
 }
 
-// Benchmark_World_Draw gathers one frame of the entity renderer — no screen, nothing drawn — over
+// Benchmark_World_Draw composes one frame of the entity renderer — no screen, nothing drawn — over
 // 5000 boxes spread evenly across the world, with the camera viewing all of it, a quarter, or a
 // twentieth (so a quarter, or a twentieth, of the boxes). The world has ticked once, so its View
 // of the camera is filled; the frame only reads it.
@@ -67,14 +67,14 @@ func Benchmark_World_Draw(b *testing.B) {
 	}{{"view=100%", 4000}, {"view=25%", 2000}, {"view=5%", 900}} {
 		b.Run(v.name, func(b *testing.B) {
 			ctx := newHeadless()
-			var r render.WorldRenderer
+			var r *render.Composer
 			var cam camera.Camera
 			ecs := benchWorldViewed(b, ctx, 5000, 56, v.view, func(w *world.Plugin, movers kind.Of[mover]) {
 				atlas := render.NewAtlas()
 				atlas.RegisterAt(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
 				w.WithRenderer(atlas)
-				r, cam = w.Renderer().(render.WorldRenderer), w.Camera()
+				r, cam = render.NewComposer(w.Renderer()), w.Camera()
 				ctx.pending = append(ctx.pending, func() []goke.System {
 					return []goke.System{goke.SystemFn{OnInit: r.Init}}
 				})

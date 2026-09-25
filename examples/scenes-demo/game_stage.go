@@ -151,7 +151,7 @@ func (w *worldScene) Layers() []render.Layer {
 
 	return []render.Layer{
 		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 40, A: 255}}, ScreenWidth, ScreenHeight),
-		s.world.Renderer(),
+		render.NewComposer(s.world.Renderer()),
 	}
 }
 

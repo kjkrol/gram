@@ -147,7 +147,7 @@ the question of who owns the input does not arise — and sends back frames buil
   `entered: [id, kind, sprite, box]`, `updated: [id, box]`, `left: [id]`. Binary, little-endian;
   quantised positions later, if bandwidth asks.
 - **The client** has no ECS and no Space: a camera, an atlas (kinds and their sprites agreed when
-  it joins), a `render.QuadBatch`, frames coming in, commands going out. The transport sits behind
+  it joins), a `render.Composer` over a source of the frames coming in, commands going out. The transport sits behind
   an interface so tests run through memory.
 - **Open.** The server's tick against the client's frame rate (interpolation); joining mid-game
   (a snapshot); trust (a LAN to begin with).

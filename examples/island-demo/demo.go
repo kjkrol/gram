@@ -291,8 +291,8 @@ func (m *mainScene) Layers() []render.Layer {
 	s.selection.WithRenderer(nil)
 
 	count := func() int { return s.world.Res.Telemetry.Count }
-	layers := []render.Layer{s.board.Renderer(), s.vision.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer()}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
+	world := render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.Layer{world, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none)}
 }
 
 // Viewports are where the world is shown: the local players' views.

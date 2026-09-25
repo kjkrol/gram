@@ -65,8 +65,8 @@ func (p Isometric) Unproject(sx, sy, z float32) (float32, float32) {
 }
 
 // Depth is the diagonal row of the cell under the point: rows further back are smaller, and
-// everything in one cell ties with its tile, so what a Sorted layer submits after the terrain —
-// the entities standing on it — is drawn over it and under the row in front.
+// everything in one cell ties with its tile, so what a Composer is handed on a higher tier — the
+// entities standing on it — is drawn over it and under the row in front.
 func (p Isometric) Depth(x, y, _ float32) float32 {
 	return float32(math.Floor(float64(x/p.Cell))) + float32(math.Floor(float64(y/p.Cell)))
 }

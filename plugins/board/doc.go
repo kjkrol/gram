@@ -106,11 +106,11 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [Renderer] drawing each cell's sprite from an atlas; put it
-// under the entity layer, or into a render.Sorted with the world's renderer. There it submits each
-// cell's top at its altitude plus its kind's Height and, through an isometric camera, the two faces
-// towards the viewer wherever the ground drops to a neighbour (a cliff, down to sea level 0 off the
-// board) or the kind stands tall (a wall), shaded as if lit from the upper left. [RenderState] holds
-// its live toggles, such as grid lines: drawn in one batch over the cells, and left out where a
-// cell spans fewer than a few pixels on screen.
+// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer: each
+// cell's sprite from an atlas on the render.Ground tier, from above over its box; through an
+// isometric camera its top at its altitude plus its kind's Height, at the depth of its centre, and
+// the two faces towards the viewer wherever the ground drops to a neighbour (a cliff, down to sea
+// level 0 off the board) or the kind stands tall (a wall), shaded as if lit from the upper left.
+// [RenderState] holds its live toggles, such as grid lines: a tier just above the tiles, and left
+// out where a cell spans fewer than a few pixels on screen.
 package board

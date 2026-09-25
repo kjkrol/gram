@@ -12,6 +12,7 @@ import (
 // screen rectangle over the projected world, and the visible world region is the diamond under it.
 type isoCamera struct {
 	proj         contract.Isometric
+	projection   contract.Projection // proj boxed once, so asking for it allocates nothing
 	world        geom.Vec
 	viewportSize geom.Vec
 	minZoomCfg   float32
@@ -33,7 +34,7 @@ func newIsoCamera(proj contract.Isometric, world geom.Vec, viewport contract.AAB
 		panic("camera: an isometric projection cannot draw a wrapping world")
 	}
 	proj = proj.WithDefaults()
-	c := &isoCamera{proj: proj, world: world, zoom: 1,
+	c := &isoCamera{proj: proj, projection: proj, world: world, zoom: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y)}
 	c.minSX, c.maxSX, c.minSY, c.maxSY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
 	for _, corner := range [4][2]float32{{0, 0}, {float32(world.X), 0}, {0, float32(world.Y)}, {float32(world.X), float32(world.Y)}} {
@@ -45,7 +46,7 @@ func newIsoCamera(proj contract.Isometric, world geom.Vec, viewport contract.AAB
 	return c
 }
 
-func (c *isoCamera) Projection() contract.Projection { return c.proj }
+func (c *isoCamera) Projection() contract.Projection { return c.projection }
 
 func (c *isoCamera) Viewport() (float32, float32) {
 	return float32(c.viewportSize.X), float32(c.viewportSize.Y)

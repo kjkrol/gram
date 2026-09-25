@@ -19,6 +19,7 @@ type Plugin struct {
 	module      *module
 	renderer    *Renderer
 	style       ConeStyle
+	shadow      *Shadow
 	groundStep  float64
 
 	sightings host.PairHost[Sighting]
@@ -56,6 +57,9 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {
 	if p.style != nil {
 		p.renderer.WithStyle(p.style)
 	}
+	if p.shadow != nil {
+		p.renderer.WithShadow(*p.shadow)
+	}
 }
 
 func (p *Plugin) Renderer() render.Layer {
@@ -88,6 +92,12 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // WithStyle sets how cones are drawn, in place of DefaultConeStyle; call before Use.
 func (p *Plugin) WithStyle(style ConeStyle) *Plugin {
 	p.style = style
+	return p
+}
+
+// WithShadow sets how the ground out of sight is shaded, in place of DefaultShadow; call before Use.
+func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
+	p.shadow = &shadow
 	return p
 }
 

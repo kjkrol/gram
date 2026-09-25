@@ -44,18 +44,19 @@
 //
 // # SightOutline and Renderer
 //
-// The Renderer drapes each fan over the world's Ground when it has one ([Renderer.WithGround]):
-// the apex at the observer's altitude, the boundary on the ground under it, so through an
-// isometric camera a cone climbs a hill.
-//
 // An entity also carrying [SightOutline] has its view's shape computed: a reach per evenly spaced
-// angle across the cone. The [Renderer] draws it through the camera in a [ConeStyle]
-// ([DefaultConeStyle] strokes the boundary; [Plugin.WithStyle] or [ConeStyleFn] for another).
+// angle across the cone. The [Renderer], a render.Source, hands it to a scene's render.Composer on
+// the render.Overlays tier as a ring of [ConePoint]s in a [ConeStyle] ([DefaultConeStyle] strokes
+// it; [Plugin.WithStyle] or [ConeStyleFn] for another). The ring is draped over the world's Ground
+// when it has one ([Renderer.WithGround]) — the apex at the observer's altitude, the rest on the
+// ground, the cone's edges in steps of the ground — and each point carries the depth of the ground
+// under it, so through an isometric camera a cone climbs a hill and a hill in front hides it.
 //
 // In a Quasi3D world the reach of sight is not the reach of the ground: past a cliff the plain is
 // out of sight, a hawk above it or a higher hill beyond is not. There the outline reaches the full
 // Radius at every angle and keeps, per angle, up to [MaxShadowsPerSample] [Band]s of ground out of
-// sight (aabbworld's View.Shadows); the Renderer fills them over the ground as holes in the view,
-// through a style's Shade when it is a [ConeShader], else [DefaultShadow]. A flat world keeps the
-// reach cut where a wall stands, and no shadows.
+// sight (aabbworld's View.Shadows); the Renderer veils them over the ground as holes in the view,
+// in pieces of the ground's step, each fading in where it meets ground in sight — a [Shadow]
+// ([DefaultShadow]; [Plugin.WithShadow] for another). A flat world keeps the reach cut where a
+// wall stands, and no shadows.
 package vision

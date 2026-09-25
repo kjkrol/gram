@@ -122,8 +122,17 @@ sheet out and bakes it — so a slot issued late (`Kinds().NewSprite()`) is as
 welcome as an early one, as long as it comes before `Close`.
 
 Package layout: `render` (root) — `Renderer`/`AtlasSource`/`Atlas`/
-`CachedRenderer`/`QuadBatch`/`SolidBackground`/`TelemetryRenderer`, pure
-drawing primitives, zero knowledge of Stages/Scenes/plugins. `plugin`
+`Composer`/`Frame`/`Source`/`Tier`/`CachedRenderer`/`SolidBackground`/`TelemetryRenderer`,
+drawing with zero knowledge of Stages/Scenes/plugins. The world of a scene is one
+`render.Composer` over the plugins' renderers, which are `render.Source`s: each hands its pieces to
+a `render.Frame` in screen pixels with a `Tier` (`Ground` 100, `Objects` 200, `Overlays` 300,
+`Marks` 400; a game may use the gaps) and a depth; the composer draws tiers in order, and through
+an isometric camera everything below `Marks` back to front by depth (ties by tier, then arrival),
+so a hill hides the route and the cone behind it and the selection stays on top. One Kage shader
+draws every piece, a plain colour sampling its sheet's white texel (`AtlasSource.White`), so a run on
+one sheet is one call; `Frame.Line` and `Frame.Soft` fade their edges through the vertices' custom
+values. A piece lying across cells takes the depth of its nearest end, else the nearer tile covers
+half of it. `plugin`
 (root) — `Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`, the extension
 contract; imports `render` (`Plugin.WithRenderer(atlas
 render.AtlasSource)`). `game` (root) — `Game`/`Stage`/`Scene`/`Stack`/
@@ -401,7 +410,7 @@ is a plain helper function each of their `HandleEvents` calls, not an
 engine concept.
 
 Within one active `Stage`, `game.Scene` is what `Game.Draw`/`HandleEvents`
-used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, `render.WorldRenderer`s drawn per viewport of a `game.Viewer` scene, a run of them onto an image of the viewport's area unless it covers the screen; each layer is Init once however many scenes list it), `HandleEvents`,
+used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, `render.WorldRenderer`s — a `render.Composer` over the plugins' `Source`s — drawn per viewport of a `game.Viewer` scene, a run of them onto an image of the viewport's area unless it covers the screen; each layer is Init once however many scenes list it), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the static, `Name()`-keyed registry of
 every `Scene` it can show (`game.NewStack(scenes...)`); `Stack.Composition()`
 (the only way to reach it — `Stage` has no accessor of its own) is the live

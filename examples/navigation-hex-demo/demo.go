@@ -249,7 +249,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer()}
+	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
 }
 
 // Viewports are where the world is shown: the local players' views.

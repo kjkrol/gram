@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // spawn materialises n entities from f.
@@ -63,8 +64,8 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	if len(pts) != 4 {
 		t.Fatalf("fan returned %d points, want the observer plus three samples", len(pts))
 	}
-	if pts[0].DstX != 505 || pts[0].DstY != 505 {
-		t.Errorf("fan starts at (%v,%v), want the observer's centre (505,505)", pts[0].DstX, pts[0].DstY)
+	if pts[0].X != 505 || pts[0].Y != 505 {
+		t.Errorf("fan starts at (%v,%v), want the observer's centre (505,505)", pts[0].X, pts[0].Y)
 	}
 
 	for i, want := range []struct{ angle, dist float64 }{
@@ -72,8 +73,8 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	} {
 		wx := 505 + want.dist*math.Cos(want.angle)
 		wy := 505 + want.dist*math.Sin(want.angle)
-		if math.Abs(float64(pts[i+1].DstX)-wx) > 1e-3 || math.Abs(float64(pts[i+1].DstY)-wy) > 1e-3 {
-			t.Errorf("sample %d at (%v,%v), want (%.3f,%.3f)", i, pts[i+1].DstX, pts[i+1].DstY, wx, wy)
+		if math.Abs(float64(pts[i+1].X)-wx) > 1e-3 || math.Abs(float64(pts[i+1].Y)-wy) > 1e-3 {
+			t.Errorf("sample %d at (%v,%v), want (%.3f,%.3f)", i, pts[i+1].X, pts[i+1].Y, wx, wy)
 		}
 	}
 }
@@ -113,7 +114,7 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 	})
 
 	drawn := 0
-	r.WithStyle(ConeStyleFn(func(*ebiten.Image, []ebiten.Vertex) { drawn++ }))
+	r.WithStyle(ConeStyleFn(func(*render.Frame, []ConePoint) { drawn++ }))
 
 	var pos goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
@@ -140,23 +141,31 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 		goke.SystemFn{OnInit: r.Init},
 	)
 
-	r.DrawWorld(nil, r.camera)
+	composeWith(r)
 	if drawn != 1 {
 		t.Errorf("drew %d cones, want 1 — the short outline and the offscreen entity should both be skipped", drawn)
 	}
 }
 
-// recordFans collects a copy of every fan the renderer hands to the style.
-func recordFans(r *Renderer) *[][]ebiten.Vertex {
-	var fans [][]ebiten.Vertex
-	r.WithStyle(ConeStyleFn(func(_ *ebiten.Image, pts []ebiten.Vertex) {
-		fans = append(fans, append([]ebiten.Vertex(nil), pts...))
+// recordFans collects a copy of every ring the renderer hands to the style.
+func recordFans(r *Renderer) *[][]ConePoint {
+	var fans [][]ConePoint
+	r.WithStyle(ConeStyleFn(func(_ *render.Frame, pts []ConePoint) {
+		fans = append(fans, append([]ConePoint(nil), pts...))
 	}))
 	return &fans
 }
 
+// composeWith composes r through its camera into a fresh frame.
+func composeWith(r *Renderer) *render.Frame {
+	var f render.Frame
+	f.Reset(r.camera)
+	r.Compose(&f, r.camera)
+	return &f
+}
+
 // drawAt draws one entity with a full cone at (x, y) and returns every fan that reached the style.
-func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ebiten.Vertex {
+func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoint {
 	t.Helper()
 	fans := recordFans(r)
 
@@ -184,7 +193,7 @@ func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ebiten.
 		}},
 		goke.SystemFn{OnInit: r.Init},
 	)
-	r.DrawWorld(nil, r.camera)
+	composeWith(r)
 	return *fans
 }
 
@@ -198,8 +207,8 @@ func TestRenderer_NoFanEdgeSpansTheScreen(t *testing.T) {
 
 			for f, fan := range drawAt(t, r, x, 500, radius) {
 				for i := 1; i < len(fan); i++ {
-					dx := fan[i].DstX - fan[i-1].DstX
-					dy := fan[i].DstY - fan[i-1].DstY
+					dx := fan[i].X - fan[i-1].X
+					dy := fan[i].Y - fan[i-1].Y
 					if d := math.Hypot(float64(dx), float64(dy)); d > float64(limit)+1e-3 {
 						t.Fatalf("fan %d edge %d is %.1f long, over the %.1f a cone can span — the shape was torn at the seam", f, i, d, limit)
 					}
@@ -243,11 +252,92 @@ func TestRenderer_WrappedCopyIsTheOriginalShifted(t *testing.T) {
 
 	shift := float32(1000) * r.camera.Zoom()
 	for i := range fans[0] {
-		if dx := fans[0][i].DstX - fans[1][i].DstX; math.Abs(float64(dx-shift)) > 1e-3 {
+		if dx := fans[0][i].X - fans[1][i].X; math.Abs(float64(dx-shift)) > 1e-3 {
 			t.Fatalf("point %d differs by %.3f across, want exactly one world (%.3f)", i, dx, shift)
 		}
-		if dy := fans[0][i].DstY - fans[1][i].DstY; math.Abs(float64(dy)) > 1e-3 {
+		if dy := fans[0][i].Y - fans[1][i].Y; math.Abs(float64(dy)) > 1e-3 {
 			t.Fatalf("point %d differs by %.3f down, want none", i, dy)
+		}
+	}
+}
+
+// slope is a Ground rising to the east, sampled every 10.
+type slope struct{}
+
+func (slope) At(p geom.Vec) float64 { return p.X / 10 }
+func (slope) Step() float64         { return 10 }
+
+// isoRenderer is a renderer over a 1000x1000 world of slope, through an isometric camera.
+func isoRenderer(t *testing.T) *Renderer {
+	t.Helper()
+	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() world.Ground { return slope{} })
+	r.camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
+	r.camera.MoveTo(0, 0)
+	r.ground, r.step, r.grounded = slope{}, 10, true
+	return r
+}
+
+func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
+	r := isoRenderer(t)
+	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 50}
+	o := SightOutline{Count: 3}
+	o.Depths[0], o.Depths[1], o.Depths[2] = 45, 50, 25
+	ring := r.draped(100, 100, 7, &sight, &o)
+
+	// the apex, the near edge every 10 short of 45, the three reaches, the far edge every 10 short of 25
+	if len(ring) != 1+4+3+2 {
+		t.Fatalf("a ring of %d points, want 10", len(ring))
+	}
+	if ring[0].Depth != r.camera.Depth(100, 100, 7) {
+		t.Errorf("the apex at depth %v, want the observer's at its altitude", ring[0].Depth)
+	}
+	a := -0.2
+	x, y := 100+20*float32(math.Cos(a)), 100+20*float32(math.Sin(a))
+	if p := ring[2]; p.Depth != r.camera.Depth(x, y, x/10) {
+		t.Errorf("the edge point 20 out at depth %v, want the ground's there %v", p.Depth, r.camera.Depth(x, y, x/10))
+	}
+	from := func(p ConePoint) float64 { return math.Hypot(float64(p.X-ring[0].X), float64(p.Y-ring[0].Y)) }
+	if from(ring[8]) <= from(ring[9]) {
+		t.Errorf("the far edge runs outwards (%v then %v from the apex), want it back towards the observer", from(ring[8]), from(ring[9]))
+	}
+}
+
+func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
+	r := isoRenderer(t)
+	f := new(render.Frame)
+	f.Reset(r.camera)
+	r.frame = f
+	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 100}
+	o := SightOutline{Count: 5}
+	for i := 1; i <= 3; i++ {
+		o.Shadows[i][0] = Band{From: 40, To: 60} // two steps of ground at each of three angles
+	}
+	r.shade(100, 100, &sight, &o)
+
+	var pieces [][]float32 // per piece: left, right, top, bottom fade distance at its first corner
+	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		if tier != render.Overlays {
+			t.Errorf("a shadow on tier %d, want Overlays", tier)
+		}
+		pieces = append(pieces, []float32{v[0].Custom0, v[3].Custom1, v[0].Custom2, v[3].Custom3})
+	})
+	if len(pieces) != 6 {
+		t.Fatalf("%d shadow pieces, want three angles of two steps", len(pieces))
+	}
+	const hard = 0 // an edge that does not fade
+	for k, p := range pieces {
+		angle, near := k/2, k%2 == 0
+		if left := p[0] != hard; left != (angle == 0) {
+			t.Errorf("piece %d fades on its left %v, want only the first angle's", k, left)
+		}
+		if right := p[1] != hard; right != (angle == 2) {
+			t.Errorf("piece %d fades on its right %v, want only the last angle's", k, right)
+		}
+		if top := p[2] != hard; top != near {
+			t.Errorf("piece %d fades at its near end %v, want only the nearer piece", k, top)
+		}
+		if bottom := p[3] != hard; bottom == near {
+			t.Errorf("piece %d fades at its far end %v, want only the farther piece", k, bottom)
 		}
 	}
 }

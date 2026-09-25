@@ -135,7 +135,7 @@ func (v *view) Layers() []render.Layer {
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
-		v.arena.world.Renderer(),
+		render.NewComposer(v.arena.world.Renderer()),
 		render.NewTelemetryRenderer(&v.tps.Ticks, count, &v.arena.stats.Counter),
 	}
 }

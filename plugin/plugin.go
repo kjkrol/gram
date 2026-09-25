@@ -22,8 +22,8 @@ type Plugin interface {
 	// WithRenderer has this plugin's renderer draw sprites from atlas; call before Use.
 	WithRenderer(atlas render.AtlasSource)
 
-	// Renderer returns this plugin's own layer — a render.Renderer or a render.WorldRenderer — or
-	// nil if it has none.
+	// Renderer returns this plugin's own layer — a render.Renderer, or a render.Source a scene hands
+	// to its render.Composer — or nil if it has none.
 	Renderer() render.Layer
 
 	// EventHandler returns this plugin's own control.EventHandler, or nil if it has none.

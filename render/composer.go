@@ -1,0 +1,201 @@
+package render
+
+import (
+	_ "embed"
+	"fmt"
+	"image/color"
+	"slices"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
+)
+
+//go:embed compose.kage
+var composeKage []byte
+
+var composeShader *ebiten.Shader
+
+// shader is the one program every item is drawn with, compiled at first use.
+func shader() *ebiten.Shader {
+	if composeShader == nil {
+		s, err := ebiten.NewShader(composeKage)
+		if err != nil {
+			panic(fmt.Sprintf("render: the composer's shader: %v", err))
+		}
+		composeShader = s
+	}
+	return composeShader
+}
+
+// Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
+// its items to a Frame, the Composer orders them — by depth through an isometric camera, below the
+// Marks — and draws each run of items sampling one sheet in one call.
+type Composer struct {
+	sources []Source
+	frame   Frame
+	white   whiteSheet
+
+	verts   []ebiten.Vertex
+	indices []uint16
+	opts    *ebiten.DrawTrianglesShaderOptions
+	// draw issues one call; tests count them instead.
+	draw func(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image)
+}
+
+var _ WorldRenderer = (*Composer)(nil)
+
+// NewComposer takes the layers to compose, which must all be Sources.
+func NewComposer(layers ...Layer) *Composer {
+	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}}
+	for _, l := range layers {
+		src, ok := l.(Source)
+		if !ok {
+			panic(fmt.Sprintf("render: %T cannot be composed: it is no Source", l))
+		}
+		c.sources = append(c.sources, src)
+	}
+	c.draw = c.drawTriangles
+	return c
+}
+
+func (c *Composer) Init(si *goke.SysInit) {
+	for _, s := range c.sources {
+		s.Init(si)
+	}
+}
+
+// DrawWorld composes the frame through cam and draws it; a nil screen only composes.
+func (c *Composer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+	c.compose(cam)
+	if screen != nil {
+		c.render(screen)
+	}
+}
+
+// Composed is how many pieces the last frame held — for measuring without a screen.
+func (c *Composer) Composed() int { return c.frame.Len() }
+
+func (c *Composer) compose(cam camera.Camera) {
+	c.frame.Reset(cam)
+	for _, s := range c.sources {
+		s.Compose(&c.frame, cam)
+	}
+	c.sort()
+}
+
+// sort orders the frame: through an isometric camera the items below Marks back to front by depth,
+// ties by tier, then the rest by tier; from above by tier alone; always the order given last.
+func (c *Composer) sort() {
+	f := &c.frame
+	for i := range f.items {
+		f.order = append(f.order, int32(i))
+	}
+	_, byDepth := f.cam.Projection().(camera.Isometric)
+	cmp := func(a, b int32) int {
+		x, y := &f.items[a], &f.items[b]
+		if byDepth {
+			mx, my := x.tier >= Marks, y.tier >= Marks
+			switch {
+			case mx != my:
+				if mx {
+					return 1
+				}
+				return -1
+			case !mx && x.depth != y.depth:
+				if x.depth < y.depth {
+					return -1
+				}
+				return 1
+			}
+		}
+		return int(x.tier) - int(y.tier)
+	}
+	// sources mostly hand their items in order already: a walk costs less than a sort
+	if !slices.IsSortedFunc(f.order, cmp) {
+		slices.SortStableFunc(f.order, cmp)
+	}
+}
+
+// render draws the ordered items, one call per run sharing a sheet; a plain colour joins the run
+// it falls in and samples that sheet's white texel.
+func (c *Composer) render(screen *ebiten.Image) {
+	f := &c.frame
+	var sheet AtlasSource
+	c.verts, c.indices = c.verts[:0], c.indices[:0]
+	for _, i := range f.order {
+		it := &f.items[i]
+		switch {
+		case it.atlas != nil && it.atlas != sheet:
+			c.flush(screen, sheet)
+			sheet = it.atlas
+		case it.atlas == nil && sheet == nil:
+			sheet = &c.white
+		}
+		if it.shape == fan {
+			c.fan(screen, sheet, it)
+			continue
+		}
+		for k := it.first; k < it.first+it.count; k += 4 {
+			if len(c.verts)+4 > chunkVertices {
+				c.flush(screen, sheet)
+			}
+			base := uint16(len(c.verts))
+			c.append(f.verts[k:k+4], it.atlas == nil, sheet)
+			c.indices = append(c.indices, base, base+1, base+2, base+1, base+2, base+3)
+		}
+	}
+	c.flush(screen, sheet)
+}
+
+// fan adds a fan item, whole, to the call being gathered.
+func (c *Composer) fan(screen *ebiten.Image, sheet AtlasSource, it *item) {
+	if len(c.verts)+int(it.count) > chunkVertices {
+		c.flush(screen, sheet)
+	}
+	base := uint16(len(c.verts))
+	c.append(c.frame.verts[it.first:it.first+it.count], it.atlas == nil, sheet)
+	for k := uint16(1); k+1 < uint16(it.count); k++ {
+		c.indices = append(c.indices, base, base+k, base+k+1)
+	}
+}
+
+// append copies verts into the call being gathered; a plain colour samples sheet's white texel.
+func (c *Composer) append(verts []ebiten.Vertex, plain bool, sheet AtlasSource) {
+	c.verts = append(c.verts, verts...)
+	if !plain {
+		return
+	}
+	wx, wy := sheet.White()
+	for k := len(c.verts) - len(verts); k < len(c.verts); k++ {
+		c.verts[k].SrcX, c.verts[k].SrcY = wx, wy
+	}
+}
+
+func (c *Composer) flush(screen *ebiten.Image, sheet AtlasSource) {
+	if len(c.verts) > 0 && sheet != nil {
+		c.draw(screen, c.verts, c.indices, sheet.Atlas())
+	}
+	c.verts, c.indices = c.verts[:0], c.indices[:0]
+}
+
+func (c *Composer) drawTriangles(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image) {
+	c.opts.Images[0] = sheet
+	screen.DrawTrianglesShader(verts, indices, shader(), c.opts)
+}
+
+// chunkVertices is how many vertices one call may index: a multiple of four under 65536.
+const chunkVertices = 65532
+
+// whiteSheet is a sheet of nothing but white, for colours drawn before any sprite.
+type whiteSheet struct{ img *ebiten.Image }
+
+func (w *whiteSheet) Atlas() *ebiten.Image {
+	if w.img == nil {
+		w.img = ebiten.NewImage(3, 3)
+		w.img.Fill(color.White)
+	}
+	return w.img
+}
+func (w *whiteSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
+func (w *whiteSheet) White() (u, v float32)                    { return 1.5, 1.5 }

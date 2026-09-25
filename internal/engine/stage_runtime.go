@@ -82,6 +82,9 @@ func checkLayers(sc game.Scene, layers []render.Layer) error {
 		case screen && shows:
 			return fmt.Errorf("gram: scene %q: %T is both a Renderer and a WorldRenderer", sc.Name(), l)
 		case !screen && !shows:
+			if _, ok := l.(render.Source); ok {
+				return fmt.Errorf("gram: scene %q: %T is a render.Source; list it in a render.NewComposer", sc.Name(), l)
+			}
 			return fmt.Errorf("gram: scene %q: %T is neither a Renderer nor a WorldRenderer", sc.Name(), l)
 		}
 		world = world || shows

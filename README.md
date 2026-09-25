@@ -345,7 +345,7 @@ a proposal for one composer drawing each view.
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
 | [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued`, `Binding`, `Command`, the triggers |
-| [`render`](render/doc.go) | Drawing primitives: `Renderer`, `Atlas` baked at `Close`, `QuadBatch`, sprite drawers, cached and telemetry renderers |
+| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Behavior`, `Tag`/`Tags`/`Any`, `Marks`, `Serializable`, `PostLoader`, `Populator` |
 | [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `Pair`/`Each`/`Every` behind a plugin's typed constructors, `PairHost` and `EachHost` that run them |
 | [`plugins/world/kind`](plugins/world/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load`, `Define`, `Of`, `Registry` |

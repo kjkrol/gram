@@ -19,22 +19,22 @@
 // is laid out and baked — so a slot issued late is as welcome as an early one, as long as it
 // comes before Close. The drawn size is the entity's box; the texture size is resolution.
 // [Solid], [Border], [Diamond], [Cross], [Hexagon], [Dot] and [Arrow] are ready-made drawers. [AtlasSource]
-// is what a batch draws from: the sheet and each [SpriteID]'s UV rectangle.
+// is what a Frame draws from: the sheet, each [SpriteID]'s UV rectangle and a white texel for plain
+// colours, which Close bakes in.
 //
-// # Sorted
+// # Composer, Frame and Source
 //
-// A [Sorted] is a WorldRenderer over several [Submitter]s — world renderers that hand their quads,
-// projected through the viewport's camera, to a [Sink] with a depth each instead of drawing — and
-// draws them back to front as one picture, one
-// DrawTriangles per run of quads sharing a sheet. It is the layer of an isometric view, where the
-// terrain and the entities interleave and a wall in front hides a unit behind it; the board's and
-// the world's renderers submit. Ties keep submission order, so a unit follows the tile it stands on.
-//
-// # QuadBatch
-//
-// A [QuadBatch] gathers textured quads from an AtlasSource, transformed through the camera.Camera
-// given to Reset for the frame, into one DrawTriangles call; AppendCorners takes four screen points already projected.
-// [ProjectCorners] projects a world box at a height through a camera, [Billboard] is a sprite
-// standing upright on a projected point — how an isometric view draws its entities. [VisitWrapImages] visits each image of a box on a wrapping world,
-// so a sprite straddling a seam is drawn on both sides.
+// A [Composer] is the WorldRenderer of a scene's world: one picture per viewport from several
+// [Source]s — the board's, the world's, sight's, the selection's, the routes' renderers. Each
+// source hands its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: a sprite
+// ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft
+// sides ([Frame.Line]), a fan ([Frame.Fan]) or a quad fading towards chosen sides ([Frame.Soft]).
+// Tiers are drawn in order — [Ground], [Objects], [Overlays], [Marks], with room between for a
+// game's own — and through an isometric camera everything below Marks is drawn back to front by
+// depth, ties by tier, so a mountain hides the route and the cone behind it while the selection
+// stays on top; from above the tier alone decides. Every piece is drawn with one shader, sampling a
+// sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
+// call. Ties keep the order pieces came in. [ProjectCorners] projects a world box at a height
+// through a camera, [Billboard] stands a sprite upright on a projected point — how an isometric
+// view draws its entities; [VisitWrapImages] visits each image of a box on a wrapping world.
 package render

@@ -36,6 +36,12 @@ type neither struct{}
 
 func (neither) Init(*goke.SysInit) {}
 
+// source is a render.Source listed straight in a scene.
+type source struct{}
+
+func (source) Init(*goke.SysInit)                   {}
+func (source) Compose(*render.Frame, camera.Camera) {}
+
 // scene is a Scene over layers; viewerScene is one with viewports.
 type scene struct {
 	name   string
@@ -110,6 +116,7 @@ func TestCheckLayers_RefusesWhatCannotBeDrawn(t *testing.T) {
 		want string
 	}{
 		"neither":             {&scene{name: "s", layers: []render.Layer{neither{}}}, "neither"},
+		"a source on its own": {&scene{name: "s", layers: []render.Layer{source{}}}, "NewComposer"},
 		"both":                {&scene{name: "s", layers: []render.Layer{&both{}}}, "both"},
 		"world, no viewports": {&scene{name: "s", layers: []render.Layer{&worldLayer{}}}, "Viewports"},
 	} {

@@ -20,6 +20,7 @@ type flatAtlas struct{}
 
 func (flatAtlas) Atlas() *ebiten.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
+func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
 // drawThrough spawns one 10x10 entity per position, lets pick say which of them the View holds
 // (nil: the zero View, which sees everything), draws once and returns how many quads were drawn
@@ -56,11 +57,13 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.V
 		r.Init(si)
 	}})
 
-	r.DrawWorld(nil, cam)
-	return r.batch.quads, visited
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	return f.Len(), visited
 }
 
-func TestRenderer_Draw_DrawsOnlyWhatTheViewContains(t *testing.T) {
+func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	quarters := []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
 
 	firstOnly := func(ids []uid.UID64, v *View) {
@@ -75,11 +78,13 @@ func TestRenderer_Draw_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	}
 }
 
-// submitThrough is drawThrough through a Sink: how many quads were submitted and their depths.
-func submitThrough(t *testing.T, at ...geom.Vec) (int, []float32) {
+// submitThrough composes entities at the given positions through an isometric camera: how many
+// items came and at what depths, and the depths their centres have.
+func submitThrough(t *testing.T, at ...geom.Vec) (got, want []float32) {
 	t.Helper()
 	view := &View{}
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32}})
+	cam.MoveTo(0, 0)
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, 1000, 1000)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -99,26 +104,29 @@ func submitThrough(t *testing.T, at ...geom.Vec) (int, []float32) {
 		}
 		r.Init(si)
 	}})
-	sorted := render.NewSorted(r)
-	sorted.DrawWorld(nil, cam)
-	var depths []float32
-	for _, p := range at {
-		depths = append(depths, cam.Depth(float32(p.X)+5, float32(p.Y)+5, 0))
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	f.Each(func(tier render.Tier, depth float32, _ []ebiten.Vertex) {
+		if tier != render.Objects {
+			t.Errorf("an entity on tier %d, want Objects", tier)
+		}
+		got = append(got, depth)
+	})
+	for i, p := range at {
+		want = append(want, cam.Depth(float32(p.X)+5, float32(p.Y)+5, float32(i)))
 	}
-	return sorted.Gathered(), depths
+	return got, want
 }
 
-func TestRenderer_Submit_HandsEveryEntityToTheSinkAtItsDepth(t *testing.T) {
-	n, depths := submitThrough(t, geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700))
-	if n != 3 {
-		t.Errorf("submitted %d quads, want 3", n)
-	}
-	if depths[0] != 105 || depths[2] != 705 {
-		t.Errorf("top-down depths %v, want the centres' y", depths)
+func TestRenderer_Compose_HandsEveryEntityToTheFrameAtTheDepthOfItsCentre(t *testing.T) {
+	got, want := submitThrough(t, geom.NewVec(100, 100), geom.NewVec(140, 100), geom.NewVec(180, 100))
+	if len(got) != 3 || got[0] != want[0] || got[2] != want[2] {
+		t.Errorf("depths %v, want the centres' at their altitudes %v", got, want)
 	}
 }
 
-func TestRenderer_Submit_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) {
+func TestRenderer_Compose_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) {
 	view := &View{}
 	cam := icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32}})
 	cam.MoveTo(0, 0)
@@ -134,23 +142,31 @@ func TestRenderer_Submit_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) 
 		}
 		r.Init(si)
 	}})
-	var sink render.Sink
-	r.Submit(&sink, cam)
-	if sink.Len() != 1 {
-		t.Fatalf("submitted %d, want the one entity", sink.Len())
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	if f.Len() != 1 {
+		t.Fatalf("composed %d, want the one entity", f.Len())
 	}
 	// A billboard is upright: its top edge is level, unlike a projected box, which is a diamond.
-	corners := sinkCorners(&sink)
+	corners := firstCorners(&f)
 	if corners[0][1] != corners[1][1] || corners[2][1]-corners[0][1] != 10 {
 		t.Errorf("entity drawn at %v, want an upright 10-tall rectangle", corners)
 	}
 }
 
-// sinkCorners is the first submitted quad's screen corners.
-func sinkCorners(s *render.Sink) [4][2]float32 {
+// firstCorners is the first composed quad's screen corners.
+func firstCorners(f *render.Frame) [4][2]float32 {
 	var out [4][2]float32
-	for i, v := range s.Vertices()[:4] {
-		out[i] = [2]float32{v.DstX, v.DstY}
-	}
+	done := false
+	f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) {
+		if done {
+			return
+		}
+		for i, v := range verts[:4] {
+			out[i] = [2]float32{v.DstX, v.DstY}
+		}
+		done = true
+	})
 	return out
 }

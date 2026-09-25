@@ -3,9 +3,9 @@ package vision_test
 import (
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 func testWorldPlugin() *world.Plugin {
@@ -40,7 +40,7 @@ func TestPlugin_Contract(t *testing.T) {
 // A style set before Use has to survive into the renderer WithRenderer builds.
 func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
 	used := false
-	style := vision.ConeStyleFn(func(*ebiten.Image, []ebiten.Vertex) { used = true })
+	style := vision.ConeStyleFn(func(*render.Frame, []vision.ConePoint) { used = true })
 
 	p := vision.NewPlugin(testWorldPlugin()).WithStyle(style)
 	p.WithRenderer(nil)
@@ -49,7 +49,7 @@ func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
 	if !ok {
 		t.Fatalf("Renderer is %T, want *vision.Renderer", p.Renderer())
 	}
-	r.Style().Draw(nil, nil)
+	r.Style().Compose(nil, nil)
 	if !used {
 		t.Error("the renderer did not take the style handed to WithStyle")
 	}

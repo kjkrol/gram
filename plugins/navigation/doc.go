@@ -34,8 +34,9 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] draws the remaining route of every selected entity, and the routes on to
-// each queued goal, with the [PathRenderer]
+// [Plugin.WithRenderer] builds the [PathRenderer], a render.Source laying the remaining route of
+// every selected entity, and the routes on to each queued goal, on the render.Overlays tier at the
+// depth of each cell, so a hill in front hides them —
 // from a [PathSprites] set — one arrow per [Direction] (every [DirectionStep] degrees round the compass, so square and hex steps land on one exactly) and a dot; [RegisterDefaultPathSprites]
 // bakes a default set.
 package navigation

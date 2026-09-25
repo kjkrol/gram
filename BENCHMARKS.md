@@ -56,6 +56,20 @@ per drawn box, ~110 ns each, almost all of it in the camera: projecting a box on
 (`ToScreenQuads`, `Visible`) goes through `math.Mod` several times. That is the next thing to
 optimise if drawing ever shows up.
 
+Since the composer (2026-09-26) the frame is composed: the renderer hands its sprites to a
+`render.Frame` and the `Composer` keeps them in order before drawing. Gathering costs about 18% more
+for it, measured alternately against the renderer that batched its own quads:
+
+| Camera view | Own batch | Composed |
+|:---|---:|---:|
+| whole world | 599 µs | 707 µs |
+| a quarter | 167 µs | 197 µs |
+| a twentieth | 44 µs | 50 µs |
+
+What the frame pays back is the drawing: one call per sheet for everything a view shows, instead of
+a call or several per cone, shadow, route and outline — see doc/rendering.md §6, where whole frames
+of the island demos are 25–60% shorter.
+
 ## Collision tick — `Benchmark_Collision_Tick`
 
 One tick of world plus collision at the collision demo's scales: movement, the space rebuilt,

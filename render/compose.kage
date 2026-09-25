@@ -1,0 +1,13 @@
+//kage:unit pixels
+
+package main
+
+// Fragment is the sheet's texel times the vertex colour, faded towards the edges an item asked to
+// soften: custom holds, for each of up to four edges, 1 plus the distance to it in units of its
+// fade, or 0 for an edge that stays hard.
+func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
+	faded := step(0.5, custom)
+	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
+	f := mix(vec4(1), ramp, faded)
+	return imageSrc0At(src) * color * f.x * f.y * f.z * f.w
+}

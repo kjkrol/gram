@@ -23,9 +23,10 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [Renderer] outlining every Selected entity in a
-// [HighlightStyle] ([DefaultHighlightStyle] is a thin red outline; [HighlightStyleFn] adapts a
-// function), and the box of a selection being dragged in the viewport's camera. The box comes from
+// [Plugin.WithRenderer] builds the [Renderer], a render.Source outlining every Selected entity on
+// the render.Marks tier, over everything, in a [HighlightStyle] ([DefaultHighlightStyle] is a thin
+// red outline; [HighlightStyleFn] adapts a function), and the box of a selection being dragged in
+// the viewport's camera. The box comes from
 // the [Marquee] command, issued by a control.ButtonHeld of the left button while the drag lasts and
 // hidden by the Select that ends it, one per camera, so a player on a split screen sees only its own.
 package selection

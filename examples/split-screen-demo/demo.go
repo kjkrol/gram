@@ -87,6 +87,7 @@ type mainStage struct {
 	drive      goke.Runnable
 	follow     goke.Runnable
 	minimapCam camera.Camera
+	composer   *render.Composer
 	stack      game.Scenes
 }
 
@@ -94,6 +95,14 @@ var _ game.Stage = (*mainStage)(nil)
 
 func (s *mainStage) Name() string       { return "split-screen-demo" }
 func (s *mainStage) Stack() game.Scenes { return s.stack }
+
+// picture is the one composer of the arena, shared by the players' views and the minimap.
+func (s *mainStage) picture() *render.Composer {
+	if s.composer == nil {
+		s.composer = render.NewComposer(s.board.Renderer(), s.world.Renderer())
+	}
+	return s.composer
+}
 
 // Queues is where Drive lands — the stage is the handler of its own command.
 func (s *mainStage) Queues() []control.CommandQueue { return []control.CommandQueue{&s.drives} }
@@ -329,7 +338,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	return []render.Layer{s.board.Renderer(), s.world.Renderer(), divider{&m.right}}
+	return []render.Layer{s.picture(), divider{&m.right}}
 }
 
 // Viewports are the two players' halves; the right one is kept for the divider.
@@ -383,9 +392,9 @@ func (m *minimapScene) Focusable() bool { return false }
 
 func (m *minimapScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 
-// Layers are the board and the world, the same renderers the players' views draw, and the frame.
+// Layers are the picture the players' views draw, through the minimap's camera, and the frame.
 func (m *minimapScene) Layers() []render.Layer {
-	return []render.Layer{m.stage.board.Renderer(), m.stage.world.Renderer(), frame{m}}
+	return []render.Layer{m.stage.picture(), frame{m}}
 }
 
 // Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of

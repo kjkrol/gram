@@ -251,7 +251,7 @@ func (m *mainScene) Layers() []render.Layer {
 			render.SolidBackground{Color: color.RGBA{R: 50, G: 50, B: 50, A: 255}},
 			ScreenWidth, ScreenHeight,
 		),
-		s.world.Renderer(),
+		render.NewComposer(s.world.Renderer()),
 		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount, &s.collisionStats.Counter),
 	}
 }
