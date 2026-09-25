@@ -3,7 +3,7 @@ package world_test
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -15,7 +15,7 @@ func TestViewFor_IsTheCamerasOwnViewMadeOnce(t *testing.T) {
 	if w.ViewFor(w.Camera()) != w.View() {
 		t.Error("the world's camera has a View other than View()")
 	}
-	other := camera.NewFromSpace(1000, 1000, 0)
+	other := icamera.NewFromSpace(1000, 1000, 0)
 	v := w.ViewFor(other)
 	if v == nil || v == w.View() {
 		t.Fatal("a second camera shares the world camera's View")

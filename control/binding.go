@@ -60,8 +60,8 @@ type Drag struct {
 // Wheel fires on any scroll; Context.Wheel is how much.
 type Wheel struct{}
 
-// ButtonHeld fires every tick Button is down and the cursor moved inside the window;
-// Context.Delta is by how much.
+// ButtonHeld fires every pass Button is down and the cursor moved inside the window;
+// Context.Delta is by how much and Context.Start where the button went down.
 type ButtonHeld struct{ Button ebiten.MouseButton }
 
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.

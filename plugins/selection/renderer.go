@@ -55,9 +55,11 @@ func DefaultHighlightStyle() HighlightStyle {
 	})
 }
 
-// Renderer outlines every Selected entity; the marquee of a drag is the players plugin's to draw.
+// Renderer outlines every Selected entity and, when the plugin built it, the box being dragged in
+// the viewport's camera.
 type Renderer struct {
-	style HighlightStyle
+	style    HighlightStyle
+	marquees *marquees
 
 	query    *goke.Query
 	base     goke.Comp[world.Base]
@@ -100,5 +102,8 @@ func (r *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 				r.style.Draw(screen, cam, bases[i].Pos.AABB.AABB, alt)
 			}
 		}
+	}
+	if r.marquees != nil {
+		r.marquees.draw(screen, cam)
 	}
 }

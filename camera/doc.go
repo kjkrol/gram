@@ -11,8 +11,9 @@
 // resized, keeping the middle and raising the zoom until the world covers the new screen —
 // ZoomIn, ZoomOut, with min and max zoom). It keeps its own window
 // arithmetic: wrapping on a wrapping axis of the world, held inside the world on any other.
-// [NewFromSpace] builds one over a width x height world with aabbworld edge rules, viewing all of
-// it by default; [NewFromSpaceWithConfig] takes a [Config] with a viewport size and zoom limits.
+// The cameras themselves live in internal/camera; a game gets one from the world plugin
+// (world.Plugin.Camera, NewCamera), built from a [Config] with a viewport size, zoom limits and a
+// projection.
 //
 // # Projection
 //

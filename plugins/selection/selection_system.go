@@ -29,6 +29,10 @@ type SelectionSystem struct {
 	space   *aabbworld.Space
 	tags    Tags
 
+	// The boxes being dragged, when the plugin wires them: Marquee shows one, Select hides it.
+	marqueeQueue *control.Queue[Marquee]
+	marquees     *marquees
+
 	query *goke.Query
 	marks goke.Comp[plugin.Tags[Family]]
 
@@ -49,8 +53,18 @@ func (s *SelectionSystem) Init(si *goke.SysInit) {
 }
 
 func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
+	if s.marqueeQueue != nil {
+		s.marqueeQueue.Drain(func(i control.Issued[Marquee]) {
+			if i.Command.Camera != nil {
+				s.marquees.show(i.Command.Camera, i.Command.Screen)
+			}
+		})
+	}
 	s.selects.Drain(func(i control.Issued[Select]) {
 		cmd := i.Command
+		if s.marquees != nil && cmd.Camera != nil {
+			s.marquees.hide(cmd.Camera)
+		}
 		hit := make(map[uid.UID64]struct{}, len(cmd.IDs))
 		switch {
 		case cmd.IDs != nil:

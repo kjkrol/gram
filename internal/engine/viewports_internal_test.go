@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"image"
+	"github.com/kjkrol/aabbworld/geom"
 	"strings"
 	"testing"
 
@@ -52,14 +52,14 @@ type viewerScene struct {
 	viewports []render.Viewport
 }
 
-func (s *viewerScene) Viewports(image.Rectangle) []render.Viewport { return s.viewports }
+func (s *viewerScene) Viewports(geom.AABB) []render.Viewport { return s.viewports }
 
 func TestPasses_DrawEachRunOfWorldLayersThroughEveryViewportInOrder(t *testing.T) {
 	inits := 0
 	a, d := screenLayer{&inits}, screenLayer{&inits}
 	b, c, e := &worldLayer{name: "b"}, &worldLayer{name: "c"}, &worldLayer{name: "e"}
-	left := render.Viewport{Area: image.Rect(0, 0, 50, 100)}
-	right := render.Viewport{Area: image.Rect(50, 0, 100, 100)}
+	left := render.Viewport{Area: geom.NewAABBAt(geom.NewVec(0, 0), 50, 100)}
+	right := render.Viewport{Area: geom.NewAABBAt(geom.NewVec(50, 0), 50, 100)}
 	asked := 0
 	got := passes(nil, []render.Layer{a, b, c, d, e}, func() []render.Viewport {
 		asked++

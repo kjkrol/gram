@@ -116,6 +116,16 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   of its own in its half of the screen; a minimap scene shows the whole arena through a camera of
   its own, drawn by the same board and world renderers.
 - A steering profile without `V0` sets off from standing; it stood still for ever.
+- The box of a selection being dragged is selection's: a `selection.Marquee` command, issued by a
+  `ButtonHeld` of the left button (whose `Context.Start` is now where the button went down), shown
+  per camera until the `Select` that ends it and drawn by the selection renderer. players draws
+  nothing (`Player.DragBox` and `players.Renderer` are gone); its input layer is the
+  `eventHandler`, which keeps each local player's keys and buttons apart from `Player`.
+- The cameras live in `internal/camera` (`basic_camera.go`, `iso_camera.go`); the root package
+  `camera` is the contract and the projections (`Isometric.WithDefaults`), and a game gets its
+  cameras from the world (`world.Plugin.Camera`, `NewCamera`). `camera.NewFromSpace` is gone.
+- Screen rectangles are `geom.AABB`: `render.Viewport.Area`, `render.Whole`,
+  `game.Viewer.Viewports`, `players.Layout`, `players.Columns`, `Player.Area`.
 
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its

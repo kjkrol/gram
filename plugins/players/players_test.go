@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -59,7 +60,7 @@ func newRig(t *testing.T, cfg ...camera.Config) *rig {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	if len(cfg) > 0 {
-		w.Res.Camera = camera.NewFromSpaceWithConfig(1000, 1000, 0, cfg[0])
+		w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, cfg[0])
 	}
 	g := &general{}
 	p := players.NewPlugin(w, g)
@@ -219,14 +220,13 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	}
 }
 
-func TestDrag_FiresOnReleaseAndShowsWhileHeld(t *testing.T) {
+func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
 	r.bind(control.Command(control.Drag{Button: ebiten.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
 		return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
+	}), control.Command(control.ButtonHeld{Button: ebiten.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
+		return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
 	}))
-	if _, _, dragging := r.local.DragBox(); dragging {
-		t.Fatal("dragging before any input")
-	}
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
 	press.AddClickEvent(10, 10, ebiten.MouseButtonLeft, control.ActionPress)
@@ -234,14 +234,10 @@ func TestDrag_FiresOnReleaseAndShowsWhileHeld(t *testing.T) {
 	if got := r.drained(); len(got) != 0 {
 		t.Fatalf("a press alone issued %v", got)
 	}
-	start, current, dragging := r.local.DragBox()
-	if !dragging || start != geom.NewVec(10, 10) || current != geom.NewVec(10, 10) {
-		t.Errorf("after the press: start %v current %v dragging %v, want (10,10) (10,10) true", start, current, dragging)
-	}
 
-	r.handle(&control.InputEvents{MousePos: geom.NewVec(40, 60)})
-	if start, current, dragging := r.local.DragBox(); !dragging || start != geom.NewVec(10, 10) || current != geom.NewVec(40, 60) {
-		t.Errorf("mid-drag: start %v current %v dragging %v, want (10,10) (40,60) true", start, current, dragging)
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(40, 60), CursorDelta: geom.NewVec(30, 50)})
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != -(10*1000+40) {
+		t.Errorf("mid-drag issued %v, want one ButtonHeld order from 10 to 40", got)
 	}
 
 	release := &control.InputEvents{MousePos: geom.NewVec(60, 60)}
@@ -250,9 +246,6 @@ func TestDrag_FiresOnReleaseAndShowsWhileHeld(t *testing.T) {
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 10*1000+60 {
 		t.Errorf("the release issued %v, want one order from 10 to 60", got)
 	}
-	if _, _, dragging := r.local.DragBox(); dragging {
-		t.Error("still dragging after the release")
-	}
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
@@ -260,7 +253,7 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	w.Res.Camera = camera.NewFromSpaceWithConfig(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+	w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
 	w.Res.Camera.MoveTo(950, 500)
 	ctx := control.Context{Camera: w.Res.Camera}
 

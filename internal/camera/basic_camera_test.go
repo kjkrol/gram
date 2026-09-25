@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/gob"
 	"github.com/kjkrol/aabbworld"
+	contract "github.com/kjkrol/gram/camera"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-func testViewport(x, y, w, h float64) AABB {
+func testViewport(x, y, w, h float64) contract.AABB {
 	return geom.NewAABBAt(geom.NewVec(x, y), w, h)
 }
 
@@ -199,7 +200,7 @@ func TestBasicCamera_ZoomOut_CappedByConfiguredMinZoom(t *testing.T) {
 }
 
 func TestNewFromSpaceWithConfig_AppliesViewportAndZoomLimits(t *testing.T) {
-	c := NewFromSpaceWithConfig(1000, 1000, 0, Config{
+	c := NewFromSpaceWithConfig(1000, 1000, 0, contract.Config{
 		ViewportWidth: 100, ViewportHeight: 100,
 		MinZoom: 0.5,
 		MaxZoom: 2,
@@ -221,7 +222,7 @@ func TestNewFromSpaceWithConfig_AppliesViewportAndZoomLimits(t *testing.T) {
 }
 
 func TestBasicCamera_ImplementsCameraInterface(t *testing.T) {
-	var _ Camera = (*basicCamera)(nil)
+	var _ contract.Camera = (*basicCamera)(nil)
 }
 
 func TestBasicCamera_FromScreen_InvertsToScreen(t *testing.T) {
@@ -515,16 +516,16 @@ func TestFromScreenRect_ConsistentAcrossWrapSeam(t *testing.T) {
 	c := NewFromSpace(1024, 1024, aabbworld.Torus)
 	c.Translate(1000, 0)
 
-	x0, y0, x1, y1 := FromScreenRect(c, 0, 0, 20, 10)
+	x0, y0, x1, y1 := contract.FromScreenRect(c, 0, 0, 20, 10)
 
 	if got := x1 - x0; got != 20 {
-		t.Errorf("FromScreenRect width straddling the wrap seam = %v, want 20", got)
+		t.Errorf("contract.FromScreenRect width straddling the wrap seam = %v, want 20", got)
 	}
 	if y1-y0 != 10 {
-		t.Errorf("FromScreenRect height = %v, want 10", y1-y0)
+		t.Errorf("contract.FromScreenRect height = %v, want 10", y1-y0)
 	}
 	if x0 != 1000 {
-		t.Errorf("FromScreenRect x0 = %v, want 1000", x0)
+		t.Errorf("contract.FromScreenRect x0 = %v, want 1000", x0)
 	}
 }
 

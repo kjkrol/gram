@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/game"
@@ -97,7 +98,7 @@ func (r *stageRuntime) drawScene(screen *ebiten.Image, sc game.Scene) {
 	var viewports []render.Viewport
 	r.passes = passes(r.passes[:0], r.sceneLayers[sc.Name()], func() []render.Viewport {
 		if viewports == nil {
-			viewports = sc.(game.Viewer).Viewports(screen.Bounds())
+			viewports = sc.(game.Viewer).Viewports(screenBox(screen))
 		}
 		return viewports
 	})
@@ -146,22 +147,23 @@ func passes(dst []pass, layers []render.Layer, viewports func() []render.Viewpor
 // drawViewport draws the world layers through vp's camera: straight onto a screen it covers,
 // otherwise onto an image of its area laid over the screen there.
 func (r *stageRuntime) drawViewport(screen *ebiten.Image, key viewKey, vp render.Viewport, layers []render.Layer) {
-	if vp.Area.Empty() {
+	w, h := pixels(vp.Area)
+	if w <= 0 || h <= 0 {
 		return
 	}
 	fit(vp)
-	if vp.Area == screen.Bounds() {
+	if vp.Area == screenBox(screen) {
 		for _, l := range layers {
 			l.(render.WorldRenderer).DrawWorld(screen, vp.Camera)
 		}
 		return
 	}
 	img := r.views[key]
-	if img == nil || img.Bounds().Dx() != vp.Area.Dx() || img.Bounds().Dy() != vp.Area.Dy() {
+	if img == nil || img.Bounds().Dx() != w || img.Bounds().Dy() != h {
 		if img != nil {
 			img.Deallocate()
 		}
-		img = ebiten.NewImage(vp.Area.Dx(), vp.Area.Dy())
+		img = ebiten.NewImage(w, h)
 		r.views[key] = img
 	}
 	img.Clear()
@@ -169,6 +171,6 @@ func (r *stageRuntime) drawViewport(screen *ebiten.Image, key viewKey, vp render
 		l.(render.WorldRenderer).DrawWorld(img, vp.Camera)
 	}
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(float64(vp.Area.Min.X), float64(vp.Area.Min.Y))
+	op.GeoM.Translate(math.Round(vp.Area.TopLeft.X), math.Round(vp.Area.TopLeft.Y))
 	screen.DrawImage(img, op)
 }

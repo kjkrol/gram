@@ -4,7 +4,6 @@
 package main
 
 import (
-	"image"
 	"image/color"
 	"math/rand/v2"
 	"time"
@@ -142,7 +141,7 @@ func (v *view) Layers() []render.Layer {
 }
 
 // Viewports are where the world is shown: the camera over the whole screen.
-func (v *view) Viewports(screen image.Rectangle) []render.Viewport {
+func (v *view) Viewports(screen geom.AABB) []render.Viewport {
 	return render.Whole(v.arena.world.Camera(), screen)
 }
 

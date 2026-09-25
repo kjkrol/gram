@@ -13,12 +13,14 @@ import (
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
 type Plugin struct {
-	worldPlugin *world.Plugin
-	selects     control.Queue[Select]
-	follows     control.Queue[Follow]
-	module      *module
-	renderer    *Renderer
-	tags        Tags
+	worldPlugin  *world.Plugin
+	selects      control.Queue[Select]
+	marqueeQueue control.Queue[Marquee]
+	follows      control.Queue[Follow]
+	marquees     marquees
+	module       *module
+	renderer     *Renderer
+	tags         Tags
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -46,6 +48,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags)
+	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
 	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
 	return nil
@@ -53,9 +56,11 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the highlight renderer; atlas is unused, selection draws primitives.
+// WithRenderer builds the renderer of the highlights and of the box being dragged; atlas is
+// unused, selection draws primitives.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = NewRenderer(p.tags.Selected)
+	p.renderer.marquees = &p.marquees
 }
 
 func (p *Plugin) Renderer() render.Layer {

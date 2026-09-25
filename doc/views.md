@@ -4,11 +4,12 @@
 
 > A design sketch, not a contract: what the layers are, who owns what, and what each one leaves
 > to the next. Code exists for the first two layers: `world.View` and `plugins/players` (local
-> players, each with a camera of its own on a split screen — `split-screen-demo`). Two things came out differently from the sketch below: the owning plugin keeps a
-> queue and drains its commands in its own pass instead of a receiver run in players' pass, and the
-> direction is the player's — the vocabulary (`control.Queue`, `control.Binding`) and the contract
-> (`plugin.CommandHandler`) live below, and players is built over the command handlers, so a plugin with
-> commands never knows players. Drawing followed the same split: a Scene says what is drawn, its
+> players, each with a camera of its own on a split screen — `split-screen-demo`). Two things came
+> out differently from the sketch below: the owning plugin keeps a queue and drains its commands in
+> its own pass instead of a receiver run in players' pass, and the direction is the player's — the
+> vocabulary (`control.Queue`, `control.Binding`) and the contract (`plugin.CommandHandler`) live
+> below, and players is built over the command handlers, so a plugin with commands never knows
+> players. Drawing followed the same split: a Scene says what is drawn, its
 > `render.WorldRenderer`s are drawn once per `render.Viewport` (a camera and a rectangle of the
 > screen) it gives as a `game.Viewer`, and `players.Viewports` is where the local players look.
 

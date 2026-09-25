@@ -80,6 +80,7 @@ func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	tags := Tags{Selectable: 0, Selected: 1, Followed: 2}
 	sys := NewSelectionSystem(&sel.selects, space, tags)
 	follow := NewFollowSystem(&sel.follows, tags)
+	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
 
 	return &harness{t: t, space: space, players: pl, local: local, sel: sel, sys: sys, follow: follow, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
@@ -456,46 +457,31 @@ func TestSystem_Update_SelectByID_TagsExactlyGivenEntities(t *testing.T) {
 	}
 }
 
-func TestSystem_DragBox_TracksLiveDragState(t *testing.T) {
+func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 	h := newHarness(t)
 	h.start()
+	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.local.Camera]; return b, ok }
 
-	if _, _, dragging := h.local.DragBox(); dragging {
-		t.Fatal("sanity check failed: expected no drag in progress before any input")
-	}
-
-	press := &control.InputEvents{}
+	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
 	press.AddClickEvent(10, 10, ebiten.MouseButtonLeft, control.ActionPress)
 	h.handler.HandleEvents(press)
-
-	start, current, dragging := h.local.DragBox()
-	if !dragging {
-		t.Fatal("expected dragging=true right after a press")
-	}
-	if start != geom.NewVec(10, 10) || current != geom.NewVec(10, 10) {
-		t.Errorf("start/current = %v/%v, want (10,10)/(10,10)", start, current)
+	h.ecs.Tick(time.Second)
+	if _, ok := box(); ok {
+		t.Fatal("a box shows before the cursor moved")
 	}
 
-	move := &control.InputEvents{MousePos: geom.NewVec(40, 60)}
-	h.handler.HandleEvents(move)
-
-	start, current, dragging = h.local.DragBox()
-	if !dragging {
-		t.Error("expected dragging to remain true while the button is still held")
-	}
-	if start != geom.NewVec(10, 10) {
-		t.Errorf("start = %v, want unchanged (10,10)", start)
-	}
-	if current != geom.NewVec(40, 60) {
-		t.Errorf("current = %v, want (40,60) (updated from MousePos with no click event)", current)
+	h.handler.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(40, 60), CursorDelta: geom.NewVec(30, 50)})
+	h.ecs.Tick(time.Second)
+	if b, ok := box(); !ok || b != control.ScreenRect(geom.NewVec(10, 10), geom.NewVec(40, 60)) {
+		t.Fatalf("while dragging the box is %v (shown %v), want from (10,10) to (40,60)", b, ok)
 	}
 
-	release := &control.InputEvents{}
+	release := &control.InputEvents{MousePos: geom.NewVec(40, 60)}
 	release.AddClickEvent(40, 60, ebiten.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(release)
-
-	if _, _, dragging := h.local.DragBox(); dragging {
-		t.Error("expected dragging=false after release")
+	h.ecs.Tick(time.Second)
+	if _, ok := box(); ok {
+		t.Error("the box still shows after the Select that ended the drag")
 	}
 }
 

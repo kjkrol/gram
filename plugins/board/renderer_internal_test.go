@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -37,7 +38,7 @@ func TestRenderer_Submit_OneQuadPerVisibleCellAtItsAltitude(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
+	cam := icamera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
 	r := newRenderer(brd, flatAtlas{}, &RenderState{})
 
 	var sink render.Sink
@@ -56,7 +57,7 @@ func TestRenderer_Submit_OneQuadPerVisibleCellAtItsAltitude(t *testing.T) {
 
 	flat := newRenderer(brd, flatAtlas{}, &RenderState{})
 	sink = render.Sink{}
-	flat.Submit(&sink, camera.NewFromSpace(128, 128, 0))
+	flat.Submit(&sink, icamera.NewFromSpace(128, 128, 0))
 	if sink.Len() != 16 {
 		t.Errorf("top-down submitted %d quads, want the 16 cells alone: no faces from above", sink.Len())
 	}

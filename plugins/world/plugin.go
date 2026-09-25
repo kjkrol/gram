@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
@@ -56,7 +57,7 @@ func (*Plugin) Builtin() {}
 // NewPlugin builds Plugin around a fresh world, usable before Install.
 func NewPlugin(cfg Config) *Plugin {
 	m := newModule(cfg)
-	cam := camera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
+	cam := icamera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
 	kinds := newKinds(cfg.Quasi3D)
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry, Camera: cam}, module: m, kinds: kinds, roster: kind.NewRoster()}
@@ -94,7 +95,7 @@ func (p *Plugin) NewView(bounds func() geom.AABB) *View {
 // looks on their own; ViewFor gives its View.
 func (p *Plugin) NewCamera() camera.Camera {
 	cfg := p.Res.Config
-	return camera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
+	return icamera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
 }
 
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's

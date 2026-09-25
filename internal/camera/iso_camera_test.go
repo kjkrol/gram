@@ -6,57 +6,23 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
+	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/camera"
 )
 
-var iso = camera.Isometric{Cell: 32, TileW: 64, TileH: 32, HeightUnit: 2}
+var iso = contract.Isometric{Cell: 32, TileW: 64, TileH: 32, HeightUnit: 2}
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
-func TestIsometric_ACellIsADiamondAndHeightLiftsAPoint(t *testing.T) {
-	if sx, sy := iso.Project(32, 0, 0); !near(sx, 32) || !near(sy, 16) {
-		t.Errorf("one cell along x projects to (%v, %v), want (32, 16): down-right", sx, sy)
-	}
-	if sx, sy := iso.Project(0, 32, 0); !near(sx, -32) || !near(sy, 16) {
-		t.Errorf("one cell along y projects to (%v, %v), want (-32, 16): down-left", sx, sy)
-	}
-	if _, sy := iso.Project(0, 0, 10); !near(sy, -20) {
-		t.Errorf("a point 10 up projects to y %v, want -20: two units a height unit", sy)
-	}
-}
-
-func TestIsometric_UnprojectInvertsProject(t *testing.T) {
-	for _, p := range [][3]float32{{0, 0, 0}, {100, 40, 0}, {13.5, 250, 7}, {-20, 5, 30}} {
-		sx, sy := iso.Project(p[0], p[1], p[2])
-		x, y := iso.Unproject(sx, sy, p[2])
-		if !near(x, p[0]) || !near(y, p[1]) {
-			t.Errorf("point %v went to (%v, %v) and came back as (%v, %v)", p, sx, sy, x, y)
-		}
-	}
-}
-
-func TestIsometric_DepthIsTheRowOfTheCellUnderThePoint(t *testing.T) {
-	back, front := iso.Depth(0, 0, 0), iso.Depth(32, 32, 0)
-	if back >= front {
-		t.Errorf("depth at the origin %v is not behind (32, 32) %v", back, front)
-	}
-	if iso.Depth(32, 0, 0) != iso.Depth(0, 32, 0) {
-		t.Error("two cells on the same row differ in depth")
-	}
-	if tile, standing := iso.Depth(48, 48, 0), iso.Depth(40, 60, 30); standing != tile || standing >= iso.Depth(64, 48, 0) {
-		t.Errorf("a thing anywhere in a cell has depth %v, want its tile's %v, before the next row", standing, tile)
-	}
-}
-
-func isoCamera(t *testing.T, edges aabbworld.Edges) camera.Camera {
+func isoCamera(t *testing.T, edges aabbworld.Edges) contract.Camera {
 	t.Helper()
-	return camera.NewFromSpaceWithConfig(640, 640, edges, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: iso})
+	return camera.NewFromSpaceWithConfig(640, 640, edges, contract.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: iso})
 }
 
 func TestCameras_ReportTheirViewportInPixels(t *testing.T) {
-	for name, cam := range map[string]camera.Camera{
+	for name, cam := range map[string]contract.Camera{
 		"isometric": isoCamera(t, 0),
-		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
 	} {
 		cam.ZoomIn(2, 320, 320)
 		if w, h := cam.Viewport(); w != 400 || h != 300 {
@@ -76,7 +42,7 @@ func TestIsoCamera_RefusesAWrappingWorld(t *testing.T) {
 
 func TestIsoCamera_DrawsThroughItsProjectionAndPansInPixels(t *testing.T) {
 	cam := isoCamera(t, 0)
-	if _, ok := cam.Projection().(camera.Isometric); !ok {
+	if _, ok := cam.Projection().(contract.Isometric); !ok {
 		t.Fatalf("Projection is %T, want Isometric", cam.Projection())
 	}
 	cam.MoveTo(320, 320)
@@ -155,7 +121,7 @@ func TestIsoCamera_PersistedRoundTrip(t *testing.T) {
 
 func TestTopDownCamera_ProjectIsToScreen(t *testing.T) {
 	cam := camera.NewFromSpace(1000, 1000, 0, geom.NewAABBAt(geom.NewVec(100, 50), 400, 300))
-	if _, ok := cam.Projection().(camera.TopDown); !ok {
+	if _, ok := cam.Projection().(contract.TopDown); !ok {
 		t.Fatalf("Projection is %T, want TopDown", cam.Projection())
 	}
 	sx, sy := cam.ToScreen(150, 80)
@@ -168,9 +134,9 @@ func TestTopDownCamera_ProjectIsToScreen(t *testing.T) {
 }
 
 func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
-	for name, cam := range map[string]camera.Camera{
+	for name, cam := range map[string]contract.Camera{
 		"isometric": isoCamera(t, 0),
-		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
 	} {
 		for _, zoom := range []float32{1, 2} {
 			cam.ZoomIn(zoom, 320, 320)
@@ -181,7 +147,7 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 			}
 		}
 	}
-	cam := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300})
+	cam := camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300})
 	cam.CenterOn(0, 0, 0)
 	if b := cam.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 {
 		t.Errorf("centred on the corner the window starts at %v, want it held inside the world at (0, 0)", b.TopLeft)
@@ -189,9 +155,9 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 }
 
 func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testing.T) {
-	for name, cam := range map[string]camera.Camera{
+	for name, cam := range map[string]contract.Camera{
 		"isometric": isoCamera(t, 0),
-		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
 	} {
 		cam.CenterOn(330, 310, 0)
 		cam.SetViewport(500, 400)
@@ -202,12 +168,12 @@ func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *test
 			t.Errorf("%s: the point in the middle moved to (%v, %v), want (250, 200)", name, sx, sy)
 		}
 	}
-	small := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 640, ViewportHeight: 640})
+	small := camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 640, ViewportHeight: 640})
 	small.SetViewport(1280, 960)
 	if z := small.Zoom(); !near(z, 2) {
 		t.Errorf("a 640-unit world in a 1280-pixel window is at zoom %v, want 2: scaled up to cover it", z)
 	}
-	large := camera.NewFromSpaceWithConfig(4000, 4000, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300})
+	large := camera.NewFromSpaceWithConfig(4000, 4000, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300})
 	large.SetViewport(1200, 900)
 	if b := large.Bounds(); large.Zoom() != 1 || b.BottomRight.X-b.TopLeft.X != 1200 {
 		t.Errorf("a large world in a larger window: zoom %v, bounds %v; want zoom 1 showing 1200 units", large.Zoom(), b)

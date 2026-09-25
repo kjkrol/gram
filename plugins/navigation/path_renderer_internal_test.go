@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 )
 
@@ -18,7 +19,7 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
+	cam := icamera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
 	r := NewPathRenderer(brd, nil, PathSprites{}, 0)
 	r.camera = cam
 

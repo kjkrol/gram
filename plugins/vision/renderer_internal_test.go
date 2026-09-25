@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -43,7 +44,7 @@ func testSpace(t *testing.T, w, h uint32, toroidal bool) *aabbworld.Space {
 func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *Renderer {
 	t.Helper()
 	r := NewRenderer(testSpace(t, w, h, toroidal))
-	r.camera = camera.NewFromSpace(w, h, torusIf(toroidal), view)
+	r.camera = icamera.NewFromSpace(w, h, torusIf(toroidal), view)
 	return r
 }
 

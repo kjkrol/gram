@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"image"
+	"github.com/kjkrol/aabbworld/geom"
 	"image/color"
 	"log"
 	"math"
@@ -257,7 +257,7 @@ func (m *mainScene) Layers() []render.Layer {
 }
 
 // Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 

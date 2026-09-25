@@ -1,16 +1,17 @@
 package camera
 
 import (
+	contract "github.com/kjkrol/gram/camera"
 	"math"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// isoCamera is a Camera over an Isometric projection: the world never wraps, the window is a
+// isoCamera is a camera.Camera over an camera.Isometric projection: the world never wraps, the window is a
 // screen rectangle over the projected world, and the visible world region is the diamond under it.
 type isoCamera struct {
-	proj         Isometric
+	proj         contract.Isometric
 	world        geom.Vec
 	viewportSize geom.Vec
 	minZoomCfg   float32
@@ -25,13 +26,13 @@ type isoCamera struct {
 	minSX, maxSX, minSY, maxSY float32
 }
 
-var _ Camera = (*isoCamera)(nil)
+var _ contract.Camera = (*isoCamera)(nil)
 
-func newIsoCamera(proj Isometric, world geom.Vec, viewport AABB, edges aabbworld.Edges) *isoCamera {
+func newIsoCamera(proj contract.Isometric, world geom.Vec, viewport contract.AABB, edges aabbworld.Edges) *isoCamera {
 	if edges.WrapsX() || edges.WrapsY() {
 		panic("camera: an isometric projection cannot draw a wrapping world")
 	}
-	proj = proj.withDefaults()
+	proj = proj.WithDefaults()
 	c := &isoCamera{proj: proj, world: world, zoom: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y)}
 	c.minSX, c.maxSX, c.minSY, c.maxSY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
@@ -44,7 +45,7 @@ func newIsoCamera(proj Isometric, world geom.Vec, viewport AABB, edges aabbworld
 	return c
 }
 
-func (c *isoCamera) Projection() Projection { return c.proj }
+func (c *isoCamera) Projection() contract.Projection { return c.proj }
 
 func (c *isoCamera) Viewport() (float32, float32) {
 	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
@@ -76,9 +77,9 @@ func (c *isoCamera) FromScreen(sx, sy float32) (float32, float32) { return c.Unp
 
 // ToScreenQuads is the screen rectangle round the projected world rectangle — a bound, since a
 // rectangle projects to a diamond; renderers drawing through this camera project corners instead.
-func (c *isoCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []Quad) []Quad {
+func (c *isoCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) []contract.Quad {
 	minX, minY, maxX, maxY := c.rect(x0, y0, x1, y1, 0, 0)
-	return append(dst, Quad{minX, minY, maxX, maxY, 0, 1, 0, 1})
+	return append(dst, contract.Quad{X0: minX, Y0: minY, X1: maxX, Y1: maxY, T0X: 0, T1X: 1, T0Y: 0, T1Y: 1})
 }
 
 // rect is the screen rectangle round a world box drawn between heights z0 and z1.
@@ -97,13 +98,13 @@ func (c *isoCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, maxY
 
 // Visible reports whether the box, drawn from the ground up to the projection's Headroom, meets
 // the screen.
-func (c *isoCamera) Visible(box AABB) bool {
+func (c *isoCamera) Visible(box contract.AABB) bool {
 	minX, minY, maxX, maxY := c.rect(float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), 0, c.proj.Headroom)
 	return maxX > 0 && minX < float32(c.viewportSize.X) && maxY > 0 && minY < float32(c.viewportSize.Y)
 }
 
 // Bounds is the world rectangle round the ground the screen shows, clamped to the world.
-func (c *isoCamera) Bounds() AABB {
+func (c *isoCamera) Bounds() contract.AABB {
 	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
 	maxX, maxY := float32(math.Inf(-1)), float32(math.Inf(-1))
 	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
@@ -112,7 +113,7 @@ func (c *isoCamera) Bounds() AABB {
 		minX, maxX = min(minX, x), max(maxX, x)
 		minY, maxY = min(minY, y), max(maxY, y)
 	}
-	return AABB{
+	return contract.AABB{
 		TopLeft:     geom.NewVec(float64(max(minX, 0)), float64(max(minY, 0))),
 		BottomRight: geom.NewVec(float64(min(maxX, float32(c.world.X))), float64(min(maxY, float32(c.world.Y)))),
 	}
@@ -184,7 +185,7 @@ func (c *isoCamera) minZoom() float32 {
 func (c *isoCamera) SetMinZoom(minZoom float32) { c.minZoomCfg = minZoom }
 func (c *isoCamera) SetMaxZoom(maxZoom float32) { c.maxZoom = maxZoom }
 
-func (c *isoCamera) State() State { return State{Viewport: c.Bounds(), Zoom: c.zoom} }
+func (c *isoCamera) State() contract.State { return contract.State{Viewport: c.Bounds(), Zoom: c.zoom} }
 
 // Persisted hands saves the ground point under the screen's corner and the zoom; Restore puts the
 // window back over them.

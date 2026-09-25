@@ -31,7 +31,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	for _, box := range m.p.queues {
 		box.Clear()
 	}
-	translator{m.p}.hold()
+	eventHandler{m.p}.hold()
 }
 
 // SetupSystems checks the bindings once everything is installed: a command nobody listens to

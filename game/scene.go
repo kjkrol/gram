@@ -1,8 +1,7 @@
 package game
 
 import (
-	"image"
-
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/render"
 )
@@ -27,5 +26,5 @@ type Scene interface {
 // for the screen, every frame — a player's camera over the whole screen, two halves of a split
 // screen, a minimap in a corner. A scene with world layers must be one.
 type Viewer interface {
-	Viewports(screen image.Rectangle) []render.Viewport
+	Viewports(screen geom.AABB) []render.Viewport
 }

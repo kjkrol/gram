@@ -3,11 +3,12 @@ package players
 import (
 	"errors"
 	"fmt"
-	"image"
+	"math"
 	"reflect"
 	"slices"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -30,7 +31,6 @@ type Plugin struct {
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
 	module      *module
-	renderer    *Renderer
 	layout      Layout
 }
 
@@ -139,29 +139,26 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan carries out the camera commands and empties every queue; call it last in Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the marquee renderer; atlas is unused, players draw primitives.
-func (p *Plugin) WithRenderer(render.AtlasSource) { p.renderer = &Renderer{p: p} }
+// WithRenderer is a no-op — players draw nothing; a selection box is selection's to draw.
+func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer returns the marquee renderer, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		return nil
-	}
-	return p.renderer
-}
+// Renderer is nil — players draw nothing.
+func (p *Plugin) Renderer() render.Layer { return nil }
 
 // Layout splits the screen into n parts, one per camera the local players look through, in the
 // order the players were added.
-type Layout func(screen image.Rectangle, n int) []image.Rectangle
+type Layout func(screen geom.AABB, n int) []geom.AABB
 
-// Columns is the default Layout: n equal columns side by side, the last taking what is left over.
-func Columns(screen image.Rectangle, n int) []image.Rectangle {
-	out := make([]image.Rectangle, n)
-	w := screen.Dx() / n
+// Columns is the default Layout: n equal columns side by side, each a whole number of pixels wide,
+// the last taking what is left over.
+func Columns(screen geom.AABB, n int) []geom.AABB {
+	out := make([]geom.AABB, n)
+	w := math.Floor((screen.BottomRight.X - screen.TopLeft.X) / float64(n))
 	for i := range out {
-		out[i] = image.Rect(screen.Min.X+i*w, screen.Min.Y, screen.Min.X+(i+1)*w, screen.Max.Y)
+		x := screen.TopLeft.X + float64(i)*w
+		out[i] = geom.NewAABB(geom.NewVec(x, screen.TopLeft.Y), geom.NewVec(x+w, screen.BottomRight.Y))
 	}
-	out[n-1].Max.X = screen.Max.X
+	out[n-1].BottomRight.X = screen.BottomRight.X
 	return out
 }
 
@@ -175,7 +172,7 @@ func (p *Plugin) WithLayout(layout Layout) *Plugin {
 // Layout (Columns unless WithLayout), the world's camera over the whole screen when nobody is at
 // this keyboard. A Scene showing the world hands them to the engine as its game.Viewer; each local
 // player keeps its part of the screen, where its mouse input comes from.
-func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
+func (p *Plugin) Viewports(screen geom.AABB) []render.Viewport {
 	var cams []camera.Camera
 	for _, pl := range p.Locals() {
 		if !slices.Contains(cams, pl.Camera) {
@@ -202,7 +199,7 @@ func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
 
 // EventHandler translates this tick's input through every local player's bindings; call it from
 // the active Scene's HandleEvents.
-func (p *Plugin) EventHandler() control.EventHandler { return translator{p} }
+func (p *Plugin) EventHandler() control.EventHandler { return eventHandler{p} }
 
 // Serializable is the players' own cameras, in the order the players were added; the others are
 // the world's, saved with it. Nil when nobody has a camera of their own.

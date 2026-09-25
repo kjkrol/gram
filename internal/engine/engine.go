@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 	"log"
+	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -218,7 +219,7 @@ func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	}
 	if outsideWidth != e.width || outsideHeight != e.height {
 		e.width, e.height = outsideWidth, outsideHeight
-		e.fitViewports(image.Rect(0, 0, e.width, e.height))
+		e.fitViewports(geom.NewAABBAt(geom.Vec{}, float64(e.width), float64(e.height)))
 	}
 	return e.width, e.height
 }
@@ -248,7 +249,7 @@ func (e *Engine) dispatchEvents(events *control.InputEvents) {
 
 // fitViewports sizes every camera of the visible scenes' viewports to its area on screen, and the
 // world's camera to the whole screen when no visible scene shows the world.
-func (e *Engine) fitViewports(screen image.Rectangle) {
+func (e *Engine) fitViewports(screen geom.AABB) {
 	if e.current == nil {
 		return
 	}
@@ -264,14 +265,26 @@ func (e *Engine) fitViewports(screen image.Rectangle) {
 		}
 	}
 	if cam := e.Camera(); !fitted && cam != nil {
-		cam.SetViewport(float32(screen.Dx()), float32(screen.Dy()))
+		w, h := pixels(screen)
+		cam.SetViewport(float32(w), float32(h))
 	}
 }
 
 // fit resizes vp's camera to its area, when it differs.
 func fit(vp render.Viewport) {
 	w, h := vp.Camera.Viewport()
-	if int(w) != vp.Area.Dx() || int(h) != vp.Area.Dy() {
-		vp.Camera.SetViewport(float32(vp.Area.Dx()), float32(vp.Area.Dy()))
+	if aw, ah := pixels(vp.Area); int(w) != aw || int(h) != ah {
+		vp.Camera.SetViewport(float32(aw), float32(ah))
 	}
+}
+
+// pixels is the size of a screen rectangle in whole pixels.
+func pixels(r geom.AABB) (w, h int) {
+	return int(math.Round(r.BottomRight.X - r.TopLeft.X)), int(math.Round(r.BottomRight.Y - r.TopLeft.Y))
+}
+
+// screenBox is the screen image's rectangle.
+func screenBox(screen *ebiten.Image) geom.AABB {
+	b := screen.Bounds()
+	return geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 }

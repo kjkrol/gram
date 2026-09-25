@@ -6,6 +6,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 )
 
 type fakeAtlasSource struct{}
@@ -16,7 +17,7 @@ func (fakeAtlasSource) UV(SpriteID) (float32, float32, float32, float32) {
 }
 
 func TestQuadBatch_AppendQuad_ConsistentAcrossWrapSeam(t *testing.T) {
-	cam := camera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 
 	batch := NewQuadBatch(fakeAtlasSource{})
@@ -34,7 +35,7 @@ func TestQuadBatch_AppendQuad_ConsistentAcrossWrapSeam(t *testing.T) {
 }
 
 func TestQuadBatch_IndicesRestartPerChunk(t *testing.T) {
-	cam := camera.NewFromSpace(100000, 100, 0)
+	cam := icamera.NewFromSpace(100000, 100, 0)
 	batch := NewQuadBatch(fakeAtlasSource{})
 	batch.Reset(cam)
 	quads := chunkVertices/4 + 5
@@ -58,7 +59,7 @@ func TestQuadBatch_IndicesRestartPerChunk(t *testing.T) {
 
 func TestQuadBatch_AppendCornersTakesTheScreenPointsAsGiven(t *testing.T) {
 	batch := NewQuadBatch(fakeAtlasSource{})
-	batch.Reset(camera.NewFromSpace(1024, 1024, 0))
+	batch.Reset(icamera.NewFromSpace(1024, 1024, 0))
 	batch.AppendCorners(Corners{{10, 0}, {20, 5}, {0, 15}, {10, 20}}, 0)
 	sx0, _, sx1, _ := fakeAtlasSource{}.UV(0)
 	if len(batch.vertices) != 4 || batch.vertices[1].DstX != 20 || batch.vertices[2].DstY != 15 || batch.vertices[0].SrcX != sx0+0.5 || batch.vertices[3].SrcX != sx1-0.5 {
@@ -67,7 +68,7 @@ func TestQuadBatch_AppendCornersTakesTheScreenPointsAsGiven(t *testing.T) {
 }
 
 func TestBillboard_StandsOnTheProjectedPoint(t *testing.T) {
-	cam := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: camera.Isometric{Cell: 32}})
+	cam := icamera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: camera.Isometric{Cell: 32}})
 	sx, sy := cam.Project(100, 100, 5)
 	c := Billboard(cam, 100, 100, 5, 20, 30)
 	if c[2][1] != sy || c[3][1] != sy || c[0][1] != sy-30 || c[1][0]-c[0][0] != 20 || (c[0][0]+c[1][0])/2 != sx {

@@ -3,7 +3,6 @@ package players_test
 import (
 	"bytes"
 	"encoding/gob"
-	"image"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 		t.Fatal(err)
 	}
 	ecs := r.start()
-	r.p.Viewports(image.Rect(0, 0, 800, 600))
+	r.p.Viewports(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
 	return r, left, right, ecs
 }
 
@@ -49,7 +48,7 @@ func cells(r *rig) map[control.PlayerID][]int {
 
 func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresEveryTickWhileDown(t *testing.T) {
 	r, left, right, ecs := splitRig(t)
-	if left.Area() != image.Rect(0, 0, 400, 600) || right.Area() != image.Rect(400, 0, 800, 600) {
+	if left.Area() != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)) || right.Area() != geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)) {
 		t.Fatalf("areas %v and %v, want the left and the right half", left.Area(), right.Area())
 	}
 	ev := &control.InputEvents{}

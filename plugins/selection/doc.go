@@ -25,5 +25,7 @@
 //
 // [Plugin.WithRenderer] builds the [Renderer] outlining every Selected entity in a
 // [HighlightStyle] ([DefaultHighlightStyle] is a thin red outline; [HighlightStyleFn] adapts a
-// function); the marquee of a drag in progress is the players plugin's to draw.
+// function), and the box of a selection being dragged in the viewport's camera. The box comes from
+// the [Marquee] command, issued by a control.ButtonHeld of the left button while the drag lasts and
+// hidden by the Select that ends it, one per camera, so a player on a split screen sees only its own.
 package selection

@@ -17,7 +17,7 @@
 // what a Scene showing the world gives the engine as its game.Viewer: one viewport per camera the
 // local players look through, side by side in equal columns, the world's camera over the whole
 // screen when nobody is at this keyboard. What is drawn is the Scene's to say — its layers, the
-// commands' handlers' renderers among them; players draw only the marquee, in its player's view.
+// commands' handlers' renderers among them; players draw nothing.
 //
 // # Players
 //
@@ -25,8 +25,17 @@
 // one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
 // bindings on one trigger are refused at Bind; a binding whose command nobody defines is refused
-// when the Stage is set up. [Player.Bindings] is the list a help screen draws, [Player.DragBox] the
-// drag in progress, which [Plugin.WithRenderer] draws as a marquee.
+// when the Stage is set up. [Player.Bindings] is the list a help screen draws.
+//
+// # From input to commands
+//
+// [Plugin.EventHandler] is the layer between the device and the game. The Scene hands it each
+// pass's control.InputEvents; it keeps, per local player, what it has seen of the keys and buttons
+// (the cursor in the player's part of the screen, the buttons down and where they went down, the
+// keys held), matches the events against the player's bindings' control.Triggers, builds each
+// matching binding's command from a control.Context (Binding.Build) and hands it to [Plugin.Issue],
+// which puts it in the queue of the handler that defined its type. A control.KeyHeld is the one
+// trigger fired from [Plugin.RunPlan] instead, once a tick while its key is down.
 //
 // # Split screen
 //
@@ -35,9 +44,8 @@
 // with cameras of their own share the screen as [Plugin.Viewports] lays it out ([Columns], or a
 // [Layout] given WithLayout), and each keeps its part, [Player.Area]. Every key reaches every local
 // player, each with bindings of its own — WASD for one, the arrows for another, a
-// control.KeyHeld firing once a tick while its key is down, issued in RunPlan for the next tick —
-// and the mouse, there being one, reaches
-// the player whose part of the screen it is over, in the pixels of that part.
+// control.KeyHeld firing once a tick while its key is down — and the mouse, there being one,
+// reaches the player whose part of the screen it is over, in the pixels of that part.
 //
 // # Order within a tick
 //

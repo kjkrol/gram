@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image"
 	"testing"
 	"time"
 
@@ -20,11 +19,11 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	s := d.stage
 	main, _ := s.stack.Get("main")
 	minimap, _ := s.stack.Get("minimap")
-	screen := image.Rect(0, 0, ScreenWidth, ScreenHeight)
+	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight))
 
 	halves := main.(*mainScene).Viewports(screen)
-	if len(halves) != 2 || halves[0].Camera != s.red.Camera || halves[1].Camera != s.blue.Camera ||
-		halves[0].Area != image.Rect(0, 0, ScreenWidth/2, ScreenHeight) {
+	if len(halves) != 2 || halves[0].Camera != s.redPlayer.Camera || halves[1].Camera != s.bluePlayer.Camera ||
+		halves[0].Area != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth/2, ScreenHeight)) {
 		t.Fatalf("main viewports %+v, want red's camera on the left half and blue's on the right", halves)
 	}
 	if halves[0].Camera == s.world.Camera() || halves[0].Camera == halves[1].Camera {
@@ -32,7 +31,11 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	}
 
 	vp := minimap.(*minimapScene).Viewports(screen)
-	if len(vp) != 1 || !vp[0].Area.In(screen) || vp[0].Area.Dx() != MinimapWidth {
+	if len(vp) != 1 {
+		t.Fatalf("%d minimap viewports, want 1", len(vp))
+	}
+	a := vp[0].Area
+	if a.TopLeft.X < 0 || a.TopLeft.Y < 0 || a.BottomRight.X > ScreenWidth || a.BottomRight.Y > ScreenHeight || a.BottomRight.X-a.TopLeft.X != MinimapWidth {
 		t.Fatalf("minimap viewport %+v, want one %d wide on the screen", vp, MinimapWidth)
 	}
 	b := vp[0].Camera.Bounds()

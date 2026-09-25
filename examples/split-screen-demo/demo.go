@@ -4,8 +4,8 @@
 package main
 
 import (
-	"image"
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -79,7 +79,8 @@ type mainStage struct {
 	collision  *collision.Plugin
 	board      *board.Plugin
 	players    *players.Plugin
-	red, blue  *players.Player
+	redPlayer  *players.Player
+	bluePlayer *players.Player
 	redBlock   kind.Of[block]
 	blueBlock  kind.Of[block]
 	drives     control.Queue[Drive]
@@ -121,12 +122,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	s.players = players.NewPlugin(s.world, s)
-	s.red = s.players.Local("red").OwnCamera()
-	s.blue = s.players.Local("blue").OwnCamera()
-	if err := s.red.Bind(driveKeys(ebiten.KeyW, ebiten.KeyS, ebiten.KeyA, ebiten.KeyD)...); err != nil {
+	s.redPlayer = s.players.Local("red").OwnCamera()
+	s.bluePlayer = s.players.Local("blue").OwnCamera()
+	if err := s.redPlayer.Bind(driveKeys(ebiten.KeyW, ebiten.KeyS, ebiten.KeyA, ebiten.KeyD)...); err != nil {
 		return err
 	}
-	if err := s.blue.Bind(driveKeys(ebiten.KeyArrowUp, ebiten.KeyArrowDown, ebiten.KeyArrowLeft, ebiten.KeyArrowRight)...); err != nil {
+	if err := s.bluePlayer.Bind(driveKeys(ebiten.KeyArrowUp, ebiten.KeyArrowDown, ebiten.KeyArrowLeft, ebiten.KeyArrowRight)...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -210,8 +211,8 @@ func (s *mainStage) Spawn() error {
 	}
 	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
 	s.world.Seed(
-		s.redBlock.Entry(block{start: cell(3, 3), player: s.red.ID}),
-		s.blueBlock.Entry(block{start: cell(GridWidth-4, GridHeight-4), player: s.blue.ID}),
+		s.redBlock.Entry(block{start: cell(3, 3), player: s.redPlayer.ID}),
+		s.blueBlock.Entry(block{start: cell(GridWidth-4, GridHeight-4), player: s.bluePlayer.ID}),
 	)
 	return nil
 }
@@ -300,7 +301,10 @@ var (
 )
 
 // mainScene is the arena seen by both players, each in its half, with a line between the halves.
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	right geom.AABB // the right half, as Viewports last laid it out
+}
 
 var _ game.Scene = (*mainScene)(nil)
 var _ game.Viewer = (*mainScene)(nil)
@@ -325,12 +329,16 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	return []render.Layer{s.board.Renderer(), s.world.Renderer(), divider{s.blue}}
+	return []render.Layer{s.board.Renderer(), s.world.Renderer(), divider{&m.right}}
 }
 
-// Viewports are the two players' halves.
-func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+// Viewports are the two players' halves; the right one is kept for the divider.
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
+	vps := m.stage.players.Viewports(screen)
+	if len(vps) > 1 {
+		m.right = vps[1].Area
+	}
+	return vps
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
@@ -348,13 +356,14 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 	}
 }
 
-// divider draws the line between the halves, at the left edge of the right player's part.
-type divider struct{ right *players.Player }
+// divider draws the line between the halves, at the left edge of the right one, as the scene last
+// laid them out.
+type divider struct{ right *geom.AABB }
 
 func (divider) Init(*goke.SysInit) {}
 
 func (d divider) Draw(screen *ebiten.Image) {
-	if x := float32(d.right.Area().Min.X); x > 0 {
+	if x := float32(d.right.TopLeft.X); x > 0 {
 		vector.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, colorDivider, false)
 	}
 }
@@ -363,7 +372,7 @@ func (d divider) Draw(screen *ebiten.Image) {
 // screen; it never takes input.
 type minimapScene struct {
 	stage *mainStage
-	area  image.Rectangle
+	area  geom.AABB
 }
 
 var _ game.Scene = (*minimapScene)(nil)
@@ -381,13 +390,13 @@ func (m *minimapScene) Layers() []render.Layer {
 
 // Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of
 // the screen, the camera zoomed out until the whole arena fits.
-func (m *minimapScene) Viewports(screen image.Rectangle) []render.Viewport {
-	h := MinimapWidth * WorldHeight / WorldWidth
-	x := screen.Min.X + (screen.Dx()-MinimapWidth)/2
-	area := image.Rect(x, screen.Max.Y-h-10, x+MinimapWidth, screen.Max.Y-10)
-	if area.Size() != m.area.Size() {
+func (m *minimapScene) Viewports(screen geom.AABB) []render.Viewport {
+	const w, h = MinimapWidth, MinimapWidth * WorldHeight / WorldWidth
+	x := math.Round((screen.TopLeft.X + screen.BottomRight.X - w) / 2)
+	area := geom.NewAABBAt(geom.NewVec(x, screen.BottomRight.Y-h-10), w, h)
+	if area.BottomRight.Sub(area.TopLeft) != m.area.BottomRight.Sub(m.area.TopLeft) {
 		cam := m.stage.minimapCam
-		cam.SetViewport(float32(area.Dx()), float32(area.Dy()))
+		cam.SetViewport(w, h)
 		cam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
 		cam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	}
@@ -402,5 +411,6 @@ func (frame) Init(*goke.SysInit) {}
 
 func (f frame) Draw(screen *ebiten.Image) {
 	a := f.m.area
-	vector.StrokeRect(screen, float32(a.Min.X), float32(a.Min.Y), float32(a.Dx()), float32(a.Dy()), 2, colorDivider, false)
+	size := a.BottomRight.Sub(a.TopLeft)
+	vector.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, colorDivider, false)
 }

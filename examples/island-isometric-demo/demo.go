@@ -6,7 +6,6 @@
 package main
 
 import (
-	"image"
 	"image/color"
 	"log"
 	"math"
@@ -298,17 +297,16 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.WithRenderer(pathAtlas)
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
-	s.players.WithRenderer(nil)
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
 	layers := []render.Layer{render.NewSorted(s.board.Renderer(), s.world.Renderer()), s.vision.Renderer()}
-	layers = append(layers, s.selection.Renderer(), s.nav.Renderer(), s.players.Renderer())
+	layers = append(layers, s.selection.Renderer(), s.nav.Renderer())
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
 }
 
 // Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 

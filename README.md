@@ -91,7 +91,6 @@ plugin counting their contacts, and one Scene drawing them. This is
 package main
 
 import (
-	"image"
 	"image/color"
 	"math/rand/v2"
 	"time"
@@ -228,7 +227,7 @@ func (v *view) Layers() []render.Layer {
 }
 
 // Viewports are where the world is shown: the camera over the whole screen.
-func (v *view) Viewports(screen image.Rectangle) []render.Viewport {
+func (v *view) Viewports(screen geom.AABB) []render.Viewport {
 	return render.Whole(v.arena.world.Camera(), screen)
 }
 
@@ -343,7 +342,7 @@ effects, [`views.md`](doc/views.md) where players and networking are headed.
 
 | Package | Responsibility |
 |:---|:---|
-| [`camera`](camera/doc.go) | The view onto a world: screen conversion, culling, move and zoom; wrap-aware |
+| [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
 | [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued`, `Binding`, `Command`, the triggers |
 | [`render`](render/doc.go) | Drawing primitives: `Renderer`, `Atlas` baked at `Close`, `QuadBatch`, sprite drawers, cached and telemetry renderers |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Behavior`, `Tag`/`Tags`/`Any`, `Marks`, `Serializable`, `PostLoader`, `Populator` |

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/kjkrol/aabbworld"
-	"image"
 	"image/color"
 	"log"
 	"slices"
@@ -157,7 +156,7 @@ func (w *worldScene) Layers() []render.Layer {
 }
 
 // Viewports are where the world is shown: the camera over the whole screen.
-func (w *worldScene) Viewports(screen image.Rectangle) []render.Viewport {
+func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
 	return render.Whole(w.stage.world.Camera(), screen)
 }
 

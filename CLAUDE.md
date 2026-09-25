@@ -197,10 +197,10 @@ shows how much of it is boilerplate vs. real behavior.
   (`Declare[T]()` in `Stage.Init` tells saves about a type only ever attached) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
   shorter side (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`), so mixed
-  sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (a
-  root package, not a plugin of its own; it keeps its own window arithmetic —
-  wrapping on a wrapping axis, held inside the world on any other) exposed via
-  `world.Plugin.Camera()`. World hosts three payloads for `world.Each[T]`/`world.Every`, all through
+  sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
+  root package `camera` is only the contract and the projections; the cameras, with their window
+  arithmetic — wrapping on a wrapping axis, held inside the world on any other — live in
+  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts three payloads for `world.Each[T]`/`world.Every`, all through
   `RegisterBehavior`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
   board's terrain speed is one), a `Leaving` (every tick an entity is `Outside`) and a
   `Drawing` (every entity about to be drawn; `world.Draw.Overlay[T]`, `Draw.As[T]`,
@@ -312,8 +312,9 @@ shows how much of it is boilerplate vs. real behavior.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`; terrain bodies never do); a bit flip, seen
-  the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds)
-  and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
+  the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds),
+  the left button held a `Marquee` (the box being dragged, drawn by its renderer in the dragging
+  camera's view until the `Select` that ends it), and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
   again stops), which the `FollowSystem` keeps in the middle of the camera every tick
   (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
   keeps it. Depends on `world`.
@@ -331,7 +332,10 @@ shows how much of it is boilerplate vs. real behavior.
   per command type; events have subscribers, commands a handler), so a plugin with commands never
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
   `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
-  draws only the marquee (a `render.WorldRenderer`), the Scene lists every other layer itself.
+  draws nothing, the Scene lists every layer itself. Its `eventHandler` is the layer from input to
+  commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
+  events against the player's bindings and issues what they build; `Player` holds only who the
+  player is.
   `Player.OwnCamera()` (before Use; `world.Plugin.NewCamera`, saved by players) splits the screen
   (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of

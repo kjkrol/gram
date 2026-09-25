@@ -9,7 +9,6 @@ package main
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"image"
 	"image/color"
 	"log"
 	"math"
@@ -358,13 +357,12 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.SetPathSprites(pathSprites)
 	s.nav.WithRenderer(pathAtlas)
 	s.selection.WithRenderer(nil)
-	s.players.WithRenderer(nil)
 
-	return []render.Layer{s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.players.Renderer()}
+	return []render.Layer{s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer()}
 }
 
 // Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 

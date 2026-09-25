@@ -1,9 +1,8 @@
 package render
 
 import (
-	"image"
-
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 )
@@ -28,13 +27,13 @@ type WorldRenderer interface {
 	DrawWorld(screen *ebiten.Image, cam camera.Camera)
 }
 
-// Viewport is where the world is shown: through Camera, into Area of the screen.
+// Viewport is where the world is shown: through Camera, into Area of the screen, in pixels.
 type Viewport struct {
 	Camera camera.Camera
-	Area   image.Rectangle
+	Area   geom.AABB
 }
 
 // Whole is the one viewport of cam over the whole screen, for a scene with a single view.
-func Whole(cam camera.Camera, screen image.Rectangle) []Viewport {
+func Whole(cam camera.Camera, screen geom.AABB) []Viewport {
 	return []Viewport{{Camera: cam, Area: screen}}
 }

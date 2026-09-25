@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	icamera "github.com/kjkrol/gram/internal/camera"
 )
 
 // plateau is ground 12 high for x in [200, 300), 0 elsewhere.
@@ -18,7 +19,7 @@ func plateau(x, _ float32) float32 {
 }
 
 func TestContext_WorldFollowsTheGround(t *testing.T) {
-	cam := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: camera.Isometric{Cell: 32, HeightUnit: 2}})
+	cam := icamera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: camera.Isometric{Cell: 32, HeightUnit: 2}})
 	cam.MoveTo(160, 160)
 	sx, sy := cam.Project(250, 100, 12) // a point on the plateau, drawn 24 pixels above its ground
 	screen := geom.NewVec(float64(sx), float64(sy))

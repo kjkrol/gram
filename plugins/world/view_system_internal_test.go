@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,7 +35,7 @@ func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.V
 
 func TestViewSystem_AViewOnAQuarterHoldsOnlyWhatIsInIt(t *testing.T) {
 	quarters := []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
-	cam := camera.NewFromSpace(1000, 1000, 0, geom.NewAABBAt(geom.NewVec(0, 0), 500, 500))
+	cam := icamera.NewFromSpace(1000, 1000, 0, geom.NewAABBAt(geom.NewVec(0, 0), 500, 500))
 
 	v, ids := viewOf(t, 0, cam, quarters...)
 
@@ -52,7 +53,7 @@ func TestViewSystem_AViewOnAQuarterHoldsOnlyWhatIsInIt(t *testing.T) {
 }
 
 func TestViewSystem_AViewOnTheWholeWorldSeesEverythingUnqueried(t *testing.T) {
-	v, ids := viewOf(t, 0, camera.NewFromSpace(1000, 1000, 0), geom.NewVec(100, 100), geom.NewVec(700, 700))
+	v, ids := viewOf(t, 0, icamera.NewFromSpace(1000, 1000, 0), geom.NewVec(100, 100), geom.NewVec(700, 700))
 	if v.Culled {
 		t.Fatal("a View on the whole world is culled")
 	}
@@ -69,8 +70,8 @@ func TestViewSystem_AViewOnTheWholeWorldSeesEverythingUnqueried(t *testing.T) {
 func TestViewSystem_SeesABoxAcrossTheSeamFromEitherSide(t *testing.T) {
 	onSeam := geom.NewVec(-5, 100) // wraps: its main piece sits at the right edge, a piece at the left
 	for name, cam := range map[string]camera.Camera{
-		"right edge": camera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(800, 0), 200, 200)),
-		"left edge":  camera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(0, 0), 200, 200)),
+		"right edge": icamera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(800, 0), 200, 200)),
+		"left edge":  icamera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(0, 0), 200, 200)),
 	} {
 		v, ids := viewOf(t, aabbworld.Torus, cam, onSeam)
 		if !v.Contains(ids[0]) {

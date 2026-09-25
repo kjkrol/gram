@@ -33,8 +33,8 @@ type Isometric struct {
 	Headroom           float32
 }
 
-// withDefaults fills the zero fields; Cell must be set.
-func (p Isometric) withDefaults() Isometric {
+// WithDefaults fills the zero fields; Cell must be set.
+func (p Isometric) WithDefaults() Isometric {
 	if p.Cell <= 0 {
 		panic("camera: Isometric needs the world size of a cell")
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -26,7 +27,7 @@ func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0,
 func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.Vec) (drawn, visited int) {
 	t.Helper()
 	view := &View{}
-	cam := camera.NewFromSpace(1000, 1000, 0)
+	cam := icamera.NewFromSpace(1000, 1000, 0)
 	host := &host.EachHost[Drawing]{}
 	if err := host.Add(Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
@@ -78,7 +79,7 @@ func TestRenderer_Draw_DrawsOnlyWhatTheViewContains(t *testing.T) {
 func submitThrough(t *testing.T, at ...geom.Vec) (int, []float32) {
 	t.Helper()
 	view := &View{}
-	cam := camera.NewFromSpace(1000, 1000, 0)
+	cam := icamera.NewFromSpace(1000, 1000, 0)
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, 1000, 1000)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -119,7 +120,7 @@ func TestRenderer_Submit_HandsEveryEntityToTheSinkAtItsDepth(t *testing.T) {
 
 func TestRenderer_Submit_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) {
 	view := &View{}
-	cam := camera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32}})
+	cam := icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32}})
 	cam.MoveTo(0, 0)
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, 1000, 1000)
 	var base goke.Comp[Base]
