@@ -21,12 +21,12 @@ type RenderState struct {
 // ToggleShowGridLines flips whether grid lines are drawn.
 func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines }
 
-// Renderer draws Board's cells — register it before the entities layer in Game.Layers so terrain
-// sits underneath, or hand it to render.NewSorted, where it submits each cell as a quad at the
-// cell's altitude and depth (no grid lines there).
+// Renderer draws Board's cells through a viewport's camera — list it before the entities layer in
+// a Scene's Layers so terrain sits underneath, or hand it to render.NewSorted, where it submits
+// each cell as a quad at the cell's altitude and depth (no grid lines there).
 type Renderer struct {
 	board     *Board
-	camera    camera.Camera
+	camera    camera.Camera // the one of the frame being drawn
 	atlas     render.AtlasSource
 	cellW     float64
 	cellH     float64
@@ -62,17 +62,24 @@ func abs32(v float32) float32 {
 var _ render.Submitter = (*Renderer)(nil)
 var _ render.Overlayer = (*Renderer)(nil)
 
-func newRenderer(cam camera.Camera, board *Board, atlas render.AtlasSource, state *RenderState) *Renderer {
+func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState) *Renderer {
 	w, h := board.CellBounds()
-	_, iso := cam.Projection().(camera.Isometric)
-	return &Renderer{board: board, camera: cam, atlas: atlas, cellW: w, cellH: h, state: state,
-		batch: render.NewQuadBatch(atlas, cam), visited: map[CellID]struct{}{}, relief: iso}
+	return &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state,
+		batch: render.NewQuadBatch(atlas), visited: map[CellID]struct{}{}}
 }
 
 func (l *Renderer) Init(*goke.SysInit) {}
 
-func (l *Renderer) Draw(screen *ebiten.Image) {
-	l.batch.Reset()
+// look takes cam for the frame being drawn.
+func (l *Renderer) look(cam camera.Camera) {
+	l.camera = cam
+	_, l.relief = cam.Projection().(camera.Isometric)
+}
+
+// DrawWorld draws the cells under cam, flat, with the grid lines when they are on.
+func (l *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+	l.look(cam)
+	l.batch.Reset(cam)
 	l.gridLines = l.gridLines[:0]
 	l.eachVisible(l.drawCell)
 	l.batch.Flush(screen)
@@ -86,7 +93,8 @@ func (l *Renderer) Draw(screen *ebiten.Image) {
 // it follow it: its top raised by its kind's Height over the ground, sloped between the corner
 // heights the board gives, and, through an isometric camera, the two faces towards the viewer
 // wherever that top stands above the neighbour's — a wall over grass, a raised edge over the sea.
-func (l *Renderer) Submit(sink *render.Sink) {
+func (l *Renderer) Submit(sink *render.Sink, cam camera.Camera) {
+	l.look(cam)
 	l.eachVisible(func(c CellID) {
 		center := l.board.CellCenter(c)
 		kind := l.board.Kind(c)
@@ -122,7 +130,8 @@ func slopeShade(top [4]float32) float32 {
 
 // Overlay strokes the grid over a sorted picture, each cell's outline on the ground at its corner
 // heights, when ShowGridLines is on.
-func (l *Renderer) Overlay(screen *ebiten.Image) {
+func (l *Renderer) Overlay(screen *ebiten.Image, cam camera.Camera) {
+	l.look(cam)
 	if !l.state.ShowGridLines {
 		return
 	}

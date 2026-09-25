@@ -6,6 +6,7 @@
 package main
 
 import (
+	"image"
 	"image/color"
 	"log"
 	"math"
@@ -266,7 +267,7 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
@@ -301,13 +302,14 @@ func (m *mainScene) Layers() []render.Renderer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
-	layers := []render.Renderer{render.NewSorted(s.board.Renderer(), s.world.Renderer()), s.vision.Renderer()}
-	for _, r := range s.players.Renderers() {
-		if r != s.board.Renderer() { // the board shapes the ground, and is drawn sorted already
-			layers = append(layers, r)
-		}
-	}
+	layers := []render.Layer{render.NewSorted(s.board.Renderer(), s.world.Renderer()), s.vision.Renderer()}
+	layers = append(layers, s.selection.Renderer(), s.nav.Renderer(), s.players.Renderer())
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
+}
+
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+	return m.stage.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {

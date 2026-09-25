@@ -19,7 +19,8 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 		return 0
 	}))
 	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
-	r := NewPathRenderer(cam, brd, nil, PathSprites{}, 0)
+	r := NewPathRenderer(brd, nil, PathSprites{}, 0)
+	r.camera = cam
 
 	slope, _ := grid.CellIndex(1, 1) // its right corners meet the ridge
 	if z := r.spriteHeights(slope); z[0] >= z[1] || z[2] >= z[3] || z[1] != 5 {
@@ -29,7 +30,8 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 	hexBoard := board.NewBoard(flat, board.NewTerrainMap())
 	hexBoard.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	hexBoard.SetHeights(func(geom.Vec) float64 { return 7 })
-	hr := NewPathRenderer(cam, hexBoard, nil, PathSprites{}, 0)
+	hr := NewPathRenderer(hexBoard, nil, PathSprites{}, 0)
+	hr.camera = cam
 	c, _ := flat.CellIndex(1, 1)
 	if z := hr.spriteHeights(c); z != [4]float32{7, 7, 7, 7} {
 		t.Errorf("sprite heights on a hex cell = %v, want the cell's altitude on every corner", z)

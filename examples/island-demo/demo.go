@@ -6,6 +6,7 @@
 package main
 
 import (
+	"image"
 	"image/color"
 	"log"
 	"math"
@@ -258,7 +259,7 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
@@ -292,8 +293,13 @@ func (m *mainScene) Layers() []render.Renderer {
 	s.players.WithRenderer(nil)
 
 	count := func() int { return s.world.Res.Telemetry.Count }
-	layers := append([]render.Renderer{s.board.Renderer(), s.vision.Renderer(), s.world.Renderer()}, s.players.Renderers()...)
+	layers := []render.Layer{s.board.Renderer(), s.vision.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.players.Renderer()}
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
+}
+
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+	return m.stage.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {

@@ -58,7 +58,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
 // Renderer is a no-op — collision has no render.Renderer of its own.
-func (p *Plugin) Renderer() render.Renderer { return nil }
+func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler is a no-op — collision has no control.EventHandler of its own.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

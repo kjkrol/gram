@@ -6,21 +6,27 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 )
 
 // MarqueeColor is the outline of a drag in progress.
 var MarqueeColor = color.RGBA{R: 255, G: 140, B: 0, A: 255}
 
-// Renderer draws the marquee of every local player's drag in progress, in screen pixels.
+// Renderer draws the marquee of a local player's drag in progress, in the pixels of the viewport
+// the player looks through.
 type Renderer struct{ p *Plugin }
 
-var _ render.Renderer = (*Renderer)(nil)
+var _ render.WorldRenderer = (*Renderer)(nil)
 
 func (r *Renderer) Init(*goke.SysInit) {}
 
-func (r *Renderer) Draw(screen *ebiten.Image) {
+// DrawWorld draws the drags of the local players looking through cam.
+func (r *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	for _, pl := range r.p.Locals() {
+		if pl.Camera != cam {
+			continue
+		}
 		start, current, dragging := pl.DragBox()
 		if !dragging {
 			continue

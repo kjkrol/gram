@@ -4,6 +4,7 @@
 package main
 
 import (
+	"image"
 	"image/color"
 	"math"
 	"math/rand/v2"
@@ -234,7 +235,7 @@ var _ game.Scene = (*mainScene)(nil)
 func (m *mainScene) Name() string    { return "main" }
 func (m *mainScene) Focusable() bool { return true }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	atlas := render.NewAtlas()
@@ -245,7 +246,7 @@ func (m *mainScene) Layers() []render.Renderer {
 	s.vision.WithRenderer(atlas)
 
 	count := func() int { return s.world.Res.Telemetry.Count }
-	return []render.Renderer{
+	return []render.Layer{
 		render.NewCachedRenderer(
 			render.SolidBackground{Color: color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}},
 			ScreenWidth, ScreenHeight,
@@ -254,6 +255,11 @@ func (m *mainScene) Layers() []render.Renderer {
 		s.world.Renderer(),
 		render.NewTelemetryRenderer(&m.tps.Ticks, count, &s.hits.Counter),
 	}
+}
+
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+	return m.stage.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {

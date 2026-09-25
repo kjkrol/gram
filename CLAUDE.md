@@ -329,8 +329,9 @@ shows how much of it is boilerplate vs. real behavior.
   world, on the ground under the cursor via `Context.Ground`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never
-  imports players. `Renderers()` is the command handlers' renderers in order plus the marquee, for the
-  Scene to lay over the world. `Player.Bind` refuses two on one
+  imports players. `Viewports(screen)` is what a Scene showing the world returns as its
+  `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
+  draws only the marquee (a `render.WorldRenderer`), the Scene lists every other layer itself. `Player.Bind` refuses two on one
   trigger, Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the
   queues. Depends on `world`.
@@ -385,7 +386,7 @@ is a plain helper function each of their `HandleEvents` calls, not an
 engine concept.
 
 Within one active `Stage`, `game.Scene` is what `Game.Draw`/`HandleEvents`
-used to be: `Name`, `Layers() []render.Renderer` (built once, on entering the Stage; the engine only calls `Draw` per frame), `HandleEvents`,
+used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, `render.WorldRenderer`s drawn per viewport of a `game.Viewer` scene, a run of them onto an image of the viewport's area unless it covers the screen; each layer is Init once however many scenes list it), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the static, `Name()`-keyed registry of
 every `Scene` it can show (`game.NewStack(scenes...)`); `Stack.Composition()`
 (the only way to reach it — `Stage` has no accessor of its own) is the live

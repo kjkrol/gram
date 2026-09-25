@@ -67,13 +67,14 @@ func Benchmark_World_Draw(b *testing.B) {
 	}{{"view=100%", 4000}, {"view=25%", 2000}, {"view=5%", 900}} {
 		b.Run(v.name, func(b *testing.B) {
 			ctx := newHeadless()
-			var r render.Renderer
+			var r render.WorldRenderer
+			var cam camera.Camera
 			ecs := benchWorldViewed(b, ctx, 5000, 56, v.view, func(w *world.Plugin, movers kind.Of[mover]) {
 				atlas := render.NewAtlas()
 				atlas.RegisterAt(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
 				w.WithRenderer(atlas)
-				r = w.Renderer()
+				r, cam = w.Renderer().(render.WorldRenderer), w.Camera()
 				ctx.pending = append(ctx.pending, func() []goke.System {
 					return []goke.System{goke.SystemFn{OnInit: r.Init}}
 				})
@@ -81,7 +82,7 @@ func Benchmark_World_Draw(b *testing.B) {
 			ecs.Tick(step)
 			b.ReportAllocs()
 			for b.Loop() {
-				r.Draw(nil)
+				r.DrawWorld(nil, cam)
 			}
 		})
 	}

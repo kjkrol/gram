@@ -31,7 +31,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.V
 	if err := host.Add(Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
-	r := newRenderer(cam, flatAtlas{}, view, host, 1000, 1000)
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, host, 1000, 1000)
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -55,7 +55,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.V
 		r.Init(si)
 	}})
 
-	r.Draw(nil)
+	r.DrawWorld(nil, cam)
 	return r.batch.quads, visited
 }
 
@@ -79,7 +79,7 @@ func submitThrough(t *testing.T, at ...geom.Vec) (int, []float32) {
 	t.Helper()
 	view := &View{}
 	cam := camera.NewFromSpace(1000, 1000, 0)
-	r := newRenderer(cam, flatAtlas{}, view, &host.EachHost[Drawing]{}, 1000, 1000)
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, 1000, 1000)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
 	var z goke.Comp[Z]
@@ -99,7 +99,7 @@ func submitThrough(t *testing.T, at ...geom.Vec) (int, []float32) {
 		r.Init(si)
 	}})
 	sorted := render.NewSorted(r)
-	sorted.Draw(nil)
+	sorted.DrawWorld(nil, cam)
 	var depths []float32
 	for _, p := range at {
 		depths = append(depths, cam.Depth(float32(p.X)+5, float32(p.Y)+5, 0))
@@ -121,7 +121,7 @@ func TestRenderer_Submit_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) 
 	view := &View{}
 	cam := camera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32}})
 	cam.MoveTo(0, 0)
-	r := newRenderer(cam, flatAtlas{}, view, &host.EachHost[Drawing]{}, 1000, 1000)
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, 1000, 1000)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
 	ecs := goke.New()
@@ -134,7 +134,7 @@ func TestRenderer_Submit_StandsEntitiesUpThroughAnIsometricCamera(t *testing.T) 
 		r.Init(si)
 	}})
 	var sink render.Sink
-	r.Submit(&sink)
+	r.Submit(&sink, cam)
 	if sink.Len() != 1 {
 		t.Fatalf("submitted %d, want the one entity", sink.Len())
 	}

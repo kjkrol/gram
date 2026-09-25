@@ -57,8 +57,7 @@ func DefaultHighlightStyle() HighlightStyle {
 
 // Renderer outlines every Selected entity; the marquee of a drag is the players plugin's to draw.
 type Renderer struct {
-	camera camera.Camera
-	style  HighlightStyle
+	style HighlightStyle
 
 	query    *goke.Query
 	base     goke.Comp[world.Base]
@@ -67,11 +66,11 @@ type Renderer struct {
 	selected plugin.Tag[Family]
 }
 
-var _ render.Renderer = (*Renderer)(nil)
+var _ render.WorldRenderer = (*Renderer)(nil)
 
 // NewRenderer builds a Renderer with DefaultHighlightStyle.
-func NewRenderer(cam camera.Camera, selected plugin.Tag[Family]) *Renderer {
-	return &Renderer{camera: cam, style: DefaultHighlightStyle(), selected: selected}
+func NewRenderer(selected plugin.Tag[Family]) *Renderer {
+	return &Renderer{style: DefaultHighlightStyle(), selected: selected}
 }
 
 // WithStyle overrides how the highlight is drawn — the escape hatch for a custom HighlightStyle.
@@ -84,7 +83,8 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.marks).Optional(&r.z).Build()
 }
 
-func (r *Renderer) Draw(screen *ebiten.Image) {
+// DrawWorld outlines the Selected entities through cam.
+func (r *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
@@ -97,7 +97,7 @@ func (r *Renderer) Draw(screen *ebiten.Image) {
 				if zs != nil {
 					alt = float32(zs[i].Altitude)
 				}
-				r.style.Draw(screen, r.camera, bases[i].Pos.AABB.AABB, alt)
+				r.style.Draw(screen, cam, bases[i].Pos.AABB.AABB, alt)
 			}
 		}
 	}

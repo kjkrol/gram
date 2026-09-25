@@ -3,10 +3,13 @@ package players
 import (
 	"errors"
 	"fmt"
+	"image"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
@@ -138,26 +141,34 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 func (p *Plugin) WithRenderer(render.AtlasSource) { p.renderer = &Renderer{p: p} }
 
 // Renderer returns the marquee renderer, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
 	}
 	return p.renderer
 }
 
-// Renderers is what the player's plugins draw over the world — each handler's Renderer, in the
-// order given to NewPlugin, then the marquee — for the Scene to lay over its world layers.
-func (p *Plugin) Renderers() []render.Renderer {
-	var out []render.Renderer
-	for _, c := range p.handlers[1:] {
-		if pl, ok := c.(plugin.Plugin); ok {
-			if r := pl.Renderer(); r != nil {
-				out = append(out, r)
-			}
+// Viewports are where the local players look: one per camera they look through, side by side in
+// equal columns of screen, the world's camera over the whole screen when there is no local player.
+// A Scene showing the world hands them to the engine as its game.Viewer.
+func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
+	var cams []camera.Camera
+	for _, pl := range p.Locals() {
+		if !slices.Contains(cams, pl.Camera) {
+			cams = append(cams, pl.Camera)
 		}
 	}
-	if p.renderer != nil {
-		out = append(out, p.renderer)
+	if len(cams) == 0 {
+		return render.Whole(p.worldPlugin.Camera(), screen)
+	}
+	out := make([]render.Viewport, len(cams))
+	w := screen.Dx() / len(cams)
+	for i, cam := range cams {
+		area := image.Rect(screen.Min.X+i*w, screen.Min.Y, screen.Min.X+(i+1)*w, screen.Max.Y)
+		if i == len(cams)-1 {
+			area.Max.X = screen.Max.X
+		}
+		out[i] = render.Viewport{Camera: cam, Area: area}
 	}
 	return out
 }

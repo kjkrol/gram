@@ -8,7 +8,9 @@
 > queue and drains its commands in its own pass instead of a receiver run in players' pass, and the
 > direction is the player's — the vocabulary (`control.Queue`, `control.Binding`) and the contract
 > (`plugin.CommandHandler`) live below, and players is built over the command handlers, so a plugin with
-> commands never knows players.
+> commands never knows players. Drawing followed the same split: a Scene says what is drawn, its
+> `render.WorldRenderer`s are drawn once per `render.Viewport` (a camera and a rectangle of the
+> screen) it gives as a `game.Viewer`, and `players.Viewports` is where the local players look.
 
 ## 1. `world.View` — a rectangle and the entities in it
 

@@ -57,10 +57,10 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 
 // WithRenderer builds the highlight renderer; atlas is unused, selection draws primitives.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = NewRenderer(p.camera, p.tags.Selected)
+	p.renderer = NewRenderer(p.tags.Selected)
 }
 
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
 	}

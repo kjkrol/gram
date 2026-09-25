@@ -64,11 +64,11 @@ func colorScaleOf(c color.RGBA) ebiten.ColorScale {
 	return cs
 }
 
-var _ render.Renderer = (*Renderer)(nil)
+var _ render.WorldRenderer = (*Renderer)(nil)
 
-// Renderer draws the view of every entity carrying SightOutline.
+// Renderer draws the view of every entity carrying SightOutline, through a viewport's camera.
 type Renderer struct {
-	camera camera.Camera
+	camera camera.Camera // the one of the frame being drawn
 	space  *aabbworld.Space
 	style  ConeStyle
 
@@ -91,10 +91,10 @@ type Renderer struct {
 }
 
 // NewRenderer builds a Renderer with DefaultConeStyle, wrapping cones at the edges of space.
-func NewRenderer(cam camera.Camera, space *aabbworld.Space) *Renderer {
+func NewRenderer(space *aabbworld.Space) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
-		camera: cam, space: space, style: DefaultConeStyle(),
+		space: space, style: DefaultConeStyle(),
 		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0,
 	}
 }
@@ -118,7 +118,9 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.sight, &r.out).Optional(&r.z).Build()
 }
 
-func (r *Renderer) Draw(screen *ebiten.Image) {
+// DrawWorld draws every view through cam.
+func (r *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+	r.camera = cam
 	if !r.grounded {
 		r.grounded = true
 		if r.groundOf != nil {

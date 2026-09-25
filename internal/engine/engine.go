@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"log"
 	"time"
@@ -201,9 +202,10 @@ func (e *Engine) Draw(screen *ebiten.Image) {
 		e.transitionOverlay.Draw(screen)
 		return
 	}
-	for _, name := range e.current.stage.Stack().Composition().Order() {
-		for _, r := range e.current.sceneLayers[name] {
-			r.Draw(screen)
+	stack := e.current.stage.Stack()
+	for _, name := range stack.Composition().Order() {
+		if sc, ok := stack.Get(name); ok {
+			e.current.drawScene(screen, sc)
 		}
 	}
 }
@@ -216,9 +218,7 @@ func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	}
 	if outsideWidth != e.width || outsideHeight != e.height {
 		e.width, e.height = outsideWidth, outsideHeight
-		if cam := e.Camera(); cam != nil {
-			cam.SetViewport(float32(e.width), float32(e.height))
-		}
+		e.fitViewports(image.Rect(0, 0, e.width, e.height))
 	}
 	return e.width, e.height
 }
@@ -243,5 +243,35 @@ func (e *Engine) dispatchEvents(events *control.InputEvents) {
 	}
 	if sc, ok := stack.Get(active); ok {
 		sc.HandleEvents(events, e, comp)
+	}
+}
+
+// fitViewports sizes every camera of the visible scenes' viewports to its area on screen, and the
+// world's camera to the whole screen when no visible scene shows the world.
+func (e *Engine) fitViewports(screen image.Rectangle) {
+	if e.current == nil {
+		return
+	}
+	stack := e.current.stage.Stack()
+	fitted := false
+	for _, name := range stack.Composition().Order() {
+		sc, _ := stack.Get(name)
+		if v, ok := sc.(game.Viewer); ok {
+			for _, vp := range v.Viewports(screen) {
+				fit(vp)
+			}
+			fitted = true
+		}
+	}
+	if cam := e.Camera(); !fitted && cam != nil {
+		cam.SetViewport(float32(screen.Dx()), float32(screen.Dy()))
+	}
+}
+
+// fit resizes vp's camera to its area, when it differs.
+func fit(vp render.Viewport) {
+	w, h := vp.Camera.Viewport()
+	if int(w) != vp.Area.Dx() || int(h) != vp.Area.Dy() {
+		vp.Camera.SetViewport(float32(vp.Area.Dx()), float32(vp.Area.Dy()))
 	}
 }

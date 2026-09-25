@@ -93,6 +93,20 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `DefaultShadow`). A flat world keeps its reach cut at walls.
 - The vision demos run in a Quasi3D world with a hill; aabbworld is taken from v1.8.0.
 
+**Scenes and viewports**
+- A Scene's `Layers()` are `render.Layer`s: a `render.Renderer` draws on the screen, a
+  `render.WorldRenderer` (`DrawWorld(screen, cam)`) shows the world and is drawn once per
+  `render.Viewport` — a camera and a rectangle of the screen — of a Scene that is a `game.Viewer`.
+  No renderer keeps a camera: the board's, the world's, navigation's, vision's, selection's and
+  players' take the viewport's at draw time; `render.Sorted`, `Submitter.Submit(sink, cam)`,
+  `Overlayer.Overlay(screen, cam)`, `QuadBatch.Reset(cam)`. `plugin.Plugin.Renderer()` returns a
+  `render.Layer`. The engine sizes each viewport's camera to its area and initialises a layer once
+  however many scenes list it; a scene with world layers and no viewports is refused on entry.
+- `players.Plugin.Viewports(screen)`: one viewport per camera the local players look through, in
+  columns; `Renderers()` is gone, so a Scene lists the path and selection renderers itself and a
+  command handler's renderer is never drawn twice. `world.Plugin.ViewFor(cam)` is the View of
+  any camera.
+
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
   cell and its `Relief`, the heights of its four corners) and `Ground` (its kind). They carry no
@@ -156,7 +170,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   (`players.NewPlugin(world, selection, nav)`): a `Local` player at the keyboard over the world's
   camera and `View`, `Add` one without (an AI, a client), `Defaults()` to bind, `Issue` for any
   command, `Pan`/`Zoom` with `CameraBindings`, the marquee of a drag drawn by its renderer,
-  `Renderers()` as the player's overlays for the Scene; two
+  `Viewports(screen)` for the Scene to show the world through; two
   bindings on one trigger refused at `Bind`, a command nobody defines at Setup. Gone:
   `selection.Resources`/`DefaultEventHandler`, `navigation.Resources`/`MoveCommand`/
   `DefaultCommandEventHandler`, `world.WithCameraControls`.

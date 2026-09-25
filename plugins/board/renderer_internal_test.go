@@ -38,10 +38,10 @@ func TestRenderer_Submit_OneQuadPerVisibleCellAtItsAltitude(t *testing.T) {
 		return 0
 	}))
 	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
-	r := newRenderer(cam, brd, flatAtlas{}, &RenderState{})
+	r := newRenderer(brd, flatAtlas{}, &RenderState{})
 
 	var sink render.Sink
-	r.Submit(&sink)
+	r.Submit(&sink, cam)
 	if sink.Len() != 16 {
 		t.Errorf("submitted %d quads, want the 16 cells: the hill slopes into its neighbours, no faces", sink.Len())
 	}
@@ -49,14 +49,14 @@ func TestRenderer_Submit_OneQuadPerVisibleCellAtItsAltitude(t *testing.T) {
 	wall, _ := grid.CellIndex(2, 2)
 	brd.Set(wall, CellKind{Cost: 1, Allows: Land, Solid: true, Height: 8})
 	sink = render.Sink{}
-	r.Submit(&sink)
+	r.Submit(&sink, cam)
 	if sink.Len() != 18 {
 		t.Errorf("submitted %d quads, want two more for the wall's faces down to the ground", sink.Len())
 	}
 
-	flat := newRenderer(camera.NewFromSpace(128, 128, 0), brd, flatAtlas{}, &RenderState{})
+	flat := newRenderer(brd, flatAtlas{}, &RenderState{})
 	sink = render.Sink{}
-	flat.Submit(&sink)
+	flat.Submit(&sink, camera.NewFromSpace(128, 128, 0))
 	if sink.Len() != 16 {
 		t.Errorf("top-down submitted %d quads, want the 16 cells alone: no faces from above", sink.Len())
 	}

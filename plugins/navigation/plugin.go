@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
@@ -31,8 +30,6 @@ type Plugin struct {
 
 	pathSprites  PathSprites
 	pathRenderer *PathRenderer
-
-	camera camera.Camera
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -41,7 +38,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // command and default bindings. Entities move as their Steering profile says.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
 	kind.Require[world.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
-	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, camera: worldPlugin.Camera(), selected: selectionPlugin.Tags().Selected}
+	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
 // =================================================================
@@ -82,13 +79,13 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // WithRenderer draws the remaining route of every selected entity; call SetPathSprites first.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.pathRenderer = NewPathRenderer(p.camera, p.board, atlas, p.pathSprites, p.selected)
+	p.pathRenderer = NewPathRenderer(p.board, atlas, p.pathSprites, p.selected)
 	p.pathRenderer.BindSpace(p.worldPlugin.Space())
 	p.pathRenderer.finder = p.finder
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.pathRenderer == nil {
 		return nil
 	}

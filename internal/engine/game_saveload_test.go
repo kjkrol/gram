@@ -46,7 +46,7 @@ func (a *ecsAccessor) SetupSystems() []goke.System {
 }
 func (a *ecsAccessor) RunPlan(goke.RunCtx, time.Duration)        {}
 func (a *ecsAccessor) WithRenderer(render.AtlasSource)           {}
-func (a *ecsAccessor) Renderer() render.Renderer                 { return nil }
+func (a *ecsAccessor) Renderer() render.Layer                    { return nil }
 func (a *ecsAccessor) EventHandler() control.EventHandler        { return nil }
 func (a *ecsAccessor) Serializable() plugin.Serializable         { return nil }
 func (a *ecsAccessor) RegisterBehavior(...plugin.Behavior) error { return plugin.ErrUnhostedBehavior }

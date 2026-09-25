@@ -14,8 +14,8 @@ type stubScene struct {
 
 var _ Scene = (*stubScene)(nil)
 
-func (s *stubScene) Name() string              { return s.name }
-func (s *stubScene) Layers() []render.Renderer { return nil }
+func (s *stubScene) Name() string           { return s.name }
+func (s *stubScene) Layers() []render.Layer { return nil }
 func (s *stubScene) HandleEvents(*control.InputEvents, Runtime, Composition) {
 }
 func (s *stubScene) Focusable() bool { return s.focusable }

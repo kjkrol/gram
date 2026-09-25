@@ -12,10 +12,10 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-var _ render.Renderer = (*Renderer)(nil)
+var _ render.WorldRenderer = (*Renderer)(nil)
 
-// Renderer draws the Position+Appearance entities in the world's View — what the camera sees
-// this tick — running the Each behaviors of a Drawing over each chunk to settle their layers. A
+// Renderer draws the Position+Appearance entities in the View of the viewport's camera — what it
+// sees this tick — running the Each behaviors of a Drawing over each chunk to settle their layers. A
 // Stage that has not ticked yet sees everything. Handed to render.NewSorted, it submits each
 // entity's box at its Z.Altitude instead, at the depth of its centre.
 type Renderer struct {
@@ -26,9 +26,9 @@ type Renderer struct {
 	host        *host.EachHost[Drawing]
 	layers      [][]Appearance // one per entity of the chunk being drawn
 	batch       spriteBatch
-	camera      camera.Camera
 	atlas       render.AtlasSource
-	view        *View
+	views       func(camera.Camera) *View
+	view        *View // the one being drawn
 
 	ids   []uid.UID64
 	bases []Base
@@ -36,8 +36,8 @@ type Renderer struct {
 
 var _ render.Submitter = (*Renderer)(nil)
 
-func newRenderer(cam camera.Camera, atlas render.AtlasSource, view *View, host *host.EachHost[Drawing], worldW, worldH uint32) *Renderer {
-	return &Renderer{batch: newSpriteBatch(cam, atlas, worldW, worldH), camera: cam, atlas: atlas, view: view, host: host}
+func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *View, host *host.EachHost[Drawing], worldW, worldH uint32) *Renderer {
+	return &Renderer{batch: newSpriteBatch(atlas, worldW, worldH), atlas: atlas, views: views, host: host}
 }
 
 func (s *Renderer) Init(si *goke.SysInit) {
@@ -46,9 +46,11 @@ func (s *Renderer) Init(si *goke.SysInit) {
 	s.renderQuery = qb.Build()
 }
 
-// Draw draws this frame; a nil screen gathers the quads and draws nothing, for measuring.
-func (s *Renderer) Draw(screen *ebiten.Image) {
-	s.batch.reset()
+// DrawWorld draws this frame through cam; a nil screen gathers the quads and draws nothing, for
+// measuring.
+func (s *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+	s.batch.reset(cam)
+	s.view = s.views(cam)
 	s.each(func(i int, _ float32, sprite render.SpriteID) { s.batch.drawQuad(s.bases[i].Pos, sprite) })
 	s.batch.flush(screen)
 }
@@ -56,21 +58,22 @@ func (s *Renderer) Draw(screen *ebiten.Image) {
 // Submit hands every drawn entity to sink at the depth of its centre, which ties with the tile it
 // stands on and follows it: its box lifted to its altitude, or through an isometric camera a
 // billboard the size of its box standing on its centre.
-func (s *Renderer) Submit(sink *render.Sink) {
-	_, iso := s.camera.Projection().(camera.Isometric)
+func (s *Renderer) Submit(sink *render.Sink, cam camera.Camera) {
+	_, iso := cam.Projection().(camera.Isometric)
+	s.view = s.views(cam)
 	s.each(func(i int, alt float32, sprite render.SpriteID) {
 		box := s.bases[i].Pos.AABB
-		if !s.camera.Visible(box.AABB) {
+		if !cam.Visible(box.AABB) {
 			return
 		}
 		x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 		x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
 		cx, cy := (x0+x1)/2, (y0+y1)/2
-		dst := render.ProjectCorners(s.camera, x0, y0, x1, y1, alt)
+		dst := render.ProjectCorners(cam, x0, y0, x1, y1, alt)
 		if iso {
-			dst = render.Billboard(s.camera, cx, cy, alt, x1-x0, y1-y0)
+			dst = render.Billboard(cam, cx, cy, alt, x1-x0, y1-y0)
 		}
-		sink.Quad(s.camera.Depth(cx, cy, alt), s.atlas, sprite, dst)
+		sink.Quad(cam.Depth(cx, cy, alt), s.atlas, sprite, dst)
 	})
 }
 

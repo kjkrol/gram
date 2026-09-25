@@ -40,7 +40,7 @@ type PathRenderer struct {
 	grid    board.Grid
 	sprites PathSprites
 	batch   *render.QuadBatch
-	camera  camera.Camera
+	camera  camera.Camera // the one of the frame being drawn
 	space   *aabbworld.Space
 	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground;
 	// corners its corner heights on a sloped grid, so a sprite lies on the tile as it is drawn.
@@ -63,10 +63,10 @@ type PathRenderer struct {
 	mover goke.OptComp[board.Mover]
 }
 
-var _ render.Renderer = (*PathRenderer)(nil)
+var _ render.WorldRenderer = (*PathRenderer)(nil)
 
-func NewPathRenderer(cam camera.Camera, grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
-	r := &PathRenderer{grid: grid, sprites: sprites, batch: render.NewQuadBatch(atlas, cam), camera: cam, selected: selected}
+func NewPathRenderer(grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
+	r := &PathRenderer{grid: grid, sprites: sprites, batch: render.NewQuadBatch(atlas), selected: selected}
 	r.heights, _ = grid.(interface{ Altitude(board.CellID) float64 })
 	r.corners, _ = grid.(interface {
 		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
@@ -82,8 +82,10 @@ func (r *PathRenderer) Init(si *goke.SysInit) {
 		Build()
 }
 
-func (r *PathRenderer) Draw(screen *ebiten.Image) {
-	r.batch.Reset()
+// DrawWorld draws the routes of the selected units through cam.
+func (r *PathRenderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+	r.camera = cam
+	r.batch.Reset(cam)
 	if r.space != nil {
 		r.query.All()
 		for r.query.Next() {

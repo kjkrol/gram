@@ -42,7 +42,9 @@ func testSpace(t *testing.T, w, h uint32, toroidal bool) *aabbworld.Space {
 
 func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *Renderer {
 	t.Helper()
-	return NewRenderer(camera.NewFromSpace(w, h, torusIf(toroidal), view), testSpace(t, w, h, toroidal))
+	r := NewRenderer(testSpace(t, w, h, toroidal))
+	r.camera = camera.NewFromSpace(w, h, torusIf(toroidal), view)
+	return r
 }
 
 func wholeWorld(w, h uint32) camera.AABB {
@@ -137,7 +139,7 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 		goke.SystemFn{OnInit: r.Init},
 	)
 
-	r.Draw(nil)
+	r.DrawWorld(nil, r.camera)
 	if drawn != 1 {
 		t.Errorf("drew %d cones, want 1 — the short outline and the offscreen entity should both be skipped", drawn)
 	}
@@ -181,7 +183,7 @@ func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ebiten.
 		}},
 		goke.SystemFn{OnInit: r.Init},
 	)
-	r.Draw(nil)
+	r.DrawWorld(nil, r.camera)
 	return *fans
 }
 

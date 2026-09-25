@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/kjkrol/aabbworld"
+	"image"
 	"image/color"
 	"log"
 	"slices"
@@ -141,7 +142,7 @@ var _ game.Scene = (*worldScene)(nil)
 
 func (w *worldScene) Name() string { return "world" }
 
-func (w *worldScene) Layers() []render.Renderer {
+func (w *worldScene) Layers() []render.Layer {
 	s := w.stage
 
 	atlas := render.NewAtlas()
@@ -149,10 +150,15 @@ func (w *worldScene) Layers() []render.Renderer {
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
-	return []render.Renderer{
+	return []render.Layer{
 		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 40, A: 255}}, ScreenWidth, ScreenHeight),
 		s.world.Renderer(),
 	}
+}
+
+// Viewports are where the world is shown: the camera over the whole screen.
+func (w *worldScene) Viewports(screen image.Rectangle) []render.Viewport {
+	return render.Whole(w.stage.world.Camera(), screen)
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
@@ -174,7 +180,7 @@ var _ game.Scene = (*panelScene)(nil)
 
 func (p *panelScene) Name() string { return "panel" }
 
-func (p *panelScene) Layers() []render.Renderer { return []render.Renderer{&panelRenderer{}} }
+func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRenderer{}} }
 
 func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	handleGlobalKeys(events, runtime, p.stage.basePath())
@@ -205,7 +211,7 @@ var _ game.Scene = (*hudScene)(nil)
 
 func (h *hudScene) Name() string { return "hud" }
 
-func (h *hudScene) Layers() []render.Renderer { return []render.Renderer{&hudRenderer{stage: h.stage}} }
+func (h *hudScene) Layers() []render.Layer { return []render.Layer{&hudRenderer{stage: h.stage}} }
 
 func (h *hudScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 

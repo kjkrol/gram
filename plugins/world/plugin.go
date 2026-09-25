@@ -42,6 +42,7 @@ type Plugin struct {
 	ground   Ground
 	seeded   []kind.Entry
 	view     *View // the camera's
+	views    map[camera.Camera]*View
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -89,6 +90,23 @@ func (p *Plugin) NewView(bounds func() geom.AABB) *View {
 	return v
 }
 
+// ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
+// camera, one made at the first call for any other.
+func (p *Plugin) ViewFor(cam camera.Camera) *View {
+	if cam == p.Res.Camera {
+		return p.view
+	}
+	if v, ok := p.views[cam]; ok {
+		return v
+	}
+	if p.views == nil {
+		p.views = map[camera.Camera]*View{}
+	}
+	v := p.NewView(cam.Bounds)
+	p.views[cam] = v
+	return v
+}
+
 // DropView stops refreshing v; it keeps whatever it last saw.
 func (p *Plugin) DropView(v *View) {
 	views := p.module.views
@@ -126,11 +144,11 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = newRenderer(p.Res.Camera, atlas, p.view, p.module.drawers, p.Res.Config.Space.Width, p.Res.Config.Space.Height)
+	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Res.Config.Space.Width, p.Res.Config.Space.Height)
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
 	}

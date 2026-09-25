@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 )
 
 type sheet struct{ img *ebiten.Image }
@@ -18,9 +19,9 @@ type depths struct {
 	depths []float32
 }
 
-func (depths) Init(*goke.SysInit) {}
-func (depths) Draw(*ebiten.Image) {}
-func (d depths) Submit(sink *Sink) {
+func (depths) Init(*goke.SysInit)                     {}
+func (depths) DrawWorld(*ebiten.Image, camera.Camera) {}
+func (d depths) Submit(sink *Sink, _ camera.Camera) {
 	for _, z := range d.depths {
 		sink.Quad(z, d.sheet, 0, Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}})
 	}
@@ -30,7 +31,7 @@ func TestSorted_DrawsBackToFrontKeepingTiesInSubmissionOrder(t *testing.T) {
 	terrain := depths{sheet: sheet{}, depths: []float32{3, 1, 2}}
 	units := depths{sheet: sheet{}, depths: []float32{2, 0.5}}
 	s := NewSorted(terrain, units)
-	s.Draw(nil)
+	s.DrawWorld(nil, nil)
 
 	var got []float32
 	for _, i := range s.sink.sorted() {
@@ -52,13 +53,19 @@ func TestSorted_DrawsBackToFrontKeepingTiesInSubmissionOrder(t *testing.T) {
 	}
 }
 
+// onlyDraws shows the world without submitting quads.
+type onlyDraws struct{}
+
+func (onlyDraws) Init(*goke.SysInit)                     {}
+func (onlyDraws) DrawWorld(*ebiten.Image, camera.Camera) {}
+
 func TestSorted_RefusesARendererThatOnlyDraws(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Error("NewSorted took a plain Renderer")
+			t.Error("NewSorted took a WorldRenderer that does not submit")
 		}
 	}()
-	NewSorted(SolidBackground{})
+	NewSorted(onlyDraws{})
 }
 
 func TestSink_ShadedScalesTheColour(t *testing.T) {

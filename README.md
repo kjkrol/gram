@@ -91,6 +91,7 @@ plugin counting their contacts, and one Scene drawing them. This is
 package main
 
 import (
+	"image"
 	"image/color"
 	"math/rand/v2"
 	"time"
@@ -212,18 +213,23 @@ type view struct {
 func (v *view) Name() string    { return "view" }
 func (v *view) Focusable() bool { return true }
 
-func (v *view) Layers() []render.Renderer {
+func (v *view) Layers() []render.Layer {
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(v.arena.boxes.SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
-	return []render.Renderer{
+	return []render.Layer{
 		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
 		v.arena.world.Renderer(),
 		render.NewTelemetryRenderer(&v.tps.Ticks, count, &v.arena.stats.Counter),
 	}
+}
+
+// Viewports are where the world is shown: the camera over the whole screen.
+func (v *view) Viewports(screen image.Rectangle) []render.Viewport {
+	return render.Whole(v.arena.world.Camera(), screen)
 }
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {

@@ -6,18 +6,16 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-// Plugin wires vision into a Stage over world.Plugin's space and camera.
+// Plugin wires vision into a Stage over world.Plugin's space.
 // It publishes what entities can see; what to do about it is a behavior's business.
 type Plugin struct {
 	worldPlugin *world.Plugin
-	camera      camera.Camera
 	module      *module
 	renderer    *Renderer
 	style       ConeStyle
@@ -30,7 +28,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{worldPlugin: worldPlugin, camera: worldPlugin.Camera()}
+	return &Plugin{worldPlugin: worldPlugin}
 }
 
 // =================================================================
@@ -54,13 +52,13 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.renderer = NewRenderer(p.camera, p.worldPlugin.Space()).WithGround(p.worldPlugin.Ground)
+	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.worldPlugin.Ground)
 	if p.style != nil {
 		p.renderer.WithStyle(p.style)
 	}
 }
 
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
 	}

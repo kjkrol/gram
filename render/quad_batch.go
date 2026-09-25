@@ -6,7 +6,7 @@ import (
 )
 
 // QuadBatch batches textured quads from an AtlasSource into as few DrawTriangles calls as the
-// 16-bit index space allows, transformed through a camera.Camera.
+// 16-bit index space allows, transformed through the camera.Camera given to Reset.
 type QuadBatch struct {
 	atlas    AtlasSource
 	camera   camera.Camera
@@ -21,11 +21,14 @@ type QuadBatch struct {
 // chunkVertices is how many vertices one DrawTriangles call may index: a multiple of four under 65536.
 const chunkVertices = 65532
 
-func NewQuadBatch(atlas AtlasSource, cam camera.Camera) *QuadBatch {
-	return &QuadBatch{atlas: atlas, camera: cam, triOpts: &ebiten.DrawTrianglesOptions{}}
+func NewQuadBatch(atlas AtlasSource) *QuadBatch {
+	return &QuadBatch{atlas: atlas, triOpts: &ebiten.DrawTrianglesOptions{}}
 }
 
-func (b *QuadBatch) Reset() { b.vertices, b.indices, b.chunk = b.vertices[:0], b.indices[:0], 0 }
+// Reset empties the batch for a frame drawn through cam.
+func (b *QuadBatch) Reset(cam camera.Camera) {
+	b.vertices, b.indices, b.chunk, b.camera = b.vertices[:0], b.indices[:0], 0, cam
+}
 
 // AppendQuadUV appends a quad for the world box (x0,y0)-(x1,y1), sampling id's UV sub-rect.
 func (b *QuadBatch) AppendQuadUV(x0, y0, x1, y1 float32, id SpriteID, u0, v0, u1, v1 float32) {

@@ -19,7 +19,8 @@ func TestQuadBatch_AppendQuad_ConsistentAcrossWrapSeam(t *testing.T) {
 	cam := camera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 
-	batch := NewQuadBatch(fakeAtlasSource{}, cam)
+	batch := NewQuadBatch(fakeAtlasSource{})
+	batch.Reset(cam)
 	batch.AppendQuad(998, 0, 1010, 10, 0)
 
 	if len(batch.vertices) != 8 {
@@ -34,7 +35,8 @@ func TestQuadBatch_AppendQuad_ConsistentAcrossWrapSeam(t *testing.T) {
 
 func TestQuadBatch_IndicesRestartPerChunk(t *testing.T) {
 	cam := camera.NewFromSpace(100000, 100, 0)
-	batch := NewQuadBatch(fakeAtlasSource{}, cam)
+	batch := NewQuadBatch(fakeAtlasSource{})
+	batch.Reset(cam)
 	quads := chunkVertices/4 + 5
 	for i := range quads {
 		x := float32(i)
@@ -55,7 +57,8 @@ func TestQuadBatch_IndicesRestartPerChunk(t *testing.T) {
 }
 
 func TestQuadBatch_AppendCornersTakesTheScreenPointsAsGiven(t *testing.T) {
-	batch := NewQuadBatch(fakeAtlasSource{}, camera.NewFromSpace(1024, 1024, 0))
+	batch := NewQuadBatch(fakeAtlasSource{})
+	batch.Reset(camera.NewFromSpace(1024, 1024, 0))
 	batch.AppendCorners(Corners{{10, 0}, {20, 5}, {0, 15}, {10, 20}}, 0)
 	sx0, _, sx1, _ := fakeAtlasSource{}.UV(0)
 	if len(batch.vertices) != 4 || batch.vertices[1].DstX != 20 || batch.vertices[2].DstY != 15 || batch.vertices[0].SrcX != sx0+0.5 || batch.vertices[3].SrcX != sx1-0.5 {

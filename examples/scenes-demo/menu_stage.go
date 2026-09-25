@@ -60,7 +60,7 @@ var _ game.Scene = (*menuScene)(nil)
 
 func (m *menuScene) Name() string { return "menu" }
 
-func (m *menuScene) Layers() []render.Renderer { return []render.Renderer{&menuRenderer{}} }
+func (m *menuScene) Layers() []render.Layer { return []render.Layer{&menuRenderer{}} }
 
 func (m *menuScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	for _, k := range events.KeyEvents {

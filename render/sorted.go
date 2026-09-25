@@ -6,13 +6,15 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 )
 
-// Submitter is a Renderer that can hand its quads to a Sink with a depth each instead of drawing
-// them, so that a Sorted layer draws several renderers back to front as one picture.
+// Submitter is a WorldRenderer that can hand its quads, projected through cam, to a Sink with a
+// depth each instead of drawing them, so that a Sorted layer draws several renderers back to front
+// as one picture.
 type Submitter interface {
-	Renderer
-	Submit(sink *Sink)
+	WorldRenderer
+	Submit(sink *Sink, cam camera.Camera)
 }
 
 // Sink gathers projected quads with their depths for one frame of a Sorted layer.
@@ -88,10 +90,10 @@ func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {
 // Overlayer is a Submitter with something to draw over the sorted picture — grid lines, say —
 // which Sorted calls after drawing it.
 type Overlayer interface {
-	Overlay(screen *ebiten.Image)
+	Overlay(screen *ebiten.Image, cam camera.Camera)
 }
 
-// Sorted is a Renderer drawing several Submitters as one picture, back to front by depth: the
+// Sorted is a WorldRenderer drawing several Submitters as one picture, back to front by depth: the
 // terrain and the entities of an isometric view, where a wall in front hides a unit behind it.
 // It draws one DrawTriangles per run of quads sharing a sheet, so alternating sheets cost calls.
 type Sorted struct {
@@ -102,10 +104,10 @@ type Sorted struct {
 	opts    *ebiten.DrawTrianglesOptions
 }
 
-var _ Renderer = (*Sorted)(nil)
+var _ WorldRenderer = (*Sorted)(nil)
 
-// NewSorted takes the renderers to sort, which must all be Submitters.
-func NewSorted(layers ...Renderer) *Sorted {
+// NewSorted takes the layers to sort, which must all be Submitters.
+func NewSorted(layers ...Layer) *Sorted {
 	s := &Sorted{opts: &ebiten.DrawTrianglesOptions{}}
 	for _, l := range layers {
 		sub, ok := l.(Submitter)
@@ -123,11 +125,12 @@ func (s *Sorted) Init(si *goke.SysInit) {
 	}
 }
 
-// Draw gathers every submitter's quads and draws them back to front; a nil screen only gathers.
-func (s *Sorted) Draw(screen *ebiten.Image) {
+// DrawWorld gathers every submitter's quads through cam and draws them back to front; a nil
+// screen only gathers.
+func (s *Sorted) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	s.sink.reset()
 	for _, sub := range s.subs {
-		sub.Submit(&s.sink)
+		sub.Submit(&s.sink, cam)
 	}
 	if screen == nil {
 		return
@@ -147,7 +150,7 @@ func (s *Sorted) Draw(screen *ebiten.Image) {
 	s.flush(screen, atlas)
 	for _, sub := range s.subs {
 		if o, ok := sub.(Overlayer); ok {
-			o.Overlay(screen)
+			o.Overlay(screen, cam)
 		}
 	}
 }

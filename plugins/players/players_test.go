@@ -132,7 +132,7 @@ func TestIssue_RefusesACommandNobodyListensFor(t *testing.T) {
 	}
 }
 
-func TestNewPlugin_RefusesTwoCommandersOfOneType(t *testing.T) {
+func TestNewPlugin_RefusesTwoHandlersOfOneType(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -162,7 +162,7 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 	}
 }
 
-func TestDefaults_CollectEveryCommandersBindings(t *testing.T) {
+func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
 	if got := len(r.p.Defaults()); got != len(players.CameraBindings()) {
 		t.Errorf("Defaults has %d bindings, want the camera's %d (the general suggests none)", got, len(players.CameraBindings()))

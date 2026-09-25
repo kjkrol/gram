@@ -17,16 +17,16 @@ type spriteBatch struct {
 	quads  int // gathered since the last reset
 }
 
-func newSpriteBatch(cam camera.Camera, atlas render.AtlasSource, worldW, worldH uint32) spriteBatch {
+func newSpriteBatch(atlas render.AtlasSource, worldW, worldH uint32) spriteBatch {
 	return spriteBatch{
-		batch:  render.NewQuadBatch(atlas, cam),
-		camera: cam,
+		batch:  render.NewQuadBatch(atlas),
 		worldW: float32(worldW),
 		worldH: float32(worldH),
 	}
 }
 
-func (b *spriteBatch) reset() { b.batch.Reset(); b.quads = 0 }
+// reset empties the batch for a frame drawn through cam.
+func (b *spriteBatch) reset(cam camera.Camera) { b.batch.Reset(cam); b.camera = cam; b.quads = 0 }
 
 func (b *spriteBatch) drawQuad(pos Position, id render.SpriteID) {
 	if !b.camera.Visible(pos.AABB.AABB) {
