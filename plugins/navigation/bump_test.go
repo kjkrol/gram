@@ -20,6 +20,7 @@ type roadUnit struct {
 	start, target board.CellID
 	ordered       bool
 	domain        board.Domain // zero: Land
+	wide          bool         // the hawk's profile: faster, turning slower, looking further ahead
 }
 
 type roadWorld struct {
@@ -68,14 +69,18 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 
-	spec := func(ordered bool, domain board.Domain) kind.Spec {
+	spec := func(ordered bool, domain board.Domain, wide bool) kind.Spec {
 		if domain == 0 {
 			domain = board.Land
+		}
+		profile := world.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}
+		if wide {
+			profile.MaxSpeed, profile.TurnRate = 144, 0.1
 		}
 		s := kind.Spec{
 			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: board.CellAABB(rw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
-			comp.Const(world.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
+			comp.Const(profile),
 			comp.Load(func(u roadUnit) board.Cell { return board.Cell{ID: u.start} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(domain)),
@@ -89,7 +94,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	kindIDs := make([]kind.ID, len(units))
 	for i, u := range units {
-		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain))
+		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide))
 		kindIDs[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}
@@ -258,5 +263,22 @@ func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 		if cell, _ := rw.state(rw.byRow[row]); cell != units[row].start {
 			t.Errorf("walker %d was moved to %v by the hawk passing over", row, cell)
 		}
+	}
+}
+
+// A wide turner looks further ahead than half a cell, so it passes a cell of its route before its
+// centre is in it; it must keep the route it was given — here one row down along the way — rather
+// than find itself short of its cell every step and plan again.
+func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
+	rw := newRoadWorld(t, 24, []roadUnit{{start: 0, ordered: true}})
+	units := []roadUnit{{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: board.Air, wide: true}}
+	rw = newRoadWorld(t, 24, units)
+	hawk := rw.byRow[0]
+	ticks, replans := rw.run(units, 10*time.Second)
+	if ticks >= 60*10 {
+		t.Fatalf("the hawk did not arrive within 10 s; replans %v", replans)
+	}
+	if replans[hawk] > 1 {
+		t.Errorf("the hawk's route changed %d times on the way, want the first one kept", replans[hawk]-1)
 	}
 }

@@ -86,6 +86,13 @@ final goal only.
 A new route that goes back the way the current leg came turns the leg round on the spot — the
 same cells are held — so a unit ordered back does not first finish the step it was on.
 
+Passing is the lookahead's, entering is the body's. A wide turner — the hawk, faster and turning
+slower, looks 24 units ahead against a walker's 11 — passes a waypoint while its centre is still
+in the cell before it. It then keeps its leg and aims beyond it until the centre really enters the
+waypoint; letting the leg go at once left it short of the cell it was booked into, which the next
+tick took for a push off the route and planned again, every step, the one diagonal of a route
+sliding forward with it to the goal.
+
 ## 4. Entering a cell is its own event
 
 Entering a cell — for `Occupancy` and the `CellEntered` tag — is `CellAt(centre of the box)`

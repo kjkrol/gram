@@ -303,6 +303,12 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					s.drive(st, bases[i].Vel.Dir, have, s.ahead(have, want, p, waypoint, target), reach, st.MaxSpeed)
 					continue
 				}
+				if leg.Active && actual != leg.To {
+					// passed by the lookahead, not yet entered: hold the leg, aim at the next goal
+					s.route = append(s.route[:0], s.unwrap(have, s.grid.CellCenter(orders[i].Waypoints[0])))
+					s.drive(st, bases[i].Vel.Dir, have, s.route, reach, st.MaxSpeed)
+					continue
+				}
 				if leg.Active {
 					s.releaseLeg(*leg, id)
 					s.occupancy.Enter(leg.To, id, domain)
@@ -323,6 +329,13 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				}
 				if !passed(have, want, s.unwrap(have, s.grid.CellCenter(from)), reach) {
 					s.drive(st, bases[i].Vel.Dir, have, s.ahead(have, want, p, waypoint, target), reach, st.MaxSpeed)
+					continue
+				}
+				if leg.Active && actual != leg.To {
+					// passed by the lookahead, not yet entered — a wide turner looks further ahead than
+					// half a cell: hold the leg and aim beyond it, or the next tick finds the unit
+					// short of its cell and plans again
+					s.drive(st, bases[i].Vel.Dir, have, s.ahead(have, want, p, waypoint, target)[1:], reach, st.MaxSpeed)
 					continue
 				}
 				if leg.Active {

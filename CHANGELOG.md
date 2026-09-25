@@ -29,6 +29,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - Routes and legs lose their footing when the terrain changes under them; a unit stuck where its
   domain may not keeps its order.
 - The camera pans in screen pixels at any zoom.
+- A unit that looks further ahead than half a cell (the hawk) keeps its leg until its centre enters
+  the waypoint it passed, instead of re-planning its route every step.
 
 **Isometric view**
 - `camera.Projection`: `TopDown` (the default, unchanged) and `Isometric` (Transport Tycoon's 2:1
