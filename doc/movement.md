@@ -312,6 +312,13 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   `Sight.Eye`. The scan costs about three times the flat one at the same radius (~13 µs against
   ~4 µs at radius 300, measured in aabbworld's ladder benchmark); `vision.Plugin.WithGroundStep`
   trades ground samples for speed.
+- **Range and ground are two things.** One reach per angle drew a unit on a plateau with its cone
+  cut at the edge, as if it saw nothing farther — yet a hawk above the valley, or ground low enough
+  far off, is in sight. With heights the outline now reaches the full `Sight.Radius`, and the
+  ground out of sight is kept as shadows (aabbworld v1.8.0's `View.Shadows`: every run of hidden
+  ground, closed where the ground is seen again) and drawn as dark holes over the ground. A small
+  plateau shows it well: the lowland just past its edge is a hole, the lowland farther on is lit
+  again once the line from the eye has dropped below it.
 - **Collision stays on planes — open.** Two entities meet where their `world.Layers` share a bit,
   in both worlds; a hawk passes over a wall because it is on `Air`, not because it is 40 up. A veto
   by Z overlap would make collision follow height too (a hawk landing, a projectile clearing a

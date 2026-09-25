@@ -49,4 +49,11 @@
 // An entity also carrying [SightOutline] has its view's shape computed: a reach per evenly spaced
 // angle across the cone. The [Renderer] draws it through the camera in a [ConeStyle]
 // ([DefaultConeStyle] strokes the boundary; [Plugin.WithStyle] or [ConeStyleFn] for another).
+//
+// In a Quasi3D world the reach of sight is not the reach of the ground: past a cliff the plain is
+// out of sight, a hawk above it or a higher hill beyond is not. There the outline reaches the full
+// Radius at every angle and keeps, per angle, up to [MaxShadowsPerSample] [Band]s of ground out of
+// sight (aabbworld's View.Shadows); the Renderer fills them over the ground as holes in the view,
+// through a style's Shade when it is a [ConeShader], else [DefaultShadow]. A flat world keeps the
+// reach cut where a wall stands, and no shadows.
 package vision

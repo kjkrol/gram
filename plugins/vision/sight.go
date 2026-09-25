@@ -53,9 +53,18 @@ type Sighted struct {
 	Count uint8
 }
 
-// SightOutline is the drawn shape of one entity's view: a reach per evenly spaced angle
-// across the cone. Only an entity carrying it has its outline computed.
+// MaxShadowsPerSample caps the stretches of hidden ground kept per angle of an outline; the nearest
+// are kept.
+const MaxShadowsPerSample = 2
+
+// Band is a stretch along one angle of a view, From to To away from the observer; zero is none.
+type Band struct{ From, To float32 }
+
+// SightOutline is the drawn shape of one entity's view: a reach per evenly spaced angle across the
+// cone and, in a Quasi3D world, the stretches of ground out of sight along each — the holes in a
+// view that reaches its full Radius. Only an entity carrying it has its outline computed.
 type SightOutline struct {
-	Depths [MaxSamples]float32
-	Count  uint8
+	Depths  [MaxSamples]float32
+	Shadows [MaxSamples][MaxShadowsPerSample]Band
+	Count   uint8
 }

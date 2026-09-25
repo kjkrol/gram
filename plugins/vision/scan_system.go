@@ -21,6 +21,8 @@ type ScanSystem struct {
 	space *aabbworld.Space
 	view  aabbworld.View // one for the whole system — see Update
 
+	shadows []aabbworld.Shadow // the view's shadows, read into an outline
+
 	// tau answers the cone how see-through an entity is to the observer in hand, blockers its Blockers.
 	tau      func(uid.UID64) float64
 	blockers world.Layers
@@ -159,7 +161,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if s.space.Scan(id, s.cone(sight, altitude), &s.view) {
 				record(&sight.Seen, &s.view)
 				if outlines != nil {
-					trace(&outlines[i], &s.view, sight)
+					s.trace(&outlines[i], sight)
 				}
 			} else {
 				sight.Seen.Count = 0
@@ -237,10 +239,29 @@ func record(dst *Sighted, view *aabbworld.View) {
 	})
 }
 
-// trace samples the cone at the resolution its reach and width call for, within the buffer.
-func trace(dst *SightOutline, view *aabbworld.View, s *Sight) {
-	k := samplesFor(s)
-	dst.Count = uint8(len(view.Depths(k, dst.Depths[:0])))
+// trace samples the cone at the resolution its reach and width call for, within the buffer. In a
+// Quasi3D world the view reaches its full Radius and the ground out of sight is kept as shadows.
+func (s *ScanSystem) trace(dst *SightOutline, sight *Sight) {
+	k := samplesFor(sight)
+	dst.Shadows = [MaxSamples][MaxShadowsPerSample]Band{}
+	if !s.quasi3D {
+		dst.Count = uint8(len(s.view.Depths(k, dst.Depths[:0])))
+		return
+	}
+	dst.Count = uint8(k)
+	for i := range k {
+		dst.Depths[i] = float32(sight.Radius)
+	}
+	s.shadows = s.view.Shadows(k, s.shadows[:0])
+	for _, sh := range s.shadows {
+		bands := &dst.Shadows[sh.Sample]
+		for j := range bands {
+			if bands[j] == (Band{}) {
+				bands[j] = Band{From: sh.From, To: sh.To}
+				break
+			}
+		}
+	}
 }
 
 // samplesFor is how many samples keep the reach within EdgeTolerance at full range.

@@ -53,8 +53,8 @@ func TestHeights_AHillHidesTheLowlandFromAWalkerAndNotFromAHawk(t *testing.T) {
 	if seen[0].Count != 0 {
 		t.Errorf("the walker saw %d past the hill, want nothing", seen[0].Count)
 	}
-	if mid := outlines[0].Depths[outlines[0].Count/2]; mid > 100 {
-		t.Errorf("the walker's reach ahead is %.1f, want it to stop on the hill", mid)
+	if b := outlines[0].Shadows[outlines[0].Count/2][0]; b.From > 100 || b.To < 240 {
+		t.Errorf("the walker's shadow ahead is %+v, want the ground from the hill past the target out of sight", b)
 	}
 	_, seen, _ = sceneIn(t, onHill, spawn{x: 0, y: 0, z: z(40, 2), sight: eyed(1)}, target)
 	if seen[0].Count != 1 {
@@ -76,4 +76,42 @@ func TestHeights_AFlatWorldRefusesAnEyeAndAQuasi3DWorldRefusesBlockers(t *testin
 	expect(t, "Sight.Eye", func() { scene(t, spawn{x: 0, y: 0, sight: eyed(1.5)}) })
 	blocked := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 8, Radius: 300, Blockers: 1}
 	expect(t, "Sight.Blockers", func() { sceneIn(t, &relief{}, spawn{x: 0, y: 0, sight: blocked}) })
+}
+
+// A walker on the plateau, 20 short of its edge, looking east: in a world with heights the view
+// reaches its full radius. The lowland just past the edge is below the line from its eye, a
+// shadow; farther on the line has dropped below the lowland and it is seen again.
+func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testing.T) {
+	onPlateau := &relief{ground: plateau{}, step: 10}
+	_, _, outlines := sceneIn(t, onPlateau, spawn{x: 70, y: 0, z: z(12, 2), sight: eyed(1.5), outline: true})
+	o := outlines[0]
+	mid := int(o.Count) / 2
+	for i := range int(o.Count) {
+		if o.Depths[i] != 300 {
+			t.Fatalf("depth %d = %v, want the full radius 300 at every angle", i, o.Depths[i])
+		}
+	}
+	b := o.Shadows[mid][0]
+	if b == (vision.Band{}) || b.From < 20 || b.From > 45 || b.To < 150 || b.To > 200 {
+		t.Errorf("shadow straight ahead = %+v, want one from just past the edge 25 away to where the lowland is seen again, about 180", b)
+	}
+	if o.Shadows[mid][1] != (vision.Band{}) {
+		t.Errorf("a second shadow %+v straight ahead, want the lowland seen to the radius", o.Shadows[mid][1])
+	}
+}
+
+func TestHeights_AFlatWorldDrawsNoShadows(t *testing.T) {
+	_, _, outlines := scene(t,
+		spawn{x: 0, y: 0, sight: eastward(math.Pi/8, 300), outline: true},
+		spawn{x: 100, y: 0, size: 60}, // a wall: the reach stops at it, as before
+	)
+	o := outlines[0]
+	for i := range int(o.Count) {
+		if o.Shadows[i][0] != (vision.Band{}) {
+			t.Fatalf("a flat world's outline has shadow %+v at angle %d, want none", o.Shadows[i][0], i)
+		}
+	}
+	if mid := o.Depths[o.Count/2]; mid > 100 {
+		t.Errorf("reach straight ahead %v, want it cut at the wall", mid)
+	}
 }

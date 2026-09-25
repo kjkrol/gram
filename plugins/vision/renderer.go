@@ -20,6 +20,19 @@ type ConeStyle interface {
 	Draw(screen *ebiten.Image, pts []ebiten.Vertex)
 }
 
+// ConeShader is a ConeStyle that also draws the shadows of a view — the ground out of sight — given
+// as one path of closed quads on the screen; a style without it gets DefaultShadow.
+type ConeShader interface {
+	Shade(screen *ebiten.Image, shadows *vector.Path)
+}
+
+var shadowColor = color.RGBA{R: 10, G: 10, B: 20, A: 110}
+
+// DefaultShadow fills the shadows of a view with a dark veil.
+func DefaultShadow(screen *ebiten.Image, shadows *vector.Path) {
+	vector.FillPath(screen, shadows, &vector.FillOptions{}, &vector.DrawPathOptions{ColorScale: colorScaleOf(shadowColor), AntiAlias: true})
+}
+
 // ConeStyleFn adapts a plain function to ConeStyle.
 type ConeStyleFn func(screen *ebiten.Image, pts []ebiten.Vertex)
 
@@ -73,7 +86,8 @@ type Renderer struct {
 	out   goke.Comp[SightOutline]
 	z     goke.OptComp[world.Z]
 
-	pts []ebiten.Vertex // rebuilt per entity, kept to stay off the heap
+	pts    []ebiten.Vertex // rebuilt per entity, kept to stay off the heap
+	shades vector.Path
 }
 
 // NewRenderer builds a Renderer with DefaultConeStyle, wrapping cones at the edges of space.
@@ -139,6 +153,7 @@ func (r *Renderer) drawCone(screen *ebiten.Image, pos *world.Position, alt float
 
 	if !r.wraps {
 		r.style.Draw(screen, r.draped(float32(ox), float32(oy), alt, s, o))
+		r.shade(screen, float32(ox), float32(oy), s, o)
 		return
 	}
 	sx, sy := r.camera.ToScreen(float32(ox), float32(oy))
@@ -180,6 +195,56 @@ func (r *Renderer) draped(ox, oy, alt float32, s *Sight, o *SightOutline) []ebit
 		r.pts = append(r.pts, ebiten.Vertex{DstX: px, DstY: py})
 	}
 	return r.pts
+}
+
+// shade draws the shadows of the view: for every angle, each band as a quad spanning halfway to the
+// angles either side, draped over the ground.
+func (r *Renderer) shade(screen *ebiten.Image, ox, oy float32, s *Sight, o *SightOutline) {
+	n := int(o.Count)
+	if n < 2 {
+		return
+	}
+	facing := math.Atan2(s.Facing.Y, s.Facing.X)
+	step := 2 * s.HalfAngle / float64(n-1)
+	r.shades.Reset()
+	drawn := false
+	for i := range n {
+		for _, b := range o.Shadows[i] {
+			if b == (Band{}) {
+				continue
+			}
+			a := facing - s.HalfAngle + float64(i)*step
+			lo, hi := max(a-step/2, facing-s.HalfAngle), min(a+step/2, facing+s.HalfAngle)
+			p0x, p0y := r.onGround(ox, oy, lo, b.From)
+			p1x, p1y := r.onGround(ox, oy, hi, b.From)
+			p2x, p2y := r.onGround(ox, oy, hi, b.To)
+			p3x, p3y := r.onGround(ox, oy, lo, b.To)
+			r.shades.MoveTo(p0x, p0y)
+			r.shades.LineTo(p1x, p1y)
+			r.shades.LineTo(p2x, p2y)
+			r.shades.LineTo(p3x, p3y)
+			r.shades.Close()
+			drawn = true
+		}
+	}
+	if !drawn {
+		return
+	}
+	if sh, ok := r.style.(ConeShader); ok {
+		sh.Shade(screen, &r.shades)
+		return
+	}
+	DefaultShadow(screen, &r.shades)
+}
+
+// onGround is the screen point dist away from (ox, oy) at angle a, on the ground there.
+func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) (float32, float32) {
+	x, y := ox+dist*float32(math.Cos(a)), oy+dist*float32(math.Sin(a))
+	z := float32(0)
+	if r.ground != nil {
+		z = float32(r.ground.At(geom.NewVec(float64(x), float64(y))))
+	}
+	return r.camera.Project(x, y, z)
 }
 
 // fan rebuilds the boundary around an already-projected anchor from the stored reaches, for the

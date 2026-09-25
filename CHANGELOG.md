@@ -81,7 +81,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   bands, ground sampled every `Plugin.WithGroundStep`), so a hawk 40 up looks over a wall 10 tall,
   a forest and a hill a walker's cone stops at. `Blockers` are refused in a Quasi3D world, `Eye`
   in a flat one. Collision stays on `Layers` in both.
-- The vision demos run in a Quasi3D world with a hill; aabbworld is pinned to v1.7.0.
+- In a Quasi3D world a `SightOutline` reaches the full `Sight.Radius` and keeps the ground out of
+  sight as `Shadows` (up to `MaxShadowsPerSample` `Band`s per angle, from aabbworld v1.8.0's
+  `View.Shadows`); the renderer fills them over the ground as holes in the view (`ConeShader`,
+  `DefaultShadow`). A flat world keeps its reach cut at walls.
+- The vision demos run in a Quasi3D world with a hill; aabbworld is taken from v1.8.0.
 
 **Kinds**
 - Package `kind/comp` holds what names one component of a Spec — `comp.Const`, `comp.Load`,
