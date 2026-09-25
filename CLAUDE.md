@@ -355,7 +355,10 @@ Each package has a `doc.go` describing the gameplay capability it adds.
 ### Stage / Scene
 
 A `game.Game` also supplies `Props()` (window/tick-rate config, read
-once at startup by `gram.Run(g)`; `TargetTPS` is the engine's own fixed
+once at startup by `gram.Run(g)`; `Resizable` makes the screen the window — the engine's
+`Layout` follows it and hands the active world's camera `SetViewport`, whose zoom floor scales a
+world smaller than the window up to cover it; Shift+F toggles fullscreen in every game,
+`Runtime.ToggleFullscreen`; `TargetTPS` is the engine's own fixed
 step — Ebitengine runs one `Update` per frame (`SyncWithFPS`), and a frame that
 falls behind runs at most 5 steps and drops the rest, so the game slows down
 instead of spiralling) alongside a named collection of

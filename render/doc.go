@@ -5,7 +5,7 @@
 //
 // A [Renderer] is Init once, at registration, and Draw every frame. [SolidBackground] fills the
 // screen with one color; [CachedRenderer] draws an inner Renderer once into an offscreen image and
-// reuses it until Invalidate, for a board that rarely changes; [TelemetryRenderer] prints the
+// reuses it until Invalidate or the screen changes size, for a board that rarely changes; [TelemetryRenderer] prints the
 // tick rate, the entity count and collisions a second from a running total.
 //
 // # Atlas and AtlasSource

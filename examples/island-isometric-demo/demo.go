@@ -66,7 +66,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram — an island in isometric relief",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }

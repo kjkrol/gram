@@ -37,6 +37,10 @@ type Camera interface {
 	Depth(x, y, z float32) float32
 	// Viewport is the screen the camera draws to, in pixels.
 	Viewport() (w, h float32)
+	// SetViewport resizes the screen the camera draws to — a window resized — keeping the point in
+	// the middle of it; a screen larger than the world at the current zoom raises the zoom until the
+	// world covers it.
+	SetViewport(w, h float32)
 	ToScreen(x, y float32) (float32, float32)
 	// FromScreen inverts ToScreen: screen coordinates back to world coordinates.
 	FromScreen(sx, sy float32) (float32, float32)
@@ -192,6 +196,22 @@ func (c *basicCamera) Projection() Projection { return TopDown{} }
 
 func (c *basicCamera) Viewport() (float32, float32) {
 	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
+}
+
+func (c *basicCamera) SetViewport(w, h float32) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	cx := c.effective.TopLeft.X + c.effective.Size.X/2
+	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
+	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	zoom := max(c.zoom, c.minZoom())
+	if c.maxZoom > 0 {
+		zoom = min(zoom, max(c.maxZoom, c.minZoom()))
+	}
+	c.zoom = zoom
+	vw, vh := c.viewportSize.X/float64(zoom), c.viewportSize.Y/float64(zoom)
+	c.place(cx-vw/2, cy-vh/2, vw, vh)
 }
 
 // Project is ToScreen: a top-down view draws no height.

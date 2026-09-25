@@ -62,7 +62,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram — sight across a hex board: walls cut, forests dim, a hawk flies over",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }

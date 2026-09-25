@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/behavior"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
@@ -63,7 +64,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram collision demo",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }
@@ -102,6 +103,8 @@ type mainStage struct {
 	state          *State
 	collisionStats behavior.ContactStats
 
+	players *players.Plugin
+
 	stack game.Scenes
 }
 
@@ -131,6 +134,15 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.state = &State{}
 	if err := ctx.Use(s.collision); err != nil {
+		return err
+	}
+
+	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
+	s.players = players.NewPlugin(s.world)
+	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.players); err != nil {
 		return err
 	}
 
@@ -192,6 +204,7 @@ func (s *mainStage) Spawn() error {
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
@@ -243,6 +256,7 @@ func (m *mainScene) Layers() []render.Renderer {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
 	s := m.stage
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress {

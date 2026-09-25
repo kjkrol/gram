@@ -28,7 +28,13 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   v1.7.0).
 - Routes and legs lose their footing when the terrain changes under them; a unit stuck where its
   domain may not keeps its order.
-- The camera pans in screen pixels at any zoom. `Camera.CenterOn(x, y, z)` puts a world point at a
+- The camera pans in screen pixels at any zoom.
+- `game.Props.Resizable`: the window can be resized and maximized, the screen is the window, and
+  the world camera follows it (`Camera.SetViewport`: the middle kept, a world smaller than the window
+  scaled up to cover it). Shift+F toggles fullscreen in every game (`Runtime.ToggleFullscreen`).
+  The world demos are resizable. `render.CachedRenderer` follows the screen's size, drawing anew
+  when it changes; collision-demo and vision-demo get the players plugin, so their camera pans,
+  zooms and scrolls at the edges. `Camera.CenterOn(x, y, z)` puts a world point at a
   height in the middle of the screen.
 - A right click on the cell a selected unit stands on turns it towards the point clicked, and a
   right click with S held (`navigation.LookAt`) has every selected unit finish its step, stop and

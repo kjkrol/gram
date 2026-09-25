@@ -187,3 +187,29 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 		t.Errorf("centred on the corner the window starts at %v, want it held inside the world at (0, 0)", b.TopLeft)
 	}
 }
+
+func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testing.T) {
+	for name, cam := range map[string]camera.Camera{
+		"isometric": isoCamera(t, 0),
+		"top-down":  camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}),
+	} {
+		cam.CenterOn(330, 310, 0)
+		cam.SetViewport(500, 400)
+		if w, h := cam.Viewport(); w != 500 || h != 400 {
+			t.Errorf("%s: Viewport %v x %v after SetViewport(500, 400)", name, w, h)
+		}
+		if sx, sy := cam.Project(330, 310, 0); !near(sx, 250) || !near(sy, 200) {
+			t.Errorf("%s: the point in the middle moved to (%v, %v), want (250, 200)", name, sx, sy)
+		}
+	}
+	small := camera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 640, ViewportHeight: 640})
+	small.SetViewport(1280, 960)
+	if z := small.Zoom(); !near(z, 2) {
+		t.Errorf("a 640-unit world in a 1280-pixel window is at zoom %v, want 2: scaled up to cover it", z)
+	}
+	large := camera.NewFromSpaceWithConfig(4000, 4000, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300})
+	large.SetViewport(1200, 900)
+	if b := large.Bounds(); large.Zoom() != 1 || b.BottomRight.X-b.TopLeft.X != 1200 {
+		t.Errorf("a large world in a larger window: zoom %v, bounds %v; want zoom 1 showing 1200 units", large.Zoom(), b)
+	}
+}

@@ -50,6 +50,16 @@ func (c *isoCamera) Viewport() (float32, float32) {
 	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
 }
 
+func (c *isoCamera) SetViewport(w, h float32) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	x, y := c.Unproject(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2), 0)
+	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.zoom = max(c.zoom, c.minZoom())
+	c.CenterOn(float64(x), float64(y), 0)
+}
+
 func (c *isoCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)
 	return sx*c.zoom + float32(c.pan.X), sy*c.zoom + float32(c.pan.Y)

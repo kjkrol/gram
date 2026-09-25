@@ -6,7 +6,10 @@
 // # Game
 //
 // A [Game] supplies [Props] — window title and size, and TargetTPS, the engine's one fixed step —
-// and its Stages by Name, plus which starts active. Every game writes its own small Game, even
+// and its Stages by Name, plus which starts active. Props.Resizable lets the player resize and
+// maximize the window: the screen is then the window, and the world camera draws to all of it —
+// more of a large world, a small one scaled up to cover it. Shift+F toggles fullscreen in every
+// game ([Runtime].ToggleFullscreen). Every game writes its own small Game, even
 // for a single Stage, since only a concrete type can supply its own Props. The engine never keeps
 // a copy of the Stage set: it asks Stages() whenever it resolves a name.
 //

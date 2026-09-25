@@ -36,6 +36,8 @@ type Engine struct {
 	transitionOverlay render.SolidBackground
 
 	quit bool
+	// width and height are the window's, once a resizable one has been laid out.
+	width, height int
 }
 
 var _ ebiten.Game = (*Engine)(nil)
@@ -97,6 +99,9 @@ func (e *Engine) Camera() camera.Camera {
 // Quit ends the Ebitengine loop after this tick.
 func (e *Engine) Quit() { e.quit = true }
 
+// ToggleFullscreen switches the window to fullscreen and back.
+func (e *Engine) ToggleFullscreen() { ebiten.SetFullscreen(!ebiten.IsFullscreen()) }
+
 // SwitchStage requests a transition to the Stage called name, made at the start of the next Update.
 func (e *Engine) SwitchStage(name string) error {
 	stages, _ := e.game.Stages()
@@ -132,6 +137,9 @@ func (e *Engine) Run() {
 
 	ebiten.SetWindowSize(e.props.ScreenWidth, e.props.ScreenHeight)
 	ebiten.SetWindowTitle(e.props.Title)
+	if e.props.Resizable {
+		ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	}
 	if err := ebiten.RunGame(e); err != nil {
 		log.Fatal(err)
 	}
@@ -162,6 +170,11 @@ func (e *Engine) Update() error {
 	}
 
 	e.controller.Capture(e.inputs)
+	for _, k := range e.inputs.KeyEvents {
+		if k.Key == ebiten.KeyF && k.Action == control.ActionPress && e.inputs.Modifiers.Shift {
+			e.ToggleFullscreen()
+		}
+	}
 	e.controller.Update(nil, 0)
 	e.inputs.ResetTransient()
 
@@ -195,7 +208,26 @@ func (e *Engine) Draw(screen *ebiten.Image) {
 	}
 }
 
+// Layout is the fixed screen of the Props, or with Resizable the window itself, which the active
+// world's camera is resized to follow.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if !e.props.Resizable || outsideWidth <= 0 || outsideHeight <= 0 {
+		return e.props.ScreenWidth, e.props.ScreenHeight
+	}
+	if outsideWidth != e.width || outsideHeight != e.height {
+		e.width, e.height = outsideWidth, outsideHeight
+		if cam := e.Camera(); cam != nil {
+			cam.SetViewport(float32(e.width), float32(e.height))
+		}
+	}
+	return e.width, e.height
+}
+
+// screen is the size the screen has now: the window's once a resizable one has been laid out.
+func (e *Engine) screen() (int, int) {
+	if e.props.Resizable && e.width > 0 && e.height > 0 {
+		return e.width, e.height
+	}
 	return e.props.ScreenWidth, e.props.ScreenHeight
 }
 

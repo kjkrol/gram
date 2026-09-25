@@ -19,7 +19,8 @@ type stageRuntime struct {
 func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 	host := newECSHost()
 
-	ctx := &initializer{host: host, tps: e.tps, screenWidth: e.props.ScreenWidth, screenHeight: e.props.ScreenHeight}
+	w, h := e.screen()
+	ctx := &initializer{host: host, tps: e.tps, screenWidth: w, screenHeight: h}
 	if err := stage.Init(ctx); err != nil {
 		return nil, err
 	}
