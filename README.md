@@ -338,7 +338,8 @@ has a `doc.go` describing what it brings.
 
 Design notes sit in [`doc/`](doc): [`roadmap.md`](doc/roadmap.md) is the map of what is done and
 what comes next, [`movement.md`](doc/movement.md) the reasoning behind movement, terrain and
-effects, [`views.md`](doc/views.md) where players and networking are headed.
+effects, [`views.md`](doc/views.md) where players and networking are headed, [`rendering.md`](doc/rendering.md)
+a proposal for one composer drawing each view.
 
 | Package | Responsibility |
 |:---|:---|

@@ -456,7 +456,8 @@ that bypass it.
 ## Docs, benchmarks and commits
 
 `doc/roadmap.md` is the map: what is done and what comes next, in order, with the reasoning in
-`doc/movement.md` and `doc/views.md`; keep it current when a stage lands.
+`doc/movement.md` and `doc/views.md`; keep it current when a stage lands. `doc/rendering.md` is a
+proposal, not built: one composer per viewport sorting draw items by layer and depth.
 Every package has a `doc.go` with `# Type` sections describing what it brings; the root `doc.go`
 carries the concepts, the tick lifecycle and the layered package graph. README leads with what the
 library is; its code example is `examples/minimal`, so change that program first and keep the
