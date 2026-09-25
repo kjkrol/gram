@@ -62,7 +62,7 @@ func (s *Steering) advance(dt float64) {
 	switch {
 	case s.Accel <= 0:
 		s.Speed = want
-	case s.Speed == 0 && want > 0:
+	case s.Speed == 0 && want > 0 && s.V0 > 0:
 		s.Speed = min(s.V0, want)
 	case want > s.Speed:
 		s.Speed = min(s.Speed+s.Accel*dt, want)
