@@ -244,6 +244,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   board's grid goes through it instead of one `vector.StrokeLine` a line, and is left out where a
   cell spans fewer than 6 pixels. island-isometric-demo draws a frame in 4.2 ms of CPU instead of
   6.9 with the grid on, and 5.9 instead of 17.5 zoomed out to the whole island.
+- A square grid's `CellsUnder` walks the rows and columns a box touches instead of sampling a
+  lattice into a map, and counts the cells across a wrap seam, which the lattice missed; the board
+  renderer finds the cells in view the same way (on a hex grid, by sampling marked in a slice).
+  A frame's drawing costs 10–25% less CPU in the island demos.
 
 **Demos**
 - `navigation-hex-demo`, `navigation-vision-demo`, `navigation-vision-hex-demo`, `island-demo`,

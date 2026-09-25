@@ -84,7 +84,38 @@ func (g *squareGrid) CellOutline(c CellID, dst []geom.Vec) []geom.Vec {
 	return append(dst, geom.NewVec(x0, y0), geom.NewVec(x0+size, y0), geom.NewVec(x0+size, y0+size), geom.NewVec(x0, y0+size))
 }
 
-func (g *squareGrid) CellsUnder(box geom.AABB, fn func(c CellID)) { cellsUnder(g, box, fn) }
+// CellsUnder walks the columns and rows the box touches, edges included, each cell once however
+// far the box reaches round a wrapping axis.
+func (g *squareGrid) CellsUnder(box geom.AABB, fn func(c CellID)) {
+	if g.CellSize == 0 {
+		return
+	}
+	size := float64(g.CellSize)
+	x0, x1, okX := spanOf(box.TopLeft.X, box.BottomRight.X, size, g.Width, g.WrapX)
+	y0, y1, okY := spanOf(box.TopLeft.Y, box.BottomRight.Y, size, g.Height, g.WrapY)
+	if !okX || !okY {
+		return
+	}
+	for y := y0; y <= y1; y++ {
+		fy, _ := foldAxis(y, int64(g.Height), g.WrapY)
+		for x := x0; x <= x1; x++ {
+			fx, _ := foldAxis(x, int64(g.Width), g.WrapX)
+			fn(g.idAt(uint32(fx), uint32(fy)))
+		}
+	}
+}
+
+// spanOf is the cells lo..hi along one axis that the stretch from a to b touches: clamped to the
+// board where the axis does not wrap, one lap at most where it does.
+func spanOf(a, b, size float64, n uint32, wraps bool) (lo, hi int64, ok bool) {
+	const eps = 1e-9
+	lo, hi = int64(math.Floor((a-eps)/size)), int64(math.Floor((b+eps)/size))
+	if wraps {
+		return lo, min(hi, lo+int64(n)-1), true
+	}
+	lo, hi = max(lo, 0), min(hi, int64(n)-1)
+	return lo, hi, lo <= hi
+}
 
 // CellBoxes is the cell's own square.
 func (g *squareGrid) CellBoxes(c CellID, dst []geom.AABB) []geom.AABB {

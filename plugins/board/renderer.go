@@ -33,7 +33,9 @@ type Renderer struct {
 	batch   *render.QuadBatch
 	lines   *render.LineBatch
 	outline []geom.Vec
-	visited map[CellID]struct{}
+	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
+	seen  []uint32
+	stamp uint32
 	// relief draws the sides of raised ground and of tall kinds: an isometric camera's view.
 	relief bool
 }
@@ -65,7 +67,7 @@ var _ render.Overlayer = (*Renderer)(nil)
 func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState) *Renderer {
 	w, h := board.CellBounds()
 	return &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state,
-		batch: render.NewQuadBatch(atlas), lines: render.NewLineBatch(), visited: map[CellID]struct{}{}}
+		batch: render.NewQuadBatch(atlas), lines: render.NewLineBatch()}
 }
 
 func (l *Renderer) Init(*goke.SysInit) {}
@@ -209,24 +211,36 @@ func (l *Renderer) face(ax, ay, bx, by, topA, topB, footA, footB float32) render
 	return out
 }
 
-// eachVisible calls fn once for every cell under the camera's bounds.
+// eachVisible calls fn once for every cell under the camera's bounds: on a square grid straight
+// from the rows and columns, on any other by sampling every half cell.
 func (l *Renderer) eachVisible(fn func(c CellID)) {
+	bounds := l.camera.Bounds()
+	if l.board.square != nil {
+		l.board.CellsUnder(bounds, fn)
+		return
+	}
 	step := min(l.cellW, l.cellH) / 2
 	if step <= 0 {
 		step = 1
 	}
-	bounds := l.camera.Bounds()
-	clear(l.visited)
-	for y := float64(bounds.TopLeft.Y); y < float64(bounds.BottomRight.Y)+step; y += step {
-		for x := float64(bounds.TopLeft.X); x < float64(bounds.BottomRight.X)+step; x += step {
+	if n := l.board.CellCount(); len(l.seen) != n {
+		l.seen, l.stamp = make([]uint32, n), 0
+	}
+	if l.stamp++; l.stamp == 0 { // wrapped round: old marks would pass for new
+		clear(l.seen)
+		l.stamp = 1
+	}
+	for y := bounds.TopLeft.Y; y < bounds.BottomRight.Y+step; y += step {
+		for x := bounds.TopLeft.X; x < bounds.BottomRight.X+step; x += step {
 			c, ok := l.board.CellAt(geom.NewVec(x, y))
 			if !ok {
 				continue
 			}
-			if _, seen := l.visited[c]; seen {
+			i, ok := l.board.ordinal(c)
+			if !ok || l.seen[i] == l.stamp {
 				continue
 			}
-			l.visited[c] = struct{}{}
+			l.seen[i] = l.stamp
 			fn(c)
 		}
 	}
