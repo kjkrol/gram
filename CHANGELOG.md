@@ -111,7 +111,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   hills come from their layouts, and island-isometric's rise smoothly from the fields.
 - Shaping as in Transport Tycoon: `board.Raise`, `Lower` and `Level` commands, `Shaping{Step,
   MaxStep}` with the ground round about following, `Plugin.WithShaping`, `Board.Lift` and
-  `Flatten`. In a Quasi3D world the board is a `plugin.Commander`: = and - under the cursor, a
+  `Flatten`. In a Quasi3D world the board is a `plugin.CommandHandler`: = and - under the cursor, a
   left drag with L held levels. island-isometric-demo shapes its island.
 - Reading the terrain from the cell entities costs less than the map and the raster did: A* across
   a 128x128 board costs the same, the ground under a point about 42% less.
@@ -146,13 +146,13 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `Ground` component is contiguous in memory; `CellKindDict.Get` and `Layout` keep taking strings.
 
 **Plugins**
-- Commands, the other direction of behaviors, as `control`'s vocabulary: a `plugin.Commander`
-  keeps a `control.Inbox[C]` of each command type it defines, drains it in its own pass (`Issued`
+- Commands, the other direction of behaviors, as `control`'s vocabulary: a `plugin.CommandHandler`
+  keeps a `control.Queue[C]` of each command type it defines, drains it in its own pass (`Issued`
   with the `PlayerID`, `Nobody` for none) and suggests `DefaultBindings` — a `control.Binding` is
   a `Trigger` (`KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, exact
   `Mods`), the command `Command[C]` builds from a `Context` (camera, cursor, drag;
   `World`/`WorldBox`) and a label. `selection.Select` and `navigation.MoveTo` are such commands.
-- `plugins/players`: who acts in the game, a carrier built over the Commanders
+- `plugins/players`: who acts in the game, a carrier built over the command handlers
   (`players.NewPlugin(world, selection, nav)`): a `Local` player at the keyboard over the world's
   camera and `View`, `Add` one without (an AI, a client), `Defaults()` to bind, `Issue` for any
   command, `Pan`/`Zoom` with `CameraBindings`, the marquee of a drag drawn by its renderer,

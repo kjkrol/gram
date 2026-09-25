@@ -25,9 +25,9 @@ type Shaping struct{ Step, MaxStep float64 }
 // shaping holds the shaping commands until the cell system carries them out.
 type shaping struct {
 	cfg   Shaping
-	raise control.Inbox[Raise]
-	lower control.Inbox[Lower]
-	level control.Inbox[Level]
+	raise control.Queue[Raise]
+	lower control.Queue[Lower]
+	level control.Queue[Level]
 }
 
 func (s *shaping) run(b *Board) {

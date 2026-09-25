@@ -297,7 +297,7 @@ shows how much of it is boilerplate vs. real behavior.
   stands and holds that route for `bumpInterval`, so units pushing each other on a road step
   aside instead of shoving for ever. Occupancy is seeded from `Cell` + `Mover` at Setup (no spawn
   effect needed). A `MoveTo{Cell, Append}` command orders
-  every `Selected` entity; a `plugin.Commander`, its `DefaultBindings()` make a right click one,
+  every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
   Shift appends. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
 - **`effects`** — temporary changes to entities, cast from anywhere: `p.Define(name,
@@ -312,27 +312,28 @@ shows how much of it is boilerplate vs. real behavior.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`; terrain bodies never do); a bit flip, seen
-  the same tick. A `plugin.Commander`: its `DefaultBindings()` make a left drag one (Shift adds)
+  the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds)
   and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
   again stops), which the `FollowSystem` keeps in the middle of the camera every tick
   (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
   keeps it. Depends on `world`.
-- **`players`** — whoever acts in the game, a carrier over `plugin.Commander`s:
-  `players.NewPlugin(world, s.selection, s.nav, ...)` gathers each one's `Commands()` (the
-  `control.Inbox[C]` it drains in its own pass) and `DefaultBindings()`; `Defaults()` is all of
+- **`players`** — whoever acts in the game, a carrier over `plugin.CommandHandler`s:
+  `players.NewPlugin(world, s.selection, s.nav, ...)` gathers each one's `Queues()` (the
+  `control.Queue[C]` it drains in its own pass) and `DefaultBindings()`; `Defaults()` is all of
   them plus `CameraBindings()` for players' own `Pan`/`Zoom`. `Local(name)` is a player at the
   keyboard over the world's camera and `View`, `Add(name)` one without (an AI, a client);
-  `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no Commander
-  defines). The contract — `Inbox`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
+  `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
+  defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
   `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
   `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera and, in a Quasi3D
   world, on the ground under the cursor via `Context.Ground`) — lives in
-  `control`, and `plugin.Commander` names what defines commands, so a plugin with commands never
-  imports players. `Renderers()` is the Commanders' renderers in order plus the marquee, for the
+  `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
+  per command type; events have subscribers, commands a handler), so a plugin with commands never
+  imports players. `Renderers()` is the command handlers' renderers in order plus the marquee, for the
   Scene to lay over the world. `Player.Bind` refuses two on one
   trigger, Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the
-  inboxes. Depends on `world`.
+  queues. Depends on `world`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
   space each tick fills its own `Sight.Seen` (who this entity can see, nearest first), and
   `SightOutline` on an entity gets its view's shape computed and drawn. An entity carrying

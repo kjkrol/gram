@@ -25,7 +25,7 @@ const pickReach = 160
 // into it, as the camera draws them: their box on the ground, or through an isometric camera the
 // billboard standing on their centre at their altitude.
 type SelectionSystem struct {
-	selects *control.Inbox[Select]
+	selects *control.Queue[Select]
 	space   *aabbworld.Space
 	camera  camera.Camera
 	tags    Tags
@@ -39,7 +39,7 @@ type SelectionSystem struct {
 }
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through cam.
-func NewSelectionSystem(selects *control.Inbox[Select], space *aabbworld.Space, cam camera.Camera, tags Tags) *SelectionSystem {
+func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, cam camera.Camera, tags Tags) *SelectionSystem {
 	return &SelectionSystem{selects: selects, space: space, camera: cam, tags: tags}
 }
 

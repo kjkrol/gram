@@ -23,9 +23,9 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	oldTarget, _ := grid.CellIndex(3, 0)
 	newTarget, _ := grid.CellIndex(8, 0)
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 
 	var cell goke.Comp[board.Cell]
@@ -110,9 +110,9 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	start, _ := grid.CellIndex(0, 0)
 	newTarget, _ := grid.CellIndex(8, 0)
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 
 	var cell goke.Comp[board.Cell]
@@ -202,9 +202,9 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	wall, _ := grid.CellIndex(8, 0)
 	terrain.Set(wall, board.CellKind{Cost: 1, Solid: true})
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 
 	var cell goke.Comp[board.Cell]

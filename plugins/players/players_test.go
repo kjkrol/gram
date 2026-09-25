@@ -38,18 +38,18 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 type order struct{ Cell int }
 type note struct{ Text string }
 
-type general struct{ orders control.Inbox[order] }
+type general struct{ orders control.Queue[order] }
 
-func (g *general) Commands() []control.Mailbox        { return []control.Mailbox{&g.orders} }
+func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player and a general's order inbox.
+// rig is a players plugin over a 1000×1000 world with one local player and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
 	p      *players.Plugin
 	local  *players.Player
-	orders *control.Inbox[order]
+	orders *control.Queue[order]
 }
 
 func newRig(t *testing.T, cfg ...camera.Config) *rig {
@@ -128,7 +128,7 @@ func TestIssue_RefusesACommandNobodyListensFor(t *testing.T) {
 		t.Errorf("drained %v, want order 7 from Nobody", got)
 	}
 	if !r.orders.Empty() {
-		t.Error("the inbox is not empty after Drain")
+		t.Error("the queue is not empty after Drain")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestNewPlugin_RefusesTwoCommandersOfOneType(t *testing.T) {
 	})
 	defer func() {
 		if recover() == nil {
-			t.Error("two Commanders defining order did not panic")
+			t.Error("two handlers defining order did not panic")
 		}
 	}()
 	players.NewPlugin(w, &general{}, &general{})

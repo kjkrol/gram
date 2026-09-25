@@ -22,10 +22,12 @@ type Select struct {
 // Follow is the command to follow the one selected unit with the camera, or to stop following.
 type Follow struct{}
 
-var _ plugin.Commander = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Commands is the inboxes Select and Follow land in — for the players plugin.
-func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.selects, &p.follows} }
+// Queues are where Select and Follow land — for the players plugin.
+func (p *Plugin) Queues() []control.CommandQueue {
+	return []control.CommandQueue{&p.selects, &p.follows}
+}
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
 // drew, Shift for an additive one, and F to follow the one selected unit or stop following.

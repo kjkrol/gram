@@ -306,9 +306,9 @@ is a bit of a family — one `plugin.Tags[F]` component per family, named throug
 given to a kind with `comp.Tagged` — so markers cost no component types of their own. Ready-made
 behaviors live in `plugins/collision/behavior` and `plugins/vision/behavior`; which tags they run
 between is the registration's to say. What a player *wants* goes the other way, as a command:
-the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a `plugin.Commander`
-that keeps its `control.Inbox` and drains it in its own pass; the `players` plugin is built over
-the Commanders and carries what a player's bindings, an AI or a network issue.
+the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a `plugin.CommandHandler`
+that keeps its `control.Queue` and drains it in its own pass; the `players` plugin is built over
+the command handlers and carries what a player's bindings, an AI or a network issue.
 
 ## Kinds, spawning and saves
 
@@ -337,7 +337,7 @@ effects, [`views.md`](doc/views.md) where players and networking are headed.
 | Package | Responsibility |
 |:---|:---|
 | [`camera`](camera/doc.go) | The view onto a world: screen conversion, culling, move and zoom; wrap-aware |
-| [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Inbox`, `Issued`, `Binding`, `Command`, the triggers |
+| [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued`, `Binding`, `Command`, the triggers |
 | [`render`](render/doc.go) | Drawing primitives: `Renderer`, `Atlas` baked at `Close`, `QuadBatch`, sprite drawers, cached and telemetry renderers |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Behavior`, `Tag`/`Tags`/`Any`, `Marks`, `Serializable`, `PostLoader`, `Populator` |
 | [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `Pair`/`Each`/`Every` behind a plugin's typed constructors, `PairHost` and `EachHost` that run them |
@@ -352,7 +352,7 @@ effects, [`views.md`](doc/views.md) where players and networking are headed.
 | [`plugins/effects`](plugins/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; highlight renderer |
-| [`plugins/players`](plugins/players/doc.go) | A carrier over the Commanders: players and their bindings, `Pan` and `Zoom` |
+| [`plugins/players`](plugins/players/doc.go) | A carrier over the command handlers: players and their bindings, `Pan` and `Zoom` |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the Ebitengine loop, one active Stage, persistence, input capture |
 | [`gram`](doc.go) (public) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 

@@ -23,11 +23,11 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) { m.runnable = ecs.RegSys(&cameraSystem{p: m.p}) }
 
-// RunPlan moves the cameras and empties every inbox; call it after the plugins that drain theirs.
+// RunPlan moves the cameras and empties every queue; call it after the plugins that drain theirs.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
 	ctx.Sync()
-	for _, box := range m.p.inboxes {
+	for _, box := range m.p.queues {
 		box.Clear()
 	}
 }
@@ -39,7 +39,7 @@ func (m *module) SetupSystems() []goke.System {
 		var missing []string
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {
-				if _, ok := m.p.inboxes[b.Command()]; !ok {
+				if _, ok := m.p.queues[b.Command()]; !ok {
 					missing = append(missing, fmt.Sprintf("%v (%q for %s)", b.Command(), b.Label, pl.Name))
 				}
 			}

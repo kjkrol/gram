@@ -15,8 +15,8 @@ import (
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
 type Plugin struct {
 	worldPlugin *world.Plugin
-	selects     control.Inbox[Select]
-	follows     control.Inbox[Follow]
+	selects     control.Queue[Select]
+	follows     control.Queue[Follow]
 	camera      camera.Camera
 	module      *module
 	renderer    *Renderer

@@ -25,8 +25,8 @@ type Plugin struct {
 	board  *board.Board
 	module *module
 
-	moves  control.Inbox[MoveTo]
-	looks  control.Inbox[LookAt]
+	moves  control.Queue[MoveTo]
+	looks  control.Queue[LookAt]
 	finder *pathFinder
 
 	pathSprites  PathSprites

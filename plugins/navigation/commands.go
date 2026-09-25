@@ -23,10 +23,10 @@ type LookAt struct {
 	At geom.Vec
 }
 
-var _ plugin.Commander = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Commands is the inboxes MoveTo and LookAt land in — for the players plugin.
-func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.moves, &p.looks} }
+// Queues are where MoveTo and LookAt land — for the players plugin.
+func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.moves, &p.looks} }
 
 // DefaultBindings is a right click into a MoveTo of the cell under the cursor, Shift to append,
 // and a right click with S held into a LookAt of the point under the cursor.

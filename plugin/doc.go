@@ -37,9 +37,11 @@
 // # Commands
 //
 // What a player wants goes the other way, as a command — the vocabulary is package control's. A
-// [Commander] is a plugin, or a game, that defines command types: it keeps a control.Inbox of each
-// as a field, lists them in Commands, drains them in its own pass, and suggests the
-// control.Bindings that issue them. The players plugin is the carrier built over the Commanders.
+// [CommandHandler] is a plugin, or a game, that defines command types and carries them out: it
+// keeps a control.Queue of each as a field, lists them in Queues, drains them in its own pass, and
+// suggests the control.Bindings that issue them. A command type has one handler — a subscriber is
+// what hears an event, and there may be many. The players plugin is the carrier built over the
+// handlers.
 //
 // # Tick
 //

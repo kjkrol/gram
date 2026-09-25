@@ -17,7 +17,7 @@ import (
 // by the command system alone.
 type commandWorld struct {
 	grid  board.Grid
-	moves *control.Inbox[MoveTo]
+	moves *control.Queue[MoveTo]
 	ecs   *goke.ECS
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -28,10 +28,10 @@ type commandWorld struct {
 
 func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
-	cw := &commandWorld{grid: board.DefaultGrids{}.Square(10, 1, 10), moves: &control.Inbox[MoveTo]{}}
+	cw := &commandWorld{grid: board.DefaultGrids{}.Square(10, 1, 10), moves: &control.Queue[MoveTo]{}}
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, &board.SingleOccupancy{}), cw.moves, &control.Inbox[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, &board.SingleOccupancy{}), cw.moves, &control.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()

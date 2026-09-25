@@ -45,7 +45,7 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
-var _ plugin.Commander = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds a board over grid with the given occupancy cap, slowing worldPlugin's entities.
 func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugin {
@@ -159,12 +159,12 @@ func (p *Plugin) WithShaping(s Shaping) *Plugin {
 	return p
 }
 
-// Commands lists the shaping inboxes in a Quasi3D world, none in a flat one.
-func (p *Plugin) Commands() []control.Mailbox {
+// Queues are where Raise, Lower and Level land in a Quasi3D world; none in a flat one.
+func (p *Plugin) Queues() []control.CommandQueue {
 	if !p.worldPlugin.Quasi3D() {
 		return nil
 	}
-	return []control.Mailbox{&p.shaping.raise, &p.shaping.lower, &p.shaping.level}
+	return []control.CommandQueue{&p.shaping.raise, &p.shaping.lower, &p.shaping.level}
 }
 
 // DefaultBindings in a Quasi3D world: = raises and - lowers the ground under the cursor, a left

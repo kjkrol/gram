@@ -226,7 +226,7 @@ func TestShaping_RaiseLiftsTheNearestCornerAndTheSlopeFollows(t *testing.T) {
 	corner := b.CellCenter(cw.target).Sub(geom.NewVec(cellSize/2, cellSize/2)) // the target's top-left
 	v := b.Version()
 	for range 3 {
-		cw.brd.Commands()[0].Put(control.Nobody, board.Raise{At: corner.Add(geom.NewVec(2, 3))})
+		cw.brd.Queues()[0].Put(control.Nobody, board.Raise{At: corner.Add(geom.NewVec(2, 3))})
 	}
 	cw.ecs.Tick(cellTick)
 	if got := cw.heights(); got[0] != 15 {
@@ -248,7 +248,7 @@ func TestShaping_RaiseLiftsTheNearestCornerAndTheSlopeFollows(t *testing.T) {
 		t.Errorf("a far cell's corners = %v, want only its bottom-right 3 edges out at 5", got)
 	}
 
-	cw.brd.Commands()[1].Put(control.Nobody, board.Lower{At: corner})
+	cw.brd.Queues()[1].Put(control.Nobody, board.Lower{At: corner})
 	cw.ecs.Tick(cellTick)
 	if got := cw.heights()[0]; got != 10 {
 		t.Errorf("after a Lower the corner stands at %v, want 10", got)
@@ -260,7 +260,7 @@ func TestShaping_LevelBringsAnAreaToTheHeightWhereItBegan(t *testing.T) {
 	b := cw.board()
 	b.SetHeights(func(p geom.Vec) float64 { return p.X / 4 }) // a ramp rising east
 	from, to := b.CellCenter(cw.target), geom.NewVec(0, 0)
-	cw.brd.Commands()[2].Put(control.Nobody, board.Level{From: from, To: to})
+	cw.brd.Queues()[2].Put(control.Nobody, board.Level{From: from, To: to})
 	cw.ecs.Tick(cellTick)
 	want := float32(b.CellCenter(cw.target).X+cellSize/2) / 4 // the corner nearest where it began: the target's bottom-right
 	for _, c := range []board.CellID{cw.target, 0} {
@@ -276,7 +276,7 @@ func TestShaping_OnAHexGridACellIsItsOwnLevel(t *testing.T) {
 	grid := board.DefaultGrids{}.Hex(4, 4, cellSize/2)
 	cw := newShapedWorld(t, false, true, grid, board.Shaping{Step: 4, MaxStep: 2})
 	b := cw.board()
-	cw.brd.Commands()[0].Put(control.Nobody, board.Raise{At: b.CellCenter(cw.target)})
+	cw.brd.Queues()[0].Put(control.Nobody, board.Raise{At: b.CellCenter(cw.target)})
 	cw.ecs.Tick(cellTick)
 	if got := cw.heights(); got != [4]float32{4, 4, 4, 4} {
 		t.Errorf("the raised hex = %v, want level at 4", got)
@@ -290,7 +290,7 @@ func TestShaping_OnAHexGridACellIsItsOwnLevel(t *testing.T) {
 
 func TestShaping_AFlatWorldHasNoShapingCommands(t *testing.T) {
 	cw := newCellWorld(t, false)
-	if len(cw.brd.Commands()) != 0 || len(cw.brd.DefaultBindings()) != 0 {
+	if len(cw.brd.Queues()) != 0 || len(cw.brd.DefaultBindings()) != 0 {
 		t.Error("a flat world's board offers shaping commands")
 	}
 }

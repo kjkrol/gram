@@ -13,37 +13,37 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ErrUnknownCommand is what Issue reports for a command type none of the Commanders defines.
+// ErrUnknownCommand is what Issue reports for a command type no handler defines.
 var ErrUnknownCommand = errors.New("players: no plugin listens for this command")
 
-// Plugin keeps the game's players and carries their commands to the Commanders that define them:
-// a player's bindings, an AI or a network issue a command, and it lands in its owner's inbox.
+// Plugin keeps the game's players and carries their commands to the handlers that define them: a
+// player's bindings, an AI or a network issue a command, and it lands in its handler's queue.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	ground      func(x, y float32) float32 // the world's Ground for command contexts, bound at first use
-	commanders  []plugin.Commander
+	handlers    []plugin.CommandHandler
 	players     []*Player
-	inboxes     map[reflect.Type]control.Mailbox
-	pans        control.Inbox[Pan]
-	zooms       control.Inbox[Zoom]
+	queues      map[reflect.Type]control.CommandQueue
+	pans        control.Queue[Pan]
+	zooms       control.Queue[Zoom]
 	module      *module
 	renderer    *Renderer
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
-var _ plugin.Commander = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
-// share, carrying the commands of commanders; two Commanders of one command type panic.
-func NewPlugin(worldPlugin *world.Plugin, commanders ...plugin.Commander) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin, inboxes: map[reflect.Type]control.Mailbox{}}
-	p.commanders = append([]plugin.Commander{p}, commanders...)
-	for _, c := range p.commanders {
-		for _, box := range c.Commands() {
-			if other, taken := p.inboxes[box.Accepts()]; taken && other != box {
+// share, carrying the commands of handlers; two handlers of one command type panic.
+func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
+	p := &Plugin{worldPlugin: worldPlugin, queues: map[reflect.Type]control.CommandQueue{}}
+	p.handlers = append([]plugin.CommandHandler{p}, handlers...)
+	for _, c := range p.handlers {
+		for _, box := range c.Queues() {
+			if other, taken := p.queues[box.Accepts()]; taken && other != box {
 				panic(fmt.Sprintf("players: %v is defined twice", box.Accepts()))
 			}
-			p.inboxes[box.Accepts()] = box
+			p.queues[box.Accepts()] = box
 		}
 	}
 	return p
@@ -86,19 +86,19 @@ func (p *Plugin) ByID(id control.PlayerID) *Player {
 	return p.players[id-1]
 }
 
-// Defaults is every Commander's default bindings, camera controls included, in one list to bind.
+// Defaults is every handler's default bindings, camera controls included, in one list to bind.
 func (p *Plugin) Defaults() []control.Binding {
 	var out []control.Binding
-	for _, c := range p.commanders {
+	for _, c := range p.handlers {
 		out = append(out, c.DefaultBindings()...)
 	}
 	return out
 }
 
-// Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no Commander defines its
+// Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
 // type. Bindings, an AI or a network all come in here.
 func (p *Plugin) Issue(player *Player, cmd any) error {
-	box, ok := p.inboxes[reflect.TypeOf(cmd)]
+	box, ok := p.queues[reflect.TypeOf(cmd)]
 	if !ok {
 		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
 	}
@@ -111,10 +111,10 @@ func (p *Plugin) Issue(player *Player, cmd any) error {
 }
 
 // =================================================================
-// plugin.Commander contract — players' own commands are Pan and Zoom
+// plugin.CommandHandler contract — players' own commands are Pan and Zoom
 // =================================================================
 
-func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.pans, &p.zooms} }
+func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.pans, &p.zooms} }
 
 // DefaultBindings is CameraBindings at DefaultScrollSpeed.
 func (p *Plugin) DefaultBindings() []control.Binding { return CameraBindings() }
@@ -131,7 +131,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries out the camera commands and empties every inbox; call it last in Update.
+// RunPlan carries out the camera commands and empties every queue; call it last in Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the marquee renderer; atlas is unused, players draw primitives.
@@ -145,11 +145,11 @@ func (p *Plugin) Renderer() render.Renderer {
 	return p.renderer
 }
 
-// Renderers is what the player's plugins draw over the world — each Commander's Renderer, in the
+// Renderers is what the player's plugins draw over the world — each handler's Renderer, in the
 // order given to NewPlugin, then the marquee — for the Scene to lay over its world layers.
 func (p *Plugin) Renderers() []render.Renderer {
 	var out []render.Renderer
-	for _, c := range p.commanders[1:] {
+	for _, c := range p.handlers[1:] {
 		if pl, ok := c.(plugin.Plugin); ok {
 			if r := pl.Renderer(); r != nil {
 				out = append(out, r)

@@ -20,8 +20,8 @@ import (
 // LookAt has every Selected entity finish its step, stop and turn.
 type moveCommandSystem struct {
 	pathFinder *pathFinder
-	moves      *control.Inbox[MoveTo]
-	looks      *control.Inbox[LookAt]
+	moves      *control.Queue[MoveTo]
+	looks      *control.Queue[LookAt]
 	selected   plugin.Tag[selection.Family]
 
 	query   *goke.Query
@@ -35,7 +35,7 @@ type moveCommandSystem struct {
 var _ goke.System = (*moveCommandSystem)(nil)
 
 // newMoveCommandSystem builds a moveCommandSystem draining moves and looks into orders via pathFinder.
-func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Inbox[MoveTo], looks *control.Inbox[LookAt], selected plugin.Tag[selection.Family]) *moveCommandSystem {
+func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Queue[MoveTo], looks *control.Queue[LookAt], selected plugin.Tag[selection.Family]) *moveCommandSystem {
 	return &moveCommandSystem{moves: moves, looks: looks, pathFinder: pathFinder, selected: selected}
 }
 

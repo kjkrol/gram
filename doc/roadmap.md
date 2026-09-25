@@ -31,7 +31,7 @@ behind each item lives in [movement.md](movement.md) and [views.md](views.md).
 - Hex boards on screen, route arrows every 15°, camera panning in screen pixels, a `QuadBatch`
   that draws in chunks; six demos, `effect-demo` among them.
 - Players: `plugins/players` with one local player over the world's camera, built over the
-  `plugin.Commander`s; typed commands (`Select`, `MoveTo`, `Pan`, `Zoom`) owned and drained by the
+  `plugin.CommandHandler`s; typed commands (`Select`, `MoveTo`, `Pan`, `Zoom`) owned and drained by the
   plugins that define them; labelled bindings with defaults shipped by the plugins — [views §2](views.md).
 
 ## Next

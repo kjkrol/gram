@@ -4,10 +4,10 @@
 
 > A design sketch, not a contract: what the layers are, who owns what, and what each one leaves
 > to the next. Code exists for the first two layers: `world.View` and `plugins/players` (one local
-> player). Two things came out differently from the sketch below: the owning plugin keeps an
-> inbox and drains its commands in its own pass instead of a receiver run in players' pass, and the
-> direction is the player's — the vocabulary (`control.Inbox`, `control.Binding`) and the contract
-> (`plugin.Commander`) live below, and players is built over the Commanders, so a plugin with
+> player). Two things came out differently from the sketch below: the owning plugin keeps a
+> queue and drains its commands in its own pass instead of a receiver run in players' pass, and the
+> direction is the player's — the vocabulary (`control.Queue`, `control.Binding`) and the contract
+> (`plugin.CommandHandler`) live below, and players is built over the command handlers, so a plugin with
 > commands never knows players.
 
 ## 1. `world.View` — a rectangle and the entities in it

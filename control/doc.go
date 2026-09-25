@@ -18,13 +18,13 @@
 // # Commands and bindings
 //
 // A command is an intention in the game's vocabulary, as data (selection.Select,
-// navigation.MoveTo). The plugin that defines a command's type owns it: it keeps an [Inbox] of it
-// and drains it in its own pass ([Inbox.Drain], every [Issued] with the [PlayerID] that gave it,
-// [Nobody] for none); [Mailbox] is an Inbox with the type erased, as a carrier sorts commands into
-// them. A [Binding] is a [Trigger] — [KeyPress], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
+// navigation.MoveTo). The plugin that defines a command's type handles it: it keeps a [Queue] of
+// it and drains it in its own pass ([Queue.Drain], every [Issued] with the [PlayerID] that gave it,
+// [Nobody] for none); [CommandQueue] is a Queue with the type erased, as a carrier sorts commands
+// into them. A [Binding] is a [Trigger] — [KeyPress], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
 // [CursorAtEdge], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
 // player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera and,
 // over Ground, on the ground: a click on a hill lands on the hill)
-// and a label for a help screen. plugin.Commander is what defines commands, plugins/players what
-// carries them.
+// and a label for a help screen. plugin.CommandHandler is what defines and carries out commands,
+// plugins/players what brings them.
 package control

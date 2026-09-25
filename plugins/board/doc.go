@@ -90,7 +90,7 @@
 // The ground changes as in Transport Tycoon: [Raise] and [Lower] move the corner nearest a point
 // (a hex cell on a hex grid) by a [Shaping] Step, [Level] brings an area to the height where it
 // began, and the ground round about follows until no two corners along a cell's edge differ by
-// more than MaxStep. The board is a plugin.Commander in a Quasi3D world: = and - under the
+// more than MaxStep. The board is a plugin.CommandHandler in a Quasi3D world: = and - under the
 // cursor, a left drag with L held. [Board.Lift] and [Board.Flatten] do the same from a game's code.
 //
 // # Occupancy

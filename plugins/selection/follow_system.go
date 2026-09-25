@@ -18,7 +18,7 @@ var _ goke.System = (*FollowSystem)(nil)
 // untags the followed one, and every tick the camera is centred on it at its altitude. A player who
 // moves the camera by hand ends the following; zooming does not.
 type FollowSystem struct {
-	follows *control.Inbox[Follow]
+	follows *control.Queue[Follow]
 	camera  camera.Camera
 	tags    Tags
 
@@ -37,7 +37,7 @@ type FollowSystem struct {
 }
 
 // NewFollowSystem builds a FollowSystem draining follows and moving cam.
-func NewFollowSystem(follows *control.Inbox[Follow], cam camera.Camera, tags Tags) *FollowSystem {
+func NewFollowSystem(follows *control.Queue[Follow], cam camera.Camera, tags Tags) *FollowSystem {
 	return &FollowSystem{follows: follows, camera: cam, tags: tags}
 }
 
