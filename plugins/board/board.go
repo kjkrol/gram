@@ -24,6 +24,8 @@ type Board struct {
 	relief  []Relief // the seed's relief by ordinal; nil is level at 0
 	cells   *cellStore
 	version uint64
+	quasi3D bool        // the world has heights: cover spans the cells' bands
+	boxes   []geom.AABB // scratch for the boxes of a cell
 }
 
 // cellStore is where the cells' entities are: their ids by ordinal, and a query for each of the
@@ -62,7 +64,7 @@ func (b *Board) ordinal(c CellID) (int, bool) {
 // groundOf is the i-th cell's Ground, in place.
 func (b *Board) groundOf(i int) *Ground {
 	st := b.cells
-	if !st.kinds.Seek(st.ids[i]) {
+	if !st.kinds.SeekH(st.ids[i]) && !st.kinds.Seek(st.ids[i]) {
 		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
 	}
 	return st.ground.At(st.kinds.Cursor())

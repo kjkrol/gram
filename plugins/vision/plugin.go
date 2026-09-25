@@ -42,7 +42,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.worldPlugin.Quasi3D() {
 		h = &heights{groundOf: p.worldPlugin.Ground, step: p.groundStep}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h)
+	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.worldPlugin.Cover)
 	ctx.UseModule(p.module)
 	return nil
 }

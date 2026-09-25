@@ -80,7 +80,7 @@
 //	          plugins/selection   — a Select command into a Selected tag                           (→ world, …)
 //	          plugins/vision      — a Sight cone into Seen, Sighting, SightOutline                   (→ world, …)
 //	          plugins/effects     — temporary changes to entities: Grant and Alter, cast anywhere    (→ world, …)
-//	Layer 6   plugins/board       — a grid with terrain over the world, walls as bodies              (→ world, collision, …)
+//	Layer 6   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/behavior, plugins/vision/behavior — ready-made reactions              (→ their plugin, world, plugin)
 //	Layer 7   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
 //	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)

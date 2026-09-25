@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -21,9 +22,10 @@ type module struct {
 	pairs    *host.PairHost[Meeting]
 	entities *host.EachHost[Struck]
 
-	system goke.Runnable
-	shapes ShapeTest
-	built  bool
+	system  goke.Runnable
+	shapes  ShapeTest
+	fieldOf func() world.Field
+	built   bool
 }
 
 // New builds the collision engine over space.
@@ -89,6 +91,6 @@ func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], beh
 }
 
 func (m *module) build() {
-	m.system = m.ecs.RegSys(newCollisionSystem(m.space, m.pairs, m.entities, m.shapes))
+	m.system = m.ecs.RegSys(newCollisionSystem(m.space, m.pairs, m.entities, m.shapes, m.fieldOf))
 	m.built = true
 }

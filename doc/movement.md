@@ -114,8 +114,8 @@ stop anything: requests come every tick and `Steering` coalesces them.
 ## 5. Obstacles come from one source: the terrain — done
 
 Terrain is the one truth about the board, and anyone may write it: `Board.Set` is permanent,
-saved, versioned (a write that changes nothing does not count), and the bodies, the sprites and
-the planner follow. A rock is a solid kind on its cells; a building that must also be an entity
+saved, versioned (a write that changes nothing does not count), and collision, sight, the
+sprites and the planner follow. A rock is a solid kind on its cells; a building that must also be an entity
 writes its cells when it is built and restores them when it falls; an ice witch is an `Each`
 over `Standing` that turns the cells under her `Box` (`Grid.CellsUnder`, exact on a square and on
 a hex) into snow and the water into ice (undoing it in time is the coming effects plugin's job). `Allows` and
@@ -128,39 +128,40 @@ own snow and elves feel no forest; the solver keeps units out of whatever is sol
 What happens when a collision pushes a unit towards a cell it may not enter is the cell kind's
 decision (`board.CellKind`). Walls, holes and water are done; sight through terrain is §12.
 
-- **A wall — done.** Impassable cells are **terrain bodies**: entities with a `Base`, a
-  `collision.Collider`, a `collision.Physics{Mass: +Inf}` and the `board.Body` tag, no
-  `Appearance` (the board draws the cell), no kind (`world.Kinds.Reserve`, spawned through
-  `world.Bodies`). A body is made of boxes: each grid says what boxes cover one of its cells
-  (`Grid.CellBoxes`) — a square is one box, a hex is a middle band plus `HexCapStrips` strips over
-  each cap, as wide as the hex is at the strip's wider edge, so the cover is never smaller than
-  the cell; an irregular region (a province) will give the boxes of its raster. Touching boxes of
-  one kind are merged into rectangles, at most `MaxBodyCells` cells along either axis, so a
-  wall column is one entity and no body is ever large enough to confuse the wrapped images the
-  space and the raycast work with. The collision solver then never leaves a unit inside a wall —
-  `Static` means infinite mass — and the bodies are in the space, so vision sees them and they
-  occlude. A game turns this on explicitly: `board.NewPlugin(...).WithCollision(c)`; the bodies
-  are rebuilt whenever `Board.Version` moves, and once after a load, where the saved ones are
-  replaced by what the terrain says. Their `Caps` are settled by collision on the next tick, so an
-  edit to the terrain mid-game is solid one tick late.
+- **A wall — done.** A `Solid` cell is **solid ground**: the board is the world's `Field`, and
+  collision (aabbworld v1.9.0's `collide.Config.Field`) asks it, for every movable collider, which
+  cells under its box are solid for the collider's layers — `Solid` and keeping out one of them
+  (`^Allows`, so a wall admitting Air lets a flyer over). Each comes with the sides that face open
+  ground, and a unit is pushed out through the shallowest of those, so it slides along a wall of
+  many cells without catching on a seam; a cell walled in on all four sides pushes the shallowest
+  way. The ground is an infinite mass: the unit bounces off it and records a
+  `collision.Contact{Terrain: true, Cell}`, which is what a navigation bump hears. Each grid says
+  what boxes cover one of its cells (`Grid.CellBoxes`) — a square is one box, a hex a middle band
+  plus `HexCapStrips` strips over each cap, never smaller than the cell. Nothing is spawned and
+  nothing merged: the cells are read from their entities every tick, so a wall knocked down or
+  raised counts from the next tick and costs nothing to change. Until aabbworld v1.9.0 walls were
+  **terrain bodies**, entities merged from runs of cells and rebuilt whole on every change of the
+  terrain; they went because they were a second copy of the terrain whose cost depended on how the
+  terrain was laid out.
 - **A hole, water — done, as domains.** Who may stand where is a relation between the unit and
   the terrain, not a property of the cell: a `CellKind` says which `board.Domain`s it admits
   (`Land`, `Water`, `Air`, a game's own bits) and whether it is `Solid`; a unit's `board.Mover`
   says which it moves in. The planner keeps a unit to cells admitting its domain, so water and a
-  hole are forbidden ground for a land unit and open water for a boat. Neither is a body — a body
-  would occlude sight and push — so a collision can shove a land unit into either. Every tick,
+  hole are forbidden ground for a land unit and open water for a boat. Neither is solid, so a
+  collision can shove a land unit into either. Every tick,
   after collisions, the board reports `Standing{ID, Cell, Kind}` (the cell under the unit's
   **centre**) to `board.Each` behaviors — `board.Each[board.Mover]`, so the reaction holds the unit's
   domain — and `Standing.Fell(domain)` says the unit stands where its domain may not. It is a state, not an event, because `Each` runs for every entity the host
   walks — as `Struck` does in collision. The reaction is the game's: despawn, teleport, damage.
-- **A forest.** `CellKind.Veil` makes a passable cell a body without a `Collider`: it dims sight
-  and nothing else — how much, and for whom (`Veils`), is §12's business.
+- **A forest.** `CellKind.Veil` makes a cell dim sight — how much, and for whom (`Veils`), is
+  §12's business. `Solid` and `Veil` are apart: a thicket dims and is walked through, a fence is
+  solid and hides nothing, a Warcraft forest is both until it is cut down.
 - **After a push, and after the ground changes.** The existing re-plan on being knocked off a
   `Leg` covers it, and covers being pushed onto a passable cell off the route as well; a push
   that keeps the unit on its leg — two units pushing each other along a road — is a bump, §4,
   which with occupancy per domain is what stopped island-demo's units from shoving each other
-  for ever. Collision knows domains too: `world.Layers` are a unit's domain bits and a wall's
-  the bits of whoever it keeps out, so a flyer passes over walls and walkers. When the
+  for ever. Collision knows domains too: `world.Layers` are a unit's domain bits and a wall is
+  solid only for the layers it keeps out, so a flyer passes over walls and walkers. When the
   terrain's version moves, every route is checked against `Admits` and dropped at the first step
   that no longer takes the unit; a `Leg` whose far cells stop admitting it while the unit is
   still on its near cell is let go and the unit asked to stop — whether it stops in time is its
@@ -227,7 +228,7 @@ worth it only once the simple rule fails somewhere real.
 carry `Steering` (their kind gives it); `arrivalEpsilon` applies to the goal only. `Steering`
 holds the motion profile (`V0`, `Accel`, `Brake`, `TurnRate`) and `SteeringSystem` writes
 `Vel.Value` every tick. `MoveOrder` keeps a queue of goals; Shift + right click appends. The board
-makes solid terrain into bodies from the boxes of any grid (`Grid.CellBoxes`, `WithCollision`),
+is the world's solid ground and cover, read from its cells (`Grid.CellBoxes` on any grid),
 says who may stand where through domains (`Allows`, `Mover`), and reports where each unit
 stands (`Standing`, `Fell`). Routes are checked against the terrain whenever it changes. Still
 open: `RouteStyle` (§8), turn-based movement (§9), arbitration (§10), sight through terrain and
@@ -256,18 +257,21 @@ heights are the next step, §14.
   instead of stopping at its edge. The choice of a budget over a multiplied attenuation is what
   keeps the sweep exact for walls and cheap for forests: the opaque-only scan measures the same as
   before, a scene with three entries in ten see-through costs about 8% more.
-- **Veil per kind, transparency per body.** `CellKind.Veil` in 0..1 replaces `Opaque`; a veiled
-  body carries a `vision.Transparency` of 1 - Veil, and the scan reads it off the entity it is
-  about to cross — nothing else carries one, so walls and units still cut. The transparency is
-  ECS state on the body, not a table beside it, and the terrain bodies did not need a `TypeID`
-  per kind after all.
+- **Veil per kind, transparency per entity.** `CellKind.Veil` in 0..1 replaces `Opaque`. The
+  board is the world's `Cover` (aabbworld v1.9.0's `Cone.Cover`): a ray walks the cells it
+  crosses, cell by cell on a square grid, and every cell whose kind veils the observer is a
+  stretch at τ = 1 - Veil — a wall at Veil 1 cuts, a forest dims — charged like an entity's but
+  never seen. An entity dims instead of cutting when it carries a `vision.Transparency`, which the
+  scan reads off the entity it is about to cross. Where the reach jumps between two samples (the
+  edge of a wall of cells) the sweep halves the angle until it finds the edge, so the cost follows
+  the length of the terrain's silhouette in the cone, not its area or how it is laid out.
 - **Range is the unit's.** `Sight.Radius`; `MaxSightRadius` only sizes the outline buffer, a
   longer sight sees as far as it says with a coarser outline.
 - **Flying is a plane.** `Mover{Domain: Air}` keeps the planner on cells admitting `Air` (the
   demos admit it over the wall and the forest) and `Costing(Air, 1)` keeps the forest from slowing
   it. Everything else follows from `world.Layers`, the planes an entity is on: the hawk carries
-  `Air`, walkers `Land`, a solid body the bits of whoever its kind keeps out (`^Allows`, so a wall
-  admitting Air is on `Land|Water`), a veiled body its kind's `Veils` (a forest veils `Land`).
+  `Air`, walkers `Land`; a solid cell stops the layers its kind keeps out (`^Allows`, so a wall
+  admitting Air stops `Land|Water`), a veiled cell dims its kind's `Veils` (a forest veils `Land`).
   Collision pairs only entities whose layers meet, so the hawk keeps its `Physics` and other
   flyers push it while walls and walkers pass under. Sight reads the same bits through
   `Sight.Blockers`, the layers that cut or dim an observer at all: the hawk's are `Air`, so a
@@ -291,7 +295,8 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   tick — the ground under the unit's centre plus its `Mover.Lift` (`altitudeSystem`, Quasi3D only).
   A unit standing on terrain never declares its altitude; a hawk declares only how high it flies.
   Terrain kinds have a `Height` (what stands on the cell: a wall 10, a forest 8); the ground under
-  it is the cell's own, and the board's bodies carry `Z{Altitude, Height}` of their cells.
+  it is the cell's own, and the cover of a cell stands from its ground up by its kind's `Height`,
+  so it casts a shadow and a hawk looks over it.
 - **The ground is on the cell entities, not bodies.** Every cell is an entity whose `Plot` holds a
   `Relief`, the heights of its four corners (a hex cell is level); the `Board` is the world's `Ground`
   (`GroundAt`, `Step` = a cell's shorter side). A hill is only numbers on cells — so the cost of a
@@ -351,6 +356,6 @@ are the same idea on an entity standing for the board; not built yet.
 |:---|:---|:---|
 | turning, accelerating, braking, the motion profile | `world.Steering`, `SteeringSystem` | "asked for a heading and a speed, the unit gets there as its profile allows, and `Vel` is rewritten every tick" |
 | the route, the lookahead point, waypoints, when to brake, whether the route still holds | `navigation` | "the unit is asked, every tick, for the heading and speed that keep it on its route, and a route the ground no longer takes is dropped" |
-| terrain, who may stand where, walls as bodies, who fell in, cell entities | `board` | "what may not be entered is a body in the world or ground that admits nobody, and the planner knows it; `Standing` says where everyone stands" |
+| terrain, who may stand where, solid ground and cover, who fell in, cell entities | `board` | "what may not be entered is solid ground or ground that admits nobody, read from the cells, and the planner knows it; `Standing` says where everyone stands" |
 | pushing apart, contacts, `Static` and `Sensor` | `collision` | "no unit ends a tick inside a wall" |
 | what is temporary about an entity | `effects` | "a granted tag or an altered component holds while the effect runs, and the original comes back" |

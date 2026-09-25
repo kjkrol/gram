@@ -17,8 +17,9 @@ type module struct {
 	runnable goke.Runnable
 }
 
-func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights) *module {
+func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() world.Cover) *module {
 	m := &module{sys: newScanSystem(space, host)}
+	m.sys.coverOf = coverOf
 	if heights != nil {
 		m.sys.quasi3D, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
 	}

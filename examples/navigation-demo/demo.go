@@ -33,7 +33,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 40 // units plus the terrain bodies the board makes of its walls
+	MaxEntCount  = 16 // the units; the walls are cells, not entities
 
 	saveBasePath = "board-navigation-demo"
 )
@@ -96,7 +96,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.registerCellKinds()
 	s.under = map[uid.UID64]board.CellID{}
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.standing)); err != nil {
@@ -111,7 +111,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

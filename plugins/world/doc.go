@@ -49,7 +49,9 @@
 //
 // [Bodies] spawns entities of a kind reserved with [Kinds.Reserve]: a Base and the caller's own
 // columns, no Appearance and no size bounds, counted against MaxCount. It is how a plugin
-// materializes geometry of its own — board's terrain bodies — from inside a system, at any tick.
+// materializes geometry of its own from inside a system, at any tick. Terrain on a grid needs none:
+// it is the world's Field and Cover (see [Plugin.SetField], [Plugin.SetCover]), which collision
+// and sight read cell by cell.
 //
 // # Attach, Detach and Declare
 //

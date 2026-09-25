@@ -40,7 +40,7 @@ func (p *Plugin) Name() string { return "gram.collision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p.worldPlugin.Space(), ctx.ECS(), &p.pairs, &p.entities)
-	p.module.shapes = p.shapes
+	p.module.shapes, p.module.fieldOf = p.shapes, p.worldPlugin.Field
 	ctx.UseModule(p.module)
 	return nil
 }

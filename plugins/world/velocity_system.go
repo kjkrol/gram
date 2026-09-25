@@ -20,10 +20,13 @@ type VelocitySystem struct {
 
 	ids   []uid.UID64
 	bases []Base
+	about func(i int) Moving // at, bound once so a tick allocates no method value
 }
 
 func NewVelocitySystem(host *host.EachHost[Moving]) *VelocitySystem {
-	return &VelocitySystem{host: host}
+	s := &VelocitySystem{host: host}
+	s.about = s.at
+	return s
 }
 
 func (s *VelocitySystem) Init(si *goke.SysInit) {
@@ -41,7 +44,7 @@ func (s *VelocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
-		s.host.Run(tick, cursor, s.at)
+		s.host.Run(tick, cursor, s.about)
 	}
 }
 

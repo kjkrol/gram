@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/render"
@@ -26,7 +25,7 @@ type Resources struct {
 	Render *RenderState
 }
 
-// Plugin wires a Board into a Game; it depends on world, and on collision only WithCollision.
+// Plugin wires a Board into a Game; it depends on world alone.
 type Plugin struct {
 	Res Resources
 
@@ -37,10 +36,8 @@ type Plugin struct {
 	shaping   shaping
 
 	worldPlugin *world.Plugin
-	collision   *collision.Plugin
 	module      *module
 	standing    host.EachHost[Standing]
-	body        plugin.Tag[Family]
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -59,10 +56,14 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 	}
 	w, h := grid.CellBounds()
 	p.shaping.cfg = Shaping{Step: min(w, h) / 4}
-	p.Res.Logic.Board = NewBoard(grid, terrain)
-	if worldPlugin.Quasi3D() {
-		worldPlugin.SetGround(p.Res.Logic.Board)
+	brd := NewBoard(grid, terrain)
+	p.Res.Logic.Board = brd
+	brd.quasi3D = worldPlugin.Quasi3D()
+	if brd.quasi3D {
+		worldPlugin.SetGround(brd)
 	}
+	worldPlugin.SetCover(brd)
+	worldPlugin.SetField(brd)
 	if ws, ok := p.Res.Logic.Board.Grid.(wrapSetter); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
@@ -79,7 +80,7 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 
 func (p *Plugin) Name() string { return "gram.board" }
 
-// Install wires the cell entities, the standing report and, WithCollision, the terrain bodies.
+// Install wires the cell entities and the standing report.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		cells:    newCellSystem(p.Res.Logic.Board, &p.shaping),
@@ -88,17 +89,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.worldPlugin.Quasi3D() {
 		p.module.altitude = newAltitudeSystem(p.Res.Logic.Board)
 	}
-	if p.collision != nil {
-		typeID := p.worldPlugin.Kinds().Reserve("board.terrain")
-		p.body = p.worldPlugin.Kinds().DefineTag[Family]("board.body")
-		p.module.bodies = newTerrainBodySystem(p.Res.Logic.Board, p.worldPlugin, typeID, p.body)
-	}
 	ctx.UseModule(p.module)
 	return nil
 }
 
-// RunPlan shapes the ground, notices what effects did to the cells, rebuilds the terrain bodies
-// after a terrain change and reports where everyone stands; call it after collision's RunPlan.
+// RunPlan shapes the ground, notices what effects did to the cells and reports where everyone
+// stands; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas.
@@ -135,17 +131,6 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // =================================================================
 // board-specific
 // =================================================================
-
-// WithCollision makes terrain physical: every run of Solid cells becomes an immovable body in the
-// world, pushed against by c and cutting sight, and every run of veiled cells a body carrying a
-// vision.Transparency of 1 - Veil, dimming it. Call before Use.
-func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
-	if c == nil {
-		panic("board: WithCollision needs the collision plugin")
-	}
-	p.collision = c
-	return p
-}
 
 // CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Relief] for as long as the
 // board lives, so an effect cast on it is an effect on the cell's terrain; false off the board or
@@ -184,14 +169,8 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	}
 }
 
-// Body is the tag every terrain body carries, in board's tag Family; zero without WithCollision.
-func (p *Plugin) Body() plugin.Tag[Family] { return p.body }
-
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() Occupancy { return p.occupancy }
-
-// Collision returns the collision plugin the board was built WithCollision, or nil.
-func (p *Plugin) Collision() *collision.Plugin { return p.collision }
 
 // CellKindDict returns this Plugin's registered CellKinds.
 func (p *Plugin) CellKindDict() CellKindDict { return p.kinds }

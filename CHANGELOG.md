@@ -11,15 +11,15 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   (Shift + right click), routes previewed to every queued goal.
 - A unit under orders that struck someone stops, plans again and holds that route for a while
   (`MoveOrder.Bumped`, `Cooldown`), so units head-on on a road step aside instead of pushing each
-  other for ever. `board.Plugin.Collision()`.
+  other for ever. `navigation.Plugin.WithCollision(c)`; the ground struck counts too.
 - `Occupancy` is kept per domain (`CanEnter`/`Enter` take a `Domain`): `SingleOccupancy` lets one
   entity per domain into a cell, so a flyer and a walker share one; `MultipleOccupancy` stays a
   stack of tokens. Navigation seeds it from `Cell` + `Mover` at Setup, fresh or loaded — the
   demos' spawn effects are gone. island-demo uses `SingleOccupancy`.
 - `world.Layers`, the planes an entity is on (one bit each; none, or no component: every plane),
-  read by collision and by sight. Two colliders touch only where their layers meet; terrain
-  bodies are on the bits of the domains their kind keeps out, so a wall admitting Air lets a flyer
-  over, and the demos' hawk carries `Physics` on the Air layer. `Collider.Layers` is gone.
+  read by collision and by sight. Two colliders touch only where their layers meet; a solid cell
+  stops only the layers its kind keeps out, so a wall admitting Air lets a flyer over, and the
+  demos' hawk carries `Physics` on the Air layer. `Collider.Layers` is gone.
 - `vision.Sight.Blockers` replaces `Clear`: the layers that cut or dim an observer at all (zero:
   every entity). An entity on none of them is looked over as if absent and still seen, so a hawk
   with `Blockers` of Air looks over walls, forests and walkers, and a walker with Land looks under
@@ -82,7 +82,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `Shape{Size, Height}` for `NewUnits`, `Units.Define(name, board.Mover{Domain, Lift}, …)`. The
   `Board` keeps a raster of altitudes (`Grid.Ordinal`, `GroundAt`) rebuilt when the terrain
   changes and is the world's `Ground`; the board writes every `Z.Altitude` each tick from the
-  ground under the entity plus its `Lift`; terrain bodies carry their kind's `Z`.
+  ground under the entity plus its `Lift`.
 - Vision: `Sight.Eye`; in a Quasi3D world the cone has heights (aabbworld v1.7.0: eye, entity
   bands, ground sampled every `Plugin.WithGroundStep`), so a hawk 40 up looks over a wall 10 tall,
   a forest and a hill a walker's cone stops at. `Blockers` are refused in a Quasi3D world, `Eye`
@@ -149,6 +149,18 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   left drag with L held levels. island-isometric-demo shapes its island.
 - Reading the terrain from the cell entities costs less than the map and the raster did: A* across
   a 128x128 board costs the same, the ground under a point about 42% less.
+- Terrain is no longer an entity in the world's space: the board is the world's solid ground and
+  cover (`world.Field`, `world.Cover`, `world.Plugin.SetField`/`SetCover`, on aabbworld v1.9.0's
+  `collide.Config.Field` and `Cone.Cover`), read from the cells whenever collision or sight asks.
+  A cell changed counts from the next tick and costs nothing to change; a tick of sight and
+  collision over a quarter of a board rough costs about the same laid out in one block or
+  scattered (3.5 ms and 4.3 ms, where the merged bodies cost 4.5 ms and 11.1 ms, and a whole
+  rebuild with 330 KB of garbage on every change). `Solid` and `Veil` are independent: a solid kind
+  cuts sight only with a `Veil` of 1 (the demos' walls have one), a thicket dims and is walked
+  through, a forest may be both. A unit slides along a wall of many cells without catching on the
+  seams. A contact with the ground is a `collision.Contact` with `Terrain` and `Cell` set; a
+  `Meeting` is still between entities. Gone: `board.Plugin.WithCollision`, `Body`, `Collision`,
+  `board.Family`, `MaxBodyCells`; the demos' `MaxEntCount` counts their units alone.
 
 **Kinds**
 - Package `kind/comp` holds what names one component of a Spec — `comp.Const`, `comp.Load`,
@@ -169,9 +181,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - Terrain kinds say whom they admit (`Allows`, a bitset of `Domain`s), whether they are `Solid`,
   how much they `Veil` sight (0 clear, 1 cutting; a forest 0.6), and what they cost per domain
   (`Costing`, `CostFor`); a unit's `Mover` says how it moves. `Passable` is gone.
-- `WithCollision`: solid terrain becomes immovable bodies built from `Grid.CellBoxes` — one box
-  for a square, capped strips for a hex — merged up to `MaxBodyCells` a side; veiled terrain
-  becomes bodies carrying a `vision.Transparency` of 1 - Veil, dimming sight only.
+- Solid terrain pushes units out and veiled terrain dims sight, read from the cells (see Terrain
+  in the ECS); a hex is covered by `Grid.CellBoxes` — a middle band and capped strips.
 - `Standing`, reported every tick to `board.Each` behaviors: the cell under an entity, its kind,
   its box; `Fell(domain)` says the entity is where it may not be.
 - `Grid.CellsUnder`, `CellBounds`, `CellOutline`; hex cells drawn as hexagons; `TerrainMap.Version`.
@@ -196,8 +207,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `DefaultCommandEventHandler`, `world.WithCameraControls`.
 - Tags are bits of families: `plugin.Tags[F]` is one component per family, `Kinds.DefineTag`
   names the bits (saved by name), `comp.Tagged` gives them to a kind, `Between(a, b, fn)` takes
-  them as values; `Selectable` and `Selected`, the vision behaviors' tags and terrain bodies are
-  bits. `navigation.NewPlugin` takes the selection plugin.
+  them as values; `Selectable` and `Selected` and the vision behaviors' tags are bits. `navigation.NewPlugin` takes the selection plugin.
 - `plugins/effects`: temporary changes to entities — `Grant` and `Alter` in a `Spec`, `Lasts`
   or until `Dispel`, `Cast`/`CastFor`/`Dispel`/`Has` by entity id, `Active` saved with the entity.
 - `plugins/world`: `Kinds.Reserve` and `Bodies` for kind-less entities; `Kinds.DefineTag`.
@@ -228,6 +238,8 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `Collider` without `Physics` so nothing pushes the flyer, `Costing(Air, 1)`, `Sight{Clear: true}`.
 - `navigation`: route arrows every 15°, so hex steps draw true.
 - `render`: `Hexagon`; `QuadBatch` draws in chunks under the 16-bit index limit.
+- A tick running a `world.Moving` behavior allocates nothing any more (the per-chunk accessor was a
+  fresh method value).
 
 **Demos**
 - `navigation-hex-demo`, `navigation-vision-demo`, `navigation-vision-hex-demo`, `island-demo`,

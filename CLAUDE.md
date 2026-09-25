@@ -71,7 +71,7 @@ registering in the wrong place is an error, never a silent no-op. A plugin autho
 `host.Pair`/`host.Each`/`host.Every` from `plugin/host` in typed constructors and runs them
 with `host.PairHost[P]`/`host.EachHost[P]`. Tags are bits of a family, not component types: `plugin.Tags[F]` is one component
 holding up to 64 tags of family `F` (an empty type a plugin or a game names the family by:
-`selection.Family`, `behavior.Family` in vision, `board.Family`), `kinds.DefineTag[F](name)`
+`selection.Family`, `behavior.Family` in vision), `kinds.DefineTag[F](name)`
 hands out the bits by name through `world.Kinds` (saved by name, remapped on load like `TypeID`),
 `comp.Tagged(tags...)` gives them to a kind, a query over the family's `Tags` narrows to entities
 carrying any of them, and flipping a bit is a value write seen the same tick. `Between(a, b, fn)`
@@ -150,11 +150,11 @@ directly — per-tick logic lives in its own dedicated type/file (e.g.
 ### Systems stay inside their plugin
 
 A type implementing `goke.System` is named with the `System` suffix
-(`ScanSystem`, `terrainBodySystem`, `cellEntitySystem`) and never leaks out of
+(`ScanSystem`, `cellSystem`, `altitudeSystem`) and never leaks out of
 its plugin: no `Plugin` method hands out a system's state, and no plugin takes a
 callback from the game that reaches into another plugin's system. A system
 keeps no table beside the ECS — what it knows about an entity is a component on
-that entity (`vision.Transparency` on a veiled terrain body, not a map of id →
+that entity (`vision.Transparency` on a see-through unit, not a map of id →
 value), and whoever needs it reads the component through its own query.
 
 Each `plugin.go`/`module.go` groups methods under banner comments — contract
@@ -214,7 +214,7 @@ shows how much of it is boilerplate vs. real behavior.
   command queue and a translator each — bindings for a person, a brain for an AI; plugins define
   the command types and ship default, labelled bindings) and a networking plugin over them; `doc/movement.md` sketches
   movement along a route through `Steering` (motion profile, lookahead point, waypoints, walls
-  as terrain bodies, holes). `Populate` and
+  as solid cells, holes). `Populate` and
   `PostLoad` rebuild it too, so it is whole before the first tick; a despawned
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
@@ -239,7 +239,7 @@ shows how much of it is boilerplate vs. real behavior.
   `cellSystem` learns from `effects.Active.Altered` and `effects.Idle` on the cells. In a Quasi3D world a `CellKind` has a `Height` (what stands on it), the ground's heights
   come from `Layout.Heights` and the shaping commands (`Raise`, `Lower`, `Level`, `Shaping`); the
   `Board` is the world's `Ground`; the `altitudeSystem` writes every `Z.Altitude` each tick from
-  the ground under the entity plus its `Lift`; terrain bodies carry their cells' `Z`. A flat world refuses all of it at the first sight (`CellKindDict.Create`,
+  the ground under the entity plus its `Lift`. A flat world refuses all of it at the first sight (`CellKindDict.Create`,
   `NewUnits`, `Units.Define`, `Kinds.Register`).
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre and its kind) to
@@ -247,18 +247,20 @@ shows how much of it is boilerplate vs. real behavior.
   `Standing.Fell(domain)` is a land unit in water or in a hole, and the reaction is the game's.
   A `board.Effect` (`Tick(brd, d) alive`) is what the board does to itself over time by writing
   terrain — `Plugin.Cast`/`Dispel`, ticked first each tick; `board/effect` ships `Timed` (terrain
-  that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Built `WithCollision(c)`, it also makes
-  solid terrain physical: one immovable `Body` entity per merged run of solid cells (boxes from
-  `Grid.CellBoxes`, so a hex is covered by strips; at most `MaxBodyCells` a side), spawned through
-  `world.Bodies` under a kind from `Kinds.Reserve`, rebuilt when `Board.Version` moves and
-  once after a load. Depends on `world`, and on `collision` for the bodies.
+  that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Terrain is never an entity in
+  the space: the `Board` is the world's `Field` (`Solid`: the cells under a box that are `Solid`
+  and keep out one of the entity's layers, sides open towards open ground; a hex gives the boxes
+  of `Grid.CellBoxes`) and `Cover` (`Walk`: the cells along a ray whose `Veils` meet the
+  observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`), set on the
+  world in `NewPlugin` and read from the cell entities whenever collision or sight asks, so a
+  change counts from the next tick. `Solid` and `Veil` are independent. Depends on `world` alone.
 - **`collision`** — optional collision detection over `world`'s space, one
   `CollisionSystem` system a tick. An entity collides exactly while it carries `Collider` —
   `comp.Const(collision.Collider{})`, or `Attach`/`Detach` mid-game. The `CollisionSystem`
   first settles every `Collider`'s `Base.Caps` (`CanCollide`, plus `Static` for an
   immovable `Physics`, `Sensor` for none) and rebuilds the space when any changed;
-  two colliders touch only where their `world.Layers` meet — a board game uses `Domain` bits,
-  walls the bits of whoever they keep out — and a `Collider` counts from the tick it is carried.
+  two colliders touch only where their `world.Layers` meet — a board game uses `Domain` bits —
+  and a `Collider` counts from the tick it is carried.
   The tick is then one
   `collide.Engine.Tick` (`github.com/kjkrol/aabbworld/collide` holds the contract —
   `Handler`, `Config`, `Engine`; the `CollisionSystem` builds the engine once with
@@ -276,7 +278,10 @@ shows how much of it is boilerplate vs. real behavior.
   carrying `Physics` (`Mass`, `Restitution` 0–1) is pushed out of overlaps and
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
-  split.
+  split. With a world `Field` (the board's solid cells) the engine, built in `Init` with
+  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
+  `CollisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
+  recording a `Contact{Terrain: true, Cell}` (no `Meeting`: `Between` is for entities).
   Reactions are behaviors hosted inside the `CollisionSystem`'s own pass:
   `collision.Between(a, b, fn)` of a `Meeting` per confirmed contact between two tags
   (`plugin.Any` as the wildcard), `collision.Each[T]` of a `Struck` per entity per
@@ -292,8 +297,8 @@ shows how much of it is boilerplate vs. real behavior.
   `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns
   towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or S + right click
   (`LookAt`: finish the step, stop, turn). A trigger may ask for a key held besides its modifiers
-  (`control.Mods{}.Holding(key)`). A unit that struck someone (a `Struck`
-  behavior navigation registers on the board's collision plugin) stops, re-plans from where it
+  (`control.Mods{}.Holding(key)`). Built `WithCollision(c)`, a unit that struck someone or the
+  solid ground (a `Struck` behavior navigation registers on `c`) stops, re-plans from where it
   stands and holds that route for `bumpInterval`, so units pushing each other on a road step
   aside instead of shoving for ever. Occupancy is seeded from `Cell` + `Mover` at Setup (no spawn
   effect needed). A `MoveTo{Cell, Append}` command orders
@@ -311,7 +316,7 @@ shows how much of it is boilerplate vs. real behavior.
   `Base` too. Depends on `world`.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
-  `Plugin.Tags()` (a kind's choice via `comp.Tagged`; terrain bodies never do); a bit flip, seen
+  `Plugin.Tags()` (a kind's choice via `comp.Tagged`); a bit flip, seen
   the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds),
   the left button held a `Marquee` (the box being dragged, drawn by its renderer in the dragging
   camera's view until the `Select` that ends it), and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
@@ -347,7 +352,8 @@ shows how much of it is boilerplate vs. real behavior.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
   space each tick fills its own `Sight.Seen` (who this entity can see, nearest first), and
   `SightOutline` on an entity gets its view's shape computed and drawn. An entity carrying
-  `Transparency` dims sight instead of cutting it (board gives its veiled bodies 1 - `Veil`), a
+  `Transparency` dims sight instead of cutting it, and the world's `Cover` (the board's veiled
+  cells) is walked along every ray, dimming or cutting it the same way without being seen, a
   ray spending its radius as a budget through it; whatever the ray reaches is seen, a forest
   looked into as much as a wall. `Sight.Blockers` are the `world.Layers` that cut or dim this
   sight at all (zero: every entity): a hawk with `Blockers` of `Air` looks over walls, forests

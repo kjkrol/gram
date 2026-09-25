@@ -46,8 +46,8 @@ const (
 	UnitCount    = 6
 	sightRadius  = 220
 	sightHalf    = math.Pi / 5
-	// MaxEntCount is the units plus the terrain bodies the forests make.
-	MaxEntCount = 400
+	// MaxEntCount is the units; the forests are cells, not entities.
+	MaxEntCount = 4 * UnitCount
 
 	saveBasePath = "island-isometric-demo"
 )
@@ -113,7 +113,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision).
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
@@ -135,7 +135,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

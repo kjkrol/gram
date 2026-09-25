@@ -8,8 +8,8 @@ github.com/ebitengine/purego v0.11.0 h1:jhp/D+Nyv7UUW8HAcmcjt2N2rYrYi9m3SL21k0Ua
 github.com/ebitengine/purego v0.11.0/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/hajimehoshi/ebiten/v2 v2.10.2 h1:uNMOpfb/pW7GQRMsSn/pxwrk9rNcgSaIdjKwFZS11LM=
 github.com/hajimehoshi/ebiten/v2 v2.10.2/go.mod h1:47QNgyS/y2ZRkjVUvlGLx8a+F7MSjcn8/GsjcCZ9Rc8=
-github.com/kjkrol/aabbworld v1.8.0 h1:uuXrYPqfosYr4Wc7jwwHw+ntBufraBnR0nV0TPOaoJw=
-github.com/kjkrol/aabbworld v1.8.0/go.mod h1:V6azBQgb9/UrxEdU9uLaICGeocn1si/taviOskcOg3A=
+github.com/kjkrol/aabbworld v1.9.0 h1:me0pf23o0jhP7hqDnc7ycGqOpCzER0R/4L6uu2ijfZ4=
+github.com/kjkrol/aabbworld v1.9.0/go.mod h1:V6azBQgb9/UrxEdU9uLaICGeocn1si/taviOskcOg3A=
 github.com/kjkrol/astar v1.1.1 h1:gsPGclCd6BTGbsZkpMgbqBA/VgVg/pgtKAsHZIiL0Yc=
 github.com/kjkrol/astar v1.1.1/go.mod h1:hBjF0fn4Bznw+o8H3VqJ9Gm9Pdd+7or+pgOAYPznuuc=
 github.com/kjkrol/goke/v3 v3.2.3 h1:p28eWZhx54GU2/YCbM3drwSDswGwzsZLYUDt+9rL4lo=

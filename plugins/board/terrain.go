@@ -22,10 +22,10 @@ type CellKind struct {
 	// Allows is the domains that may stand here; the planner keeps the others out, and one that
 	// ends up here anyway has fallen in — see Standing.
 	Allows Domain
-	// Solid makes the cell a physical obstacle — a body pushing everyone; see Plugin.WithCollision.
+	// Solid makes the cell solid ground: collision pushes out whoever Allows keeps out.
 	Solid bool
 	// Veil dims sight without blocking movement, 0 clear to 1 cutting it: a forest at 0.6 is looked
-	// through at 0.4 of the reach; see Plugin.WithCollision.
+	// through at 0.4 of the reach, 1 cuts it. Apart from Solid.
 	Veil float64
 	// Veils is whom the Veil dims, as world.Layers: a forest veiling Land is looked over from Air.
 	// Zero veils everyone.

@@ -41,6 +41,8 @@ type Plugin struct {
 	kinds    *Kinds
 	roster   *kind.Roster
 	ground   Ground
+	cover    Cover
+	field    Field
 	seeded   []kind.Entry
 	view     *View // the camera's
 	views    map[camera.Camera]*View
@@ -79,6 +81,18 @@ func (p *Plugin) SetGround(g Ground) { p.ground = g }
 
 // Ground is the world's ground heights, nil for flat ground at 0.
 func (p *Plugin) Ground() Ground { return p.ground }
+
+// SetCover gives the world the cover standing on its ground; the board calls it, sight reads Cover.
+func (p *Plugin) SetCover(c Cover) { p.cover = c }
+
+// Cover is the cover standing on the world's ground, nil for none.
+func (p *Plugin) Cover() Cover { return p.cover }
+
+// SetField gives the world its solid ground; the board calls it, collisions read Field.
+func (p *Plugin) SetField(f Field) { p.field = f }
+
+// Field is the world's solid ground, nil for none.
+func (p *Plugin) Field() Field { return p.field }
 
 // View is what the camera sees: refreshed each tick after movement, drawn by the entity renderer.
 func (p *Plugin) View() *View { return p.view }

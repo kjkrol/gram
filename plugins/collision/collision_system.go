@@ -2,6 +2,7 @@ package collision
 
 import (
 	"github.com/kjkrol/gram/plugin/host"
+	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -16,6 +17,7 @@ import (
 
 var _ goke.System = (*CollisionSystem)(nil)
 var _ collide.Handler = (*handler)(nil)
+var _ collide.FieldHandler = (*handler)(nil)
 
 // solverIterations caps the passes one tick spends separating chained overlaps.
 const solverIterations = 16
@@ -58,6 +60,15 @@ type CollisionSystem struct {
 	outside  goke.CompID // world.Outside, for whoever the solver pushes out by an open edge
 	shapes   ShapeTest
 
+	// fieldOf resolves the world's solid ground when the engine is built; ground is the side it
+	// shows a contact, immovable and still.
+	fieldOf func() world.Field
+	field   solidField
+	ground  struct {
+		base    world.Base
+		physics Physics
+	}
+
 	tick  plugin.Tick
 	stale bool
 }
@@ -70,23 +81,51 @@ func (h *handler) Touch(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
 }
 func (h *handler) Contact(_, _ uid.UID64, pen geom.Vec) { (*CollisionSystem)(h).contact(pen) }
 func (h *handler) Moved(id uid.UID64, box plane.AABB)   { (*CollisionSystem)(h).moved(id, box) }
+func (h *handler) TouchField(id uid.UID64, _ uint64, pen geom.Vec) (geom.Vec, bool) {
+	_, _, ok := (*CollisionSystem)(h).side(id)
+	return pen, ok
+}
+func (h *handler) ContactField(id uid.UID64, cell uint64, pen geom.Vec) {
+	(*CollisionSystem)(h).contactGround(id, cell, pen)
+}
+
+// solidField is the world's Field as the engine asks for it: for an entity, on its Layers.
+type solidField struct {
+	field world.Field
+	d     *CollisionSystem
+}
+
+func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.FieldBox) bool) {
+	if f.d.seek(id) {
+		f.field.Solid(world.LayersOf(f.d.lookupLayers.At(f.d.lookup.Cursor())), box, visit)
+	}
+}
 
 // sought is the one query the system offers its hosted behaviors.
 const sought = 0
 
 // NewCollisionSystem builds the collision system over space.
 func NewCollisionSystem(space *aabbworld.Space) *CollisionSystem {
-	return newCollisionSystem(space, &host.PairHost[Meeting]{}, &host.EachHost[Struck]{}, nil)
+	return newCollisionSystem(space, &host.PairHost[Meeting]{}, &host.EachHost[Struck]{}, nil, nil)
 }
 
-func newCollisionSystem(space *aabbworld.Space, between *host.PairHost[Meeting], each *host.EachHost[Struck], shapes ShapeTest) *CollisionSystem {
-	d := &CollisionSystem{space: space, between: between, each: each, shapes: shapes}
-	d.engine = space.CollideEngine((*handler)(d), collide.Config{Reach: world.StepReach, Iterations: solverIterations})
+func newCollisionSystem(space *aabbworld.Space, between *host.PairHost[Meeting], each *host.EachHost[Struck], shapes ShapeTest, fieldOf func() world.Field) *CollisionSystem {
+	d := &CollisionSystem{space: space, between: between, each: each, shapes: shapes, fieldOf: fieldOf}
 	d.struckAt = d.struck
+	d.ground.physics = Physics{Mass: math.Inf(1)}
 	return d
 }
 
+// Init builds the engine too, once the board has given the world its solid ground.
 func (d *CollisionSystem) Init(si *goke.SysInit) {
+	cfg := collide.Config{Reach: world.StepReach, Iterations: solverIterations}
+	if d.fieldOf != nil {
+		if f := d.fieldOf(); f != nil {
+			d.field = solidField{field: f, d: d}
+			cfg.Field = &d.field
+		}
+	}
+	d.engine = d.space.CollideEngine((*handler)(d), cfg)
 	d.outside = si.RegComp[world.Outside]()
 	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
 	d.each.Bind(qb)
@@ -249,6 +288,22 @@ func (d *CollisionSystem) contact(pen geom.Vec) {
 	sides.A.Collider.addContact(sides.B.Entity, impact, normal)
 	sides.B.Collider.addContact(sides.A.Entity, impact, geom.NewVec(-normal.X, -normal.Y))
 	d.contacts = append(d.contacts, sides)
+}
+
+// contactGround settles a contact of id with the solid ground: a bounce off something of
+// infinite mass, and a Contact on id alone.
+func (d *CollisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec) {
+	self, _, ok := d.side(id)
+	if !ok {
+		return
+	}
+	ground := contactSide{Base: &d.ground.base, Physics: &d.ground.physics}
+	normal, aligned := normalOf(pen)
+	var impact float64
+	if aligned && self.Physics != nil {
+		impact = bounce(self, ground, normal)
+	}
+	self.Collider.add(Contact{Impact: impact, Normal: normal, Terrain: true, Cell: cell})
 }
 
 // moved writes a box the engine pushed back to its entity.

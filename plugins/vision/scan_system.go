@@ -23,9 +23,8 @@ type ScanSystem struct {
 
 	shadows []aabbworld.Shadow // the view's shadows, read into an outline
 
-	// tau answers the cone how see-through an entity is to the observer in hand, blockers its Blockers.
-	tau      func(uid.UID64) float64
-	blockers world.Layers
+	// tau answers the cone how see-through an entity is to the observer in hand.
+	tau func(uid.UID64) float64
 
 	// In a Quasi3D world the cone has heights: elev answers an entity's band, groundAt the ground,
 	// step how far apart the ground is sampled; groundOf resolves the world's Ground at first use.
@@ -35,6 +34,12 @@ type ScanSystem struct {
 	groundAt func(geom.Vec) float64
 	step     float64
 	grounded bool
+
+	// coverOf resolves the world's Cover at first use; covering walks it for the observer in hand
+	// and holds its Blockers.
+	coverOf  func() world.Cover
+	covering covering
+	covered  bool
 
 	query   *goke.Query
 	sight   goke.Comp[Sight]
@@ -95,7 +100,7 @@ func (s *ScanSystem) transparency(id uid.UID64) float64 {
 	}
 	s.lookupHot = false
 	cur := s.lookup.Cursor()
-	if !world.LayersOf(s.lookupLay.At(cur)).Meets(s.blockers) {
+	if !world.LayersOf(s.lookupLay.At(cur)).Meets(s.covering.blockers) {
 		return 1
 	}
 	if t := s.lookupTau.At(cur); t != nil {
@@ -137,6 +142,12 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.quasi3D && !s.grounded {
 		s.ground()
 	}
+	if !s.covered {
+		s.covered = true
+		if s.coverOf != nil {
+			s.covering.cover = s.coverOf()
+		}
+	}
 
 	s.query.All()
 	for s.query.Next() {
@@ -153,7 +164,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 
 		for i, id := range cursor.IDs {
 			sight := &sights[i]
-			s.blockers = sight.Blockers
+			s.covering.blockers = sight.Blockers
 			altitude := 0.0
 			if zs != nil {
 				altitude = zs[i].Altitude
@@ -213,6 +224,9 @@ func (s *ScanSystem) sighting(matched []int) Sighting {
 // from an eye at altitude + Sight.Eye over the ground.
 func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: sight.HalfAngle, Radius: sight.Radius, Transparency: s.tau}
+	if s.covering.cover != nil {
+		c.Cover = &s.covering
+	}
 	if !s.quasi3D {
 		if sight.Eye != 0 {
 			panic("vision: Sight.Eye in a flat world; set world.Config.Quasi3D")
@@ -224,6 +238,16 @@ func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 	}
 	c.Eye, c.Elevation, c.Ground, c.GroundStep = altitude+sight.Eye, s.elev, s.groundAt, s.step
 	return c
+}
+
+// covering is the world's Cover as the cone asks for it: walked for one observer's Blockers.
+type covering struct {
+	cover    world.Cover
+	blockers world.Layers
+}
+
+func (c *covering) Walk(origin, dir geom.Vec, length float64, visit func(near, far, bottom, top, tau float64) bool) {
+	c.cover.Walk(origin, dir, length, c.blockers, visit)
 }
 
 // record keeps the nearest MaxSeen entities of view.

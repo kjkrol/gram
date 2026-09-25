@@ -107,6 +107,28 @@ replaced, the two trees run alternately six times each.
 The seek is the smaller part of a read; the rest is finding the cell, which a square grid now does
 straight from the point.
 
+## Terrain — `Benchmark_Board_Terrain`
+
+One tick of world, collision, board and vision over an 80×80 board of 16-unit cells, a quarter of
+it rough — forest veiling sight by 0.6 and solid, opaque rock, cell by cell in turn — laid out as
+one square block or scattered at random; 200 walkers bounce about, each looking ahead with a 60°
+cone of radius 200. With felling, one forest cell a tick is cut down, as a woodcutter would. The
+board is the world's solid ground and cover, read from the cell entities as collision and sight
+ask; before (at `f1d828d`, aabbworld v1.8.0) it spawned merged terrain bodies into the space and
+rebuilt them all on every change. Measured on 2026-09-25, the two trees run alternately five
+times, 200 ticks each; the medians.
+
+| Rough ground | Terrain bodies, before | Cells as field and cover |
+|:--|---:|---:|
+| one block | 4.53 ms | 3.51 ms |
+| scattered | 11.11 ms | 4.30 ms |
+| scattered, one cell felled a tick | 9.63 ms, 331 KB/op | 4.31 ms, 3 B/op |
+
+Almost all of the tick is sight, and two thirds of that is walking the cells along the rays.
+What a scattered layout still adds is edges: where the reach jumps between two samples of a cone
+the sweep halves the angle to find the edge, so the cost follows the length of the terrain's
+outline in view, not how much terrain there is or how many pieces it is in.
+
 
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
@@ -124,6 +146,9 @@ straight from the point.
   projecting a box onto a torus — a camera optimisation waiting for a reason.
 * **The terrain lives in the ECS at no cost.** Reading a cell's ground or kind from its entity is
   cheaper than the raster it replaced, and A* across a 128×128 board costs what it did over the map.
+* **Terrain costs what the rays and the units touch.** Collision and sight read the cells in
+  place, so a scattered forest costs about what a compact one does, and cutting a tree costs a
+  write.
 * **Zero allocations once warm.** Every benchmark reports 0 allocs/op after the first ticks have
   grown the buffers.
 

@@ -36,7 +36,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 80 // units plus the terrain bodies of the wall and the forests
+	MaxEntCount  = 32 // the units; the wall and the forests are cells, not entities
 
 	sightRadius = 200
 	sightHalf   = math.Pi / 5
@@ -103,10 +103,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Height: 10},
+		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Veil: 1, Height: 10},
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
@@ -120,7 +120,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

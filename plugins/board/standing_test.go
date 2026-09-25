@@ -84,16 +84,16 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	start, _ := grid.CellIndex(1, 7)
 	f := newFooting()
-	bw := newBodiesWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("hole"), Cost: 1}),
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("hole"), Cost: 1}),
 		[]mover{{cell: start, heading: east}}, board.Each[board.Mover](f.react))
-	if bodies, _ := bw.snapshot(); len(bodies) != 0 {
-		t.Fatalf("%d bodies, want none: a hole is not solid", len(bodies))
+	if walls := bw.solid(world.Layers(board.Land)); len(walls) != 0 {
+		t.Fatalf("%d solid cells, want none: a hole is not solid", len(walls))
 	}
 
 	fellAt := -1
 	for tick := range 120 {
 		bw.tick()
-		_, units := bw.snapshot()
+		units := bw.snapshot()
 		centre := board.Center(world.Position{AABB: toPlane(units[0])})
 		over, _ := grid.CellAt(centre)
 		id := onlyID(f)
@@ -118,7 +118,7 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	start, _ := grid.CellIndex(3, 7)
 	f := newFooting()
-	bw := newBodiesWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}),
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}),
 		[]mover{{cell: start, domain: board.Water}}, board.Each[board.Mover](f.react))
 	bw.tick()
 	id := onlyID(f)
@@ -127,18 +127,14 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	}
 }
 
-func TestStanding_ReportsEveryUnitOnTheBoardAndNoBody(t *testing.T) {
+func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 	f := newFooting()
 	bw, _ := squareWorldWith(t, board.Each[board.Mover](f.react), mover{})
 	bw.tick()
-	bodies, units := bw.snapshot()
-	if len(f.last) != len(units) || len(bodies) == 0 {
-		t.Fatalf("%d standings for %d units beside %d bodies", len(f.last), len(units), len(bodies))
+	if units := bw.snapshot(); len(f.last) != len(units) {
+		t.Fatalf("%d standings for %d units", len(f.last), len(units))
 	}
 	for id, st := range f.last {
-		if bw.isBody(id) {
-			t.Errorf("body %d got a Standing", id)
-		}
 		if st.Kind.Name.String() != "grass" || f.fell[id] {
 			t.Errorf("unit %d stands on %s, fell=%v; want grass, no fall", id, st.Kind.Name, f.fell[id])
 		}

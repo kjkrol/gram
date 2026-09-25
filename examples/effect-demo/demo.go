@@ -40,7 +40,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 400 // units and terrain bodies; cell entities do not count
+	MaxEntCount  = 16 // the units; cell entities do not count
 
 	lakeLeft, lakeRight uint32 = 8, 15
 	lakeTop, lakeBottom uint32 = 4, 11
@@ -126,7 +126,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.effects = effects.NewPlugin(s.world)
 	// A frozen boat holds its cell, so the planner goes round.
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land},
@@ -182,7 +182,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

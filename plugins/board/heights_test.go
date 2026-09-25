@@ -107,7 +107,7 @@ func TestBoard_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 }
 
 // quasiWorld is a Quasi3D world with a board over a 4x4 square grid, a hill at (2,1), and the units
-// define makes; collide adds the collision plugin and terrain bodies.
+// define makes; collide adds the collision plugin.
 type quasiWorld struct {
 	ecs  *goke.ECS
 	w    *world.Plugin
@@ -128,9 +128,6 @@ func newQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[re
 		c = collision.NewPlugin(qw.w)
 	}
 	qw.brd = board.NewPlugin(qw.grid, &board.MultipleOccupancy{}, qw.w)
-	if c != nil {
-		qw.brd.WithCollision(c)
-	}
 	qw.brd.Res.Logic.Board.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land | board.Air})
 	hillCell, _ := qw.grid.CellIndex(2, 1)
 	qw.brd.Res.Logic.Board.Set(hillCell, hill)
@@ -216,34 +213,40 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	}
 }
 
-func TestBodies_CarryTheirKindsHeightsInAQuasi3DWorld(t *testing.T) {
+// coverAcross walks the world's Cover along row 3, west to east, listing every stretch.
+func (qw *quasiWorld) coverAcross() [][5]float64 {
+	var out [][5]float64
+	qw.w.Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
+		out = append(out, [5]float64{near, far, bottom, top, tau})
+		return true
+	})
+	return out
+}
+
+// The cover of a cell spans its ground and its kind's Height over it, and follows the ground
+// when it is lifted.
+func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	qw := newQuasiWorld(t, true, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
 		k := units.Define("walker", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: 10})
 		start, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(recruit{start: start})}
 	})
+	brd := qw.brd.Res.Logic.Board
 	wallCell, _ := qw.grid.CellIndex(3, 3)
-	qw.brd.Res.Logic.Board.Set(wallCell, board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Height: 10})
-	qw.brd.Res.Logic.Board.SetRelief(wallCell, board.Relief{Corners: [4]float32{12, 12, 12, 12}})
+	brd.Set(wallCell, board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
+	brd.SetRelief(wallCell, board.Relief{Corners: [4]float32{12, 12, 12, 12}})
 	qw.ecs.Tick(time.Second / 60)
 
-	bodies := 0
-	for id, zs := range qw.zs() {
-		if id == 0 { // reserved kinds come first; the walker's is the last defined
-			continue
-		}
-		for _, z := range zs {
-			if z == (world.Z{Altitude: 12, Height: 10}) {
-				bodies++
-			}
-		}
+	if got := qw.coverAcross(); len(got) != 1 || got[0] != [5]float64{95, 126, 12, 22, 0} {
+		t.Errorf("cover along the row %v, want the wall from 95 on, 12 to 22, opaque", got)
 	}
-	if bodies != 1 {
-		t.Errorf("found %d bodies standing 12 up and 10 tall, want the wall", bodies)
+	brd.SetRelief(wallCell, board.Relief{Corners: [4]float32{20, 20, 20, 20}})
+	if got := qw.coverAcross(); len(got) != 1 || got[0][2] != 20 || got[0][3] != 30 {
+		t.Errorf("cover after lifting the wall %v, want it from 20 to 30", got)
 	}
 }
 
-func TestBodies_CarryNoZInAFlatWorld(t *testing.T) {
+func TestUnits_CarryNoZInAFlatWorld(t *testing.T) {
 	bw, _ := squareWorld(t, mover{})
 	bw.tick()
 	var z goke.OptComp[world.Z]

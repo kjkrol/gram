@@ -10,8 +10,7 @@ import (
 var _ goke.System = (*altitudeSystem)(nil)
 
 // altitudeSystem puts every mover carrying a Z at the ground under its centre plus its Lift, every
-// tick, after movement and collisions; a Quasi3D world's system alone. Terrain bodies keep the Z
-// their kind gave them.
+// tick, after movement and collisions; a Quasi3D world's system alone.
 type altitudeSystem struct {
 	brd *Board
 

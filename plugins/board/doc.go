@@ -1,7 +1,7 @@
 // Package board lays a square or hex grid over the game world, with per-cell terrain
 // (passability, movement cost, sprite) and occupancy tracking. Entities on the board
-// move at the terrain's cost, impassable terrain can be made solid, and plugins/navigation builds
-// pathfinding on top.
+// move at the terrain's cost, solid cells push them out and veiled ones dim sight, and
+// plugins/navigation builds pathfinding on top.
 //
 // # Board, Grid and Layout
 //
@@ -50,18 +50,21 @@
 // and the heights are two components because an effect ending puts back the whole component it
 // altered: a frost ending restores the kind and leaves the ground shaped meanwhile as it is.
 //
-// # Terrain bodies
+// # Solid ground and cover
 //
-// Built [Plugin.WithCollision], the board makes its Solid terrain physical: every run of solid
-// cells becomes an immovable entity in the world — tagged [Plugin.Body] in board's tag [Family], with a collider and an
-// infinite mass, no sprite, no kind — so no unit ends a tick inside a wall and walls cut sight;
-// a run of veiled cells becomes a body without a collider carrying a vision.Transparency of
-// 1 - Veil, so a cone fades through it, on the world.Layers of the kind's Veils, so an observer
-// whose Sight.Blockers miss them looks over it.
-// A body is made of the boxes the grid gives for each cell ([Grid.CellBoxes]: one for a square,
-// [HexCapStrips] strips over each cap of a hex, covering it from outside), merged along both axes
-// up to [MaxBodyCells] a side, one kind at one altitude each. The bodies follow [Board.Version];
-// call [Plugin.RunPlan] after collision's.
+// Terrain is never an entity in the world's space: the [Board] is the world's solid ground and its
+// cover (world.Field and world.Cover, set by [NewPlugin]), read straight from the cell entities
+// whenever collision or sight asks, so a cell changed now counts from the next tick and costs
+// nothing to change. [Board.Solid] gives collision the cells under a box that are Solid and keep
+// out a layer the entity is on, each with the sides open where the neighbour is not, so a unit
+// slides along a wall and never catches on the seam between two cells. [Board.Walk] gives sight
+// the cells along a ray whose kind veils the observer's Sight.Blockers (the kind's Veils; zero
+// veils everyone): τ is 1 - Veil, and in a Quasi3D world the cover stands from the cell's ground
+// up by the kind's Height, so it casts a shadow and is looked over from above. Solid and Veil are
+// apart: a fence is solid and hides nothing, a thicket hides and is walked through, a Warcraft
+// forest is both. On a square grid both are exact, cell by cell; on a hex one Solid gives the
+// boxes of [Grid.CellBoxes] (one for a square, [HexCapStrips] strips over each cap of a hex) and
+// Walk steps a quarter of a cell along the ray.
 //
 // The board requires of every unit a [Cell] (where it starts) and a [Mover] (the domains it moves
 // in) through the world's kind.Roster — and makes them itself in [Units]: a game binds its rows to
@@ -79,7 +82,7 @@
 // a cell's corners, so a hill has slopes and a unit on a slope stands at its height. Every tick the
 // board writes each Z-carrying entity's Altitude: the ground under its centre plus its Mover's
 // Lift, so a unit never declares where it stands in height and a hawk declares only how high it
-// flies. Units get their Z from the Shape, terrain bodies from their cells. A hill is heights on
+// flies. Units get their Z from the Shape. A hill is heights on
 // cell entities and never a body, so the cost of sight does not depend on how many a game has.
 // The renderer draws the tiles sloped, lit from the upper left so the relief reads, and faces only
 // where a top stands above its neighbour's — a wall over grass, a raised edge over the sea. A flat
@@ -98,9 +101,8 @@
 // [Occupancy] tracks who holds each cell and in which domains, gating and recording every step
 // navigation takes: [SingleOccupancy] lets one entity per domain into a cell (a walker and a
 // hawk share one, two walkers do not), [MultipleOccupancy] any number — tokens on a square, which
-// carry no Physics, since bodies cannot overlap. Solid terrain bodies are on the world.Layers of
-// whoever their kind keeps out, so a wall admitting Air lets a flyer over and cuts none of its
-// sight.
+// carry no Physics, since bodies cannot overlap. A Solid cell stops only whoever its kind keeps
+// out, so a wall admitting Air lets a flyer over.
 //
 // # Renderer
 //

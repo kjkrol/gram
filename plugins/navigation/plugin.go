@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -30,6 +31,7 @@ type Plugin struct {
 
 	pathSprites  PathSprites
 	pathRenderer *PathRenderer
+	collision    *collision.Plugin
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -61,8 +63,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.BindSpace(p.worldPlugin.Space())
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected)
-	if c := p.boardPlugin.Collision(); c != nil {
-		if err := c.RegisterBehavior(bumped()); err != nil {
+	if p.collision != nil {
+		if err := p.collision.RegisterBehavior(bumped()); err != nil {
 			return err
 		}
 	}
@@ -75,6 +77,16 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan runs navigation and the move commands for this tick; call before world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
+}
+
+// WithCollision marks an entity under orders that strikes someone, or the solid ground, Bumped,
+// so it looks for a way round; call before Use.
+func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
+	if c == nil {
+		panic("navigation: WithCollision needs the collision plugin")
+	}
+	p.collision = c
+	return p
 }
 
 // WithRenderer draws the remaining route of every selected entity; call SetPathSprites first.

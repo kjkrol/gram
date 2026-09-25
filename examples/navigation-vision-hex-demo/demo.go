@@ -1,5 +1,5 @@
 // Command navigation-vision-hex-demo puts sight on units navigating a hex board: their cones stop
-// at the wall and fade in the forest, terrain bodies made of hex-covering boxes; a hawk flies over
+// at the wall and fade in the forest, read from the hex cells themselves; a hawk flies over
 // both and sees through the forest.
 package main
 
@@ -37,8 +37,8 @@ const (
 	HexSize    = 24
 	EntitySize = 22
 	UnitSpeed  = HexSize * 3
-	// MaxEntCount is the units plus the terrain bodies: a hex is seven boxes before merging.
-	MaxEntCount = 200
+	// MaxEntCount is the units; the wall and the forests are cells, not entities.
+	MaxEntCount = 32
 
 	hexSprite   = 2 * HexSize
 	sightRadius = 200
@@ -111,10 +111,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Height: 10},
+		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Veil: 1, Height: 10},
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
@@ -128,7 +128,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

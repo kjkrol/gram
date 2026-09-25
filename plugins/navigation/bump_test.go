@@ -50,13 +50,13 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	})
 	occupancy := &board.SingleOccupancy{}
 	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(rw.grid, occupancy, w).WithCollision(c)
+	brd := board.NewPlugin(rw.grid, occupancy, w)
 	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 2, Allows: board.Land | board.Air}) // field
 	for x := uint32(0); x < width; x++ {
 		brd.Res.Logic.Board.Set(rw.at(x, 1), board.CellKind{Cost: 1, Allows: board.Land | board.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
-	rw.nav = NewPlugin(brd, w, sel)
+	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {

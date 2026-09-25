@@ -33,9 +33,8 @@ const (
 	HexSize    = 24 // circumradius
 	EntitySize = 22
 	UnitSpeed  = HexSize * 3
-	// MaxEntCount is the units plus the terrain bodies the board makes of its walls: a hex is
-	// seven boxes before merging.
-	MaxEntCount = 120
+	// MaxEntCount is the units; the walls are cells, not entities.
+	MaxEntCount = 16
 
 	saveBasePath = "board-navigation-hex-demo"
 )
@@ -101,7 +100,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.registerCellKinds()
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -112,7 +111,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}

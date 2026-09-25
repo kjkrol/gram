@@ -35,7 +35,7 @@ const (
 	ScreenHeight = 720
 	BlockSize    = 24
 	BlockSpeed   = CellSize * 5
-	MaxEntCount  = 64 // the two blocks and the terrain bodies of the walls
+	MaxEntCount  = 8 // the two blocks; the walls are cells, not entities
 
 	// MinimapWidth is the minimap's width in pixels; its height keeps the arena's proportions.
 	MinimapWidth = 240
@@ -112,7 +112,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("floor"), Cost: 1, Allows: board.Land},
 		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
