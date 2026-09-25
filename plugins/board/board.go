@@ -73,7 +73,7 @@ func (b *Board) groundOf(i int) *Ground {
 // plotOf is the i-th cell's Plot, in place.
 func (b *Board) plotOf(i int) *Plot {
 	st := b.cells
-	if !st.plots.Seek(st.ids[i]) {
+	if !st.plots.SeekH(st.ids[i]) && !st.plots.Seek(st.ids[i]) {
 		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
 	}
 	return st.plot.At(st.plots.Cursor())
