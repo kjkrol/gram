@@ -134,6 +134,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	s.vision = vision.NewPlugin(s.world)
+	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel)); err != nil {
+		return err
+	}
 	if err := ctx.Use(s.vision); err != nil {
 		return err
 	}
@@ -211,6 +214,13 @@ func (s *mainStage) Spawn() error {
 	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
 	s.world.Seed(entries...)
 	return nil
+}
+
+// faceTravel points each unit's Sight where it is going, and leaves it there when it stops.
+func faceTravel(_ plugin.Tick, s vision.Sighting) {
+	if s.Base.Vel.Value > 0 {
+		s.Sight.Facing = s.Base.Vel.Dir
+	}
 }
 
 // drown despawns a unit standing where its domain may not — pushed into the sea, say.
