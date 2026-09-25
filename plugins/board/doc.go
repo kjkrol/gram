@@ -111,5 +111,6 @@
 // cell's top at its altitude plus its kind's Height and, through an isometric camera, the two faces
 // towards the viewer wherever the ground drops to a neighbour (a cliff, down to sea level 0 off the
 // board) or the kind stands tall (a wall), shaded as if lit from the upper left. [RenderState] holds
-// its live toggles, such as grid lines (drawn only in the plain layer).
+// its live toggles, such as grid lines: drawn in one batch over the cells, and left out where a
+// cell spans fewer than a few pixels on screen.
 package board

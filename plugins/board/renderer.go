@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -25,16 +24,16 @@ func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines
 // a Scene's Layers so terrain sits underneath, or hand it to render.NewSorted, where it submits
 // each cell as a quad at the cell's altitude and depth (no grid lines there).
 type Renderer struct {
-	board     *Board
-	camera    camera.Camera // the one of the frame being drawn
-	atlas     render.AtlasSource
-	cellW     float64
-	cellH     float64
-	state     *RenderState
-	batch     *render.QuadBatch
-	gridLines []gridLine
-	outline   []geom.Vec
-	visited   map[CellID]struct{}
+	board   *Board
+	camera  camera.Camera // the one of the frame being drawn
+	atlas   render.AtlasSource
+	cellW   float64
+	cellH   float64
+	state   *RenderState
+	batch   *render.QuadBatch
+	lines   *render.LineBatch
+	outline []geom.Vec
+	visited map[CellID]struct{}
 	// relief draws the sides of raised ground and of tall kinds: an isometric camera's view.
 	relief bool
 }
@@ -50,7 +49,8 @@ const (
 	shadePerUnit = 0.012
 )
 
-type gridLine struct{ x0, y0, x1, y1 float32 }
+// minGridCell is how many pixels a cell must span on screen for the grid to be drawn over it.
+const minGridCell = 6
 
 func abs32(v float32) float32 {
 	if v < 0 {
@@ -65,7 +65,7 @@ var _ render.Overlayer = (*Renderer)(nil)
 func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState) *Renderer {
 	w, h := board.CellBounds()
 	return &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state,
-		batch: render.NewQuadBatch(atlas), visited: map[CellID]struct{}{}}
+		batch: render.NewQuadBatch(atlas), lines: render.NewLineBatch(), visited: map[CellID]struct{}{}}
 }
 
 func (l *Renderer) Init(*goke.SysInit) {}
@@ -80,13 +80,15 @@ func (l *Renderer) look(cam camera.Camera) {
 func (l *Renderer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	l.look(cam)
 	l.batch.Reset(cam)
-	l.gridLines = l.gridLines[:0]
+	l.lines.Reset()
 	l.eachVisible(l.drawCell)
 	l.batch.Flush(screen)
+	l.lines.Flush(screen)
+}
 
-	for _, gl := range l.gridLines {
-		vector.StrokeLine(screen, gl.x0, gl.y0, gl.x1, gl.y1, 1, colorGridLine, false)
-	}
+// gridShown reports whether the grid is on and its cells are large enough on screen to read.
+func (l *Renderer) gridShown() bool {
+	return l.state.ShowGridLines && float32(min(l.cellW, l.cellH))*l.camera.Zoom() >= minGridCell
 }
 
 // Submit hands every visible cell to sink at the depth of its centre, so the entities standing on
@@ -132,9 +134,10 @@ func slopeShade(top [4]float32) float32 {
 // heights, when ShowGridLines is on.
 func (l *Renderer) Overlay(screen *ebiten.Image, cam camera.Camera) {
 	l.look(cam)
-	if !l.state.ShowGridLines {
+	if !l.gridShown() {
 		return
 	}
+	l.lines.Reset()
 	l.eachVisible(func(c CellID) {
 		center := l.board.CellCenter(c)
 		x0, y0 := float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
@@ -150,9 +153,10 @@ func (l *Renderer) Overlay(screen *ebiten.Image, cam camera.Camera) {
 		}
 		p := l.sloped(x0, y0, x1, y1, z)
 		// the two edges towards the viewer; the neighbours draw the other two
-		vector.StrokeLine(screen, p[1][0], p[1][1], p[3][0], p[3][1], 1, colorGridLine, false)
-		vector.StrokeLine(screen, p[2][0], p[2][1], p[3][0], p[3][1], 1, colorGridLine, false)
+		l.lines.Append(p[1][0], p[1][1], p[3][0], p[3][1], 1, colorGridLine)
+		l.lines.Append(p[2][0], p[2][1], p[3][0], p[3][1], 1, colorGridLine)
 	})
+	l.lines.Flush(screen)
 }
 
 // tops is the height of c's four corners with its kind standing on them: the ground's corners on a
@@ -235,7 +239,7 @@ func (l *Renderer) drawCell(c CellID) {
 
 	l.batch.AppendQuad(float32(x0), float32(y0), float32(x1), float32(y1), l.board.Kind(c).SpriteID)
 
-	if l.state.ShowGridLines {
+	if l.gridShown() {
 		l.outline = l.board.CellOutline(c, l.outline[:0])
 		for i, p := range l.outline {
 			q := l.outline[(i+1)%len(l.outline)]
@@ -244,7 +248,7 @@ func (l *Renderer) drawCell(c CellID) {
 			if reach := float32(l.cellW+l.cellH) * l.camera.Zoom(); abs32(bx-ax) > reach || abs32(by-ay) > reach {
 				continue // the edge straddles a wrap seam; its images are drawn by the cells either side
 			}
-			l.gridLines = append(l.gridLines, gridLine{ax, ay, bx, by})
+			l.lines.Append(ax, ay, bx, by, 1, colorGridLine)
 		}
 	}
 }

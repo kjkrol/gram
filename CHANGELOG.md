@@ -240,6 +240,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - `render`: `Hexagon`; `QuadBatch` draws in chunks under the 16-bit index limit.
 - A tick running a `world.Moving` behavior allocates nothing any more (the per-chunk accessor was a
   fresh method value).
+- `render.LineBatch` draws screen-space lines in one `DrawTriangles` call per 16k lines; the
+  board's grid goes through it instead of one `vector.StrokeLine` a line, and is left out where a
+  cell spans fewer than 6 pixels. island-isometric-demo draws a frame in 4.2 ms of CPU instead of
+  6.9 with the grid on, and 5.9 instead of 17.5 zoomed out to the whole island.
 
 **Demos**
 - `navigation-hex-demo`, `navigation-vision-demo`, `navigation-vision-hex-demo`, `island-demo`,
