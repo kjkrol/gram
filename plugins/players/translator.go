@@ -24,10 +24,16 @@ func (t translator) HandleEvents(ev *control.InputEvents) {
 			Wheel: ev.ScrollDelta, Screen: pl.screen(), Mods: mods, FillsScreen: ev.WindowFillsScreen, Ground: t.p.ground}
 
 		for _, k := range ev.KeyEvents {
-			if k.Action == control.ActionPress {
-				t.fire(pl, control.KeyPress{Key: k.Key, Mods: mods}, ctx)
+			switch k.Action {
+			case control.ActionPress:
+				t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.withHeld(mods)}, ctx)
+				pl.keyDown(k.Key)
+			case control.ActionRelease:
+				pl.keyUp(k.Key)
 			}
 		}
+		mods := pl.withHeld(mods)
+		ctx.Mods = mods
 		for _, c := range ev.ClickQueue {
 			pl.cursor = c.Pos
 			at := ctx

@@ -24,7 +24,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	newTarget, _ := grid.CellIndex(8, 0)
 
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 	selects := &control.Inbox[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 
@@ -111,7 +111,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	newTarget, _ := grid.CellIndex(8, 0)
 
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 	selects := &control.Inbox[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 
@@ -203,7 +203,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	terrain.Set(wall, board.CellKind{Cost: 1, Solid: true})
 
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 	selects := &control.Inbox[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, nil, selTags)
 

@@ -26,6 +26,7 @@ type Plugin struct {
 	module *module
 
 	moves  control.Inbox[MoveTo]
+	looks  control.Inbox[LookAt]
 	finder *pathFinder
 
 	pathSprites  PathSprites
@@ -62,7 +63,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys := newNavigationSystem(finder, brd, brd, occupancy)
 	navSys.BindSpace(p.worldPlugin.Space())
 
-	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, p.selected)
+	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected)
 	if c := p.boardPlugin.Collision(); c != nil {
 		if err := c.RegisterBehavior(bumped()); err != nil {
 			return err

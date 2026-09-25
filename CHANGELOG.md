@@ -30,6 +30,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   domain may not keeps its order.
 - The camera pans in screen pixels at any zoom. `Camera.CenterOn(x, y, z)` puts a world point at a
   height in the middle of the screen.
+- A right click on the cell a selected unit stands on turns it towards the point clicked, and a
+  right click with S held (`navigation.LookAt`) has every selected unit finish its step, stop and
+  turn there: `MoveTo.At`, `MoveOrder.Face`, turned by the steering in place. A trigger may ask for
+  a key held besides its modifiers (`control.Mods{}.Holding(ebiten.KeyS)`); players track the keys
+  their bindings hold. The demos' sight follows the heading, turning in place included.
 - F follows the one selected unit with the camera (`selection.Follow`, tag `Followed`,
   `FollowSystem`); F again, or moving the camera by hand, stops it; zooming does not.
 - A unit that looks further ahead than half a cell (the hawk) keeps its leg until its centre enters

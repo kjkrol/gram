@@ -31,7 +31,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	cw := &commandWorld{grid: board.DefaultGrids{}.Square(10, 1, 10), moves: &control.Inbox[MoveTo]{}}
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, &board.SingleOccupancy{}), cw.moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, &board.SingleOccupancy{}), cw.moves, &control.Inbox[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()

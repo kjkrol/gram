@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/selection"
 	"testing"
 
@@ -53,8 +54,8 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	pl.EventHandler().HandleEvents(events)
 	var got []MoveTo
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
-	if len(got) != 1 || got[0] != (MoveTo{Cell: want}) {
-		t.Errorf("a right click issued %v, want one MoveTo to %v", got, want)
+	if len(got) != 1 || got[0] != (MoveTo{Cell: want, At: geom.NewVec(25, 25)}) {
+		t.Errorf("a right click issued %v, want one MoveTo to %v at the point clicked", got, want)
 	}
 
 	events = &control.InputEvents{}
@@ -65,5 +66,26 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(got) != 1 || !got[0].Append {
 		t.Errorf("a Shift right click issued %v, want one MoveTo that appends", got)
+	}
+
+	// S held: a right click looks there instead of going; another key held does not get in the way.
+	for _, tc := range []struct {
+		held       ebiten.Key
+		look, move int
+	}{{ebiten.KeyS, 1, 0}, {ebiten.KeyQ, 0, 1}} {
+		events = &control.InputEvents{}
+		events.AddKeyEvent(tc.held, control.ActionPress)
+		events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
+		pl.EventHandler().HandleEvents(events)
+		var looks []LookAt
+		navPlugin.looks.Drain(func(i control.Issued[LookAt]) { looks = append(looks, i.Command) })
+		got = got[:0]
+		navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
+		if len(looks) != tc.look || len(got) != tc.move {
+			t.Errorf("right click with %v held: %d LookAt and %d MoveTo, want %d and %d", tc.held, len(looks), len(got), tc.look, tc.move)
+		}
+		events = &control.InputEvents{}
+		events.AddKeyEvent(tc.held, control.ActionRelease)
+		pl.EventHandler().HandleEvents(events)
 	}
 }

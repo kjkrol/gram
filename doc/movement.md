@@ -179,6 +179,16 @@ last. Navigation's default bindings, in the sense of [views.md](views.md): right
 `navigation.Plugin.DefaultBindings()`, bound on a player. The route renderer draws the way to every queued goal, planning
 each leg once and keeping it until the goals change.
 
+Turning is an order too. `MoveTo` carries the point clicked (`At`); a selected unit standing on
+the clicked cell gets an order to stay there with `MoveOrder.Face`, the point it turns towards on
+arrival. A right click with S held is `LookAt{At}`: every selected unit gets an order to the end of
+the step it is on (its leg's far cell, or its own), with `Face`. Arriving, navigation asks the
+steering for that heading at no speed, and `SteeringSystem` turns `Vel.Dir` at the unit's
+`TurnRate` whether it moves or not. It lives in navigation, not in world: world has the actuator,
+but a unit mid-step must first finish it — the leg holds its cells in the `Occupancy` — and orders
+to the selected units are navigation's already. S is a key held, not a modifier:
+`control.Mods{}.Holding(ebiten.KeyS)`, and a player counts as held only the keys its bindings hold.
+
 ## 8. Drawing the route is a choice of style
 
 `PathRenderer` draws the route cell by cell today (`PathSprites`: one arrow per direction, a

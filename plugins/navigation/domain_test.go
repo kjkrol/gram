@@ -66,7 +66,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	terrain.Set(lake, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water})
 
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, &board.SingleOccupancy{}), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, &board.SingleOccupancy{}), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]

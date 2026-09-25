@@ -8,8 +8,27 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Mods is the modifier keys a trigger asks for; a trigger fires only with exactly these held.
-type Mods struct{ Shift, Ctrl, Alt bool }
+// Mods is the modifier keys a trigger asks for, and at most one other key held down with them (see
+// Holding); a trigger fires only with exactly these held.
+type Mods struct {
+	Shift, Ctrl, Alt bool
+
+	held uint16 // the held key plus one; zero holds none, since ebiten.KeyA is zero
+}
+
+// Holding is m with key held down besides: S held while right-clicking, say.
+func (m Mods) Holding(key ebiten.Key) Mods {
+	m.held = uint16(key) + 1
+	return m
+}
+
+// Held is the key m asks to be held down besides its modifiers, if any.
+func (m Mods) Held() (ebiten.Key, bool) {
+	if m.held == 0 {
+		return 0, false
+	}
+	return ebiten.Key(m.held - 1), true
+}
 
 // Trigger is what fires a Binding: a key, a button, a gesture. The concrete triggers are values,
 // so two bindings on one trigger are told apart when bound.

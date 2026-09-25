@@ -284,7 +284,10 @@ shows how much of it is boilerplate vs. real behavior.
   `board`. A navigated unit carries a `world.Steering` profile: navigation only asks it for a
   heading (at a lookahead point, so turns start before the bend) and for its own top speed, braking
   from the profile before the goal; a waypoint is passed by projection, the goal by radius. A
-  `MoveOrder` queues up to `MaxWaypoints` further goals. A unit that struck someone (a `Struck`
+  `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns
+  towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or S + right click
+  (`LookAt`: finish the step, stop, turn). A trigger may ask for a key held besides its modifiers
+  (`control.Mods{}.Holding(key)`). A unit that struck someone (a `Struck`
   behavior navigation registers on the board's collision plugin) stops, re-plans from where it
   stands and holds that route for `bumpInterval`, so units pushing each other on a road step
   aside instead of shoving for ever. Occupancy is seeded from `Cell` + `Mover` at Setup (no spawn

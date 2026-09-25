@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -15,10 +16,12 @@ import (
 
 // moveCommandSystem carries out MoveTo commands: each gives every Selected entity its own free
 // cell at or around the target, nearest entity first, or with Append queues the target behind an
-// order already in flight.
+// order already in flight; one standing on the target turns towards the point clicked instead. A
+// LookAt has every Selected entity finish its step, stop and turn.
 type moveCommandSystem struct {
 	pathFinder *pathFinder
 	moves      *control.Inbox[MoveTo]
+	looks      *control.Inbox[LookAt]
 	selected   plugin.Tag[selection.Family]
 
 	query   *goke.Query
@@ -31,9 +34,9 @@ type moveCommandSystem struct {
 
 var _ goke.System = (*moveCommandSystem)(nil)
 
-// newMoveCommandSystem builds a moveCommandSystem draining moves into orders via pathFinder.
-func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Inbox[MoveTo], selected plugin.Tag[selection.Family]) *moveCommandSystem {
-	return &moveCommandSystem{moves: moves, pathFinder: pathFinder, selected: selected}
+// newMoveCommandSystem builds a moveCommandSystem draining moves and looks into orders via pathFinder.
+func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Inbox[MoveTo], looks *control.Inbox[LookAt], selected plugin.Tag[selection.Family]) *moveCommandSystem {
+	return &moveCommandSystem{moves: moves, looks: looks, pathFinder: pathFinder, selected: selected}
 }
 
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
@@ -43,6 +46,26 @@ func (s *moveCommandSystem) Init(si *goke.SysInit) {
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command) })
+	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At) })
+}
+
+// look has every Selected entity stop where its step ends and turn towards at.
+func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec) {
+	s.query.All()
+	for s.query.Next() {
+		cursor := s.query.Cursor()
+		cells, marks, orders := s.cell.Slice(cursor), s.marks.Slice(cursor), s.order.Slice(cursor)
+		for i, id := range cursor.IDs {
+			if !marks[i].Has(s.selected) {
+				continue
+			}
+			order := MoveOrder{Target: cells[i].ID, Face: at}
+			if orders != nil && orders[i].Leg.Active {
+				order.Target, order.Leg = orders[i].Leg.To, orders[i].Leg
+			}
+			cb.AddOne(id, s.orderID, order)
+		}
+	}
 }
 
 // carryOut gives the Selected entities their orders toward cmd.Cell.
@@ -69,6 +92,12 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo) {
 			}
 			if cmd.Append && orders != nil {
 				orders[i].Enqueue(target)
+				continue
+			}
+			standing := orders == nil || !orders[i].Leg.Active
+			if !cmd.Append && standing && cells[i].ID == target && cmd.At != (geom.Vec{}) {
+				// clicked where it stands: stay and turn towards the point
+				cb.AddOne(id, s.orderID, MoveOrder{Target: target, Face: cmd.At})
 				continue
 			}
 			m := pendingMove{id: id, from: cells[i].ID, domain: domain}

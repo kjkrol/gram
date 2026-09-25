@@ -22,6 +22,7 @@ type Player struct {
 	bindings []control.Binding
 	cursor   geom.Vec
 	held     map[ebiten.MouseButton]geom.Vec // buttons down and where they went down
+	keys     []ebiten.Key                    // keys down that some binding holds, last pressed last
 }
 
 // Bind adds bindings to the player; two on one Trigger are an error, never a silent last-one-wins.
@@ -68,6 +69,54 @@ func (p *Player) press(button ebiten.MouseButton, at geom.Vec) {
 		p.held = map[ebiten.MouseButton]geom.Vec{}
 	}
 	p.held[button] = at
+}
+
+// keyDown notes key as held when some binding of the player asks for it held.
+func (p *Player) keyDown(key ebiten.Key) {
+	if !p.holds(key) {
+		return
+	}
+	p.keyUp(key)
+	p.keys = append(p.keys, key)
+}
+
+// keyUp forgets key as held.
+func (p *Player) keyUp(key ebiten.Key) {
+	for i, k := range p.keys {
+		if k == key {
+			p.keys = append(p.keys[:i], p.keys[i+1:]...)
+			return
+		}
+	}
+}
+
+// holds reports whether one of the player's bindings asks for key held down.
+func (p *Player) holds(key ebiten.Key) bool {
+	for _, b := range p.bindings {
+		var mods control.Mods
+		switch t := b.Trigger.(type) {
+		case control.KeyPress:
+			mods = t.Mods
+		case control.ButtonPress:
+			mods = t.Mods
+		case control.Drag:
+			mods = t.Mods
+		default:
+			continue
+		}
+		if k, ok := mods.Held(); ok && k == key {
+			return true
+		}
+	}
+	return false
+}
+
+// withHeld is mods with the last held key the player's bindings ask for, if one is down.
+func (p *Player) withHeld(mods control.Mods) control.Mods {
+	if len(p.keys) == 0 {
+		return mods
+	}
+	return mods.Holding(p.keys[len(p.keys)-1])
 }
 
 // release forgets the button and reports where it went down, if it was down.

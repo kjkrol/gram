@@ -27,7 +27,10 @@
 // A [MoveTo] sends every Selected entity to a cell, or with Append queues the cell behind their
 // orders; the plugin is a plugin.Commander ([Plugin.Commands] is the inbox) and its command
 // system issues or extends the orders. [Plugin.DefaultBindings] make a right click one, Shift +
-// right click an appending one.
+// right click an appending one. A right click on the cell a Selected entity stands on turns it
+// towards the point clicked (MoveTo.At), and a right click with S held is a [LookAt]: every
+// Selected entity finishes its step, stops and turns there — both through [MoveOrder].Face, the
+// point an entity turns towards on arrival.
 //
 // # Renderer
 //

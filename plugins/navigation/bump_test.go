@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/control"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ type roadUnit struct {
 	ordered       bool
 	domain        board.Domain // zero: Land
 	wide          bool         // the hawk's profile: faster, turning slower, looking further ahead
+	selected      bool         // Selectable and Selected, for the commands of a player
 }
 
 type roadWorld struct {
@@ -69,7 +72,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 
-	spec := func(ordered bool, domain board.Domain, wide bool) kind.Spec {
+	spec := func(ordered bool, domain board.Domain, wide, selected bool) kind.Spec {
 		if domain == 0 {
 			domain = board.Land
 		}
@@ -90,11 +93,14 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if ordered {
 			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target} }))
 		}
+		if selected {
+			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
+		}
 		return s
 	}
 	kindIDs := make([]kind.ID, len(units))
 	for i, u := range units {
-		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide))
+		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected))
 		kindIDs[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}
@@ -280,5 +286,67 @@ func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 	}
 	if replans[hawk] > 1 {
 		t.Errorf("the hawk's route changed %d times on the way, want the first one kept", replans[hawk]-1)
+	}
+}
+
+// heading is the unit's heading after ticking for d.
+func (rw *roadWorld) heading(id uid.UID64, d time.Duration) geom.Vec {
+	for range int(d / (time.Second / 60)) {
+		rw.ecs.Tick(time.Second / 60)
+	}
+	for rw.q.All(); rw.q.Next(); {
+		cur := rw.q.Cursor()
+		for i, got := range cur.IDs {
+			if got == id {
+				return rw.base.Slice(cur)[i].Vel.Dir
+			}
+		}
+	}
+	return geom.Vec{}
+}
+
+func TestLook_AClickOnTheUnitsOwnCellTurnsItThere(t *testing.T) {
+	rw := newRoadWorld(t, 1, nil)
+	units := []roadUnit{{start: 0, selected: true}}
+	rw = newRoadWorld(t, 6, units)
+	units[0].start = rw.at(2, 1)
+	rw = newRoadWorld(t, 6, units)
+	unit := rw.byRow[0]
+	centre := rw.grid.CellCenter(rw.at(2, 1))
+	north := geom.NewVec(centre.X+3, centre.Y-12) // inside its own cell
+
+	rw.nav.moves.Add(control.Nobody, MoveTo{Cell: rw.at(2, 1), At: north})
+	dir := rw.heading(unit, 2*time.Second)
+	if cell, o := rw.state(unit); o != nil || cell != rw.at(2, 1) {
+		t.Fatalf("after the click the unit is on %v with order %v, want it still on its cell with none", cell, o)
+	}
+	if dir.Y > -0.9 {
+		t.Errorf("heading %v, want it turned north towards the point clicked", dir)
+	}
+}
+
+func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
+	rw := newRoadWorld(t, 1, nil)
+	units := []roadUnit{{start: 0, selected: true, ordered: true}}
+	rw = newRoadWorld(t, 12, units)
+	units[0].start, units[0].target = rw.at(0, 1), rw.at(11, 1)
+	rw = newRoadWorld(t, 12, units)
+	unit := rw.byRow[0]
+
+	rw.heading(unit, 500*time.Millisecond) // under way
+	here, _ := rw.state(unit)
+	south := geom.NewVec(rw.grid.CellCenter(here).X, 3000) // far south, whichever cell the step ends on
+	rw.nav.looks.Add(control.Nobody, LookAt{At: south})
+	dir := rw.heading(unit, 3*time.Second)
+
+	cell, o := rw.state(unit)
+	if o != nil {
+		t.Fatalf("the unit still has an order %+v, want it stopped", *o)
+	}
+	if rw.grid.Distance(cell, here) > 1.5 {
+		t.Errorf("the unit stopped on %v, %v cells from where it was told to look; want the end of its step", cell, rw.grid.Distance(cell, here))
+	}
+	if dir.Y < 0.9 {
+		t.Errorf("heading %v, want it turned south towards the point", dir)
 	}
 }

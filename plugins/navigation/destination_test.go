@@ -100,7 +100,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(10, 10, legCellSize)
 	occupancy := &board.SingleOccupancy{}
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), occupancy), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(5, 5)
 	starts := []board.CellID{at(5, 0), at(5, 4), at(5, 2)}

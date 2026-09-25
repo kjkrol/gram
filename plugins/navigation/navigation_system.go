@@ -29,6 +29,8 @@ type MoveOrder struct {
 	// keeps its new route before it would react to a bump again.
 	Bumped   bool
 	Cooldown time.Duration
+	// Face is the world point the entity turns towards once it has arrived; zero turns it nowhere.
+	Face geom.Vec
 }
 
 // Enqueue adds a goal after the last queued one; false when the queue is full.
@@ -363,6 +365,9 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 
 			st.RequestSpeed(0)
 			st.Speed = 0
+			if face := orders[i].Face; face != (geom.Vec{}) {
+				st.Request(geom.NewVec(face.X-want.X, face.Y-want.Y)) // turned by the steering, in place
+			}
 
 			if s.space != nil && (dx != 0 || dy != 0) {
 				s.space.Move(&bases[i].Pos.AABB, geom.NewVec(dx, dy))

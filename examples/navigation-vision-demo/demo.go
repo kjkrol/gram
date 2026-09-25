@@ -251,10 +251,11 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
-// faceTravel points each unit's Sight where it is going, and leaves it there when it stops.
+// faceTravel points each unit's Sight where it is heading, turning in place included; a unit that
+// stops keeps its last heading, so its Sight stays where it looked.
 func faceTravel(_ plugin.Tick, s vision.Sighting) {
-	if s.Base.Vel.Value > 0 {
-		s.Sight.Facing = s.Base.Vel.Dir
+	if d := s.Base.Vel.Dir; d.X != 0 || d.Y != 0 {
+		s.Sight.Facing = d
 	}
 }
 

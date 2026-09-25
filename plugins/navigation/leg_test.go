@@ -256,7 +256,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
 	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Inbox[LookAt]{}, selTags.Selected)
 
 	from, _ := grid.CellIndex(0, 0)
 	to, _ := grid.CellIndex(1, 0)
