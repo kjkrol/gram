@@ -1,0 +1,406 @@
+// Command split-screen-demo is two players at one keyboard: red drives its block with WSAD, blue
+// with the arrows, each through a camera of its own in its half of the screen, and a minimap at
+// the bottom shows the whole arena through a camera nobody drives.
+package main
+
+import (
+	"image"
+	"image/color"
+	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/render"
+)
+
+const (
+	TPS          = 60
+	GridWidth    = 40
+	GridHeight   = 30
+	CellSize     = 32
+	WorldWidth   = GridWidth * CellSize
+	WorldHeight  = GridHeight * CellSize
+	ScreenWidth  = 1280
+	ScreenHeight = 720
+	BlockSize    = 24
+	BlockSpeed   = CellSize * 5
+	MaxEntCount  = 64 // the two blocks and the terrain bodies of the walls
+
+	// MinimapWidth is the minimap's width in pixels; its height keeps the arena's proportions.
+	MinimapWidth = 240
+)
+
+// =========================== Game ===========================
+
+// Demo is the split-screen demo, one Stage.
+type Demo struct{ stage *mainStage }
+
+var _ game.Game = (*Demo)(nil)
+
+func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+
+func (d *Demo) Props() game.Props {
+	return game.Props{
+		Title:       "gram split-screen demo — red: WSAD, blue: arrows",
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
+		TargetTPS: TPS,
+	}
+}
+
+func (d *Demo) Stages() (map[string]game.Stage, string) {
+	return map[string]game.Stage{d.stage.Name(): d.stage}, d.stage.Name()
+}
+
+// =========================== Commands ===========================
+
+// Drive is the command to drive the issuing player's block one way this tick; the ways of the
+// keys held add up.
+type Drive struct{ Dir geom.Vec }
+
+// Driver is the player driving a block.
+type Driver struct{ Player control.PlayerID }
+
+// =========================== Stage ===========================
+
+// mainStage is the arena, its two blocks and the players driving them. It handles Drive itself.
+type mainStage struct {
+	world      *world.Plugin
+	collision  *collision.Plugin
+	board      *board.Plugin
+	players    *players.Plugin
+	red, blue  *players.Player
+	redBlock   kind.Of[block]
+	blueBlock  kind.Of[block]
+	drives     control.Queue[Drive]
+	drive      goke.Runnable
+	follow     goke.Runnable
+	minimapCam camera.Camera
+	stack      game.Scenes
+}
+
+var _ game.Stage = (*mainStage)(nil)
+
+func (s *mainStage) Name() string       { return "split-screen-demo" }
+func (s *mainStage) Stack() game.Scenes { return s.stack }
+
+// Queues is where Drive lands — the stage is the handler of its own command.
+func (s *mainStage) Queues() []control.CommandQueue { return []control.CommandQueue{&s.drives} }
+
+// DefaultBindings is none: each player is bound to its own keys in Init.
+func (s *mainStage) DefaultBindings() []control.Binding { return nil }
+
+func (s *mainStage) Init(ctx game.Initializer) error {
+	s.world = ctx.UseWorld(world.Config{
+		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
+		Camera:   camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight},
+	})
+	s.collision = collision.NewPlugin(s.world)
+	if err := ctx.Use(s.collision); err != nil {
+		return err
+	}
+	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board.CellKindDict().Create(
+		board.CellKind{Name: board.Named("floor"), Cost: 1, Allows: board.Land},
+		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
+	)
+	if err := ctx.Use(s.board); err != nil {
+		return err
+	}
+
+	s.players = players.NewPlugin(s.world, s)
+	s.red = s.players.Local("red").OwnCamera()
+	s.blue = s.players.Local("blue").OwnCamera()
+	if err := s.red.Bind(driveKeys(ebiten.KeyW, ebiten.KeyS, ebiten.KeyA, ebiten.KeyD)...); err != nil {
+		return err
+	}
+	if err := s.blue.Bind(driveKeys(ebiten.KeyArrowUp, ebiten.KeyArrowDown, ebiten.KeyArrowLeft, ebiten.KeyArrowRight)...); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.players); err != nil {
+		return err
+	}
+	s.drive = ctx.RegSys(func() goke.System { return &driveSystem{drives: &s.drives} })
+	s.follow = ctx.RegSys(func() goke.System { return &followSystem{players: s.players} })
+	s.minimapCam = s.world.NewCamera()
+	s.defineKinds()
+
+	main := &mainScene{stage: s}
+	minimap := &minimapScene{stage: s}
+	stack, err := game.NewStack(main, minimap)
+	if err != nil {
+		return err
+	}
+	s.stack = stack
+	comp := stack.Composition()
+	comp.Show(main.Name())
+	comp.Show(minimap.Name())
+	return nil
+}
+
+// driveKeys binds up, down, left and right to Drive while held.
+func driveKeys(up, down, left, right ebiten.Key) []control.Binding {
+	way := func(dx, dy float64) func(control.Context) (Drive, bool) {
+		return func(control.Context) (Drive, bool) { return Drive{Dir: geom.NewVec(dx, dy)}, true }
+	}
+	return []control.Binding{
+		control.Command(control.KeyHeld{Key: up}, "Drive up", way(0, -1)),
+		control.Command(control.KeyHeld{Key: down}, "Drive down", way(0, 1)),
+		control.Command(control.KeyHeld{Key: left}, "Drive left", way(-1, 0)),
+		control.Command(control.KeyHeld{Key: right}, "Drive right", way(1, 0)),
+	}
+}
+
+// block is the row a block spawns from: where it starts and who drives it.
+type block struct {
+	start  board.CellID
+	player control.PlayerID
+}
+
+func (s *mainStage) defineKinds() {
+	brd := s.board.Res.Logic.Board
+	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
+	profile := world.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
+	driver := comp.Load(func(b block) Driver { return Driver{Player: b.player} })
+	s.redBlock = units.Define("red", board.Mover{Domain: board.Land}, profile, driver)
+	s.blueBlock = units.Define("blue", board.Mover{Domain: board.Land}, profile, driver)
+}
+
+func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
+
+// Spawn lays out the arena — walls round it and a few pillars and walls inside — and a block for
+// each player in opposite corners.
+func (s *mainStage) Spawn() error {
+	brd := s.board.Res.Logic.Board
+	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	var cells []board.CellEntry
+	wall := func(x, y uint32) { cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(x, y)}) }
+	for x := uint32(0); x < GridWidth; x++ {
+		wall(x, 0)
+		wall(x, GridHeight-1)
+	}
+	for y := uint32(1); y < GridHeight-1; y++ {
+		wall(0, y)
+		wall(GridWidth-1, y)
+	}
+	for y := uint32(6); y < 24; y++ {
+		wall(20, y)
+	}
+	for x := uint32(8); x < 16; x++ {
+		wall(x, 10)
+		wall(x+16, 20)
+	}
+	for _, p := range [][2]uint32{{6, 20}, {10, 24}, {30, 6}, {34, 12}, {26, 26}, {14, 4}} {
+		wall(p[0], p[1])
+		wall(p[0]+1, p[1])
+		wall(p[0], p[1]+1)
+		wall(p[0]+1, p[1]+1)
+	}
+	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
+	s.world.Seed(
+		s.redBlock.Entry(block{start: cell(3, 3), player: s.red.ID}),
+		s.blueBlock.Entry(block{start: cell(GridWidth-4, GridHeight-4), player: s.blue.ID}),
+	)
+	return nil
+}
+
+func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+	ctx.Run(s.drive, d)
+	ctx.Sync()
+	s.world.RunPlan(ctx, d)
+	s.collision.RunPlan(ctx, d)
+	s.board.RunPlan(ctx, d)
+	ctx.Run(s.follow, d)
+	s.players.RunPlan(ctx, d)
+	ctx.Sync()
+}
+
+// =========================== Systems ===========================
+
+// driveSystem steers every block the way its player's Drive commands add up to this tick, and
+// brakes it to a stop when there were none.
+type driveSystem struct {
+	drives *control.Queue[Drive]
+	want   map[control.PlayerID]geom.Vec
+
+	query  *goke.Query
+	driver goke.Comp[Driver]
+	steer  goke.Comp[world.Steering]
+}
+
+func (s *driveSystem) Init(si *goke.SysInit) {
+	s.query = si.NewQueryBuilder(&s.driver, &s.steer).Build()
+	s.want = map[control.PlayerID]geom.Vec{}
+}
+
+func (s *driveSystem) Update(*goke.CmdBuf, time.Duration) {
+	clear(s.want)
+	s.drives.Drain(func(i control.Issued[Drive]) { s.want[i.Player] = s.want[i.Player].Add(i.Command.Dir) })
+	for s.query.All(); s.query.Next(); {
+		cur := s.query.Cursor()
+		drivers, steers := s.driver.Slice(cur), s.steer.Slice(cur)
+		for i := range cur.IDs {
+			st := &steers[i]
+			if dir := s.want[drivers[i].Player]; dir.X != 0 || dir.Y != 0 {
+				st.Request(dir)
+				st.RequestSpeed(st.MaxSpeed)
+			} else {
+				st.RequestSpeed(0)
+			}
+		}
+	}
+}
+
+// followSystem centres each player's camera on the block it drives.
+type followSystem struct {
+	players *players.Plugin
+
+	query  *goke.Query
+	driver goke.Comp[Driver]
+	base   goke.Comp[world.Base]
+}
+
+func (s *followSystem) Init(si *goke.SysInit) {
+	s.query = si.NewQueryBuilder(&s.driver, &s.base).Build()
+}
+
+func (s *followSystem) Update(*goke.CmdBuf, time.Duration) {
+	for s.query.All(); s.query.Next(); {
+		cur := s.query.Cursor()
+		drivers, bases := s.driver.Slice(cur), s.base.Slice(cur)
+		for i := range cur.IDs {
+			if pl := s.players.ByID(drivers[i].Player); pl != nil {
+				c := board.Center(bases[i].Pos)
+				pl.Camera.CenterOn(c.X, c.Y, 0)
+			}
+		}
+	}
+}
+
+// =========================== Scenes ===========================
+
+var (
+	colorFloor   = color.RGBA{R: 70, G: 80, B: 70, A: 255}
+	colorWall    = color.RGBA{R: 30, G: 30, B: 35, A: 255}
+	colorRed     = color.RGBA{R: 220, G: 80, B: 80, A: 255}
+	colorBlue    = color.RGBA{R: 80, G: 130, B: 230, A: 255}
+	colorDivider = color.RGBA{R: 240, G: 240, B: 240, A: 255}
+)
+
+// mainScene is the arena seen by both players, each in its half, with a line between the halves.
+type mainScene struct{ stage *mainStage }
+
+var _ game.Scene = (*mainScene)(nil)
+var _ game.Viewer = (*mainScene)(nil)
+
+func (m *mainScene) Name() string    { return "main" }
+func (m *mainScene) Focusable() bool { return true }
+
+func (m *mainScene) Layers() []render.Layer {
+	s := m.stage
+	worldAtlas := render.NewAtlas()
+	worldAtlas.RegisterAt(s.redBlock.SpriteID(), BlockSize, render.Solid(colorRed))
+	worldAtlas.RegisterAt(s.blueBlock.SpriteID(), BlockSize, render.Solid(colorBlue))
+	worldAtlas.Close()
+	s.world.WithRenderer(worldAtlas)
+
+	floor, _ := s.board.CellKindDict().Get("floor")
+	wall, _ := s.board.CellKindDict().Get("wall")
+	boardAtlas := render.NewAtlas()
+	boardAtlas.RegisterAt(floor.SpriteID, CellSize, render.Solid(colorFloor))
+	boardAtlas.RegisterAt(wall.SpriteID, CellSize, render.Solid(colorWall))
+	boardAtlas.Close()
+	s.board.WithRenderer(boardAtlas)
+	s.board.Res.Render.ShowGridLines = false
+
+	return []render.Layer{s.board.Renderer(), s.world.Renderer(), divider{s.blue}}
+}
+
+// Viewports are the two players' halves.
+func (m *mainScene) Viewports(screen image.Rectangle) []render.Viewport {
+	return m.stage.players.Viewports(screen)
+}
+
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
+	for _, k := range events.KeyEvents {
+		if k.Action != control.ActionPress {
+			continue
+		}
+		switch k.Key {
+		case ebiten.KeyEscape:
+			runtime.Quit()
+		case ebiten.KeySpace:
+			runtime.TogglePause()
+		}
+	}
+}
+
+// divider draws the line between the halves, at the left edge of the right player's part.
+type divider struct{ right *players.Player }
+
+func (divider) Init(*goke.SysInit) {}
+
+func (d divider) Draw(screen *ebiten.Image) {
+	if x := float32(d.right.Area().Min.X); x > 0 {
+		vector.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, colorDivider, false)
+	}
+}
+
+// minimapScene shows the whole arena through a camera of its own, in a frame at the bottom of the
+// screen; it never takes input.
+type minimapScene struct {
+	stage *mainStage
+	area  image.Rectangle
+}
+
+var _ game.Scene = (*minimapScene)(nil)
+var _ game.Viewer = (*minimapScene)(nil)
+
+func (m *minimapScene) Name() string    { return "minimap" }
+func (m *minimapScene) Focusable() bool { return false }
+
+func (m *minimapScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
+
+// Layers are the board and the world, the same renderers the players' views draw, and the frame.
+func (m *minimapScene) Layers() []render.Layer {
+	return []render.Layer{m.stage.board.Renderer(), m.stage.world.Renderer(), frame{m}}
+}
+
+// Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of
+// the screen, the camera zoomed out until the whole arena fits.
+func (m *minimapScene) Viewports(screen image.Rectangle) []render.Viewport {
+	h := MinimapWidth * WorldHeight / WorldWidth
+	x := screen.Min.X + (screen.Dx()-MinimapWidth)/2
+	area := image.Rect(x, screen.Max.Y-h-10, x+MinimapWidth, screen.Max.Y-10)
+	if area.Size() != m.area.Size() {
+		cam := m.stage.minimapCam
+		cam.SetViewport(float32(area.Dx()), float32(area.Dy()))
+		cam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
+		cam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	}
+	m.area = area
+	return []render.Viewport{{Camera: m.stage.minimapCam, Area: area}}
+}
+
+// frame outlines the minimap.
+type frame struct{ m *minimapScene }
+
+func (frame) Init(*goke.SysInit) {}
+
+func (f frame) Draw(screen *ebiten.Image) {
+	a := f.m.area
+	vector.StrokeRect(screen, float32(a.Min.X), float32(a.Min.Y), float32(a.Dx()), float32(a.Dy()), 2, colorDivider, false)
+}

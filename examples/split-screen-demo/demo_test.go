@@ -1,0 +1,80 @@
+package main
+
+import (
+	"image"
+	"testing"
+	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugins/world"
+)
+
+func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
+	d := NewDemo()
+	if err := engine.NewEngine(d).Init(); err != nil {
+		t.Fatal(err)
+	}
+	s := d.stage
+	main, _ := s.stack.Get("main")
+	minimap, _ := s.stack.Get("minimap")
+	screen := image.Rect(0, 0, ScreenWidth, ScreenHeight)
+
+	halves := main.(*mainScene).Viewports(screen)
+	if len(halves) != 2 || halves[0].Camera != s.red.Camera || halves[1].Camera != s.blue.Camera ||
+		halves[0].Area != image.Rect(0, 0, ScreenWidth/2, ScreenHeight) {
+		t.Fatalf("main viewports %+v, want red's camera on the left half and blue's on the right", halves)
+	}
+	if halves[0].Camera == s.world.Camera() || halves[0].Camera == halves[1].Camera {
+		t.Error("the players look through a shared camera, want one of their own each")
+	}
+
+	vp := minimap.(*minimapScene).Viewports(screen)
+	if len(vp) != 1 || !vp[0].Area.In(screen) || vp[0].Area.Dx() != MinimapWidth {
+		t.Fatalf("minimap viewport %+v, want one %d wide on the screen", vp, MinimapWidth)
+	}
+	b := vp[0].Camera.Bounds()
+	if b.TopLeft.X > 0 || b.TopLeft.Y > 0 || b.BottomRight.X < WorldWidth-1 || b.BottomRight.Y < WorldHeight-1 {
+		t.Errorf("the minimap shows %v, want the whole %dx%d arena", b, WorldWidth, WorldHeight)
+	}
+}
+
+func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *testing.T) {
+	var drives control.Queue[Drive]
+	sys := &driveSystem{drives: &drives}
+	var driver goke.Comp[Driver]
+	var steer goke.Comp[world.Steering]
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		f := si.NewFactory(&driver, &steer)
+		f.Create(2)
+		for f.Next() {
+			for i := range f.Cursor.IDs {
+				driver.Slice(&f.Cursor)[i] = Driver{Player: control.PlayerID(i + 1)}
+				steer.Slice(&f.Cursor)[i] = world.Steering{MaxSpeed: 100, WantSpeed: 50}
+			}
+		}
+	}}, sys)
+	drives.Add(1, Drive{Dir: geom.NewVec(1, 0)})
+	drives.Add(1, Drive{Dir: geom.NewVec(0, 1)})
+	sys.Update(nil, time.Second/60)
+
+	for sys.query.All(); sys.query.Next(); {
+		cur := sys.query.Cursor()
+		for i := range cur.IDs {
+			d, st := sys.driver.Slice(cur)[i], sys.steer.Slice(cur)[i]
+			switch d.Player {
+			case 1:
+				if st.WantSpeed != 100 || st.Want.X <= 0 || st.Want.Y <= 0 {
+					t.Errorf("player 1's block wants %v at %v, want down-right at full speed", st.Want, st.WantSpeed)
+				}
+			case 2:
+				if st.WantSpeed != 0 {
+					t.Errorf("player 2's block wants speed %v with no Drive, want 0", st.WantSpeed)
+				}
+			}
+		}
+	}
+}

@@ -112,6 +112,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   the one whose part of the screen it is over, in that part's pixels. `control.KeyHeld` fires once a
   tick while its key is down, issued by players at the end of a tick for the next. `selection.Select.Camera` and `Follow{Camera}` carry the
   issuing player's camera; `NewSelectionSystem` and `NewFollowSystem` take none.
+- `split-screen-demo`: red drives its block with WSAD, blue with the arrows, each through a camera
+  of its own in its half of the screen; a minimap scene shows the whole arena through a camera of
+  its own, drawn by the same board and world renderers.
+- A steering profile without `V0` sets off from standing; it stood still for ever.
 
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
