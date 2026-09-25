@@ -8,13 +8,13 @@ import (
 
 // terrainSpeed is the Moving behavior board registers on the world: every entity carrying a Mover
 // moves at 1/CostFor(its domain) of the cell under its centre.
-func terrainSpeed(grid Grid, terrain Terrain) plugin.Behavior {
+func terrainSpeed(brd *Board) plugin.Behavior {
 	return host.Each[Mover](func(_ plugin.Tick, m *Mover, mv world.Moving) {
-		cell, ok := grid.CellAt(Center(mv.Base.Pos))
+		cell, ok := brd.CellAt(Center(mv.Base.Pos))
 		if !ok {
 			return
 		}
-		if cost := terrain.Kind(cell).CostFor(m.Domain); cost > 0 {
+		if cost := brd.Kind(cell).CostFor(m.Domain); cost > 0 {
 			mv.Base.Vel.Value /= cost
 		}
 	})

@@ -92,7 +92,21 @@ drawing.
 About 1 µs per observer to know what it sees, 2.5 µs to also know the shape of its view; both
 scale linearly with the observers.
 
-## Key takeaways
+## Ground — `Benchmark_Board_GroundAt`
+
+The ground under 64 points a quarter cell apart along a diagonal of a 256×256 square board of
+hills, as sight samples it along one ray in a Quasi3D world. Every cell is an entity, and a read
+seeks the cell's `Plot` in the ECS. Measured on 2026-09-25 against the raster of altitudes it
+replaced, the two trees run alternately six times each.
+
+| Terrain store | 64 reads | per read |
+|:--|---:|---:|
+| raster of altitudes, before | 2.55 µs | 40 ns |
+| cell entities | 1.49 µs | 23 ns |
+
+The seek is the smaller part of a read; the rest is finding the cell, which a square grid now does
+straight from the point.
+
 
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
@@ -108,6 +122,8 @@ scale linearly with the observers.
   sequential walk for all (see doc/views.md).
 * **Drawing pays for the camera's wrap arithmetic.** ~110 ns per drawn box, mostly `math.Mod` in
   projecting a box onto a torus — a camera optimisation waiting for a reason.
+* **The terrain lives in the ECS at no cost.** Reading a cell's ground or kind from its entity is
+  cheaper than the raster it replaced, and A* across a 128×128 board costs what it did over the map.
 * **Zero allocations once warm.** Every benchmark reports 0 allocs/op after the first ticks have
   grown the buffers.
 

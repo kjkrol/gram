@@ -11,10 +11,10 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, every tick, the cell entities' Ground into the terrain, then the terrain bodies
-// when the plugin was built WithCollision, then the standing report.
+// module runs, every tick, the cells — shaping, and what effects changed — then the terrain bodies
+// when the plugin was built WithCollision, then the altitudes and the standing report.
 type module struct {
-	cells    *cellEntitySystem
+	cells    *cellSystem
 	altitude *altitudeSystem // Quasi3D only
 	standing *standingSystem
 	bodies   *terrainBodySystem
@@ -52,14 +52,15 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
-// SetupSystems is empty — the bodies build themselves in their own Init.
+// SetupSystems is empty — the cells and the bodies build themselves in their own Init.
 func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the component types board writes or reads, so a save loads without the vision
 // and effects plugins — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	tokens := []goke.CompToken{
-		goke.LoadComp[Cell](), goke.LoadComp[Mover](), goke.LoadComp[Ground](),
+		goke.LoadComp[Cell](), goke.LoadComp[Mover](),
+		goke.LoadComp[Plot](), goke.LoadComp[Ground](),
 		goke.LoadComp[effects.Active](), goke.LoadComp[effects.Idle](),
 	}
 	if m.bodies != nil {

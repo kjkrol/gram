@@ -14,9 +14,21 @@ import (
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
 )
 
-var hill = board.CellKind{Name: board.Named("hill"), Cost: 1, Allows: board.Land | board.Air, Altitude: 12}
+var hill = board.CellKind{Name: board.Named("hill"), Cost: 1, Allows: board.Land | board.Air}
 
-func TestBoard_GroundAtReadsTheRasterAndFollowsTheTerrain(t *testing.T) {
+// raiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
+func raiseHills(brd *board.Board, hills ...board.CellID) {
+	brd.SetHeights(board.MeanOfCells(brd, func(c board.CellID) float64 {
+		for _, h := range hills {
+			if h == c {
+				return 12
+			}
+		}
+		return 0
+	}))
+}
+
+func TestBoard_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 	for name, grid := range map[string]board.Grid{
 		"square": board.DefaultGrids{}.Square(4, 4, 32),
 		"hex":    board.DefaultGrids{}.Hex(4, 4, 16),
@@ -26,14 +38,15 @@ func TestBoard_GroundAtReadsTheRasterAndFollowsTheTerrain(t *testing.T) {
 			brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
 			c, _ := grid.CellIndex(2, 1)
 			brd.Set(c, hill)
+			raiseHills(brd, c)
 
-			if got := brd.Altitude(c); got != 12 {
-				t.Errorf("the hill's altitude = %v, want 12", got)
-			}
-			// A lone hill on a square grid is smoothed to its corners' mean, 3; a hex cell stays flat.
+			// A lone hill on a square grid is smoothed to its corners' mean, 3; a hex cell stays level.
 			want := 12.0
 			if name == "square" {
 				want = 3
+			}
+			if got := brd.Altitude(c); got != want {
+				t.Errorf("the hill's altitude = %v, want %v", got, want)
 			}
 			if got := brd.GroundAt(grid.CellCenter(c)); got != want {
 				t.Errorf("ground at the hill's centre = %v, want %v", got, want)
@@ -45,9 +58,13 @@ func TestBoard_GroundAtReadsTheRasterAndFollowsTheTerrain(t *testing.T) {
 			if got := brd.GroundAt(geom.NewVec(-100, -100)); got != 0 {
 				t.Errorf("ground off the board = %v, want 0", got)
 			}
-			brd.Set(c, board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+			before := brd.Version()
+			raiseHills(brd)
 			if got := brd.GroundAt(grid.CellCenter(c)); got != 0 {
-				t.Errorf("ground after the hill was levelled = %v, want 0: the raster follows Version", got)
+				t.Errorf("ground after the hill was levelled = %v, want 0", got)
+			}
+			if brd.Version() == before {
+				t.Error("levelling the hill left the Version as it was")
 			}
 			if brd.Step() <= 0 {
 				t.Errorf("Step = %v, want the cell's shorter side", brd.Step())
@@ -60,12 +77,14 @@ func TestBoard_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 6, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+	var hills []board.CellID
 	for y := uint32(2); y <= 4; y++ {
 		for x := uint32(2); x <= 4; x++ {
 			c, _ := grid.CellIndex(x, y)
-			brd.Set(c, hill)
+			hills = append(hills, c)
 		}
 	}
+	raiseHills(brd, hills...)
 	centre, _ := grid.CellIndex(3, 3)
 	if got := brd.GroundAt(grid.CellCenter(centre)); got != 12 {
 		t.Errorf("the plateau's middle stands at %v, want the full 12", got)
@@ -115,6 +134,7 @@ func newQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[re
 	qw.brd.Res.Logic.Board.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land | board.Air})
 	hillCell, _ := qw.grid.CellIndex(2, 1)
 	qw.brd.Res.Logic.Board.Set(hillCell, hill)
+	raiseHills(qw.brd.Res.Logic.Board, hillCell)
 	units := board.NewUnits[recruit](qw.brd, board.Shape{Size: 20, Height: 2}, func(r recruit) geom.Vec { return qw.grid.CellCenter(r.start) })
 	entries := define(units, qw.grid)
 
@@ -203,7 +223,8 @@ func TestBodies_CarryTheirKindsHeightsInAQuasi3DWorld(t *testing.T) {
 		return []kind.Entry{k.Entry(recruit{start: start})}
 	})
 	wallCell, _ := qw.grid.CellIndex(3, 3)
-	qw.brd.Res.Logic.Board.Set(wallCell, board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Altitude: 12, Height: 10})
+	qw.brd.Res.Logic.Board.Set(wallCell, board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Height: 10})
+	qw.brd.Res.Logic.Board.SetRelief(wallCell, board.Relief{Corners: [4]float32{12, 12, 12, 12}})
 	qw.ecs.Tick(time.Second / 60)
 
 	bodies := 0
@@ -257,9 +278,16 @@ func TestFlatWorld_RefusesHeights(t *testing.T) {
 	}
 	at := func(recruit) geom.Vec { return geom.NewVec(48, 48) }
 
-	t.Run("a kind with an altitude", func(t *testing.T) {
+	t.Run("a kind with a height", func(t *testing.T) {
 		_, brd := flat()
-		expectPanic(t, "Quasi3D", func() { brd.CellKindDict().Create(hill) })
+		expectPanic(t, "Quasi3D", func() { brd.CellKindDict().Create(board.CellKind{Name: board.Named("wall"), Height: 3}) })
+	})
+	t.Run("a layout with heights", func(t *testing.T) {
+		_, brd := flat()
+		brd.Seed(board.Layout{Heights: func(geom.Vec) float64 { return 1 }})
+		if err := brd.Populate(); err == nil || !strings.Contains(err.Error(), "Quasi3D") {
+			t.Errorf("Populate = %v, want an error mentioning Quasi3D", err)
+		}
 	})
 	t.Run("units with a height", func(t *testing.T) {
 		_, brd := flat()

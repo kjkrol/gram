@@ -30,10 +30,10 @@ type CellKind struct {
 	// Veils is whom the Veil dims, as world.Layers: a forest veiling Land is looked over from Air.
 	// Zero veils everyone.
 	Veils Domain
-	// Altitude is the ground level of the cell and Height what stands on it (a wall, a forest), in
-	// a Quasi3D world; a flat world refuses either — see world.Config.Quasi3D.
-	Altitude, Height float64
-	SpriteID         render.SpriteID
+	// Height is what stands on the cell (a wall, a forest) in a Quasi3D world; a flat world refuses
+	// it — see world.Config.Quasi3D. The ground under it is the cell's Relief.
+	Height   float64
+	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
 	// set; see Costing and CostFor.
 	Costs [8]float64
@@ -88,8 +88,8 @@ func newCellKindDict(quasi3D bool) *cellKindDict {
 
 func (d *cellKindDict) Create(kinds ...CellKind) {
 	for _, k := range kinds {
-		if !d.quasi3D && (k.Altitude != 0 || k.Height != 0) {
-			panic(fmt.Sprintf("board: kind %q has an Altitude or a Height in a flat world; set world.Config.Quasi3D", k.Name.String()))
+		if !d.quasi3D && k.Height != 0 {
+			panic(fmt.Sprintf("board: kind %q has a Height in a flat world; set world.Config.Quasi3D", k.Name.String()))
 		}
 		k.SpriteID = d.next
 		d.next++
@@ -114,8 +114,8 @@ func (d *cellKindDict) All() []CellKind {
 	return all
 }
 
-// TerrainMap is a Terrain backed by a plain, gob-encodable map — mutate it
-// directly (Set/SetMany) to change terrain at runtime, e.g. to build a road.
+// TerrainMap is a Terrain backed by a plain map: a Board's seed until the ECS is set up, and its
+// whole terrain on a board no ECS runs. Change the terrain through the Board.
 type TerrainMap struct {
 	Cells   map[CellID]CellKind
 	Default CellKind

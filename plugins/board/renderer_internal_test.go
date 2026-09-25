@@ -31,7 +31,12 @@ func TestRenderer_Submit_OneQuadPerVisibleCellAtItsAltitude(t *testing.T) {
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
 	c, _ := grid.CellIndex(1, 1)
-	brd.Set(c, CellKind{Cost: 1, Allows: Land, Altitude: 10})
+	brd.SetHeights(MeanOfCells(grid, func(at CellID) float64 {
+		if at == c {
+			return 10
+		}
+		return 0
+	}))
 	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
 	r := newRenderer(cam, brd, flatAtlas{}, &RenderState{})
 

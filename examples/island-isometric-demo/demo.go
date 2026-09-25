@@ -113,13 +113,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision).
+		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
 		board.CellKind{Name: board.Named("field"), Cost: 1.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("hills"), Cost: 4, Allows: board.Land | board.Air, Altitude: 20}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("mountain"), Cost: 8, Allows: board.Land | board.Air, Altitude: 40}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("hills"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("mountain"), Cost: 8, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 	)
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
@@ -147,7 +148,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
@@ -300,7 +301,12 @@ func (m *mainScene) Layers() []render.Renderer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
-	layers := append([]render.Renderer{render.NewSorted(s.board.Renderer(), s.world.Renderer()), s.vision.Renderer()}, s.players.Renderers()...)
+	layers := []render.Renderer{render.NewSorted(s.board.Renderer(), s.world.Renderer()), s.vision.Renderer()}
+	for _, r := range s.players.Renderers() {
+		if r != s.board.Renderer() { // the board shapes the ground, and is drawn sorted already
+			layers = append(layers, r)
+		}
+	}
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
 }
 

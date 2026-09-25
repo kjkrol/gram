@@ -3,6 +3,7 @@ package navigation
 import (
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
 )
@@ -11,12 +12,12 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	for y := uint32(0); y < 4; y++ { // a ridge down the right half
-		for x := uint32(2); x < 4; x++ {
-			c, _ := grid.CellIndex(x, y)
-			brd.Set(c, board.CellKind{Cost: 1, Allows: board.Land, Altitude: 10})
+	brd.SetHeights(board.MeanOfCells(grid, func(c board.CellID) float64 { // a ridge down the right half
+		if x, _, _ := grid.Coords(c); x >= 2 {
+			return 10
 		}
-	}
+		return 0
+	}))
 	cam := camera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
 	r := NewPathRenderer(cam, brd, nil, PathSprites{}, 0)
 
@@ -26,7 +27,8 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 	}
 	flat := board.DefaultGrids{}.Hex(4, 4, 16)
 	hexBoard := board.NewBoard(flat, board.NewTerrainMap())
-	hexBoard.SetAll(board.CellKind{Cost: 1, Allows: board.Land, Altitude: 7})
+	hexBoard.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	hexBoard.SetHeights(func(geom.Vec) float64 { return 7 })
 	hr := NewPathRenderer(cam, hexBoard, nil, PathSprites{}, 0)
 	c, _ := flat.CellIndex(1, 1)
 	if z := hr.spriteHeights(c); z != [4]float32{7, 7, 7, 7} {

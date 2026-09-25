@@ -6,12 +6,12 @@
 // # Board, Grid and Layout
 //
 // A [Grid] is a topology behind neighbor, coordinate and distance queries; [DefaultGrids] makes a
-// square or a hex one, and each wraps per axis following the world's edges. A [Board] pairs a
-// Grid with its [TerrainMap], the one place to read the topology and read or write terrain.
-// [Plugin], built over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a
-// [Layout] (a default kind for every cell, then per-cell overrides) when the Stage starts fresh,
-// saves it, and slows every entity carrying a [Mover] by the terrain under it (a Moving behavior
-// it registers on the world).
+// square or a hex one, and each wraps per axis following the world's edges. A [Board] is a Grid
+// with its terrain, the one place to read the topology and read or write terrain. [Plugin], built
+// over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a [Layout] (a default
+// kind for every cell, per-cell overrides, and the heights) when the Stage starts fresh, and slows
+// every entity carrying a [Mover] by the terrain under it (a Moving behavior it registers on the
+// world).
 //
 // # Cell, CellKind and Terrain
 //
@@ -35,13 +35,20 @@
 // into a hole. What follows is the
 // game's: despawn, teleport, damage. Call [Plugin.RunPlan] every tick, after collision's.
 //
-// # Cell entities and Ground
+// # Cell entities: Plot and Ground
 //
-// [Plugin.CellEntity] gives a cell an entity — a body with a [Cell] and a [Ground] holding the
-// cell's kind — so anything done to entities can be done to a cell: an effect altering Ground is
-// a temporary change of terrain. While the entity exists the board copies its Ground into the
-// TerrainMap every tick; [Plugin.DropCellEntity] lets it go, and the board does that itself once
-// the entity's last effect ended (effects.Idle on it, no Active).
+// The terrain lives in the ECS. At Setup every cell becomes an entity for good — a [Plot] naming
+// the cell and holding its [Relief], the heights of its corners, and a [Ground] holding its kind —
+// or, after a load, the saved ones are found again; the board keeps only which entity is which cell's.
+// Cell entities carry no world.Base: they are not in the world's space and do not count against
+// its MaxCount. The Board reads and writes them ([Board.Kind], [Board.Set], [Board.Relief]), and
+// until Setup, or on a board no ECS runs, it keeps a seed instead: a [TerrainMap] and the corner
+// heights. [Plugin.CellEntity] is a cell's entity, so anything done to entities can be done to a
+// cell: an effect altering Ground (or Plot) changes the terrain, and the board counts it in its
+// [Board.Version] the tick it happens and the tick it ends, as effects.Active.Altered and
+// effects.Idle say. A change never costs a pass over every cell: whoever writes says so. The kind
+// and the heights are two components because an effect ending puts back the whole component it
+// altered: a frost ending restores the kind and leaves the ground shaped meanwhile as it is.
 //
 // # Terrain bodies
 //
@@ -53,8 +60,8 @@
 // whose Sight.Blockers miss them looks over it.
 // A body is made of the boxes the grid gives for each cell ([Grid.CellBoxes]: one for a square,
 // [HexCapStrips] strips over each cap of a hex, covering it from outside), merged along both axes
-// up to [MaxBodyCells] a side. The bodies follow [TerrainMap.Version]; call [Plugin.RunPlan] after
-// collision's.
+// up to [MaxBodyCells] a side, one kind at one altitude each. The bodies follow [Board.Version];
+// call [Plugin.RunPlan] after collision's.
 //
 // The board requires of every unit a [Cell] (where it starts) and a [Mover] (the domains it moves
 // in) through the world's kind.Roster — and makes them itself in [Units]: a game binds its rows to
@@ -64,19 +71,27 @@
 //
 // # Heights
 //
-// In a Quasi3D world (world.Config.Quasi3D) a [CellKind] has an Altitude, its ground level, and a
-// Height, what stands on it. The [Board] keeps a raster of altitudes, one per cell (Grid.Ordinal),
-// rebuilt when the terrain's Version moves, and is the world's Ground ([Board.GroundAt],
-// [Board.Step]). Every tick the board writes each Z-carrying entity's Altitude: the ground under
-// its centre plus its Mover's Lift, so a unit never declares where it stands in height and a hawk
-// declares only how high it flies. Units get their Z from the Shape, terrain bodies from their
-// kind. A hill is a number in the raster and never a body, so the cost of sight does not depend
-// on how many a game has. On a square grid the ground runs smoothly between cells: each corner
-// stands at the mean altitude of the cells that meet there ([Board.Corners]), GroundAt reads
-// between a cell's corners, a hill has slopes and a unit on a slope stands at its height; the
-// renderer draws the tiles sloped, lit from the upper left so the relief reads, and faces only
-// where a top stands above its neighbour's — a wall over grass, a raised edge over the sea. A flat world refuses an Altitude, a Height or a
-// Lift where it first meets one.
+// In a Quasi3D world (world.Config.Quasi3D) the ground has heights, apart from the kinds: a cell's
+// [Relief] holds its four corners, a [CellKind]'s Height is what stands on it. [Layout.Heights]
+// raises the ground when the Stage starts fresh ([Board.SetHeights]: sampled at the corners, or at
+// the centre of a hex, which is level; [MeanOfCells] builds one from a height per cell). The
+// [Board] is the world's Ground ([Board.GroundAt], [Board.Step]): on a square grid it reads between
+// a cell's corners, so a hill has slopes and a unit on a slope stands at its height. Every tick the
+// board writes each Z-carrying entity's Altitude: the ground under its centre plus its Mover's
+// Lift, so a unit never declares where it stands in height and a hawk declares only how high it
+// flies. Units get their Z from the Shape, terrain bodies from their cells. A hill is heights on
+// cell entities and never a body, so the cost of sight does not depend on how many a game has.
+// The renderer draws the tiles sloped, lit from the upper left so the relief reads, and faces only
+// where a top stands above its neighbour's — a wall over grass, a raised edge over the sea. A flat
+// world refuses heights, a Height or a Lift where it first meets one.
+//
+// # Shaping
+//
+// The ground changes as in Transport Tycoon: [Raise] and [Lower] move the corner nearest a point
+// (a hex cell on a hex grid) by a [Shaping] Step, [Level] brings an area to the height where it
+// began, and the ground round about follows until no two corners along a cell's edge differ by
+// more than MaxStep. The board is a plugin.Commander in a Quasi3D world: = and - under the
+// cursor, a left drag with L held. [Board.Lift] and [Board.Flatten] do the same from a game's code.
 //
 // # Occupancy
 //

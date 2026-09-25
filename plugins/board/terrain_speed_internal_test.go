@@ -11,10 +11,10 @@ import (
 
 // speeds runs terrainSpeed over entities placed by place, all at speed 1, and reports each one's
 // speed after, keyed by its box's left edge.
-func speeds(t *testing.T, grid Grid, terrain Terrain, place func(si *goke.SysInit, base *goke.Comp[world.Base])) map[float64]float64 {
+func speeds(t *testing.T, brd *Board, place func(si *goke.SysInit, base *goke.Comp[world.Base])) map[float64]float64 {
 	t.Helper()
 	host := &host.EachHost[world.Moving]{}
-	if err := host.Add(terrainSpeed(grid, terrain)); err != nil {
+	if err := host.Add(terrainSpeed(brd)); err != nil {
 		t.Fatal(err)
 	}
 	got := map[float64]float64{}
@@ -45,7 +45,7 @@ func TestTerrainSpeed_ScalesByOneOverCost(t *testing.T) {
 	terrain.Set(at(1), CellKind{Cost: 0.5, Allows: Land}) // a boost, if a game wants one
 	terrain.Set(at(2), CellKind{Cost: 0, Allows: Land})   // no cost: no effect
 
-	got := speeds(t, grid, terrain, func(si *goke.SysInit, base *goke.Comp[world.Base]) {
+	got := speeds(t, NewBoard(grid, terrain), func(si *goke.SysInit, base *goke.Comp[world.Base]) {
 		var mover goke.Comp[Mover]
 		f := si.NewFactory(base, &mover)
 		f.Create(3)
@@ -74,7 +74,7 @@ func TestTerrainSpeed_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing
 	terrain.Set(c, CellKind{Name: Named("snow"), Cost: 4, Allows: Land | frost}.Costing(frost, 0.5))
 
 	// Three entities on the snow, told apart by a one-unit offset: on foot, frost-born, no Mover.
-	got := speeds(t, grid, terrain, func(si *goke.SysInit, base *goke.Comp[world.Base]) {
+	got := speeds(t, NewBoard(grid, terrain), func(si *goke.SysInit, base *goke.Comp[world.Base]) {
 		var mover goke.Comp[Mover]
 		box := CellAABB(grid, c, 4)
 		f := si.NewFactory(base, &mover)

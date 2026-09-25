@@ -25,8 +25,10 @@ type effectSystem struct {
 	active  goke.Comp[Active]
 	columns map[reflect.Type]column
 
-	// idle walks the entities marked Idle last tick: the hosted behaviors hear of them, the mark goes.
+	// idle walks the entities marked Idle last tick for the hosted behaviors, and bare the ones
+	// without a Base; the mark goes from both.
 	idle      *goke.Query
+	bare      *goke.Query
 	idleBase  goke.Comp[world.Base]
 	idleID    goke.CompID
 	idleIDs   []uid.UID64
@@ -66,6 +68,7 @@ func (s *effectSystem) Init(si *goke.SysInit) {
 	iq := si.NewQueryBuilder(&s.idleBase).Include(goke.Include[Idle]())
 	s.idlers.Bind(iq)
 	s.idle = iq.Build()
+	s.bare = si.NewQueryBuilder().Include(goke.Include[Idle]()).Exclude(goke.Exclude[world.Base]()).Build()
 	s.built = true
 }
 
@@ -79,6 +82,11 @@ func (s *effectSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.idlers.Run(t, cursor, s.idling)
 		}
 		for _, id := range s.idleIDs {
+			cb.RemoveCompOne(id, s.idleID)
+		}
+	}
+	for s.bare.All(); s.bare.Next(); {
+		for _, id := range s.bare.Cursor().IDs {
 			cb.RemoveCompOne(id, s.idleID)
 		}
 	}
@@ -114,6 +122,7 @@ func (s *effectSystem) step(t plugin.Tick, cursor *goke.Cursor, i int, id uid.UI
 	for comp := range touched {
 		s.recompute(cursor, i, id, a, comp)
 	}
+	a.Altered = len(touched) > 0
 	if a.empty() {
 		s.originals.forget(id)
 		s.worldPlugin.Detach[Active](t.CmdBuf, id)

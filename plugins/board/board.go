@@ -1,107 +1,294 @@
 package board
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/uid"
 )
 
-// Board is a Grid paired with its TerrainMap — the single integration
-// point for reading grid topology and reading/writing terrain kinds. It is also the world's
-// Ground: a raster of the terrain's Altitude, one slot per cell, rebuilt when the terrain changes;
-// on a square grid the ground runs smoothly between cells, each corner at the mean altitude of the
-// cells round it, so a hill has slopes and a unit on a slope stands at its height.
+// Board is a Grid and its terrain. Once the ECS is set up every cell is an entity carrying a
+// [Plot] and a [Ground], and the board reads and writes them; before that, and for
+// good on a board no ECS runs, it keeps a seed: a TerrainMap and the corner heights. It is also
+// the world's Ground: on a square grid the ground runs between a cell's corners, on a hex grid a
+// cell is level. Not safe for concurrent use.
 type Board struct {
 	Grid
-	*TerrainMap
 
-	heights []float64 // one per cell
-	corners []float64 // one per lattice point of a square grid, (W+1) x (H+1); nil for other grids
-	built   uint64
+	square  *squareGrid // the grid when it is square, for the ground's fast path; nil otherwise
+	seed    *TerrainMap
+	relief  []Relief // the seed's relief by ordinal; nil is level at 0
+	cells   *cellStore
+	version uint64
+}
+
+// cellStore is where the cells' entities are: their ids by ordinal, and a query for each of the
+// two components, so a read seeks only the column it needs.
+type cellStore struct {
+	ids    []uid.UID64
+	plots  *goke.Query
+	kinds  *goke.Query
+	plot   goke.Comp[Plot]
+	ground goke.Comp[Ground]
 }
 
 var _ world.Ground = (*Board)(nil)
+var _ Terrain = (*Board)(nil)
 
-// GroundAt is the ground height under p, 0 off the board: read between the cell's corners on a
-// square grid, the cell's altitude elsewhere.
-func (b *Board) GroundAt(p geom.Vec) float64 {
-	c, ok := b.CellAt(p)
-	if !ok {
-		return 0
+// NewBoard is a board over grid seeded with terrain.
+func NewBoard(grid Grid, terrain *TerrainMap) *Board {
+	sq, _ := grid.(*squareGrid)
+	return &Board{Grid: grid, square: sq, seed: terrain}
+}
+
+// bind hands the terrain over to the cell entities in st.
+func (b *Board) bind(st *cellStore) {
+	b.version += b.seed.Version()
+	b.cells, b.seed, b.relief = st, nil, nil
+}
+
+// ordinal is Grid.Ordinal, straight from the id on a square grid, whose ids count row by row.
+func (b *Board) ordinal(c CellID) (int, bool) {
+	if sq := b.square; sq != nil {
+		return int(c), uint64(c) < uint64(sq.Width)*uint64(sq.Height)
 	}
-	hs, x, y, sloped := b.Corners(c)
-	if !sloped {
-		return b.Altitude(c)
+	return b.Ordinal(c)
+}
+
+// groundOf is the i-th cell's Ground, in place.
+func (b *Board) groundOf(i int) *Ground {
+	st := b.cells
+	if !st.kinds.Seek(st.ids[i]) {
+		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
+	}
+	return st.ground.At(st.kinds.Cursor())
+}
+
+// plotOf is the i-th cell's Plot, in place.
+func (b *Board) plotOf(i int) *Plot {
+	st := b.cells
+	if !st.plots.Seek(st.ids[i]) {
+		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
+	}
+	return st.plot.At(st.plots.Cursor())
+}
+
+// CellEntity is the entity of cell c; false off the board or before the ECS is set up.
+func (b *Board) CellEntity(c CellID) (uid.UID64, bool) {
+	i, ok := b.ordinal(c)
+	if !ok || b.cells == nil {
+		return 0, false
+	}
+	return b.cells.ids[i], true
+}
+
+// Kind is c's terrain kind; off the board, the zero kind admitting nobody.
+func (b *Board) Kind(c CellID) CellKind {
+	if b.cells == nil {
+		return b.seed.Kind(c)
+	}
+	i, ok := b.ordinal(c)
+	if !ok {
+		return CellKind{}
+	}
+	return b.groundOf(i).Kind
+}
+
+// Set assigns c's terrain kind, taking effect immediately.
+func (b *Board) Set(c CellID, kind CellKind) {
+	if b.set(c, kind) {
+		b.version++
+	}
+}
+
+// SetMany assigns kind to every cell in cells in one call.
+func (b *Board) SetMany(cells []CellID, kind CellKind) {
+	changed := false
+	for _, c := range cells {
+		changed = b.set(c, kind) || changed
+	}
+	if changed {
+		b.version++
+	}
+}
+
+func (b *Board) set(c CellID, kind CellKind) bool {
+	if b.cells == nil {
+		before := b.seed.Version()
+		b.seed.Set(c, kind)
+		return b.seed.Version() != before
+	}
+	i, ok := b.ordinal(c)
+	if !ok {
+		return false
+	}
+	g := b.groundOf(i)
+	if g.Kind == kind {
+		return false
+	}
+	g.Kind = kind
+	return true
+}
+
+// SetAll resets every cell's terrain kind to kind.
+func (b *Board) SetAll(kind CellKind) {
+	if b.cells == nil {
+		b.seed.SetAll(kind)
+		return
+	}
+	st := b.cells
+	for st.kinds.All(); st.kinds.Next(); {
+		grounds := st.ground.Slice(st.kinds.Cursor())
+		for i := range grounds {
+			grounds[i].Kind = kind
+		}
+	}
+	b.version++
+}
+
+// Version counts the changes to the terrain — kinds and heights, made through the board or by an
+// effect on a cell's entity; it starts over with a load.
+func (b *Board) Version() uint64 {
+	if b.cells == nil {
+		return b.version + b.seed.Version()
+	}
+	return b.version
+}
+
+// Relief is the ground height at c's corners; zero off the board.
+func (b *Board) Relief(c CellID) Relief {
+	i, ok := b.ordinal(c)
+	if !ok {
+		return Relief{}
+	}
+	return b.reliefAt(i)
+}
+
+func (b *Board) reliefAt(i int) Relief {
+	if b.cells == nil {
+		if b.relief == nil {
+			return Relief{}
+		}
+		return b.relief[i]
+	}
+	return b.plotOf(i).Relief
+}
+
+// SetRelief puts c's corners at r's heights, leaving its neighbours' as they are.
+func (b *Board) SetRelief(c CellID, r Relief) {
+	if !b.sloped() {
+		r = Relief{Corners: [4]float32{r.Corners[0], r.Corners[0], r.Corners[0], r.Corners[0]}}
+	}
+	if b.setRelief(c, r) {
+		b.version++
+	}
+}
+
+func (b *Board) setRelief(c CellID, r Relief) bool {
+	i, ok := b.ordinal(c)
+	if !ok {
+		return false
+	}
+	if b.cells == nil {
+		if b.relief == nil {
+			if r == (Relief{}) {
+				return false
+			}
+			b.relief = make([]Relief, b.CellCount())
+		}
+		if b.relief[i] == r {
+			return false
+		}
+		b.relief[i] = r
+		return true
+	}
+	p := b.plotOf(i)
+	if p.Relief == r {
+		return false
+	}
+	p.Relief = r
+	return true
+}
+
+// SetHeights raises every cell's ground to heights: sampled at its corners on a square grid, at
+// its centre on a hex one.
+func (b *Board) SetHeights(heights func(p geom.Vec) float64) {
+	changed := false
+	b.EachCell(func(c CellID) {
+		changed = b.setRelief(c, b.sample(c, heights)) || changed
+	})
+	if changed {
+		b.version++
+	}
+}
+
+// sample is c's relief read off heights.
+func (b *Board) sample(c CellID, heights func(p geom.Vec) float64) Relief {
+	if !b.sloped() {
+		h := float32(heights(b.CellCenter(c)))
+		return Relief{Corners: [4]float32{h, h, h, h}}
 	}
 	w, h := b.CellBounds()
-	u := min(max((p.X-float64(x)*w)/w, 0), 1)
-	v := min(max((p.Y-float64(y)*h)/h, 0), 1)
-	return (1-u)*(1-v)*hs[0] + u*(1-v)*hs[1] + (1-u)*v*hs[2] + u*v*hs[3]
+	o := b.CellCenter(c).Sub(geom.NewVec(w/2, h/2))
+	var r Relief
+	for k, d := range [4][2]float64{{0, 0}, {w, 0}, {0, h}, {w, h}} {
+		r.Corners[k] = float32(heights(geom.NewVec(o.X+d[0], o.Y+d[1])))
+	}
+	return r
 }
 
-// Altitude is c's ground level, the Altitude of its kind read from the raster.
-func (b *Board) Altitude(c CellID) float64 {
-	b.refresh()
-	i, ok := b.Ordinal(c)
-	if !ok {
+// sloped reports whether the ground runs between a cell's corners: a square grid's.
+func (b *Board) sloped() bool { return b.square != nil }
+
+// GroundAt is the ground height under p, 0 off the board: read between the cell's corners on a
+// square grid, the cell's level elsewhere.
+func (b *Board) GroundAt(p geom.Vec) float64 {
+	sq := b.square
+	if sq == nil {
+		c, ok := b.CellAt(p)
+		if !ok {
+			return 0
+		}
+		return float64(b.Relief(c).Corners[0])
+	}
+	if sq.CellSize == 0 {
 		return 0
 	}
-	return b.heights[i]
+	size := float64(sq.CellSize)
+	fx, fy := p.X/size, p.Y/size
+	x0, y0 := math.Floor(fx), math.Floor(fy)
+	x, okX := foldAxis(int64(x0), int64(sq.Width), sq.WrapX)
+	y, okY := foldAxis(int64(y0), int64(sq.Height), sq.WrapY)
+	if !okX || !okY {
+		return 0
+	}
+	hs := b.reliefAt(int(y)*int(sq.Width) + int(x)).Corners
+	u, v := fx-x0, fy-y0
+	return (1-u)*(1-v)*float64(hs[0]) + u*(1-v)*float64(hs[1]) + (1-u)*v*float64(hs[2]) + u*v*float64(hs[3])
 }
 
+// Altitude is c's ground level, the mean of its corners.
+func (b *Board) Altitude(c CellID) float64 { return b.Relief(c).Level() }
+
 // Corners is the ground height at c's four corners — top-left, top-right, bottom-left,
-// bottom-right — with c's column and row; false on a grid whose cells are flat.
+// bottom-right — with c's column and row; false on a grid whose cells are level.
 func (b *Board) Corners(c CellID) (hs [4]float64, x, y uint32, ok bool) {
-	b.refresh()
-	if b.corners == nil {
+	if !b.sloped() {
 		return hs, 0, 0, false
 	}
 	x, y, ok = b.Coords(c)
 	if !ok {
 		return hs, 0, 0, false
 	}
-	stride := int(b.Grid.(*squareGrid).Width) + 1
-	at := func(dx, dy uint32) float64 { return b.corners[int(y+dy)*stride+int(x+dx)] }
-	return [4]float64{at(0, 0), at(1, 0), at(0, 1), at(1, 1)}, x, y, true
-}
-
-func (b *Board) refresh() {
-	if b.heights == nil || b.built != b.Version() {
-		b.raster()
+	r := b.Relief(c)
+	for k := range hs {
+		hs[k] = float64(r.Corners[k])
 	}
-}
-
-// raster rebuilds the height tables from the terrain as it stands: the cells, and on a square
-// grid the corners, each the mean of the cells that meet there.
-func (b *Board) raster() {
-	if b.heights == nil {
-		b.heights = make([]float64, b.CellCount())
-	}
-	b.EachCell(func(c CellID) {
-		if i, ok := b.Ordinal(c); ok {
-			b.heights[i] = b.Kind(c).Altitude
-		}
-	})
-	if sq, ok := b.Grid.(*squareGrid); ok {
-		w, h := int(sq.Width), int(sq.Height)
-		if b.corners == nil {
-			b.corners = make([]float64, (w+1)*(h+1))
-		}
-		for cy := 0; cy <= h; cy++ {
-			for cx := 0; cx <= w; cx++ {
-				sum, n := 0.0, 0
-				for _, d := range [4][2]int{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
-					x, y := cx+d[0], cy+d[1]
-					if x < 0 || y < 0 || x >= w || y >= h {
-						continue
-					}
-					sum, n = sum+b.heights[y*w+x], n+1
-				}
-				b.corners[cy*(w+1)+cx] = sum / float64(n)
-			}
-		}
-	}
-	b.built = b.Version()
+	return hs, x, y, true
 }
 
 // At is GroundAt — the world.Ground contract.
@@ -115,10 +302,6 @@ func (b *Board) Step() float64 {
 
 // Cell is an entity's current position on the board.
 type Cell struct{ ID CellID }
-
-func NewBoard(grid Grid, terrain *TerrainMap) *Board {
-	return &Board{Grid: grid, TerrainMap: terrain}
-}
 
 // CellAABB is the size x size world rectangle centred on c.
 func CellAABB(grid Grid, c CellID, size uint32) plane.AABB {

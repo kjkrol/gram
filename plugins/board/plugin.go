@@ -2,12 +2,14 @@ package board
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugin/host"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -24,11 +26,6 @@ type Resources struct {
 	Render *RenderState
 }
 
-// Persisted returns terrain for Persistence.Save/Load to include automatically.
-func (r *Resources) Persisted() []any { return []any{r.Logic.Board.TerrainMap} }
-
-var _ plugin.Serializable = (*Resources)(nil)
-
 // Plugin wires a Board into a Game; it depends on world, and on collision only WithCollision.
 type Plugin struct {
 	Res Resources
@@ -37,6 +34,7 @@ type Plugin struct {
 	renderer  *Renderer
 	kinds     *cellKindDict
 	seeded    *Layout
+	shaping   shaping
 
 	worldPlugin *world.Plugin
 	collision   *collision.Plugin
@@ -47,6 +45,7 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
+var _ plugin.Commander = (*Plugin)(nil)
 
 // NewPlugin builds a board over grid with the given occupancy cap, slowing worldPlugin's entities.
 func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugin {
@@ -58,6 +57,8 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 		worldPlugin: worldPlugin,
 		kinds:       newCellKindDict(worldPlugin.Quasi3D()),
 	}
+	w, h := grid.CellBounds()
+	p.shaping.cfg = Shaping{Step: min(w, h) / 4}
 	p.Res.Logic.Board = NewBoard(grid, terrain)
 	if worldPlugin.Quasi3D() {
 		worldPlugin.SetGround(p.Res.Logic.Board)
@@ -66,7 +67,7 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	if err := worldPlugin.RegisterBehavior(terrainSpeed(grid, terrain)); err != nil {
+	if err := worldPlugin.RegisterBehavior(terrainSpeed(p.Res.Logic.Board)); err != nil {
 		panic(err)
 	}
 	return p
@@ -78,10 +79,10 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 
 func (p *Plugin) Name() string { return "gram.board" }
 
-// Install wires the standing report and, WithCollision, the terrain bodies.
+// Install wires the cell entities, the standing report and, WithCollision, the terrain bodies.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:    newCellEntitySystem(p.Res.Logic.Board, p.worldPlugin, p.worldPlugin.Kinds().Reserve("board.cell")),
+		cells:    newCellSystem(p.Res.Logic.Board, &p.shaping),
 		standing: newStandingSystem(p.Res.Logic.Board, &p.standing),
 	}
 	if p.worldPlugin.Quasi3D() {
@@ -96,8 +97,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan rebuilds the terrain bodies after a terrain change and reports where everyone stands;
-// call it after collision's RunPlan.
+// RunPlan shapes the ground, notices what effects did to the cells, rebuilds the terrain bodies
+// after a terrain change and reports where everyone stands; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas.
@@ -117,8 +118,8 @@ func (p *Plugin) Renderer() render.Renderer {
 // EventHandler always returns nil — board has no input handling of its own; see plugins/navigation.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable returns board's persistable state (its terrain).
-func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
+// Serializable is nil — the terrain is the cells' entities, saved with the ECS.
+func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // RegisterBehavior hosts an Each or Every of Standing, run every tick for every entity on the board;
 // register before Use.
@@ -146,13 +147,42 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	return p
 }
 
-// CellEntity is the entity standing for cell c — found, or spawned over the cell with a [Cell]
-// and a [Ground] — so an effect cast on it is an effect on the cell's terrain.
-func (p *Plugin) CellEntity(c CellID) uid.UID64 { return p.module.cells.entity(c) }
+// CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Relief] for as long as the
+// board lives, so an effect cast on it is an effect on the cell's terrain; false off the board or
+// before Setup.
+func (p *Plugin) CellEntity(c CellID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
 
-// DropCellEntity despawns a cell entity, and does nothing for any other entity; the terrain keeps
-// what its Ground last said. The board does it itself once the entity's last effect ended.
-func (p *Plugin) DropCellEntity(cb *goke.CmdBuf, id uid.UID64) { p.module.cells.drop(cb, id) }
+// WithShaping sets how the Raise, Lower and Level commands move the ground; by default a Step of
+// a quarter of a cell's shorter side and any slope. Call before Use.
+func (p *Plugin) WithShaping(s Shaping) *Plugin {
+	p.shaping.cfg = s
+	return p
+}
+
+// Commands lists the shaping inboxes in a Quasi3D world, none in a flat one.
+func (p *Plugin) Commands() []control.Mailbox {
+	if !p.worldPlugin.Quasi3D() {
+		return nil
+	}
+	return []control.Mailbox{&p.shaping.raise, &p.shaping.lower, &p.shaping.level}
+}
+
+// DefaultBindings in a Quasi3D world: = raises and - lowers the ground under the cursor, a left
+// drag with L held levels it to where the drag began.
+func (p *Plugin) DefaultBindings() []control.Binding {
+	if !p.worldPlugin.Quasi3D() {
+		return nil
+	}
+	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
+	return []control.Binding{
+		control.Command(control.KeyPress{Key: ebiten.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
+		control.Command(control.KeyPress{Key: ebiten.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
+		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{}.Holding(ebiten.KeyL)}, "Level the ground",
+			func(c control.Context) (Level, bool) {
+				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
+			}),
+	}
+}
 
 // Body is the tag every terrain body carries, in board's tag Family; zero without WithCollision.
 func (p *Plugin) Body() plugin.Tag[Family] { return p.body }
@@ -169,10 +199,14 @@ func (p *Plugin) CellKindDict() CellKindDict { return p.kinds }
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 
-// Populate applies the seeded Layout, changing nothing and erroring on an unknown kind name.
+// Populate applies the seeded Layout, kinds and heights, changing nothing and erroring on an
+// unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
+	}
+	if p.seeded.Heights != nil && !p.worldPlugin.Quasi3D() {
+		return fmt.Errorf("board: a Layout with Heights in a flat world; set world.Config.Quasi3D")
 	}
 	resolve := func(name string) (CellKind, error) {
 		kind, ok := p.kinds.Get(name)
@@ -205,6 +239,9 @@ func (p *Plugin) Populate() error {
 	}
 	for i, e := range p.seeded.Cells {
 		brd.Set(e.Cell, cells[i])
+	}
+	if p.seeded.Heights != nil {
+		brd.SetHeights(p.seeded.Heights)
 	}
 	p.seeded = nil
 	return nil

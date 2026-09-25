@@ -4,11 +4,12 @@ import (
 	"math"
 	"math/rand/v2"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 )
 
 // islandLayout draws a fixed island: a wavy ellipse of fields in a sea, mountains ringed by
-// hills in the middle, forests scattered about, and a road looping round the mountains down to
+// hills in the middle rising smoothly from the fields, forests scattered about, and a road looping round the mountains down to
 // a southern harbour.
 func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	rng := rand.New(rand.NewPCG(1, 2))
@@ -89,7 +90,18 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	for _, s := range stops {
 		road = append(road, cell(s[0], s[1]))
 	}
-	return board.Layout{Default: "water", Cells: cells}, road
+	cw, ch := grid.CellBounds()
+	heights := func(p geom.Vec) float64 {
+		d := math.Hypot(p.X/cw-cx, p.Y/ch-cy)
+		return hillsHeight*rim(d, hillsR) + (mountainHeight-hillsHeight)*rim(d, mountainR)
+	}
+	return board.Layout{Default: "water", Cells: cells, Heights: heights}, road
+}
+
+// rim is 1 inside radius r and 0 outside, easing between the two across one cell.
+func rim(d, r float64) float64 {
+	t := min(max(r+0.5-d, 0), 1)
+	return t * t * (3 - 2*t)
 }
 
 // pave lays road on c unless the mountain is in the way — roads go round it.
@@ -110,6 +122,8 @@ const (
 	islandRX, islandRY = 34.0, 22.0
 	mountainR          = 7.0
 	hillsR             = 12.0
+	hillsHeight        = 20.0
+	mountainHeight     = 40.0
 	roadR              = 19.0
 	forestCount        = 10
 )

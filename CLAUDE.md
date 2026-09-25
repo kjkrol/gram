@@ -230,11 +230,16 @@ shows how much of it is boilerplate vs. real behavior.
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
   `Cell` from the one point `at` reads off a row, `Layers` from the domain, in a Quasi3D world a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the
-  usual `kind.Of[Row]`. In a Quasi3D world a `CellKind` also has an `Altitude` (its ground level)
-  and a `Height` (what stands on it); the `Board` keeps a raster of altitudes (`Grid.Ordinal`,
-  rebuilt when `Version` moves) and is the world's `Ground`; the `altitudeSystem` writes every
-  `Z.Altitude` each tick from the ground under the entity plus its `Lift`; terrain bodies carry
-  their kind's `Z`. A flat world refuses all of it at the first sight (`CellKindDict.Create`,
+  usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
+  cell and its `Relief`, the corner heights) and `Ground` (its kind, kept apart so an effect
+  ending restores the kind alone), made by the `cellSystem` at Setup or
+  found after a load; the `Board` reads and writes them, keeping only the cells' entity ids by
+  ordinal, and a seed (`TerrainMap`, heights) before Setup or on a board no ECS runs. `Version`
+  counts every change: writes through the board, and effects on cell entities, which the
+  `cellSystem` learns from `effects.Active.Altered` and `effects.Idle` on the cells. In a Quasi3D world a `CellKind` has a `Height` (what stands on it), the ground's heights
+  come from `Layout.Heights` and the shaping commands (`Raise`, `Lower`, `Level`, `Shaping`); the
+  `Board` is the world's `Ground`; the `altitudeSystem` writes every `Z.Altitude` each tick from
+  the ground under the entity plus its `Lift`; terrain bodies carry their cells' `Z`. A flat world refuses all of it at the first sight (`CellKindDict.Create`,
   `NewUnits`, `Units.Define`, `Kinds.Register`).
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre and its kind) to
@@ -245,7 +250,7 @@ shows how much of it is boilerplate vs. real behavior.
   that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Built `WithCollision(c)`, it also makes
   solid terrain physical: one immovable `Body` entity per merged run of solid cells (boxes from
   `Grid.CellBoxes`, so a hex is covered by strips; at most `MaxBodyCells` a side), spawned through
-  `world.Bodies` under a kind from `Kinds.Reserve`, rebuilt when `TerrainMap.Version` moves and
+  `world.Bodies` under a kind from `Kinds.Reserve`, rebuilt when `Board.Version` moves and
   once after a load. Depends on `world`, and on `collision` for the bodies.
 - **`collision`** — optional collision detection over `world`'s space, one
   `CollisionSystem` system a tick. An entity collides exactly while it carries `Collider` —
@@ -301,10 +306,9 @@ shows how much of it is boilerplate vs. real behavior.
   plugin and saved with the game. An entity whose last effect ended carries `effects.Idle`
   for one tick, and `effects.Each` behaviors of an `effects.Idling` registered on the plugin
   hear of it once. A cast before the plugin's pass lands the same tick.
-  `board.Plugin.CellEntity(c)` gives a cell an entity with `Ground`, whose Kind the board
-  copies into the terrain each tick — so an `Alter[board.Ground]` is a temporary change of
-  terrain — and the board drops such an entity itself when it finds it `Idle` without an
-  `Active`. Depends on `world`.
+  `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
+  `Alter[board.Ground]` is a temporary change of terrain. `Idle` goes from entities without a
+  `Base` too. Depends on `world`.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`; terrain bodies never do); a bit flip, seen

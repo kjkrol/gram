@@ -35,24 +35,17 @@ func embodied(k CellKind) bool { return k.Solid || k.Veil > 0 }
 func terrainBoxes(brd *Board, dst []bodyBox) []bodyBox {
 	dst = dst[:0]
 	var boxes []geom.AABB
-	visit := func(c CellID, k CellKind) {
+	brd.EachCell(func(c CellID) {
+		k := brd.Kind(c)
+		if !embodied(k) {
+			return
+		}
+		alt := brd.Altitude(c)
 		boxes = brd.CellBoxes(c, boxes[:0])
 		for _, b := range boxes {
-			dst = append(dst, bodyBox{box: b, kind: k.Name, solid: k.Solid, veil: k.Veil, veils: k.Veils, allows: k.Allows, altitude: k.Altitude, height: k.Height})
+			dst = append(dst, bodyBox{box: b, kind: k.Name, solid: k.Solid, veil: k.Veil, veils: k.Veils, allows: k.Allows, altitude: alt, height: k.Height})
 		}
-	}
-	if embodied(brd.Default) {
-		brd.EachCell(func(c CellID) {
-			if _, set := brd.Cells[c]; !set {
-				visit(c, brd.Default)
-			}
-		})
-	}
-	for c, k := range brd.Cells {
-		if embodied(k) {
-			visit(c, k)
-		}
-	}
+	})
 	dst = mergeAlong(dst, true)
 	dst = mergeAlong(dst, false)
 	slices.SortFunc(dst, func(a, b bodyBox) int {
@@ -61,8 +54,8 @@ func terrainBoxes(brd *Board, dst []bodyBox) []bodyBox {
 	return dst
 }
 
-// mergeAlong folds boxes of one kind that share their span across the axis and touch along it,
-// in place, MaxBodyCells at a time.
+// mergeAlong folds boxes of one kind at one altitude that share their span across the axis and
+// touch along it, in place, MaxBodyCells at a time.
 func mergeAlong(in []bodyBox, alongX bool) []bodyBox {
 	lo := func(b bodyBox) (across1, across2, along float64) {
 		if alongX {
@@ -73,7 +66,7 @@ func mergeAlong(in []bodyBox, alongX bool) []bodyBox {
 	slices.SortFunc(in, func(a, b bodyBox) int {
 		a1, a2, a3 := lo(a)
 		b1, b2, b3 := lo(b)
-		return cmp.Or(bytes.Compare(a.kind[:], b.kind[:]), cmp.Compare(a1, b1), cmp.Compare(a2, b2), cmp.Compare(a3, b3))
+		return cmp.Or(bytes.Compare(a.kind[:], b.kind[:]), cmp.Compare(a.altitude, b.altitude), cmp.Compare(a1, b1), cmp.Compare(a2, b2), cmp.Compare(a3, b3))
 	})
 	out := in[:0]
 	for i := range in {
@@ -87,10 +80,11 @@ func mergeAlong(in []bodyBox, alongX bool) []bodyBox {
 	return out
 }
 
-// joins grows prev by next when they are one kind, one lane and touching, within MaxBodyCells.
+// joins grows prev by next when they are one kind at one altitude, one lane and touching, within
+// MaxBodyCells.
 func joins(prev *bodyBox, next bodyBox, alongX bool) bool {
 	const eps = 1e-9
-	if prev.kind != next.kind || prev.count >= MaxBodyCells {
+	if prev.kind != next.kind || prev.altitude != next.altitude || prev.count >= MaxBodyCells {
 		return false
 	}
 	p, n := prev.box, next.box

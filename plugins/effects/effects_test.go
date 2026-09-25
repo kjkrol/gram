@@ -211,6 +211,38 @@ func TestEffects_IdleMarksTheEntityForOneTickAfterItsLastEffect(t *testing.T) {
 	}
 }
 
+// altered reads the entity's Active.Altered; false without an Active.
+func (r *rig) altered() bool {
+	for r.query.All(); r.query.Next(); {
+		if a := r.active.Slice(r.query.Cursor()); a != nil {
+			return a[0].Altered
+		}
+	}
+	return false
+}
+
+func TestEffects_AlteredMarksThePassThatRewroteAComponent(t *testing.T) {
+	var haste, mark effects.ID
+	r := newRig(t, true, func(r *rig) {
+		haste = r.fx.Define("haste", effects.Spec{effects.Lasts(4 * tick), effects.Alter(func(s *world.Steering) { s.MaxSpeed *= 2 })})
+		mark = r.fx.Define("mark", effects.Spec{effects.Lasts(4 * tick), effects.Grant(r.angry)})
+	})
+	r.cast(haste)
+	r.tick() // lands and begins: the speed is rewritten
+	if !r.altered() {
+		t.Error("the pass that began an Alter left Altered off")
+	}
+	r.tick() // runs on, nothing rewritten
+	if r.altered() {
+		t.Error("a pass that rewrote nothing left Altered on")
+	}
+	r.cast(mark)
+	r.tick() // a Grant begins beside it: tags, no Alter
+	if r.altered() {
+		t.Error("a Grant beginning turned Altered on")
+	}
+}
+
 func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 	var haste, slow effects.ID
 	r := newRig(t, true, func(r *rig) {

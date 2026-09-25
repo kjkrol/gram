@@ -64,7 +64,7 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-func TestPlugin_SaveLoad_TerrainRoundTrip(t *testing.T) {
+func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 	grid := board.DefaultGrids{}.Square(5, 5, 10)
 	wall := board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true}
@@ -79,6 +79,9 @@ func TestPlugin_SaveLoad_TerrainRoundTrip(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	stage.boardPlugin.Res.Logic.Board.Set(cell, wall)
+	slope := board.Relief{Corners: [4]float32{1, 2, 3, 4}}
+	stage.boardPlugin.Res.Logic.Board.SetRelief(cell, slope)
+	id, _ := stage.boardPlugin.CellEntity(cell)
 
 	if err := eng.Persistence().Save(basePath, ""); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -92,5 +95,11 @@ func TestPlugin_SaveLoad_TerrainRoundTrip(t *testing.T) {
 
 	if got := game2.boardPlugin.Res.Logic.Board.Kind(cell); got != wall {
 		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, wall)
+	}
+	if got := game2.boardPlugin.Res.Logic.Board.Relief(cell); got != slope {
+		t.Errorf("Relief(cell) after Load = %v, want %v", got, slope)
+	}
+	if got, _ := game2.boardPlugin.CellEntity(cell); got != id {
+		t.Errorf("the cell's entity after Load is %d, want %d, the one saved — none spawned anew", got, id)
 	}
 }

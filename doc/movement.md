@@ -140,7 +140,7 @@ decision (`board.CellKind`). Walls, holes and water are done; sight through terr
   space and the raycast work with. The collision solver then never leaves a unit inside a wall —
   `Static` means infinite mass — and the bodies are in the space, so vision sees them and they
   occlude. A game turns this on explicitly: `board.NewPlugin(...).WithCollision(c)`; the bodies
-  are rebuilt whenever `TerrainMap.Version` moves, and once after a load, where the saved ones are
+  are rebuilt whenever `Board.Version` moves, and once after a load, where the saved ones are
   replaced by what the terrain says. Their `Caps` are settled by collision on the next tick, so an
   edit to the terrain mid-game is solid one tick late.
 - **A hole, water — done, as domains.** Who may stand where is a relation between the unit and
@@ -290,19 +290,22 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   Lift}, …)`: the factory gives every unit a `Z{Height}`, and the board writes `Z.Altitude` every
   tick — the ground under the unit's centre plus its `Mover.Lift` (`altitudeSystem`, Quasi3D only).
   A unit standing on terrain never declares its altitude; a hawk declares only how high it flies.
-  Terrain kinds have an `Altitude` (the ground level) and a `Height` (what stands on the cell: a
-  wall 10, a forest 8); the board's bodies carry `Z{Altitude, Height}` of their kind.
-- **The ground is a raster, not bodies.** `Board` keeps one height per cell (`Grid.Ordinal`),
-  rebuilt when the terrain's `Version` moves, and is the world's `Ground` (`GroundAt`, `Step` = a
-  cell's shorter side). A hill is only a number in the raster — so the cost of a scan depends on
-  the radius and the step, never on how many hills a game has. This is the rule that decided
-  against modelling relief as bodies. On a square grid the ground slopes: each corner stands at
-  the mean of the cells meeting there (`Board.Corners`), `GroundAt` interpolates between a cell's
-  corners, so a hill is a smooth rise, a unit on its slope stands at the slope's height, and the
-  isometric tiles are drawn tilted — Transport Tycoon's terrain without its corner editing. A
-  game must keep its eyes in proportion to its relief: the smoothed edge of a plateau is a slope a
-  unit or two below its top, and an eye lower than that difference sees the rim, not the valley
-  (island-isometric-demo: hills 20, mountains 40, eyes 6).
+  Terrain kinds have a `Height` (what stands on the cell: a wall 10, a forest 8); the ground under
+  it is the cell's own, and the board's bodies carry `Z{Altitude, Height}` of their cells.
+- **The ground is on the cell entities, not bodies.** Every cell is an entity whose `Plot` holds a
+  `Relief`, the heights of its four corners (a hex cell is level); the `Board` is the world's `Ground`
+  (`GroundAt`, `Step` = a cell's shorter side). A hill is only numbers on cells — so the cost of a
+  scan depends on the radius and the step, never on how many hills a game has. This is the rule
+  that decided against modelling relief as bodies. On a square grid the ground slopes: `GroundAt`
+  interpolates between a cell's corners, so a hill is a smooth rise, a unit on its slope stands at
+  the slope's height, and the isometric tiles are drawn tilted. Heights belong to the ground, not
+  to a kind: `Layout.Heights` sets them when a Stage starts fresh (`board.MeanOfCells` from a
+  height per cell), and a game shapes them as Transport Tycoon did — `Raise` and `Lower` move a
+  corner, `Level` an area, and the ground round about follows within `Shaping.MaxStep`, so a canal
+  is ground lowered and then turned to water. A game must keep its eyes in proportion to its
+  relief: the smoothed edge of a plateau is a slope a unit or two below its top, and an eye lower
+  than that difference sees the rim, not the valley (island-isometric-demo: hills 20, mountains
+  40, eyes 6).
 - **Sight with heights.** aabbworld v1.7.0's `Cone.Eye/Elevation/Ground/GroundStep`: an entity is
   seen when the line from the eye (`Z.Altitude + Sight.Eye`) to its top clears every nearer ground
   sample and every nearer blocking band within the budget; the reach of an angle is the farthest
@@ -334,11 +337,13 @@ its `Brake` altered, so navigation brakes earlier before a goal and may not stop
 that turned against it. Tags are bits of families (`plugin.Tags[F]`), one component per family,
 so granting one is a value write and the component budget stays for data.
 
-The board joins in through **cell entities**: `board.Plugin.CellEntity(c)` gives a cell an entity
-with a `Ground` the board copies into the terrain each tick, so an `Alter` of `Ground` is a
-temporary change of terrain — an ice witch's frost — and the board drops the entity itself once it
-finds it `Idle` after its last effect, with no wiring between the two plugins. Weather and seasons over the whole board are the same idea
-on an entity standing for the board; not built yet.
+The board joins in through **cell entities**: every cell is an entity for good, and
+`board.Plugin.CellEntity(c)` returns it. Its `Ground` and `Plot` are the terrain itself, so an
+`Alter` of `Ground` is a temporary change of terrain — an ice witch's frost — with no wiring between
+the two plugins: effects mark the pass that rewrote a component (`Active.Altered`) and the tick
+after an effect ended (`Idle`), and the board counts either in its `Version`. The kind and the
+heights sit in two components because an effect ending puts back the whole component it altered. Weather and seasons over the whole board
+are the same idea on an entity standing for the board; not built yet.
 
 ## Who owns what
 

@@ -93,6 +93,29 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `DefaultShadow`). A flat world keeps its reach cut at walls.
 - The vision demos run in a Quasi3D world with a hill; aabbworld is taken from v1.8.0.
 
+**Terrain in the ECS**
+- Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
+  cell and its `Relief`, the heights of its four corners) and `Ground` (its kind). They carry no
+  `world.Base`, so they are not in the world's space and do not count against `MaxCount`. The
+  `Board` reads and writes them and keeps only which entity is which cell's; the terrain is saved
+  with the ECS and `board.Resources` persists nothing. `Plugin.CellEntity(c)` returns the cell's
+  entity and a bool, and `DropCellEntity` and the spawning on demand are gone.
+- `Board.Version` counts every change to kinds and heights: a write through the board, or an effect
+  altering a cell's `Ground` or `Plot`, the tick it lands and the tick it ends. The board reads
+  that from `effects.Active.Altered`, set on every pass that rewrote a component through an
+  `Alter`, and from `effects.Idle`, and never walks all the cells. `effects` takes `Idle` off entities
+  without a `Base` too.
+- `CellKind.Altitude` is gone. Heights are the ground's, not a kind's: `Layout.Heights` raises
+  the ground when a Stage starts fresh, `Board.SetHeights`, `Relief`, `SetRelief`, and
+  `board.MeanOfCells` builds heights from one number per cell. A hex cell is level. The demos'
+  hills come from their layouts, and island-isometric's rise smoothly from the fields.
+- Shaping as in Transport Tycoon: `board.Raise`, `Lower` and `Level` commands, `Shaping{Step,
+  MaxStep}` with the ground round about following, `Plugin.WithShaping`, `Board.Lift` and
+  `Flatten`. In a Quasi3D world the board is a `plugin.Commander`: = and - under the cursor, a
+  left drag with L held levels. island-isometric-demo shapes its island.
+- Reading the terrain from the cell entities costs less than the map and the raster did: A* across
+  a 128x128 board costs the same, the ground under a point about 42% less.
+
 **Kinds**
 - Package `kind/comp` holds what names one component of a Spec — `comp.Const`, `comp.Load`,
   `comp.Tagged`, `comp.Without` — and `kind` keeps the kinds: `Spec`, `Define`, `Of`, `Roster`.

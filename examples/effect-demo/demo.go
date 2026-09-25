@@ -40,7 +40,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 400 // units, terrain bodies and a cell entity per frozen cell, until it thaws
+	MaxEntCount  = 400 // units and terrain bodies; cell entities do not count
 
 	lakeLeft, lakeRight uint32 = 8, 15
 	lakeTop, lakeBottom uint32 = 4, 11
@@ -240,7 +240,9 @@ func (s *mainStage) freeze(t plugin.Tick, w *witch, st board.Standing) {
 		if s.frozenKind(s.brd.Kind(c)) == s.brd.Kind(c) && !s.brd.Kind(c).Admits(Frost) {
 			continue // nothing here freezes
 		}
-		s.effects.Cast(t.CmdBuf, s.board.CellEntity(c), s.frost)
+		if id, ok := s.board.CellEntity(c); ok {
+			s.effects.Cast(t.CmdBuf, id, s.frost)
+		}
 	}
 }
 

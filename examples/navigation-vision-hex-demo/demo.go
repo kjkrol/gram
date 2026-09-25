@@ -117,7 +117,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Height: 10},
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
-		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air, Altitude: 12}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 	)
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -238,7 +238,17 @@ func (s *mainStage) Spawn() error {
 	for r := roadTop + 1; r <= roadBottom; r++ {
 		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(roadLeft, r)}, board.CellEntry{Kind: "road", Cell: cell(roadRight, r)})
 	}
-	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	hills := map[board.CellID]bool{}
+	for _, e := range cells {
+		hills[e.Cell] = e.Kind == "hill"
+	}
+	heights := board.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
+		if hills[c] {
+			return hillHeight
+		}
+		return 0
+	})
+	s.board.Seed(board.Layout{Default: "grass", Cells: cells, Heights: heights})
 
 	s.world.Seed(
 		s.kinds[0].Entry(unit{start: cell(3, 3), target: cell(GridWidth-4, 3)}),
@@ -352,3 +362,6 @@ const (
 	roadLeft, roadRight uint32 = 2, GridWidth - 3
 	roadTop, roadBottom uint32 = 0, GridHeight - 1
 )
+
+// hillHeight is how high the hill stands over the grass.
+const hillHeight = 12
