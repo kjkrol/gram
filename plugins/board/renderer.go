@@ -71,7 +71,8 @@ func abs32(v float32) float32 {
 
 var _ render.Source = (*Renderer)(nil)
 
-// gridTier puts the grid lines over every tile and under whatever stands on them.
+// gridTier puts the lines of a grid other than square over every tile and under whatever stands on
+// them.
 const gridTier = render.Ground + 10
 
 func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState) *Renderer {
@@ -81,21 +82,28 @@ func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState) *Re
 
 func (l *Renderer) Init(*goke.SysInit) {}
 
-// Compose hands f every cell under cam, and the grid over them when it is on. From above a cell is
-// its sprite over its box; through an isometric camera it is its top at the depth of its centre,
-// so what stands on it follows it: raised by its kind's Height over the ground, sloped between the
+// Compose hands f every cell under cam, and the grid when it is on: on a square grid each tile
+// outlined along its own edges, on any other the cells' outlines as lines. From above a cell is its
+// sprite over its box; through an isometric camera it is its top at the depth of its centre, so
+// what stands on it follows it: raised by its kind's Height over the ground, sloped between the
 // corner heights, with the two faces towards the viewer wherever it stands above the neighbour's
 // top — a wall over grass, a raised edge over the sea.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	_, l.relief = cam.Projection().(camera.Isometric)
 	grid := l.gridShown()
+	outlined, lines := grid && l.board.square != nil, grid && l.board.square == nil
 	if !l.relief {
 		l.eachVisible(func(c CellID) {
 			center := l.board.CellCenter(c)
 			x0, y0 := float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
-			f.SpriteRect(render.Ground, 0, l.atlas, l.board.kindOf(c).SpriteID, x0, y0, x0+float32(l.cellW), y0+float32(l.cellH))
-			if grid {
+			x1, y1 := x0+float32(l.cellW), y0+float32(l.cellH)
+			if sprite := l.board.kindOf(c).SpriteID; outlined {
+				f.TileRect(render.Ground, 0, l.atlas, sprite, x0, y0, x1, y1)
+			} else {
+				f.SpriteRect(render.Ground, 0, l.atlas, sprite, x0, y0, x1, y1)
+			}
+			if lines {
 				l.outlineFlat(f, c)
 			}
 		})
@@ -116,8 +124,12 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if fa, fb := l.neighbourTops(center.X, center.Y+l.cellH, 0, 1); top[2] > fa || top[3] > fb {
 			f.Sprite(render.Ground, depth, l.atlas, sprite, l.face(x0, y1, x1, y1, top[2], top[3], fa, fb), shadeLeft)
 		}
-		f.Sprite(render.Ground, depth, l.atlas, sprite, l.sloped(x0, y0, x1, y1, top), slopeShade(top))
-		if grid {
+		if outlined {
+			f.Tile(render.Ground, depth, l.atlas, sprite, l.sloped(x0, y0, x1, y1, top), slopeShade(top))
+		} else {
+			f.Sprite(render.Ground, depth, l.atlas, sprite, l.sloped(x0, y0, x1, y1, top), slopeShade(top))
+		}
+		if lines {
 			l.outlineSloped(f, c, depth, x0, y0, x1, y1)
 		}
 	})

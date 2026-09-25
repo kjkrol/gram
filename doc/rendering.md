@@ -34,12 +34,13 @@ A source hands the frame pieces in screen pixels, each with a **tier** and a **d
 | `Line(tier, depth, x0, y0, x1, y1, width, colour)` | a line whose sides fade over a pixel instead of stepping |
 | `Fan(tier, depth, points, colour)` | a filled polygon every point of which sees the first one whole |
 | `Soft(tier, depth, corners, colour, fade)` | a quad fading towards the sides `fade` names, over so many pixels each |
+| `Tile(…)`, `TileRect(…)` | `Sprite` and `SpriteRect` outlined along their own edges: the board's grid at no cost of its own |
 
 Tiers are numbers with room between them, drawn in order:
 
 | Tier | Value | What is on it |
 |:--|--:|:--|
-| `Ground` | 100 | tiles and the faces of raised ground; the board's grid at 110 |
+| `Ground` | 100 | tiles and the faces of raised ground; a hex grid's lines at 110 |
 | `Objects` | 200 | entities |
 | `Overlays` | 300 | what lies on the world: routes, cones of sight and their shadows |
 | `Marks` | 400 | what must always show: the selection's outline, the box being dragged |
@@ -55,8 +56,8 @@ A game may put its own pieces between (250, say) without touching the engine.
 - **A piece lying across cells takes the depth of its nearest end.** It is drawn after every tile
   it lies on; with the depth of its middle the nearer tile would cover half of it. This is why the
   cone's edges and its shadows are cut into pieces a ground step long, each draped over the ground
-  with a depth of its own, and why the board's grid edges take the depth of the neighbours they
-  border.
+  with a depth of its own, and why a hex grid's edges take the depth of the neighbours they border.
+  A square grid needs none of it: each tile outlines itself.
 
 ## 3. One shader, few calls
 
@@ -69,9 +70,13 @@ quads with the same tier, depth and sheet are kept as one item, so a frame of a 
 from above is sorted as one.
 
 The fade is in the vertices: `Custom0..3` hold, per edge, 1 plus the distance to it in units of its
-fade (0 for an edge that stays hard, so a sprite sets nothing). A `Line` fades its two sides over
-half a pixel each, which stands in for anti-aliasing; a `Soft` quad fades the sides it is asked to,
-by as many pixels as it is asked.
+fade, minus 1 minus the distance in pixels to an edge outlined, or 0 for an edge left alone — so a
+plain sprite sets nothing. A `Line` fades its two sides over half a pixel each, which stands in for
+anti-aliasing; a `Soft` quad fades the sides it is asked to, by as many pixels as it is asked; a
+`Tile` darkens the pixel along each of its edges, so two tiles side by side share a line a pixel
+wide. The grid of a square board is that: the tiles it is drawn on anyway, a few numbers more in
+their vertices (CPU drawing of island-isometric-demo with the grid on: 2.5 ms with lines, 1.9 ms
+outlined; navigation-demo from above: 0.67 ms, 0.13 ms).
 
 ## 4. Sight on the ground
 

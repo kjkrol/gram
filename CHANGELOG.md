@@ -140,6 +140,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   (`AtlasSource.White`, baked by `Atlas.Close`), so a view is one call per sheet. Lines fade their
   sides over a pixel; the shadows of sight fade in at their ends and at an exposed side
   (`vision.Shadow`, `Plugin.WithShadow`, `DefaultShadow`).
+- A square board's grid is the tiles outlined by the shader along their own edges
+  (`Frame.Tile`, `Frame.TileRect`), not lines: no pieces of its own, a pixel wide at any zoom, on
+  the raised tops of walls and hidden with them. CPU drawing with the grid on: island-isometric-demo
+  2.5 ms → 1.9 ms, navigation-demo 0.67 ms → 0.13 ms. A hex grid keeps its lines.
 - `vision.ConeStyle.Compose(frame, ring)` takes the view's ring of `ConePoint`s, draped over the
   ground with the cone's edges in steps of it, each point with its depth; `ConeShader` is gone.
   `selection.HighlightStyle.Compose(frame, cam, box, alt)` composes on `Marks`.

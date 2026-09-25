@@ -75,23 +75,54 @@ func TestRenderer_Compose_OneTilePerVisibleCellAtItsAltitude(t *testing.T) {
 	}
 }
 
-func TestRenderer_Compose_LaysTheGridOverTheTilesWhenCellsAreLargeEnough(t *testing.T) {
+// outlinedTiles counts the tiles r hands a frame through cam that carry an outline.
+func outlinedTiles(r *Renderer, cam camera.Camera) (tiles, outlined int) {
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		if tier != render.Ground {
+			return
+		}
+		tiles++
+		if v[0].Custom0 < 0 {
+			outlined++
+		}
+	})
+	return tiles, outlined
+}
+
+func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
 	r := newRenderer(brd, flatAtlas{}, &RenderState{ShowGridLines: true})
 
 	cam := icamera.NewFromSpace(128, 128, 0)
-	if got := compose(r, cam); got[gridTier] != 4*16 || got[render.Ground] != 16 {
-		t.Errorf("composed %v from above, want 16 tiles and four grid lines each over them", got)
+	if got := compose(r, cam); len(got) != 1 || got[render.Ground] != 16 {
+		t.Errorf("composed %v from above, want the 16 tiles and nothing more", got)
+	}
+	if tiles, outlined := outlinedTiles(r, cam); outlined != tiles {
+		t.Errorf("%d of %d tiles outlined from above, want all", outlined, tiles)
 	}
 	iso := icamera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
-	if got := compose(r, iso); got[gridTier] != 2*16 {
-		t.Errorf("composed %v through an isometric camera, want the two near edges of each cell", got)
+	if tiles, outlined := outlinedTiles(r, iso); tiles != 16 || outlined != 16 {
+		t.Errorf("%d of %d tiles outlined through an isometric camera, want all 16", outlined, tiles)
 	}
 	cam.SetViewport(20, 20) // the whole board on 20 pixels: a cell is 5 across
 	cam.ZoomOut(32, 0, 0)
-	if got := compose(r, cam); got[gridTier] != 0 {
-		t.Errorf("composed %v with cells a few pixels wide, want no grid", got)
+	if _, outlined := outlinedTiles(r, cam); outlined != 0 {
+		t.Errorf("%d tiles outlined with cells a few pixels wide, want none", outlined)
+	}
+}
+
+func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
+	grid := DefaultGrids{}.Hex(3, 3, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	r := newRenderer(brd, flatAtlas{}, &RenderState{ShowGridLines: true})
+	got := compose(r, icamera.NewFromSpace(256, 256, 0))
+	if got[gridTier] == 0 || got[render.Ground] != 9 {
+		t.Errorf("composed %v, want the nine hexes and the lines round them", got)
 	}
 }

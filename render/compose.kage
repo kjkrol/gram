@@ -2,12 +2,21 @@
 
 package main
 
-// Fragment is the sheet's texel times the vertex colour, faded towards the edges an item asked to
-// soften: custom holds, for each of up to four edges, 1 plus the distance to it in units of its
-// fade, or 0 for an edge that stays hard.
+// Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
+// asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
+// out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	faded := step(0.5, custom)
 	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
 	f := mix(vec4(1), ramp, faded)
-	return imageSrc0At(src) * color * f.x * f.y * f.z * f.w
+
+	outlined := step(custom, vec4(-0.5))
+	near := outlined * (1 - smoothstep(0, 1, clamp(-custom-1, 0, 1)))
+	edge := max(max(near.x, near.y), max(near.z, near.w))
+
+	c := imageSrc0At(src) * color * f.x * f.y * f.z * f.w
+	return vec4(c.rgb*(1-outlineDark*edge), c.a)
 }
+
+// outlineDark is how much an outline darkens what it is drawn on.
+const outlineDark = 0.45

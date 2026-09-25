@@ -271,3 +271,33 @@ func TestComposer_ItsShaderCompiles(t *testing.T) {
 		t.Fatalf("the composer's shader: %v", err)
 	}
 }
+
+func TestFrame_ATileIsOutlinedAlongItsOwnEdges(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	f.Tile(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, 1)
+	v := f.verts
+	// the top-left corner is on the left and top edges, 10 from the right, 20 from the bottom
+	if v[0].Custom0 != -1 || v[0].Custom2 != -1 || v[0].Custom1 != -11 || v[0].Custom3 != -21 {
+		t.Errorf("top-left outline values %v %v %v %v, want -1 -11 -1 -21", v[0].Custom0, v[0].Custom1, v[0].Custom2, v[0].Custom3)
+	}
+	if v[3].Custom1 != -1 || v[3].Custom3 != -1 {
+		t.Errorf("bottom-right on its right and bottom edges gives %v %v, want -1", v[3].Custom1, v[3].Custom3)
+	}
+}
+
+func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T) {
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam.Translate(1000, 0)
+	var f Frame
+	f.Reset(cam)
+	f.TileRect(Ground, 0, sheet{}, 0, 998, 0, 1010, 10) // 2 before the seam, 10 after
+	if f.Len() != 2 {
+		t.Fatalf("%d pieces, want 2", f.Len())
+	}
+	v := f.verts
+	// the first piece's right side is the seam: 2 from the tile's left edge, 10 from its right
+	if v[1].Custom0 != -3 || v[1].Custom1 != -11 {
+		t.Errorf("at the seam the first piece gives %v %v, want -3 and -11: no outline along the seam", v[1].Custom0, v[1].Custom1)
+	}
+}

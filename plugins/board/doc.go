@@ -111,6 +111,8 @@
 // isometric camera its top at its altitude plus its kind's Height, at the depth of its centre, and
 // the two faces towards the viewer wherever the ground drops to a neighbour (a cliff, down to sea
 // level 0 off the board) or the kind stands tall (a wall), shaded as if lit from the upper left.
-// [RenderState] holds its live toggles, such as grid lines: a tier just above the tiles, and left
-// out where a cell spans fewer than a few pixels on screen.
+// [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
+// shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
+// cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer
+// than a few pixels on screen.
 package board

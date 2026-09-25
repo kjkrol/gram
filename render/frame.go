@@ -32,8 +32,9 @@ type Corners [4][2]float32
 // Fade is how many pixels each side of a Soft quad takes to fade out; 0 leaves a side hard.
 type Fade struct{ Left, Right, Top, Bottom float32 }
 
-// A vertex's Custom0..3 hold, per edge, 1 plus its distance to that edge in units of the edge's
-// fade; 0 leaves the edge hard, so a vertex that fades nothing needs no custom values at all.
+// A vertex's Custom0..3 hold, per edge — left, right, top, bottom — 1 plus its distance to that
+// edge in units of the edge's fade, or minus 1 minus its distance in pixels to an edge outlined;
+// 0 leaves the edge alone, so a plain vertex needs no custom values at all.
 
 // shape is how an item's vertices make triangles.
 type shape uint8
@@ -124,6 +125,50 @@ func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID,
 		vertex(dst[0][0], dst[0][1], u0, v0, c), vertex(dst[1][0], dst[1][1], u1, v0, c),
 		vertex(dst[2][0], dst[2][1], u0, v1, c), vertex(dst[3][0], dst[3][1], u1, v1, c))
 	f.add(tier, depth, atlas, quad, 4)
+}
+
+// Tile is Sprite outlined along its four edges, half a pixel inside each: tiles side by side show a
+// grid a pixel wide at no cost of its own.
+func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade float32) {
+	f.Sprite(tier, depth, atlas, id, dst, shade)
+	v := f.verts[len(f.verts)-4:]
+	for i, p := range dst {
+		v[i].Custom0 = outline(p, dst[0], dst[2]) // left
+		v[i].Custom1 = outline(p, dst[1], dst[3]) // right
+		v[i].Custom2 = outline(p, dst[0], dst[1]) // top
+		v[i].Custom3 = outline(p, dst[2], dst[3]) // bottom
+	}
+}
+
+// TileRect is SpriteRect outlined along the world rectangle's edges; where a wrap seam splits it,
+// the pieces are outlined only along the rectangle's own edges.
+func (f *Frame) TileRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32) {
+	first := len(f.verts)
+	f.SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1)
+	for k, q := range f.quads {
+		// the whole rectangle on screen, from the part of it this piece shows
+		w, h := (q.X1-q.X0)/(q.T1X-q.T0X), (q.Y1-q.Y0)/(q.T1Y-q.T0Y)
+		left, top := q.X0-q.T0X*w, q.Y0-q.T0Y*h
+		v := f.verts[first+4*k : first+4*k+4]
+		for i := range v {
+			v[i].Custom0 = -1 - (v[i].DstX - left)
+			v[i].Custom1 = -1 - (left + w - v[i].DstX)
+			v[i].Custom2 = -1 - (v[i].DstY - top)
+			v[i].Custom3 = -1 - (top + h - v[i].DstY)
+		}
+	}
+}
+
+// outline is the custom value of p for an outline along the edge from a to b: minus 1 minus its
+// distance to the edge's line, in pixels.
+func outline(p, a, b [2]float32) float32 {
+	ex, ey := b[0]-a[0], b[1]-a[1]
+	n := float32(math.Hypot(float64(ex), float64(ey)))
+	if n == 0 {
+		return 0
+	}
+	d := ((p[0]-a[0])*ey - (p[1]-a[1])*ex) / n
+	return -1 - float32(math.Abs(float64(d)))
 }
 
 // SpriteRect draws sprite id over the world rectangle (x0, y0)-(x1, y1) through the frame's
