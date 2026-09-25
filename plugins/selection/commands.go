@@ -3,6 +3,7 @@ package selection
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
@@ -13,14 +14,16 @@ import (
 type Select struct {
 	IDs []uid.UID64
 	Box geom.AABB
-	// Screen is the screen rectangle the player picked in; set, it decides which of the entities
-	// in Box are hit by where they are drawn — a unit standing high or flying is where it is seen.
+	// Screen is the rectangle the player picked in, in the pixels of the view Camera draws; set with
+	// Camera, it decides which of the entities in Box are hit by where they are drawn — a unit
+	// standing high or flying is where it is seen.
 	Screen   geom.AABB
+	Camera   camera.Camera
 	Additive bool
 }
 
-// Follow is the command to follow the one selected unit with the camera, or to stop following.
-type Follow struct{}
+// Follow is the command to follow the one selected unit with Camera, or to stop following.
+type Follow struct{ Camera camera.Camera }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
@@ -34,14 +37,14 @@ func (p *Plugin) Queues() []control.CommandQueue {
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
-			return Select{Box: c.WorldBox(c.Start, c.Cursor), Screen: control.ScreenRect(c.Start, c.Cursor), Additive: additive}, true
+			return Select{Box: c.WorldBox(c.Start, c.Cursor), Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera, Additive: additive}, true
 		}
 	}
 	return []control.Binding{
 		control.Command(control.Drag{Button: ebiten.MouseButtonLeft}, "Select", box(false)),
 		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
-		control.Command(control.KeyPress{Key: ebiten.KeyF}, "Follow the selected unit", func(control.Context) (Follow, bool) {
-			return Follow{}, true
+		control.Command(control.KeyPress{Key: ebiten.KeyF}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
+			return Follow{Camera: c.Camera}, true
 		}),
 	}
 }

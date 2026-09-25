@@ -331,7 +331,11 @@ shows how much of it is boilerplate vs. real behavior.
   per command type; events have subscribers, commands a handler), so a plugin with commands never
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
   `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
-  draws only the marquee (a `render.WorldRenderer`), the Scene lists every other layer itself. `Player.Bind` refuses two on one
+  draws only the marquee (a `render.WorldRenderer`), the Scene lists every other layer itself.
+  `Player.OwnCamera()` (before Use; `world.Plugin.NewCamera`, saved by players) splits the screen
+  (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
+  area's pixels; `control.KeyHeld` fires every pass while its key is down. Commands that depend
+  on a camera carry the player's (`selection.Select.Camera`, `Follow{Camera}`). `Player.Bind` refuses two on one
   trigger, Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the
   queues. Depends on `world`.

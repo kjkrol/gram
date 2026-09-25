@@ -106,6 +106,12 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   columns; `Renderers()` is gone, so a Scene lists the path and selection renderers itself and a
   command handler's renderer is never drawn twice. `world.Plugin.ViewFor(cam)` is the View of
   any camera.
+- Split screen: `Player.OwnCamera()` gives a local player a camera of its own
+  (`world.Plugin.NewCamera`), saved with the game; `players.Viewports` lays such players out
+  (`Columns`, `WithLayout`) and each keeps its `Area`. Keys reach every local player, the mouse only
+  the one whose part of the screen it is over, in that part's pixels. `control.KeyHeld` fires every
+  input pass while its key is down. `selection.Select.Camera` and `Follow{Camera}` carry the
+  issuing player's camera; `NewSelectionSystem` and `NewFollowSystem` take none.
 
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its

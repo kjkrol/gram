@@ -78,8 +78,8 @@ func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 		t.Fatal(err)
 	}
 	tags := Tags{Selectable: 0, Selected: 1, Followed: 2}
-	sys := NewSelectionSystem(&sel.selects, space, w.Camera(), tags)
-	follow := NewFollowSystem(&sel.follows, w.Camera(), tags)
+	sys := NewSelectionSystem(&sel.selects, space, tags)
+	follow := NewFollowSystem(&sel.follows, tags)
 
 	return &harness{t: t, space: space, players: pl, local: local, sel: sel, sys: sys, follow: follow, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
@@ -234,6 +234,23 @@ func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) 
 	h.press(ebiten.KeyF)
 	if h.has(*unit, h.tags.Followed) {
 		t.Error("a second F did not stop the following")
+	}
+}
+
+func TestFollow_MovesTheCameraOfThePlayerWhoAsked(t *testing.T) {
+	h := followHarness(t)
+	shared := h.local.Camera // the world's
+	before := shared.Bounds()
+	h.local.OwnCamera()
+	unit := h.seed(150, 150, 10)
+	h.start()
+	h.click(155, 155, false) // picked through the player's own camera, which starts where the world's does
+	h.press(ebiten.KeyF)
+	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
+		t.Fatalf("after F: followed %v, centred %v in the player's own camera; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
+	}
+	if shared.Bounds() != before {
+		t.Error("following moved the world's camera, not the one of the player who asked")
 	}
 }
 

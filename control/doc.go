@@ -21,7 +21,7 @@
 // navigation.MoveTo). The plugin that defines a command's type handles it: it keeps a [Queue] of
 // it and drains it in its own pass ([Queue.Drain], every [Issued] with the [PlayerID] that gave it,
 // [Nobody] for none); [CommandQueue] is a Queue with the type erased, as a carrier sorts commands
-// into them. A [Binding] is a [Trigger] — [KeyPress], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
+// into them. A [Binding] is a [Trigger] — [KeyPress], [KeyHeld], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
 // [CursorAtEdge], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
 // player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera and,
 // over Ground, on the ground: a click on a hill lands on the hill)

@@ -14,8 +14,9 @@ import (
 
 var _ goke.System = (*FollowSystem)(nil)
 
-// FollowSystem keeps the camera on the entity tagged Followed: Follow tags the one Selected unit or
-// untags the followed one, and every tick the camera is centred on it at its altitude. A player who
+// FollowSystem keeps a camera on the entity tagged Followed: Follow tags the one Selected unit or
+// untags the followed one, and every tick the camera of whoever asked is centred on it at its
+// altitude. A player who
 // moves the camera by hand ends the following; zooming does not.
 type FollowSystem struct {
 	follows *control.Queue[Follow]
@@ -36,9 +37,9 @@ type FollowSystem struct {
 	zoom             float32
 }
 
-// NewFollowSystem builds a FollowSystem draining follows and moving cam.
-func NewFollowSystem(follows *control.Queue[Follow], cam camera.Camera, tags Tags) *FollowSystem {
-	return &FollowSystem{follows: follows, camera: cam, tags: tags}
+// NewFollowSystem builds a FollowSystem draining follows and moving the camera of whoever asked.
+func NewFollowSystem(follows *control.Queue[Follow], tags Tags) *FollowSystem {
+	return &FollowSystem{follows: follows, tags: tags}
 }
 
 func (s *FollowSystem) Init(si *goke.SysInit) {
@@ -46,7 +47,14 @@ func (s *FollowSystem) Init(si *goke.SysInit) {
 }
 
 func (s *FollowSystem) Update(*goke.CmdBuf, time.Duration) {
-	s.follows.Drain(func(control.Issued[Follow]) { s.toggle() })
+	s.follows.Drain(func(i control.Issued[Follow]) {
+		if i.Command.Camera != nil {
+			s.toggle(i.Command.Camera)
+		}
+	})
+	if s.camera == nil {
+		return
+	}
 
 	if s.centred && s.movedByHand() {
 		s.untagAll()
@@ -86,10 +94,11 @@ func (s *FollowSystem) movedByHand() bool {
 
 // toggle stops following when something is followed, else follows the one Selected unit; with
 // none or several selected it does nothing.
-func (s *FollowSystem) toggle() {
+func (s *FollowSystem) toggle(cam camera.Camera) {
 	if s.untagAll() {
 		return
 	}
+	s.camera = cam
 	var one uid.UID64
 	selected := 0
 	s.query.All()

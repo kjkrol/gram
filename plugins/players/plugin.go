@@ -31,10 +31,12 @@ type Plugin struct {
 	zooms       control.Queue[Zoom]
 	module      *module
 	renderer    *Renderer
+	layout      Layout
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
 // share, carrying the commands of handlers; two handlers of one command type panic.
@@ -62,7 +64,7 @@ func (p *Plugin) Local(name string) *Player {
 // Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
 // Issue; it looks through the world's camera until it has one of its own.
 func (p *Plugin) Add(name string) *Player {
-	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View()}
+	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View(), world: p.worldPlugin}
 	p.players = append(p.players, pl)
 	return pl
 }
@@ -148,9 +150,31 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// Viewports are where the local players look: one per camera they look through, side by side in
-// equal columns of screen, the world's camera over the whole screen when there is no local player.
-// A Scene showing the world hands them to the engine as its game.Viewer.
+// Layout splits the screen into n parts, one per camera the local players look through, in the
+// order the players were added.
+type Layout func(screen image.Rectangle, n int) []image.Rectangle
+
+// Columns is the default Layout: n equal columns side by side, the last taking what is left over.
+func Columns(screen image.Rectangle, n int) []image.Rectangle {
+	out := make([]image.Rectangle, n)
+	w := screen.Dx() / n
+	for i := range out {
+		out[i] = image.Rect(screen.Min.X+i*w, screen.Min.Y, screen.Min.X+(i+1)*w, screen.Max.Y)
+	}
+	out[n-1].Max.X = screen.Max.X
+	return out
+}
+
+// WithLayout sets how Viewports splits the screen between the local players' cameras.
+func (p *Plugin) WithLayout(layout Layout) *Plugin {
+	p.layout = layout
+	return p
+}
+
+// Viewports are where the local players look: one per camera they look through, laid out by the
+// Layout (Columns unless WithLayout), the world's camera over the whole screen when nobody is at
+// this keyboard. A Scene showing the world hands them to the engine as its game.Viewer; each local
+// player keeps its part of the screen, where its mouse input comes from.
 func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
 	var cams []camera.Camera
 	for _, pl := range p.Locals() {
@@ -161,14 +185,17 @@ func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
 	if len(cams) == 0 {
 		return render.Whole(p.worldPlugin.Camera(), screen)
 	}
+	layout := p.layout
+	if layout == nil {
+		layout = Columns
+	}
+	areas := layout(screen, len(cams))
 	out := make([]render.Viewport, len(cams))
-	w := screen.Dx() / len(cams)
 	for i, cam := range cams {
-		area := image.Rect(screen.Min.X+i*w, screen.Min.Y, screen.Min.X+(i+1)*w, screen.Max.Y)
-		if i == len(cams)-1 {
-			area.Max.X = screen.Max.X
-		}
-		out[i] = render.Viewport{Camera: cam, Area: area}
+		out[i] = render.Viewport{Camera: cam, Area: areas[i]}
+	}
+	for _, pl := range p.Locals() {
+		pl.area = areas[slices.Index(cams, pl.Camera)]
 	}
 	return out
 }
@@ -177,8 +204,38 @@ func (p *Plugin) Viewports(screen image.Rectangle) []render.Viewport {
 // the active Scene's HandleEvents.
 func (p *Plugin) EventHandler() control.EventHandler { return translator{p} }
 
-// Serializable returns nil — the local players' cameras are the world's, saved with it.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the players' own cameras, in the order the players were added; the others are
+// the world's, saved with it. Nil when nobody has a camera of their own.
+func (p *Plugin) Serializable() plugin.Serializable {
+	for _, pl := range p.players {
+		if pl.own {
+			return ownCameras{p}
+		}
+	}
+	return nil
+}
+
+// Restore rebuilds the own cameras after a load has written their state.
+func (p *Plugin) Restore() {
+	for _, pl := range p.players {
+		if pl.own {
+			pl.Camera.Restore()
+		}
+	}
+}
+
+// ownCameras persists the players' own cameras.
+type ownCameras struct{ p *Plugin }
+
+func (o ownCameras) Persisted() []any {
+	var out []any
+	for _, pl := range o.p.players {
+		if pl.own {
+			out = append(out, pl.Camera.Persisted()...)
+		}
+	}
+	return out
+}
 
 // RegisterBehavior reports ErrUnhostedBehavior — players host no behaviors; they carry commands.
 func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {

@@ -40,6 +40,10 @@ type KeyPress struct {
 	Mods Mods
 }
 
+// KeyHeld fires every input pass while Key is down, whatever else is held: steering a vehicle,
+// walking a character.
+type KeyHeld struct{ Key ebiten.Key }
+
 // ButtonPress fires when Button goes down with Mods held; Context.Cursor is where.
 type ButtonPress struct {
 	Button ebiten.MouseButton
@@ -64,6 +68,7 @@ type ButtonHeld struct{ Button ebiten.MouseButton }
 type CursorAtEdge struct{}
 
 func (KeyPress) trigger()     {}
+func (KeyHeld) trigger()      {}
 func (ButtonPress) trigger()  {}
 func (Drag) trigger()         {}
 func (Wheel) trigger()        {}

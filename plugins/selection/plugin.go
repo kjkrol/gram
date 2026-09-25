@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
@@ -17,7 +16,6 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	selects     control.Queue[Select]
 	follows     control.Queue[Follow]
-	camera      camera.Camera
 	module      *module
 	renderer    *Renderer
 	tags        Tags
@@ -34,7 +32,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		Selected:   reg.DefineTag[Family]("selection.selected"),
 		Followed:   reg.DefineTag[Family]("selection.followed"),
 	}
-	return &Plugin{worldPlugin: worldPlugin, camera: worldPlugin.Camera(), tags: tags}
+	return &Plugin{worldPlugin: worldPlugin, tags: tags}
 }
 
 // Tags returns selection's tags, to give Selectable to a kind or to read Selected.
@@ -47,8 +45,8 @@ func (p *Plugin) Tags() Tags { return p.tags }
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.camera, p.tags)
-	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.camera, p.tags)}
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags)
+	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
 	return nil
 }

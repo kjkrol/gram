@@ -27,7 +27,6 @@ const pickReach = 160
 type SelectionSystem struct {
 	selects *control.Queue[Select]
 	space   *aabbworld.Space
-	camera  camera.Camera
 	tags    Tags
 
 	query *goke.Query
@@ -38,9 +37,10 @@ type SelectionSystem struct {
 	lookupZ    goke.OptComp[world.Z]
 }
 
-// NewSelectionSystem builds a SelectionSystem draining selects over space, picking through cam.
-func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, cam camera.Camera, tags Tags) *SelectionSystem {
-	return &SelectionSystem{selects: selects, space: space, camera: cam, tags: tags}
+// NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
+// command's camera.
+func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, tags Tags) *SelectionSystem {
+	return &SelectionSystem{selects: selects, space: space, tags: tags}
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
@@ -57,11 +57,11 @@ func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 			for _, id := range cmd.IDs {
 				hit[id] = struct{}{}
 			}
-		case cmd.Screen == (geom.AABB{}):
+		case cmd.Screen == (geom.AABB{}) || cmd.Camera == nil:
 			s.space.Query(cmd.Box, aabbworld.AnyCapability, func(id uid.UID64) { hit[id] = struct{}{} })
 		default:
 			s.space.Query(grow(cmd.Box, pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
-				if s.drawnIn(id, cmd.Screen) {
+				if s.drawnIn(id, cmd.Screen, cmd.Camera) {
 					hit[id] = struct{}{}
 				}
 			})
@@ -72,7 +72,7 @@ func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 
 // drawnIn reports whether id is drawn into the screen rectangle: through an isometric camera as a
 // billboard on its centre at its altitude, otherwise as its box.
-func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB) bool {
+func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Camera) bool {
 	if !s.lookup.Seek(id) {
 		return false
 	}
@@ -85,10 +85,10 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB) bool {
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
 	var c render.Corners
-	if _, iso := s.camera.Projection().(camera.Isometric); iso {
-		c = render.Billboard(s.camera, (x0+x1)/2, (y0+y1)/2, alt, x1-x0, y1-y0)
+	if _, iso := cam.Projection().(camera.Isometric); iso {
+		c = render.Billboard(cam, (x0+x1)/2, (y0+y1)/2, alt, x1-x0, y1-y0)
 	} else {
-		c = render.ProjectCorners(s.camera, x0, y0, x1, y1, alt)
+		c = render.ProjectCorners(cam, x0, y0, x1, y1, alt)
 	}
 	minX, minY, maxX, maxY := c[0][0], c[0][1], c[0][0], c[0][1]
 	for _, p := range c[1:] {

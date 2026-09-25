@@ -6,7 +6,9 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// translator turns one tick's input into commands: every local player's bindings, in order.
+// translator turns one tick's input into commands: every local player's bindings, in order. Keys
+// reach every local player; the mouse reaches the one whose part of the screen it is over, in the
+// pixels of that part.
 type translator struct{ p *Plugin }
 
 var _ control.EventHandler = translator{}
@@ -19,8 +21,11 @@ func (t translator) HandleEvents(ev *control.InputEvents) {
 		}
 	}
 	for _, pl := range t.p.Locals() {
-		pl.cursor = ev.MousePos
-		ctx := control.Context{Player: pl.ID, Camera: pl.Camera, Cursor: ev.MousePos, Delta: ev.CursorDelta,
+		under := pl.covers(ev.MousePos)
+		if under {
+			pl.cursor = pl.localPoint(ev.MousePos)
+		}
+		ctx := control.Context{Player: pl.ID, Camera: pl.Camera, Cursor: pl.cursor, Delta: ev.CursorDelta,
 			Wheel: ev.ScrollDelta, Screen: pl.screen(), Mods: mods, FillsScreen: ev.WindowFillsScreen, Ground: t.p.ground}
 
 		for _, k := range ev.KeyEvents {
@@ -28,33 +33,44 @@ func (t translator) HandleEvents(ev *control.InputEvents) {
 			case control.ActionPress:
 				t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.withHeld(mods)}, ctx)
 				pl.keyDown(k.Key)
+				pl.steer(k.Key, true)
 			case control.ActionRelease:
 				pl.keyUp(k.Key)
+				pl.steer(k.Key, false)
 			}
+		}
+		for _, key := range pl.steering {
+			t.fire(pl, control.KeyHeld{Key: key}, ctx)
 		}
 		mods := pl.withHeld(mods)
 		ctx.Mods = mods
 		for _, c := range ev.ClickQueue {
-			pl.cursor = c.Pos
 			at := ctx
-			at.Cursor = c.Pos
 			switch c.Action {
 			case control.ActionPress:
-				pl.press(c.Button, c.Pos)
-				at.Start = c.Pos
+				if !pl.covers(c.Pos) {
+					continue
+				}
+				pos := pl.localPoint(c.Pos)
+				pl.cursor, at.Cursor, at.Start = pos, pos, pos
+				pl.press(c.Button, pos)
 				t.fire(pl, control.ButtonPress{Button: c.Button, Mods: mods}, at)
 			case control.ActionRelease:
 				if start, down := pl.release(c.Button); down {
-					at.Start = start
+					pos := pl.localPoint(c.Pos)
+					pl.cursor, at.Cursor, at.Start = pos, pos, start
 					t.fire(pl, control.Drag{Button: c.Button, Mods: mods}, at)
 				}
 			}
+		}
+		if !under {
+			continue
 		}
 		if ev.ScrollDelta != 0 {
 			t.fire(pl, control.Wheel{}, ctx)
 		}
 
-		inside := ev.MousePos.X >= 0 && ev.MousePos.X < ctx.Screen.X && ev.MousePos.Y >= 0 && ev.MousePos.Y < ctx.Screen.Y
+		inside := ctx.Cursor.X >= 0 && ctx.Cursor.X < ctx.Screen.X && ctx.Cursor.Y >= 0 && ctx.Cursor.Y < ctx.Screen.Y
 		if !inside {
 			continue
 		}

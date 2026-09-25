@@ -90,6 +90,13 @@ func (p *Plugin) NewView(bounds func() geom.AABB) *View {
 	return v
 }
 
+// NewCamera is another camera over this world, configured as the world's own — a player's who
+// looks on their own; ViewFor gives its View.
+func (p *Plugin) NewCamera() camera.Camera {
+	cfg := p.Res.Config
+	return camera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
+}
+
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
 // camera, one made at the first call for any other.
 func (p *Plugin) ViewFor(cam camera.Camera) *View {

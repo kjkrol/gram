@@ -2,6 +2,8 @@ package players
 
 import (
 	"fmt"
+	"image"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
@@ -18,12 +20,28 @@ type Player struct {
 	Camera camera.Camera
 	View   *world.View
 
+	world    *world.Plugin
+	own      bool            // looks through a camera of its own, saved with the game
+	area     image.Rectangle // its part of the screen, as last laid out; empty is all of it
 	local    bool
 	bindings []control.Binding
 	cursor   geom.Vec
 	held     map[ebiten.MouseButton]geom.Vec // buttons down and where they went down
 	keys     []ebiten.Key                    // keys down that some binding holds, last pressed last
+	steering []ebiten.Key                    // keys down that some KeyHeld binding is on
 }
+
+// OwnCamera gives the player a camera of its own over the world, and its View, saved with the
+// game; call before Use. Two local players with cameras of their own split the screen.
+func (p *Player) OwnCamera() *Player {
+	p.Camera = p.world.NewCamera()
+	p.View = p.world.ViewFor(p.Camera)
+	p.own = true
+	return p
+}
+
+// Area is the player's part of the screen, as the viewports last laid it out; empty before.
+func (p *Player) Area() image.Rectangle { return p.area }
 
 // Bind adds bindings to the player; two on one Trigger are an error, never a silent last-one-wins.
 func (p *Player) Bind(bindings ...control.Binding) error {
@@ -58,10 +76,20 @@ func (p *Player) DragBox() (start, current geom.Vec, dragging bool) {
 	return geom.Vec{}, geom.Vec{}, false
 }
 
-// screen is the window's size in pixels, as the camera shows the world.
+// screen is the size of the player's part of the screen, in pixels, as the camera shows the world.
 func (p *Player) screen() geom.Vec {
 	w, h := p.Camera.Viewport()
 	return geom.NewVec(float64(w), float64(h))
+}
+
+// covers reports whether the screen point at is in the player's part of the screen.
+func (p *Player) covers(at geom.Vec) bool {
+	return p.area.Empty() || image.Pt(int(at.X), int(at.Y)).In(p.area)
+}
+
+// localPoint is the screen point at in the pixels of the player's part of the screen.
+func (p *Player) localPoint(at geom.Vec) geom.Vec {
+	return geom.NewVec(at.X-float64(p.area.Min.X), at.Y-float64(p.area.Min.Y))
 }
 
 func (p *Player) press(button ebiten.MouseButton, at geom.Vec) {
@@ -78,6 +106,22 @@ func (p *Player) keyDown(key ebiten.Key) {
 	}
 	p.keyUp(key)
 	p.keys = append(p.keys, key)
+}
+
+// steer notes key as down when a KeyHeld binding of the player is on it, or forgets it.
+func (p *Player) steer(key ebiten.Key, down bool) {
+	if i := slices.Index(p.steering, key); i >= 0 {
+		p.steering = slices.Delete(p.steering, i, i+1)
+	}
+	if !down {
+		return
+	}
+	for _, b := range p.bindings {
+		if t, ok := b.Trigger.(control.KeyHeld); ok && t.Key == key {
+			p.steering = append(p.steering, key)
+			return
+		}
+	}
 }
 
 // keyUp forgets key as held.
