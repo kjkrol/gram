@@ -44,7 +44,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - Through an isometric camera entities are billboards standing on their projected centre; the
   vision fan is draped over the ground (`vision.Renderer.WithGround`), path sprites lie on the
   cells' diamonds and the selection highlight rounds the diamond under the unit
-  (`selection.HighlightStyle.Draw` takes the altitude). `render.QuadBatch.AppendCorners`,
+  (`selection.HighlightStyle.Draw` takes the altitude). Picking follows the relief: a command
+  `Context` carries the world's `Ground` and `World`/`WorldBox` land on the ground under the cursor
+  (a move order on a hill goes to the hill), and a `Select` carries the `Screen` rectangle it was
+  drawn in, so the selection hits entities where they are drawn — a unit on a hill, a hawk in the
+  air (`NewSelectionSystem` takes the camera). `render.QuadBatch.AppendCorners`,
   `render.ProjectCorners`, `render.Billboard`.
 - `island-isometric-demo`: the island in a Quasi3D world through an isometric camera — hills 20 and
   mountains 40 up with sloping sides, forests 8 tall, units upright, a hawk 40 up; `island-demo`

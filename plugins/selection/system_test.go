@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
@@ -18,6 +19,7 @@ import (
 
 type pendingSeed struct {
 	x, y, size float64
+	alt        float64
 	id         *uid.UID64
 	plain      bool
 }
@@ -34,6 +36,7 @@ type harness struct {
 	handler   control.EventHandler
 	ecs       *goke.ECS
 	pos       goke.Comp[world.Base]
+	z         goke.Comp[world.Z]
 	tag       goke.Comp[plugin.Tags[Family]]
 	marks     goke.Comp[plugin.Tags[Family]]
 	tags      Tags
@@ -45,6 +48,15 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessIn(t, world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+}
+
+// newHarnessIn is newHarness over a world of the given configuration — an isometric one, say.
+func newHarnessIn(t *testing.T, cfg world.Config) *harness {
+	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{
 		Width: 1000, Height: 1000,
 		BucketSize: 64,
@@ -53,10 +65,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("aabbworld.NewSpace: %v", err)
 	}
 
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	})
+	w := world.NewPlugin(cfg)
 	sel := NewPlugin(w)
 	pl := players.NewPlugin(w, sel)
 	local := pl.Local("tester")
@@ -64,7 +73,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	tags := Tags{Selectable: 0, Selected: 1}
-	sys := NewSelectionSystem(&sel.selects, space, tags)
+	sys := NewSelectionSystem(&sel.selects, space, w.Camera(), tags)
 
 	return &harness{t: t, space: space, players: pl, local: local, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
@@ -91,7 +100,7 @@ func (h *harness) start() {
 		if len(h.pending) == 0 {
 			return
 		}
-		factories := map[bool]*goke.Factory{false: si.NewFactory(&h.pos, &h.tag), true: si.NewFactory(&h.pos)}
+		factories := map[bool]*goke.Factory{false: si.NewFactory(&h.pos, &h.tag, &h.z), true: si.NewFactory(&h.pos)}
 		for plain, f := range factories {
 			var seeds []pendingSeed
 			for _, spec := range h.pending {
@@ -110,6 +119,7 @@ func (h *harness) start() {
 					positions[j].Pos = world.Position{AABB: aabb}
 					if !plain {
 						h.tag.Slice(&f.Cursor)[j] = plugin.Tags[Family](0).With(h.tags.Selectable)
+						h.z.Slice(&f.Cursor)[j] = world.Z{Altitude: spec.alt}
 					}
 					h.items = append(h.items, aabbworld.Item{ID: id, Box: aabb})
 					i++
@@ -157,6 +167,47 @@ func (h *harness) isSelected(id uid.UID64) bool {
 		}
 	}
 	return false
+}
+
+// seedHigh queues a Selectable entity standing alt above the ground.
+func (h *harness) seedHigh(x, y, size, alt float64) *uid.UID64 {
+	id := h.seed(x, y, size)
+	h.pending[len(h.pending)-1].alt = alt
+	return id
+}
+
+func TestSystem_Update_ClickPicksWhereTheEntityIsDrawnThroughAnIsometricCamera(t *testing.T) {
+	h := newHarnessIn(t, world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Camera:   camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32, HeightUnit: 1}},
+		Quasi3D:  true,
+	})
+	hawk := h.seedHigh(500, 500, 10, 40)
+	walker := h.seed(560, 560, 10)
+	h.start()
+	cam := h.local.Camera
+	cam.MoveTo(400, 400)
+	cam.Pan(-400, -300)
+
+	// The hawk is drawn as a billboard 40 up over its centre; a click on it selects it.
+	sx, sy := cam.Project(505, 505, 40)
+	h.click(int(sx), int(sy)-5, false)
+	if !h.isSelected(*hawk) || h.isSelected(*walker) {
+		t.Errorf("clicking the hawk where it is drawn: hawk %v, walker %v; want the hawk alone", h.isSelected(*hawk), h.isSelected(*walker))
+	}
+	// A click on the ground under the hawk's footprint hits nothing.
+	gx, gy := cam.Project(505, 505, 0)
+	h.click(int(gx), int(gy), false)
+	if h.isSelected(*hawk) {
+		t.Error("clicking the ground under the hawk selected it")
+	}
+	// The walker on the ground is where its footprint is drawn.
+	wx, wy := cam.Project(565, 565, 0)
+	h.click(int(wx), int(wy)-3, false)
+	if !h.isSelected(*walker) {
+		t.Error("clicking the walker where it stands did not select it")
+	}
 }
 
 func TestSystem_Update_ClickSelectsHitEntity(t *testing.T) {

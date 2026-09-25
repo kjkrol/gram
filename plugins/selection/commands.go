@@ -11,8 +11,11 @@ import (
 // Select is the command to select: exactly IDs when given, else every Selectable entity in Box
 // (world units); Additive keeps what was selected before.
 type Select struct {
-	IDs      []uid.UID64
-	Box      geom.AABB
+	IDs []uid.UID64
+	Box geom.AABB
+	// Screen is the screen rectangle the player picked in; set, it decides which of the entities
+	// in Box are hit by where they are drawn — a unit standing high or flying is where it is seen.
+	Screen   geom.AABB
 	Additive bool
 }
 
@@ -26,7 +29,7 @@ func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.sele
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
-			return Select{Box: c.WorldBox(c.Start, c.Cursor), Additive: additive}, true
+			return Select{Box: c.WorldBox(c.Start, c.Cursor), Screen: control.ScreenRect(c.Start, c.Cursor), Additive: additive}, true
 		}
 	}
 	return []control.Binding{

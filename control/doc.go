@@ -23,7 +23,8 @@
 // [Nobody] for none); [Mailbox] is an Inbox with the type erased, as a carrier sorts commands into
 // them. A [Binding] is a [Trigger] — [KeyPress], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
 // [CursorAtEdge], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
-// player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera)
+// player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera and,
+// over Ground, on the ground: a click on a hill lands on the hill)
 // and a label for a help screen. plugin.Commander is what defines commands, plugins/players what
 // carries them.
 package control

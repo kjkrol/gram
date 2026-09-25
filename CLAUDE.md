@@ -315,7 +315,8 @@ shows how much of it is boilerplate vs. real behavior.
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no Commander
   defines). The contract — `Inbox`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
   `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
-  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera) — lives in
+  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera and, in a Quasi3D
+  world, on the ground under the cursor via `Context.Ground`) — lives in
   `control`, and `plugin.Commander` names what defines commands, so a plugin with commands never
   imports players. `Renderers()` is the Commanders' renderers in order plus the marquee, for the
   Scene to lay over the world. `Player.Bind` refuses two on one

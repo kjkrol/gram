@@ -20,6 +20,7 @@ var ErrUnknownCommand = errors.New("players: no plugin listens for this command"
 // a player's bindings, an AI or a network issue a command, and it lands in its owner's inbox.
 type Plugin struct {
 	worldPlugin *world.Plugin
+	ground      func(x, y float32) float32 // the world's Ground for command contexts, bound at first use
 	commanders  []plugin.Commander
 	players     []*Player
 	inboxes     map[reflect.Type]control.Mailbox

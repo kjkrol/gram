@@ -45,7 +45,7 @@ func (p *Plugin) Tags() Tags { return p.tags }
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags)
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.camera, p.tags)
 	p.module = &module{sys: sys}
 	ctx.UseModule(p.module)
 	return nil

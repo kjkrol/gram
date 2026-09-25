@@ -63,20 +63,45 @@ type Context struct {
 	Screen      geom.Vec // the window's size in pixels
 	Mods        Mods
 	FillsScreen bool
+	// Ground is the height of the ground at a world point in a world with heights, nil on a flat one;
+	// World follows it, so a click on a hill lands on the hill.
+	Ground func(x, y float32) float32
 }
 
-// World is the world point under screen position s.
+// World is the ground point under screen position s: on flat ground the camera's FromScreen, over
+// Ground the point whose own height puts it under the cursor, found by a few rounds of unprojecting
+// at the height of the last answer.
 func (c Context) World(s geom.Vec) geom.Vec {
-	x, y := c.Camera.FromScreen(float32(s.X), float32(s.Y))
+	sx, sy := float32(s.X), float32(s.Y)
+	x, y := c.Camera.Unproject(sx, sy, 0)
+	if c.Ground != nil {
+		for range 4 {
+			x, y = c.Camera.Unproject(sx, sy, c.Ground(x, y))
+		}
+	}
 	return geom.NewVec(float64(x), float64(y))
 }
 
 // WorldBox is the world rectangle between screen points a and b, at least one unit a side and no
-// wider than what was dragged even across a wrapping seam.
+// wider than what was dragged even across a wrapping seam; over Ground it spans the ground points
+// under the two corners.
 func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
-	x0, y0, x1, y1 := camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
+	var x0, y0, x1, y1 float32
+	if c.Ground == nil {
+		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
+	} else {
+		pa, pb := c.World(a), c.World(b)
+		x0, y0, x1, y1 = float32(pa.X), float32(pa.Y), float32(pb.X), float32(pb.Y)
+	}
 	minX, maxX := float64(min(x0, x1)), float64(max(x0, x1))
 	minY, maxY := float64(min(y0, y1)), float64(max(y0, y1))
+	return geom.NewAABBAt(geom.NewVec(minX, minY), max(maxX-minX, 1), max(maxY-minY, 1))
+}
+
+// ScreenRect is the screen rectangle between a and b, at least a pixel a side.
+func ScreenRect(a, b geom.Vec) geom.AABB {
+	minX, maxX := min(a.X, b.X), max(a.X, b.X)
+	minY, maxY := min(a.Y, b.Y), max(a.Y, b.Y)
 	return geom.NewAABBAt(geom.NewVec(minX, minY), max(maxX-minX, 1), max(maxY-minY, 1))
 }
 
