@@ -357,7 +357,8 @@ a proposal for one composer drawing each view.
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` behaviors; `SightOutline` drawn |
 | [`plugins/vision/behavior`](plugins/vision/behavior/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
-| [`plugins/sky`](plugins/sky/doc.go) | A day going by over a world with heights: the time of day saved with the game, the sun rising and setting, long shadows and dark nights; ] and [ hurry it on and hold it back |
+| [`plugins/sky`](plugins/sky/doc.go) | A day and a year going by over a world with heights: the time of day and the season saved with the game, the sun rising and setting, higher in summer, the sky's colours; ] and [ hurry it on and hold it back |
+| [`plugins/climate`](plugins/climate/doc.go) | The climate of a world: its zone from the equator to the pole (latitude and other factors, such as a sea current) setting the sun's path, the temperature through the year and how wet each season is; its weather — wind, clouds whose shadows drift over the ground, rain, snow — going from one kind of weather (`climate/weather`) to the next in the sky's time; the sea roughens with the wind; a game casts its effects from `climate.Every`; W changes the weather |
 | [`plugins/isometry`](plugins/isometry/doc.go) | The isometric view, added or left out: the world's cameras, entities standing as billboards, cells as blocks |
 | [`plugins/effects`](plugins/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |

@@ -35,7 +35,10 @@ type CellKind struct {
 	Height float64
 	// Shine is how much of the sun the cell's surface throws back at whoever looks at it, 0 to 1:
 	// water, ice, wet rock glint where the sun and the eye meet over its ripples.
-	Shine    float64
+	Shine float64
+	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
+	// effect sets it when the wind blows.
+	Sway     float64
 	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
 	// set; see Costing and CostFor.

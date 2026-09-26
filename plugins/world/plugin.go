@@ -49,6 +49,7 @@ type Plugin struct {
 	cameras  Cameras
 	look     Look
 	sun      Sun
+	weather  Weather
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -132,6 +133,12 @@ func (p *Plugin) SetSun(sun Sun) { p.sun = sun }
 // Sun is the world's light: DefaultSun unless something set another.
 func (p *Plugin) Sun() Sun { return p.sun }
 
+// SetWeather has the air over the world be w from now on — a game's, or the weather going by.
+func (p *Plugin) SetWeather(w Weather) { p.weather = w }
+
+// Weather is the air over the world: a calm, clear day unless something set another.
+func (p *Plugin) Weather() Weather { return p.weather }
+
 // SetLook has the world's entities drawn, picked and outlined by look: a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }
 
@@ -196,6 +203,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if p.Quasi3D() {
 		p.renderer.sun, p.renderer.ground = p.Sun, p.Ground
 	}
+	p.renderer.weather = p.Weather
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.

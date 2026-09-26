@@ -5,6 +5,9 @@
 // shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or,
 // stopped, move it half an hour on or back. Scroll with the wheel, drag with the middle button or
 // push the cursor to an edge to move the camera.
+// The year has eight days, a season two, beginning in mid-autumn; the weather goes by
+// (plugins/climate): clouds' shadows drift over the island, rain falls — snow in winter, lying
+// until spring — the sea roughens with the wind and the forests sway in it; W changes it.
 package main
 
 import (
@@ -23,7 +26,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/climate"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/effects"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -89,6 +94,9 @@ type mainStage struct {
 	players   *players.Plugin
 	vision    *vision.Plugin
 	sky       *sky.Plugin
+	climate   *climate.Plugin
+	effects   *effects.Plugin
+	ground    ground
 	unit      kind.Of[unit]
 	hawk      kind.Of[unit]
 	stack     game.Scenes
@@ -117,6 +125,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.effects = effects.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
@@ -127,10 +136,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("mountain"), Cost: 8, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 	)
+	s.defineClimate() // snow, ice and the forest swaying: effects the climate casts
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.effects); err != nil {
 		return err
 	}
 
@@ -152,12 +165,21 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.sky = sky.NewPlugin(s.world, sky.Config{})
+	s.sky = sky.NewPlugin(s.world, sky.Config{Season: sky.Autumn})
 	if err := ctx.Use(s.sky); err != nil {
 		return err
 	}
+	// A temperate island — central Europe, southern Scandinavia before the warming — whose weather is
+	// thrown anew every run; the same seed would give the same weather.
+	s.climate = climate.NewPlugin(s.world, s.sky, climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())})
+	if err := s.climate.RegisterBehavior(climate.Every(s.weathering)); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.climate); err != nil {
+		return err
+	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board, s.sky)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board, s.sky, s.climate)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
@@ -255,10 +277,12 @@ func (s *mainStage) drown(t plugin.Tick, m *board.Mover, st board.Standing) {
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.effects.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.sky.RunPlan(ctx, d)
+	s.climate.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
@@ -298,6 +322,7 @@ func (m *mainScene) Layers() []render.Layer {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
 	}
+	s.climateSprites(boardAtlas)
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false // B toggles it; from above the sun shows the relief
@@ -310,8 +335,8 @@ func (m *mainScene) Layers() []render.Layer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
-	layers := []render.Layer{render.NewComposer(s.sky.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.sky.Reporter()))
+	layers := []render.Layer{render.NewComposer(s.sky.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.climate.Renderer())}
+	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.sky.Reporter(), s.climate.Reporter()))
 }
 
 // Viewports are where the world is shown: the local players' views.

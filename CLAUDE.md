@@ -180,8 +180,10 @@ world renderer lays on the ground away from the sun (tier `Ground+20`), stretche
 and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are.
 The time of day is `plugins/sky`: a `sky.Day{Time, Pace}` on the sky's own entity (made at Setup,
 found after a load), moved on every tick; at every one of `Config.Steps` a day the world's sun is
-set to `Config.SunAt` the hour (east at 6, south at noon, west at 18 — the whole path turned when
-`Config.NoonWay` puts noon elsewhere; the isometric island's is north-west — below the horizon at night, the
+set to `Config.LightAt` the hour — the sun (with `NoonWay` `sky.South`: east at 6, south at noon,
+west at 18; the default `sky.NorthWest` turns the whole path so noon is beyond the isometric view's
+sea), and below −0.1 of height the moon (`Day.Moon`, the sun's path `moon` of a day behind and
+`moon` of a year on, `moonStrength` 0.25 × how full, `moonColor`) — below the horizon at night, the
 strength rising and falling, the sky's and the sun's colours and the ambient blended from the
 `daylight` table by the sun's height: blue by day, orange at sunrise and sunset, deep blue at
 night), so the terrain's shadows are worked out anew only per step. `sky.Plugin.Renderer()` is the
@@ -204,6 +206,49 @@ view). The board works the shore out per corner of a square grid (open water on 
 per terrain version. A shiny tile gets its glint at night too (no sun, the foam and the night sky
 reflected left). An effect altering `Ground` can make a cell shiny. The islands with heights
 give their water 0.9.
+The climate is `plugins/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
+`SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
+`Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
+`Day` 4, `Wet` per season by latitude band — and `climate.NewPlugin(world, sky, Config{Zone,
+Weathers, Start, Seed, Blend})` calls `sky.SetLatitude`. The kinds of weather are the subpackage
+`climate/weather` (`weather.State`, `weather.Default`, `State.Likely`). The weather now, a
+`climate.Weather` on the plugin's own entity (made at Setup or
+found after a load, saved with its dice) begins on its first tick — the sky's day set by then — in
+`Config.Start` or a state thrown by `Often[season]`, already at its clouds, fall and temperature,
+and goes from one of `Config.Weathers` to the next (weights `Next` × `Likely(season)` × the zone's
+`Wet[season]` for one with `Falls`,
+`Lasts`), blending the wind (`Blow` towards `Target`, `Heading` wandering), the clouds, what falls
+and the `Temperature` into the state's (`Blend`; the temperature the zone's `Mean` ± `Year` through
+the year, ± `Day` through the day, and `State.Warmth`, the day read from `sky.Day` in the ECS, a
+summer afternoon without a sky), what falls coming down as snow below `snowsBelow` 1°C,
+integrating `Drift`, and sets `world.Weather` (`world.Plugin.SetWeather`) — all in the sky's time:
+each tick is `d × Day.Pace`, nothing while `Day.Stopped` (`passing`), and its behaviours get that
+as `Tick.Dt`. It hosts
+`climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`, run every tick with the weather
+and season): where a game casts its weather effects. Snow lying, ice and trees swaying are
+`plugins/effects` effects of the game, not the engine's: the islands (`climate.go`) define snowy
+kinds and ice, `effects.Alter[board.Ground]` for snow, ice and sway, and cast them once a second
+from a weather behaviour — snow settling in drifts (high ground, a noise's seeds, next to snow)
+while it snows in the frost, melting lonely and late cells first once warm, ice growing from the
+shore below −3°C, the forest swaying above a wind of 15 and stopping below 10; a winter begun has
+its drifts and shores laid at once. `Change` (W) and `Set{Name}`;
+`Renderer()` is the precipitation Source (screen-space streaks and flakes from a hash of their
+number and `Frame.Time`, tier `render.Air` 350, depth +∞); `Reporter()` the telemetry line. The
+board and the world renderers hand `Weather.Frame()` to `Frame.Weather`; looks call
+`Frame.Overcast(box)` after each tile (a quad only under clouds: alpha 4, green/blue the world
+position; the shader's `clouds(p)` — value noise at `cloudSize` 420 minus `Drift`, spread by
+`cloudContrast`, the shadow straight under: cast off towards the sun it would jump with every step
+of the sun — dims the sun by `cloudDark`), glints die under clouds, waves turn with `Wind` and
+steepen with it (`calmSea`..`stormSea`), `render.Overcast` greys the sky (backdrop and reflection).
+`CellKind.Sway` and `world.Appearance.Sway` — set by an effect — lean tops with the wind on the CPU (`render.Sway` from
+`Frame.Wind` and `Frame.Time`; Kage cannot move vertices). `sky` keeps `Day.Date`, `Day.Calendar`
+(`GameYear` 8 days and a 4-day moon, the default; `EarthYear` 365 days, 12 months, `Day.Written`),
+`Day.Length` (the config's, written every tick), `Day.Season`, `Day.Moon`, `Config.Season` (a fresh
+Stage begins in its middle); the sun's path (`Config.path`) is worked out for the latitude
+(`Plugin.SetLatitude`, `sky.Latitude` 30° without a climate): declination 23.44° × sin(2π·ofYear),
+the hour angle from noon, then turned to `NoonWay` — polar day and night past the circle. The weather's time is how far the day moved since it last looked (`Weather.SeenDate/SeenTime`
+× `Day.Length`; the ticks' own without a sky), jumps of `]`/`[` included, going back ignored.
+Units' shadows are `shadowVeil` × the light's strength over `shadowFull`.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep

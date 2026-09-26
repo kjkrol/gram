@@ -44,6 +44,7 @@ Tiers are numbers with room between them, drawn in order:
 | `Ground` | 100 | tiles and the faces of raised ground; a hex grid's lines at 110 |
 | `Objects` | 200 | entities |
 | `Overlays` | 300 | what lies on the world: routes, cones of sight and their shadows |
+| `Air` | 350 | what falls before the eye: rain, snow (`climate.Plugin.Renderer`), at depth +∞ |
 | `Marks` | 400 | what must always show: the selection's outline, the box being dragged |
 
 A game may put its own pieces between (250, say) without touching the engine.
@@ -100,8 +101,23 @@ shore, whatever the sun. Water also reflects the sky, the more the flatter the e
 (Fresnel, over a normal tilted by only a third of the waves, so fine waves far off do not stripe
 it): from above it keeps its own colour, looked along it takes the sky's. Sparse points twinkle under
 a high sun and all but vanish under a low one — and none where the sun stands behind the eye, as
-it does all day over the south in the isometric view (hence `sky.Config.NoonWay`). The tile keeps
+it does all day over the south in the isometric view (hence `sky.Config.NoonWay`, north-west by
+default). The tile keeps
 its outline; the uniforms are written over in place, so a frame allocates nothing for them.
+
+The weather is drawn the same way (`Frame.Weather`, which the board and the world set from
+`world.Weather`). `Frame.Overcast(box)` after a tile lays a quad over it — only under clouds —
+whose vertices carry where they lie in green and blue and 4 in alpha. The shader works out the
+clouds over each pixel: noise in a few sizes, spread out so there are clouds and clear sky between
+them, carried by the wind's drift, taking up to half the sun's light, none at night. Snow and ice
+are not drawn apart: they are kinds of the ground an effect puts on a cell, drawn as any other.
+The shadow falls straight under its cloud: the clouds themselves are not drawn, and a shadow cast
+off them towards the sun would jump with every step the sun takes. The same clouds put out the sun's glint on water, the wind turns the waves its way and makes
+them as steep as it blows, and the sky water reflects (and the sky's backdrop) greys the more the
+clouds cover it (`render.Overcast`). Kage shades pixels and cannot move vertices, so what sways in
+the wind — a `CellKind.Sway`, a `world.Appearance.Sway`, which an effect sets — is leant by its look on the CPU from the frame's wind
+and clock (`Frame.Wind`, `Frame.Time`, `render.Sway`): its top moves with the wind, rocking as gusts
+roll through downwind.
 
 ## 4. Sight on the ground
 

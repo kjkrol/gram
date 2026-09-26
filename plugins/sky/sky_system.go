@@ -1,7 +1,6 @@
 package sky
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -41,45 +40,40 @@ func (s *skySystem) Init(si *goke.SysInit) {
 	f := si.NewFactory(&s.spawn)
 	f.Create(1)
 	for f.Next() {
-		s.spawn.Slice(&f.Cursor)[0] = Day{Time: s.cfg.Start, Pace: 1}
+		s.spawn.Slice(&f.Cursor)[0] = Day{Time: s.cfg.Start, Pace: 1, Date: s.cfg.midst(s.cfg.Season), Calendar: s.cfg.Calendar}
 	}
 }
 
 func (s *skySystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		day := &s.day.Slice(s.query.Cursor())[0]
+		day.Length = s.cfg.Length // the day is as long as the sky has it now
 		s.pause.Drain(func(control.Issued[Pause]) { day.Stopped = !day.Stopped })
 		s.forward.Drain(func(control.Issued[Forward]) {
 			if day.Stopped {
-				day.Time = wrap(day.Time + hour/2)
+				day.passing(hour / 2)
 			} else {
 				day.Pace *= 2
 			}
 		})
 		s.back.Drain(func(control.Issued[Back]) {
 			if day.Stopped {
-				day.Time = wrap(day.Time - hour/2)
+				day.passing(-hour / 2)
 			} else {
 				day.Pace /= 2
 			}
 		})
 		if !day.Stopped {
-			day.Time = wrap(day.Time + float32(d.Seconds()/s.cfg.Length.Seconds()*float64(day.Pace)))
+			day.passing(float32(d.Seconds() / s.cfg.Length.Seconds() * float64(day.Pace)))
 		}
 		// a hair over, so a time moved onto a step by halves is on it, not a rounding short of it
-		if step := int(day.Time*float32(s.cfg.Steps)+1e-3) % s.cfg.Steps; step != s.step {
-			s.step = step
-			s.world.SetSun(s.cfg.SunAt(float32(step) / float32(s.cfg.Steps)))
+		step := int(day.Time*float32(s.cfg.Steps)+1e-3) % s.cfg.Steps
+		if at := int(day.Date)*s.cfg.Steps + step; at != s.step {
+			s.step = at
+			then := *day
+			then.Time = float32(step) / float32(s.cfg.Steps)
+			s.world.SetSun(s.cfg.LightAt(then.OfYear(), then.Time, then.Moon()))
 		}
 		return
 	}
-}
-
-// wrap is t within one day, 0 up to 1.
-func wrap(t float32) float32 {
-	t = float32(math.Mod(float64(t), 1))
-	if t < 0 {
-		t++
-	}
-	return t
 }

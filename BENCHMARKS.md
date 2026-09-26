@@ -148,12 +148,18 @@ outline in view, not how much terrain there is or how many pieces it is in.
 
 The board's renderer composing the whole of a 96×64 board of hills 4 cells a side and 20 high, from
 above, under a sun low in the west (0.3 up): warm, the shadows kept from the frame before, and after
-the sun has moved, every shadow worked out anew. Measured on 2026-09-26, three runs.
+the sun has moved, every shadow worked out anew. Measured on 2026-09-26, three runs, after light
+took colour (each corner a red, green and blue light, the sun worked out once a frame as a
+`world.Lamp`).
 
 | Shadows | Frame composed |
 |:--|--:|
-| kept | 1.59 ms |
-| worked out anew | 3.78 ms |
+| kept | 2.04 ms |
+| worked out anew | 4.14 ms |
+
+Before light had colour: 1.59 and 3.78 ms. Coloured, with the sun worked out again at every corner
+as at first, it was 2.35 ms kept; the lamp and taking a corner's light as it is when a piece is not
+split brought most of that back.
 
 A corner's shadow is a walk towards the sun a quarter cell at a time over the tops of the cells as
 the frame read them, stopped as soon as the line to the sun is above the highest top within 16
@@ -164,13 +170,18 @@ cell and ground in the ECS and walked the whole 16 cells: 59.5 ms anew.
 
 The board's renderer composing the whole of a 96×64 board of sea (shine 0.9) round islands 4 cells
 a side every 8 cells, from above — every cell of the sea within 3 of a shore, the worst case: warm,
-the shores kept from the frame before, and after a cell has changed, every shore worked out anew.
-Measured on 2026-09-26, three runs.
+the shores kept from the frame before, after a cell has changed, every shore worked out anew, and
+kept under clouds, the weather laid over every tile. Measured on 2026-09-26, three runs, light in
+colour.
 
 | Shores | Frame composed |
 |:--|--:|
-| kept | 2.54 ms |
-| worked out anew | 4.89 ms |
+| kept | 2.89 ms |
+| worked out anew | 5.00 ms |
+| kept, under clouds | 3.28 ms |
+
+The clouds' shadows and the snow are worked out per pixel by the shader; what they cost the CPU is
+a quad over every tile — 0.4 ms for these 6,144 tiles — and nothing under a clear sky.
 
 A corner of the grid is worked out once for the four tiles round it, over the cells as the frame
 read them, ring by ring outwards until no ring further out can be nearer. Worked out per tile, five

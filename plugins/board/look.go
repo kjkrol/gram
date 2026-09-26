@@ -73,7 +73,7 @@ func (t *Tile) Light() render.Shade {
 		}
 		return (own1 - own0) / step
 	}
-	sun := r.lighted
+	sun := r.lamp
 	lit := t.sunlit()
 	corner := func(k int, dx, dy float32) render.Light { return sun.Shaded(-dx, -dy, 1, lit[k]) }
 	return render.Shade{
@@ -93,6 +93,16 @@ func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
 		return 0, lit, false
 	}
 	return shine, t.sunlit(), true
+}
+
+// Sway is how much what stands on the cell bends in the wind — its kind's Sway — and how high it
+// stands over the ground, which is how far its top leans; nothing in a flat world.
+func (t *Tile) Sway() (amount, rise float32) {
+	c := t.r.topOf(t.ID)
+	if c.sway <= 0 || !t.r.board.quasi3D {
+		return 0, 0
+	}
+	return c.sway, c.z[0] - c.ground[0]
 }
 
 // Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
@@ -128,7 +138,7 @@ func (t *Tile) FaceLight(dx, dy int) render.Light {
 	default:
 		edge = (lit[0] + lit[1]) / 2
 	}
-	return t.r.lighted.Shaded(float32(dx), float32(dy), 0, edge)
+	return t.r.lamp.Shaded(float32(dx), float32(dy), 0, edge)
 }
 
 // groundBeside is the ground's corners of the cell dx, dy cells away; false off the board.
@@ -147,12 +157,19 @@ func (t *Tile) groundBeside(dx, dy int) ([4]float32, bool) {
 type flatLook struct{}
 
 func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
-	if t.Outlined {
-		f.TileRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
-	} else {
-		f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
+	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
+	// what sways is seen from above by its top, leaning with the wind
+	if amount, rise := t.Sway(); amount > 0 {
+		lx, ly := render.Sway(f.Time(), f.Wind(), (x0+x1)/2, (y0+y1)/2, amount)
+		x0, y0, x1, y1 = x0+lx*rise, y0+ly*rise, x1+lx*rise, y1+ly*rise
 	}
+	if t.Outlined {
+		f.TileRect(render.Ground, 0, t.Atlas, t.Sprite(), x0, y0, x1, y1, t.Light())
+	} else {
+		f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), x0, y0, x1, y1, t.Light())
+	}
+	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
-		f.Glint(t.X0, t.Y0, t.X1, t.Y1, shine, lit, t.Shore())
+		f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 	}
 }

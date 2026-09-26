@@ -134,3 +134,38 @@ func TestRenderer_LaysAShadowAwayFromTheSunPushedOffByHowHighItStands(t *testing
 		t.Errorf("%d shadows with the sun down, want none", len(tiers))
 	}
 }
+
+func TestRenderer_DrawsAnEntityWhoseAppearanceSwaysLeaningWithTheWind(t *testing.T) {
+	cam := icamera.NewFromSpace(1000, 1000, 0)
+	view := &View{}
+	air := Weather{}
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
+	r.weather = func() Weather { return air }
+	var base goke.Comp[Base]
+	var appearance goke.Comp[Appearance]
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		f := si.NewFactory(&base, &appearance)
+		f.Create(1)
+		for f.Next() {
+			base.Slice(&f.Cursor)[0].Pos = Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
+			appearance.Slice(&f.Cursor)[0] = Appearance{Sway: 1}
+		}
+		r.Init(si)
+	}})
+	left := func() float32 {
+		var f render.Frame
+		f.Reset(cam)
+		r.Compose(&f, cam)
+		var x float32
+		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX })
+		return x
+	}
+	if calm := left(); calm != 100 {
+		t.Fatalf("in the calm the tree is drawn from x %v, want 100", calm)
+	}
+	air.Wind = [2]float32{40, 0}
+	if blown := left(); blown <= 100 {
+		t.Errorf("in an east wind the tree is drawn from x %v, want it leaning east", blown)
+	}
+}

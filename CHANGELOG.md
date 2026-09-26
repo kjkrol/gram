@@ -216,6 +216,49 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   test of picking through a Look no longer imports isometry. The blocks show
   whichever faces look towards the eye; the depth is how far down the screen the middle of a cell
   lies, the same order as before unturned.
+- `plugins/climate`: the climate of a world. Its `Zone` — `Latitude` and other `Factor`s
+  (`SeaCurrent`, `DrySummer`; a game adds its own) — is its climate in numbers (`Zone.Profile`: the
+  mean temperature, the year's and the day's swing, how wet each season is); `Equatorial`,
+  `Tropical`, `Mediterranean`, `Temperate`, `Cold`, `Polar` are the world's zones.
+  `climate.NewPlugin(world, sky, Config{Zone, …})` sets the sky's latitude (`sky.Plugin.SetLatitude`:
+  the sun's path worked out for it, the days long in summer, polar day and night past the
+  circle). Its weather (`climate.Weather`, saved, dice and all) goes from one kind of weather
+  (`climate/weather`: `weather.State`, `weather.Default`: clear, cloudy, rain, storm) to the next
+  by weights, how likely each comes in the season (`State.Often`, storms in summer) and, for a wet
+  one, how wet the zone has the season; a fresh Stage begins in `Config.Start` or in a
+  state thrown as the season has them, already at its clouds and fall; the wind, the clouds, what
+  falls and the temperature (`world.Weather.Temperature`: the year, the hour, `State.Warmth`)
+  blend into each state's, the wind's way wanders, the clouds drift on it, and what falls comes
+  down as snow below 1°C. It goes by in the sky's time (the day's `Pace`, held while the day
+  stands), and so do its behaviours (`Tick.Dt`). `Change` (W) and `Set{Name}` script it; `climate.Every` hosts a game's
+  behaviours, told the weather and the season every tick; `Plugin.Renderer` draws the rain and
+  snow falling (`render.Air`, tier 350); `Plugin.Reporter` adds a telemetry line. It sets
+  `world.Weather` (`SetWeather`), which the renderers draw: the clouds' shadows drifting over the
+  ground (`Frame.Overcast`), the sun's glint put out under a cloud, the waves turning with the
+  wind and as steep as it blows, the sky and what water reflects of it greying under clouds
+  (`render.Overcast`), and whatever sways leaning with the wind (`CellKind.Sway`,
+  `world.Appearance.Sway`, `render.Sway`; `world.Look.Sprite` takes the sway).
+- Snow, ice and trees swaying are effects (`plugins/effects`) a game casts as the weather says,
+  as effect-demo's frost: both islands with heights define snowy kinds and ice and cast snow,
+  ice and sway on the board's cells from a `climate.Every` behaviour (`climate.go`) — snow
+  settling in drifts while it snows in the frost and melting away patch by patch once warm, ice
+  growing from the shores in a hard frost, the forest swaying in a strong wind.
+- `plugins/sky` keeps a year: `Day.Date`, `Day.Calendar` — `GameYear` (8 days, the moon round
+  in 4, the default) or `EarthYear` (365 days in twelve months, the moon round in 29.5,
+  `Day.Written` "20 March") — `Day.Season`, `Day.Moon`, and `Day.Length`; a fresh Stage begins
+  in the middle of `Config.Season` (spring by default); the sun goes the way it goes at the
+  latitude (30° without a climate): 23.44° higher at noon in summer and lower in winter, the days
+  longer and shorter. `Config.Noon` and `Tilt` are gone. `Config.SunAt(ofYear, t)`.
+  At night the moon lights the world (`Config.LightAt`): going the sun's way as far behind it as
+  it is round, as bright as it is full and high, in a paler light — the terrain shaded and shadowed
+  by it, the sea glinting. Units' shadows are as dark as the light is strong. The clock reports
+  the season, the date and the moon.
+- The weather goes by in the sky's time, worked out from how far the day has moved since it last
+  looked (`Weather.SeenDate`, `SeenTime`, `Day.Length`): a day hurried on hurries it, a day moved
+  on while it stands moves it with it.
+- `world.Lamp` (`Sun.Lamp`): the sun worked out once for many surfaces; the board lights with it,
+  which, with a corner's light taken as it is when a piece is not split, brings back most of what
+  coloured light cost.
 - Light has colour. `world.Sun` has `Color` (the sun's light) and `Sky` (the sky's colour and the
   light every surface gets from it, `Ambient` of it); zero is white, so `DefaultSun` looks as
   before. `render.Shade` is a `render.Light` (RGB) per corner (`render.Even`, `render.Lit`),
@@ -229,9 +272,9 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - `sky.Plugin.Renderer` is the backdrop: the screen in the sky's colour behind the world
   (`render.Backdrop`, tier 0), drawn only when the ground does not cover all of it. Both islands
   with heights use it.
-- `sky.Config.NoonWay`: the way the sun stands at noon, its whole path turned with it; the south
-  by default. `sky.SunAt(t, noon)` is `Config.SunAt(t)`. island-isometric-demo has its noon in the
-  north-west, beyond the sea as the view looks, so the sea there glints.
+- `sky.Config.NoonWay`: the way the sun stands at noon (`sky.Way`: `NorthWest`, the default, and the
+  seven other ways), its whole path turned with it; north-west is beyond the sea as the isometric
+  view looks, so the sea glints. `sky.SunAt(t, noon)` is `Config.SunAt(ofYear, t)`.
 - A plugin can add lines to the telemetry: `render.Reporter`, handed to
   `TelemetryRenderer.With`; `sky.Plugin.Reporter` shows the time of day (and the pace when it is
   hurried or held) in both islands with heights.

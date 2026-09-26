@@ -13,8 +13,9 @@ import (
 // look, seen from above; a view plugin puts its own in with Plugin.SetLook.
 type Look interface {
 	// Sprite hands f sprite id of atlas for an entity whose box stands at altitude alt, on the
-	// render.Objects tier, in light.
-	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light)
+	// render.Objects tier, in light, swaying in the frame's wind as much as sway says
+	// (Appearance.Sway).
+	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners
 	// Footprint appends to dst the ground under box on screen, in pieces where it crosses a wrap
@@ -33,8 +34,14 @@ type flatLook struct {
 	quads          []camera.Quad
 }
 
-func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ float32, atlas render.AtlasSource, id render.SpriteID, light render.Light) {
+func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
+	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
+		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
+		lx, ly := render.Sway(f.Time(), f.Wind(), cx, cy, sway)
+		rise := max(sizeX, sizeY)
+		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
+	}
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
 		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
 		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)

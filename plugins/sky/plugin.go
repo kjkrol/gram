@@ -29,8 +29,16 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin lets a day of cfg go by over worldPlugin, lighting it by the sun of the hour.
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
-	return &Plugin{cfg: cfg.withDefaults(), worldPlugin: worldPlugin}
+	cfg = cfg.withDefaults()
+	cfg.latitude = Latitude
+	return &Plugin{cfg: cfg, worldPlugin: worldPlugin}
 }
+
+// SetLatitude has the sun go the way it goes latitude degrees from the equator — north or south
+// alike — high and with long summer days near the equator, low and with short winter days towards
+// the pole, all day or none at all past the polar circle; a climate says so (plugins/climate).
+// Call it before the plugin is installed.
+func (p *Plugin) SetLatitude(latitude float64) { p.cfg.latitude = latitude }
 
 // =================================================================
 // plugin.Plugin contract

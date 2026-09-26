@@ -103,6 +103,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = &RenderState{ShowGridLines: true}
 	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look, p.worldPlugin.Sun)
+	p.renderer.weather = p.worldPlugin.Weather
 	p.renderer.shadows = !p.flat
 }
 

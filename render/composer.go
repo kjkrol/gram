@@ -44,6 +44,7 @@ type Composer struct {
 	// time and the sun's strength, and the colours of the sun, the sky and the light from it
 	sun, toward, glint           []float32
 	sunColor, skyColor, ambience []float32
+	wind, drift, weather         []float32
 	start                        time.Time
 	// draw issues one call; tests count them instead.
 	draw func(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image)
@@ -55,9 +56,11 @@ var _ WorldRenderer = (*Composer)(nil)
 func NewComposer(layers ...Layer) *Composer {
 	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(),
 		sun: make([]float32, 3), toward: make([]float32, 3), glint: make([]float32, 4),
-		sunColor: make([]float32, 3), skyColor: make([]float32, 3), ambience: make([]float32, 3)}
+		sunColor: make([]float32, 3), skyColor: make([]float32, 3), ambience: make([]float32, 3),
+		wind: make([]float32, 2), drift: make([]float32, 2), weather: make([]float32, 4)}
 	c.opts.Uniforms = map[string]any{"Sun": c.sun, "Toward": c.toward, "Glint": c.glint,
-		"SunColor": c.sunColor, "SkyColor": c.skyColor, "Ambience": c.ambience}
+		"SunColor": c.sunColor, "SkyColor": c.skyColor, "Ambience": c.ambience,
+		"Wind": c.wind, "Drift": c.drift, "Weather": c.weather}
 	for _, l := range layers {
 		src, ok := l.(Source)
 		if !ok {
@@ -88,6 +91,7 @@ func (c *Composer) Composed() int { return c.frame.Len() }
 
 func (c *Composer) compose(cam camera.Camera) {
 	c.frame.Reset(cam)
+	c.frame.time = float32(time.Since(c.start).Seconds())
 	for _, s := range c.sources {
 		s.Compose(&c.frame, cam)
 	}
@@ -135,10 +139,14 @@ func (c *Composer) render(screen *ebiten.Image) {
 	day := &f.daylight
 	copy(c.sun, day.Dir[:])
 	copy(c.toward, toward[:])
-	c.glint[0], c.glint[1] = float32(time.Since(c.start).Seconds()), day.Strength
+	c.glint[0], c.glint[1] = f.time, day.Strength
 	copy(c.sunColor, day.Sun[:])
 	copy(c.skyColor, day.Sky[:])
 	copy(c.ambience, day.Ambient[:])
+	air := &f.weather
+	copy(c.wind, air.Wind[:])
+	copy(c.drift, air.Drift[:])
+	c.weather[0] = air.Clouds
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
 	for _, i := range f.order {

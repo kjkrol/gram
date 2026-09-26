@@ -30,19 +30,35 @@ func (s Sun) Light(nx, ny, nz float32) render.Light { return s.Shaded(nx, ny, nz
 
 // Shaded is Light where only lit of the sun, 0 to 1, reaches the surface: the rest is in shadow
 // and gets the sky's light alone.
-func (s Sun) Shaded(nx, ny, nz, lit float32) render.Light {
-	direct := float32(0)
-	n := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
-	if d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2]))); n > 0 && d > 0 {
-		facing := (nx*s.Dir[0] + ny*s.Dir[1] + nz*s.Dir[2]) / (n * d)
-		direct = s.Strength * max(facing, 0) * lit
+func (s Sun) Shaded(nx, ny, nz, lit float32) render.Light { return s.Lamp().Shaded(nx, ny, nz, lit) }
+
+// Lamp is the sun made ready to light many surfaces: its way as a unit vector, its light and the
+// sky's already scaled.
+func (s Sun) Lamp() Lamp {
+	var l Lamp
+	if d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2]))); d > 0 {
+		l.dir = [3]float32{s.Dir[0] / d, s.Dir[1] / d, s.Dir[2] / d}
 	}
 	sun, sky := white(s.Color), white(s.Sky)
-	var out render.Light
-	for c := range out {
-		out[c] = s.Ambient*sky[c] + direct*sun[c]
+	for c := range l.sun {
+		l.sun[c], l.sky[c] = s.Strength*sun[c], s.Ambient*sky[c]
 	}
-	return out
+	return l
+}
+
+// Lamp is a Sun ready to light surfaces: Shaded as the Sun's, without working the sun out again.
+type Lamp struct {
+	dir      [3]float32
+	sun, sky render.Light
+}
+
+// Shaded is the light on a surface whose normal is (nx, ny, nz), lit of the sun reaching it.
+func (l Lamp) Shaded(nx, ny, nz, lit float32) render.Light {
+	direct := float32(0)
+	if n := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz))); n > 0 {
+		direct = max((nx*l.dir[0]+ny*l.dir[1]+nz*l.dir[2])/n, 0) * lit
+	}
+	return render.Light{l.sky[0] + direct*l.sun[0], l.sky[1] + direct*l.sun[1], l.sky[2] + direct*l.sun[2]}
 }
 
 // Daylight is the sun as a render.Frame needs it for what glints and reflects the sky.

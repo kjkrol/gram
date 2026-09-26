@@ -35,6 +35,8 @@ type Renderer struct {
 	// sun and ground lay the shadows of what stands in a world with heights; nil sun, none
 	sun    func() Sun
 	ground func() Ground
+	// weather is the air what sways bends in, handed to the frame; nil, a calm
+	weather func() Weather
 
 	ids   []uid.UID64
 	bases []Base
@@ -54,8 +56,12 @@ const shadowTier = render.Ground + 20
 // for ever.
 const maxShadowReach = 6
 
-// shadowColor is the veil a shadow lays on the ground at its middle.
-var shadowColor = color.RGBA{A: 110}
+// shadowVeil is how dark a shadow lays on the ground at its middle under a sun of shadowFull: a
+// weaker light — the moon, the sun low at dawn — casts it paler.
+const (
+	shadowVeil = 110
+	shadowFull = 0.6
+)
 
 func (s *Renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
@@ -72,6 +78,9 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	var sun Sun
 	var ground Ground
 	light := render.Light{1, 1, 1}
+	if s.weather != nil {
+		f.Weather(s.weather().Frame())
+	}
 	if s.sun != nil {
 		sun, ground = s.sun(), s.ground()
 		light = sun.Light(0, 0, 1)
@@ -89,7 +98,7 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 		for _, l := range s.layers[i] {
-			look.Sprite(f, cam, box, alt, s.atlas, l.SpriteID, light)
+			look.Sprite(f, cam, box, alt, s.atlas, l.SpriteID, light, l.Sway)
 		}
 	})
 }
@@ -99,8 +108,8 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 // ground it stands, at the depth of its nearest corner.
 func (s *Renderer) shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z Z, sun Sun, ground Ground) {
 	sx, sy, sz := sun.Dir[0], sun.Dir[1], sun.Dir[2]
-	if sz <= 0 {
-		return // the sun is down
+	if sz <= 0 || sun.Strength <= 0 {
+		return // the sun is down, or too faint to cast one
 	}
 	groundAt := func(x, y float32) float32 {
 		if ground == nil {
@@ -131,7 +140,8 @@ func (s *Renderer) shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z Z
 		depth = max(depth, cam.Depth(x, y, g))
 	}
 	fade := half / 2 * cam.Zoom() // a solid core, soft for the outer half of each side
-	f.Soft(shadowTier, depth, dst, shadowColor, render.Fade{Left: fade, Right: fade, Top: fade, Bottom: fade})
+	veil := color.RGBA{A: uint8(shadowVeil * min(sun.Strength/shadowFull, 1))}
+	f.Soft(shadowTier, depth, dst, veil, render.Fade{Left: fade, Right: fade, Top: fade, Bottom: fade})
 }
 
 // each walks the drawn entities of the View, their Drawing behaviors run, calling visit once per

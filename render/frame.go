@@ -17,6 +17,7 @@ const (
 	Ground   Tier = 100 // the tiles and what the ground is made of
 	Objects  Tier = 200 // what stands: entities, tall terrain
 	Overlays Tier = 300 // what lies on the world: routes, sight
+	Air      Tier = 350 // what fills the air before the eye: rain, snow
 	Marks    Tier = 400 // what must always show: the selection, the box being dragged
 )
 
@@ -73,8 +74,11 @@ type Frame struct {
 	lastTier  Tier
 	lastDepth float32
 	lastAtlas AtlasSource
-	// the world's light, set by whoever lights it, for what glints and reflects the sky
+	// the world's light and weather, set by whoever lights it, for what glints, reflects the sky,
+	// lies in the clouds' shadow and sways; the composer's clock
 	daylight Daylight
+	weather  Weather
+	time     float32
 }
 
 // Camera is the camera the frame is drawn through.
@@ -86,8 +90,26 @@ func (f *Frame) Len() int { return f.count }
 // Reset starts the frame over, drawn through cam; a Composer does it every frame.
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
-	f.daylight = Daylight{}
+	f.daylight, f.weather = Daylight{}, Weather{}
 }
+
+// Weather is the air over the world as a frame needs it: the wind, world units a second along x
+// and y, how far it has carried the clouds and how much of the sky they cover, 0 to 1.
+type Weather struct {
+	Wind, Drift [2]float32
+	Clouds      float32
+}
+
+// Weather sets the frame's weather; the source that draws the ground says so, and a frame without
+// it is a calm, clear day.
+func (f *Frame) Weather(w Weather) { f.weather = w }
+
+// Wind is the frame's wind, for what sways in it.
+func (f *Frame) Wind() [2]float32 { return f.weather.Wind }
+
+// Time is the composer's clock, in seconds, for what moves by itself: the waves, the clouds,
+// what sways.
+func (f *Frame) Time() float32 { return f.time }
 
 // Daylight is the world's light as what glints and reflects the sky needs it: the way towards the
 // sun, its strength and colour, the colour of the sky, and the light every surface gets from it.
@@ -242,19 +264,48 @@ func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id Spr
 // corners, and the sky the more the flatter the eye looks at it; near a shore the waves turn to
 // face it and break into foam.
 func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore) {
+	o := overlay{box: [4]float32{x0, y0, x1, y1}, red: [4]float32{shine, shine, shine, shine}, shore: &shore}
+	for k, l := range lit {
+		o.alpha[k] = glintMark + l
+	}
+	f.over(&o)
+}
+
+// Overcast lays over the last sprite added, as Glint does, the shadows of the clouds drifting over
+// the ground of the world box (x0, y0)-(x1, y1). A frame with a clear sky lays nothing.
+func (f *Frame) Overcast(x0, y0, x1, y1 float32) {
+	if f.weather.Clouds <= 0 {
+		return
+	}
+	f.over(&overlay{box: [4]float32{x0, y0, x1, y1}, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}})
+}
+
+// overlay is a quad laid over a sprite for the shader to work out: the sprite's world box, red and
+// alpha at its corners, and the shore, if any, in its customs; green and blue are where each
+// point lies in the world.
+type overlay struct {
+	box        [4]float32
+	red, alpha [4]float32
+	shore      *Shore
+}
+
+// over lays o over each piece of the last sprite added, on its sheet's white texel.
+func (f *Frame) over(o *overlay) {
 	if f.lastAtlas == nil {
 		return
 	}
 	wu, wv := f.lastAtlas.White()
+	x0, y0, x1, y1 := o.box[0], o.box[1], o.box[2], o.box[3]
 	piece := func(first int, u0, v0, u1, v1 float32) {
 		for k, uv := range [4][2]float32{{u0, v0}, {u1, v0}, {u0, v1}, {u1, v1}} {
-			u, v := uv[0], uv[1]
-			c := shore.at(u, v)
-			f.verts = append(f.verts, ebiten.Vertex{
-				DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
-				ColorR: shine, ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*v, ColorA: glintMark + blend(lit, u, v),
-				Custom0: c.X, Custom1: c.Y, Custom2: c.Dist, Custom3: c.Near,
-			})
+			u, w := uv[0], uv[1]
+			v := ebiten.Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
+				ColorR: blend(o.red, u, w), ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*w, ColorA: blend(o.alpha, u, w)}
+			if o.shore != nil {
+				c := o.shore.at(u, w)
+				v.Custom0, v.Custom1, v.Custom2, v.Custom3 = c.X, c.Y, c.Dist, c.Near
+			}
+			f.verts = append(f.verts, v)
 		}
 		f.add(f.lastTier, f.lastDepth, f.lastAtlas, quad, 4)
 	}
@@ -266,6 +317,9 @@ func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore
 		piece(f.lastFirst+4*k, q.T0X, q.T0Y, q.T1X, q.T1Y)
 	}
 }
+
+// overcastMark is the alpha of the clouds' shadows on the ground, above any glint's.
+const overcastMark = 4
 
 // glintMark is what a glint's alpha starts from, telling the shader it is one — no colour's is over
 // 1 — the sun reaching the corner above it.
@@ -294,6 +348,16 @@ func (s Shore) at(u, v float32) ShoreCorner {
 
 // at is the light at (u, v) across the piece, 0 to 1 each way, blended from its corners.
 func (s Shade) at(u, v float32) Light {
+	switch { // a corner is its own light: an unsplit piece needs no blending
+	case u == 0 && v == 0:
+		return s[0]
+	case u == 1 && v == 0:
+		return s[1]
+	case u == 0 && v == 1:
+		return s[2]
+	case u == 1 && v == 1:
+		return s[3]
+	}
 	var l Light
 	for c := range l {
 		l[c] = blend([4]float32{s[0][c], s[1][c], s[2][c], s[3][c]}, u, v)

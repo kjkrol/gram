@@ -20,7 +20,9 @@ func (c *clock) Init(si *goke.SysInit) { c.query = si.NewQueryBuilder(&c.day).Bu
 
 func (c *clock) Report(line func(label, value string)) {
 	for c.query.All(); c.query.Next(); {
-		line("Time of day", hourOf(c.day.Slice(c.query.Cursor())[0]))
+		day := c.day.Slice(c.query.Cursor())[0]
+		line("Time of day", hourOf(day))
+		line("Season", fmt.Sprintf("%s, %s, %s", day.Season(), day.Written(), moonOf(day.Moon())))
 		return
 	}
 }
@@ -37,4 +39,10 @@ func hourOf(d Day) string {
 		s += fmt.Sprintf(" (x%g)", d.Pace)
 	}
 	return s
+}
+
+// moonOf is the moon's phase by name.
+func moonOf(moon float32) string {
+	names := [...]string{"new moon", "waxing crescent", "first quarter", "waxing gibbous", "full moon", "waning gibbous", "last quarter", "waning crescent"}
+	return names[int(moon*8+0.5)%8]
 }

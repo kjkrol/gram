@@ -122,7 +122,10 @@
 // and throws the sun back towards the eye where it faces halfway between them, so the sea twinkles
 // under a high sun; within a few cells of a shore — the nearest cell that does not shine, worked
 // out per corner of a square grid as the terrain changes — the waves face it, roll in and break
-// into foam. A flat world is drawn as its sprites are.
+// into foam. Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
+// and a kind with a Sway — trees, set by an effect when the wind blows — leans its top with the
+// wind ([Tile.Sway]). Snow and ice are kinds an effect puts on a cell, drawn as any other. A flat
+// world is drawn as its sprites are.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

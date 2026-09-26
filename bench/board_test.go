@@ -99,8 +99,9 @@ func Benchmark_Board_Shadows(b *testing.B) {
 }
 
 // Benchmark_Board_Shores composes the whole of a 96x64 board of sea round islands 4 cells a side,
-// every 8 cells, from above: warm, with the shores as they were, and after a cell has changed,
-// every shore worked out anew — what a frame pays when the terrain changes.
+// every 8 cells, from above: warm, with the shores as they were, after a cell has changed, every
+// shore worked out anew — what a frame pays when the terrain changes — and warm under clouds, the
+// weather laid over every tile.
 func Benchmark_Board_Shores(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -139,8 +140,10 @@ func Benchmark_Board_Shores(b *testing.B) {
 	for _, sc := range []struct {
 		name    string
 		changed bool
-	}{{"shores=warm", false}, {"shores=anew", true}} {
+		clouds  float32
+	}{{"shores=warm", false, 0}, {"shores=anew", true, 0}, {"shores=warm,clouds", false, 0.5}} {
 		b.Run(sc.name, func(b *testing.B) {
+			ctx.world.SetWeather(world.Weather{Clouds: sc.clouds})
 			for b.Loop() {
 				if sc.changed {
 					shallows.Cost = 3 - shallows.Cost // the terrain changes: every shore is stale

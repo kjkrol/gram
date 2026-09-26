@@ -27,8 +27,10 @@ type Renderer struct {
 	board   *Board
 	look    func() Look
 	sun     func() world.Sun
-	lighted world.Sun     // the sun of the frame being drawn
-	camera  camera.Camera // the one of the frame being drawn
+	weather func() world.Weather // the air over the world; nil, a calm clear day
+	lighted world.Sun            // the sun of the frame being drawn
+	lamp    world.Lamp           // lighted, ready to light every corner
+	camera  camera.Camera        // the one of the frame being drawn
 	atlas   render.AtlasSource
 	cellW   float64
 	cellH   float64
@@ -81,6 +83,7 @@ type cellTop struct {
 	ground [4]float32
 	alt    float32
 	shine  float32
+	sway   float32
 	sprite render.SpriteID
 	stamp  uint32
 }
@@ -116,7 +119,11 @@ func (l *Renderer) Init(*goke.SysInit) {}
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	l.lighted = l.sun()
+	l.lamp = l.lighted.Lamp()
 	f.Daylight(l.lighted.Daylight())
+	if l.weather != nil {
+		f.Weather(l.weather().Frame())
+	}
 	l.nextSunlit()
 	l.nextShores()
 	look := l.look()
@@ -182,7 +189,7 @@ func (l *Renderer) topOf(c CellID) *cellTop {
 	kind := l.board.kindOf(c)
 	r := l.board.Relief(c)
 	rise := float32(kind.Height)
-	t.alt, t.shine, t.sprite, t.stamp = float32(r.Level()), float32(kind.Shine), kind.SpriteID, l.topStamp
+	t.alt, t.shine, t.sway, t.sprite, t.stamp = float32(r.Level()), float32(kind.Shine), float32(kind.Sway), kind.SpriteID, l.topStamp
 	if l.board.sloped() {
 		t.ground = r.Corners
 	} else {

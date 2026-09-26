@@ -97,6 +97,16 @@
 // ground it stands — a hawk's falls where it flies over — over the ground and under what stands. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
 // game's, or a day going by.
 //
+// # Weather
+//
+// The air over the world is its [Weather] ([Plugin.Weather], [Plugin.SetWeather]): the wind, the
+// clouds and how far the wind has carried them, rain, snow falling and lying — a calm clear day
+// unless something sets another, plugins/climate or a game. The renderers hand it to their frames:
+// the board lays the clouds' shadows over the ground, and whatever sways — an entity whose
+// [Appearance] has a Sway, a board cell whose kind has one — leans with the wind. Snow lying, ice,
+// trees swaying only in a wind are a game's effects (plugins/effects), cast by its behaviours as
+// the weather says: the Temperature, what falls, the wind.
+//
 // # View and EntitySet
 //
 // A [View] is what one pair of eyes sees: a rectangle of the world and the entities the Space finds

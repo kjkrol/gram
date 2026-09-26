@@ -14,11 +14,22 @@ var _ world.Look = billboards{}
 // its centre at its altitude, at the depth of that centre, which ties with the tile it stands on.
 type billboards struct{}
 
-func (billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light) {
+func (billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
 	cx, cy := (x0+x1)/2, (y0+y1)/2
-	f.Sprite(render.Objects, cam.Depth(cx, cy, alt), atlas, id, billboard(cam, cx, cy, alt, x1-x0, y1-y0), render.Lit(light))
+	corners := billboard(cam, cx, cy, alt, x1-x0, y1-y0)
+	if sway > 0 { // its top leans with the wind, as far as it stands high
+		lx, ly := render.Sway(f.Time(), f.Wind(), cx, cy, sway)
+		h := y1 - y0
+		fx, fy := cam.Project(cx, cy, alt)
+		tx, ty := cam.Project(cx+lx*h, cy+ly*h, alt)
+		for k := range 2 {
+			corners[k][0] += tx - fx
+			corners[k][1] += ty - fy
+		}
+	}
+	f.Sprite(render.Objects, cam.Depth(cx, cy, alt), atlas, id, corners, render.Lit(light))
 }
 
 func (billboards) Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners {

@@ -12,7 +12,8 @@ import (
 
 var _ render.Source = (*backdrop)(nil)
 
-// backdrop is the sky behind the world: the viewport filled in the colour of the world's sky,
+// backdrop is the sky behind the world: the viewport filled in the colour of the world's sky, grey
+// as much as the clouds cover it,
 // behind everything, whenever the ground does not cover all of it — beyond the world's edge, above
 // a low view; a view the ground covers draws none.
 type backdrop struct{ world *world.Plugin }
@@ -24,7 +25,7 @@ func (b *backdrop) Compose(f *render.Frame, cam camera.Camera) {
 	if b.covered(cam, w, h) {
 		return
 	}
-	sky := b.world.Sun().Daylight().Sky
+	sky := render.Overcast(b.world.Sun().Daylight().Sky, b.world.Weather().Clouds)
 	c := color.RGBA{A: 255}
 	c.R, c.G, c.B = channel(sky[0]), channel(sky[1]), channel(sky[2])
 	f.Soft(render.Backdrop, float32(math.Inf(-1)), render.Corners{{0, 0}, {w, 0}, {0, h}, {w, h}}, c, render.Fade{})

@@ -298,3 +298,40 @@ func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 		t.Errorf("out at sea a corner sees the shore %+v, want open water", c)
 	}
 }
+
+func TestFlatLook_LaysTheWeatherOnTheGroundAndSwaysWhatSways(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 4, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.quasi3D = true
+	r := flatRenderer(brd, &RenderState{})
+	cam := icamera.NewFromSpace(128, 128, 0)
+	if got := compose(r, cam)[render.Ground]; got != 16 {
+		t.Fatalf("under a clear sky %d pieces, want the 16 tiles alone", got)
+	}
+	air := world.Weather{Clouds: 0.5}
+	r.weather = func() world.Weather { return air }
+	if got := compose(r, cam)[render.Ground]; got != 32 {
+		t.Errorf("under clouds %d pieces, want each tile and the weather over it", got)
+	}
+
+	tree, _ := grid.CellIndex(1, 1)
+	brd.Set(tree, CellKind{Cost: 1, Allows: Land, Height: 8, Sway: 1})
+	at := func() float32 { // where the tree's top is drawn
+		var f render.Frame
+		f.Reset(cam)
+		r.Compose(&f, cam)
+		x := float32(-1)
+		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+			if x < 0 && v[0].DstY > 28 && v[0].DstY < 36 && v[0].DstX > 28 && v[0].DstX < 44 { // cell (1, 1)
+				x = v[0].DstX
+			}
+		})
+		return x
+	}
+	calm := at()
+	air.Wind = [2]float32{40, 0}
+	if blown := at(); blown <= calm {
+		t.Errorf("in an east wind the tree's top is drawn at x %v, in the calm at %v; want it leaning east", blown, calm)
+	}
+}

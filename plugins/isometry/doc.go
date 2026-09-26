@@ -8,7 +8,7 @@
 // its entities as billboards standing upright on their centres at their altitudes, at the depth of
 // that centre, which a render.Composer sorts by; picking and the selection's outline follow, since
 // they ask the world's Look. [Plugin.WithBoard] lays the board's cells as blocks: each top sloped
-// between its corners and raised by its kind's Height, the faces turned towards the viewer where it stands
+// between its corners and raised by its kind's Height, its top leant with the wind if its kind sways, the faces turned towards the viewer where it stands
 // above its neighbour, all lit by the world's sun as the board says, the grid as each top's outline. Make it right after the world, before
 // anything asks for a camera; a world that wraps cannot be seen this way.
 //

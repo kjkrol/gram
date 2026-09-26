@@ -378,3 +378,72 @@ func TestComposer_HandsTheShaderTheFramesDaylightAndTheEye(t *testing.T) {
 		t.Errorf("a frame no one lit hands the shader a sun of strength %v, want 0: nothing glints", c.glint[1])
 	}
 }
+
+func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing.T) {
+	if x, y := Sway(1, [2]float32{}, 5, 5, 1); x != 0 || y != 0 {
+		t.Errorf("in the calm a tree leans %v, %v, want not at all", x, y)
+	}
+	if x, y := Sway(1, [2]float32{30, 0}, 5, 5, 0); x != 0 || y != 0 {
+		t.Errorf("what does not sway leans %v, %v", x, y)
+	}
+	breeze, _ := Sway(1, [2]float32{10, 0}, 5, 5, 1)
+	gale, across := Sway(1, [2]float32{50, 0}, 5, 5, 1)
+	if breeze <= 0 || gale <= breeze || across != 0 {
+		t.Errorf("an east wind leans a tree %v in a breeze, %v across and %v in a gale; want east, further in the gale", breeze, across, gale)
+	}
+	a, _ := Sway(0, [2]float32{30, 0}, 0, 0, 1)
+	b, _ := Sway(0.7, [2]float32{30, 0}, 0, 0, 1)
+	if a == b {
+		t.Error("a tree in the wind stands still: want it rocking")
+	}
+}
+
+func TestFrame_OvercastMarksTheGroundWithTheWorldOnlyUnderClouds(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Tile(Ground, 3, sheet{}, 0, dst, Even(1))
+	f.Overcast(100, 200, 132, 232)
+	if f.Len() != 1 {
+		t.Fatalf("under a clear sky the ground got %d pieces, want the tile alone", f.Len())
+	}
+	f.Weather(Weather{Clouds: 0.5})
+	f.Overcast(100, 200, 132, 232)
+	if f.Len() != 2 {
+		t.Fatalf("under clouds %d pieces, want the tile and the clouds' shadow over it", f.Len())
+	}
+	v := f.verts[4:]
+	for k, want := range [4][3]float32{{100, 200, 4}, {132, 200, 4}, {100, 232, 4}, {132, 232, 4}} {
+		if got := [3]float32{v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
+			t.Errorf("overcast corner %d is %v, want where it lies and the mark 4: %v", k, got, want)
+		}
+	}
+}
+
+func TestComposer_HandsTheShaderTheWeatherAndTheFrameItsTime(t *testing.T) {
+	var at float32
+	c := NewComposer(items(func(f *Frame) {
+		f.Weather(Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6})
+		at = f.Time()
+	}))
+	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
+	c.compose(topDown())
+	c.render(nil)
+	if c.wind[1] != 4 || c.drift[0] != 10 || c.weather[0] != 0.6 {
+		t.Errorf("the shader is handed wind %v, drift %v, weather %v; want the frame's", c.wind, c.drift, c.weather)
+	}
+	if at != c.frame.time || c.glint[0] != at {
+		t.Errorf("the sources saw time %v and the shader %v, want the one clock", at, c.glint[0])
+	}
+}
+
+func TestOvercast_GreysTheSkyTheMoreItIsCovered(t *testing.T) {
+	blue := Light{0.5, 0.72, 0.98}
+	if Overcast(blue, 0) != blue {
+		t.Errorf("a clear sky is %v, want it as it is", Overcast(blue, 0))
+	}
+	half, full := Overcast(blue, 0.5), Overcast(blue, 1)
+	if !(full[2]-full[0] < half[2]-half[0] && half[2]-half[0] < blue[2]-blue[0]) {
+		t.Errorf("the sky goes %v, %v, %v as clouds cover it; want it greyer each time", blue, half, full)
+	}
+}

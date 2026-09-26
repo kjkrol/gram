@@ -73,7 +73,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 
 	var f render.Frame
 	f.Reset(cam)
-	look.Sprite(&f, cam, box, 6, sheet{}, 0, render.Light{1, 1, 1})
+	look.Sprite(&f, cam, box, 6, sheet{}, 0, render.Light{1, 1, 1}, 0)
 	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
 		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
 			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))
@@ -214,3 +214,55 @@ func TestBlocks_TurnedShowTheFacesTurnedTowardsTheViewer(t *testing.T) {
 }
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+
+func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
+	w := newWorld(0)
+	p := isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	p.WithBoard(b)
+	b.WithRenderer(sheet{})
+	b.Res.Render.ShowGridLines = false
+	tree, _ := grid.CellIndex(1, 1)
+	b.Res.Logic.Board.Set(tree, board.CellKind{Cost: 1, Allows: board.Land, Height: 8, Sway: 1})
+	cam := w.Camera()
+	cam.CenterOn(48, 48, 0)
+	top := func() (float32, float32) { // where the tree top's corner (32, 32) is drawn
+		tx, ty := cam.Project(32, 32, 8)
+		var f render.Frame
+		f.Reset(cam)
+		b.Renderer().(render.Source).Compose(&f, cam)
+		bx, by := float32(math.NaN()), float32(math.NaN())
+		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+			if math.Abs(float64(v[0].DstX-tx)) < 6 && math.Abs(float64(v[0].DstY-ty)) < 6 {
+				bx, by = v[0].DstX, v[0].DstY
+			}
+		})
+		return bx, by
+	}
+	cx, cy := top()
+	tx, ty := cam.Project(32, 32, 8)
+	if !near(cx, tx) || !near(cy, ty) {
+		t.Fatalf("in the calm the tree's top is drawn at (%v, %v), want it upright at (%v, %v)", cx, cy, tx, ty)
+	}
+	w.SetWeather(world.Weather{Wind: [2]float32{40, 0}})
+	if wx, wy := top(); near(wx, cx) && near(wy, cy) {
+		t.Error("in a wind of 40 the tree's top stands where it did in the calm")
+	}
+
+	look := w.Look()
+	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
+	edge := func(sway float32) float32 {
+		var f render.Frame
+		f.Reset(cam)
+		f.Weather(render.Weather{Wind: [2]float32{40, 0}})
+		look.Sprite(&f, cam, box, 0, sheet{}, 0, render.Light{1, 1, 1}, sway)
+		var x float32
+		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX - v[2].DstX })
+		return x
+	}
+	if still, swaying := edge(0), edge(1); still != 0 || swaying == 0 {
+		t.Errorf("a billboard's top edge stands %v off its foot unswaying, %v swaying; want upright and leaning", still, swaying)
+	}
+}
