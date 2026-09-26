@@ -115,13 +115,32 @@ ripples standing in the water carried down with the current, rougher the faster 
 of foam riding it so the way it runs shows whatever the sun, a sheen of the sky that follows the
 ripples, and white water from `whiteFrom` to `whiteFull`: a rapid, a waterfall off a cliff.
 A `board.Way` across a cell — a brook, a river — is drawn over its tile the same way
-(`board.Tile.DrawWay`): bands from the middle of the cell out to halfway to each neighbour it runs on
-to, a square where it turns, each projected corner by corner at the height of the ground under it,
+(`board.Tile.DrawWay`): out to halfway to each neighbour it runs on to, the two ways out to the
+widest neighbours as one band curving round the middle of the cell (a quadratic curve through the
+middles of the sides, so it runs on smoothly into the next cell) and any other curving in to join
+it, each piece projected corner by corner at the height of the ground under it — a way with a
+`Fade` drawn with `SpriteBlend` down to nothing, its water with it (`Frame.Stream` over a blended
+sprite takes its weight in `Custom2` and its mark in `Custom3`), running on level ground the way it
+fades —
 on a tier just over the tiles (`Ground+5`) — and the last stretch of a band running slantwise,
 which reaches into the cells either side of the corner, at the depth of the nearest of the four
 cells meeting there, as a piece lying across cells takes the depth of its nearest end —
 its clouds' shadows laid with `Frame.OvercastAt` and its water with `Frame.Stream`, running down the
 band.
+
+Two kinds of ground meet along a line, not along the edges of their cells. `Frame.SpriteBlend(…,
+weight, soft)` draws a sprite with a weight in each corner's alpha and 10 plus how soft in
+`Custom3`; the shader shows it where the weight, blended across the quad, is over a half, fading in
+over `soft` either side. The board (`board.Tile.Blends`) lays, over each quarter of a tile, every
+neighbouring kind that has a `Spread`, weighed at the tile's corners (the share of the four cells
+meeting there that are of it), the middles of its sides (of the two) and its middle (none): the
+weights at a point are the same from every tile, so the line runs on from tile to tile — a
+staircase of cells becomes a slant, a cell alone a rounded diamond. A cloud's shadow laid over such
+a piece (`Frame.OvercastAt`) takes its weight and fade from the sprite under it, so what shows
+through is not shaded twice. Water keeps its glint by lying under: a tile of a kind that spreads
+next to a `CellKind.Under` kind is drawn as that kind (`Tile.Base`), glint and all, and its own
+kind laid over it weighed by the share of cells not under; the water's tile has the land round it
+laid over it the same way, in the sprite most of it is.
 
 The weather is drawn the same way (`Frame.Weather`, which the board and the world set from
 `world.Weather`). `Frame.Overcast(box)` after a tile lays a quad over it — only under clouds —

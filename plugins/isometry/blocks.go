@@ -49,9 +49,9 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	}
 	corners := sloped(cam, x0+dx, y0+dy, x1+dx, y1+dy, top)
 	if t.Outlined {
-		f.Tile(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
+		f.Tile(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
 	} else {
-		f.Sprite(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
+		f.Sprite(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
 	}
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
@@ -61,6 +61,7 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 		}
 	}
+	t.DrawBlends(f, cam, depth)
 	t.DrawWay(f, cam, depth)
 }
 

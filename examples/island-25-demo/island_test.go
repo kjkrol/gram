@@ -155,7 +155,9 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 		walk[e.Cell] = true
 	}
 	for _, w := range layout.Ways {
-		walk[w.Cell] = w.Kind != "river"
+		if _, land := walk[w.Cell]; land {
+			walk[w.Cell] = w.Kind != "river"
+		}
 	}
 	seen := map[board.CellID]bool{stops[0]: true}
 	queue := []board.CellID{stops[0]}
@@ -215,5 +217,32 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 	brook, stream, river := width["brook"]/float32(count["brook"]), width["stream"]/float32(count["stream"]), width["river"]/float32(count["river"])
 	if brook >= stream || stream >= river {
 		t.Errorf("brooks run %v wide, streams %v, rivers %v; want each wider than the last", brook, stream, river)
+	}
+}
+
+// Every river reaching the sea runs on out into it: its mouth out at sea is estuary, only over the
+// sea, wider and more faded than the river where it leaves the land.
+func TestIslandLayout_RiversRunOnOutIntoTheSea(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	layout, _ := islandLayout(grid)
+	land := map[board.CellID]bool{}
+	for _, e := range layout.Cells {
+		land[e.Cell] = true
+	}
+	estuaries := 0
+	for _, w := range layout.Ways {
+		if w.Kind != "estuary" {
+			if w.Fade != 0 {
+				t.Errorf("a %s ashore at %v faded %v", w.Kind, w.Cell, w.Fade)
+			}
+			continue
+		}
+		estuaries++
+		if land[w.Cell] || w.Fade <= 0 || w.Fade >= 1 {
+			t.Errorf("estuary at %v: ashore %v, faded %v; want out at sea, fading", w.Cell, land[w.Cell], w.Fade)
+		}
+	}
+	if estuaries < 5 {
+		t.Errorf("%d cells of estuary, want the rivers running out to sea", estuaries)
 	}
 }

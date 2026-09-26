@@ -365,7 +365,13 @@ shows how much of it is boilerplate vs. real behavior.
   is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), laid as a `board.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
-  cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`; a unit's
+  cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
+  (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
+  tile's corners, side middles and middle by the share of the cells meeting there, shown where the
+  weight is over a half — one line across the tiles, not the cells' edges; a `CellKind.Under` kind
+  (water) is drawn as the tile's base (`Tile.Base`) under its neighbours, glint and all, the land
+  laid over it the same way. Ways curve round the cell's middle; a way's `Fade` has it fade out
+  (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`); a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and

@@ -36,6 +36,14 @@ type CellKind struct {
 	// Shine is how much of the sun the cell's surface throws back at whoever looks at it, 0 to 1:
 	// water, ice, wet rock glint where the sun and the eye meet over its ripples.
 	Shine float64
+	// Spread is how softly the kind runs into a neighbour of another kind that spreads too, 0 to a
+	// half: the two meet along a line their cells draw, not along the cells' edges, blending over
+	// the mean of their Spreads either side of it; 0 keeps the kind's cells square. See Tile.Blends.
+	Spread float64
+	// Under has the kind lie under the kinds round it — water: a tile that spreads next to it is
+	// drawn as it, glinting and all, and its own kind laid over along the line the cells draw, so a
+	// coast runs round and not in teeth. See Tile.Base.
+	Under bool
 	// Flow is how fast the water on the cell runs down its slope: world units a second where it
 	// falls 1 in 1, by the square root of the slope; 0 is still water, a sea or a lake. Drawn on a
 	// square grid, whose cells slope; a hex cell is level and its water still.

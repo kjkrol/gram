@@ -189,6 +189,21 @@ func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID,
 	f.add(tier, depth, atlas, quad, 4)
 }
 
+// SpriteBlend draws sprite id over dst where weight, blended between its corners, is over a half,
+// fading in over soft either side of it (0 to a half): the look of one ground running into another
+// along the line the corners' weights draw, not along the edges of the quad.
+func (f *Frame) SpriteBlend(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32, soft float32) {
+	f.Sprite(tier, depth, atlas, id, dst, shade)
+	v := f.verts[len(f.verts)-4:]
+	for i := range v {
+		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
+	}
+}
+
+// blendMark is what a blended sprite's last custom starts from, over any fade's, how soft its
+// edge is above it.
+const blendMark = 10
+
 // Tile is Sprite outlined along its four edges, half a pixel inside each: tiles side by side show a
 // grid a pixel wide at no cost of its own.
 func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
@@ -274,7 +289,7 @@ func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore
 // Stream lays over the last sprite added, whose corners lie at world in the world, water running
 // at flow: ripples carried down with the current, foaming white where it runs fast — a rapid, a
 // waterfall. It throws the sun and the sky back as Glint's water does and has no shore to roll in
-// on.
+// on; over a sprite drawn with SpriteBlend it shows only where the sprite does.
 func (f *Frame) Stream(world World, shine float32, lit [4]float32, flow Flow) {
 	o := overlay{world: world, red: [4]float32{shine, shine, shine, shine}, flow: &flow}
 	for k, l := range lit {
@@ -298,12 +313,14 @@ type Flow [4][2]float32
 // the ground of the world box (x0, y0)-(x1, y1). A frame with a clear sky lays nothing.
 func (f *Frame) Overcast(x0, y0, x1, y1 float32) { f.OvercastAt(box(x0, y0, x1, y1)) }
 
-// OvercastAt is Overcast over the last sprite added, whose corners lie at world in the world.
+// OvercastAt is Overcast over the last sprite added, whose corners lie at world in the world. The
+// shadow is as faint and fades as the sprite does (SpriteSoft), so a sprite laid over another is
+// never shaded twice.
 func (f *Frame) OvercastAt(world World) {
 	if f.weather.Clouds <= 0 {
 		return
 	}
-	f.over(&overlay{world: world, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}})
+	f.over(&overlay{world: world, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}, under: true})
 }
 
 // overlay is a quad laid over a sprite for the shader to work out: where the sprite's corners lie
@@ -314,6 +331,7 @@ type overlay struct {
 	red, alpha [4]float32
 	shore      *Shore
 	flow       *Flow
+	under      bool // as faint as the sprite under it, fading as it does
 }
 
 // over lays o over each piece of the last sprite added, on its sheet's white texel.
@@ -333,9 +351,17 @@ func (f *Frame) over(o *overlay) {
 				c := o.shore.at(u, w)
 				v.Custom0, v.Custom1, v.Custom2, v.Custom3 = c.X, c.Y, c.Dist, c.Near
 			}
+			if o.under {
+				s := f.verts[first+k]
+				v.ColorR, v.Custom0, v.Custom1, v.Custom2, v.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
+			}
 			if fl := o.flow; fl != nil {
 				v.Custom0 = blend([4]float32{fl[0][0], fl[1][0], fl[2][0], fl[3][0]}, u, w)
 				v.Custom1 = blend([4]float32{fl[0][1], fl[1][1], fl[2][1], fl[3][1]}, u, w)
+				// over a blended sprite the water shows only where the sprite does
+				if s := f.verts[first+k]; s.Custom3 > blendMark-4.5 {
+					v.Custom2, v.Custom3 = s.ColorA, s.Custom3
+				}
 			}
 			f.verts = append(f.verts, v)
 		}
@@ -447,6 +473,18 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it.
 func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade Fade) {
 	col := premultiplied(c)
+	customs := fadeCustoms(dst, fade)
+	for i, p := range dst {
+		v := vertex(p[0], p[1], 0, 0, col)
+		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[i][0], customs[i][1], customs[i][2], customs[i][3]
+		f.verts = append(f.verts, v)
+	}
+	f.add(tier, depth, nil, quad, 4)
+}
+
+// fadeCustoms is what each corner of dst holds for the shader to fade the quad out towards the
+// sides fade names — left, right, top, bottom — over so many pixels each.
+func fadeCustoms(dst Corners, fade Fade) [4][4]float32 {
 	// the distance from each corner across to the opposite side, along the quad's edges
 	across := func(a, b [2]float32) float32 {
 		return float32(math.Hypot(float64(b[0]-a[0]), float64(b[1]-a[1])))
@@ -462,16 +500,12 @@ func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade F
 		}
 		return 1 + dist/w
 	}
-	for i, p := range dst {
-		v := vertex(p[0], p[1], 0, 0, col)
+	var out [4][4]float32
+	for i := range dst {
 		left, top := i%2 == 0, i < 2
-		v.Custom0 = side(fade.Left, width[i], left)
-		v.Custom1 = side(fade.Right, width[i], !left)
-		v.Custom2 = side(fade.Top, height[i], top)
-		v.Custom3 = side(fade.Bottom, height[i], !top)
-		f.verts = append(f.verts, v)
+		out[i] = [4]float32{side(fade.Left, width[i], left), side(fade.Right, width[i], !left), side(fade.Top, height[i], top), side(fade.Bottom, height[i], !top)}
 	}
-	f.add(tier, depth, nil, quad, 4)
+	return out
 }
 
 // ProjectCorners is the four corners of the world box (x0, y0)-(x1, y1) at height z through cam.

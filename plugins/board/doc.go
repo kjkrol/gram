@@ -43,10 +43,14 @@
 // the cell and what it costs there ([Way.Over]; [Board.Kind] is the ground as whoever crosses it
 // meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
 // [Board.SetWay] read and write it, [Layout.Ways] seeds it. The renderer draws it over its tile
-// ([Tile.Way], [Tile.DrawWay]): a band out to halfway to each neighbour, as wide as the way at the
-// middle and as the mean of the two ways at the far end, and a square joining the bands where it
-// turns; a way of a kind that shines is water running down its band, the Flow by the square root
-// of the band's fall. Ways lie on a tier of their own just over the tiles, so from above no tile
+// ([Tile.Way], [Tile.DrawWay]): each way out ends halfway to its neighbour, as wide as the mean of
+// the two ways there; the two out to the widest neighbours are one band curving round the cell's
+// middle, any other joins it curving in, so where two cells meet both curves run along the line
+// between their middles and a winding stream bends smoothly; a way out to one neighbour alone ends
+// square across itself. A way of a kind that shines is water running down its band, the Flow by
+// the square root of the band's fall. A way's Fade has it show the less the further it has faded
+// (render.Frame.SpriteBlend, the water over it too), down to nothing where it ends, and on level
+// ground its water runs on the way it fades: a river running out into the sea. Ways lie on a tier of their own just over the tiles, so from above no tile
 // covers one; a band running on slantwise reaches into the two cells either side of the corner it
 // runs through, so its last stretch is a piece of its own at the depth of the nearest of the four
 // cells meeting there, and none of their tiles covers it in a view that sorts.
@@ -161,7 +165,16 @@
 // relief by plugins/board/water and laid as ways (see Ways). Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
 // and a kind with a Sway — trees, set by an effect when the wind blows — leans its top with the
 // wind ([Tile.Sway]). Snow and ice are kinds an effect puts on a cell, drawn as any other. A flat
-// world is drawn as its sprites are, save that its slopes are shaded.
+// world is drawn as its sprites are, save that its slopes are shaded. Kinds with a Spread run into
+// each other along a line their cells draw, not along the cells' edges ([Tile.Blends], drawn by
+// [Tile.DrawBlends] with render.Frame.SpriteBlend): over each quarter of a tile a neighbour's kind
+// is weighed at the quarter's corners by the share of the cells meeting there that are of it and
+// shown where the weight is over a half, fading in over the mean of the two Spreads; the weights at
+// a corner or a side are the same from every tile, so the line runs on without a seam, a staircase
+// of cells turning into a slant and a cell alone into a rounded diamond. A kind Under the others —
+// water — keeps its glint: a tile that spreads next to it is drawn as it ([Tile.Base]) and its own
+// kind laid over it by the share of cells not under, and the water's tile has the land round it
+// laid over it the same way, so a coast runs round instead of in teeth.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

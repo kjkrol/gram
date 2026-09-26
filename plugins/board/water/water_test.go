@@ -199,3 +199,45 @@ func TestNetwork_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 		t.Error("a dry cell links on or has a width")
 	}
 }
+
+// A course reaching the sea runs on out into it, the way of its last step, each cell wider and more
+// faded than the last, linked on from cell to cell; none without a Plume.
+func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
+	grid, heights, sea := valley()
+	plume := cfg
+	plume.Plume = 0.5
+	n, _ := water.Drain(grid, heights, sea, plume)
+	var mouths []board.CellID
+	for c, k := range n.Courses {
+		if k == water.Mouth {
+			mouths = append(mouths, c)
+			if !sea(c) {
+				t.Errorf("a mouth at %v, ashore", c)
+			}
+		}
+	}
+	if len(mouths) < 2 {
+		t.Fatalf("%d cells of mouth out at sea, want the river running on out", len(mouths))
+	}
+	for _, c := range mouths {
+		up := board.CellID(0)
+		for m, k := range n.Courses {
+			if k != water.Dry && n.Down[m] == c {
+				up = m
+			}
+		}
+		if n.Width(c, size) < n.Width(up, size) || n.Fade(c) <= n.Fade(up) {
+			t.Errorf("mouth %v: %v wide, faded %v; the cell before it %v wide, faded %v — want it wider and more faded",
+				c, n.Width(c, size), n.Fade(c), n.Width(up, size), n.Fade(up))
+		}
+		if l, _ := board.Link(grid, c, up); n.Links(grid, c)&l == 0 {
+			t.Errorf("mouth %v does not link back to %v", c, up)
+		}
+	}
+	n, _ = water.Drain(grid, heights, sea, cfg)
+	for _, k := range n.Courses {
+		if k == water.Mouth {
+			t.Fatal("a mouth out at sea with no Plume")
+		}
+	}
+}

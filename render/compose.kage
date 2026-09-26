@@ -24,24 +24,44 @@ var Weather vec4
 // A glint's vertex (alpha over 1.5) holds its shine in red, where it lies in the world in green and
 // blue, 2 plus how much of the sun reaches it in alpha and its shore in custom: the sky it reflects
 // and the surf's foam are laid over the tile under it, the sun it throws back added.
-// The clouds' shadow on the ground (alpha over 3.5) holds where it lies in green and blue: it
-// darkens the tile under it as much as the clouds over it take of the sun.
+// The clouds' shadow on the ground (alpha over 3.5) holds where it lies in green and blue, and in
+// red and custom how faint the sprite under it is and how it fades or blends: it darkens that
+// sprite as much as the clouds over it take of the sun.
+// A blended sprite (the last custom over 5.5, 10 plus how soft) holds its weight in alpha: it shows
+// where the weight is over a half.
 // Running water (alpha over 4.5) is a glint whose alpha starts from 5 and whose custom holds how
-// fast it runs, along x and y: carried ripples and white water instead of a shore's swell.
+// fast it runs, along x and y — and over a blended sprite that sprite's weight and softness in z
+// and w: carried ripples and white water instead of a shore's swell.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	if color.a > 4.5 {
 		shine, lit := color.r, color.a-5
 		s := stream(color.gb, custom.xy)
-		return water(shine, lit*(1-clouds(color.gb)), s)
+		c := water(shine, lit*(1-clouds(color.gb)), s)
+		if custom.w > 5.5 {
+			// over a blended sprite: only where it shows
+			c *= smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), custom.z)
+		}
+		return c
 	}
 	if color.a > 3.5 {
-		shadow := cloudDark * clouds(color.gb) * clamp(Glint.y*1.4, 0, 1)
+		under := mix(vec4(1), smoothstep(0, 1, clamp(custom-1, 0, 1)), step(0.5, custom))
+		weight := color.r * under.x * under.y * under.z * under.w
+		if custom.w > 5.5 {
+			weight = smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), color.r)
+		}
+		shadow := cloudDark * clouds(color.gb) * clamp(Glint.y*1.4, 0, 1) * weight
 		return vec4(0, 0, 0, shadow)
 	}
 	if color.a > 1.5 {
 		shine, lit := color.r, color.a-2
 		s := sea(color.gb, custom)
 		return water(shine, lit*(1-clouds(color.gb)), s)
+	}
+	if custom.w > 5.5 {
+		// a blended sprite: shown where its weight is over a half, fading in round it
+		a := smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), color.a)
+		c := imageSrc0At(src)
+		return vec4(c.rgb*color.rgb*a, c.a*a)
 	}
 	faded := step(0.5, custom)
 	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))

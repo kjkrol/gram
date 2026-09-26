@@ -24,12 +24,23 @@ type WayPiece struct {
 	Flow   render.Flow
 	Across bool
 	Corner [2]float32
+	// Weight is how much of the way shows at each corner, 1 all of it: a way fading out is drawn
+	// blended (render.Frame.SpriteBlend) down to nothing.
+	Weight [4]float32
+	Faded  bool
 }
 
-// Way is the tile's Way cut into the pieces it is drawn in: from the middle of the cell a band out
-// to halfway to each neighbour it runs on to, its own Width at the middle and at the far end the
-// mean of its and the neighbour's, so a widening river has no steps; and where it turns, a square
-// joining the bands. Good until the next call; nothing where no way runs.
+// Way is the tile's Way cut into the pieces it is drawn in. Each way out ends halfway to the
+// neighbour it runs on to, as wide there as the mean of the two ways; the two out to the widest
+// neighbours are one band curving from the one end to the other round the cell's middle, and any
+// other joins it curving in to its middle, so a winding stream bends smoothly from cell to cell:
+// where two cells meet, both curves run straight along the line between their middles. A way out
+// to one neighbour alone runs straight to the middle and ends square across itself. A band
+// running on slantwise leaves the cell for the two either side the last stretch before the corner,
+// as long as it is half wide: those pieces are Across it. A way fading out shows the less the more
+// it has faded, the ends of a band as much as the mean of the two ways there, and where it runs
+// level its water runs on the way it fades: a river running out into the sea. Good until the next
+// call; nothing where no way runs.
 func (t *Tile) Way() []WayPiece {
 	r := t.r
 	top := r.topOf(t.ID)
@@ -44,85 +55,145 @@ func (t *Tile) Way() []WayPiece {
 	if r.board.quasi3D {
 		shine = float32(w.Kind.Shine)
 	}
+	ground := func(x, y float32) float32 {
+		return float32(r.board.GroundAt(geom.NewVec(float64(x), float64(y))))
+	}
 	piece := func(world render.World) WayPiece {
 		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine}
 		for k, at := range world {
 			u, v := (at[0]-t.X0)/(t.X1-t.X0), (at[1]-t.Y0)/(t.Y1-t.Y0)
-			p.Z[k] = float32(r.board.GroundAt(geom.NewVec(float64(at[0]), float64(at[1]))))
+			p.Z[k] = ground(at[0], at[1])
 			p.Light[k] = mixLight(light, u, v)
 			p.Lit[k] = mix4(lit, u, v)
 		}
 		return p
 	}
-	bands := 0
-	var out, run [2]float32 // the ways out, summed to tell a line from a bend; the water's runs
+	h := w.Width / 2
+	var outs [8]wayOut
+	n := 0
 	for i := range 8 {
 		if w.Links&(1<<i) == 0 {
 			continue
 		}
-		n, ok := Toward(r.board, t.ID, i)
+		nb, ok := Toward(r.board, t.ID, i)
 		if !ok {
 			continue
 		}
-		ex, ey := t.toward(n, i)
-		ex, ey = cx+ex, cy+ey
-		ax, ay := ex-cx, ey-cy
-		length := float32(math.Hypot(float64(ax), float64(ay)))
-		if length == 0 {
-			continue
+		ex, ey := t.toward(nb, i)
+		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, slant: r.board.square != nil && i >= 4}
+		if other := r.topOf(nb).way; other.Runs() {
+			o.half, o.wide, o.fade = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2
 		}
-		ax, ay = ax/length, ay/length
-		px, py := -ay, ax
-		near, far := w.Width/2, w.Width/2
-		if o := r.topOf(n).way; o.Runs() {
-			far = (w.Width + o.Width) / 4
-		}
-		// the water runs down the band, as fast as the Flow by the square root of its fall
-		var flow render.Flow
-		fall := (float32(r.board.GroundAt(geom.NewVec(float64(cx), float64(cy)))) - float32(r.board.GroundAt(geom.NewVec(float64(ex), float64(ey))))) / length
-		if w.Kind.Flow > 0 && fall != 0 {
-			speed := float32(w.Kind.Flow) * float32(math.Sqrt(math.Abs(float64(fall))))
-			if fall < 0 {
-				speed = -speed
-			}
-			for k := range flow {
-				flow[k] = [2]float32{ax * speed, ay * speed}
-			}
-			run[0], run[1] = run[0]+ax*speed, run[1]+ay*speed
-		}
-		band := func(sx, sy, from, tx, ty, to float32) WayPiece {
-			p := piece(render.World{{sx + px*from, sy + py*from}, {tx + px*to, ty + py*to}, {sx - px*from, sy - py*from}, {tx - px*to, ty - py*to}})
-			p.Flow = flow
-			return p
-		}
-		// a band running on slantwise leaves the cell for the two either side the last stretch
-		// before the corner, as long as it is half wide: that stretch is a piece of its own
-		if cut := min(max(near, far), length); r.board.square != nil && i >= 4 && cut > 0 {
-			mx, my := ex-ax*cut, ey-ay*cut
-			mid := near + (far-near)*(1-cut/length)
-			r.ways = append(r.ways, band(cx, cy, near, mx, my, mid))
-			p := band(mx, my, mid, ex, ey, far)
-			p.Across, p.Corner = true, [2]float32{ex, ey}
-			r.ways = append(r.ways, p)
-		} else {
-			r.ways = append(r.ways, band(cx, cy, near, ex, ey, far))
-		}
-		bands++
-		out[0], out[1] = out[0]+ax, out[1]+ay
+		outs[n], n = o, n+1
 	}
-	// a band straight through needs nothing more; anything else is joined by a square
-	if bands != 2 || math.Hypot(float64(out[0]), float64(out[1])) > 1e-3 {
-		h := w.Width / 2
-		p := piece(render.World{{cx - h, cy - h}, {cx + h, cy - h}, {cx - h, cy + h}, {cx + h, cy + h}})
-		if bands > 0 {
-			for k := range p.Flow {
-				p.Flow[k] = [2]float32{run[0] / float32(bands), run[1] / float32(bands)}
+	// band lays the curve from a round (mx, my) to b, half wide at its ends as they say and h at
+	// its middle, in steps pieces, the water running down it from the higher end
+	band := func(a, b wayOut, mx, my float32, steps int) {
+		at := func(u float32) (x, y, tx, ty, half, shows float32) {
+			v := 1 - u
+			x = v*v*a.x + 2*u*v*mx + u*u*b.x
+			y = v*v*a.y + 2*u*v*my + u*u*b.y
+			tx, ty = 2*v*(mx-a.x)+2*u*(b.x-mx), 2*v*(my-a.y)+2*u*(b.y-my)
+			if l := float32(math.Hypot(float64(tx), float64(ty))); l > 0 {
+				tx, ty = tx/l, ty/l
+			}
+			return x, y, tx, ty, v*v*a.half + 2*u*v*h + u*u*b.half, 1 - (v*v*a.fade + 2*u*v*w.Fade + u*u*b.fade)
+		}
+		length := float32(math.Hypot(float64(a.x-mx), float64(a.y-my)) + math.Hypot(float64(b.x-mx), float64(b.y-my)))
+		speed := float32(0)
+		if length > 0 && w.Kind.Flow > 0 {
+			fall := (ground(a.x, a.y) - ground(b.x, b.y)) / length
+			// level water runs on the way the way fades: out into the sea
+			if math.Abs(float64(fall)) < stillFall && a.fade != b.fade {
+				fall = stillFall
+				if b.fade < a.fade {
+					fall = -stillFall
+				}
+			}
+			if fall != 0 {
+				speed = float32(w.Kind.Flow) * float32(math.Sqrt(math.Abs(float64(fall))))
+				if fall < 0 {
+					speed = -speed
+				}
 			}
 		}
+		x0, y0, tx0, ty0, h0, s0 := at(0)
+		for k := 1; k <= steps; k++ {
+			x1, y1, tx1, ty1, h1, s1 := at(float32(k) / float32(steps))
+			p := piece(render.World{{x0 - ty0*h0, y0 + tx0*h0}, {x1 - ty1*h1, y1 + tx1*h1}, {x0 + ty0*h0, y0 - tx0*h0}, {x1 + ty1*h1, y1 - tx1*h1}})
+			p.Flow = render.Flow{{tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}, {tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}}
+			p.Weight, p.Faded = [4]float32{s0, s1, s0, s1}, s0 < 1 || s1 < 1
+			// the stretch by a corner a band runs slantwise through reaches into the cells either side
+			near := func(e wayOut) bool {
+				return e.slant && min(math.Hypot(float64(x0-e.x), float64(y0-e.y)), math.Hypot(float64(x1-e.x), float64(y1-e.y))) < float64(e.half)
+			}
+			switch {
+			case near(a):
+				p.Across, p.Corner = true, [2]float32{a.x, a.y}
+			case near(b):
+				p.Across, p.Corner = true, [2]float32{b.x, b.y}
+			}
+			r.ways = append(r.ways, p)
+			x0, y0, tx0, ty0, h0, s0 = x1, y1, tx1, ty1, h1, s1
+		}
+	}
+	switch n {
+	case 0:
+		p := piece(render.World{{cx - h, cy - h}, {cx + h, cy - h}, {cx - h, cy + h}, {cx + h, cy + h}})
+		p.Weight, p.Faded = [4]float32{1 - w.Fade, 1 - w.Fade, 1 - w.Fade, 1 - w.Fade}, w.Fade > 0
 		r.ways = append(r.ways, p)
+	case 1:
+		// straight out to the one neighbour, from square across itself behind the middle
+		o := outs[0]
+		ax, ay := o.x-cx, o.y-cy
+		l := float32(math.Hypot(float64(ax), float64(ay)))
+		back := wayOut{x: cx - ax/l*h, y: cy - ay/l*h, half: h, fade: w.Fade}
+		if w.Fade > 0 {
+			back.fade = 1 // a way fading out ends in nothing
+		}
+		mid := wayOut{x: cx, y: cy, half: h, fade: w.Fade}
+		// round a point on the line, the curve runs straight
+		band(back, mid, (back.x+mid.x)/2, (back.y+mid.y)/2, 1)
+		band(mid, o, (mid.x+o.x)/2, (mid.y+o.y)/2, 4)
+	default:
+		// the stem: the ways out to the two widest neighbours; any other joins it halfway
+		a, b := 0, 1
+		if outs[b].wide > outs[a].wide {
+			a, b = b, a
+		}
+		for i := 2; i < n; i++ {
+			switch {
+			case outs[i].wide > outs[a].wide:
+				a, b = i, a
+			case outs[i].wide > outs[b].wide:
+				b = i
+			}
+		}
+		band(outs[a], outs[b], cx, cy, 6)
+		// the middle of the stem's curve, where the others join it
+		jx := 0.25*outs[a].x + 0.5*cx + 0.25*outs[b].x
+		jy := 0.25*outs[a].y + 0.5*cy + 0.25*outs[b].y
+		for i := range n {
+			if i == a || i == b {
+				continue
+			}
+			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade}, cx, cy, 4)
+		}
 	}
 	return r.ways
 }
+
+// wayOut is one way out of a way's cell: where it ends, halfway to its neighbour, how half wide it
+// is there and how faded, how wide the neighbour's way is, and whether it runs slantwise through a
+// corner.
+type wayOut struct {
+	x, y, half, fade, wide float32
+	slant                  bool
+}
+
+// stillFall is the fall, rise over run, under which water lies level: there a way's water runs on
+// the way it fades, as if it fell so much.
+const stillFall = 0.01
 
 // toward is the way from the middle of the tile to halfway to its neighbour n, the grid's i-th
 // direction.
@@ -155,7 +226,11 @@ func (t *Tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 				d = max(d, cam.Depth(x, y, float32(t.r.board.GroundAt(geom.NewVec(float64(x), float64(y))))))
 			}
 		}
-		f.Sprite(wayTier, d, t.Atlas, p.Sprite, corners, p.Light)
+		if p.Faded {
+			f.SpriteBlend(wayTier, d, t.Atlas, p.Sprite, corners, p.Light, p.Weight, 0.5)
+		} else {
+			f.Sprite(wayTier, d, t.Atlas, p.Sprite, corners, p.Light)
+		}
 		f.OvercastAt(p.World)
 		if p.Shine > 0 {
 			f.Stream(p.World, p.Shine, p.Lit, p.Flow)

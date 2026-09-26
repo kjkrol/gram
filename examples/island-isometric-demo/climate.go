@@ -68,7 +68,7 @@ func (s *mainStage) defineClimate() {
 		kinds.Create(k) // the same ground to cross and stand on, another look
 		c.snowy[board.Named(name)], _ = kinds.Get("snowy " + name)
 	}
-	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 2, Allows: board.Land | board.Air, Shine: 0.3}.Costing(board.Air, 1))
+	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 2, Under: true, Allows: board.Land | board.Air, Shine: 0.3}.Costing(board.Air, 1))
 	c.frozen, _ = kinds.Get("ice")
 
 	c.snow = s.effects.Define("snow", effects.Spec{effects.Alter(func(g *board.Ground) {

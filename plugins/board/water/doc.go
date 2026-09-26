@@ -18,7 +18,10 @@
 // A course runs down to where its water goes and up to every course draining into it; it is the
 // wider the more water it gathers, by the square root of it, a cell wide at most. A walker never
 // slips between two cells of a river meeting at a corner: the board's planner keeps a step
-// across a corner to cells it may enter on both sides.
+// across a corner to cells it may enter on both sides. A course reaching the sea runs on out into
+// it ([Config.Plume] cells by the square root of its water, the way of its last step): a [Mouth]
+// on each cell of the sea, wider than the last and more faded ([Network.Fade]), the biggest
+// course's first where two would take the same sea.
 //
 // # Carving
 //

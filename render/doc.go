@@ -41,7 +41,9 @@
 // turned to face a [Shore] near one, and the sky reflected the flatter the eye looks: water.
 // [Frame.Stream] lays running water instead over a piece of any shape ([World]), its [Flow] at each
 // corner: ripples and flecks of foam carried down with the current, white water where it runs
-// fast; [Frame.OvercastAt] lays the clouds' shadows over such a piece.
+// fast; [Frame.OvercastAt] lays the clouds' shadows over such a piece, as faint as the sprite under
+// it. [Frame.SpriteBlend] draws a sprite only where a weight blended between its corners is over a
+// half: one ground running into another along a line, not along the edges of a quad.
 // [Frame.Overcast] lays the clouds' shadows of the frame's weather ([Frame.Weather]) over the
 // ground, and [Sway] is how far what sways in the frame's wind leans at its time ([Frame.Time]). [ProjectCorners] projects a world box at a height
 // through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.

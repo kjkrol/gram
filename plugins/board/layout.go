@@ -12,12 +12,14 @@ type Layout struct {
 	Heights func(p geom.Vec) float64
 }
 
-// WayEntry lays a Way of the CellKind named Kind across Cell, Width wide, running on as Links says.
+// WayEntry lays a Way of the CellKind named Kind across Cell, Width wide, running on as Links says,
+// faded out as far as Fade.
 type WayEntry struct {
 	Kind  string
 	Cell  CellID
 	Width float32
 	Links Links
+	Fade  float32
 }
 
 // CellEntry sets Cell to the CellKind named Kind.

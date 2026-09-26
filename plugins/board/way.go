@@ -5,11 +5,13 @@ import "fmt"
 // Way is what runs across a cell over its ground — a stream, a river, a road: a band Width wide
 // from the cell's middle out towards each neighbour its Links name. Its Kind decides who may cross
 // the cell and what it costs there, and how the band looks; the ground keeps the rest — whether it
-// is solid, what it veils. The zero Way is none.
+// is solid, what it veils. Fade is how far it has faded out across the cell, 0 not at all to 1
+// gone: a river running out into the sea. The zero Way is none.
 type Way struct {
 	Kind  CellKind
 	Width float32
 	Links Links
+	Fade  float32
 }
 
 // Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction — on a square

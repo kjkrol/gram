@@ -403,6 +403,46 @@ func TestFrame_AStreamAndItsShadowFollowTheCornersOfASlantedBand(t *testing.T) {
 	}
 }
 
+// A blended sprite carries its corners' weights and how soft it is, and a cloud's shadow over it
+// carries them too, so what lies under it is not shaded twice.
+func TestFrame_ABlendedSpriteAndItsShadowCarryItsWeights(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	f.Weather(Weather{Clouds: 0.5})
+	dst := Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}
+	weight := [4]float32{0, 0.5, 0.25, 1}
+	f.SpriteBlend(Ground, 0, sheet{}, 0, dst, Even(1), weight, 0.2)
+	f.OvercastAt(World{{0, 0}, {8, 0}, {0, 10}, {8, 10}})
+	v := f.verts
+	if len(v) != 8 {
+		t.Fatalf("%d vertices, want the sprite's and its shadow's", len(v))
+	}
+	for k, w := range weight {
+		if v[k].ColorA != w || math.Abs(float64(v[k].Custom3-10.2)) > 1e-6 || v[k].ColorR != 1 {
+			t.Errorf("sprite corner %d: weight %v, mark %v, red %v; want %v, 10.2 and its light", k, v[k].ColorA, v[k].Custom3, v[k].ColorR, w)
+		}
+		if s := v[4+k]; s.ColorR != w || s.Custom3 != v[k].Custom3 || s.ColorA != 4 {
+			t.Errorf("shadow corner %d: weight %v, mark %v, alpha %v; want the sprite's", k, s.ColorR, s.Custom3, s.ColorA)
+		}
+	}
+}
+
+// Running water over a blended sprite carries the sprite's weights and softness, so it shows only
+// where the sprite does.
+func TestFrame_AStreamOverABlendedSpriteCarriesItsWeights(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	weight := [4]float32{1, 0.5, 1, 0}
+	f.SpriteBlend(Ground, 0, sheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}, Even(1), weight, 0.5)
+	f.Stream(World{{0, 0}, {8, 0}, {0, 10}, {8, 10}}, 1, [4]float32{1, 1, 1, 1}, Flow{{3, 0}, {3, 0}, {3, 0}, {3, 0}})
+	v := f.verts[4:]
+	for k, w := range weight {
+		if v[k].Custom0 != 3 || v[k].Custom2 != w || v[k].Custom3 != 10.5 {
+			t.Errorf("corner %d runs at %v with weight %v, mark %v; want 3, %v and 10.5", k, v[k].Custom0, v[k].Custom2, v[k].Custom3, w)
+		}
+	}
+}
+
 func TestFrame_AStreamFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)

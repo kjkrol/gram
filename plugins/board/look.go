@@ -30,6 +30,11 @@ type Tile struct {
 // Sprite is the sprite of the cell's kind.
 func (t *Tile) Sprite() render.SpriteID { return t.r.topOf(t.ID).sprite }
 
+// Base is the sprite the tile's top is drawn in first: its own kind's, or the kind Under it where
+// the tile spreads and touches one — the sea by a coast — its own kind then laid over it by
+// DrawBlends along the line the cells draw.
+func (t *Tile) Base() render.SpriteID { return t.r.base(t.ID).sprite }
+
 // Top is the height of the tile's corners — top-left, top-right, bottom-left, bottom-right — with
 // its kind standing on them, and its ground level.
 func (t *Tile) Top() (corners [4]float32, level float32) {
@@ -94,7 +99,7 @@ func (t *Tile) Light() render.Shade {
 // its corners, none at night; false where the tile does not shine at all: a kind without shine, a
 // flat world. A Look hands them to [render.Frame.Glint] after the top's sprite.
 func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
-	shine = t.r.topOf(t.ID).shine
+	shine = t.r.base(t.ID).shine
 	if shine <= 0 || !t.r.board.quasi3D {
 		return 0, lit, false
 	}
@@ -108,7 +113,7 @@ func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
 func (t *Tile) Flow() (render.Flow, bool) {
 	r := t.r
 	sq := r.board.square
-	if sq == nil || r.topOf(t.ID).flow <= 0 {
+	if sq == nil || r.base(t.ID).flow <= 0 {
 		return render.Flow{}, false
 	}
 	x, y := sq.cellXY(t.ID)
@@ -217,9 +222,9 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 		x0, y0, x1, y1 = x0+lx*rise, y0+ly*rise, x1+lx*rise, y1+ly*rise
 	}
 	if t.Outlined {
-		f.TileRect(render.Ground, 0, t.Atlas, t.Sprite(), x0, y0, x1, y1, t.Light())
+		f.TileRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	} else {
-		f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), x0, y0, x1, y1, t.Light())
+		f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	}
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
@@ -229,5 +234,6 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 		}
 	}
+	t.DrawBlends(f, cam, 0)
 	t.DrawWay(f, cam, 0)
 }

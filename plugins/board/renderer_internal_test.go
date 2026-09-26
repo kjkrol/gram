@@ -230,9 +230,18 @@ func wayPieces(t *testing.T, brd *Board, w, h uint32) map[CellID][]WayPiece {
 	return got
 }
 
-// A stream straight across a cell is two bands from its middle to its sides, as wide as it is at
-// the middle and as the mean of it and its neighbour at the side, the water running down both.
-func TestTile_AWayIsBandsFromTheMiddleToEachNeighbourItRunsOnTo(t *testing.T) {
+// mid is the middle of a piece's k-th end: 0 where it starts, 1 where it ends.
+func mid(p WayPiece, k int) [2]float32 {
+	return [2]float32{(p.World[k][0] + p.World[k+2][0]) / 2, (p.World[k][1] + p.World[k+2][1]) / 2}
+}
+
+func near2(a, b [2]float32) bool {
+	return math.Abs(float64(a[0]-b[0])) < 1e-4 && math.Abs(float64(a[1]-b[1])) < 1e-4
+}
+
+// A stream straight across a cell is one band from side to side, as wide at each side as the mean
+// of it and its neighbour there, the water running down it.
+func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	grid := DefaultGrids{}.Square(3, 3, 10)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.quasi3D = true
@@ -245,25 +254,25 @@ func TestTile_AWayIsBandsFromTheMiddleToEachNeighbourItRunsOnTo(t *testing.T) {
 	brd.SetWay(at(0, 1), Way{Kind: stream, Width: 8, Links: east})
 
 	pieces := wayPieces(t, brd, 30, 30)[at(1, 1)]
-	if len(pieces) != 2 {
-		t.Fatalf("%d pieces, want the two bands and no square: the way runs straight", len(pieces))
+	if len(pieces) != 6 {
+		t.Fatalf("%d pieces, want the one band in 6", len(pieces))
 	}
-	want := map[float32]render.World{
-		20: {{15, 17}, {20, 17}, {15, 13}, {20, 13}}, // east: its own width at the far end, no way beyond
-		10: {{15, 13}, {10, 12}, {15, 17}, {10, 18}}, // west: the mean of 4 and 8 at the side
+	first, last := pieces[0], pieces[len(pieces)-1]
+	if first.World[0] != [2]float32{10, 18} || first.World[2] != [2]float32{10, 12} {
+		t.Errorf("the band starts %v–%v, want 6 wide on the west side: the mean of 4 and 8", first.World[0], first.World[2])
+	}
+	if !near2(last.World[1], [2]float32{20, 17}) || !near2(last.World[3], [2]float32{20, 13}) {
+		t.Errorf("the band ends %v–%v, want 4 wide on the east side", last.World[1], last.World[3])
 	}
 	speed := float32(10 * math.Sqrt(0.5))
 	for _, p := range pieces {
-		if w, ok := want[p.World[1][0]]; !ok || p.World != w {
-			t.Errorf("band %v, want one of %v", p.World, want)
+		for k, f := range p.Flow {
+			if math.Abs(float64(f[0]-speed)) > 1e-4 || math.Abs(float64(f[1])) > 1e-4 {
+				t.Errorf("piece from %v corner %d runs at %v, want %v eastward, down the slope", mid(p, 0), k, f, speed)
+			}
 		}
 		if z := p.Z[0]; math.Abs(float64(z-(20-0.5*p.World[0][0]))) > 1e-4 {
 			t.Errorf("band corner at %v stands at %v, want on the ground", p.World[0], z)
-		}
-		for k, f := range p.Flow {
-			if math.Abs(float64(f[0]-speed)) > 1e-4 || f[1] != 0 {
-				t.Errorf("band %v corner %d runs at %v, want %v eastward, down the slope", p.World[1], k, f, speed)
-			}
 		}
 	}
 	if len(wayPieces(t, brd, 30, 30)[at(2, 2)]) != 0 {
@@ -271,31 +280,188 @@ func TestTile_AWayIsBandsFromTheMiddleToEachNeighbourItRunsOnTo(t *testing.T) {
 	}
 }
 
-// A way running on slantwise reaches the corner the two cells share: within the cell as a band,
-// the last stretch, which reaches into the cells either side, as a piece across the corner. One that
-// ends in the cell gets a square at its middle.
-func TestTile_AWayRunsSlantwiseToTheCornerAndEndsInASquare(t *testing.T) {
+// A way turning in a cell curves round its middle from side to side, running along the line
+// between the middles of the cells at each side.
+func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	c, _ := grid.CellIndex(1, 1)
+	brd.SetWay(c, Way{Kind: CellKind{Allows: Land}, Width: 4, Links: 1<<2 | 1<<1}) // west and south
+	pieces := wayPieces(t, brd, 30, 30)[c]
+	if len(pieces) != 6 {
+		t.Fatalf("%d pieces, want the curve in 6", len(pieces))
+	}
+	if s, e := mid(pieces[0], 0), mid(pieces[5], 1); !near2(s, [2]float32{10, 15}) && !near2(s, [2]float32{15, 20}) ||
+		!near2(e, [2]float32{10, 15}) && !near2(e, [2]float32{15, 20}) || near2(s, e) {
+		t.Errorf("the curve runs from %v to %v, want from the west side's middle to the south's", s, e)
+	}
+	if m := mid(pieces[2], 1); !near2(m, [2]float32{13.75, 16.25}) {
+		t.Errorf("halfway the curve is at %v, want (13.75, 16.25): round the middle", m)
+	}
+	// at each side the band stands square across the line between the cells' middles
+	for _, across := range [][2][2]float32{{pieces[0].World[0], pieces[0].World[2]}, {pieces[5].World[1], pieces[5].World[3]}} {
+		if dx, dy := across[0][0]-across[1][0], across[0][1]-across[1][1]; math.Abs(float64(dx)) > 1e-4 && math.Abs(float64(dy)) > 1e-4 {
+			t.Errorf("at the side the band lies across from %v to %v, at a slant", across[0], across[1])
+		}
+	}
+}
+
+// A way fading out shows the less the further it has faded, the ends of a band as much as the
+// mean of the two ways there, down to nothing where it ends; on level ground its water runs on the
+// way it fades.
+func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 1, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.quasi3D = true
+	brd.SetAll(CellKind{Cost: 1, Allows: Water})
+	at := func(x uint32) CellID { c, _ := grid.CellIndex(x, 0); return c }
+	river := CellKind{Allows: Water, Shine: 1, Flow: 40}
+	west, east := Links(1<<2), Links(1<<3)
+	brd.SetWay(at(0), Way{Kind: river, Width: 4, Links: east})
+	brd.SetWay(at(1), Way{Kind: river, Width: 4, Links: west | east, Fade: 0.5})
+	brd.SetWay(at(2), Way{Kind: river, Width: 4, Links: west, Fade: 0.75})
+	pieces := wayPieces(t, brd, 40, 10)
+
+	mid := pieces[at(1)]
+	if w0, w1 := mid[0].Weight[0], mid[len(mid)-1].Weight[1]; !mid[0].Faded || math.Abs(float64(w0-0.75)) > 1e-5 || math.Abs(float64(w1-0.375)) > 1e-5 {
+		t.Errorf("the band shows %v at its west end and %v at its east, faded %v; want 0.75 and 0.375", w0, w1, mid[0].Faded)
+	}
+	speed := float32(40 * 0.1)
+	for _, p := range mid {
+		if f := p.Flow[0]; math.Abs(float64(f[0]-speed)) > 1e-4 {
+			t.Errorf("level water runs at %v, want %v eastward, the way it fades", f, speed)
+		}
+	}
+	end := pieces[at(2)]
+	if w := end[0].Weight[0]; w != 0 {
+		t.Errorf("the end of the way shows %v at its tip, want nothing", w)
+	}
+	if pieces[at(0)][0].Faded {
+		t.Error("a way not fading is drawn faded")
+	}
+}
+
+// A way running on slantwise to its one neighbour runs straight to the corner the two share, the
+// stretch reaching into the cells either side of it across the corner, and ends square across
+// itself half as far behind the middle as it is wide.
+func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
 	grid := DefaultGrids{}.Square(3, 3, 10)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
 	c, _ := grid.CellIndex(1, 1)
 	brd.SetWay(c, Way{Kind: CellKind{Allows: Land}, Width: 2, Links: 1 << 7}) // south-east
 	pieces := wayPieces(t, brd, 30, 30)[c]
-	if len(pieces) != 3 {
-		t.Fatalf("%d pieces, want the band, the stretch across the corner and the square", len(pieces))
+	if len(pieces) != 5 {
+		t.Fatalf("%d pieces, want its end and the band in 4", len(pieces))
 	}
-	for _, at := range pieces[0].World {
-		if at[0] < 10 || at[0] > 20 || at[1] < 10 || at[1] > 20 || pieces[0].Across {
-			t.Errorf("the band within the cell reaches %v, out of it", at)
+	d := float32(1 / math.Sqrt2)
+	if b, m := mid(pieces[0], 0), mid(pieces[0], 1); !near2(b, [2]float32{15 - d, 15 - d}) || !near2(m, [2]float32{15, 15}) {
+		t.Errorf("the end runs from %v to %v, want from 1 behind the middle, slantwise, to the middle", b, m)
+	}
+	last := pieces[4]
+	if !near2(mid(last, 1), [2]float32{20, 20}) || !last.Across || last.Corner != [2]float32{20, 20} {
+		t.Errorf("the band ends at %v, across %v at %v; want across the corner (20, 20)", mid(last, 1), last.Across, last.Corner)
+	}
+	for _, p := range pieces[:3] {
+		for _, at := range p.World {
+			if at[0] < 10 || at[0] > 20 || at[1] < 10 || at[1] > 20 || p.Across {
+				t.Errorf("a piece within the cell reaches %v, out of it", at)
+			}
 		}
 	}
-	across := pieces[1]
-	end := [2]float32{(across.World[1][0] + across.World[3][0]) / 2, (across.World[1][1] + across.World[3][1]) / 2}
-	if !across.Across || across.Corner != [2]float32{20, 20} || math.Abs(float64(end[0]-20)) > 1e-4 || math.Abs(float64(end[1]-20)) > 1e-4 {
-		t.Errorf("the last stretch ends at %v, across %v at %v; want across the corner (20, 20)", end, across.Across, across.Corner)
+}
+
+// A neighbour of another kind that spreads runs into the tile over the quarters it touches, weighed
+// by the share of the cells at each point that are of it; a cell alone is weighed so that only a
+// diamond of it shows; nothing blends with a kind that keeps its cells square, nor with one standing
+// over its ground.
+func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.quasi3D = true
+	earth := CellKind{Allows: Land, Spread: 0.2, SpriteID: 1}
+	sand := CellKind{Allows: Land, Spread: 0.4, SpriteID: 2}
+	brd.SetAll(earth)
+	at := func(x, y uint32) CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(2, 1), sand)
+	blends := func() map[CellID][]BlendPiece {
+		got := map[CellID][]BlendPiece{}
+		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got[t.ID] = append([]BlendPiece(nil), t.Blends()...) })
+		r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+		compose(r, icamera.NewFromSpace(30, 30, 0))
+		return got
 	}
-	if sq := pieces[2].World; sq != (render.World{{14, 14}, {16, 14}, {14, 16}, {16, 16}}) {
-		t.Errorf("the square is %v, want 2 wide round the middle", sq)
+	got := blends()
+	pieces := got[at(1, 1)]
+	if len(pieces) != 2 {
+		t.Fatalf("%d quarters, want the two by the sand: %+v", len(pieces), pieces)
+	}
+	want := map[render.World][4]float32{
+		{{15, 10}, {20, 10}, {15, 15}, {20, 15}}: {0, 0.25, 0, 0.5},
+		{{15, 15}, {20, 15}, {15, 20}, {20, 20}}: {0, 0.5, 0, 0.25},
+	}
+	for _, p := range pieces {
+		if w, ok := want[p.World]; !ok || p.Weight != w || p.Sprite != sand.SpriteID || math.Abs(float64(p.Soft-0.3)) > 1e-6 {
+			t.Errorf("quarter %v weighs %v, sprite %v, soft %v; want %v of the sand, 0.3 soft", p.World, p.Weight, p.Sprite, p.Soft, w)
+		}
+	}
+	// the sand cell alone: the earth round it weighs three quarters at its corners, a half at its
+	// sides, none at its middle — a diamond of sand shows
+	var corner [4]float32
+	for _, p := range got[at(2, 1)] {
+		if p.World[0] == [2]float32{20, 10} {
+			corner = p.Weight
+		}
+	}
+	if corner != [4]float32{0.75, 0.5, 0.5, 0} {
+		t.Errorf("the earth over the sand's top-left quarter weighs %v, want 0.75 at the corner, 0.5 at the sides, 0 at the middle", corner)
+	}
+
+	brd.Set(at(2, 1), CellKind{Allows: Water, SpriteID: 3}) // the sea keeps its cells square
+	if n := len(blends()[at(1, 1)]); n != 0 {
+		t.Errorf("%d quarters blend with the sea, want none", n)
+	}
+}
+
+// By a coast the land tile is drawn as the sea under it and its own kind laid over it by the share
+// of land round it; the sea tile has that land laid over it the same way, so the coast runs round.
+func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	earth := CellKind{Allows: Land, Spread: 0.25, SpriteID: 1}
+	sea := CellKind{Allows: Water, Under: true, SpriteID: 4}
+	brd.SetAll(earth)
+	at := func(x, y uint32) CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(0, 1), sea)
+	bases, blends := map[CellID]render.SpriteID{}, map[CellID][]BlendPiece{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) {
+		bases[t.ID], blends[t.ID] = t.Base(), append([]BlendPiece(nil), t.Blends()...)
+	})
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+	compose(r, icamera.NewFromSpace(30, 30, 0))
+
+	if bases[at(1, 1)] != sea.SpriteID || bases[at(2, 1)] != earth.SpriteID {
+		t.Errorf("bases %v by the sea, %v away from it; want the sea and the earth", bases[at(1, 1)], bases[at(2, 1)])
+	}
+	var nw [4]float32
+	for _, p := range blends[at(1, 1)] {
+		if p.Sprite == earth.SpriteID && p.World[0] == [2]float32{10, 10} {
+			nw = p.Weight
+		}
+	}
+	if len(blends[at(1, 1)]) != 4 || nw != [4]float32{0.75, 1, 0.5, 1} {
+		t.Errorf("the land tile lays %d quarters of its earth, the north-west weighing %v; want 4, 0.75 at the corner by the sea, 0.5 at its side, 1 inland",
+			len(blends[at(1, 1)]), nw)
+	}
+	var ne [4]float32
+	for _, p := range blends[at(0, 1)] {
+		if p.Sprite == earth.SpriteID && p.World[0] == [2]float32{5, 10} {
+			ne = p.Weight
+		}
+	}
+	if ne != [4]float32{0.5, 0.75, 0, 0.5} {
+		t.Errorf("the sea's north-east quarter weighs the earth %v, want 0.5 at its sides, 0.75 at the corner, none at its middle", ne)
 	}
 }
 

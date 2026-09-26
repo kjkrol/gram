@@ -120,6 +120,25 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   halfway to each neighbour it runs on to, the width eased between cells, and a square where it
   turns; `Tile.DrawWay` draws them over the tile, as water running down the band where the kind
   shines.
+- Kinds blend: `CellKind.Spread` has two kinds that both spread meet along a line their cells
+  draw, not along the cells' edges. `board.Tile.Blends` weighs each neighbouring kind at a tile's
+  corners, the middles of its sides and its middle by the share of the cells meeting there, and
+  `render.Frame.SpriteBlend` shows it where the weight is over a half, fading in over the mean of
+  the Spreads: a staircase of cells becomes a slant, a cell alone a rounded diamond. A cloud's
+  shadow (`Frame.OvercastAt`) is as faint as the sprite under it. `CellKind.Under` has a kind —
+  water — lie under the others: a tile next to it is drawn as it, glint and all (`Tile.Base`), its
+  own kind laid over by the share of cells not under, and the water's tile has the land round it
+  laid over it, so a coast runs round. The islands' earth, sand and rock blend, over the sea and
+  ice under them.
+- A way curves: the two ways out of a cell to its widest neighbours are one band round the cell's
+  middle, any other joins it curving in, so a winding stream bends smoothly from cell to cell; a
+  way out to one neighbour alone ends square across itself.
+- Rivers run out into the sea. `Way.Fade` (and `WayEntry.Fade`) has a way show the less the
+  further it has faded, down to nothing where it ends, its water running on level ground the way
+  it fades; `Frame.Stream` over a blended sprite shows only where it does. `water.Config.Plume`
+  runs a course reaching the sea on out into it, a `water.Mouth` on each cell, wider and more
+  faded (`Network.Fade`). The islands' rivers and streams run on into lighter, muddy estuary
+  water, carried out on their current until it fades into the sea.
 - `render.World`, where each corner of a piece lies in the world: `Frame.Stream` and the new
   `Frame.OvercastAt` lay over a quad of any shape.
 - `plugins/board/water` drains a relief to the sea: `water.Drain(grid, heights, sea, Config)`
