@@ -35,7 +35,8 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
   sloped and shaded tiles, picking where entities are drawn, `island-isometric-demo`. Without it
   everything is drawn from above.
 - Light: a world with heights is lit by `world.Sun`; the board lights every tile per corner from
-  the slope of the ground, smoothly across tiles, in either view — a map in relief from above.
+  the slope of the ground, smoothly across tiles, in either view — a map in relief from above —
+  and the terrain casts shadows away from the sun.
 - One composer per view: the world of a scene is a `render.Composer` over the plugins' `Source`s,
   pieces on tiers with gaps (`Ground`, `Objects`, `Overlays`, `Marks`) and depths; through an
   isometric camera a hill hides the routes and cones behind it, the selection stays on top; one

@@ -144,6 +144,22 @@ the sweep halves the angle to find the edge, so the cost follows the length of t
 outline in view, not how much terrain there is or how many pieces it is in.
 
 
+## Shadows — `Benchmark_Board_Shadows`
+
+The board's renderer composing the whole of a 96×64 board of hills 4 cells a side and 20 high, from
+above, under a sun low in the west (0.3 up): warm, the shadows kept from the frame before, and after
+the sun has moved, every shadow worked out anew. Measured on 2026-09-26, three runs.
+
+| Shadows | Frame composed |
+|:--|--:|
+| kept | 1.59 ms |
+| worked out anew | 3.78 ms |
+
+A corner's shadow is a walk towards the sun a quarter cell at a time over the tops of the cells as
+the frame read them, stopped as soon as the line to the sun is above the highest top within 16
+cells of the view — two or three steps under a high sun. The first version sought every sample's
+cell and ground in the ECS and walked the whole 16 cells: 59.5 ms anew.
+
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
 * **The world tick is the space rebuild plus a walk.** Moving 5,000 entities and handing the space

@@ -173,6 +173,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   same light, and `DefaultSun` keeps their old look. A flat world is drawn as its sprites are.
 - `island-25-demo`: the island of island-isometric-demo, the same Quasi3D world, drawn from above —
   a map in relief under the sun, sight with heights; island-demo stays the flat 2D island.
+- The terrain casts shadows: a tile corner the ground or what stands on it hides from the sun gets
+  the ambient light alone (`Sun.Shaded`), a face as much sun as its top's edge. Worked out as cells
+  come into sight — a walk towards the sun over the frame's tops, stopped above the highest top
+  within 16 cells — and kept until the terrain or the sun changes: a 96x64 board anew in 2.2 ms,
+  nothing on a frame after. `board.Plugin.WithShadows(false)` turns them off.
 - `render.Shade`, a brightness per corner, blended across a piece: `Frame.Sprite`, `Tile`,
   `SpriteRect`, `SpriteRectUV` and `TileRect` take one (`render.Even(1)` draws a sprite as it is).
 

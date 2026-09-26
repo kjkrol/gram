@@ -18,12 +18,16 @@ var DefaultSun = Sun{Dir: [3]float32{0.522, 0.282, 0.805}, Strength: 0.708, Ambi
 
 // Light is how bright the sun makes a surface whose normal is (nx, ny, nz): Ambient, and Strength
 // by how square on the surface faces the sun; none of it from behind.
-func (s Sun) Light(nx, ny, nz float32) float32 {
+func (s Sun) Light(nx, ny, nz float32) float32 { return s.Shaded(nx, ny, nz, 1) }
+
+// Shaded is Light where only lit of the sun, 0 to 1, reaches the surface: the rest is in shadow
+// and gets the Ambient alone.
+func (s Sun) Shaded(nx, ny, nz, lit float32) float32 {
 	n := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
 	d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2])))
 	if n == 0 || d == 0 {
 		return s.Ambient
 	}
 	facing := (nx*s.Dir[0] + ny*s.Dir[1] + nz*s.Dir[2]) / (n * d)
-	return s.Ambient + s.Strength*max(facing, 0)
+	return s.Ambient + s.Strength*max(facing, 0)*lit
 }

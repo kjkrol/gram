@@ -86,7 +86,7 @@
 //
 // A world with heights is lit by its [Sun] ([Plugin.Sun]): a direction towards it, a strength and
 // the ambient light every surface gets anyway; [Sun.Light] is how bright it makes a surface of a
-// given normal. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
+// given normal, [Sun.Shaded] the same with only part of the sun reaching it — the rest in shadow. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
 // game's, or a day going by.
 //
 // # View and EntitySet

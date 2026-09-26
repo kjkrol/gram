@@ -74,22 +74,45 @@ func (t *Tile) Light() render.Shade {
 		return (own1 - own0) / step
 	}
 	sun := r.lighted
-	corner := func(dx, dy float32) float32 { return sun.Light(-dx, -dy, 1) }
+	lit := t.sunlit()
+	corner := func(k int, dx, dy float32) float32 { return sun.Shaded(-dx, -dy, 1, lit[k]) }
 	return render.Shade{
-		corner(slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
-		corner(slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
-		corner(slope(g[3], left[2], true, lok, g[2], g[3], w), slope(down[2], g[0], dok, true, g[0], g[2], h)),
-		corner(slope(right[3], g[2], rok, true, g[2], g[3], w), slope(down[3], g[1], dok, true, g[1], g[3], h)),
+		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
+		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
+		corner(2, slope(g[3], left[2], true, lok, g[2], g[3], w), slope(down[2], g[0], dok, true, g[0], g[2], h)),
+		corner(3, slope(right[3], g[2], rok, true, g[2], g[3], w), slope(down[3], g[1], dok, true, g[1], g[3], h)),
 	}
 }
 
+// sunlit is how much sun reaches each corner of the tile's top: all of it where the board casts no
+// shadows.
+func (t *Tile) sunlit() [4]float32 {
+	r := t.r
+	if !r.shadows || !r.board.sloped() {
+		return [4]float32{1, 1, 1, 1}
+	}
+	return r.sunlitOf(t.ID, t.X0, t.Y0, t.X1, t.Y1)
+}
+
 // FaceLight is how brightly the world's sun lights an upright face of the tile looking dx, dy
-// cells away: towards a neighbour it stands above.
+// cells away — towards a neighbour it stands above — as much in the sun as the top's edge over it.
 func (t *Tile) FaceLight(dx, dy int) float32 {
 	if !t.r.board.quasi3D {
 		return 1
 	}
-	return t.r.lighted.Light(float32(dx), float32(dy), 0)
+	lit := t.sunlit()
+	var edge float32
+	switch {
+	case dx > 0:
+		edge = (lit[1] + lit[3]) / 2
+	case dx < 0:
+		edge = (lit[0] + lit[2]) / 2
+	case dy > 0:
+		edge = (lit[2] + lit[3]) / 2
+	default:
+		edge = (lit[0] + lit[1]) / 2
+	}
+	return t.r.lighted.Shaded(float32(dx), float32(dy), 0, edge)
 }
 
 // groundBeside is the ground's corners of the cell dx, dy cells away; false off the board.

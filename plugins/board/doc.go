@@ -113,7 +113,11 @@
 // as a block with faces. In a world with heights the tile is lit by the world's sun ([Tile.Light]:
 // per corner, from the slope of the ground there and at the neighbours', so a slope runs on
 // without a seam; [Tile.FaceLight] for an upright face), from above as through any other look — a
-// map in relief. A flat world is drawn as its sprites are.
+// map in relief. The terrain casts shadows too: a corner the ground or what stands on it hides from
+// the sun, walked towards it up to 16 cells, gets the ambient light alone, and a face as much sun as
+// the top's edge over it. The shadows are worked out as cells come into sight and kept until the
+// terrain or the sun changes; [Plugin.WithShadows] turns them off. A flat world is drawn as its
+// sprites are.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

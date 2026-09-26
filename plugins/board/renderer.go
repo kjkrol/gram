@@ -2,6 +2,7 @@ package board
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -40,6 +41,26 @@ type Renderer struct {
 	// tops holds by ordinal what a Compose has read of a cell, good while its stamp is topStamp.
 	tops     []cellTop
 	topStamp uint32
+	// sunlit holds by ordinal how much sun reaches each corner of a cell's top, good while its
+	// stamp is sunStamp: as long as neither the terrain nor the sun changes.
+	shadows  bool
+	sunlit   []cellSunlit
+	sunStamp uint32
+	sunFor   sunKey
+	highest  float32 // the highest top a shadow may come from, measured when the shadows go stale
+	stale    bool    // the shadows went stale this frame: highest is still to be measured
+}
+
+// cellSunlit is how much of the sun reaches each corner of a cell's top, 0 to 1.
+type cellSunlit struct {
+	corners [4]float32
+	stamp   uint32
+}
+
+// sunKey is what the shadows depend on: the terrain as it stands and the sun.
+type sunKey struct {
+	version uint64
+	sun     world.Sun
 }
 
 // cellTop is a cell as one Compose reads it once: its corners with its kind standing on them, the
@@ -70,7 +91,7 @@ const gridTier = render.Ground + 10
 
 func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, look func() Look, sun func() world.Sun) *Renderer {
 	w, h := board.CellBounds()
-	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, look: look, sun: sun}
+	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, look: look, sun: sun, shadows: true}
 	r.tile.r, r.tile.Atlas = r, atlas
 	return r
 }
@@ -83,6 +104,7 @@ func (l *Renderer) Init(*goke.SysInit) {}
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	l.lighted = l.sun()
+	l.nextSunlit()
 	look := l.look()
 	grid := l.gridShown()
 	square := l.board.square != nil
@@ -191,4 +213,108 @@ func (l *Renderer) eachVisible(fn func(c CellID)) {
 			fn(c)
 		}
 	}
+}
+
+// nextSunlit starts a Compose: when the terrain or the sun has changed since the last one, every
+// shadow is worked out anew as it comes into sight.
+func (l *Renderer) nextSunlit() {
+	key := sunKey{version: l.board.Version(), sun: l.lighted}
+	if n := l.board.CellCount(); len(l.sunlit) != n {
+		l.sunlit, l.sunStamp = make([]cellSunlit, n), 0
+	} else if key == l.sunFor && l.sunStamp != 0 {
+		return
+	}
+	l.sunFor = key
+	if l.sunStamp++; l.sunStamp == 0 { // wrapped round: old results would pass for new
+		clear(l.sunlit)
+		l.sunStamp = 1
+	}
+	l.stale = true
+}
+
+// sunlitOf is how much sun reaches each corner of c's top, the tile's box x0..x1, y0..y1: all of
+// it unless the terrain between the corner and the sun — the ground and what stands on it — rises
+// above the line towards the sun.
+func (l *Renderer) sunlitOf(c CellID, x0, y0, x1, y1 float32) [4]float32 {
+	i, _ := l.board.ordinal(c)
+	s := &l.sunlit[i]
+	if s.stamp == l.sunStamp {
+		return s.corners
+	}
+	if l.stale {
+		l.measureHighest(l.camera)
+		l.stale = false
+	}
+	top := l.topOf(c).z
+	for k, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
+		s.corners[k] = l.sunReaches(p[0], p[1], top[k])
+	}
+	s.stamp = l.sunStamp
+	return s.corners
+}
+
+// shadowReach is how many cells towards the sun the terrain may cast a shadow from.
+const shadowReach = 16
+
+// sunReaches is 1 when the sun reaches the point (x, y) at height z, 0 when the terrain hides it:
+// walked towards the sun a quarter cell at a time, over the tops of the cells as this frame read
+// them, until the line to the sun rises above the highest top about.
+func (l *Renderer) sunReaches(x, y, z float32) float32 {
+	sun := l.lighted.Dir
+	across := float32(math.Hypot(float64(sun[0]), float64(sun[1])))
+	switch {
+	case sun[2] <= 0:
+		return 0 // the sun is down
+	case across == 0:
+		return 1 // straight overhead, nothing casts a shadow
+	}
+	sq := l.board.square
+	size := float32(sq.CellSize)
+	step := size / 4
+	dx, dy, rise := sun[0]/across*step, sun[1]/across*step, sun[2]/across*step
+	const eps = 0.01
+	for k := 1; k <= 4*shadowReach; k++ {
+		px, py, pz := x+dx*float32(k), y+dy*float32(k), z+rise*float32(k)
+		if pz > l.highest {
+			return 1 // above everything that could stand in the way
+		}
+		fx, fy := px/size, py/size
+		cx, cy := math.Floor(float64(fx)), math.Floor(float64(fy))
+		c, ok := l.board.squareCell(int64(cx), int64(cy))
+		if !ok {
+			return 1 // off the board nothing stands
+		}
+		// the top over the point, between the cell's corners
+		t := l.topOf(c).z
+		u, v := fx-float32(cx), fy-float32(cy)
+		top := (t[0]*(1-u)+t[1]*u)*(1-v) + (t[2]*(1-u)+t[3]*u)*v
+		if top > pz+eps {
+			return 0
+		}
+	}
+	return 1
+}
+
+// measureHighest finds the highest top of the cells within shadowReach of cam's view towards the
+// sun: nothing higher can cast a shadow into it.
+func (l *Renderer) measureHighest(cam camera.Camera) {
+	b := cam.Bounds()
+	reach := float64(shadowReach) * min(l.cellW, l.cellH)
+	sun := l.lighted.Dir
+	if sun[0] > 0 {
+		b.BottomRight.X += reach
+	} else if sun[0] < 0 {
+		b.TopLeft.X -= reach
+	}
+	if sun[1] > 0 {
+		b.BottomRight.Y += reach
+	} else if sun[1] < 0 {
+		b.TopLeft.Y -= reach
+	}
+	l.highest = float32(math.Inf(-1))
+	l.board.CellsUnder(b, func(c CellID) {
+		for _, z := range l.topOf(c).z {
+			l.highest = max(l.highest, z)
+		}
+	})
 }

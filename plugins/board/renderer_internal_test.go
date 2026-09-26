@@ -123,7 +123,7 @@ func lightsOf(brd *Board, sun world.Sun) map[CellID]render.Shade {
 	out := map[CellID]render.Shade{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { out[t.ID] = t.Light() })
 	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return sun })
-	compose(r, icamera.NewFromSpace(128, 128, 0))
+	compose(r, icamera.NewFromSpace(256, 256, 0))
 	return out
 }
 
@@ -166,5 +166,69 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	compose(r, icamera.NewFromSpace(64, 64, 0))
 	if got != render.Even(1) {
 		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
+	}
+}
+
+// wallInSun is a 6x3 board of level grass with a wall 10 tall at (3, 1), under a sun low in the
+// east: its shadow falls 50 to the west.
+func wallInSun(t *testing.T) (*Board, Grid, world.Sun) {
+	t.Helper()
+	grid := DefaultGrids{}.Square(6, 3, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	wall, _ := grid.CellIndex(3, 1)
+	brd.Set(wall, CellKind{Cost: 1, Allows: Land, Solid: true, Height: 10})
+	return brd, grid, world.Sun{Dir: [3]float32{1, 0, 0.2}, Strength: 0.6, Ambient: 0.3}
+}
+
+func TestTile_TheTerrainCastsItsShadowAwayFromTheSun(t *testing.T) {
+	brd, grid, sun := wallInSun(t)
+	lights := lightsOf(brd, sun)
+	at := func(x uint32) render.Shade { c, _ := grid.CellIndex(x, 1); return lights[c] }
+	lit, shade := sun.Light(0, 0, 1), sun.Ambient
+
+	// the wall's west edge is at x 96: the grass right behind it is in shadow up to 50 away
+	if got := at(2); got[1] != shade || got[0] != shade {
+		t.Errorf("the grass behind the wall is lit %v, want its corners 32 and 0 from the wall in shadow %v", got, shade)
+	}
+	if got := at(1); got[1] != shade || got[0] != lit {
+		t.Errorf("the next tile is lit %v, want 32 from the wall in shadow and 64 from it in the sun", got)
+	}
+	if got := at(4); got[0] != lit || got[1] != lit {
+		t.Errorf("the grass on the sunny side is lit %v, want %v", got, lit)
+	}
+}
+
+func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
+	brd, grid, sun := wallInSun(t)
+	brd.quasi3D = true
+	var got map[CellID]render.Shade
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got[t.ID] = t.Light() })
+	current := sun
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return current })
+	behind, _ := grid.CellIndex(2, 1)
+	frame := func() render.Shade {
+		got = map[CellID]render.Shade{}
+		compose(r, icamera.NewFromSpace(192, 96, 0))
+		return got[behind]
+	}
+	if frame()[1] != sun.Ambient {
+		t.Fatal("no shadow behind the wall to begin with")
+	}
+	noon := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
+	current = noon
+	if l := frame()[1]; l != noon.Light(0, 0, 1) {
+		t.Errorf("under a sun overhead the grass behind the wall is lit %v, want %v: no shadow", l, noon.Light(0, 0, 1))
+	}
+	current = sun
+	wall, _ := grid.CellIndex(3, 1)
+	brd.Set(wall, CellKind{Cost: 1, Allows: Land})
+	if l := frame()[1]; l != sun.Light(0, 0, 1) {
+		t.Errorf("with the wall knocked down the grass is lit %v, want the full sun %v", l, sun.Light(0, 0, 1))
+	}
+	r.shadows = false
+	brd.Set(wall, CellKind{Cost: 1, Allows: Land, Solid: true, Height: 10})
+	if l := frame()[1]; l != sun.Light(0, 0, 1) {
+		t.Errorf("with shadows off the grass behind the wall is lit %v, want the full sun", l)
 	}
 }
