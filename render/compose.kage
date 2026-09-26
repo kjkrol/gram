@@ -3,22 +3,29 @@
 package main
 
 // Sun is the way towards the sun, Toward the way towards the eye; Glint holds the time in seconds
-// and the sun's strength, for what glints in it.
+// and the sun's strength, for what glints in it; SunColor, SkyColor and Ambience are the colours of
+// the sun, of the sky and of the light every surface gets from it.
 var Sun vec3
 var Toward vec3
 var Glint vec4
+var SunColor vec3
+var SkyColor vec3
+var Ambience vec3
 
 // Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
 // asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
 // out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
 // A glint's vertex (alpha over 1.5) holds its shine in red, where it lies in the world in green and
-// blue, 2 plus the brightness of the tile under it in alpha and its shore in custom: the light it
-// throws back is added to the tile, the surf's foam laid over it.
+// blue, 2 plus how much of the sun reaches it in alpha and its shore in custom: the sky it reflects
+// and the surf's foam are laid over the tile under it, the sun it throws back added.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	if color.a > 1.5 {
+		shine, lit := color.r, color.a-2
 		s := sea(color.gb, custom)
-		foam := s.y * (color.a - 2)
-		return vec4(vec3(color.r*s.x+foam), s.y)
+		mirror, foam := shine*s.z, s.y
+		light := Ambience + SunColor*(Glint.y*lit*max(Sun.z/max(length(Sun), 1e-6), 0))
+		rgb := SkyColor*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
+		return vec4(rgb, 1-(1-mirror)*(1-foam))
 	}
 	faded := step(0.5, custom)
 	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
@@ -32,10 +39,11 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	return vec4(c.rgb*(1-outlineDark*edge), c.a)
 }
 
-// sea is the sun thrown back at the eye by water at p, and how much foam covers it. Waves run
-// across it as time goes by; near a shore (the way to it, how far and how near) a swell comes in
-// facing it and breaks into foam the last stretch before it, whatever the sun.
-func sea(p vec2, shore vec4) vec2 {
+// sea is, for water at p, the sun thrown back at the eye, how much foam covers it and how much of
+// the sky it reflects. Waves run across it as time goes by; near a shore (the way to it, how far
+// and how near) a swell comes in facing it and breaks into foam the last stretch before it,
+// whatever the sun. The flatter the eye looks at a wave, the more of the sky it reflects.
+func sea(p vec2, shore vec4) vec3 {
 	t := Glint.x
 	slope := wave(p, vec2(1, 0.1), 53, 10, t)
 	slope += wave(p, vec2(0.3, 1), 41, 9, t)
@@ -62,8 +70,12 @@ func sea(p vec2, shore vec4) vec2 {
 		foam = foamCover * crest * breaking * torn
 	}
 	n := normalize(vec3(-slope.x, -slope.y, 1))
-	h := normalize(normalize(Sun) + Toward)
-	return vec2(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1))
+	h := normalize(Sun/max(length(Sun), 1e-6) + Toward)
+	// the sky seen in the water follows only the swell of the waves, not every ripple: fine waves
+	// flattened far off would stripe it
+	calm := normalize(vec3(-slope.x*mirrorSwell, -slope.y*mirrorSwell, 1))
+	fresnel := mirrorHead + (1-mirrorHead)*pow(1-max(dot(calm, Toward), 0), 5)
+	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
 }
 
 // wave is the slope at p of a wave running along way, length world units from crest to crest, at
@@ -91,5 +103,12 @@ const swellSpeed = 12
 // water its foam covers at most.
 const surfWidth = 32
 const foamCover = 0.9
+
+// mirrorHead is how much of the sky water reflects looked at straight down; flatter it reflects
+// more, all of it along the surface.
+const mirrorHead = 0.02
+
+// mirrorSwell is how much of the waves' slope tilts the sky water reflects.
+const mirrorSwell = 0.3
 
 const pi = 3.14159265

@@ -29,7 +29,7 @@ A source hands the frame pieces in screen pixels, each with a **tier** and a **d
 
 | Piece | What for |
 |:--|:--|
-| `Sprite(tier, depth, atlas, id, corners, shade)` | a sprite over four projected corners: a tile, a face, a billboard; `shade` is its brightness per corner (`render.Shade`, `render.Even`) |
+| `Sprite(tier, depth, atlas, id, corners, shade)` | a sprite over four projected corners: a tile, a face, a billboard; `shade` is the light it is drawn in per corner (`render.Shade` of `render.Light`s — red, green, blue — `render.Even`, `render.Lit`) |
 | `SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1, shade)` | a sprite over a world box from above, split where it crosses a wrap seam, the shade carried onto the pieces |
 | `Line(tier, depth, x0, y0, x1, y1, width, colour)` | a line whose sides fade over a pixel instead of stepping |
 | `Fan(tier, depth, points, colour)` | a filled polygon every point of which sees the first one whole |
@@ -40,6 +40,7 @@ Tiers are numbers with room between them, drawn in order:
 
 | Tier | Value | What is on it |
 |:--|--:|:--|
+| `Backdrop` | 0 | the sky behind the world (`sky.Plugin.Renderer`), at depth −∞ |
 | `Ground` | 100 | tiles and the faces of raised ground; a hex grid's lines at 110 |
 | `Objects` | 200 | entities |
 | `Overlays` | 300 | what lies on the world: routes, cones of sight and their shadows |
@@ -83,17 +84,21 @@ outlined; navigation-demo from above: 0.67 ms, 0.13 ms).
 
 What glints — a sea, ice — is worked out per pixel. `Frame.Glint(x0, y0, x1, y1, shine, shore)`
 after a sprite lays a quad over it on the same sheet, sampling its white texel: red is the shine,
-green and blue where each corner lies in the world, alpha 2 plus the brightness of the sprite under
-it (a colour's alpha is never over 1, so the shader tells them apart), `Custom0..3` the shore — the
-way to it, how far, how near. The shader tilts the surface there by seven small waves running in
+green and blue where each corner lies in the world, alpha 2 plus how much of the sun reaches the
+corner (a colour's alpha is never over 1, so the shader tells them apart), `Custom0..3` the shore —
+the way to it, how far, how near. The shader tilts the surface there by seven small waves running in
 different directions, moved on by the composer's clock; near a shore the waves give way to a swell
 whose crests follow the distance to it, so they face the shore and roll in, their phase drifting
 slowly along the coast so they do not reach it everywhere at once. What the surface throws back of
-the frame's sun (`Frame.Sun`, which the board sets) towards the eye (`camera.Projection.Toward`),
+the frame's sun (`Frame.Daylight`, which the board sets: the sun's way, strength and colour, the
+sky's colour and the light from it) towards the eye (`camera.Projection.Toward`),
 gathered tightly round the perfect reflection, is added to the tile. A glint alone would show the
 swell only where its slopes face halfway between the sun and the eye — never on a coast it runs
 across — so each crest also breaks into foam the last cell before the shore, as bright as the tile
-under it and laid over it with its own alpha: the surf shows on every shore, whatever the sun. Sparse points twinkle under
+in the sky's light and the sun's and laid over it with its own alpha: the surf shows on every
+shore, whatever the sun. Water also reflects the sky, the more the flatter the eye looks at it
+(Fresnel, over a normal tilted by only a third of the waves, so fine waves far off do not stripe
+it): from above it keeps its own colour, looked along it takes the sky's. Sparse points twinkle under
 a high sun and all but vanish under a low one — and none where the sun stands behind the eye, as
 it does all day over the south in the isometric view (hence `sky.Config.NoonWay`). The tile keeps
 its outline; the uniforms are written over in place, so a frame allocates nothing for them.

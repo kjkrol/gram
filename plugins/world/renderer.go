@@ -64,14 +64,17 @@ func (s *Renderer) Init(si *goke.SysInit) {
 }
 
 // Compose hands f every drawn entity in sight of cam, as the world's Look lays it, and in a world
-// with heights its shadow on the ground.
+// with heights its shadow on the ground and the sun's light on it, as on level ground; a flat
+// world's are drawn as they are.
 func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := s.look()
 	s.view = s.views(cam)
 	var sun Sun
 	var ground Ground
+	light := render.Light{1, 1, 1}
 	if s.sun != nil {
 		sun, ground = s.sun(), s.ground()
+		light = sun.Light(0, 0, 1)
 	}
 	s.each(func(i int, z *Z) {
 		box := s.bases[i].Pos.AABB
@@ -86,7 +89,7 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 		for _, l := range s.layers[i] {
-			look.Sprite(f, cam, box, alt, s.atlas, l.SpriteID)
+			look.Sprite(f, cam, box, alt, s.atlas, l.SpriteID, light)
 		}
 	})
 }

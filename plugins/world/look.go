@@ -13,8 +13,8 @@ import (
 // look, seen from above; a view plugin puts its own in with Plugin.SetLook.
 type Look interface {
 	// Sprite hands f sprite id of atlas for an entity whose box stands at altitude alt, on the
-	// render.Objects tier.
-	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID)
+	// render.Objects tier, in light.
+	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners
 	// Footprint appends to dst the ground under box on screen, in pieces where it crosses a wrap
@@ -33,14 +33,14 @@ type flatLook struct {
 	quads          []camera.Quad
 }
 
-func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ float32, atlas render.AtlasSource, id render.SpriteID) {
+func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ float32, atlas render.AtlasSource, id render.SpriteID, light render.Light) {
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
 		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
 		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
-		f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Even(1))
+		f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Lit(light))
 		return true
 	})
 }

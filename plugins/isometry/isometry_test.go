@@ -73,7 +73,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 
 	var f render.Frame
 	f.Reset(cam)
-	look.Sprite(&f, cam, box, 6, sheet{}, 0)
+	look.Sprite(&f, cam, box, 6, sheet{}, 0, render.Light{1, 1, 1})
 	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
 		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
 			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))

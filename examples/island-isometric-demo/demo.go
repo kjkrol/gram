@@ -321,7 +321,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
-	layers := []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	layers := []render.Layer{render.NewComposer(s.sky.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.sky.Reporter()))
 }
 

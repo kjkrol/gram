@@ -48,11 +48,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan moves the day on; call it before the world is drawn.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: the sky is drawn as the light on the world.
+// WithRenderer is a no-op: the sky is drawn in plain colours, and as the light on the world.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is nil: see WithRenderer.
-func (p *Plugin) Renderer() render.Layer { return nil }
+// Renderer is the sky behind the world, a render.Source for a scene's Composer: the viewport in
+// the sky's colour under everything, wherever the ground does not cover it.
+func (p *Plugin) Renderer() render.Layer { return &backdrop{world: p.worldPlugin} }
 
 // Reporter is the sky's line for a render.TelemetryRenderer: the time of day.
 func (p *Plugin) Reporter() render.Reporter { return &p.clock }

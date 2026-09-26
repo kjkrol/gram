@@ -40,10 +40,11 @@ type Composer struct {
 	verts   []ebiten.Vertex
 	indices []uint16
 	opts    *ebiten.DrawTrianglesShaderOptions
-	// the shader's uniforms, kept and written over so a frame allocates none: the sun, the eye, and
-	// the time and the sun's strength
-	sun, toward, glint []float32
-	start              time.Time
+	// the shader's uniforms, kept and written over so a frame allocates none: the sun, the eye, the
+	// time and the sun's strength, and the colours of the sun, the sky and the light from it
+	sun, toward, glint           []float32
+	sunColor, skyColor, ambience []float32
+	start                        time.Time
 	// draw issues one call; tests count them instead.
 	draw func(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image)
 }
@@ -53,8 +54,10 @@ var _ WorldRenderer = (*Composer)(nil)
 // NewComposer takes the layers to compose, which must all be Sources.
 func NewComposer(layers ...Layer) *Composer {
 	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(),
-		sun: make([]float32, 3), toward: make([]float32, 3), glint: make([]float32, 4)}
-	c.opts.Uniforms = map[string]any{"Sun": c.sun, "Toward": c.toward, "Glint": c.glint}
+		sun: make([]float32, 3), toward: make([]float32, 3), glint: make([]float32, 4),
+		sunColor: make([]float32, 3), skyColor: make([]float32, 3), ambience: make([]float32, 3)}
+	c.opts.Uniforms = map[string]any{"Sun": c.sun, "Toward": c.toward, "Glint": c.glint,
+		"SunColor": c.sunColor, "SkyColor": c.skyColor, "Ambience": c.ambience}
 	for _, l := range layers {
 		src, ok := l.(Source)
 		if !ok {
@@ -129,9 +132,13 @@ func (c *Composer) sort() {
 func (c *Composer) render(screen *ebiten.Image) {
 	f := &c.frame
 	toward := f.cam.Projection().Toward()
-	copy(c.sun, f.sunDir[:])
+	day := &f.daylight
+	copy(c.sun, day.Dir[:])
 	copy(c.toward, toward[:])
-	c.glint[0], c.glint[1] = float32(time.Since(c.start).Seconds()), f.sunStrength
+	c.glint[0], c.glint[1] = float32(time.Since(c.start).Seconds()), day.Strength
+	copy(c.sunColor, day.Sun[:])
+	copy(c.skyColor, day.Sky[:])
+	copy(c.ambience, day.Ambient[:])
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
 	for _, i := range f.order {

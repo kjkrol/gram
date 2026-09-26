@@ -30,13 +30,14 @@
 // source hands its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: a sprite
 // ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft
 // sides ([Frame.Line]), a fan ([Frame.Fan]) or a quad fading towards chosen sides ([Frame.Soft]).
-// Tiers are drawn in order — [Ground], [Objects], [Overlays], [Marks], with room between for a
+// A sprite is drawn in a [Shade], a [Light] — red, green, blue — at each corner. Tiers are drawn in
+// order — [Backdrop], [Ground], [Objects], [Overlays], [Marks], with room between for a
 // game's own — and when the camera's projection sorts, everything below Marks is drawn back to
 // front by depth, ties by tier, so a mountain hides the route and the cone behind it while the
 // selection stays on top; otherwise the tier alone decides. Every piece is drawn with one shader, sampling a
 // sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
 // call. Ties keep the order pieces came in. [Frame.Glint] lays over the sprite just added the
-// frame's sun ([Frame.Sun]) thrown back at the eye off small waves the shader runs across it,
-// turned to face a [Shore] near one: water. [ProjectCorners] projects a world box at a height
+// frame's sun ([Frame.Daylight]) thrown back at the eye off small waves the shader runs across it,
+// turned to face a [Shore] near one, and the sky reflected the flatter the eye looks: water. [ProjectCorners] projects a world box at a height
 // through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.
 package render

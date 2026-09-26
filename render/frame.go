@@ -13,6 +13,7 @@ import (
 type Tier int
 
 const (
+	Backdrop Tier = 0   // what lies behind the world: the sky
 	Ground   Tier = 100 // the tiles and what the ground is made of
 	Objects  Tier = 200 // what stands: entities, tall terrain
 	Overlays Tier = 300 // what lies on the world: routes, sight
@@ -72,9 +73,8 @@ type Frame struct {
 	lastTier  Tier
 	lastDepth float32
 	lastAtlas AtlasSource
-	// the sun what glints throws back, set by whoever lights the world
-	sunDir      [3]float32
-	sunStrength float32
+	// the world's light, set by whoever lights it, for what glints and reflects the sky
+	daylight Daylight
 }
 
 // Camera is the camera the frame is drawn through.
@@ -86,12 +86,21 @@ func (f *Frame) Len() int { return f.count }
 // Reset starts the frame over, drawn through cam; a Composer does it every frame.
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
-	f.sunStrength = 0
+	f.daylight = Daylight{}
 }
 
-// Sun is where the sun stands, the way towards it, and how strong it is, for whatever glints in
-// the frame; the source that lights the world says so, a frame without it glints nowhere.
-func (f *Frame) Sun(dir [3]float32, strength float32) { f.sunDir, f.sunStrength = dir, strength }
+// Daylight is the world's light as what glints and reflects the sky needs it: the way towards the
+// sun, its strength and colour, the colour of the sky, and the light every surface gets from it.
+type Daylight struct {
+	Dir      [3]float32
+	Strength float32
+	Sun, Sky Light
+	Ambient  Light
+}
+
+// Daylight sets the frame's light; the source that lights the world says so, and a frame without
+// it glints nowhere and reflects black.
+func (f *Frame) Daylight(d Daylight) { f.daylight = d }
 
 // Each calls fn with every piece in the order it came, its tier, depth and vertices — for tests
 // and tools; the vertices are the frame's own.
@@ -131,15 +140,22 @@ func premultiplied(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 0xff, float32(c.G) / 0xff, float32(c.B) / 0xff, float32(c.A) / 0xff}
 }
 
-// Shade is how bright a piece is at its corners — top-left, top-right, bottom-left, bottom-right —
-// as its colour is scaled there (1 as drawn, 0.5 half as bright), blended across it.
-type Shade [4]float32
+// Light is a colour of light — red, green and blue — a colour drawn in it is scaled by: 1 each is
+// white, as drawn, 0.5 each half as bright.
+type Light [3]float32
 
-// Even is a Shade of v at every corner; Even(1) draws a sprite as it is.
-func Even(v float32) Shade { return Shade{v, v, v, v} }
+// Shade is the light a piece is drawn in at its corners — top-left, top-right, bottom-left,
+// bottom-right — blended across it.
+type Shade [4]Light
+
+// Even is a white Shade of v at every corner; Even(1) draws a sprite as it is.
+func Even(v float32) Shade { return Lit(Light{v, v, v}) }
+
+// Lit is a Shade of l at every corner.
+func Lit(l Light) Shade { return Shade{l, l, l, l} }
 
 // lit is the vertex colour for brightness v.
-func lit(v float32) [4]float32 { return [4]float32{v, v, v, 1} }
+func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 
 // Sprite draws sprite id of atlas over the screen corners dst, as bright as shade says.
 func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
@@ -220,10 +236,12 @@ func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id Spr
 }
 
 // Glint lays over the last sprite added — a Sprite or Tile over the corners of the world box
-// (x0, y0)-(x1, y1), or every piece of the last SpriteRect or TileRect over it — the frame's sun
-// thrown back at the eye, as much as shine says at the box's corners, off small waves the shader
-// runs across it as time goes by: water, ice, wet rock. Near a shore the waves turn to face it.
-func (f *Frame) Glint(x0, y0, x1, y1 float32, shine Shade, shore Shore) {
+// (x0, y0)-(x1, y1), or every piece of the last SpriteRect or TileRect over it — a shiny surface
+// rippled by small waves the shader runs across it as time goes by: water, ice, wet rock. It
+// throws the frame's sun back at the eye as much as shine says, where lit of the sun reaches its
+// corners, and the sky the more the flatter the eye looks at it; near a shore the waves turn to
+// face it and break into foam.
+func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore) {
 	if f.lastAtlas == nil {
 		return
 	}
@@ -234,8 +252,7 @@ func (f *Frame) Glint(x0, y0, x1, y1 float32, shine Shade, shore Shore) {
 			c := shore.at(u, v)
 			f.verts = append(f.verts, ebiten.Vertex{
 				DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
-				ColorR: shine.at(u, v), ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*v,
-				ColorA:  glintMark + f.verts[first+k].ColorR, // the sprite's brightness there, for the foam
+				ColorR: shine, ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*v, ColorA: glintMark + blend(lit, u, v),
 				Custom0: c.X, Custom1: c.Y, Custom2: c.Dist, Custom3: c.Near,
 			})
 		}
@@ -250,7 +267,8 @@ func (f *Frame) Glint(x0, y0, x1, y1 float32, shine Shade, shore Shore) {
 	}
 }
 
-// glintMark is what a glint's alpha starts from, telling the shader it is one: no colour's is over 1.
+// glintMark is what a glint's alpha starts from, telling the shader it is one — no colour's is over
+// 1 — the sun reaching the corner above it.
 const glintMark = 2
 
 // Shore is where the nearest shore lies from each corner of what glints — top-left, top-right,
@@ -264,7 +282,7 @@ type ShoreCorner struct{ X, Y, Dist, Near float32 }
 // at is the shore at (u, v) across the box, 0 to 1 each way, blended from its corners.
 func (s Shore) at(u, v float32) ShoreCorner {
 	mix := func(get func(c ShoreCorner) float32) float32 {
-		return Shade{get(s[0]), get(s[1]), get(s[2]), get(s[3])}.at(u, v)
+		return blend([4]float32{get(s[0]), get(s[1]), get(s[2]), get(s[3])}, u, v)
 	}
 	return ShoreCorner{
 		X:    mix(func(c ShoreCorner) float32 { return c.X }),
@@ -274,10 +292,19 @@ func (s Shore) at(u, v float32) ShoreCorner {
 	}
 }
 
-// at is the shade at (u, v) across the piece, 0 to 1 each way, blended from its corners.
-func (s Shade) at(u, v float32) float32 {
-	top := s[0] + (s[1]-s[0])*u
-	bottom := s[2] + (s[3]-s[2])*u
+// at is the light at (u, v) across the piece, 0 to 1 each way, blended from its corners.
+func (s Shade) at(u, v float32) Light {
+	var l Light
+	for c := range l {
+		l[c] = blend([4]float32{s[0][c], s[1][c], s[2][c], s[3][c]}, u, v)
+	}
+	return l
+}
+
+// blend is the value at (u, v) across a piece, 0 to 1 each way, from its corners'.
+func blend(corners [4]float32, u, v float32) float32 {
+	top := corners[0] + (corners[1]-corners[0])*u
+	bottom := corners[2] + (corners[3]-corners[2])*u
 	return top + (bottom-top)*v
 }
 

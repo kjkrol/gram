@@ -19,13 +19,13 @@ func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	if s := defaults.SunAt(0.25); s.Dir[0] < 0.99 || !near(s.Dir[2], 0) || s.Strength != 0 {
 		t.Errorf("at 6 the sun is %+v, want it on the eastern horizon, no strength yet", s)
 	}
-	if s := defaults.SunAt(0.5); !near(s.Dir[1], 0.5) || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength || s.Ambient != dayAmbient {
+	if s := defaults.SunAt(0.5); !near(s.Dir[1], 0.5) || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength || s.Sky != daylight[3].sky || s.Color != daylight[3].sun {
 		t.Errorf("at noon the sun is %+v, want it over the south 60° up at full strength", s)
 	}
 	if s := defaults.SunAt(0.75); s.Dir[0] > -0.99 {
 		t.Errorf("at 18 the sun is %+v, want it on the western horizon", s)
 	}
-	if s := defaults.SunAt(0); s.Dir[2] >= 0 || s.Strength != 0 || s.Ambient != nightAmbient {
+	if s := defaults.SunAt(0); s.Dir[2] >= 0 || s.Strength != 0 || s.Sky != daylight[0].sky || s.Ambient != daylight[0].ambient {
 		t.Errorf("at midnight the sun is %+v, want it below the horizon, the night's ambient alone", s)
 	}
 	if morning, noonSun := defaults.SunAt(0.3), defaults.SunAt(0.5); morning.Dir[2] >= noonSun.Dir[2] {
@@ -200,5 +200,21 @@ func TestClock_ReadsTheTimeOfDayAndThePaceWhenItIsNotOne(t *testing.T) {
 		if got := hourOf(c.day); got != c.want {
 			t.Errorf("hourOf(%+v) = %q, want %q", c.day, got, c.want)
 		}
+	}
+}
+
+func TestSunAt_ColoursTheSkyAndItsLightThroughTheDay(t *testing.T) {
+	noon, dawn, night := defaults.SunAt(0.5), defaults.SunAt(0.25), defaults.SunAt(0)
+	if noon.Sky[2] <= noon.Sky[0] || noon.Color[0] < 0.95 || noon.Color[2] < 0.9 {
+		t.Errorf("at noon the sky is %v and the sun %v, want a blue sky and a nearly white sun", noon.Sky, noon.Color)
+	}
+	if dawn.Sky[0] <= dawn.Sky[2] || dawn.Color[2] >= dawn.Color[0]/2 {
+		t.Errorf("at 6 the sky is %v and the sun %v, want both warm, the sun orange", dawn.Sky, dawn.Color)
+	}
+	if light := night.Light(0, 0, 1); light[2] <= light[0] || light[2] > 0.2 {
+		t.Errorf("at midnight the ground is lit %v, want a dim blue", light)
+	}
+	if sky, _, _ := daylightAt(0.2); sky[0] >= daylight[2].sky[0] || sky[0] <= daylight[3].sky[0] {
+		t.Errorf("between sunrise and day the sky is %v, want it blended between theirs", sky)
 	}
 }

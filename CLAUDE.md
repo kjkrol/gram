@@ -166,10 +166,13 @@ the isometric view and nothing else — the projection, the camera, the billboar
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the top-down camera. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
 over walls and hills reads them in a top-down game too (navigation-vision-demo). A world with heights
-is lit by `world.Sun` (`DefaultSun`, `SetSun`; direction, strength, ambient): the board lights each
-tile per corner from the ground's slope there and at its neighbours (`board.Tile.Light`, `FaceLight`
-for upright faces) and both looks draw with it, so a top-down map shows its relief; pieces carry a
-`render.Shade` per corner. The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
+is lit by `world.Sun` (`DefaultSun`, `SetSun`; direction, strength, ambient, and the colours of
+the sun's light and of the sky — zero is white; `Sun.Light`/`Shaded` give a `render.Light`: Ambient
+× Sky plus the direct light × Color): the board lights each tile per corner from the ground's slope
+there and at its neighbours (`board.Tile.Light`, `FaceLight` for upright faces) and both looks
+draw with it, so a top-down map shows its relief; pieces carry a `render.Shade` — a `render.Light`
+(RGB) per corner, `render.Even(v)` grey, `render.Lit(l)` one light — and entities are drawn in the
+sun's light on level ground (`world.Look.Sprite`'s light; white in a flat world). The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
 per tile corner, a walk towards the sun over the tops of the cells as the frame read them, stopped
 above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
 the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
@@ -179,21 +182,27 @@ The time of day is `plugins/sky`: a `sky.Day{Time, Pace}` on the sky's own entit
 found after a load), moved on every tick; at every one of `Config.Steps` a day the world's sun is
 set to `Config.SunAt` the hour (east at 6, south at noon, west at 18 — the whole path turned when
 `Config.NoonWay` puts noon elsewhere; the isometric island's is north-west — below the horizon at night, the
-strength and ambient rising and falling), so the terrain's shadows are worked out anew only per
-step. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
+strength rising and falling, the sky's and the sun's colours and the ambient blended from the
+`daylight` table by the sun's height: blue by day, orange at sunrise and sunset, deep blue at
+night), so the terrain's shadows are worked out anew only per step. `sky.Plugin.Renderer()` is the
+backdrop, a `render.Source`: the viewport in the sky's colour on `render.Backdrop` (tier 0, depth
+−∞), drawn only when some corner of the screen is off the world's ground. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
 `Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it half an hour on or
 back while it stands. Both islands with heights use it.
 `CellKind.Shine` (0–1) makes a kind glint, per pixel in `render/compose.kage`: after the tile a
 look calls `Frame.Glint(box, t.Shine(), t.Shore())`, a quad over the tile added to it (alpha 0)
-whose vertices carry the shine (shine × sun reaching the corner) in red, the world position in
-green and blue, 2 + the tile's brightness in alpha and the shore in Custom0..3 (the way to it, the
-distance, how near). The shader tilts the surface by seven waves moving with the composer's clock —
+whose vertices carry the kind's shine in red, the world position in green and blue, 2 + the sun
+reaching the corner in alpha and the shore in Custom0..3 (the way to it, the distance, how near). The shader tilts the surface by seven waves moving with the composer's clock —
 within `shoreReach` (3) cells of the nearest cell that does not shine, by a swell whose crests
 follow the distance to it, rolling in, its phase drifting along the coast, breaking into foam
-(`surfWidth`, lit by the tile's brightness, laid over with its alpha) — and throws the frame's sun (`Frame.Sun`, set by the board) towards
+(`surfWidth`, in the sky's light and the sun's, laid over with its alpha) — reflects the sky, the
+more the flatter the eye looks (Fresnel over a calmed normal, `mirrorSwell`), and throws the
+frame's sun (`Frame.Daylight`, set by the board from `Sun.Daylight`: direction, strength, the
+sun's, the sky's and the ambient colours) towards
 `camera.Projection.Toward()` (the eye; straight up from above, along the diagonal in the isometric
 view). The board works the shore out per corner of a square grid (open water on any other), once
-per terrain version. A shiny tile gets its glint at night too (shine 0, the foam left). An effect altering `Ground` can make a cell shiny. The islands with heights
+per terrain version. A shiny tile gets its glint at night too (no sun, the foam and the night sky
+reflected left). An effect altering `Ground` can make a cell shiny. The islands with heights
 give their water 0.9.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with

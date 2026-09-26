@@ -46,7 +46,7 @@ func (t *Tile) Beside(dx, dy int) [4]float32 {
 	return t.r.topOf(c).z
 }
 
-// Light is how brightly the world's sun lights the tile's top at its corners, from the slope of
+// Light is the light the world's sun casts on the tile's top at its corners, from the slope of
 // the ground there — the tile's own corners and its neighbours', so slopes run on smoothly from
 // tile to tile; what stands on the cell is lit as the ground under it. A flat world is drawn as its
 // sprites are.
@@ -75,7 +75,7 @@ func (t *Tile) Light() render.Shade {
 	}
 	sun := r.lighted
 	lit := t.sunlit()
-	corner := func(k int, dx, dy float32) float32 { return sun.Shaded(-dx, -dy, 1, lit[k]) }
+	corner := func(k int, dx, dy float32) render.Light { return sun.Shaded(-dx, -dy, 1, lit[k]) }
 	return render.Shade{
 		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
 		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
@@ -84,17 +84,15 @@ func (t *Tile) Light() render.Shade {
 	}
 }
 
-// Shine is how much of the sun the tile's top throws back at the eye at its corners — its kind's
-// Shine where the sun reaches it, none at night — and false where the tile does not shine at all:
-// a kind without shine, a flat world. A Look hands it to [render.Frame.Glint] after the top's
-// sprite.
-func (t *Tile) Shine() (render.Shade, bool) {
-	shine := t.r.topOf(t.ID).shine
+// Shine is how shiny the tile's top is — its kind's Shine — and how much of the sun reaches each of
+// its corners, none at night; false where the tile does not shine at all: a kind without shine, a
+// flat world. A Look hands them to [render.Frame.Glint] after the top's sprite.
+func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
+	shine = t.r.topOf(t.ID).shine
 	if shine <= 0 || !t.r.board.quasi3D {
-		return render.Shade{}, false
+		return 0, lit, false
 	}
-	lit := t.sunlit()
-	return render.Shade{shine * lit[0], shine * lit[1], shine * lit[2], shine * lit[3]}, true
+	return shine, t.sunlit(), true
 }
 
 // Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
@@ -112,11 +110,11 @@ func (t *Tile) sunlit() [4]float32 {
 	return r.sunlitOf(t.ID, t.X0, t.Y0, t.X1, t.Y1)
 }
 
-// FaceLight is how brightly the world's sun lights an upright face of the tile looking dx, dy
+// FaceLight is the light the world's sun casts on an upright face of the tile looking dx, dy
 // cells away — towards a neighbour it stands above — as much in the sun as the top's edge over it.
-func (t *Tile) FaceLight(dx, dy int) float32 {
+func (t *Tile) FaceLight(dx, dy int) render.Light {
 	if !t.r.board.quasi3D {
-		return 1
+		return render.Light{1, 1, 1}
 	}
 	lit := t.sunlit()
 	var edge float32
@@ -154,7 +152,7 @@ func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
 	} else {
 		f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
 	}
-	if shine, ok := t.Shine(); ok {
-		f.Glint(t.X0, t.Y0, t.X1, t.Y1, shine, t.Shore())
+	if shine, lit, ok := t.Shine(); ok {
+		f.Glint(t.X0, t.Y0, t.X1, t.Y1, shine, lit, t.Shore())
 	}
 }

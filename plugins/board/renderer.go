@@ -116,7 +116,7 @@ func (l *Renderer) Init(*goke.SysInit) {}
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	l.lighted = l.sun()
-	f.Sun(l.lighted.Dir, l.lighted.Strength)
+	f.Daylight(l.lighted.Daylight())
 	l.nextSunlit()
 	l.nextShores()
 	look := l.look()

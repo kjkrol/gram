@@ -143,11 +143,11 @@ func TestTile_LightFollowsTheSlopeOfTheGround(t *testing.T) {
 	at := func(x, y uint32) render.Shade { c, _ := grid.CellIndex(x, y); return lights[c] }
 
 	level := sun.Light(0, 0, 1)
-	if far := at(3, 3); far != render.Even(level) {
+	if far := at(3, 3); far != render.Lit(level) {
 		t.Errorf("level ground far from the hill is lit %v, want %v everywhere", far, level)
 	}
 	// the hill's east side falls away towards the sun, its west side rises away from it
-	if east, west := at(2, 1)[0], at(0, 1)[1]; east <= level || west >= level {
+	if east, west := at(2, 1)[0], at(0, 1)[1]; east[0] <= level[0] || west[0] >= level[0] {
 		t.Errorf("the hill's sunny side is lit %v and its shady side %v, want above and below level %v", east, west, level)
 	}
 	// neighbouring tiles agree on the corner they share: the slope runs on without a seam
@@ -185,7 +185,7 @@ func TestTile_TheTerrainCastsItsShadowAwayFromTheSun(t *testing.T) {
 	brd, grid, sun := wallInSun(t)
 	lights := lightsOf(brd, sun)
 	at := func(x uint32) render.Shade { c, _ := grid.CellIndex(x, 1); return lights[c] }
-	lit, shade := sun.Light(0, 0, 1), sun.Ambient
+	lit, shade := sun.Light(0, 0, 1), sun.Shaded(0, 0, 1, 0)
 
 	// the wall's west edge is at x 96: the grass right behind it is in shadow up to 50 away
 	if got := at(2); got[1] != shade || got[0] != shade {
@@ -212,7 +212,7 @@ func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
 		compose(r, icamera.NewFromSpace(192, 96, 0))
 		return got[behind]
 	}
-	if frame()[1] != sun.Ambient {
+	if frame()[1] != sun.Shaded(0, 0, 1, 0) {
 		t.Fatal("no shadow behind the wall to begin with")
 	}
 	noon := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
@@ -240,12 +240,16 @@ func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 	sea, _ := grid.CellIndex(1, 1)
 	grass, _ := grid.CellIndex(3, 3)
 	brd.Set(sea, CellKind{Cost: 1, Allows: Water, Shine: 0.8})
-	shines := func(sun world.Sun, quasi3D bool) map[CellID]render.Shade {
+	type shining struct {
+		shine float32
+		lit   [4]float32
+	}
+	shines := func(sun world.Sun, quasi3D bool) map[CellID]shining {
 		brd.quasi3D = quasi3D
-		out := map[CellID]render.Shade{}
+		out := map[CellID]shining{}
 		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) {
-			if s, ok := t.Shine(); ok {
-				out[t.ID] = s
+			if s, lit, ok := t.Shine(); ok {
+				out[t.ID] = shining{s, lit}
 			}
 		})
 		r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return sun })
@@ -254,14 +258,14 @@ func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 	}
 	day := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
 	got := shines(day, true)
-	if got[sea] != render.Even(0.8) {
-		t.Errorf("the sea in the full sun shines %v, want its kind's 0.8 at every corner", got[sea])
+	if got[sea] != (shining{0.8, [4]float32{1, 1, 1, 1}}) {
+		t.Errorf("the sea in the full sun shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
 	}
 	if _, ok := got[grass]; ok {
 		t.Errorf("grass shines %v, want nothing", got[grass])
 	}
-	if got := shines(world.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (render.Shade{}) {
-		t.Errorf("at night the sea shines %v, want nothing thrown back: still water with its foam, none of the sun", got[sea])
+	if got := shines(world.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (shining{0.8, [4]float32{}}) {
+		t.Errorf("at night the sea shines %v, want its shine and none of the sun: it reflects the night sky, foams", got[sea])
 	}
 	if got := shines(day, false); len(got) > 0 {
 		t.Errorf("in a flat world %d cells shine, want none: it is drawn as its sprites are", len(got))

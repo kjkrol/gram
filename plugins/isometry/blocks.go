@@ -24,21 +24,21 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	switch {
 	case toward[0] > 0:
 		if n := t.Beside(1, 0); top[1] > n[0] || top[3] > n[2] {
-			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x1, y1, top[1], top[3], n[0], n[2]), render.Even(t.FaceLight(1, 0)))
+			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x1, y1, top[1], top[3], n[0], n[2]), render.Lit(t.FaceLight(1, 0)))
 		}
 	case toward[0] < 0:
 		if n := t.Beside(-1, 0); top[2] > n[3] || top[0] > n[1] {
-			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x0, y0, top[2], top[0], n[3], n[1]), render.Even(t.FaceLight(-1, 0)))
+			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x0, y0, top[2], top[0], n[3], n[1]), render.Lit(t.FaceLight(-1, 0)))
 		}
 	}
 	switch {
 	case toward[1] > 0:
 		if n := t.Beside(0, 1); top[2] > n[0] || top[3] > n[1] {
-			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x1, y1, top[2], top[3], n[0], n[1]), render.Even(t.FaceLight(0, 1)))
+			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x1, y1, top[2], top[3], n[0], n[1]), render.Lit(t.FaceLight(0, 1)))
 		}
 	case toward[1] < 0:
 		if n := t.Beside(0, -1); top[1] > n[3] || top[0] > n[2] {
-			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x0, y0, top[1], top[0], n[3], n[2]), render.Even(t.FaceLight(0, -1)))
+			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x0, y0, top[1], top[0], n[3], n[2]), render.Lit(t.FaceLight(0, -1)))
 		}
 	}
 	corners := sloped(cam, x0, y0, x1, y1, top)
@@ -47,8 +47,8 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	} else {
 		f.Sprite(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
 	}
-	if shine, ok := t.Shine(); ok {
-		f.Glint(x0, y0, x1, y1, shine, t.Shore())
+	if shine, lit, ok := t.Shine(); ok {
+		f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 	}
 }
 

@@ -1,33 +1,61 @@
 package world
 
-import "math"
+import (
+	"math"
+
+	"github.com/kjkrol/gram/render"
+)
 
 // Sun is the world's light: Dir points from the ground towards the sun (x and y along the world,
-// z up), Strength is how much it lights a surface facing it square on, Ambient how much every
-// surface gets anyway. It lights the ground of a world with heights; a flat world is drawn as its
-// sprites are.
+// z up), Strength is how much it lights a surface facing it square on, Ambient how much of the
+// sky's light every surface gets anyway. Color is the colour of the sun's light and Sky the colour
+// of the sky — the light it gives, what water reflects, what shows beyond the world; zero is
+// white. It lights the ground of a world with heights; a flat world is drawn as its sprites are.
 type Sun struct {
 	Dir      [3]float32
 	Strength float32
 	Ambient  float32
+	Color    render.Light
+	Sky      render.Light
 }
 
 // DefaultSun stands high over the world's south-east, towards the viewer of the isometric view,
-// so the faces it shows are lit and the slopes turned away from it darken.
+// so the faces it shows are lit and the slopes turned away from it darken; its light and sky are
+// white.
 var DefaultSun = Sun{Dir: [3]float32{0.522, 0.282, 0.805}, Strength: 0.708, Ambient: 0.35}
 
-// Light is how bright the sun makes a surface whose normal is (nx, ny, nz): Ambient, and Strength
-// by how square on the surface faces the sun; none of it from behind.
-func (s Sun) Light(nx, ny, nz float32) float32 { return s.Shaded(nx, ny, nz, 1) }
+// Light is the light the sun casts on a surface whose normal is (nx, ny, nz): Ambient of the sky's,
+// and Strength of its own by how square on the surface faces it; none of it from behind.
+func (s Sun) Light(nx, ny, nz float32) render.Light { return s.Shaded(nx, ny, nz, 1) }
 
 // Shaded is Light where only lit of the sun, 0 to 1, reaches the surface: the rest is in shadow
-// and gets the Ambient alone.
-func (s Sun) Shaded(nx, ny, nz, lit float32) float32 {
+// and gets the sky's light alone.
+func (s Sun) Shaded(nx, ny, nz, lit float32) render.Light {
+	direct := float32(0)
 	n := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
-	d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2])))
-	if n == 0 || d == 0 {
-		return s.Ambient
+	if d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2]))); n > 0 && d > 0 {
+		facing := (nx*s.Dir[0] + ny*s.Dir[1] + nz*s.Dir[2]) / (n * d)
+		direct = s.Strength * max(facing, 0) * lit
 	}
-	facing := (nx*s.Dir[0] + ny*s.Dir[1] + nz*s.Dir[2]) / (n * d)
-	return s.Ambient + s.Strength*max(facing, 0)*lit
+	sun, sky := white(s.Color), white(s.Sky)
+	var out render.Light
+	for c := range out {
+		out[c] = s.Ambient*sky[c] + direct*sun[c]
+	}
+	return out
+}
+
+// Daylight is the sun as a render.Frame needs it for what glints and reflects the sky.
+func (s Sun) Daylight() render.Daylight {
+	sky := white(s.Sky)
+	return render.Daylight{Dir: s.Dir, Strength: s.Strength, Sun: white(s.Color), Sky: sky,
+		Ambient: render.Light{s.Ambient * sky[0], s.Ambient * sky[1], s.Ambient * sky[2]}}
+}
+
+// white is l, or white for the zero light.
+func white(l render.Light) render.Light {
+	if l == (render.Light{}) {
+		return render.Light{1, 1, 1}
+	}
+	return l
 }

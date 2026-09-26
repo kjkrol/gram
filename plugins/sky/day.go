@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // Day is the time of day, the one fact of the sky, held by the sky's own entity and saved with it:
@@ -47,17 +48,50 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// The light a day goes through: the sun's own strength, the ambient light by day and by night.
-const (
-	sunStrength  = 0.71
-	dayAmbient   = 0.35
-	nightAmbient = 0.12
-)
+// sunStrength is the sun's own strength high in the sky.
+const sunStrength = 0.71
+
+// daylight is the light of the day by how high the sun stands — the sine of its height, rising
+// through the table — the colour of the sky, of the sun's light, and how much of the sky's light
+// every surface gets; between two rows it is blended.
+var daylight = []struct {
+	height   float32
+	sky, sun render.Light
+	ambient  float32
+}{
+	{-0.2, render.Light{0.03, 0.05, 0.12}, render.Light{1, 0.45, 0.2}, 1.2},   // night
+	{-0.05, render.Light{0.25, 0.2, 0.35}, render.Light{1, 0.45, 0.2}, 0.8},   // twilight
+	{0.05, render.Light{0.95, 0.55, 0.35}, render.Light{1, 0.55, 0.25}, 0.45}, // sunrise, sunset
+	{0.35, render.Light{0.5, 0.72, 0.98}, render.Light{1, 0.97, 0.92}, 0.42},  // day
+}
+
+// daylightAt is the row of daylight for a sun at height, blended between its neighbours.
+func daylightAt(height float32) (sky, sun render.Light, ambient float32) {
+	rows := daylight
+	if height <= rows[0].height {
+		return rows[0].sky, rows[0].sun, rows[0].ambient
+	}
+	for i := 1; i < len(rows); i++ {
+		a, b := rows[i-1], rows[i]
+		if height > b.height {
+			continue
+		}
+		f := (height - a.height) / (b.height - a.height)
+		for c := range sky {
+			sky[c] = a.sky[c] + (b.sky[c]-a.sky[c])*f
+			sun[c] = a.sun[c] + (b.sun[c]-a.sun[c])*f
+		}
+		return sky, sun, a.ambient + (b.ambient-a.ambient)*f
+	}
+	last := rows[len(rows)-1]
+	return last.sky, last.sun, last.ambient
+}
 
 // SunAt is the sun of the day c at time of day t: over NoonWay at noon at the height Noon, a
 // quarter turn round from it at 6 and at 18 — with noon in the south rising in the east (+x) and
-// setting in the west — below the horizon at night; its strength and the ambient light rise and
-// fall with it.
+// setting in the west — below the horizon at night; its strength rises and falls with it, and the
+// colours of the sky and of its light go through the day: blue by day, orange at sunrise and
+// sunset, deep blue at night (daylight).
 func (c Config) SunAt(t float32) world.Sun {
 	c = c.withDefaults()
 	across := (float64(t) - 0.25) * 2 * math.Pi
@@ -71,10 +105,13 @@ func (c Config) SunAt(t float32) world.Sun {
 		float32(math.Sin(up)),
 	}
 	height := float32(math.Sin(up))
+	sky, sun, ambient := daylightAt(height)
 	return world.Sun{
 		Dir:      dir,
 		Strength: sunStrength * smoothstep(0, 0.2, height),
-		Ambient:  nightAmbient + (dayAmbient-nightAmbient)*smoothstep(-0.2, 0.3, height),
+		Ambient:  ambient,
+		Color:    sun,
+		Sky:      sky,
 	}
 }
 

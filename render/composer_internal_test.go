@@ -194,9 +194,9 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Line(Overlays, float32(i%5), 0, 0, 5, 5, 1, white)
 			f.Soft(Overlays, 1, unit, black, Fade{Top: 3})
 			f.Tile(Ground, float32(i%7), a, 0, unit, Even(1))
-			f.Glint(0, 0, 32, 32, Even(1), Shore{})
+			f.Glint(0, 0, 32, 32, 1, [4]float32{1, 1, 1, 1}, Shore{})
 		}
-		f.Sun([3]float32{0, 0, 1}, 0.7)
+		f.Daylight(Daylight{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sun: Light{1, 1, 1}})
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
@@ -313,20 +313,20 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	}
 }
 
-func TestFrame_AGlintIsAQuadOverTheSpriteMarkedWithTheWorldTheShineAndTheShore(t *testing.T) {
+func TestFrame_AGlintIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndTheShore(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
 	f.Tile(Ground, 3, sheet{}, 0, dst, Even(0.5))
 	shore := Shore{{X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}, {X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}}
-	f.Glint(100, 200, 132, 232, Shade{1, 0.5, 0, 0.25}, shore)
+	f.Glint(100, 200, 132, 232, 0.9, [4]float32{1, 0.5, 0, 0.25}, shore)
 	if f.Len() != 2 || len(f.items) != 1 {
 		t.Fatalf("%d pieces in %d items, want the tile and its glint in one", f.Len(), len(f.items))
 	}
 	v := f.verts[4:]
-	for k, want := range [4][4]float32{{1, 100, 200, 2.5}, {0.5, 132, 200, 2.5}, {0, 100, 232, 2.5}, {0.25, 132, 232, 2.5}} {
+	for k, want := range [4][4]float32{{0.9, 100, 200, 3}, {0.9, 132, 200, 2.5}, {0.9, 100, 232, 2}, {0.9, 132, 232, 2.25}} {
 		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
-			t.Errorf("glint corner %d is %v, want its shine, where it lies and 2 plus the tile's brightness: %v", k, got, want)
+			t.Errorf("glint corner %d is %v, want its shine, where it lies and 2 plus the sun reaching it: %v", k, got, want)
 		}
 		if v[k].DstX != dst[k][0] || v[k].DstY != dst[k][1] || v[k].SrcX != 40 || v[k].SrcY != 40 {
 			t.Errorf("glint corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the white texel",
@@ -347,25 +347,30 @@ func TestFrame_AGlintFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	var f Frame
 	f.Reset(cam)
 	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	f.Glint(992, 0, 1008, 10, Shade{0, 1, 0, 1}, Shore{})
+	f.Glint(992, 0, 1008, 10, 1, [4]float32{0, 1, 0, 1}, Shore{})
 	v := f.verts
 	if len(v) != 16 {
 		t.Fatalf("%d vertices, want the two pieces' 8 and their glints' 8", len(v))
 	}
 	g := v[8:]
-	if g[1].ColorG != 1000 || g[1].ColorR != 0.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX {
-		t.Errorf("at the seam the glints lie at x %v and %v with shine %v, want 1000 both sides and halfway shine 0.5",
-			g[1].ColorG, g[4].ColorG, g[1].ColorR)
+	if g[1].ColorG != 1000 || g[1].ColorA != 2.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX {
+		t.Errorf("at the seam the glints lie at x %v and %v with the sun at %v, want 1000 both sides and halfway sun 2.5",
+			g[1].ColorG, g[4].ColorG, g[1].ColorA)
 	}
 }
 
-func TestComposer_HandsTheShaderTheFramesSunAndTheEye(t *testing.T) {
-	c := NewComposer(items(func(f *Frame) { f.Sun([3]float32{0.6, 0, 0.8}, 0.7) }))
+func TestComposer_HandsTheShaderTheFramesDaylightAndTheEye(t *testing.T) {
+	c := NewComposer(items(func(f *Frame) {
+		f.Daylight(Daylight{Dir: [3]float32{0.6, 0, 0.8}, Strength: 0.7, Sun: Light{1, 0.8, 0.6}, Sky: Light{0.5, 0.7, 1}, Ambient: Light{0.2, 0.25, 0.3}})
+	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
 	c.compose(topDown())
 	c.render(nil)
 	if c.sun[0] != 0.6 || c.sun[2] != 0.8 || c.glint[1] != 0.7 || c.toward[2] != 1 {
 		t.Errorf("the shader is handed sun %v, strength %v, eye %v; want the frame's sun and the eye above", c.sun, c.glint[1], c.toward)
+	}
+	if c.sunColor[2] != 0.6 || c.skyColor[1] != 0.7 || c.ambience[0] != 0.2 {
+		t.Errorf("the shader is handed colours sun %v, sky %v, ambience %v; want the frame's", c.sunColor, c.skyColor, c.ambience)
 	}
 	c.frame.Reset(topDown())
 	c.render(nil)

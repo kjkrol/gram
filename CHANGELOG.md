@@ -216,6 +216,19 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   test of picking through a Look no longer imports isometry. The blocks show
   whichever faces look towards the eye; the depth is how far down the screen the middle of a cell
   lies, the same order as before unturned.
+- Light has colour. `world.Sun` has `Color` (the sun's light) and `Sky` (the sky's colour and the
+  light every surface gets from it, `Ambient` of it); zero is white, so `DefaultSun` looks as
+  before. `render.Shade` is a `render.Light` (RGB) per corner (`render.Even`, `render.Lit`),
+  `Sun.Light`/`Shaded` return one, and entities are drawn in the sun's light
+  (`world.Look.Sprite` takes it). `plugins/sky` colours the day from a table by the sun's height:
+  a blue sky by day, orange sunrises and sunsets, deep blue nights. `Frame.Sun` is
+  `Frame.Daylight` (`Sun.Daylight`).
+- Water reflects the sky, the more the flatter the eye looks at it; its glint is the sun's colour,
+  its foam lit by the sky and the sun. `Frame.Glint` takes the kind's shine and the sun reaching
+  each corner (`Tile.Shine`).
+- `sky.Plugin.Renderer` is the backdrop: the screen in the sky's colour behind the world
+  (`render.Backdrop`, tier 0), drawn only when the ground does not cover all of it. Both islands
+  with heights use it.
 - `sky.Config.NoonWay`: the way the sun stands at noon, its whole path turned with it; the south
   by default. `sky.SunAt(t, noon)` is `Config.SunAt(t)`. island-isometric-demo has its noon in the
   north-west, beyond the sea as the view looks, so the sea there glints.

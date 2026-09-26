@@ -5,7 +5,9 @@
 // [Day] on the sky's own entity, made at Setup or found after a load, so it is saved with the game.
 // Every tick the day moves on at its Pace, and at every step the world's sun is set to
 // [Config.SunAt] the hour: rising in the east, over the south at noon, setting in the west — the
-// whole path turned round when [Config].NoonWay puts noon elsewhere — below the horizon at night, its strength and the ambient light rising and falling with it. The board lights and
+// whole path turned round when [Config].NoonWay puts noon elsewhere — below the horizon at night,
+// its strength rising and falling with it, and the colours of the sky and of the sun's light going
+// through the day: blue by day, orange at sunrise and sunset, deep blue at night. The board lights and
 // shades the ground by that sun and the world lays the units' shadows, so mornings and evenings
 // cast long shadows and nights are dark. Stepping keeps the terrain's shadows, worked out anew
 // whenever the sun moves, from being worked out every tick.
@@ -13,6 +15,8 @@
 // The plugin is a plugin.CommandHandler: [Pause] stops the day where it is or lets it go on at its
 // pace (P); [Forward] (]) doubles the pace while the day goes by and moves it half an hour on while
 // it stands; [Back] ([) halves the pace, or moves it half an hour back. [Plugin.Reporter] adds the time of day to a scene's
-// render.TelemetryRenderer. Call [Plugin.RunPlan] every tick, before the world is drawn; a flat
-// world has no light to change.
+// render.TelemetryRenderer. [Plugin.Renderer] is the backdrop: behind the world, in the sky's
+// colour, drawn only when the ground does not cover the whole screen — beyond the world's edge,
+// above a low view. Call [Plugin.RunPlan] every tick, before the world is drawn; a flat world has
+// no light to change.
 package sky
