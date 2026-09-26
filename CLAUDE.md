@@ -142,7 +142,26 @@ it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, h
 above by default. The isometric view is a plugin a game adds: `isometry.NewPlugin(world, Config{Cell,
 TileW, TileH, HeightUnit, Headroom})`, made right after the world, sets the world's camera factory
 (`world.SetCameras`; `camera.Config` has no projection) and its Look (billboards), and
-`WithBoard(board)` the board's (blocks with faces); it refuses a wrapping world. Everything that is
+`WithBoard(board)` the board's (blocks with the faces turned towards the eye); it refuses a
+wrapping world. Its camera turns by any angle (heading saved with the camera): the projection turns
+the ground frame from the 2:1 view, Depth is how far down the screen the middle of the cell lies
+(every point of a cell ties with its tile), Toward follows the heading. The plugin is a
+CommandHandler with a RunPlan (after the world, before players): `Turn{Camera, Angle}` (Q/E held,
+`TurnStep` 2° a tick) and `Follow{Camera}` (V, bound only `WithSelection(sel)`, which hands it the
+Selected tag as navigation takes it: fastens the camera behind the one selected unit — centred,
+turned with an ease of `followEase` until its `Vel.Dir` runs up the screen — held through other
+selections, orders, pans and turns until V again or the unit is gone), `Tilt{Camera, Angle}`
+(PageUp/PageDown, 1° a tick; the projection's `Pitch` from 10° to 90°, the 2:1 view at
+asin(TileH/TileW), scaling the ground down the screen by sin and heights by cos; saved with the
+camera; a fastened camera pans its unit `shoulder`·cos(pitch) of the screen below the middle) and
+`Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `world.Driven` on V, writes the
+keys every tick, writes a stop and detaches it on letting go; navigation's `driveSystem`, after
+the orders, turns `driveTurn` a tick, walks on while the cell just ahead admits the domain and the
+occupancy, stops dead otherwise, removes a MoveOrder a hand touches and keeps Cell, occupancy and
+CellEntered with the unit). Commands carry
+`control.Context.Camera`, as `selection.Follow` does, so the plugin never knows players; which
+camera is fastened to what is the camera system's state, cameras being no entities. selection
+must not import isometry, even in tests (isometry imports selection). Everything that is
 the isometric view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the top-down camera. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight

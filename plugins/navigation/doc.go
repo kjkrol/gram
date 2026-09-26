@@ -32,6 +32,15 @@
 // Selected entity finishes its step, stops and turns there — both through [MoveOrder].Face, the
 // point an entity turns towards on arrival.
 //
+// # Driven by hand
+//
+// An entity carrying a world.Driven — written every tick by whoever steers it, the isometric
+// camera fastened behind it — is carried out after the orders: it turns by hand, walks on the way
+// it faces while the ground just ahead is a cell its domain may stand on and the occupancy lets it
+// into, and stops dead otherwise, so it never walks into the sea; with no hand on it, it brakes.
+// A hand ends any order it had, giving up the cells of the step in progress; with none, the order
+// goes on. Its Cell and its hold on the occupancy follow it cell by cell, with CellEntered.
+//
 // # Renderer
 //
 // [Plugin.WithRenderer] builds the [PathRenderer], a render.Source laying the remaining route of

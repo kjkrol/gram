@@ -171,3 +171,46 @@ func TestBlocks_LightTheTopsFromTheUpperLeft(t *testing.T) {
 		}
 	}
 }
+
+func TestBlocks_TurnedShowTheFacesTurnedTowardsTheViewer(t *testing.T) {
+	w := newWorld(0)
+	p := isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	p.WithBoard(b)
+	b.WithRenderer(sheet{})
+	b.Res.Render.ShowGridLines = false
+	wall, _ := grid.CellIndex(2, 2)
+	b.Res.Logic.Board.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 8})
+	cam := w.Camera()
+	// the face along x = x (the wall's west side at 64, its east at 96) standing from 8 down to 0
+	faceAt := func(x float32) bool {
+		at := func(v ebiten.Vertex, y, z float32) bool {
+			sx, sy := cam.Project(x, y, z)
+			return near(v.DstX, sx) && near(v.DstY, sy)
+		}
+		var f render.Frame
+		f.Reset(cam)
+		b.Renderer().(render.Source).Compose(&f, cam)
+		found := false
+		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+			for _, ends := range [2][2]float32{{64, 96}, {96, 64}} {
+				if at(v[0], ends[0], 8) && at(v[1], ends[1], 8) && at(v[2], ends[0], 0) && at(v[3], ends[1], 0) {
+					found = true
+				}
+			}
+		})
+		return found
+	}
+	cam.CenterOn(80, 80, 0)
+	if !faceAt(96) || faceAt(64) {
+		t.Errorf("unturned: east face %v, west face %v; want the east one, towards the viewer", faceAt(96), faceAt(64))
+	}
+	isometry.TurnCamera(cam, math.Pi)
+	if faceAt(96) || !faceAt(64) {
+		t.Errorf("turned half round: east face %v, west face %v; want the west one, towards the viewer now", faceAt(96), faceAt(64))
+	}
+}
+
+func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }

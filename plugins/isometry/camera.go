@@ -20,8 +20,11 @@ type isoCamera struct {
 	zoom         float32
 	// pan is where the projected world origin lands on the screen, in pixels.
 	pan geom.Vec
-	// origin is the ground point under the screen's top-left corner — what a save keeps.
-	origin geom.Vec
+	// origin is the ground point under the screen's top-left corner, heading the view's turn and
+	// pitch how steeply it looks down — what a save keeps.
+	origin  geom.Vec
+	heading float32
+	pitch   float32
 
 	// the projected world's extent at zoom 1 and height 0, for fitting and clamping
 	minSX, maxSX, minSY, maxSY float32
@@ -51,17 +54,46 @@ func newIsoCamera(proj projection, world geom.Vec, viewport contract.AABB, edges
 		panic("isometry: a world that wraps cannot be seen isometrically")
 	}
 	proj = proj.withDefaults()
-	c := &isoCamera{proj: proj, projection: proj, world: world, zoom: 1,
+	c := &isoCamera{world: world, zoom: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y)}
+	c.look(proj)
+	c.MoveTo(viewport.TopLeft.X, viewport.TopLeft.Y)
+	return c
+}
+
+// look draws through proj from now on, and measures the projected world anew.
+func (c *isoCamera) look(proj projection) {
+	c.proj, c.projection, c.heading, c.pitch = proj, proj, proj.Heading, proj.Pitch
 	c.minSX, c.maxSX, c.minSY, c.maxSY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
-	for _, corner := range [4][2]float32{{0, 0}, {float32(world.X), 0}, {0, float32(world.Y)}, {float32(world.X), float32(world.Y)}} {
+	w, h := float32(c.world.X), float32(c.world.Y)
+	for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
 		sx, sy := proj.Project(corner[0], corner[1], 0)
 		c.minSX, c.maxSX = min(c.minSX, sx), max(c.maxSX, sx)
 		c.minSY, c.maxSY = min(c.minSY, sy), max(c.maxSY, sy)
 	}
-	c.MoveTo(viewport.TopLeft.X, viewport.TopLeft.Y)
-	return c
 }
+
+// Turn turns the view by angle radians, the world clockwise on the screen, keeping the ground point
+// in the middle of the screen where it is.
+func (c *isoCamera) Turn(angle float32) {
+	x, y := c.Unproject(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2), 0)
+	c.look(c.proj.turned(c.proj.Heading + angle))
+	c.zoom = max(c.zoom, c.minZoom())
+	c.CenterOn(float64(x), float64(y), 0)
+}
+
+func (c *isoCamera) Heading() float32 { return c.proj.Heading }
+
+// Tilt looks down by angle radians more steeply, less for a negative one, between the flattest and
+// straight down, keeping the ground point in the middle of the screen where it is.
+func (c *isoCamera) Tilt(angle float32) {
+	x, y := c.Unproject(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2), 0)
+	c.look(c.proj.tilted(c.proj.Pitch + angle))
+	c.zoom = max(c.zoom, c.minZoom())
+	c.CenterOn(float64(x), float64(y), 0)
+}
+
+func (c *isoCamera) Pitch() float32 { return c.proj.Pitch }
 
 func (c *isoCamera) Projection() contract.Projection { return c.projection }
 
@@ -205,11 +237,12 @@ func (c *isoCamera) SetMaxZoom(maxZoom float32) { c.maxZoom = maxZoom }
 
 func (c *isoCamera) State() contract.State { return contract.State{Viewport: c.Bounds(), Zoom: c.zoom} }
 
-// Persisted hands saves the ground point under the screen's corner and the zoom; Restore puts the
-// window back over them.
-func (c *isoCamera) Persisted() []any { return []any{&c.origin, &c.zoom} }
+// Persisted hands saves the ground point under the screen's corner, the zoom, the heading and the
+// pitch; Restore puts the window back over them.
+func (c *isoCamera) Persisted() []any { return []any{&c.origin, &c.zoom, &c.heading, &c.pitch} }
 
 func (c *isoCamera) Restore() {
+	c.look(c.proj.turned(c.heading).tilted(c.pitch))
 	c.zoom = max(c.zoom, 0.01)
 	c.MoveTo(c.origin.X, c.origin.Y)
 }

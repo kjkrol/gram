@@ -235,7 +235,7 @@ func (f *Frame) Glint(x0, y0, x1, y1 float32, shine Shade, shore Shore) {
 			f.verts = append(f.verts, ebiten.Vertex{
 				DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
 				ColorR: shine.at(u, v), ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*v,
-				ColorA: glintMark + f.verts[first+k].ColorR, // the sprite's brightness there, for the foam
+				ColorA:  glintMark + f.verts[first+k].ColorR, // the sprite's brightness there, for the foam
 				Custom0: c.X, Custom1: c.Y, Custom2: c.Dist, Custom3: c.Near,
 			})
 		}

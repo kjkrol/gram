@@ -13,9 +13,9 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/isometry"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -477,35 +477,50 @@ func TestSelection_PassesByWhatIsNotSelectable(t *testing.T) {
 	}
 }
 
-func TestSystem_Update_ClickPicksWhereTheEntityIsDrawnThroughAnIsometricCamera(t *testing.T) {
+// standing is a Look drawing an entity upright over its box, lifted by its altitude, as a view with
+// heights does.
+type standing struct{}
+
+func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, float32, render.AtlasSource, render.SpriteID) {
+}
+
+func (standing) Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners {
+	x0, y0 := cam.ToScreen(float32(box.TopLeft.X), float32(box.TopLeft.Y))
+	x1, y1 := cam.ToScreen(float32(box.BottomRight.X), float32(box.BottomRight.Y))
+	return render.Corners{{x0, y0 - alt}, {x1, y0 - alt}, {x0, y1 - alt}, {x1, y1 - alt}}
+}
+
+func (standing) Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {
+	return append(dst, render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), alt))
+}
+
+func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	h := newHarnessViewed(t, world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Camera:   camera.Config{ViewportWidth: 800, ViewportHeight: 600},
 		Quasi3D:  true,
-	}, func(w *world.Plugin) { isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1}) })
+	}, func(w *world.Plugin) { w.SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()
 	cam := h.local.Camera
-	cam.MoveTo(400, 400)
-	cam.Pan(-400, -300)
+	cam.MoveTo(300, 300)
 
-	// The hawk is drawn as a billboard 40 up over its centre; a click on it selects it.
-	sx, sy := cam.Project(505, 505, 40)
-	h.click(int(sx), int(sy)-5, false)
+	// The hawk is drawn 40 up over its box; a click there selects it.
+	sx, sy := cam.ToScreen(505, 505)
+	h.click(int(sx), int(sy)-40, false)
 	if !h.isSelected(*hawk) || h.isSelected(*walker) {
 		t.Errorf("clicking the hawk where it is drawn: hawk %v, walker %v; want the hawk alone", h.isSelected(*hawk), h.isSelected(*walker))
 	}
-	// A click on the ground under the hawk's footprint hits nothing.
-	gx, gy := cam.Project(505, 505, 0)
-	h.click(int(gx), int(gy), false)
+	// A click on the ground under the hawk hits nothing.
+	h.click(int(sx), int(sy), false)
 	if h.isSelected(*hawk) {
 		t.Error("clicking the ground under the hawk selected it")
 	}
-	// The walker on the ground is where its footprint is drawn.
-	wx, wy := cam.Project(565, 565, 0)
-	h.click(int(wx), int(wy)-3, false)
+	// The walker on the ground is where its box is.
+	wx, wy := cam.ToScreen(565, 565)
+	h.click(int(wx), int(wy), false)
 	if !h.isSelected(*walker) {
 		t.Error("clicking the walker where it stands did not select it")
 	}

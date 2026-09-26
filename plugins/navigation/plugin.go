@@ -69,7 +69,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem}
+	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, driveSystem: &driveSystem{nav: navSys}}
 	ctx.UseModule(p.module)
 	return nil
 }

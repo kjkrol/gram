@@ -29,6 +29,8 @@
 // A host hands Base to whatever it hosts instead of anyone binding it twice. No entity moves
 // further in a tick than [StepReach] of its own shorter side ([Position.MaxStep],
 // [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest.
+// [Driven] marks an entity steered by hand — walk on or stop, turn — written every tick by whoever
+// steers it and carried out by the plugin that moves entities over the ground (navigation).
 //
 // # Kinds, Seed and Populate
 //

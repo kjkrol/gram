@@ -9,7 +9,7 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 )
 
-var testProjection = projection{Cell: 32, TileW: 64, TileH: 32, HeightUnit: 2}
+var testProjection = projection{Cell: 32, TileW: 64, TileH: 32, HeightUnit: 2}.withDefaults()
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
@@ -80,8 +80,9 @@ func TestCamera_PersistedRoundTrip(t *testing.T) {
 	cam.MoveTo(300, 280)
 	cam.ZoomIn(1.5, 320, 320)
 	cam.Pan(7, 3)
+	cam.(*isoCamera).Turn(0.7)
 	bx, by := cam.Project(320, 320, 0)
-	saved := make([]any, 0, 2)
+	saved := make([]any, 0, 3)
 	for _, p := range cam.Persisted() {
 		switch v := p.(type) {
 		case *geom.Vec:
@@ -144,5 +145,52 @@ func TestCamera_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testi
 		if sx, sy := cam.Project(330, 310, 0); !near(sx, 250) || !near(sy, 200) {
 			t.Errorf("%s: the point in the middle moved to (%v, %v), want (250, 200)", name, sx, sy)
 		}
+	}
+}
+
+func TestCamera_TurnKeepsTheMiddleAndTurnsTheView(t *testing.T) {
+	cam := testCamera(t, 0)
+	cam.CenterOn(330, 310, 0)
+	turner := cam.(*isoCamera)
+	turner.Turn(1)
+	if sx, sy := cam.Project(330, 310, 0); !near(sx, 200) || !near(sy, 150) {
+		t.Errorf("after Turn the middle point is drawn at (%v, %v), want (200, 150)", sx, sy)
+	}
+	if !near(turner.Heading(), 1) || !near(cam.Projection().(projection).Heading, 1) {
+		t.Errorf("heading %v, projection's %v, want 1", turner.Heading(), cam.Projection().(projection).Heading)
+	}
+	turner.Turn(2 * math.Pi)
+	if !near(turner.Heading(), 1) {
+		t.Errorf("a whole turn more gives heading %v, want 1 again", turner.Heading())
+	}
+	b := cam.Bounds()
+	for _, corner := range [4][2]float32{{0, 0}, {400, 0}, {0, 300}, {400, 300}} {
+		x, y := cam.Unproject(corner[0], corner[1], 0)
+		x, y = min(max(x, 0), 640), min(max(y, 0), 640)
+		if float64(x) < b.TopLeft.X-1e-3 || float64(x) > b.BottomRight.X+1e-3 || float64(y) < b.TopLeft.Y-1e-3 || float64(y) > b.BottomRight.Y+1e-3 {
+			t.Errorf("the screen's corner %v shows the ground (%v, %v), outside Bounds %v", corner, x, y, b)
+		}
+	}
+}
+
+func TestCamera_TiltKeepsTheMiddleStaysInRangeAndIsSaved(t *testing.T) {
+	cam := testCamera(t, 0).(*isoCamera)
+	cam.CenterOn(330, 310, 0)
+	cam.Tilt(-0.3)
+	if sx, sy := cam.Project(330, 310, 0); !near(sx, 200) || !near(sy, 150) {
+		t.Errorf("after Tilt the middle point is drawn at (%v, %v), want (200, 150)", sx, sy)
+	}
+	cam.Tilt(-5)
+	if !near(cam.Pitch(), minPitch) {
+		t.Errorf("tilted far down the pitch is %v, want held at %v", cam.Pitch(), minPitch)
+	}
+	cam.Tilt(0.4)
+	pitch := cam.Pitch()
+	saved := *cam.Persisted()[3].(*float32)
+	other := testCamera(t, 0).(*isoCamera)
+	*other.Persisted()[3].(*float32) = saved
+	other.Restore()
+	if !near(other.Pitch(), pitch) {
+		t.Errorf("restored pitch %v, want %v", other.Pitch(), pitch)
 	}
 }

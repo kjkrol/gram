@@ -8,13 +8,15 @@ import (
 )
 
 // module registers and runs navigationSystem (always) and moveCommandSystem
-// (only when WithCommands enabled it) as one goke.Module.
+// (only when WithCommands enabled it) as one goke.Module, and driveSystem after them.
 type module struct {
 	navigationSystem  *navigationSystem
 	moveCommandSystem *moveCommandSystem
+	driveSystem       *driveSystem
 
 	navSysRunnable     goke.Runnable
 	moveCmdSysRunnable goke.Runnable
+	driveSysRunnable   goke.Runnable
 }
 
 var _ goke.Module = (*module)(nil)
@@ -27,6 +29,7 @@ var _ goke.Module = (*module)(nil)
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.navSysRunnable = ecs.RegSys(m.navigationSystem)
 	m.moveCmdSysRunnable = ecs.RegSys(m.moveCommandSystem)
+	m.driveSysRunnable = ecs.RegSys(m.driveSystem)
 
 }
 
@@ -35,6 +38,9 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.navSysRunnable, d)
 	ctx.Sync()
 	ctx.Run(m.moveCmdSysRunnable, d)
+	ctx.Sync()
+	// a hand on an entity overrides whatever its order asked of it this tick
+	ctx.Run(m.driveSysRunnable, d)
 	ctx.Sync()
 
 }

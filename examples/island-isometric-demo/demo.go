@@ -4,7 +4,10 @@
 // over everything a walker's stops at. A day goes by (plugins/sky): long shadows morning and
 // evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or, stopped, move it
 // half an hour on or back. Scroll with the wheel, drag with the middle button or push the cursor to
-// an edge to move the camera.
+// an edge to move the camera; hold Q or E to turn it, PageUp or PageDown to look down more or
+// less steeply. V fastens the camera behind the selected unit — turning as it turns, whatever else
+// is selected or ordered — the arrows walking it on, stopping and turning it by hand; V again lets
+// it go.
 package main
 
 import (
@@ -136,12 +139,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.board); err != nil {
 		return err
 	}
-	if err := ctx.Use(s.isometry.WithBoard(s.board)); err != nil {
-		return err
-	}
-
 	s.selection = selection.NewPlugin(s.world)
 	if err := ctx.Use(s.selection); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.isometry.WithBoard(s.board).WithSelection(s.selection)); err != nil {
 		return err
 	}
 
@@ -165,7 +167,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board, s.sky)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board, s.sky, s.isometry)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
@@ -268,6 +270,7 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.vision.RunPlan(ctx, d)
 	s.sky.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.isometry.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

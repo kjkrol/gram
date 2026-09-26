@@ -201,6 +201,21 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `render.Frame.Glint` after the tile, which lays a quad of light over it; the board hands the
   frame its sun (`Frame.Sun`). The islands with heights give their water 0.9. A save of an older
   Ground does not load.
+- The isometric camera turns by any angle, the heading saved with it: `isometry.Turn` (Q and E
+  held, 2° a tick). `isometry.Follow` (V, with `Plugin.WithSelection`) fastens the camera behind
+  the selected unit: centred on it and turning, eased, until the way it walks runs up the screen,
+  whatever else is selected, ordered, panned or turned, until V again — a game walked behind a
+  character's back. `isometry.Tilt` (PageUp/PageDown) has it look down from 10° to 90°, the 2:1
+  view at 30°; a fastened camera holds its unit lower on the screen the lower it looks.
+  `isometry.Drive` (the arrows) steers the fastened unit through a new `world.Driven`, which
+  navigation carries out: turning, walking on the way it faces, stopping dead before a cell its
+  domain may not stand on or the occupancy keeps it from — no walking into the sea — ending any
+  order it had, its Cell and occupancy kept with it. The commands carry the camera of whoever gave
+  them, so the plugin — now a
+  CommandHandler with a RunPlan — turns a player's camera without knowing players. selection's
+  test of picking through a Look no longer imports isometry. The blocks show
+  whichever faces look towards the eye; the depth is how far down the screen the middle of a cell
+  lies, the same order as before unturned.
 - `sky.Config.NoonWay`: the way the sun stands at noon, its whole path turned with it; the south
   by default. `sky.SunAt(t, noon)` is `Config.SunAt(t)`. island-isometric-demo has its noon in the
   north-west, beyond the sea as the view looks, so the sea there glints.
