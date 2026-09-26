@@ -1,6 +1,8 @@
 package board
 
 import (
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
@@ -75,13 +77,38 @@ func (t *Tile) Light() render.Shade {
 	}
 	sun := r.lighted
 	lit := t.sunlit()
-	corner := func(k int, dx, dy float32) float32 { return sun.Shaded(-dx, -dy, 1, lit[k]) }
+	shine := r.topOf(t.ID).shine
+	toward := r.camera.Projection().Toward()
+	at := [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}
+	corner := func(k int, dx, dy float32) float32 {
+		light := sun.Shaded(-dx, -dy, 1, lit[k])
+		if shine > 0 {
+			rx, ry := ripple(at[k][0], at[k][1])
+			light += sun.Glint(rx-dx, ry-dy, 1, toward, shine, lit[k])
+		}
+		return light
+	}
 	return render.Shade{
 		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
 		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
 		corner(2, slope(g[3], left[2], true, lok, g[2], g[3], w), slope(down[2], g[0], dok, true, g[0], g[2], h)),
 		corner(3, slope(right[3], g[2], rok, true, g[2], g[3], w), slope(down[3], g[1], dok, true, g[1], g[3], h)),
 	}
+}
+
+// rippleTilt is how far a shiny surface's ripples tilt it, as a slope.
+const rippleTilt = 0.25
+
+// ripple is the slope the ripples give a shiny surface at the world point (x, y): fixed for the
+// point, different from its neighbours', so the sun glints off some and not others.
+func ripple(x, y float32) (float32, float32) {
+	h := uint32(int32(math.Round(float64(x))))*73856093 ^ uint32(int32(math.Round(float64(y))))*19349663
+	h ^= h >> 13
+	h *= 0x5bd1e995
+	h ^= h >> 15
+	angle := float64(h&0xffff) / 0x10000 * 2 * math.Pi
+	tilt := rippleTilt * float32(h>>16) / 0x10000
+	return tilt * float32(math.Cos(angle)), tilt * float32(math.Sin(angle))
 }
 
 // sunlit is how much sun reaches each corner of the tile's top: all of it where the board casts no

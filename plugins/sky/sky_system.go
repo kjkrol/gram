@@ -30,7 +30,7 @@ func newSkySystem(cfg Config, w *world.Plugin, forward *control.Queue[Forward], 
 	return &skySystem{cfg: cfg, world: w, forward: forward, back: back, pause: pause, step: -1}
 }
 
-// hour is an hour of a day.
+// hour is an hour of a day; a stopped day moves by half of one.
 const hour = float32(1) / 24
 
 func (s *skySystem) Init(si *goke.SysInit) {
@@ -66,7 +66,8 @@ func (s *skySystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		if !day.Stopped {
 			day.Time = wrap(day.Time + float32(d.Seconds()/s.cfg.Length.Seconds()*float64(day.Pace)))
 		}
-		if step := int(day.Time * float32(s.cfg.Steps)); step != s.step {
+		// a hair over, so a time moved onto a step by halves is on it, not a rounding short of it
+		if step := int(day.Time*float32(s.cfg.Steps)+1e-3) % s.cfg.Steps; step != s.step {
 			s.step = step
 			s.world.SetSun(SunAt(float32(step)/float32(s.cfg.Steps), s.cfg.Noon))
 		}

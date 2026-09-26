@@ -36,3 +36,19 @@ func TestProjection_DepthIsTheRowOfTheCellUnderThePoint(t *testing.T) {
 		t.Errorf("a thing anywhere in a cell has depth %v, want its tile's %v, before the next row", standing, tile)
 	}
 }
+
+func TestProjection_TowardIsWhereEveryPointOnItLandsOnOneSpot(t *testing.T) {
+	p := testProjection.withDefaults()
+	d := p.Toward()
+	if !near(d[0]*d[0]+d[1]*d[1]+d[2]*d[2], 1) || d[2] <= 0 {
+		t.Fatalf("Toward %v, want a unit vector rising towards the eye", d)
+	}
+	x0, y0 := p.Project(100, 50, 3)
+	x1, y1 := p.Project(100+40*d[0], 50+40*d[1], 3+40*d[2])
+	if !near(x0, x1) || !near(y0, y1) {
+		t.Errorf("40 along Toward lands at (%v, %v), not on (%v, %v)", x1, y1, x0, y0)
+	}
+	if p.Depth(100+40*d[0], 50+40*d[1], 0) <= p.Depth(100, 50, 0) {
+		t.Error("the way towards the eye is not nearer the eye")
+	}
+}

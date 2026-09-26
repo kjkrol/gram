@@ -2,9 +2,9 @@
 // isometric camera, Transport Tycoon's way: hills 20 and mountains 40 up with sloping sides,
 // forests standing 8 tall, units drawn upright on the ground and a hawk 40 up whose cone looks
 // over everything a walker's stops at. A day goes by (plugins/sky): long shadows morning and
-// evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or, stopped, move it an
-// hour on or back. Scroll with the wheel, drag with the middle button or push the cursor to an edge
-// to move the camera.
+// evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or, stopped, move it
+// half an hour on or back. Scroll with the wheel, drag with the middle button or push the cursor to
+// an edge to move the camera.
 package main
 
 import (
@@ -123,7 +123,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
+		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9},
 		board.CellKind{Name: board.Named("field"), Cost: 1.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("hills"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),

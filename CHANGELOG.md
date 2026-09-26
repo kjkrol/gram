@@ -187,10 +187,14 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   default) the world's sun becomes `sky.SunAt` the hour — rising in the east, over the south at
   noon, setting in the west, below the horizon at night, strength and ambient light rising and
   falling with it. `Pause` (P) stops the day where it is and lets it go on; `Forward` and `Back`
-  (] and [) double and halve its pace while it goes by and move it an hour on or back while it
-  stands. island-25-demo and
+  (] and [) double and halve its pace while it goes by and move it half an hour on or back while
+  it stands. island-25-demo and
   island-isometric-demo have days; a unit's shadow is capped at 6 units a unit of height, the sun
   on the horizon would cast it for ever.
+- `CellKind.Shine`: a shiny kind glints where its surface faces halfway between the sun and the
+  eye (`world.Sun.Glint`, `camera.Projection.Toward`), over ripples fixed for each corner, so a sea
+  sparkles in patches that move with the sun; the islands with heights give their water 0.9. A
+  save of an older Ground does not load.
 - A plugin can add lines to the telemetry: `render.Reporter`, handed to
   `TelemetryRenderer.With`; `sky.Plugin.Reporter` shows the time of day (and the pace when it is
   hurried or held) in both islands with heights.

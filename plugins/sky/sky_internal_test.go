@@ -91,9 +91,9 @@ func TestSky_ForwardAndBackChangeThePaceOfADayGoingBy(t *testing.T) {
 	}
 }
 
-// Stopped, the day stands still, Forward and Back move it by the hour and the sun follows at once;
-// let go again, it goes by at the pace it had.
-func TestSky_AStoppedDayMovesByTheHourAndGoesOnAtItsPace(t *testing.T) {
+// Stopped, the day stands still, Forward and Back move it by half an hour and the sun follows at
+// once; let go again, it goes by at the pace it had.
+func TestSky_AStoppedDayMovesByHalfAnHourAndGoesOnAtItsPace(t *testing.T) {
 	w, tick, day, q := skyOf(t, Config{Length: 24 * time.Second, Start: 0.5, Steps: 24})
 	q.forward.Add(0, Forward{}) // pace 2
 	tick(0)
@@ -110,29 +110,36 @@ func TestSky_AStoppedDayMovesByTheHourAndGoesOnAtItsPace(t *testing.T) {
 	q.forward.Add(0, Forward{})
 	q.back.Add(0, Back{})
 	tick(0)
-	if d := day(); !near(d.Time, 13.0/24) || d.Pace != 2 || w.Sun() != SunAt(13.0/24, math.Pi/3) {
-		t.Errorf("two hours on and one back the day is %+v and the sun %+v, want 13:00 at pace 2 and its sun", d, w.Sun())
+	if d := day(); !near(d.Time, 12.5/24) || d.Pace != 2 {
+		t.Errorf("two half hours on and one back the day is %+v, want 12:30 at pace 2", d)
 	}
+	q.forward.Add(0, Forward{})
+	tick(0)
+	if w.Sun() != SunAt(13.0/24, math.Pi/3) { // the sun moves by the day's steps, hours here
+		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", w.Sun())
+	}
+	q.back.Add(0, Back{})
+	tick(0)
 	q.back.Add(0, Back{})
 	q.back.Add(0, Back{})
 	tick(0)
-	if d := day(); !near(d.Time, 11.0/24) {
-		t.Errorf("two hours back the day is at %v, want 11:00", d.Time)
+	if d := day(); !near(d.Time, 11.5/24) {
+		t.Errorf("two half hours back the day is at %v, want 11:30", d.Time)
 	}
 	q.pause.Add(0, Pause{})
 	tick(time.Second)
-	if d := day(); d.Stopped || !near(d.Time, 11.0/24+2.0/24) {
-		t.Errorf("let go, a second of a 24-second day at pace 2 brings %+v, want 13:00 and going", d)
+	if d := day(); d.Stopped || !near(d.Time, 11.5/24+2.0/24) {
+		t.Errorf("let go, a second of a 24-second day at pace 2 brings %+v, want 13:30 and going", d)
 	}
 }
 
 func TestSky_BackBeforeMidnightIsTheDayBefore(t *testing.T) {
-	_, tick, day, q := skyOf(t, Config{Start: 0.5 / 24})
+	_, tick, day, q := skyOf(t, Config{Start: 0.25 / 24})
 	q.pause.Add(0, Pause{})
 	q.back.Add(0, Back{})
 	tick(0)
-	if d := day(); !near(d.Time, 23.5/24) {
-		t.Errorf("an hour back from 00:30 the day is at %v, want 23:30", d.Time)
+	if d := day(); !near(d.Time, 23.75/24) {
+		t.Errorf("half an hour back from 00:15 the day is at %v, want 23:45", d.Time)
 	}
 }
 

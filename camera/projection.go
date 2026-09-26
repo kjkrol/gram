@@ -14,6 +14,9 @@ type Projection interface {
 	// Sorts reports whether what is drawn through it must go back to front by Depth: whether
 	// something nearer can hide something further back.
 	Sorts() bool
+	// Toward is the way from the world towards whoever looks through it, a unit vector (x and y
+	// along the world, z up): what a surface must face to throw the sun back at the eye.
+	Toward() [3]float32
 }
 
 // TopDown is the plain map view: screen x and y are world x and y, height is not drawn.
@@ -24,3 +27,4 @@ func (TopDown) Unproject(sx, sy, _ float32) (float32, float32) { return sx, sy }
 func (TopDown) Depth(_, y, _ float32) float32                  { return y }
 func (TopDown) Wraps() bool                                    { return true }
 func (TopDown) Sorts() bool                                    { return false }
+func (TopDown) Toward() [3]float32                             { return [3]float32{0, 0, 1} }

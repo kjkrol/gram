@@ -32,7 +32,10 @@ type CellKind struct {
 	Veils Domain
 	// Height is what stands on the cell (a wall, a forest) in a Quasi3D world; a flat world refuses
 	// it — see world.Config.Quasi3D. The ground under it is the cell's Relief.
-	Height   float64
+	Height float64
+	// Shine is how much of the sun the cell's surface throws back at whoever looks at it, 0 to 1:
+	// water, ice, wet rock glint where the sun and the eye meet over its ripples.
+	Shine    float64
 	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
 	// set; see Costing and CostFor.

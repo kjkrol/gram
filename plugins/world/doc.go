@@ -86,7 +86,8 @@
 //
 // A world with heights is lit by its [Sun] ([Plugin.Sun]): a direction towards it, a strength and
 // the ambient light every surface gets anyway; [Sun.Light] is how bright it makes a surface of a
-// given normal, [Sun.Shaded] the same with only part of the sun reaching it — the rest in shadow.
+// given normal, [Sun.Shaded] the same with only part of the sun reaching it — the rest in shadow —
+// and [Sun.Glint] what a shiny surface throws back towards an eye.
 // Under it every entity with a [Z] casts a shadow: the Renderer lays a soft patch on the ground away
 // from the sun, as wide as the entity, stretched by its Height and pushed off by how far above the
 // ground it stands — a hawk's falls where it flies over — over the ground and under what stands. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a

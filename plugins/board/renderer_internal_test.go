@@ -232,3 +232,24 @@ func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
 		t.Errorf("with shadows off the grass behind the wall is lit %v, want the full sun", l)
 	}
 }
+
+func TestTile_AShinyCellGlintsInTheSunOffItsRipples(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 4, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	sea, _ := grid.CellIndex(1, 1)
+	brd.Set(sea, CellKind{Cost: 1, Allows: Water, Shine: 1})
+	sun := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3} // overhead, as the eye
+	lights := lightsOf(brd, sun)
+	grass, _ := grid.CellIndex(3, 3)
+	plain := lights[grass][0]
+	water := lights[sea]
+	for k, l := range water {
+		if l <= plain {
+			t.Errorf("water corner %d is lit %v, no brighter than grass %v", k, l, plain)
+		}
+	}
+	if water[0] == water[1] && water[1] == water[2] && water[2] == water[3] {
+		t.Errorf("water glints %v alike at every corner, want its ripples to tell them apart", water)
+	}
+}

@@ -11,8 +11,8 @@
 // whenever the sun moves, from being worked out every tick.
 //
 // The plugin is a plugin.CommandHandler: [Pause] stops the day where it is or lets it go on at its
-// pace (P); [Forward] (]) doubles the pace while the day goes by and moves it an hour on while it
-// stands; [Back] ([) halves the pace, or moves it an hour back. [Plugin.Reporter] adds the time of day to a scene's
+// pace (P); [Forward] (]) doubles the pace while the day goes by and moves it half an hour on while
+// it stands; [Back] ([) halves the pace, or moves it half an hour back. [Plugin.Reporter] adds the time of day to a scene's
 // render.TelemetryRenderer. Call [Plugin.RunPlan] every tick, before the world is drawn; a flat
 // world has no light to change.
 package sky

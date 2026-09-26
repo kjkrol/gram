@@ -161,8 +161,12 @@ found after a load), moved on every tick; at every one of `Config.Steps` a day t
 set to `sky.SunAt` the hour (east at 6, south at noon, west at 18, below the horizon at night, the
 strength and ambient rising and falling), so the terrain's shadows are worked out anew only per
 step. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
-`Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it an hour on or back
-while it stands. Both islands with heights use it.
+`Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it half an hour on or
+back while it stands. Both islands with heights use it.
+`CellKind.Shine` (0–1) makes a kind glint: the board adds `world.Sun.Glint` to each corner of its
+tiles, the normal tilted by ripples fixed per corner, towards `camera.Projection.Toward()` (the eye;
+straight up from above, along the diagonal in the isometric view); an effect altering `Ground` can
+make a cell shiny. The islands with heights give their water 0.9.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep

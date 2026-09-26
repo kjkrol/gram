@@ -116,8 +116,11 @@
 // map in relief. The terrain casts shadows too: a corner the ground or what stands on it hides from
 // the sun, walked towards it up to 16 cells, gets the ambient light alone, and a face as much sun as
 // the top's edge over it. The shadows are worked out as cells come into sight and kept until the
-// terrain or the sun changes; [Plugin.WithShadows] turns them off. A flat world is drawn as its
-// sprites are.
+// terrain or the sun changes; [Plugin.WithShadows] turns them off. A kind with a Shine — water,
+// ice, anything a game or an effect makes shiny — also glints: each corner of its surface is tilted
+// a little by ripples fixed for the spot, and throws the sun back towards the eye where it faces
+// halfway between them, so the sea sparkles in patches that move with the sun. A flat world is
+// drawn as its sprites are.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

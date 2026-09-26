@@ -58,3 +58,11 @@ func (p projection) Depth(x, y, _ float32) float32 {
 
 func (projection) Wraps() bool { return false }
 func (projection) Sorts() bool { return true }
+
+// Toward is the way along which every point projects to one spot of the screen: across the
+// diagonal towards +x and +y, rising TileH/(Cell·HeightUnit) a unit of it.
+func (p projection) Toward() [3]float32 {
+	rise := p.TileH / (p.Cell * p.HeightUnit)
+	n := float32(math.Sqrt(float64(2 + rise*rise)))
+	return [3]float32{1 / n, 1 / n, rise / n}
+}

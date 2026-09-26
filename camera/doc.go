@@ -23,7 +23,8 @@
 // exposes Project (a world point at a height), Unproject and Depth (further back is smaller), and
 // ToScreen and FromScreen are the two at height 0; Viewport is the screen it draws to, in pixels.
 // Sorts says whether what is drawn through it must go back to front, which a render.Composer asks;
-// Wraps whether a world wrapping at its edges can be drawn through it.
+// Wraps whether a world wrapping at its edges can be drawn through it; Toward the way towards the
+// eye, which a glint needs.
 //
 // # State
 //

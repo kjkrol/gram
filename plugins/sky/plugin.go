@@ -80,8 +80,8 @@ func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.forward, &p.back, &p.pause}
 }
 
-// DefaultBindings: P stops the day or lets it go on; ] hurries it on — twice the pace, or an hour
-// later while it stands — and [ holds it back — half the pace, or an hour earlier.
+// DefaultBindings: P stops the day or lets it go on; ] hurries it on — twice the pace, or half an
+// hour later while it stands — and [ holds it back — half the pace, or half an hour earlier.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
 		control.Command(control.KeyPress{Key: ebiten.KeyP}, "Stop the day, or let it go on", func(control.Context) (Pause, bool) { return Pause{}, true }),
