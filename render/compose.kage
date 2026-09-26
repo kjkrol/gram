@@ -26,7 +26,14 @@ var Weather vec4
 // and the surf's foam are laid over the tile under it, the sun it throws back added.
 // The clouds' shadow on the ground (alpha over 3.5) holds where it lies in green and blue: it
 // darkens the tile under it as much as the clouds over it take of the sun.
+// Running water (alpha over 4.5) is a glint whose alpha starts from 5 and whose custom holds how
+// fast it runs, along x and y: carried ripples and white water instead of a shore's swell.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
+	if color.a > 4.5 {
+		shine, lit := color.r, color.a-5
+		s := stream(color.gb, custom.xy)
+		return water(shine, lit*(1-clouds(color.gb)), s)
+	}
 	if color.a > 3.5 {
 		shadow := cloudDark * clouds(color.gb) * clamp(Glint.y*1.4, 0, 1)
 		return vec4(0, 0, 0, shadow)
@@ -34,11 +41,7 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	if color.a > 1.5 {
 		shine, lit := color.r, color.a-2
 		s := sea(color.gb, custom)
-		mirror, foam := shine*s.z, s.y
-		lit *= 1 - clouds(color.gb)
-		light := Ambience + SunColor*(Glint.y*lit*max(sunWay().z, 0))
-		rgb := overcastSky()*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
-		return vec4(rgb, 1-(1-mirror)*(1-foam))
+		return water(shine, lit*(1-clouds(color.gb)), s)
 	}
 	faded := step(0.5, custom)
 	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
@@ -50,6 +53,47 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 
 	c := imageSrc0At(src) * color * f.x * f.y * f.z * f.w
 	return vec4(c.rgb*(1-outlineDark*edge), c.a)
+}
+
+// water is what a glint lays over its tile: the sky reflected, the foam as bright as the tile in
+// the light, the sun thrown back — of s, the sun, foam and sky a surface gives back, shine as much
+// as it shines and lit of the sun reaching it.
+func water(shine float, lit float, s vec3) vec4 {
+	mirror, foam := shine*s.z, s.y
+	light := Ambience + SunColor*(Glint.y*lit*max(sunWay().z, 0))
+	rgb := overcastSky()*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
+	return vec4(rgb, 1-(1-mirror)*(1-foam))
+}
+
+// stream is, for water at p running at v, what sea is for still water: ripples carried down with
+// the current, rougher the faster it runs, and torn white water where it runs fast — a rapid, a
+// waterfall.
+func stream(p vec2, v vec2) vec3 {
+	t := Glint.x
+	speed := length(v)
+	way := vec2(1, 0)
+	if speed > 0.01 {
+		way = v / speed
+	}
+	// p along the current and across it, the ripples standing still in the water carried down
+	q := vec2(way.x*p.x+way.y*p.y, way.x*p.y-way.y*p.x)
+	q.x -= speed * t
+	slope := wave(q, vec2(1, 0.15), 17, 0, t)
+	slope += wave(q, vec2(0.8, -0.6), 11, 0, t)
+	slope += wave(q, vec2(0.5, 0.9), 23, 0, t)
+	slope += wave(q, vec2(1, -0.1), 7, 0, t)
+	rough := clamp(streamCalm+speed/fastWater, streamCalm, streamRough)
+	slope = rough * vec2(way.x*slope.x-way.y*slope.y, way.y*slope.x+way.x*slope.y)
+	white := smoothstep(whiteFrom, whiteFull, speed)
+	torn := 0.55 + 0.45*sin(q.x*0.45+q.y*0.3)*sin(q.y*0.5-q.x*0.21+t*3)
+	// flecks of foam ride the current, so which way it runs shows whatever the sun
+	fleck := smoothstep(0.62, 0.9, noise(vec2(q.x/fleckLength, q.y/fleckWidth))) * smoothstep(fleckFrom, fleckFull, speed)
+	foam := white*clamp(torn+0.5*white, 0, 1) + fleckCover*fleck
+	n := normalize(vec3(-slope.x, -slope.y, 1))
+	h := normalize(sunWay() + Toward)
+	// the sky seen in it follows its ripples: the current shows in the light it throws back
+	fresnel := streamMirror + (1-streamMirror)*pow(1-max(dot(n, Toward), 0), 3)
+	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
 }
 
 // sea is, for water at p, the sun thrown back at the eye, how much foam covers it and how much of
@@ -186,5 +230,23 @@ const cloudContrast = 1.8
 const calmSea = 0.35
 const fullWind = 40
 const stormSea = 1.8
+
+// Running water: how rough it is still and at most, the speed (world units a second) it gets as
+// rough as fastWater says, and the speeds it begins to foam at and is white from.
+const streamCalm = 0.4
+const streamRough = 1.6
+const fastWater = 40
+const whiteFrom = 30
+const whiteFull = 55
+
+// The flecks of foam running water carries: how long and wide they are, in world units, how much
+// of it they cover at most, and the speeds they begin to show at and show fully from; how much of
+// the sky it reflects looked at straight down.
+const fleckLength = 9
+const fleckWidth = 4
+const fleckCover = 0.35
+const fleckFrom = 3
+const fleckFull = 15
+const streamMirror = 0.08
 
 const pi = 3.14159265

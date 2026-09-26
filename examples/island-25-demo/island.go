@@ -5,12 +5,13 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/water"
 )
 
 // islandLayout draws a fixed island: a wavy ellipse of land in a sea, a range of mountains along
 // it with sharp peaks and spurs, a plateau at its western end, lowland by the coast, and the
 // stops, a ring of them on the lowland round the range; along the coast, stretches of cliff, most
-// in the north. What is high and what is low is the heights alone; the ground is earth, sand or
+// in the north; streams and rivers running down from the heights to the sea (plugins/board/water). What is high and what is low is the heights alone; the ground is earth, sand or
 // rock as they and the coast say — see soil.
 func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	cell := func(x, y int) board.CellID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
@@ -49,17 +50,33 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			}
 		}
 	}
-	// coast is how far inland (x, y) lies, in cells, and the nearest sea
-	coast := func(x, y float64) (float64, geom.Vec) {
-		d, at := math.Inf(1), geom.Vec{}
-		for _, s := range shore {
-			if e := math.Hypot(x-s.X, y-s.Y); e < d {
-				d, at = e, s
-			}
-		}
-		return d - 0.5, at
+	high := make([]float64, len(shore)) // how high the cliff stands over each stretch of it
+	for i, s := range shore {
+		high[i] = cliffs(s.X-cx, s.Y-cy)
 	}
-	inland := func(x, y float64) float64 { d, _ := coast(x, y); return d }
+	// coast is how far inland (x, y) lies, in cells, and how high the cliffs of the coast round it
+	// stand: the nearer the coast, the more it counts, so the cliffs' heights blend inland
+	coast := func(x, y float64) (in, cliff float64) {
+		in = math.Inf(1)
+		for _, s := range shore {
+			in = min(in, math.Hypot(x-s.X, y-s.Y))
+		}
+		spread := 1 + 0.5*in
+		sum, weight := 0.0, 0.0
+		for i, s := range shore {
+			d := math.Hypot(x-s.X, y-s.Y) - in
+			w := math.Exp(-d * d / (2 * spread * spread))
+			sum, weight = sum+w*high[i], weight+w
+		}
+		return in - 0.5, sum / weight
+	}
+	inland := func(x, y float64) float64 {
+		d := math.Inf(1)
+		for _, s := range shore {
+			d = min(d, math.Hypot(x-s.X, y-s.Y))
+		}
+		return d - 0.5
+	}
 
 	cw, ch := grid.CellBounds()
 	// the land stands a little above the sea: a corner is raised where every cell round it is land,
@@ -74,16 +91,31 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		}
 		return true
 	}
-	heights := func(p geom.Vec) float64 {
+	ground := func(p geom.Vec) float64 {
 		if !ashore(p) {
 			return 0
 		}
 		x, y := p.X/cw, p.Y/ch
-		in, sea := coast(x, y)
-		// a cliff stands its full height a few cells back from the sea, then gives way to the relief
-		cliff := cliffs(sea.X-cx, sea.Y-cy) * rise(in, 0.6) * (1 - rise(in-cliffBack, cliffFall))
-		return landHeight + max(cliff, rise(in-1.5, coastWidth)*relief(x-cx, y-cy))
+		in, high := coast(x, y)
+		// the lowland rises gently from the sea; a cliff stands its full height a few cells back
+		// from it, and sinks inland more slowly than the lowland rises, so the land behind it drains
+		// over it
+		plain := coastRise * min(max(in-1, 0), coastPlain)
+		cliff := high * rise(in, 0.6) * (1 - rise(in-cliffBack, cliffFall))
+		h := landHeight + plain + cliff + rise(in-1.5, coastWidth)*relief(x-cx, y-cy)
+		top := plateau(x-cx, y-cy)
+		return h*(1-top) + max(h, landHeight+plateauHeight)*top
 	}
+	// the rain runs off it to the sea in streams and rivers, cutting their channels
+	rivers, err := water.Drain(grid, ground, func(c board.CellID) bool { return !land[c] }, water.Config{
+		StreamAt: streamAt, RiverAt: riverAt, WideAt: wideAt,
+		Rain:        func(level float64) float64 { return 1 + level/100 }, // more on the heights
+		StreamDepth: 2, RiverDepth: 5, FordEvery: fordEvery, FordSlope: 0.15,
+	})
+	if err != nil {
+		panic(err)
+	}
+	heights := rivers.Carved(ground)
 
 	var cells []board.CellEntry
 	soils := map[board.CellID]string{}
@@ -97,13 +129,22 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 				hs[k] = heights(geom.NewVec(float64(x+d[0])*cw, float64(y+d[1])*ch))
 			}
 			fx, fy := float64(x)+0.5, float64(y)+0.5
-			soils[cell(x, y)] = soil(hs, cw, inland(fx, fy), fx, fy)
-			cells = append(cells, board.CellEntry{Kind: soils[cell(x, y)], Cell: cell(x, y)})
+			kind := soil(hs, cw, inland(fx, fy), fx, fy)
+			switch rivers.Courses[cell(x, y)] {
+			case water.Stream:
+				kind = "stream"
+			case water.River:
+				kind = "river"
+			case water.Ford:
+				kind = "ford"
+			}
+			soils[cell(x, y)] = kind
+			cells = append(cells, board.CellEntry{Kind: kind, Cell: cell(x, y)})
 		}
 	}
 
 	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across
-	// it, each on the nearest ground that is not rock.
+	// it, each on the nearest ground that is neither rock nor water.
 	var stops []board.CellID
 	for k := range UnitCount {
 		a := (float64(k) + 0.5) * 2 * math.Pi / UnitCount
@@ -155,8 +196,7 @@ func soil(hs [4]float64, w, in, x, y float64) string {
 }
 
 // relief is how high the ground stands over the lowland at (x, y) cells from the island's middle:
-// the range with its peaks, cut by ridges and valleys, the plateau flat on top, and the lowland
-// rolling a little.
+// the range with its peaks, cut by ridges and valleys, and the lowland rolling.
 func relief(x, y float64) float64 {
 	// the range: a crest along a bent line, highest in the middle, falling away to either side
 	t := min(max((x-rangeFrom)/(rangeTo-rangeFrom), 0), 1)
@@ -169,12 +209,16 @@ func relief(x, y float64) float64 {
 	for _, k := range peaks {
 		h = smoothMax(h, k.h*(0.85+0.15*cut)*sharp(math.Hypot(x-k.x, y-ridgeY(k.x)-k.y)/k.r, 1.8))
 	}
-	// the plateau: a flat top, its edge ragged and steep
+	// the lowland rolls, in small hummocks and in broad swells whose hollows gather the water
+	return h + lowlandRoll*fbm(x/4+7, y/4+3) + lowlandSwell*fbm(x/9+21, y/9+13)
+}
+
+// plateau is how much of (x, y) cells from the island's middle lies on the plateau's flat top: 1
+// on it, 0 off it, between on its edge, which is ragged and steep.
+func plateau(x, y float64) float64 {
 	a := math.Atan2(y-plateauY, x-plateauX)
 	r := plateauR + 2.5*(fbm(3*math.Cos(a)+11, 3*math.Sin(a)+5)-0.5)
-	top := rise(r-math.Hypot(x-plateauX, y-plateauY), plateauEdge)
-	h = h*(1-top) + max(h, plateauHeight)*top
-	return h + (1-top)*lowlandRoll*fbm(x/4+7, y/4+3)
+	return rise(r-math.Hypot(x-plateauX, y-plateauY), plateauEdge)
 }
 
 // smoothMax is the larger of a and b, rounded where they are near: two slopes meet in a saddle,
@@ -265,14 +309,24 @@ const (
 	plateauX, plateauY = -21.0, 1.0
 	plateauR           = 7.0
 	plateauEdge        = 2.0
-	plateauHeight      = 80.0
+	plateauHeight      = 110.0
 	lowlandRoll        = 8.0
+	lowlandSwell       = 24.0
 	// the highest sea cliffs over the land's height, standing full cliffBack cells inland and
 	// sinking over cliffFall more
 	cliffHeight = 70.0
 	cliffBack   = 3.0
-	cliffFall   = 8.0
-	stopsAt     = 0.78 // how far out to the coast the stops lie
+	cliffFall   = 40.0
+	// the lowland rises coastRise a cell from the sea, for coastPlain cells
+	coastRise  = 2.0
+	coastPlain = 15.0
+	stopsAt    = 0.78 // how far out to the coast the stops lie
+	// how much rain gathered makes a stream, a river and a river two cells wide, and every how
+	// many cells from its mouth a ford crosses a river
+	streamAt  = 50.0
+	riverAt   = 170.0
+	wideAt    = 600.0
+	fordEvery = 8
 	// rock stands where the ground rises rockSlope across a cell or tops rockHeight; sand lies
 	// within beachWidth cells of the sea, and in dunes where the lowland is flatter than duneSlope
 	rockSlope  = 0.5

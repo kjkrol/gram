@@ -1,13 +1,14 @@
 // Command island-isometric-demo is the island of island-demo in a Quasi3D world seen through an
-// isometric camera, Transport Tycoon's way: a range of peaks up to 200 and a plateau 88 up, rock on
-// the heights, sand on the beaches, sea cliffs in the north, earth between, units drawn upright on
-// the ground and a hawk 40 up whose cone looks over everything a walker's stops at. A day goes by
-// (plugins/sky): long shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and
-// hold it back — or, stopped, move it half an hour on or back. Scroll with the wheel, drag with the
-// middle button or push the cursor to an edge to move the camera; hold Q or E to turn it, PageUp or
-// PageDown to look down more or less steeply. V fastens the camera behind the selected unit —
-// turning as it turns, whatever else is selected or ordered — the arrows walking it on, stopping
-// and turning it by hand; V again lets it go.
+// isometric camera, Transport Tycoon's way: a range of peaks up to 250 and a plateau 118 up, rock
+// on the heights, sand on the beaches, sea cliffs in the north, earth between, streams and rivers
+// running down to the sea and falling over the cliffs, units drawn upright on the ground and a hawk
+// 40 up whose cone looks over everything a walker's stops at. A day goes by (plugins/sky): long
+// shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or,
+// stopped, move it half an hour on or back. Scroll with the wheel, drag with the middle button or
+// push the cursor to an edge to move the camera; hold Q or E to turn it, PageUp or PageDown to look
+// down more or less steeply. V fastens the camera behind the selected unit — turning as it turns,
+// whatever else is selected or ordered — the arrows walking it on, stopping and turning it by hand;
+// V again lets it go.
 // The year has eight days, a season two, beginning in mid-winter; the weather goes by
 // (plugins/climate): clouds' shadows drift over the island, rain falls — snow in winter, lying
 // until spring — the sea roughens with the wind; W changes it.
@@ -140,6 +141,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
 		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		// running water: a stream is waded through, a river only at a ford; its current is its slope
+		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 60}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9, Flow: 45},
+		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 45}.Costing(board.Water|board.Air, 1),
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 	)
@@ -328,6 +333,9 @@ func (m *mainScene) Layers() []render.Layer {
 		"earth":  {R: 110, G: 150, B: 75, A: 255},
 		"sand":   {R: 215, G: 195, B: 140, A: 255},
 		"rock":   {R: 130, G: 125, B: 120, A: 255},
+		"stream": {R: 70, G: 125, B: 195, A: 255},
+		"river":  {R: 45, G: 100, B: 180, A: 255},
+		"ford":   {R: 105, G: 150, B: 195, A: 255},
 		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)

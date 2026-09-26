@@ -271,6 +271,21 @@ func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore
 	f.over(&o)
 }
 
+// Stream lays over the last sprite added, as Glint does, water running at flow: ripples carried
+// down with the current, foaming white where it runs fast — a rapid, a waterfall. It throws the sun
+// and the sky back as Glint's water does and has no shore to roll in on.
+func (f *Frame) Stream(x0, y0, x1, y1, shine float32, lit [4]float32, flow Flow) {
+	o := overlay{box: [4]float32{x0, y0, x1, y1}, red: [4]float32{shine, shine, shine, shine}, flow: &flow}
+	for k, l := range lit {
+		o.alpha[k] = streamMark + l
+	}
+	f.over(&o)
+}
+
+// Flow is how fast water runs at each corner of what streams — top-left, top-right, bottom-left,
+// bottom-right — in world units a second along x and y.
+type Flow [4][2]float32
+
 // Overcast lays over the last sprite added, as Glint does, the shadows of the clouds drifting over
 // the ground of the world box (x0, y0)-(x1, y1). A frame with a clear sky lays nothing.
 func (f *Frame) Overcast(x0, y0, x1, y1 float32) {
@@ -281,12 +296,13 @@ func (f *Frame) Overcast(x0, y0, x1, y1 float32) {
 }
 
 // overlay is a quad laid over a sprite for the shader to work out: the sprite's world box, red and
-// alpha at its corners, and the shore, if any, in its customs; green and blue are where each
-// point lies in the world.
+// alpha at its corners, and the shore or the flow, if any, in its customs; green and blue are
+// where each point lies in the world.
 type overlay struct {
 	box        [4]float32
 	red, alpha [4]float32
 	shore      *Shore
+	flow       *Flow
 }
 
 // over lays o over each piece of the last sprite added, on its sheet's white texel.
@@ -305,6 +321,10 @@ func (f *Frame) over(o *overlay) {
 				c := o.shore.at(u, w)
 				v.Custom0, v.Custom1, v.Custom2, v.Custom3 = c.X, c.Y, c.Dist, c.Near
 			}
+			if fl := o.flow; fl != nil {
+				v.Custom0 = blend([4]float32{fl[0][0], fl[1][0], fl[2][0], fl[3][0]}, u, w)
+				v.Custom1 = blend([4]float32{fl[0][1], fl[1][1], fl[2][1], fl[3][1]}, u, w)
+			}
 			f.verts = append(f.verts, v)
 		}
 		f.add(f.lastTier, f.lastDepth, f.lastAtlas, quad, 4)
@@ -320,6 +340,10 @@ func (f *Frame) over(o *overlay) {
 
 // overcastMark is the alpha of the clouds' shadows on the ground, above any glint's.
 const overcastMark = 4
+
+// streamMark is what running water's alpha starts from, above the clouds' shadows: the sun reaching
+// the corner above it.
+const streamMark = 5
 
 // glintMark is what a glint's alpha starts from, telling the shader it is one — no colour's is over
 // 1 — the sun reaching the corner above it.

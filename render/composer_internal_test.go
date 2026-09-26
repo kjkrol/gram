@@ -359,6 +359,44 @@ func TestFrame_AGlintFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	}
 }
 
+func TestFrame_AStreamIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndTheFlow(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Sprite(Ground, 3, sheet{}, 0, dst, Even(0.5))
+	flow := Flow{{4, 0}, {8, 0}, {4, -2}, {8, -2}}
+	f.Stream(100, 200, 132, 232, 0.9, [4]float32{1, 0.5, 0, 0.25}, flow)
+	if f.Len() != 2 || len(f.items) != 1 {
+		t.Fatalf("%d pieces in %d items, want the sprite and its stream in one", f.Len(), len(f.items))
+	}
+	v := f.verts[4:]
+	for k, want := range [4][4]float32{{0.9, 100, 200, 6}, {0.9, 132, 200, 5.5}, {0.9, 100, 232, 5}, {0.9, 132, 232, 5.25}} {
+		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
+			t.Errorf("stream corner %d is %v, want its shine, where it lies and 5 plus the sun reaching it: %v", k, got, want)
+		}
+		if got := [2]float32{v[k].Custom0, v[k].Custom1}; got != flow[k] {
+			t.Errorf("stream corner %d runs at %v, want %v", k, got, flow[k])
+		}
+	}
+}
+
+func TestFrame_AStreamFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam.Translate(1000, 0)
+	var f Frame
+	f.Reset(cam)
+	f.SpriteRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.Stream(992, 0, 1008, 10, 1, [4]float32{1, 1, 1, 1}, Flow{{0, 0}, {16, 0}, {0, 0}, {16, 0}})
+	v := f.verts
+	if len(v) != 16 {
+		t.Fatalf("%d vertices, want the two pieces' 8 and their streams' 8", len(v))
+	}
+	g := v[8:]
+	if g[1].Custom0 != 8 || g[4].Custom0 != 8 || g[5].Custom0 != 16 {
+		t.Errorf("at the seam the streams run at %v and %v, want halfway 8 both sides", g[1].Custom0, g[4].Custom0)
+	}
+}
+
 func TestComposer_HandsTheShaderTheFramesDaylightAndTheEye(t *testing.T) {
 	c := NewComposer(items(func(f *Frame) {
 		f.Daylight(Daylight{Dir: [3]float32{0.6, 0, 0.8}, Strength: 0.7, Sun: Light{1, 0.8, 0.6}, Sky: Light{0.5, 0.7, 1}, Ambient: Light{0.2, 0.25, 0.3}})

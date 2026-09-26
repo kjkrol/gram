@@ -104,9 +104,20 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - A flat world's ground may have heights (`Layout.Heights`): no entity stands at one, but slopes
   cost as in a Quasi3D world and the board shades them, level ground keeping its sprites' colours.
 - The islands are land and water: the fields, hills, mountains and the road are gone, and a range
-  of peaks up to 200, a plateau and the lowland are the heights alone — island-demo's flat island
+  of peaks up to 250, a plateau and the lowland are the heights alone — island-demo's flat island
   too. No forest grows on them until plants get a plugin; the forest kind, its snow and its
   swaying stay for it.
+- Running water: `CellKind.Flow` makes a shiny kind run down the slope of its cell, as fast as the
+  Flow by the square root of the slope; `board.Tile.Flow` hands the current at each corner to
+  `render.Frame.Stream`, whose shader carries ripples and flecks of foam down with it and turns
+  it white where it runs fast: rapids and waterfalls.
+- `plugins/board/water` drains a relief to the sea: `water.Drain(grid, heights, sea, Config)`
+  floods it from the sea up over a square grid's four neighbours, gathers the rain downstream and
+  lays streams, rivers (two cells wide where much has gathered) and fords across them;
+  `Network.Carved` cuts their beds, falling all the way to the sea, into the heights.
+- The islands have streams, rivers and fords worked out by plugins/board/water: a stream is
+  waded (2), a river crossed only at a ford (2.5); water leaving over the northern cliffs falls
+  into the sea. The lowland rises gently from the sea and swells, and the plateau is flat at 118.
 - The islands' ground is earth, sand and rock, laid by the heights and the coast: rock where the
   ground is steep or high, sand on beaches and dunes behind them, earth elsewhere; sand (1.6) and
   rock (1.3) cost on top of the climb, and each has its snowy look. Stretches of sea cliff, most

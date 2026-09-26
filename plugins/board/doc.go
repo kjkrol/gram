@@ -135,10 +135,15 @@
 // and throws the sun back towards the eye where it faces halfway between them, so the sea twinkles
 // under a high sun; within a few cells of a shore — the nearest cell that does not shine, worked
 // out per corner of a square grid as the terrain changes — the waves face it, roll in and break
-// into foam. Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
+// into foam. Water of a kind with a Flow runs instead ([Tile.Flow], handed to
+// render.Frame.Stream): down the slope of its cell, read off its corners, as fast as the Flow by
+// the square root of the slope, averaged at each corner over the running cells meeting there, so
+// the current follows a bending river without a seam and never turns into a bank; where it runs
+// fast it foams white, a rapid or a waterfall. Streams and rivers are worked out of a relief by
+// plugins/board/water. Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
 // and a kind with a Sway — trees, set by an effect when the wind blows — leans its top with the
 // wind ([Tile.Sway]). Snow and ice are kinds an effect puts on a cell, drawn as any other. A flat
-// world is drawn as its sprites are.
+// world is drawn as its sprites are, save that its slopes are shaded.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

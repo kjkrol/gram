@@ -36,6 +36,10 @@ type CellKind struct {
 	// Shine is how much of the sun the cell's surface throws back at whoever looks at it, 0 to 1:
 	// water, ice, wet rock glint where the sun and the eye meet over its ripples.
 	Shine float64
+	// Flow is how fast the water on the cell runs down its slope: world units a second where it
+	// falls 1 in 1, by the square root of the slope; 0 is still water, a sea or a lake. Drawn on a
+	// square grid, whose cells slope; a hex cell is level and its water still.
+	Flow float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
 	Sway     float64

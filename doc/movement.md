@@ -313,8 +313,8 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   corner, `Level` an area, and the ground round about follows within `Shaping.MaxStep`, so a canal
   is ground lowered and then turned to water. A game must keep its eyes in proportion to its
   relief: the smoothed edge of a plateau is a slope a unit or two below its top, and an eye lower
-  than that difference sees the rim, not the valley (island-isometric-demo: peaks up to 200, a plateau
-  88 up, eyes 6).
+  than that difference sees the rim, not the valley (island-isometric-demo: peaks up to 250, a plateau
+  118 up, eyes 6).
 - **Sight with heights.** aabbworld v1.7.0's `Cone.Eye/Elevation/Ground/GroundStep`: an entity is
   seen when the line from the eye (`Z.Altitude + Sight.Eye`) to its top clears every nearer ground
   sample and every nearer blocking band within the budget; the reach of an angle is the farthest

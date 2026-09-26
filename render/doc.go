@@ -39,6 +39,8 @@
 // call. Ties keep the order pieces came in. [Frame.Glint] lays over the sprite just added the
 // frame's sun ([Frame.Daylight]) thrown back at the eye off small waves the shader runs across it,
 // turned to face a [Shore] near one, and the sky reflected the flatter the eye looks: water.
+// [Frame.Stream] lays running water instead, its [Flow] at each corner: ripples and flecks of foam
+// carried down with the current, white water where it runs fast.
 // [Frame.Overcast] lays the clouds' shadows of the frame's weather ([Frame.Weather]) over the
 // ground, and [Sway] is how far what sways in the frame's wind leans at its time ([Frame.Time]). [ProjectCorners] projects a world box at a height
 // through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.

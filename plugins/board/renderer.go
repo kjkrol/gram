@@ -83,6 +83,7 @@ type cellTop struct {
 	ground [4]float32
 	alt    float32
 	shine  float32
+	flow   float32
 	sway   float32
 	sprite render.SpriteID
 	stamp  uint32
@@ -189,7 +190,7 @@ func (l *Renderer) topOf(c CellID) *cellTop {
 	kind := l.board.kindOf(c)
 	r := l.board.Relief(c)
 	rise := float32(kind.Height)
-	t.alt, t.shine, t.sway, t.sprite, t.stamp = float32(r.Level()), float32(kind.Shine), float32(kind.Sway), kind.SpriteID, l.topStamp
+	t.alt, t.shine, t.flow, t.sway, t.sprite, t.stamp = float32(r.Level()), float32(kind.Shine), float32(kind.Flow), float32(kind.Sway), kind.SpriteID, l.topStamp
 	if l.board.sloped() {
 		t.ground = r.Corners
 	} else {

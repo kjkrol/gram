@@ -189,6 +189,37 @@ func TestTile_AFlatWorldShadesItsSlopes(t *testing.T) {
 	}
 }
 
+// A stream down the middle of a valley runs down it at every corner, as fast as its Flow by the
+// square root of the slope; the banks falling into it turn it neither way, and still water does
+// not run.
+func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	at := func(x, y uint32) CellID { c, _ := grid.CellIndex(x, y); return c }
+	for y := range uint32(3) {
+		brd.Set(at(1, y), CellKind{Allows: Water, Shine: 1, Flow: 10})
+	}
+	still, _ := grid.CellIndex(0, 1)
+	brd.Set(still, CellKind{Allows: Water, Shine: 1})
+	// falling 0.4 southward, the banks rising half as fast away from the stream
+	brd.SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-15) })
+	flows, runs := map[CellID]render.Flow{}, map[CellID]bool{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { flows[t.ID], runs[t.ID] = t.Flow() })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+	compose(r, icamera.NewFromSpace(30, 30, 0))
+
+	want := float32(10 * math.Sqrt(0.4))
+	for k, v := range flows[at(1, 1)] {
+		if math.Abs(float64(v[0])) > 1e-5 || math.Abs(float64(v[1]-want)) > 1e-4 {
+			t.Errorf("corner %d runs at %v, want (0, %v): down the valley, not into a bank", k, v, want)
+		}
+	}
+	if runs[still] || runs[at(2, 1)] {
+		t.Errorf("still water runs: %v, a bank runs: %v; want neither", runs[still], runs[at(2, 1)])
+	}
+}
+
 // wallInSun is a 6x3 board of level grass with a wall 10 tall at (3, 1), under a sun low in the
 // east: its shadow falls 50 to the west.
 func wallInSun(t *testing.T) (*Board, Grid, world.Sun) {

@@ -55,7 +55,11 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	}
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
-		f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
+		if flow, ok := t.Flow(); ok {
+			f.Stream(x0, y0, x1, y1, shine, lit, flow)
+		} else {
+			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
+		}
 	}
 }
 

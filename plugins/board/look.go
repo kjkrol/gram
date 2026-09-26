@@ -1,6 +1,8 @@
 package board
 
 import (
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
@@ -99,6 +101,53 @@ func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
 	return shine, t.sunlit(), true
 }
 
+// Flow is how fast the water on the tile runs at each of its corners: down the slope of each cell
+// of running water meeting there, as fast as its kind's Flow by the square root of the slope,
+// the cells' runs averaged; banks that do not run count for nothing, so the current neither turns
+// into them nor breaks between two tiles. False where the tile's water is still, off a square grid.
+func (t *Tile) Flow() (render.Flow, bool) {
+	r := t.r
+	sq := r.board.square
+	if sq == nil || r.topOf(t.ID).flow <= 0 {
+		return render.Flow{}, false
+	}
+	x, y := sq.cellXY(t.ID)
+	w, h := r.board.CellBounds()
+	var out render.Flow
+	for k, d := range [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+		n := 0
+		for _, o := range [4][2]int64{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
+			c, ok := r.board.squareCell(int64(x)+d[0]+o[0], int64(y)+d[1]+o[1])
+			if !ok {
+				continue
+			}
+			top := r.topOf(c)
+			if top.flow <= 0 {
+				continue
+			}
+			vx, vy := runOf(top.ground, top.flow, float32(w), float32(h))
+			out[k][0], out[k][1], n = out[k][0]+vx, out[k][1]+vy, n+1
+		}
+		if n > 0 {
+			out[k][0], out[k][1] = out[k][0]/float32(n), out[k][1]/float32(n)
+		}
+	}
+	return out, true
+}
+
+// runOf is how fast water runs over a cell whose corners stand at g, w by h, running at flow down a
+// slope of 1 in 1: down its slope, by the square root of it.
+func runOf(g [4]float32, flow, w, h float32) (vx, vy float32) {
+	gx := (g[1] - g[0] + g[3] - g[2]) / (2 * w)
+	gy := (g[2] - g[0] + g[3] - g[1]) / (2 * h)
+	slope := float32(math.Hypot(float64(gx), float64(gy)))
+	if slope == 0 {
+		return 0, 0
+	}
+	speed := flow * float32(math.Sqrt(float64(slope)))
+	return -gx / slope * speed, -gy / slope * speed
+}
+
 // Sway is how much what stands on the cell bends in the wind — its kind's Sway — and how high it
 // stands over the ground, which is how far its top leans; nothing in a flat world.
 func (t *Tile) Sway() (amount, rise float32) {
@@ -174,6 +223,10 @@ func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
 	}
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
-		f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
+		if flow, ok := t.Flow(); ok {
+			f.Stream(x0, y0, x1, y1, shine, lit, flow)
+		} else {
+			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
+		}
 	}
 }

@@ -105,6 +105,15 @@ it does all day over the south in the isometric view (hence `sky.Config.NoonWay`
 default). The tile keeps
 its outline; the uniforms are written over in place, so a frame allocates nothing for them.
 
+Running water is a glint of its own. `Frame.Stream(box, shine, lit, flow)` lays the same quad with
+5 plus the sun in alpha and, in `Custom0..1`, how fast the water runs at each corner
+(`render.Flow`, world units a second): the board hands it for a kind with a `Flow`
+(`board.Tile.Flow`), down the slope of the cell as fast as the Flow by the square root of the
+slope, each corner the mean of the running cells meeting there. The shader has no swell for it but
+ripples standing in the water carried down with the current, rougher the faster it runs, flecks
+of foam riding it so the way it runs shows whatever the sun, a sheen of the sky that follows the
+ripples, and white water from `whiteFrom` to `whiteFull`: a rapid, a waterfall off a cliff.
+
 The weather is drawn the same way (`Frame.Weather`, which the board and the world set from
 `world.Weather`). `Frame.Overcast(box)` after a tile lays a quad over it — only under clouds —
 whose vertices carry where they lie in green and blue and 4 in alpha. The shader works out the

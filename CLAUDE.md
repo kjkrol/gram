@@ -360,7 +360,10 @@ shows how much of it is boilerplate vs. real behavior.
   cost too — `board.Climbing{Up, Down, Free}` (`WithClimbing`, `DefaultClimbing`: 1 in 10 up takes
   twice as long, Air free) slows the Moving behavior along the heading and prices the planner's
   steps through `Board.Climb` — both read a cell's slope off its own corners — so steep is the
-  relief, never a kind; a unit's
+  relief, never a kind. A shiny kind with a `Flow` runs down its cell's slope
+  (`Tile.Flow` → `render.Frame.Stream`: ripples and foam carried with the current, white where it
+  is fast); `plugins/board/water` works streams, rivers and fords out of a relief
+  (`water.Drain`, `Network.Carved` cutting their beds into the heights); a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
