@@ -362,6 +362,24 @@ func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
 	}
 }
 
+// A tile's outline laid after what lies on it goes over it, along the tile's own edges.
+func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Sprite(Ground, 3, sheet{}, 0, dst, Even(1))
+	top := f.Last()
+	f.Sprite(Ground, 3, sheet{}, 0, Corners{{0, 0}, {5, 0}, {0, 20}, {5, 20}}, Even(1)) // lying on it
+	f.OutlineOn(top)
+	v := f.verts[8:]
+	if len(v) != 4 || v[0].DstX != 0 || v[3].DstX != 10 || v[3].DstY != 20 {
+		t.Fatalf("the outline lies at %v, want over the tile", v)
+	}
+	if v[0].Custom0 != -1 || v[1].Custom0 != -11 || v[3].Custom3 != -1 || v[0].Custom3 != -21 {
+		t.Errorf("the outline's corners are %v %v %v, want the distances to the tile's edges", v[0].Custom0, v[1].Custom0, v[3].Custom3)
+	}
+}
+
 // A glaze shows as much as its opacity at each corner: its light and its alpha scaled by it.
 func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	var f Frame

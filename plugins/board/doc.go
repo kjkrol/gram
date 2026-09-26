@@ -98,8 +98,9 @@
 // [Plugin.SetDressing] (plugins/landscape): the renderer hands it each frame first and takes from
 // it the sheet the tiles are drawn from ([Tile].Atlas: the board's atlas or a sheet of the
 // dressing's with the atlas on it), the tile asks it its [Tile.Base] and its [Tile.Light] and
-// [Tile.FaceLight], and the Look has it lay what lies on the tile ([Tile.Dress]). [RenderState] holds its live toggles, such as the grid: on a square
-// grid each tile outlined by the shader along its own edges (render.Frame.Tile), costing no piece
-// of its own; on a hex grid the cells' outlines as lines on a tier just above the tiles. It is left
-// out where a cell spans fewer than a few pixels on screen.
+// [Tile.FaceLight], and the Look has it lay what lies on the tile ([Tile.Dress]). [RenderState]
+// holds its live toggles, such as the grid: on a square grid each tile outlined by the shader along
+// its own edges, laid over all that lies on it (render.Frame.OutlineOn), so grounds running in and
+// coasts do not cover it; on a hex grid the cells' outlines as lines on a tier just above the
+// tiles. It is left out where a cell spans fewer than a few pixels on screen.
 package board

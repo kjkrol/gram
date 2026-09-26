@@ -24,10 +24,12 @@ type WayPiece struct {
 	Flow   Flow
 	Across bool
 	Corner [2]float32
-	// Weight is how much of the way shows at each corner, 1 all of it: a way fading out is drawn
-	// blended (render.Frame.SpriteBlend) down to nothing.
+	// Weight is how much of the way shows at each corner, 1 all of it: a way fading out, or lying
+	// under water, is drawn blended (render.Frame.SpriteBlend) down to nothing, over Soft (a half
+	// where 0).
 	Weight [4]float32
 	Faded  bool
+	Soft   float32
 	// Mix is how far the way's look has turned at each corner into MixSprite, its Style's MixWith,
 	// where Mixes: glazed over it (render.Frame.Glaze), its water running the less and glinting as
 	// that kind's does, as shiny as MixShine, the more.
@@ -135,8 +137,10 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		if other := r.topOf(nb); other.way.Runs() {
 			o.half, o.wide, o.fade, o.mix = (w.Width+other.way.Width)/4, other.way.Width, (w.Fade+other.way.Fade)/2, (w.Mix+other.way.Mix)/2
 		} else if other.under {
-			// out into water: the way the water leaves, so wider than any way in and always the stem
+			// out into water: the way the water leaves, so wider than any way in and always the
+			// stem, running on to the water's middle under it
 			o.fade, o.wide = w.Fade, 2*w.Width
+			o.into = &wayOut{x: cx + 2*ex, y: cy + 2*ey, half: h, fade: w.Fade, mix: 1}
 		}
 		outs[n], n = o, n+1
 	}
@@ -237,15 +241,71 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade, mix: w.Mix}, cx, cy, steps(4))
 		}
 	}
+	// a way running out into water runs on under it, over the water's cell: at its depth
+	for _, o := range outs[:n] {
+		if o.into == nil {
+			continue
+		}
+		from := len(out)
+		band(o, *o.into, (o.x+o.into.x)/2, (o.y+o.into.y)/2, steps(2))
+		for k := from; k < len(out); k++ {
+			out[k].Across, out[k].Corner = true, [2]float32{o.x, o.y}
+		}
+	}
+	// the water lies over a way, as over the grounds round it: it shows only where the land does
+	soft := top.spread
+	if soft <= 0 {
+		soft = 0.25
+	}
+	for k := range out {
+		p := &out[k]
+		var land [4]float32
+		for c, at := range p.World {
+			land[c] = r.landAt(at[0], at[1])
+		}
+		if min(land[0], land[1], land[2], land[3]) >= 1 {
+			continue
+		}
+		if !p.Faded {
+			p.Weight = [4]float32{1, 1, 1, 1}
+		}
+		for c := range land {
+			p.Weight[c] = min(p.Weight[c], land[c])
+		}
+		p.Faded, p.Soft = true, soft
+	}
 	return out
 }
 
+// landAt is how much of the ground at the world point x, y is land, as the grounds round a coast
+// are laid over the water: the share of the cells meeting there that do not lie under, blended
+// across the tile as its blends are; 1 inland, 1 off a square grid.
+func (l *dresser) landAt(x, y float32) float32 {
+	if !l.square {
+		return 1
+	}
+	size := float32(l.sq.Cell)
+	fx, fy := float64(x/size), float64(y/size)
+	cx, cy := math.Floor(fx), math.Floor(fy)
+	c, ok := l.cellAt(int64(cx), int64(cy))
+	if !ok {
+		return 1
+	}
+	near := l.around(c)
+	w := weigh(&near, func(n *cellTop) bool { return !n.under })
+	gu, gv := 2*(float32(fx-cx)), 2*(float32(fy-cy))
+	i, j := min(int(gu), 1), min(int(gv), 1)
+	u, v := gu-float32(i), gv-float32(j)
+	return mix4([4]float32{w[j][i], w[j][i+1], w[j+1][i], w[j+1][i+1]}, u, v)
+}
+
 // wayOut is one way out of a way's cell: where it ends, halfway to its neighbour, how half wide it
-// is there, how faded and how far its look has turned, how wide the neighbour's way is, and whether
-// it runs slantwise through a corner.
+// is there, how faded and how far its look has turned, how wide the neighbour's way is, whether it
+// runs slantwise through a corner, and where it runs on to under water.
 type wayOut struct {
 	x, y, half, fade, mix, wide float32
 	slant                       bool
+	into                        *wayOut // where it runs on to under water
 }
 
 // stillFall is the fall, rise over run, under which water lies level: there a way's water runs on
@@ -301,20 +361,25 @@ func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 	}
 }
 
-// draw draws the piece over corners in shade and gives its sprite: blended where it fades, in the
-// look it has mostly turned into; else its own with what it turns into glazed over it.
+// draw draws the piece over corners in shade, blended where it fades or lies under water, what it
+// turns into glazed over it, and gives its sprite.
 func (p *WayPiece) draw(f *render.Frame, tier render.Tier, depth float32, atlas render.AtlasSource, corners render.Corners, shade render.Shade) render.Mark {
+	mixes := p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0
 	if p.Faded {
-		sprite := p.Sprite
-		if p.Mixes && p.Mix[0]+p.Mix[1]+p.Mix[2]+p.Mix[3] > 2 {
-			sprite = p.MixSprite
+		soft := p.Soft
+		if soft <= 0 {
+			soft = 0.5
 		}
-		f.SpriteBlend(tier, depth, atlas, sprite, corners, shade, p.Weight, 0.5)
-		return f.Last()
+		f.SpriteBlend(tier, depth, atlas, p.Sprite, corners, shade, p.Weight, soft)
+		drawn := f.Last()
+		if mixes {
+			f.GlazeBlend(tier, depth, atlas, p.MixSprite, corners, shade, p.Weight, soft, p.Mix)
+		}
+		return drawn
 	}
 	f.Sprite(tier, depth, atlas, p.Sprite, corners, shade)
 	drawn := f.Last()
-	if p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0 {
+	if mixes {
 		f.Glaze(tier, depth, atlas, p.MixSprite, corners, shade, p.Mix)
 	}
 	return drawn

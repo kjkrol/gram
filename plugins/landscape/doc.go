@@ -55,7 +55,9 @@
 // as its Mix, the other sprite glazed over its own and blended along the band (render.Frame.Glaze)
 // — a river turning into the sea's colour towards its mouth; a way's Fade has it show the less the
 // further it has faded, down to nothing where it ends, its water running on level ground the way
-// it fades: a river running out into the sea.
+// it fades: a river running out into the sea. A way running out into water no way runs across runs
+// on to its middle under it: the water lies over a way as it lies over the grounds round a coast,
+// so a way shows only where the land does and a river's end follows the coast.
 // Ways lie on a tier just over the tiles; a band running slantwise reaches into the cells either
 // side of the corner it runs through, so its last stretch takes the depth of the nearest of the
 // four cells meeting there.

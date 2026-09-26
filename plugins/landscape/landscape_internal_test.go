@@ -851,3 +851,40 @@ func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 		t.Errorf("the band turns from %v to %v, want 0.25 on the west side to 0.75 on the east", first.Mix[0], last.Mix[1])
 	}
 }
+
+// A way running out into water runs on to the water's middle under it: its pieces show only where
+// the land does, as the grounds round the coast are laid over the water, none at the water's middle.
+func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(styled(st, board.CellKind{Name: board.Named("k49"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3}))
+	sea := styled(st, board.CellKind{Name: board.Named("k50"), Allows: board.Water, SpriteID: 4}, Style{Under: true})
+	stream := styled(st, board.CellKind{Name: board.Named("k51"), Allows: board.Land | board.Water, SpriteID: 5}, Style{})
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	for x := range uint32(3) {
+		brd.Set(at(x, 2), sea)
+	}
+	north, south := board.Links(1<<0), board.Links(1<<1)
+	brd.SetWay(at(1, 0), board.Way{Kind: stream, Width: 4, Links: south})
+	brd.SetWay(at(1, 1), board.Way{Kind: stream, Width: 4, Links: north | south})
+
+	pieces := wayPieces(t, brd, st, 30, 30)[at(1, 1)]
+	deepest := pieces[0]
+	for _, p := range pieces {
+		if p.World[3][1] > deepest.World[3][1] {
+			deepest = p
+		}
+	}
+	if y := deepest.World[3][1]; y < 24.9 {
+		t.Fatalf("the way ends at y %v, want on to the water's middle, 25", y)
+	}
+	if !deepest.Faded || deepest.Weight[3] != 0 || deepest.Soft != 0.3 {
+		t.Errorf("at the water's middle the way shows %v (faded %v, soft %v), want nothing, blended as the coast is", deepest.Weight, deepest.Faded, deepest.Soft)
+	}
+	for _, p := range pieces {
+		if p.World[3][1] <= 12 && p.Faded {
+			t.Errorf("a piece well ashore, down to y %v, lies under water", p.World[3][1])
+		}
+	}
+}

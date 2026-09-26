@@ -147,6 +147,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   nearer in height (`Frame.Fold`), so a steep cell with one corner apart — a cliff along a
   stepped coast — bends towards it instead of standing up as a dark fin; what is laid over it folds
   with it.
+- The board's grid is laid over all that lies on a tile (`Frame.OutlineOn`, the render's own
+  `Outline` material), so coasts and grounds running in no longer hide it.
+- The water lies over a way: a way running out into water runs on to its middle under it, shown
+  only where the land is, as the grounds round a coast are laid over the water; its look turns
+  there too (`Frame.GlazeBlend`: a blended sprite glazed as far as an opacity).
 - `plugins/landscape`: everything a board draws beyond its sprites leaves the board for a landscape
   (`landscape.NewPlugin(board, world)`), set as the board's `board.Dressing`
   (`board.Plugin.SetDressing`; `Tile.Base`, `Tile.Light`, `Tile.FaceLight` ask it, `Tile.Dress`

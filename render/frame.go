@@ -250,6 +250,16 @@ func (f *Frame) SpriteBlend(tier Tier, depth float32, atlas AtlasSource, id Spri
 	}
 }
 
+// GlazeBlend is Glaze drawn blended as SpriteBlend is: shown where weight is over a half, and there
+// as much as opacity says.
+func (f *Frame) GlazeBlend(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32, soft float32, opacity [4]float32) {
+	f.SpriteBlend(tier, depth, atlas, id, dst, shade, weight, soft)
+	v := f.verts[len(f.verts)-4:]
+	for i := range v {
+		v[i].Custom2 = 1 + min(max(opacity[i], 0), 1)
+	}
+}
+
 // blendMark is what a blended sprite's last custom starts from, over any fade's, how soft its
 // edge is above it.
 const blendMark = 10

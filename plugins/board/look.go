@@ -120,10 +120,10 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 		lx, ly := render.Sway(f.Time(), f.Wind(), (x0+x1)/2, (y0+y1)/2, amount)
 		x0, y0, x1, y1 = x0+lx*rise, y0+ly*rise, x1+lx*rise, y1+ly*rise
 	}
-	if t.Outlined {
-		f.TileRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
-	} else {
-		f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
-	}
+	f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
+	drawn := f.Last()
 	t.Dress(f, cam, x0, y0, x1, y1, 0)
+	if t.Outlined {
+		f.OutlineOn(drawn) // over all that lies on the top
+	}
 }

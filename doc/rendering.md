@@ -34,7 +34,8 @@ A source hands the frame pieces in screen pixels, each with a **tier** and a **d
 | `Line(tier, depth, x0, y0, x1, y1, width, colour)` | a line whose sides fade over a pixel instead of stepping |
 | `Fan(tier, depth, points, colour)` | a filled polygon every point of which sees the first one whole |
 | `Soft(tier, depth, corners, colour, fade)` | a quad fading towards the sides `fade` names, over so many pixels each |
-| `Tile(…)`, `TileRect(…)` | `Sprite` and `SpriteRect` outlined along their own edges: the board's grid at no cost of its own |
+| `Tile(…)`, `TileRect(…)` | `Sprite` and `SpriteRect` outlined along their own edges |
+| `OutlineOn(mark)` | an outline over a sprite drawn earlier and all laid on it since: the board's grid over coasts and grounds running in |
 
 Tiers are numbers with room between them, drawn in order:
 
