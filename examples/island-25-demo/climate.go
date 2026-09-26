@@ -48,7 +48,9 @@ const (
 // snowyColors is how each kind snow may lie on looks under it; iceColor, water frozen.
 var (
 	snowyColors = map[string]color.RGBA{
-		"land":   {R: 232, G: 236, B: 235, A: 255},
+		"earth":  {R: 232, G: 236, B: 235, A: 255},
+		"sand":   {R: 238, G: 236, B: 225, A: 255},
+		"rock":   {R: 205, G: 208, B: 212, A: 255},
 		"forest": {R: 150, G: 185, B: 165, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}

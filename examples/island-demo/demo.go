@@ -1,8 +1,8 @@
-// Command island-demo is a map larger than the window: an island of land in a sea that drowns
-// whoever is pushed in, a range of peaks and a plateau on it drawn in relief — a flat world whose
-// ground has heights all the same, so a climb is slow and routes go round what is steep — units
-// under orders with sight cones, and a hawk on the Air plane, over it all, whose cone nothing on the
-// ground dims.
+// Command island-demo is a map larger than the window: an island of earth, sandy beaches, sea
+// cliffs and rocky heights in a sea that drowns whoever is pushed in, a range of peaks and a
+// plateau on it drawn in relief — a flat world whose ground has heights all the same, so a climb is
+// slow and routes go round what is steep — units under orders with sight cones, and a hawk on the
+// Air plane, over it all, whose cone nothing on the ground dims.
 // Scroll with the wheel, drag with the middle button or push the cursor to an edge to move the
 // camera.
 package main
@@ -115,7 +115,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
-		board.CellKind{Name: board.Named("land"), Cost: 1, Allows: board.Land | board.Air},
+		// the ground: sand is slow going, rock rough; a climb costs on top of either
+		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
+		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
 	)
@@ -271,7 +274,9 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"water":  {R: 40, G: 90, B: 170, A: 255},
-		"land":   {R: 120, G: 165, B: 80, A: 255},
+		"earth":  {R: 110, G: 150, B: 75, A: 255},
+		"sand":   {R: 215, G: 195, B: 140, A: 255},
+		"rock":   {R: 130, G: 125, B: 120, A: 255},
 		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)

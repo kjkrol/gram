@@ -1,10 +1,10 @@
-// Command island-25-demo is the island of island-isometric-demo, the same Quasi3D world, drawn
-// from above: a map in relief, lit by the world's sun — a range of peaks up to 200 and a plateau 88
-// up, and a hawk 40 up whose cone looks over everything a walker's
-// climbs and stops at, with the ground out of sight shaded. A day goes by (plugins/sky): long
-// shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or,
-// stopped, move it half an hour on or back. Scroll with the wheel, drag with the middle button or
-// push the cursor to an edge to move the camera.
+// Command island-25-demo is the island of island-isometric-demo, the same Quasi3D world, drawn from
+// above: a map in relief, lit by the world's sun — a range of peaks up to 200 and a plateau 88 up,
+// rock on the heights, sand on the beaches, sea cliffs in the north, earth between, and a hawk 40
+// up whose cone looks over everything a walker's climbs and stops at, with the ground out of sight
+// shaded. A day goes by (plugins/sky): long shadows morning and evening, dark nights; P stops it, ]
+// and [ hurry it on and hold it back — or, stopped, move it half an hour on or back. Scroll with
+// the wheel, drag with the middle button or push the cursor to an edge to move the camera.
 // The year has eight days, a season two, beginning in mid-autumn; the weather goes by
 // (plugins/climate): clouds' shadows drift over the island, rain falls — snow in winter, lying
 // until spring — the sea roughens with the wind; W changes it.
@@ -130,7 +130,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9},
-		board.CellKind{Name: board.Named("land"), Cost: 1, Allows: board.Land | board.Air},
+		// the ground: sand is slow going, rock rough; a climb costs on top of either
+		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
+		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 	)
@@ -311,7 +314,9 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"water":  {R: 40, G: 90, B: 170, A: 255},
-		"land":   {R: 120, G: 165, B: 80, A: 255},
+		"earth":  {R: 110, G: 150, B: 75, A: 255},
+		"sand":   {R: 215, G: 195, B: 140, A: 255},
+		"rock":   {R: 130, G: 125, B: 120, A: 255},
 		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)

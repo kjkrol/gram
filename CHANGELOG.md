@@ -107,6 +107,11 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   of peaks up to 200, a plateau and the lowland are the heights alone — island-demo's flat island
   too. No forest grows on them until plants get a plugin; the forest kind, its snow and its
   swaying stay for it.
+- The islands' ground is earth, sand and rock, laid by the heights and the coast: rock where the
+  ground is steep or high, sand on beaches and dunes behind them, earth elsewhere; sand (1.6) and
+  rock (1.3) cost on top of the climb, and each has its snowy look. Stretches of sea cliff, most
+  along the north coast, rise up to 78 straight from the sea, the high ground behind them sinking
+  inland.
 
 **Scenes and viewports**
 - A Scene's `Layers()` are `render.Layer`s: a `render.Renderer` draws on the screen, a

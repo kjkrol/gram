@@ -1,13 +1,13 @@
 // Command island-isometric-demo is the island of island-demo in a Quasi3D world seen through an
-// isometric camera, Transport Tycoon's way: a range of peaks up to 200 and a plateau 88 up,
-// units drawn upright on the ground and a hawk 40 up whose cone looks over everything a walker's
-// stops at. A day goes by (plugins/sky): long shadows morning and
-// evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or, stopped, move it
-// half an hour on or back. Scroll with the wheel, drag with the middle button or push the cursor to
-// an edge to move the camera; hold Q or E to turn it, PageUp or PageDown to look down more or
-// less steeply. V fastens the camera behind the selected unit — turning as it turns, whatever else
-// is selected or ordered — the arrows walking it on, stopping and turning it by hand; V again lets
-// it go.
+// isometric camera, Transport Tycoon's way: a range of peaks up to 200 and a plateau 88 up, rock on
+// the heights, sand on the beaches, sea cliffs in the north, earth between, units drawn upright on
+// the ground and a hawk 40 up whose cone looks over everything a walker's stops at. A day goes by
+// (plugins/sky): long shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and
+// hold it back — or, stopped, move it half an hour on or back. Scroll with the wheel, drag with the
+// middle button or push the cursor to an edge to move the camera; hold Q or E to turn it, PageUp or
+// PageDown to look down more or less steeply. V fastens the camera behind the selected unit —
+// turning as it turns, whatever else is selected or ordered — the arrows walking it on, stopping
+// and turning it by hand; V again lets it go.
 // The year has eight days, a season two, beginning in mid-winter; the weather goes by
 // (plugins/climate): clouds' shadows drift over the island, rain falls — snow in winter, lying
 // until spring — the sea roughens with the wind; W changes it.
@@ -136,7 +136,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9},
-		board.CellKind{Name: board.Named("land"), Cost: 1, Allows: board.Land | board.Air},
+		// the ground: sand is slow going, rock rough; a climb costs on top of either
+		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
+		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 	)
@@ -173,7 +176,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// The noon sun stands over the north-west, as it does by default: beyond the sea as the view
 	// looks at it, so the water throws it back towards the eye.
-	s.sky = sky.NewPlugin(s.world, sky.Config{Season: sky.Winter, Calendar: sky.EarthYear})
+	s.sky = sky.NewPlugin(s.world, sky.Config{Season: sky.Spring, Calendar: sky.EarthYear})
 	if err := ctx.Use(s.sky); err != nil {
 		return err
 	}
@@ -322,7 +325,9 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"water":  {R: 40, G: 90, B: 170, A: 255},
-		"land":   {R: 120, G: 165, B: 80, A: 255},
+		"earth":  {R: 110, G: 150, B: 75, A: 255},
+		"sand":   {R: 215, G: 195, B: 140, A: 255},
+		"rock":   {R: 130, G: 125, B: 120, A: 255},
 		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)

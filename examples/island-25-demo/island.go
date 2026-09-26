@@ -9,8 +9,9 @@ import (
 
 // islandLayout draws a fixed island: a wavy ellipse of land in a sea, a range of mountains along
 // it with sharp peaks and spurs, a plateau at its western end, lowland by the coast, and the
-// stops, a ring of them on the lowland round the range. Every cell of it is land: what is high and
-// what is low is the heights alone.
+// stops, a ring of them on the lowland round the range; along the coast, stretches of cliff, most
+// in the north. What is high and what is low is the heights alone; the ground is earth, sand or
+// rock as they and the coast say — see soil.
 func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	cell := func(x, y int) board.CellID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
@@ -26,12 +27,10 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	}
 
 	land := map[board.CellID]bool{}
-	var cells []board.CellEntry
 	for y := range GridHeight {
 		for x := range GridWidth {
 			if within(float64(x)+0.5, float64(y)+0.5) {
 				land[cell(x, y)] = true
-				cells = append(cells, board.CellEntry{Kind: "land", Cell: cell(x, y)})
 			}
 		}
 	}
@@ -50,22 +49,17 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			}
 		}
 	}
-	inland := func(x, y float64) float64 {
-		d := math.Inf(1)
+	// coast is how far inland (x, y) lies, in cells, and the nearest sea
+	coast := func(x, y float64) (float64, geom.Vec) {
+		d, at := math.Inf(1), geom.Vec{}
 		for _, s := range shore {
-			d = min(d, math.Hypot(x-s.X, y-s.Y))
+			if e := math.Hypot(x-s.X, y-s.Y); e < d {
+				d, at = e, s
+			}
 		}
-		return d - 0.5
+		return d - 0.5, at
 	}
-
-	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across it.
-	var stops []board.CellID
-	for k := range UnitCount {
-		a := (float64(k) + 0.5) * 2 * math.Pi / UnitCount
-		dx, dy := math.Cos(a)*islandRX, math.Sin(a)*islandRY
-		r := stopsAt * edge(dx, dy)
-		stops = append(stops, cell(int(cx+r*dx), int(cy+r*dy)))
-	}
+	inland := func(x, y float64) float64 { d, _ := coast(x, y); return d }
 
 	cw, ch := grid.CellBounds()
 	// the land stands a little above the sea: a corner is raised where every cell round it is land,
@@ -85,9 +79,79 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			return 0
 		}
 		x, y := p.X/cw, p.Y/ch
-		return landHeight + rise(inland(x, y)-1.5, coastWidth)*relief(x-cx, y-cy)
+		in, sea := coast(x, y)
+		// a cliff stands its full height a few cells back from the sea, then gives way to the relief
+		cliff := cliffs(sea.X-cx, sea.Y-cy) * rise(in, 0.6) * (1 - rise(in-cliffBack, cliffFall))
+		return landHeight + max(cliff, rise(in-1.5, coastWidth)*relief(x-cx, y-cy))
+	}
+
+	var cells []board.CellEntry
+	soils := map[board.CellID]string{}
+	for y := range GridHeight {
+		for x := range GridWidth {
+			if !land[cell(x, y)] {
+				continue
+			}
+			var hs [4]float64
+			for k, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+				hs[k] = heights(geom.NewVec(float64(x+d[0])*cw, float64(y+d[1])*ch))
+			}
+			fx, fy := float64(x)+0.5, float64(y)+0.5
+			soils[cell(x, y)] = soil(hs, cw, inland(fx, fy), fx, fy)
+			cells = append(cells, board.CellEntry{Kind: soils[cell(x, y)], Cell: cell(x, y)})
+		}
+	}
+
+	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across
+	// it, each on the nearest ground that is not rock.
+	var stops []board.CellID
+	for k := range UnitCount {
+		a := (float64(k) + 0.5) * 2 * math.Pi / UnitCount
+		dx, dy := math.Cos(a)*islandRX, math.Sin(a)*islandRY
+		r := stopsAt * edge(dx, dy)
+		sx, sy := int(cx+r*dx), int(cy+r*dy)
+	search:
+		for ring := 0; ring < 8; ring++ {
+			for oy := -ring; oy <= ring; oy++ {
+				for ox := -ring; ox <= ring; ox++ {
+					if s := soils[cell(sx+ox, sy+oy)]; s == "earth" || s == "sand" {
+						sx, sy = sx+ox, sy+oy
+						break search
+					}
+				}
+			}
+		}
+		stops = append(stops, cell(sx, sy))
 	}
 	return board.Layout{Default: "water", Cells: cells, Heights: heights}, stops
+}
+
+// soil is the ground of a cell whose corners stand at hs, w wide, in cells from the coast, at
+// (x, y): rock where it is steep or high, sand on the lowland by the sea and in dunes, earth
+// elsewhere. Along the coast, beaches, rocky shore and earth take turns as a noise says.
+func soil(hs [4]float64, w, in, x, y float64) string {
+	top, steep := 0.0, 0.0
+	for k, a := range hs {
+		top = max(top, a)
+		for _, b := range hs[k+1:] {
+			steep = max(steep, math.Abs(a-b))
+		}
+	}
+	steep /= w // a diagonal counted as an edge: a little steeper than it is
+	switch {
+	case steep >= rockSlope || top >= rockHeight:
+		return "rock"
+	case in <= beachWidth && top < landHeight+lowlandRoll:
+		switch n := fbm(x/6+50, y/6+20); {
+		case n > 0.52:
+			return "sand"
+		case n < 0.38:
+			return "rock"
+		}
+	case steep < duneSlope && top < landHeight+2*lowlandRoll && fbm(x/5+31, y/5+17) > 0.57:
+		return "sand"
+	}
+	return "earth"
 }
 
 // relief is how high the ground stands over the lowland at (x, y) cells from the island's middle:
@@ -131,6 +195,14 @@ func ridged(x, y float64) float64 {
 		x, y, amp = 2*x+13, 2*y+7, amp/2
 	}
 	return sum / norm
+}
+
+// cliffs is how high the cliff stands over the lowland where the coast is at (x, y) cells from the
+// island's middle: stretches of cliff, most along the north coast, and none between them.
+func cliffs(x, y float64) float64 {
+	north := min(max(-y/islandRY, -1), 1)
+	along := rise(fbm(x/8+90, y/8+40)+0.2*north-0.52, 0.08)
+	return along * cliffHeight * (0.6 + 0.4*fbm(x/10+60, y/10+10))
 }
 
 // ridgeY is where across the island the range's crest runs at x cells from the middle.
@@ -195,5 +267,16 @@ const (
 	plateauEdge        = 2.0
 	plateauHeight      = 80.0
 	lowlandRoll        = 8.0
-	stopsAt            = 0.78 // how far out to the coast the stops lie
+	// the highest sea cliffs over the land's height, standing full cliffBack cells inland and
+	// sinking over cliffFall more
+	cliffHeight = 70.0
+	cliffBack   = 3.0
+	cliffFall   = 8.0
+	stopsAt     = 0.78 // how far out to the coast the stops lie
+	// rock stands where the ground rises rockSlope across a cell or tops rockHeight; sand lies
+	// within beachWidth cells of the sea, and in dunes where the lowland is flatter than duneSlope
+	rockSlope  = 0.5
+	rockHeight = 140.0
+	beachWidth = 1.5
+	duneSlope  = 0.2
 )
