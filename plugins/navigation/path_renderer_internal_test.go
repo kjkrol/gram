@@ -6,8 +6,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -21,7 +22,7 @@ func TestPathRenderer_SpriteHeightsFollowTheTilesCorners(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := icamera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
+	cam := isoCamera(128, 128, camera.Config{})
 	r := NewPathRenderer(brd, nil, PathSprites{}, 0)
 	r.camera = cam
 
@@ -52,11 +53,11 @@ func TestPathRenderer_LaysARouteSpriteOnTheOverlaysTierAtItsCellsDepth(t *testin
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	cam := icamera.NewFromSpaceWithConfig(128, 128, 0, camera.Config{Projection: camera.Isometric{Cell: 32}})
+	cam := isoCamera(128, 128, camera.Config{})
 	r := NewPathRenderer(brd, sheetOf{}, PathSprites{}, 0)
 	var f render.Frame
 	f.Reset(cam)
-	r.frame, r.camera, r.iso = &f, cam, true
+	r.frame, r.camera = &f, cam
 
 	c, _ := grid.CellIndex(2, 1)
 	r.appendCellSprite(c, 0)
@@ -69,4 +70,15 @@ func TestPathRenderer_LaysARouteSpriteOnTheOverlaysTierAtItsCellsDepth(t *testin
 	if f.Len() != 1 {
 		t.Errorf("%d pieces for one route sprite", f.Len())
 	}
+}
+
+// isoCamera is a camera of a width x height world put in the isometric view.
+func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: width, Height: height},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
+		Camera:   cfg,
+	})
+	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	return w.Camera()
 }

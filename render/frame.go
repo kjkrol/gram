@@ -269,15 +269,6 @@ func ProjectCorners(cam camera.Camera, x0, y0, x1, y1, z float32) Corners {
 	return out
 }
 
-// Billboard is a sprite w x h world units large standing upright at the world point (x, y, z):
-// on screen, a rectangle whose bottom edge is centred on the projected point.
-func Billboard(cam camera.Camera, x, y, z, w, h float32) Corners {
-	sx, sy := cam.Project(x, y, z)
-	zoom := cam.Zoom()
-	hw, hh := w*zoom/2, h*zoom
-	return Corners{{sx - hw, sy - hh}, {sx + hw, sy - hh}, {sx - hw, sy}, {sx + hw, sy}}
-}
-
 // inset pulls a sprite's source rectangle in by half a texel, so the edge of a quad drawn at an
 // angle or a fraction of a pixel never samples the neighbouring sprite of the sheet.
 func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {

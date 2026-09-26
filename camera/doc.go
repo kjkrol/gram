@@ -12,18 +12,18 @@
 // ZoomIn, ZoomOut, with min and max zoom). It keeps its own window
 // arithmetic: wrapping on a wrapping axis of the world, held inside the world on any other.
 // The cameras themselves live in internal/camera; a game gets one from the world plugin
-// (world.Plugin.Camera, NewCamera), built from a [Config] with a viewport size, zoom limits and a
-// projection.
+// (world.Plugin.Camera, NewCamera), built from a [Config] with a viewport size and zoom limits,
+// through whichever projection the world's view gives it.
 //
 // # Projection
 //
-// A [Projection] is the arithmetic a Camera draws through: [TopDown] (screen x and y are world x
-// and y, the default) or [Isometric] (the 2:1 view of Transport Tycoon: a Cell-sized square is a
-// TileW x TileH diamond, heights lift a point HeightUnit screen units per world unit). Every Camera
+// A [Projection] is the arithmetic a Camera draws through; this package has [TopDown] (screen x and
+// y are world x and y, height is not drawn), and a view plugin brings its own with its cameras —
+// plugins/isometry keeps the isometric projection and camera private to itself. Every Camera
 // exposes Project (a world point at a height), Unproject and Depth (further back is smaller), and
-// ToScreen and FromScreen are the two at height 0; Viewport is the screen it draws to, in pixels. Config.Projection picks it; an Isometric camera
-// keeps a screen window over the projected world instead of a world rectangle, refuses a wrapping
-// world, and ToScreenQuads gives the rectangle round the diamond a world box projects to.
+// ToScreen and FromScreen are the two at height 0; Viewport is the screen it draws to, in pixels.
+// Sorts says whether what is drawn through it must go back to front, which a render.Composer asks;
+// Wraps whether a world wrapping at its edges can be drawn through it.
 //
 // # State
 //

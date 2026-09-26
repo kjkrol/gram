@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -26,7 +24,7 @@ func TestRenderer_Init_QueryMatchesOnlySelectedEntity(t *testing.T) {
 		t.Fatal("sanity check failed: expected the other entity to remain unselected")
 	}
 
-	r := NewRenderer(h.tags.Selected)
+	r := NewRenderer(h.tags.Selected, h.world.Look)
 	h.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { r.Init(si) }})
 
 	r.query.All()
@@ -48,21 +46,17 @@ func TestRenderer_Init_QueryMatchesOnlySelectedEntity(t *testing.T) {
 	}
 }
 
-func TestDefaultHighlightStyle_OutlinesOnTheMarksTierWhateverTheDepth(t *testing.T) {
-	for name, cam := range map[string]camera.Camera{
-		"from above": icamera.NewFromSpace(1000, 1000, 0),
-		"isometric":  icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{Projection: camera.Isometric{Cell: 32}}),
-	} {
-		var f render.Frame
-		f.Reset(cam)
-		DefaultHighlightStyle().Compose(&f, cam, geom.NewAABBAt(geom.NewVec(100, 100), 20, 20), 5)
-		if f.Len() != 4 {
-			t.Errorf("%s: %d pieces, want the four sides of the outline", name, f.Len())
-		}
-		f.Each(func(tier render.Tier, _ float32, _ []ebiten.Vertex) {
-			if tier != render.Marks {
-				t.Errorf("%s: an outline side on tier %d, want Marks", name, tier)
-			}
-		})
+func TestDefaultHighlightStyle_OutlinesEveryPieceOfTheFootprintOnTheMarksTier(t *testing.T) {
+	var f render.Frame
+	f.Reset(icamera.NewFromSpace(1000, 1000, 0))
+	unit := render.Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
+	DefaultHighlightStyle().Compose(&f, []render.Corners{unit, unit})
+	if f.Len() != 8 {
+		t.Errorf("%d pieces, want the four sides of each of two pieces", f.Len())
 	}
+	f.Each(func(tier render.Tier, _ float32, _ []ebiten.Vertex) {
+		if tier != render.Marks {
+			t.Errorf("an outline side on tier %d, want Marks", tier)
+		}
+	})
 }

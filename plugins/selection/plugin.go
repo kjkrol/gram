@@ -47,7 +47,7 @@ func (p *Plugin) Tags() Tags { return p.tags }
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags)
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
 	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
@@ -59,7 +59,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 // WithRenderer builds the renderer of the highlights and of the box being dragged; atlas is
 // unused, selection draws primitives.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = NewRenderer(p.tags.Selected)
+	p.renderer = NewRenderer(p.tags.Selected, p.worldPlugin.Look)
 	p.renderer.marquees = &p.marquees
 }
 

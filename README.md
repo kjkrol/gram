@@ -356,6 +356,7 @@ a proposal for one composer drawing each view.
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` behaviors; `SightOutline` drawn |
 | [`plugins/vision/behavior`](plugins/vision/behavior/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
+| [`plugins/isometry`](plugins/isometry/doc.go) | The isometric view, added or left out: the world's cameras, entities standing as billboards, cells as blocks |
 | [`plugins/effects`](plugins/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; highlight renderer |

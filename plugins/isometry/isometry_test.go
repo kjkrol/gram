@@ -1,0 +1,173 @@
+package isometry_test
+
+import (
+	"math"
+	"strings"
+	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
+)
+
+// sheet is an AtlasSource of one sprite with no image behind it.
+type sheet struct{}
+
+func (sheet) Atlas() *ebiten.Image                            { return nil }
+func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
+func (sheet) White() (u, v float32)                           { return 9, 9 }
+
+func newWorld(edges aabbworld.Edges) *world.Plugin {
+	return world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 128, Height: 128, Edges: edges},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Camera:   camera.Config{ViewportWidth: 400, ViewportHeight: 300},
+		Quasi3D:  true,
+	})
+}
+
+func TestPlugin_MakesTheWorldsCamerasIsometric(t *testing.T) {
+	w := newWorld(0)
+	if w.Camera().Projection().Sorts() {
+		t.Fatal("a world is isometric before the plugin")
+	}
+	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	for name, cam := range map[string]camera.Camera{"the world's": w.Camera(), "a new one": w.NewCamera()} {
+		if !cam.Projection().Sorts() || cam.Projection().Wraps() {
+			t.Errorf("%s camera draws through %T, want the plugin's isometric projection", name, cam.Projection())
+		}
+		if sx, sy := cam.Project(0, 0, 10); sx == 0 && sy == 0 {
+			t.Errorf("%s camera draws a height 10 at the screen's origin: heights are not lifted", name)
+		}
+		if vw, vh := cam.Viewport(); vw != 400 || vh != 300 {
+			t.Errorf("%s camera is %v x %v, want the world's 400 x 300", name, vw, vh)
+		}
+	}
+	if w.ViewFor(w.Camera()) != w.View() {
+		t.Error("the world's View does not follow its new camera")
+	}
+}
+
+func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
+	defer func() {
+		if r, _ := recover().(string); !strings.Contains(r, "wraps") {
+			t.Errorf("NewPlugin over a torus: %q, want a refusal", r)
+		}
+	}()
+	isometry.NewPlugin(newWorld(aabbworld.Torus), isometry.Config{Cell: 32})
+}
+
+func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
+	w := newWorld(0)
+	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	cam := w.Camera()
+	cam.MoveTo(0, 0)
+	look := w.Look()
+	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
+
+	var f render.Frame
+	f.Reset(cam)
+	look.Sprite(&f, cam, box, 6, sheet{}, 0)
+	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
+		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
+			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))
+		}
+		if v[0].DstY != v[1].DstY || v[2].DstY-v[0].DstY != 10 {
+			t.Errorf("entity drawn at %v %v %v, want an upright 10-tall rectangle", v[0], v[1], v[2])
+		}
+	})
+	drawn := look.Drawn(cam, box.AABB, 6)
+	bx, by := cam.Project(45, 45, 6)
+	if drawn[2][1] != by || (drawn[2][0]+drawn[3][0])/2 != bx {
+		t.Errorf("drawn at %v, want the billboard standing on (%v, %v)", drawn, bx, by)
+	}
+	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
+		t.Errorf("footprint %v, want one diamond on the ground", fp)
+	}
+}
+
+// hillBoard is a 4x4 board, the cell (1, 1) a hill 10 high sloping into its neighbours.
+func hillBoard(t *testing.T, w *world.Plugin, grid board.Grid) *board.Plugin {
+	t.Helper()
+	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	brd := b.Res.Logic.Board
+	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	hill, _ := grid.CellIndex(1, 1)
+	brd.SetHeights(board.MeanOfCells(grid, func(c board.CellID) float64 {
+		if c == hill {
+			return 10
+		}
+		return 0
+	}))
+	return b
+}
+
+// compose composes b's renderer through cam: pieces by tier, and how many are outlined.
+func compose(b *board.Plugin, cam camera.Camera) (tiers map[render.Tier]int, outlined int) {
+	var f render.Frame
+	f.Reset(cam)
+	b.Renderer().(render.Source).Compose(&f, cam)
+	tiers = map[render.Tier]int{}
+	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		tiers[tier]++
+		if v[0].Custom0 < 0 {
+			outlined++
+		}
+	})
+	return tiers, outlined
+}
+
+func TestBlocks_StandTheCellsWithFacesWhereTheyRiseOverTheirNeighbours(t *testing.T) {
+	w := newWorld(0)
+	p := isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	b := hillBoard(t, w, grid)
+	p.WithBoard(b)
+	b.WithRenderer(sheet{})
+	b.Res.Render.ShowGridLines = false
+	cam := w.Camera()
+	cam.MoveTo(0, 0)
+
+	if got, _ := compose(b, cam); got[render.Ground] != 16 {
+		t.Errorf("composed %v, want the 16 cells: the hill slopes into its neighbours, no faces", got)
+	}
+	wall, _ := grid.CellIndex(2, 2)
+	b.Res.Logic.Board.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 8})
+	if got, _ := compose(b, cam); got[render.Ground] != 18 {
+		t.Errorf("composed %v, want two more for the wall's faces down to the ground", got)
+	}
+	b.Res.Render.ShowGridLines = true
+	if _, outlined := compose(b, cam); outlined != 16 {
+		t.Errorf("%d tops outlined with the grid on, want the 16 tops and no face", outlined)
+	}
+}
+
+func TestBlocks_LightTheTopsFromTheUpperLeft(t *testing.T) {
+	w := newWorld(0)
+	p := isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	b := hillBoard(t, w, grid)
+	p.WithBoard(b)
+	b.WithRenderer(sheet{})
+	cam := w.Camera()
+	cam.MoveTo(0, 0)
+	var f render.Frame
+	f.Reset(cam)
+	b.Renderer().(render.Source).Compose(&f, cam)
+	shades := map[float32]bool{}
+	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { shades[v[0].ColorR] = true })
+	if len(shades) < 3 {
+		t.Errorf("tops shaded %v, want level ground and slopes towards and away from the light apart", shades)
+	}
+	for s := range shades {
+		if s <= 0 || s > 1 || math.IsNaN(float64(s)) {
+			t.Errorf("a shade of %v", s)
+		}
+	}
+}

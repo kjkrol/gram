@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -22,8 +21,7 @@ const pickReach = 160
 
 // SelectionSystem carries out Select commands as the Selected tag on Selectable entities — a bit
 // flipped in place, seen the same tick. A Select with a Screen rectangle hits the entities drawn
-// into it, as the camera draws them: their box on the ground, or through an isometric camera the
-// billboard standing on their centre at their altitude.
+// into it, where the world's Look draws them through the command's camera.
 type SelectionSystem struct {
 	selects *control.Queue[Select]
 	space   *aabbworld.Space
@@ -39,12 +37,14 @@ type SelectionSystem struct {
 	lookup     *goke.Query
 	lookupBase goke.Comp[world.Base]
 	lookupZ    goke.OptComp[world.Z]
+
+	look func() world.Look // how the world draws what may be picked
 }
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
-// command's camera.
-func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, tags Tags) *SelectionSystem {
-	return &SelectionSystem{selects: selects, space: space, tags: tags}
+// command's camera what look draws there.
+func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, tags Tags, look func() world.Look) *SelectionSystem {
+	return &SelectionSystem{selects: selects, space: space, tags: tags, look: look}
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
@@ -84,8 +84,7 @@ func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 	})
 }
 
-// drawnIn reports whether id is drawn into the screen rectangle: through an isometric camera as a
-// billboard on its centre at its altitude, otherwise as its box.
+// drawnIn reports whether id is drawn into the screen rectangle, as the world's Look draws it.
 func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Camera) bool {
 	if !s.lookup.Seek(id) {
 		return false
@@ -96,14 +95,7 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 	if z := s.lookupZ.At(cur); z != nil {
 		alt = float32(z.Altitude)
 	}
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
-	var c render.Corners
-	if _, iso := cam.Projection().(camera.Isometric); iso {
-		c = render.Billboard(cam, (x0+x1)/2, (y0+y1)/2, alt, x1-x0, y1-y0)
-	} else {
-		c = render.ProjectCorners(cam, x0, y0, x1, y1, alt)
-	}
+	c := s.look().Drawn(cam, box.AABB, alt)
 	minX, minY, maxX, maxY := c[0][0], c[0][1], c[0][0], c[0][1]
 	for _, p := range c[1:] {
 		minX, maxX = min(minX, p[0]), max(maxX, p[0])

@@ -150,6 +150,21 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - The island demos' frames are 25–60% shorter (doc/rendering.md §6); gathering 5,000 sprites
   costs about 18% more (BENCHMARKS.md). An isometric camera no longer allocates for `Projection`.
 
+**The isometric view is a plugin**
+- `plugins/isometry`: `NewPlugin(world, Config{Cell, TileW, TileH, HeightUnit, Headroom})` puts the
+  world in the isometric view — its cameras (`world.Plugin.SetCameras`, `world.Cameras`) and how its
+  entities lie on the screen (billboards) — and `WithBoard(board)` lays the cells as blocks with
+  faces. Without it everything is drawn from above; heights stay the world's and work in both.
+  `camera.Config.Projection` is gone and `camera.Isometric` and `render.Billboard` with it: the
+  isometric projection, camera and billboard are private to the plugin. `camera.Projection.Sorts`
+  tells the composer to sort by depth.
+- How things lie on the screen is a swappable `Look`: `world.Look` (`Sprite`, `Drawn` for picking,
+  `Footprint` for outlines; `Plugin.SetLook`, `Look`) and `board.Look` (`Cell`, handed a
+  `board.Tile` with its box, sprite, `Top` and `Beside`; `Plugin.SetLook`, `Look`). The renderers
+  keep their data and ask the Look for geometry only. `selection.HighlightStyle.Compose(frame,
+  footprint)`; `NewSelectionSystem` and `NewRenderer` take the world's Look. Selection, navigation,
+  the board and the world renderers no longer test for an isometric camera.
+
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
   cell and its `Relief`, the heights of its four corners) and `Ground` (its kind). They carry no

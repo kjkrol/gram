@@ -126,13 +126,29 @@ Package layout: `render` (root) — `Renderer`/`AtlasSource`/`Atlas`/
 drawing with zero knowledge of Stages/Scenes/plugins. The world of a scene is one
 `render.Composer` over the plugins' renderers, which are `render.Source`s: each hands its pieces to
 a `render.Frame` in screen pixels with a `Tier` (`Ground` 100, `Objects` 200, `Overlays` 300,
-`Marks` 400; a game may use the gaps) and a depth; the composer draws tiers in order, and through
-an isometric camera everything below `Marks` back to front by depth (ties by tier, then arrival),
+`Marks` 400; a game may use the gaps) and a depth; the composer draws tiers in order, and when the
+camera's projection `Sorts()` everything below `Marks` back to front by depth (ties by tier, then arrival),
 so a hill hides the route and the cone behind it and the selection stays on top. One Kage shader
 draws every piece, a plain colour sampling its sheet's white texel (`AtlasSource.White`), so a run on
 one sheet is one call; `Frame.Line` and `Frame.Soft` fade their edges through the vertices' custom
-values. A piece lying across cells takes the depth of its nearest end, else the nearer tile covers
-half of it. `plugin`
+values; `Frame.Tile`/`TileRect` outline a tile along its own edges, which is the square board's grid.
+A piece lying across cells takes the depth of its nearest end, else the nearer tile covers
+half of it.
+
+How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite, where
+it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, handed as a
+`board.Tile` with its box, sprite and the heights of its top and its neighbours'), both flat from
+above by default. The isometric view is a plugin a game adds: `isometry.NewPlugin(world, Config{Cell,
+TileW, TileH, HeightUnit, Headroom})`, made right after the world, sets the world's camera factory
+(`world.SetCameras`; `camera.Config` has no projection) and its Look (billboards), and
+`WithBoard(board)` the board's (blocks with faces); it refuses a wrapping world. Everything that is
+the isometric view and nothing else — the projection, the camera, the billboard, the blocks and
+their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
+the top-down camera. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
+over walls and hills reads them in a top-down game too (navigation-vision-demo). The renderers keep
+their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
+selection picks and outlines through the world's Look, navigation lays routes on the ground through
+the camera. Heights (`Quasi3D`) are the model and work in either view. `plugin`
 (root) — `Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`, the extension
 contract; imports `render` (`Plugin.WithRenderer(atlas
 render.AtlasSource)`). `game` (root) — `Game`/`Stage`/`Scene`/`Stack`/

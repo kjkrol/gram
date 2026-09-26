@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/isometry"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -79,6 +80,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 type mainStage struct {
 	world     *world.Plugin
+	isometry  *isometry.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
 	collision *collision.Plugin
@@ -101,9 +103,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight, Projection: camera.Isometric{Cell: CellSize, HeightUnit: 1}},
+		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 		Quasi3D:  true,
 	})
+	s.isometry = isometry.NewPlugin(s.world, isometry.Config{Cell: CellSize, HeightUnit: 1})
 	// Start over the island's middle rather than the world's corner.
 	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
@@ -127,6 +130,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.isometry.WithBoard(s.board)); err != nil {
 		return err
 	}
 

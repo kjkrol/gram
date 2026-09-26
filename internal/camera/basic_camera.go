@@ -47,22 +47,17 @@ func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contr
 	return newBasicCamera(geom.NewVec(float64(width), float64(height)), vp, edges)
 }
 
-// NewFromSpaceWithConfig is NewFromSpace with cfg's viewport size, zoom limits and projection.
+// NewFromSpaceWithConfig is NewFromSpace with cfg's viewport size and zoom limits.
 func NewFromSpaceWithConfig(width, height uint32, edges aabbworld.Edges, cfg contract.Config) contract.Camera {
 	var viewport []contract.AABB
 	if cfg.ViewportWidth != 0 && cfg.ViewportHeight != 0 {
 		viewport = []contract.AABB{geom.NewAABBAt(geom.NewVec(0, 0), float64(cfg.ViewportWidth), float64(cfg.ViewportHeight))}
 	}
-	var cam contract.Camera
-	if iso, ok := cfg.Projection.(contract.Isometric); ok {
-		vp := geom.NewAABBAt(geom.NewVec(0, 0), float64(width), float64(height))
-		if len(viewport) > 0 {
-			vp = viewport[0]
-		}
-		cam = newIsoCamera(iso, geom.NewVec(float64(width), float64(height)), vp, edges)
-	} else {
-		cam = NewFromSpace(width, height, edges, viewport...)
-	}
+	return limited(NewFromSpace(width, height, edges, viewport...), cfg)
+}
+
+// limited applies cfg's zoom limits to cam.
+func limited(cam contract.Camera, cfg contract.Config) contract.Camera {
 	if cfg.MinZoom > 0 {
 		cam.SetMinZoom(cfg.MinZoom)
 	}

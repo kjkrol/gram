@@ -31,6 +31,7 @@ type Plugin struct {
 
 	occupancy Occupancy
 	renderer  *Renderer
+	look      Look
 	kinds     *cellKindDict
 	seeded    *Layout
 	shaping   shaping
@@ -100,7 +101,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 // WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = &RenderState{ShowGridLines: true}
-	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render)
+	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look)
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -131,6 +132,17 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // =================================================================
 // board-specific
 // =================================================================
+
+// SetLook has the board's cells drawn by look: a view plugin's.
+func (p *Plugin) SetLook(look Look) { p.look = look }
+
+// Look is how the board's cells lie on the screen: flat, from above, unless a view plugin set one.
+func (p *Plugin) Look() Look {
+	if p.look == nil {
+		return flatLook{}
+	}
+	return p.look
+}
 
 // CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Relief] for as long as the
 // board lives, so an effect cast on it is an effect on the cell's terrain; false off the board or

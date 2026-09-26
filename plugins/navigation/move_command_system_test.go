@@ -26,7 +26,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 	selects := &control.Queue[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
@@ -113,7 +113,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 	selects := &control.Queue[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
@@ -205,7 +205,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 	selects := &control.Queue[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]

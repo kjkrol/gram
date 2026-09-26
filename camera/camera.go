@@ -81,9 +81,6 @@ type Config struct {
 	MinZoom float32
 	// MaxZoom caps ZoomIn; 0 leaves it unrestricted.
 	MaxZoom float32
-	// Projection is what the camera draws through: nil is TopDown; an Isometric refuses a
-	// wrapping world.
-	Projection Projection
 }
 
 // State is a Camera's persistable visible window and zoom.

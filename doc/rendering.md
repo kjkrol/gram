@@ -48,11 +48,13 @@ Tiers are numbers with room between them, drawn in order:
 A game may put its own pieces between (250, say) without touching the engine.
 
 - **From above** depth does not matter: tiers in order, and within a tier the order pieces came in.
-- **Through an isometric camera** everything below `Marks` is drawn back to front by depth, ties by
-  tier, then arrival; `Marks` and above come last, by tier. The depth is the camera's
-  (`camera.Camera.Depth`): the diagonal row of the cell under a point, so everything in one cell
-  ties with its tile, and what stands on it (a higher tier) is drawn over it and under the row in
-  front. A mountain in front hides the route and the cone behind it; the selection is never hidden.
+- **When the camera's projection sorts** (`camera.Projection.Sorts`; the isometric view of
+  `plugins/isometry` does) everything below `Marks` is drawn back to front by depth, ties by tier,
+  then arrival; `Marks` and above come last, by tier. The depth is the camera's
+  (`camera.Camera.Depth`); the isometric one is the diagonal row of the cell under a point, so
+  everything in one cell ties with its tile, and what stands on it (a higher tier) is drawn over it
+  and under the row in front. A mountain in front hides the route and the cone behind it; the
+  selection is never hidden.
 - **A piece lying across cells takes the depth of its nearest end.** It is drawn after every tile
   it lies on; with the depth of its middle the nearer tile would cover half of it. This is why the
   cone's edges and its shadows are cut into pieces a ground step long, each draped over the ground

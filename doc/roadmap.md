@@ -30,8 +30,10 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
   Heights: `world.Config{Quasi3D: true}`, `world.Z`, the board as the world's `Ground`, sight from
   `Sight.Eye` over walls, forests and hills, and the ground out of sight kept as shadows, holes in
   the drawn view (aabbworld v1.8.0) — [movement §14](movement.md).
-- An isometric view: `camera.Projection`, sloped and shaded tiles, billboards, picking on the
-  ground and where entities are drawn, `island-isometric-demo`.
+- An isometric view as a plugin a game adds: `plugins/isometry` makes the world's cameras and lays
+  entities as billboards and cells as blocks through the world's and the board's swappable `Look`;
+  sloped and shaded tiles, picking where entities are drawn, `island-isometric-demo`. Without it
+  everything is drawn from above.
 - One composer per view: the world of a scene is a `render.Composer` over the plugins' `Source`s,
   pieces on tiers with gaps (`Ground`, `Objects`, `Overlays`, `Marks`) and depths; through an
   isometric camera a hill hides the routes and cones behind it, the selection stays on top; one

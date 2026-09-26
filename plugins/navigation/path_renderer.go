@@ -41,7 +41,6 @@ type PathRenderer struct {
 	atlas   render.AtlasSource
 	frame   *render.Frame // the one being composed
 	camera  camera.Camera // the one of the frame being composed
-	iso     bool
 	space   *aabbworld.Space
 	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground;
 	// corners its corner heights on a sloped grid, so a sprite lies on the tile as it is drawn.
@@ -87,7 +86,6 @@ func (r *PathRenderer) Init(si *goke.SysInit) {
 // its cell, so what stands in front of the cell hides it.
 func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
-	_, r.iso = cam.Projection().(camera.Isometric)
 	if r.space != nil {
 		r.query.All()
 		for r.query.Next() {
@@ -193,15 +191,15 @@ func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) 
 }
 
 // appendCellSprite lays sprite as a square reaching the cell's nearest edges, so a spoke ends where
-// the neighbour's begins; through an isometric camera it lies on the ground at the cell's altitude,
-// at the depth of the cell's tile.
+// the neighbour's begins, on the ground at the tile's corners and at the depth of the tile; on a
+// wrapping world, seen from above, over the cell's box split at the seam.
 func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) {
 	center := r.grid.CellCenter(c)
 	w, h := r.grid.CellBounds()
 	half := min(w, h) / 2
 	x0, y0 := float32(center.X-half), float32(center.Y-half)
 	x1, y1 := float32(center.X+half), float32(center.Y+half)
-	if !r.iso {
+	if r.space != nil && r.space.Edges != 0 {
 		r.frame.SpriteRect(render.Overlays, 0, r.atlas, sprite, x0, y0, x1, y1)
 		return
 	}

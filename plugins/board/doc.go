@@ -106,11 +106,11 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer: each
-// cell's sprite from an atlas on the render.Ground tier, from above over its box; through an
-// isometric camera its top at its altitude plus its kind's Height, at the depth of its centre, and
-// the two faces towards the viewer wherever the ground drops to a neighbour (a cliff, down to sea
-// level 0 off the board) or the kind stands tall (a wall), shaded as if lit from the upper left.
+// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer: it
+// reads each visible cell and hands it, as a [Tile] — its box, its sprite, the heights of its top
+// and its neighbours' — to the board's [Look], which lays it on the render.Ground tier: from above
+// its sprite over its box, unless a view plugin ([Plugin.SetLook], plugins/isometry) stands it up
+// as a block with faces.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer

@@ -1,4 +1,4 @@
-package camera
+package isometry
 
 import (
 	contract "github.com/kjkrol/gram/camera"
@@ -8,10 +8,10 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// isoCamera is a camera.Camera over an camera.Isometric projection: the world never wraps, the window is a
+// isoCamera is a camera.Camera through a projection: the world never wraps, the window is a
 // screen rectangle over the projected world, and the visible world region is the diamond under it.
 type isoCamera struct {
-	proj         contract.Isometric
+	proj         projection
 	projection   contract.Projection // proj boxed once, so asking for it allocates nothing
 	world        geom.Vec
 	viewportSize geom.Vec
@@ -29,11 +29,28 @@ type isoCamera struct {
 
 var _ contract.Camera = (*isoCamera)(nil)
 
-func newIsoCamera(proj contract.Isometric, world geom.Vec, viewport contract.AABB, edges aabbworld.Edges) *isoCamera {
-	if edges.WrapsX() || edges.WrapsY() {
-		panic("camera: an isometric projection cannot draw a wrapping world")
+// newCamera is a camera over a width x height world drawn through proj, configured by cfg; it
+// refuses a wrapping world.
+func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config) contract.Camera {
+	vp := geom.NewAABBAt(geom.NewVec(0, 0), float64(width), float64(height))
+	if cfg.ViewportWidth != 0 && cfg.ViewportHeight != 0 {
+		vp = geom.NewAABBAt(geom.NewVec(0, 0), float64(cfg.ViewportWidth), float64(cfg.ViewportHeight))
 	}
-	proj = proj.WithDefaults()
+	c := newIsoCamera(proj, geom.NewVec(float64(width), float64(height)), vp, edges)
+	if cfg.MinZoom > 0 {
+		c.SetMinZoom(cfg.MinZoom)
+	}
+	if cfg.MaxZoom > 0 {
+		c.SetMaxZoom(cfg.MaxZoom)
+	}
+	return c
+}
+
+func newIsoCamera(proj projection, world geom.Vec, viewport contract.AABB, edges aabbworld.Edges) *isoCamera {
+	if edges.WrapsX() || edges.WrapsY() {
+		panic("isometry: a world that wraps cannot be seen isometrically")
+	}
+	proj = proj.withDefaults()
 	c := &isoCamera{proj: proj, projection: proj, world: world, zoom: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y)}
 	c.minSX, c.maxSX, c.minSY, c.maxSY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))

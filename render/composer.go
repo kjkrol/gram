@@ -29,8 +29,8 @@ func shader() *ebiten.Shader {
 }
 
 // Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
-// its items to a Frame, the Composer orders them — by depth through an isometric camera, below the
-// Marks — and draws each run of items sampling one sheet in one call.
+// its items to a Frame, the Composer orders them — by depth below the Marks when the camera's
+// projection sorts — and draws each run of items sampling one sheet in one call.
 type Composer struct {
 	sources []Source
 	frame   Frame
@@ -84,14 +84,14 @@ func (c *Composer) compose(cam camera.Camera) {
 	c.sort()
 }
 
-// sort orders the frame: through an isometric camera the items below Marks back to front by depth,
-// ties by tier, then the rest by tier; from above by tier alone; always the order given last.
+// sort orders the frame: through a projection that sorts the items below Marks back to front by
+// depth, ties by tier, then the rest by tier; otherwise by tier alone; always the order given last.
 func (c *Composer) sort() {
 	f := &c.frame
 	for i := range f.items {
 		f.order = append(f.order, int32(i))
 	}
-	_, byDepth := f.cam.Projection().(camera.Isometric)
+	byDepth := f.cam.Projection().Sorts()
 	cmp := func(a, b int32) int {
 		x, y := &f.items[a], &f.items[b]
 		if byDepth {

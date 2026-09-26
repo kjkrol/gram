@@ -46,6 +46,8 @@ type Plugin struct {
 	seeded   []kind.Entry
 	view     *View // the camera's
 	views    map[camera.Camera]*View
+	cameras  Cameras
+	look     Look
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -59,11 +61,13 @@ func (*Plugin) Builtin() {}
 // NewPlugin builds Plugin around a fresh world, usable before Install.
 func NewPlugin(cfg Config) *Plugin {
 	m := newModule(cfg)
-	cam := icamera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
 	kinds := newKinds(cfg.Quasi3D)
 	m.kinds = kinds
-	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry, Camera: cam}, module: m, kinds: kinds, roster: kind.NewRoster()}
-	p.view = p.NewView(cam.Bounds)
+	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
+		cameras: icamera.NewFromSpaceWithConfig,
+		look:    &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
+	p.Res.Camera = p.NewCamera()
+	p.view = p.NewView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	return p
@@ -109,8 +113,23 @@ func (p *Plugin) NewView(bounds func() geom.AABB) *View {
 // looks on their own; ViewFor gives its View.
 func (p *Plugin) NewCamera() camera.Camera {
 	cfg := p.Res.Config
-	return icamera.NewFromSpaceWithConfig(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
+	return p.cameras(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
 }
+
+// SetCameras has the world make its cameras with make from now on, its own camera anew: a view
+// plugin's projection. Call before anything asks for a camera — right after the world is made.
+func (p *Plugin) SetCameras(make Cameras) {
+	p.cameras = make
+	p.DropView(p.view)
+	p.Res.Camera = p.NewCamera()
+	p.view = p.NewView(p.Res.Camera.Bounds)
+}
+
+// SetLook has the world's entities drawn, picked and outlined by look: a view plugin's.
+func (p *Plugin) SetLook(look Look) { p.look = look }
+
+// Look is how the world's entities lie on the screen.
+func (p *Plugin) Look() Look { return p.look }
 
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
 // camera, one made at the first call for any other.
@@ -166,7 +185,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Res.Config.Space.Width, p.Res.Config.Space.Height)
+	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.

@@ -34,9 +34,17 @@ var (
 var unit = Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
 func topDown() camera.Camera { return icamera.NewFromSpace(1024, 1024, 0) }
-func isometric() camera.Camera {
-	return icamera.NewFromSpaceWithConfig(1024, 1024, 0, camera.Config{Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
-}
+
+// sorted is a camera whose projection sorts by depth, as a view with height does.
+func sorted() camera.Camera { return sortingCamera{icamera.NewFromSpace(1024, 1024, 0)} }
+
+type sortingCamera struct{ camera.Camera }
+
+func (sortingCamera) Projection() camera.Projection { return sortingProjection{} }
+
+type sortingProjection struct{ camera.TopDown }
+
+func (sortingProjection) Sorts() bool { return true }
 
 // drawn composes the sources through cam and lists the items in the order they are drawn, as
 // tier:depth.
@@ -73,9 +81,9 @@ func TestComposer_FromAboveDrawsByTierAloneKeepingTheOrderGiven(t *testing.T) {
 	}
 }
 
-func TestComposer_ThroughAnIsometricCameraDrawsBackToFrontWithMarksOnTop(t *testing.T) {
+func TestComposer_ThroughAProjectionThatSortsDrawsBackToFrontWithMarksOnTop(t *testing.T) {
 	s := sheet{}
-	_, got := drawn(isometric(), items(func(f *Frame) {
+	_, got := drawn(sorted(), items(func(f *Frame) {
 		f.Sprite(Marks, 0, s, 0, unit, 1)      // always on top, whatever its depth
 		f.Sprite(Overlays, 3, s, 0, unit, 1)   // a route on the tile at 3
 		f.Sprite(Objects, 3, s, 0, unit, 1)    // a unit on it
@@ -106,7 +114,7 @@ func calls(c *Composer) []string {
 
 func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 	a, b := &sheet{"a"}, &sheet{"b"}
-	c, _ := drawn(isometric(), items(func(f *Frame) {
+	c, _ := drawn(sorted(), items(func(f *Frame) {
 		f.Sprite(Ground, 1, a, 0, unit, 1)
 		f.Line(Ground, 1.5, 0, 0, 10, 0, 1, white)
 		f.Soft(Overlays, 2, unit, black, Fade{Left: 2})
@@ -116,7 +124,7 @@ func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 		t.Errorf("%d calls for one sheet with lines and a shadow among its sprites, want 1", n)
 	}
 
-	c, _ = drawn(isometric(), items(func(f *Frame) {
+	c, _ = drawn(sorted(), items(func(f *Frame) {
 		f.Sprite(Ground, 1, a, 0, unit, 1)
 		f.Sprite(Ground, 2, b, 0, unit, 1)
 		f.Line(Ground, 3, 0, 0, 10, 0, 1, white) // joins b's run
@@ -189,7 +197,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
-	cam := isometric()
+	cam := sorted()
 	c.compose(cam)
 	c.render(nil)
 	if n := testing.AllocsPerRun(20, func() { c.compose(cam); c.render(nil) }); n > 0 {

@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/isometry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -271,7 +272,7 @@ func (slope) Step() float64         { return 10 }
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
 	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() world.Ground { return slope{} })
-	r.camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, camera.Config{ViewportWidth: 800, ViewportHeight: 600, Projection: camera.Isometric{Cell: 32, HeightUnit: 1}})
+	r.camera = isoCamera(1000, 1000, camera.Config{ViewportWidth: 800, ViewportHeight: 600})
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
 	return r
@@ -340,4 +341,15 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 			t.Errorf("piece %d fades at its far end %v, want only the farther piece", k, bottom)
 		}
 	}
+}
+
+// isoCamera is a camera of a width x height world put in the isometric view.
+func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: width, Height: height},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
+		Camera:   cfg,
+	})
+	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	return w.Camera()
 }

@@ -77,8 +77,10 @@
 // [Renderer] over an atlas, and the Each behaviors of a [Drawing] registered on the plugin settle
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
 // ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
-// entities in the camera's [View] and nothing else, on the render.Objects tier: from above their
-// boxes, through an isometric camera billboards at the depth of their centres.
+// entities in the camera's [View] and nothing else, each laid on the screen by the world's [Look]:
+// from above its box, unless a view plugin ([Plugin.SetLook], plugins/isometry) stands it up as a
+// billboard. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
+// ([Plugin.SetCameras], [Cameras]).
 //
 // # View and EntitySet
 //

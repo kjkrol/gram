@@ -30,11 +30,10 @@
 // ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft
 // sides ([Frame.Line]), a fan ([Frame.Fan]) or a quad fading towards chosen sides ([Frame.Soft]).
 // Tiers are drawn in order — [Ground], [Objects], [Overlays], [Marks], with room between for a
-// game's own — and through an isometric camera everything below Marks is drawn back to front by
-// depth, ties by tier, so a mountain hides the route and the cone behind it while the selection
-// stays on top; from above the tier alone decides. Every piece is drawn with one shader, sampling a
+// game's own — and when the camera's projection sorts, everything below Marks is drawn back to
+// front by depth, ties by tier, so a mountain hides the route and the cone behind it while the
+// selection stays on top; otherwise the tier alone decides. Every piece is drawn with one shader, sampling a
 // sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
 // call. Ties keep the order pieces came in. [ProjectCorners] projects a world box at a height
-// through a camera, [Billboard] stands a sprite upright on a projected point — how an isometric
-// view draws its entities; [VisitWrapImages] visits each image of a box on a wrapping world.
+// through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.
 package render

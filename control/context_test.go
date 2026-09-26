@@ -7,8 +7,20 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/world"
 )
+
+// isoCamera is a camera of a width x height world put in the isometric view.
+func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: width, Height: height},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
+		Camera:   cfg,
+	})
+	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 2})
+	return w.Camera()
+}
 
 // plateau is ground 12 high for x in [200, 300), 0 elsewhere.
 func plateau(x, _ float32) float32 {
@@ -19,7 +31,7 @@ func plateau(x, _ float32) float32 {
 }
 
 func TestContext_WorldFollowsTheGround(t *testing.T) {
-	cam := icamera.NewFromSpaceWithConfig(640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300, Projection: camera.Isometric{Cell: 32, HeightUnit: 2}})
+	cam := isoCamera(640, 640, camera.Config{ViewportWidth: 400, ViewportHeight: 300})
 	cam.MoveTo(160, 160)
 	sx, sy := cam.Project(250, 100, 12) // a point on the plateau, drawn 24 pixels above its ground
 	screen := geom.NewVec(float64(sx), float64(sy))
