@@ -30,6 +30,9 @@ func valley() (board.Grid, func(geom.Vec) float64, func(board.CellID) bool) {
 	return grid, heights, sea
 }
 
+// names are the board kinds the tests lay courses as.
+var names = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford", water.Mouth: "mouth"}
+
 var cfg = water.Config{BrookAt: 4, StreamAt: 8, RiverAt: 30, BrookDepth: 1, StreamDepth: 2, RiverDepth: 4, FordEvery: 4, FordSlope: 0.5, WidthPerRoot: 1}
 
 // Every cell of land drains to the sea, the hollow's too, and the valley gathers a river.
@@ -163,15 +166,19 @@ func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 	}
 }
 
-// A course links down to where its water goes and up to each course draining into it, and runs
-// the wider the more water it gathers, a cell wide at most.
-func TestNetwork_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
+// A course is laid as a network linking down to where its water goes and up to each course
+// draining into it, of its course's kind, the wider the more water it gathers, a cell wide at most.
+func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 	grid, heights, sea := valley()
 	n, _ := water.Drain(grid, heights, sea, cfg)
+	net := n.Net(names)
 	kinds := map[water.Course]int{}
 	for c, k := range n.Courses {
 		kinds[k]++
-		links := n.Links(grid, c)
+		links := net.Links(c)
+		if node, _ := net.Node(c); node.Kind != names[k] || float64(node.Width) != n.Width(c, size) {
+			t.Errorf("course %v is laid as %+v, want a %s %v wide", c, node, names[k], n.Width(c, size))
+		}
 		if l, _ := board.Link(grid, c, n.Down[c]); links&l == 0 {
 			t.Errorf("course %v does not link down to %v", c, n.Down[c])
 		}
@@ -195,7 +202,7 @@ func TestNetwork_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 			dry = c
 		}
 	})
-	if n.Links(grid, dry) != 0 || n.Width(dry, size) != 0 {
+	if net.Links(dry) != 0 || n.Width(dry, size) != 0 {
 		t.Error("a dry cell links on or has a width")
 	}
 }
@@ -219,6 +226,7 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	if len(mouths) < 2 {
 		t.Fatalf("%d cells of mouth out at sea, want the river running on out", len(mouths))
 	}
+	net := n.Net(names)
 	for _, c := range mouths {
 		up := board.CellID(0)
 		for m, k := range n.Courses {
@@ -230,7 +238,7 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 			t.Errorf("mouth %v: %v wide, faded %v; the cell before it %v wide, faded %v — want it wider and more faded",
 				c, n.Width(c, size), n.Fade(c), n.Width(up, size), n.Fade(up))
 		}
-		if l, _ := board.Link(grid, c, up); n.Links(grid, c)&l == 0 {
+		if l, _ := board.Link(grid, c, up); net.Links(c)&l == 0 {
 			t.Errorf("mouth %v does not link back to %v", c, up)
 		}
 	}
@@ -242,20 +250,21 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	}
 }
 
-// Along a course the way down grows from 0 at its head to 1 at its last cell ashore, never falling
-// downstream.
-func TestNetwork_AlongGrowsDownACourseToTheSea(t *testing.T) {
+// Along a course laid as a network the way down grows from 0 at its head to 1 at its last cell
+// ashore, never falling downstream.
+func TestNet_AlongGrowsDownACourseToTheSea(t *testing.T) {
 	grid, heights, sea := valley()
 	n, err := water.Drain(grid, heights, sea, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+	net := n.Net(names)
 	heads, ends := 0, 0
 	for c, k := range n.Courses {
 		if k == water.Dry {
 			continue
 		}
-		a := n.Along(c)
+		a := net.Along(c)
 		if a < 0 || a > 1 {
 			t.Fatalf("along %v at %v, want 0 to 1", a, c)
 		}
@@ -268,8 +277,8 @@ func TestNetwork_AlongGrowsDownACourseToTheSea(t *testing.T) {
 			if a != 1 {
 				t.Errorf("the last cell ashore at %v is %v along, want 1", c, a)
 			}
-		} else if n.Courses[d] != water.Dry && n.Along(d) < a {
-			t.Errorf("along falls from %v at %v to %v below it", a, c, n.Along(d))
+		} else if n.Courses[d] != water.Dry && net.Along(d) < a {
+			t.Errorf("along falls from %v at %v to %v below it", a, c, net.Along(d))
 		}
 	}
 	if heads == 0 || ends == 0 {

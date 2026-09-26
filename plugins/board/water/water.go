@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/network"
 )
 
 // Course is what runs through a cell: nothing, a brook, a stream, a river, a ford across a river,
@@ -43,16 +44,16 @@ type Config struct {
 }
 
 // Network is the brooks, streams and rivers draining a relief to the sea: each wet cell's course,
-// where every land cell's water goes and how much has gathered in it.
+// where every land cell's water goes and how much has gathered in it. Net is it as a
+// network.Network, to lay on a board.
 type Network struct {
 	Courses  map[board.CellID]Course
 	Down     map[board.CellID]board.CellID
 	Gathered map[board.CellID]float64
 
-	up      map[board.CellID][]board.CellID // the cells draining straight into each one
-	runs    map[board.CellID][2]int         // Along's: how many cells of course above and below
-	perRoot float64                         // WidthPerRoot
-	mouths  map[board.CellID]mouth          // the cells of the sea a course runs out into
+	grid    board.Grid
+	perRoot float64                // WidthPerRoot
+	mouths  map[board.CellID]mouth // the cells of the sea a course runs out into
 
 	cw, ch       float64
 	width        int64
@@ -74,7 +75,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	cw, ch := grid.CellBounds()
 	n := &Network{
 		Courses: map[board.CellID]Course{}, Down: map[board.CellID]board.CellID{}, Gathered: map[board.CellID]float64{},
-		cw: cw, ch: ch, beds: map[[2]int64]float64{}, up: map[board.CellID][]board.CellID{}, perRoot: cfg.WidthPerRoot, mouths: map[board.CellID]mouth{},
+		grid: grid, cw: cw, ch: ch, beds: map[[2]int64]float64{}, perRoot: cfg.WidthPerRoot, mouths: map[board.CellID]mouth{},
 	}
 	grid.EachCell(func(c board.CellID) {
 		x, y, _ := grid.Coords(c)
@@ -142,12 +143,6 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 			n.Courses[c], bed[c] = Stream, filled[c]-cfg.StreamDepth
 		case g >= cfg.BrookAt:
 			n.Courses[c], bed[c] = Brook, filled[c]-cfg.BrookDepth
-		}
-	}
-	for c, k := range n.Courses {
-		if k != Dry {
-			d := n.Down[c]
-			n.up[d] = append(n.up[d], c)
 		}
 	}
 	n.ford(cfg, level, sea)
@@ -271,7 +266,6 @@ func (n *Network) plume(grid board.Grid, cfg Config, sea func(board.CellID) bool
 			n.mouths[at] = mouth{from: c, out: out, reach: reach}
 			if prev != c {
 				n.Down[prev] = at
-				n.up[at] = append(n.up[at], prev)
 			}
 			next, ok := board.Toward(grid, at, way)
 			if !ok {
@@ -292,68 +286,22 @@ func (n *Network) Fade(c board.CellID) float64 {
 	return float64(m.out) / float64(m.reach+1)
 }
 
-// Along is how far down its course c lies: 0 at the head of the longest course running into it, 1
-// at its last cell ashore and out at sea, by the cells of course above and below it; 0 where no
-// course runs. A river turning into the sea as it nears it takes its look from it.
-func (n *Network) Along(c board.CellID) float64 {
-	switch n.Courses[c] {
-	case Dry:
-		return 0
-	case Mouth:
-		return 1
-	}
-	r := n.run(c)
-	if r[0]+r[1] == 0 {
-		return 1
-	}
-	return float64(r[0]) / float64(r[0]+r[1])
-}
-
-// run is how many cells of course ashore lie above c, along the longest course into it, and below
-// it on to the sea.
-func (n *Network) run(c board.CellID) [2]int {
-	if r, ok := n.runs[c]; ok {
-		return r
-	}
-	if n.runs == nil {
-		n.runs = map[board.CellID][2]int{}
-	}
-	ashore := func(c board.CellID) bool { k := n.Courses[c]; return k != Dry && k != Mouth }
-	var r [2]int
-	for _, u := range n.up[c] {
-		if ashore(u) {
-			r[0] = max(r[0], n.run(u)[0]+1)
+// Net is the courses as a network.Network over the grid drained, to lay on a board: a node on
+// every wet cell of the board kind kinds names for its course, as wide as Width and faded as Fade
+// say, each flowing down to where its water goes — the last cell ashore on to the sea.
+func (n *Network) Net(kinds map[Course]string) *network.Network {
+	net := network.New(n.grid)
+	for c, k := range n.Courses {
+		if k != Dry {
+			net.Set(c, network.Node{Kind: kinds[k], Width: n.Width(c, n.cw), Fade: n.Fade(c)})
 		}
 	}
-	for at := c; r[1] < len(n.Courses); r[1]++ { // water runs down a tree: no course comes back
-		next, ok := n.Down[at]
-		if !ok || !ashore(next) {
-			break
-		}
-		at = next
-	}
-	n.runs[c] = r
-	return r
-}
-
-// Links is which of c's neighbours its course runs on to: down to where its water goes, the sea
-// at a mouth included, and up to each course draining into it; none where no course runs.
-func (n *Network) Links(grid board.Grid, c board.CellID) board.Links {
-	if n.Courses[c] == Dry {
-		return 0
-	}
-	var out board.Links
-	if d, runs := n.Down[c]; runs {
-		if l, ok := board.Link(grid, c, d); ok {
-			out |= l
+	for c, k := range n.Courses {
+		if d, ok := n.Down[c]; ok && k != Dry {
+			net.Flow(c, d)
 		}
 	}
-	for _, u := range n.up[c] {
-		if l, ok := board.Link(grid, c, u); ok {
-			out |= l
-		}
-	}
-	return out
+	return net
 }
 
 // Width is how wide c's course runs, cell wide at most: WidthPerRoot by the square root of the

@@ -247,15 +247,9 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 			}
 			layout.Cells = append(layout.Cells, board.CellEntry{Kind: kind, Cell: c})
 		}
-		if course := rivers.Courses[c]; course != water.Dry {
-			kind := "stream"
-			if course == water.Mouth {
-				kind = "estuary"
-			}
-			layout.Ways = append(layout.Ways, board.WayEntry{Kind: kind, Cell: c, Width: float32(rivers.Width(c, size)),
-				Links: rivers.Links(grid, c), Fade: float32(rivers.Fade(c))})
-		}
 	})
+	layout.Ways = rivers.Net(map[water.Course]string{water.Brook: "stream", water.Stream: "stream", water.River: "stream",
+		water.Ford: "stream", water.Mouth: "estuary"}).Ways()
 	p.Seed(layout)
 	atlas := render.NewAtlas()
 	for _, k := range kinds.All() {

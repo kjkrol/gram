@@ -1,9 +1,9 @@
 // Package water works out the running water of a relief: where the rain on it gathers and runs
 // to the sea, the brooks, streams and rivers it makes, the channels they cut and the fords across
 // them. It is a way to make a board's layout, as board.MeanOfCells is, not a plugin: a game
-// drains its heights once, lays a board.Way of its own kinds across every cell [Network.Courses]
-// names — [Network.Width] wide, running on as [Network.Links] says — and seeds the board with the
-// [Network.Carved] heights.
+// drains its heights once, lays its courses as a network (plugins/board/network) of its own kinds
+// — [Network.Net]: a node on every cell [Network.Courses] names, [Network.Width] wide, each
+// flowing down to where its water goes — and seeds the board with the [Network.Carved] heights.
 //
 // # Draining
 //
@@ -22,9 +22,8 @@
 // across a corner to cells it may enter on both sides. A course reaching the sea runs on out into
 // it ([Config.Plume] cells by the square root of its water, the way of its last step): a [Mouth]
 // on each cell of the sea, wider than the last and more faded ([Network.Fade]), the biggest
-// course's first where two would take the same sea. [Network.Along] is how far down its course a
-// cell lies, 0 at the head of the longest course into it to 1 where it reaches the sea: for a
-// river to take on the sea's look as it nears it (board.Way.Mix).
+// course's first where two would take the same sea. Laid as a network, how far down its course a
+// cell lies (network.Network.Along) turns a river into the sea's look as it nears it.
 //
 // # Carving
 //

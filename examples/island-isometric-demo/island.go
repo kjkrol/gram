@@ -119,7 +119,6 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	heights := rivers.Carved(ground)
 
 	var cells []board.CellEntry
-	var ways []board.WayEntry
 	soils := map[board.CellID]string{}
 	for y := range GridHeight {
 		for x := range GridWidth {
@@ -134,13 +133,10 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			c := cell(x, y)
 			soils[c] = soil(hs, cw, inland(fx, fy), fx, fy)
 			cells = append(cells, board.CellEntry{Kind: soils[c], Cell: c})
-			// running water crosses the ground as a band down the middle of the cell
-			if course := rivers.Courses[c]; course != water.Dry {
-				ways = append(ways, board.WayEntry{Kind: courses[course], Cell: c,
-					Width: float32(rivers.Width(c, cw)), Links: rivers.Links(grid, c), Mix: float32(rivers.Along(c))})
-			}
 		}
 	}
+	// running water crosses the ground as a band down the middle of the cell
+	ways := rivers.Net(courses).Ways()
 
 	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across
 	// it, each on the nearest ground that is neither rock nor water.

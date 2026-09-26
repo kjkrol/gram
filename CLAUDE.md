@@ -365,7 +365,9 @@ shows how much of it is boilerplate vs. real behavior.
   relief, never a kind. A shiny kind with a `Flow` runs down its cell's slope
   (`Tile.Flow` → `landscape.Stream`, a flow map: ripples and foam carried with the current, white where it
   is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
-  (`water.Drain`, `Network.Carved` cutting their beds into the heights), laid as a `board.Way` — a
+  (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
+  `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
+  down for water, `Along`, `Crossings`, laid by `Ways()`), laid as a `board.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the

@@ -1,0 +1,113 @@
+package network_test
+
+import (
+	"testing"
+
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/network"
+)
+
+var grid = board.DefaultGrids{}.Square(5, 5, 10)
+
+func at(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+
+const (
+	north = board.Links(1 << 0)
+	south = board.Links(1 << 1)
+	west  = board.Links(1 << 2)
+	east  = board.Links(1 << 3)
+)
+
+// A road links its cells both ways, only neighbours, and does not flow.
+func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
+	road := network.New(grid)
+	for x := range uint32(3) {
+		road.Set(at(x, 1), network.Node{Kind: "road", Width: 4})
+	}
+	road.Link(at(0, 1), at(1, 1))
+	road.Link(at(1, 1), at(2, 1))
+	if road.Link(at(0, 1), at(2, 1)) {
+		t.Error("two cells apart linked, want neighbours alone")
+	}
+	if l := road.Links(at(1, 1)); l != west|east {
+		t.Errorf("the middle of the road links %08b, want west and east", l)
+	}
+	if l := road.Links(at(0, 1)); l != east {
+		t.Errorf("the road's end links %08b, want east alone", l)
+	}
+	if _, flows := road.Down(at(1, 1)); flows || road.Along(at(1, 1)) != 0 {
+		t.Error("a road flows")
+	}
+	if road.Links(at(4, 4)) != 0 {
+		t.Error("a cell off the road links on")
+	}
+}
+
+// Water flows down from cell to cell, its last cell on to where it leaves the network: it links
+// there, and nothing links back. Along it the way down grows from 0 at the head of the longest
+// flow in to 1 at the last cell.
+func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
+	river := network.New(grid)
+	for y := range uint32(4) {
+		river.Set(at(2, y), network.Node{Kind: "river", Width: 2 + float64(y)})
+	}
+	river.Set(at(1, 1), network.Node{Kind: "brook", Width: 1})
+	for y := range uint32(4) {
+		river.Flow(at(2, y), at(2, y+1)) // the last on to (2, 4), the sea
+	}
+	river.Flow(at(1, 1), at(2, 1))
+	if l := river.Links(at(2, 1)); l != north|south|west {
+		t.Errorf("the confluence links %08b, want up, down and the brook", l)
+	}
+	if l := river.Links(at(2, 3)); l != north|south {
+		t.Errorf("the last cell links %08b, want up and down on to the sea", l)
+	}
+	if d, ok := river.Down(at(2, 3)); !ok || d != at(2, 4) {
+		t.Errorf("the last cell flows to %v, want the sea at %v", d, at(2, 4))
+	}
+	for y, want := range []float64{0, 1.0 / 3, 2.0 / 3, 1} {
+		if a := river.Along(at(2, uint32(y))); a != want {
+			t.Errorf("row %d lies %v along, want %v", y, a, want)
+		}
+	}
+	if a := river.Along(at(1, 1)); a != 0 {
+		t.Errorf("the brook's head lies %v along, want 0", a)
+	}
+}
+
+// Laid on a board, a network is a Way across every cell it runs through, of its node's kind, as
+// wide, running on as it links, its look turned as far down its flow as it lies.
+func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
+	river := network.New(grid)
+	river.Set(at(0, 0), network.Node{Kind: "brook", Width: 2})
+	river.Set(at(0, 1), network.Node{Kind: "river", Width: 5, Fade: 0.5})
+	river.Flow(at(0, 0), at(0, 1))
+	river.Flow(at(0, 1), at(0, 2))
+	ways := river.Ways()
+	if len(ways) != 2 {
+		t.Fatalf("%d ways, want one on each cell", len(ways))
+	}
+	want := []board.WayEntry{
+		{Kind: "brook", Cell: at(0, 0), Width: 2, Links: south, Mix: 0},
+		{Kind: "river", Cell: at(0, 1), Width: 5, Links: north | south, Fade: 0.5, Mix: 1},
+	}
+	for i, w := range ways {
+		if w != want[i] {
+			t.Errorf("way %d is %+v, want %+v", i, w, want[i])
+		}
+	}
+}
+
+// Two networks cross where both run through a cell: a road over a river.
+func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
+	river, road := network.New(grid), network.New(grid)
+	for y := range uint32(5) {
+		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
+	}
+	for x := range uint32(5) {
+		road.Set(at(x, 3), network.Node{Kind: "road", Width: 4})
+	}
+	if got := road.Crossings(river); len(got) != 1 || got[0] != at(2, 3) {
+		t.Errorf("the road crosses the river at %v, want %v", got, at(2, 3))
+	}
+}

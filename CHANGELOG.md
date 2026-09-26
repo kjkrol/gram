@@ -4,6 +4,13 @@
 
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape.
 
+**Networks**
+- `plugins/board/network`: what runs from cell to cell across a board as a graph over its grid —
+  nodes of a board kind, a width and a fade (`Network.Set`); `Link` for a road both ways, `Flow`
+  down for water, its last cell on to where it leaves; `Links`, `Down`, `Along`, `Crossings` (where
+  a road meets a river), laid on a board by `Ways()`. `water.Network.Net(kinds)` hands the courses
+  over as one; `water.Network.Links` and `Along` are gone. The islands lay their water from it.
+
 **Movement**
 - `world.Steering` holds a motion profile — `MaxSpeed`, `Accel`, `Brake`, `V0`, `TurnRate` — and
   `SteeringSystem` writes the base speed every tick; navigation steers through it: a lookahead
@@ -139,7 +146,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   runs a course reaching the sea on out into it, a `water.Mouth` on each cell, wider and more
   faded (`Network.Fade`). `Way.Mix` (and `WayEntry.Mix`) is how far a way's look has turned into
   the kind its `landscape.Style.MixWith` names, glazed over it and blended along the band
-  (`Frame.Glaze`); `water.Network.Along` is how far down its course a cell lies. `water.Drain` stops
+  (`Frame.Glaze`); `network.Network.Along` is how far down its course a cell lies. `water.Drain` stops
   meandering near the sea, so a course runs straight for it instead of along the shore into
   another. The islands' running water is one fresh colour, brook to river, turning into the sea's
   down its course, all of it at the coast, and lays no plume.
