@@ -82,6 +82,13 @@
 // billboard. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
 // ([Plugin.SetCameras], [Cameras]).
 //
+// # Sun
+//
+// A world with heights is lit by its [Sun] ([Plugin.Sun]): a direction towards it, a strength and
+// the ambient light every surface gets anyway; [Sun.Light] is how bright it makes a surface of a
+// given normal. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
+// game's, or a day going by.
+//
 // # View and EntitySet
 //
 // A [View] is what one pair of eyes sees: a rectangle of the world and the entities the Space finds

@@ -200,7 +200,7 @@ func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) 
 	x0, y0 := float32(center.X-half), float32(center.Y-half)
 	x1, y1 := float32(center.X+half), float32(center.Y+half)
 	if r.space != nil && r.space.Edges != 0 {
-		r.frame.SpriteRect(render.Overlays, 0, r.atlas, sprite, x0, y0, x1, y1)
+		r.frame.SpriteRect(render.Overlays, 0, r.atlas, sprite, x0, y0, x1, y1, render.Even(1))
 		return
 	}
 	z := r.spriteHeights(c)
@@ -212,7 +212,7 @@ func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) 
 	if r.heights != nil {
 		alt = float32(r.heights.Altitude(c))
 	}
-	r.frame.Sprite(render.Overlays, r.camera.Depth(float32(center.X), float32(center.Y), alt), r.atlas, sprite, dst, 1)
+	r.frame.Sprite(render.Overlays, r.camera.Depth(float32(center.X), float32(center.Y), alt), r.atlas, sprite, dst, render.Even(1))
 }
 
 // spriteHeights is the height of a cell sprite's four corners: the tile's own corners on a sloped

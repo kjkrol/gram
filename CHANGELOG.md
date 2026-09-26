@@ -165,6 +165,17 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   footprint)`; `NewSelectionSystem` and `NewRenderer` take the world's Look. Selection, navigation,
   the board and the world renderers no longer test for an isometric camera.
 
+**Light**
+- `world.Sun` (`Dir`, `Strength`, `Ambient`; `Sun.Light` for a surface's normal), `DefaultSun`,
+  `world.Plugin.SetSun`/`Sun`. In a world with heights the board lights every tile per corner from
+  the slope of the ground there and at its neighbours (`board.Tile.Light`, `Tile.FaceLight`), so
+  slopes run on smoothly and a map drawn from above shows its relief; the isometric blocks take the
+  same light, and `DefaultSun` keeps their old look. A flat world is drawn as its sprites are.
+- `island-25-demo`: the island of island-isometric-demo, the same Quasi3D world, drawn from above —
+  a map in relief under the sun, sight with heights; island-demo stays the flat 2D island.
+- `render.Shade`, a brightness per corner, blended across a piece: `Frame.Sprite`, `Tile`,
+  `SpriteRect`, `SpriteRectUV` and `TileRect` take one (`render.Even(1)` draws a sprite as it is).
+
 **Terrain in the ECS**
 - Every cell is an entity for good, made at Setup or found again after a load: `board.Plot` (its
   cell and its `Relief`, the heights of its four corners) and `Ground` (its kind). They carry no

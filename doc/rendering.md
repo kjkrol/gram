@@ -29,8 +29,8 @@ A source hands the frame pieces in screen pixels, each with a **tier** and a **d
 
 | Piece | What for |
 |:--|:--|
-| `Sprite(tier, depth, atlas, id, corners, shade)` | a sprite over four projected corners: a tile, a face, a billboard |
-| `SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1)` | a sprite over a world box from above, split where it crosses a wrap seam |
+| `Sprite(tier, depth, atlas, id, corners, shade)` | a sprite over four projected corners: a tile, a face, a billboard; `shade` is its brightness per corner (`render.Shade`, `render.Even`) |
+| `SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1, shade)` | a sprite over a world box from above, split where it crosses a wrap seam, the shade carried onto the pieces |
 | `Line(tier, depth, x0, y0, x1, y1, width, colour)` | a line whose sides fade over a pixel instead of stepping |
 | `Fan(tier, depth, points, colour)` | a filled polygon every point of which sees the first one whole |
 | `Soft(tier, depth, corners, colour, fade)` | a quad fading towards the sides `fade` names, over so many pixels each |

@@ -40,7 +40,7 @@ func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ fl
 		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
-		f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1)
+		f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Even(1))
 		return true
 	})
 }

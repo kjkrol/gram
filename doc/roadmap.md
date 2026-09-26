@@ -34,6 +34,8 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
   entities as billboards and cells as blocks through the world's and the board's swappable `Look`;
   sloped and shaded tiles, picking where entities are drawn, `island-isometric-demo`. Without it
   everything is drawn from above.
+- Light: a world with heights is lit by `world.Sun`; the board lights every tile per corner from
+  the slope of the ground, smoothly across tiles, in either view — a map in relief from above.
 - One composer per view: the world of a scene is a `render.Composer` over the plugins' `Source`s,
   pieces on tiers with gaps (`Ground`, `Objects`, `Overlays`, `Marks`) and depths; through an
   isometric camera a hill hides the routes and cones behind it, the selection stays on top; one
@@ -55,7 +57,7 @@ behind each item lives in [movement.md](movement.md), [views.md](views.md) and
   per `render.Viewport` of a `game.Viewer` scene, through the camera handed at draw time — a
   player's view, split-screen halves, a minimap. The cameras live in `internal/camera` and come
   from the world. A resizable window and fullscreen (Shift+F).
-- Twelve demos, `split-screen-demo` (two players, WSAD and arrows, a minimap) the latest.
+- Thirteen demos, `island-25-demo` (the Quasi3D island from above, a map in relief) the latest.
 
 ## Next
 

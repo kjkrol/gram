@@ -101,7 +101,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 // WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = &RenderState{ShowGridLines: true}
-	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look)
+	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look, p.worldPlugin.Sun)
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.

@@ -116,20 +116,28 @@ func premultiplied(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 0xff, float32(c.G) / 0xff, float32(c.B) / 0xff, float32(c.A) / 0xff}
 }
 
-// Sprite draws sprite id of atlas over the screen corners dst, its colour scaled by shade (1 as
-// drawn, 0.5 half as bright).
-func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade float32) {
+// Shade is how bright a piece is at its corners — top-left, top-right, bottom-left, bottom-right —
+// as its colour is scaled there (1 as drawn, 0.5 half as bright), blended across it.
+type Shade [4]float32
+
+// Even is a Shade of v at every corner; Even(1) draws a sprite as it is.
+func Even(v float32) Shade { return Shade{v, v, v, v} }
+
+// lit is the vertex colour for brightness v.
+func lit(v float32) [4]float32 { return [4]float32{v, v, v, 1} }
+
+// Sprite draws sprite id of atlas over the screen corners dst, as bright as shade says.
+func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
 	u0, v0, u1, v1 := inset(atlas.UV(id))
-	c := [4]float32{shade, shade, shade, 1}
 	f.verts = append(f.verts,
-		vertex(dst[0][0], dst[0][1], u0, v0, c), vertex(dst[1][0], dst[1][1], u1, v0, c),
-		vertex(dst[2][0], dst[2][1], u0, v1, c), vertex(dst[3][0], dst[3][1], u1, v1, c))
+		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
+		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
 	f.add(tier, depth, atlas, quad, 4)
 }
 
 // Tile is Sprite outlined along its four edges, half a pixel inside each: tiles side by side show a
 // grid a pixel wide at no cost of its own.
-func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade float32) {
+func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
 	f.Sprite(tier, depth, atlas, id, dst, shade)
 	v := f.verts[len(f.verts)-4:]
 	for i, p := range dst {
@@ -142,9 +150,9 @@ func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, d
 
 // TileRect is SpriteRect outlined along the world rectangle's edges; where a wrap seam splits it,
 // the pieces are outlined only along the rectangle's own edges.
-func (f *Frame) TileRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32) {
+func (f *Frame) TileRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade) {
 	first := len(f.verts)
-	f.SpriteRect(tier, depth, atlas, id, x0, y0, x1, y1)
+	f.SpriteRectUV(tier, depth, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
 	for k, q := range f.quads {
 		// the whole rectangle on screen, from the part of it this piece shows
 		w, h := (q.X1-q.X0)/(q.T1X-q.T0X), (q.Y1-q.Y0)/(q.T1Y-q.T0Y)
@@ -172,26 +180,33 @@ func outline(p, a, b [2]float32) float32 {
 }
 
 // SpriteRect draws sprite id over the world rectangle (x0, y0)-(x1, y1) through the frame's
-// camera, split where it crosses a wrap seam.
-func (f *Frame) SpriteRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32) {
-	f.SpriteRectUV(tier, depth, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1)
+// camera, split where it crosses a wrap seam, as bright as shade says at the rectangle's corners.
+func (f *Frame) SpriteRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade) {
+	f.SpriteRectUV(tier, depth, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
 }
 
 // SpriteRectUV is SpriteRect showing only the part u0..u1, v0..v1 of the sprite, 0 to 1 across it.
-func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32) {
+func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, shade Shade) {
 	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
 	w, h := sx1-sx0, sy1-sy0
-	c := [4]float32{1, 1, 1, 1}
 	f.quads = f.cam.ToScreenQuads(x0, y0, x1, y1, f.quads[:0])
 	for _, q := range f.quads {
 		pu0, pu1 := u0+q.T0X*(u1-u0), u0+q.T1X*(u1-u0)
 		pv0, pv1 := v0+q.T0Y*(v1-v0), v0+q.T1Y*(v1-v0)
 		a0, b0, a1, b1 := sx0+pu0*w, sy0+pv0*h, sx0+pu1*w, sy0+pv1*h
+		// a piece of the rectangle takes the shade the rectangle has where the piece's corners are
 		f.verts = append(f.verts,
-			vertex(q.X0, q.Y0, a0, b0, c), vertex(q.X1, q.Y0, a1, b0, c),
-			vertex(q.X0, q.Y1, a0, b1, c), vertex(q.X1, q.Y1, a1, b1, c))
+			vertex(q.X0, q.Y0, a0, b0, lit(shade.at(q.T0X, q.T0Y))), vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
+			vertex(q.X0, q.Y1, a0, b1, lit(shade.at(q.T0X, q.T1Y))), vertex(q.X1, q.Y1, a1, b1, lit(shade.at(q.T1X, q.T1Y))))
 		f.add(tier, depth, atlas, quad, 4)
 	}
+}
+
+// at is the shade at (u, v) across the piece, 0 to 1 each way, blended from its corners.
+func (s Shade) at(u, v float32) float32 {
+	top := s[0] + (s[1]-s[0])*u
+	bottom := s[2] + (s[3]-s[2])*u
+	return top + (bottom-top)*v
 }
 
 // Line draws the line from (x0, y0) to (x1, y1) on screen, width pixels wide, in c; its sides fade

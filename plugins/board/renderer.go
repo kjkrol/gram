@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -24,6 +25,8 @@ func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines
 type Renderer struct {
 	board   *Board
 	look    func() Look
+	sun     func() world.Sun
+	lighted world.Sun     // the sun of the frame being drawn
 	camera  camera.Camera // the one of the frame being drawn
 	atlas   render.AtlasSource
 	cellW   float64
@@ -39,10 +42,11 @@ type Renderer struct {
 	topStamp uint32
 }
 
-// cellTop is a cell as one Compose reads it once: its corners with its kind standing on them,
-// its ground level and its sprite.
+// cellTop is a cell as one Compose reads it once: its corners with its kind standing on them, the
+// ground's corners under it, its ground level and its sprite.
 type cellTop struct {
 	z      [4]float32
+	ground [4]float32
 	alt    float32
 	sprite render.SpriteID
 	stamp  uint32
@@ -64,9 +68,9 @@ var _ render.Source = (*Renderer)(nil)
 // them.
 const gridTier = render.Ground + 10
 
-func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, look func() Look) *Renderer {
+func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, look func() Look, sun func() world.Sun) *Renderer {
 	w, h := board.CellBounds()
-	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, look: look}
+	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, look: look, sun: sun}
 	r.tile.r, r.tile.Atlas = r, atlas
 	return r
 }
@@ -78,6 +82,7 @@ func (l *Renderer) Init(*goke.SysInit) {}
 // drawn as lines.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
+	l.lighted = l.sun()
 	look := l.look()
 	grid := l.gridShown()
 	square := l.board.square != nil
@@ -143,11 +148,12 @@ func (l *Renderer) topOf(c CellID) *cellTop {
 	rise := float32(kind.Height)
 	t.alt, t.sprite, t.stamp = float32(r.Level()), kind.SpriteID, l.topStamp
 	if l.board.sloped() {
-		for k := range t.z {
-			t.z[k] = r.Corners[k] + rise
-		}
+		t.ground = r.Corners
 	} else {
-		t.z = [4]float32{t.alt + rise, t.alt + rise, t.alt + rise, t.alt + rise}
+		t.ground = [4]float32{t.alt, t.alt, t.alt, t.alt}
+	}
+	for k := range t.z {
+		t.z[k] = t.ground[k] + rise
 	}
 	return t
 }

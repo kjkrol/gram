@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -17,7 +18,7 @@ func (flatAtlas) White() (u, v float32)                           { return 0, 0 
 
 // flatRenderer is a renderer of brd with the flat look.
 func flatRenderer(brd *Board, state *RenderState) *Renderer {
-	return newRenderer(brd, flatAtlas{}, state, func() Look { return flatLook{} })
+	return newRenderer(brd, flatAtlas{}, state, func() Look { return flatLook{} }, func() world.Sun { return world.DefaultSun })
 }
 
 // compose is what r hands a frame through cam, by tier.
@@ -104,7 +105,7 @@ func TestRenderer_Compose_HandsTheLookEveryCellWithItsHeights(t *testing.T) {
 			besideHill = t.Beside(1, 0)
 		}
 	})
-	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
 	compose(r, icamera.NewFromSpace(128, 128, 0))
 	if seen != 16 || hillTop != [4]float32{8, 8, 8, 8} || besideHill != hillTop {
 		t.Errorf("look saw %d cells, the hill's top %v and beside it %v; want 16 and the kind's 8 everywhere", seen, hillTop, besideHill)
@@ -115,3 +116,55 @@ func TestRenderer_Compose_HandsTheLookEveryCellWithItsHeights(t *testing.T) {
 type lookFn func(f *render.Frame, cam camera.Camera, t *Tile)
 
 func (fn lookFn) Cell(f *render.Frame, cam camera.Camera, t *Tile) { fn(f, cam, t) }
+
+// lightsOf composes brd from above in a world with heights under sun and gives each cell's light.
+func lightsOf(brd *Board, sun world.Sun) map[CellID]render.Shade {
+	brd.quasi3D = true
+	out := map[CellID]render.Shade{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { out[t.ID] = t.Light() })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return sun })
+	compose(r, icamera.NewFromSpace(128, 128, 0))
+	return out
+}
+
+func TestTile_LightFollowsTheSlopeOfTheGround(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 4, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	hill, _ := grid.CellIndex(1, 1)
+	brd.SetHeights(MeanOfCells(grid, func(c CellID) float64 {
+		if c == hill {
+			return 16
+		}
+		return 0
+	}))
+	sun := world.Sun{Dir: [3]float32{1, 0, 1}, Strength: 0.6, Ambient: 0.3} // from the east, 45° up
+	lights := lightsOf(brd, sun)
+	at := func(x, y uint32) render.Shade { c, _ := grid.CellIndex(x, y); return lights[c] }
+
+	level := sun.Light(0, 0, 1)
+	if far := at(3, 3); far != render.Even(level) {
+		t.Errorf("level ground far from the hill is lit %v, want %v everywhere", far, level)
+	}
+	// the hill's east side falls away towards the sun, its west side rises away from it
+	if east, west := at(2, 1)[0], at(0, 1)[1]; east <= level || west >= level {
+		t.Errorf("the hill's sunny side is lit %v and its shady side %v, want above and below level %v", east, west, level)
+	}
+	// neighbouring tiles agree on the corner they share: the slope runs on without a seam
+	if a, b := at(1, 1)[1], at(2, 1)[0]; a != b {
+		t.Errorf("the corner the hill shares with its east neighbour is lit %v from one side and %v from the other", a, b)
+	}
+}
+
+func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
+	grid := DefaultGrids{}.Square(2, 2, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	var got render.Shade
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got = t.Light() })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+	compose(r, icamera.NewFromSpace(64, 64, 0))
+	if got != render.Even(1) {
+		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
+	}
+}

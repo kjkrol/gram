@@ -35,6 +35,7 @@ make demo-navigation-vision                                        # board + nav
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
 make demo-island                                                   # a map larger than the window under a moving camera
+make demo-island-25                                                # the island in Quasi3D from above: a map in relief, sight with heights
 make demo-island-isometric                                         # the island in Quasi3D through an isometric camera: relief, blocks, billboards
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
@@ -145,7 +146,11 @@ TileW, TileH, HeightUnit, Headroom})`, made right after the world, sets the worl
 the isometric view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the top-down camera. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
-over walls and hills reads them in a top-down game too (navigation-vision-demo). The renderers keep
+over walls and hills reads them in a top-down game too (navigation-vision-demo). A world with heights
+is lit by `world.Sun` (`DefaultSun`, `SetSun`; direction, strength, ambient): the board lights each
+tile per corner from the ground's slope there and at its neighbours (`board.Tile.Light`, `FaceLight`
+for upright faces) and both looks draw with it, so a top-down map shows its relief; pieces carry a
+`render.Shade` per corner. A flat world is drawn as its sprites are. The renderers keep
 their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
 the camera. Heights (`Quasi3D`) are the model and work in either view. `plugin`

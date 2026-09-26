@@ -62,13 +62,13 @@ func TestComposer_FromAboveDrawsByTierAloneKeepingTheOrderGiven(t *testing.T) {
 	a, b := sheet{"a"}, sheet{"b"}
 	_, got := drawn(topDown(),
 		items(func(f *Frame) {
-			f.Sprite(Overlays, 1, a, 0, unit, 1)
-			f.Sprite(Ground, 9, a, 0, unit, 1)
+			f.Sprite(Overlays, 1, a, 0, unit, Even(1))
+			f.Sprite(Ground, 9, a, 0, unit, Even(1))
 		}),
 		items(func(f *Frame) {
-			f.Sprite(Ground, 2, b, 0, unit, 1)
-			f.Sprite(Marks, 0, b, 0, unit, 1)
-			f.Sprite(Objects, 5, b, 0, unit, 1)
+			f.Sprite(Ground, 2, b, 0, unit, Even(1))
+			f.Sprite(Marks, 0, b, 0, unit, Even(1))
+			f.Sprite(Objects, 5, b, 0, unit, Even(1))
 		}))
 	want := []struct {
 		tier  Tier
@@ -84,14 +84,14 @@ func TestComposer_FromAboveDrawsByTierAloneKeepingTheOrderGiven(t *testing.T) {
 func TestComposer_ThroughAProjectionThatSortsDrawsBackToFrontWithMarksOnTop(t *testing.T) {
 	s := sheet{}
 	_, got := drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Marks, 0, s, 0, unit, 1)      // always on top, whatever its depth
-		f.Sprite(Overlays, 3, s, 0, unit, 1)   // a route on the tile at 3
-		f.Sprite(Objects, 3, s, 0, unit, 1)    // a unit on it
-		f.Sprite(Ground, 3, s, 0, unit, 1)     // the tile
-		f.Sprite(Ground, 7, s, 0, unit, 1)     // a mountain in front
-		f.Sprite(Tier(250), 1, s, 0, unit, 1)  // a game's own tier, far back
-		f.Sprite(Marks+10, -5, s, 0, unit, 1)  // a label above the marks
-		f.Sprite(Overlays, 3, s, 0, unit, 0.5) // a second route piece, after the first
+		f.Sprite(Marks, 0, s, 0, unit, Even(1))      // always on top, whatever its depth
+		f.Sprite(Overlays, 3, s, 0, unit, Even(1))   // a route on the tile at 3
+		f.Sprite(Objects, 3, s, 0, unit, Even(1))    // a unit on it
+		f.Sprite(Ground, 3, s, 0, unit, Even(1))     // the tile
+		f.Sprite(Ground, 7, s, 0, unit, Even(1))     // a mountain in front
+		f.Sprite(Tier(250), 1, s, 0, unit, Even(1))  // a game's own tier, far back
+		f.Sprite(Marks+10, -5, s, 0, unit, Even(1))  // a label above the marks
+		f.Sprite(Overlays, 3, s, 0, unit, Even(0.5)) // a second route piece, after the first
 	}))
 	want := []struct {
 		tier  Tier
@@ -115,20 +115,20 @@ func calls(c *Composer) []string {
 func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 	a, b := &sheet{"a"}, &sheet{"b"}
 	c, _ := drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Ground, 1, a, 0, unit, 1)
+		f.Sprite(Ground, 1, a, 0, unit, Even(1))
 		f.Line(Ground, 1.5, 0, 0, 10, 0, 1, white)
 		f.Soft(Overlays, 2, unit, black, Fade{Left: 2})
-		f.Sprite(Objects, 3, a, 0, unit, 1)
+		f.Sprite(Objects, 3, a, 0, unit, Even(1))
 	}))
 	if n := len(calls(c)); n != 1 {
 		t.Errorf("%d calls for one sheet with lines and a shadow among its sprites, want 1", n)
 	}
 
 	c, _ = drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Ground, 1, a, 0, unit, 1)
-		f.Sprite(Ground, 2, b, 0, unit, 1)
+		f.Sprite(Ground, 1, a, 0, unit, Even(1))
+		f.Sprite(Ground, 2, b, 0, unit, Even(1))
 		f.Line(Ground, 3, 0, 0, 10, 0, 1, white) // joins b's run
-		f.Sprite(Ground, 4, a, 0, unit, 1)
+		f.Sprite(Ground, 4, a, 0, unit, Even(1))
 	}))
 	if n := len(calls(c)); n != 3 {
 		t.Errorf("%d calls for sheets a, b, a, want 3", n)
@@ -138,7 +138,7 @@ func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 	a := &sheet{"a"}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(Ground, 0, a, 0, unit, 1)
+		f.Sprite(Ground, 0, a, 0, unit, Even(1))
 		f.Line(Ground, 0, 0, 0, 10, 0, 1, white)
 	}))
 	var verts []ebiten.Vertex
@@ -154,7 +154,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	quads := chunkVertices/4 + 5
 	c, _ := drawn(topDown(), items(func(f *Frame) {
 		for range quads {
-			f.Sprite(Ground, 0, a, 0, unit, 1)
+			f.Sprite(Ground, 0, a, 0, unit, Even(1))
 		}
 	}))
 	var sizes []int
@@ -190,7 +190,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
 	c := NewComposer(items(func(f *Frame) {
 		for i := range 200 {
-			f.Sprite(Ground, float32(i%7), a, 0, unit, 1)
+			f.Sprite(Ground, float32(i%7), a, 0, unit, Even(1))
 			f.Line(Overlays, float32(i%5), 0, 0, 5, 5, 1, white)
 			f.Soft(Overlays, 1, unit, black, Fade{Top: 3})
 		}
@@ -210,7 +210,7 @@ func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.SpriteRect(Objects, 0, sheet{}, 0, 998, 0, 1010, 10)
+	f.SpriteRect(Objects, 0, sheet{}, 0, 998, 0, 1010, 10, Even(1))
 	if f.Len() != 2 {
 		t.Fatalf("%d quads across the seam, want 2", f.Len())
 	}
@@ -262,7 +262,7 @@ func TestFrame_SoftFadesOnlyTheSidesAsked(t *testing.T) {
 func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	a := &sheet{}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(Ground, 0, a, 0, unit, 1)
+		f.Sprite(Ground, 0, a, 0, unit, Even(1))
 		f.Fan(Overlays, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
 	}))
 	var idx []uint16
@@ -283,7 +283,7 @@ func TestComposer_ItsShaderCompiles(t *testing.T) {
 func TestFrame_ATileIsOutlinedAlongItsOwnEdges(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Tile(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, 1)
+	f.Tile(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
 	v := f.verts
 	// the top-left corner is on the left and top edges, 10 from the right, 20 from the bottom
 	if v[0].Custom0 != -1 || v[0].Custom2 != -1 || v[0].Custom1 != -11 || v[0].Custom3 != -21 {
@@ -299,7 +299,7 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.TileRect(Ground, 0, sheet{}, 0, 998, 0, 1010, 10) // 2 before the seam, 10 after
+	f.TileRect(Ground, 0, sheet{}, 0, 998, 0, 1010, 10, Even(1)) // 2 before the seam, 10 after
 	if f.Len() != 2 {
 		t.Fatalf("%d pieces, want 2", f.Len())
 	}

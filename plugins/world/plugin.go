@@ -48,6 +48,7 @@ type Plugin struct {
 	views    map[camera.Camera]*View
 	cameras  Cameras
 	look     Look
+	sun      Sun
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -64,8 +65,8 @@ func NewPlugin(cfg Config) *Plugin {
 	kinds := newKinds(cfg.Quasi3D)
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
-		cameras: icamera.NewFromSpaceWithConfig,
-		look:    &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
+		cameras: icamera.NewFromSpaceWithConfig, sun: DefaultSun,
+		look: &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
 	p.Res.Camera = p.NewCamera()
 	p.view = p.NewView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
@@ -124,6 +125,12 @@ func (p *Plugin) SetCameras(make Cameras) {
 	p.Res.Camera = p.NewCamera()
 	p.view = p.NewView(p.Res.Camera.Bounds)
 }
+
+// SetSun lights the world with sun from now on — a game's, or the sky of a day going by.
+func (p *Plugin) SetSun(sun Sun) { p.sun = sun }
+
+// Sun is the world's light: DefaultSun unless something set another.
+func (p *Plugin) Sun() Sun { return p.sun }
 
 // SetLook has the world's entities drawn, picked and outlined by look: a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }

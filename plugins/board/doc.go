@@ -110,7 +110,10 @@
 // reads each visible cell and hands it, as a [Tile] — its box, its sprite, the heights of its top
 // and its neighbours' — to the board's [Look], which lays it on the render.Ground tier: from above
 // its sprite over its box, unless a view plugin ([Plugin.SetLook], plugins/isometry) stands it up
-// as a block with faces.
+// as a block with faces. In a world with heights the tile is lit by the world's sun ([Tile.Light]:
+// per corner, from the slope of the ground there and at the neighbours', so a slope runs on
+// without a seam; [Tile.FaceLight] for an upright face), from above as through any other look — a
+// map in relief. A flat world is drawn as its sprites are.
 // [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
 // shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
 // cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer
