@@ -44,7 +44,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	lw.terrain = terrain
-	steer := newNavigationSystem(newPathFinder(lw.grid, terrain, lw.occupancy), lw.grid, terrain, lw.occupancy)
+	steer := newNavigationSystem(newPathFinder(lw.grid, terrain, nil, lw.occupancy), lw.grid, terrain, lw.occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)
 
@@ -256,7 +256,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
 	from, _ := grid.CellIndex(0, 0)
 	to, _ := grid.CellIndex(1, 0)
@@ -310,7 +310,7 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)}
+	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
 	from, _ := grid.CellIndex(0, 0)
 	to, _ := grid.CellIndex(1, 1)

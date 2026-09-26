@@ -1,13 +1,13 @@
 // Command island-25-demo is the island of island-isometric-demo, the same Quasi3D world, drawn
-// from above: a map in relief, lit by the world's sun — hills 20 and mountains 40 up with sloping
-// sides, forests standing 8 tall, and a hawk 40 up whose cone looks over everything a walker's
+// from above: a map in relief, lit by the world's sun — a range of peaks up to 200 and a plateau 88
+// up, and a hawk 40 up whose cone looks over everything a walker's
 // climbs and stops at, with the ground out of sight shaded. A day goes by (plugins/sky): long
 // shadows morning and evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or,
 // stopped, move it half an hour on or back. Scroll with the wheel, drag with the middle button or
 // push the cursor to an edge to move the camera.
 // The year has eight days, a season two, beginning in mid-autumn; the weather goes by
 // (plugins/climate): clouds' shadows drift over the island, rain falls — snow in winter, lying
-// until spring — the sea roughens with the wind and the forests sway in it; W changes it.
+// until spring — the sea roughens with the wind; W changes it.
 package main
 
 import (
@@ -54,7 +54,7 @@ const (
 	UnitCount    = 6
 	sightRadius  = 220
 	sightHalf    = math.Pi / 5
-	// MaxEntCount is the units; the forests are cells, not entities.
+	// MaxEntCount is the units and the hawk, with room to spare.
 	MaxEntCount = 4 * UnitCount
 
 	saveBasePath = "island-25-demo"
@@ -130,11 +130,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9},
-		board.CellKind{Name: board.Named("field"), Cost: 1.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("land"), Cost: 1, Allows: board.Land | board.Air},
+		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("hills"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("mountain"), Cost: 8, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 	)
 	s.defineClimate() // snow, ice and the forest swaying: effects the climate casts
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
@@ -223,9 +221,8 @@ type unit struct{ start, target board.CellID }
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	// Every unit stands 8 tall with its eye at 6, in proportion to hills of 20 and mountains of 40:
-	// the smoothed edge of a plateau is a slope a unit or two below its top, and an eye lower than
-	// that sees the rim, not the valley. The board writes where a unit stands in height.
+	// Every unit stands 8 tall with its eye at 6: from a slope's edge an eye sees the rim, not the
+	// valley below. The board writes where a unit stands in height.
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 8}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	sight := func(eye float64) comp.Comp {
@@ -235,15 +232,16 @@ func (s *mainStage) defineKinds() {
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
 		sight(6), comp.Const(vision.SightOutline{}),
 	)
-	// The hawk flies 40 above the ground on the Air plane: its eye looks over the hills and the
-	// forests a walker's cone climbs and stops at.
+	// The hawk flies 40 above the ground on the Air plane: its eye looks over the ridges a walker's
+	// cone climbs and stops at, and it flies over them as over the flat.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
 		sight(1), comp.Const(vision.SightOutline{}),
 	)
 }
 
-// Spawn lays the island out and puts a unit at every road stop, bound for the opposite one.
+// Spawn lays the island out and puts a unit at every stop, bound for the one across the range; the
+// way it takes goes round what is steep.
 func (s *mainStage) Spawn() error {
 	layout, stops := islandLayout(s.board.Res.Logic.Board)
 	s.board.Seed(layout)
@@ -252,7 +250,7 @@ func (s *mainStage) Spawn() error {
 	for i, from := range stops {
 		entries = append(entries, s.unit.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
 	}
-	// The hawk crosses the island from the first stop to the one across the mountains.
+	// The hawk crosses the island from the first stop to the one across the range.
 	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
 	s.world.Seed(entries...)
 	return nil
@@ -312,12 +310,9 @@ func (m *mainScene) Layers() []render.Layer {
 	kinds := s.board.CellKindDict()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
-		"water":    {R: 40, G: 90, B: 170, A: 255},
-		"field":    {R: 120, G: 170, B: 80, A: 255},
-		"forest":   {R: 30, G: 90, B: 45, A: 255},
-		"hills":    {R: 150, G: 140, B: 70, A: 255},
-		"mountain": {R: 120, G: 120, B: 125, A: 255},
-		"road":     {R: 190, G: 170, B: 120, A: 255},
+		"water":  {R: 40, G: 90, B: 170, A: 255},
+		"land":   {R: 120, G: 165, B: 80, A: 255},
+		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))

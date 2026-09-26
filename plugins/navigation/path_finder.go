@@ -12,20 +12,34 @@ type pathFinder struct {
 	grid      board.Grid
 	terrain   board.Terrain
 	occupancy board.Occupancy
+	slopes    slopes
 	solver    *astar.Solver[board.CellID]
+	least     float64 // the cheapest a step may be for the domain being planned, per unit of Distance
 }
 
-// newPathFinder builds a pathFinder over grid that respects terrain and occupancy.
-func newPathFinder(grid board.Grid, terrain board.Terrain, occupancy board.Occupancy) *pathFinder {
-	return &pathFinder{
-		grid: grid, terrain: terrain, occupancy: occupancy,
-		solver: astar.New[board.CellID](func(a, b board.CellID) float64 { return grid.Distance(a, b) }),
-	}
+// slopes prices a step's climb: the board's; nil is level ground.
+type slopes interface {
+	Climb(from, to board.CellID, d board.Domain) float64
+	Climbing() board.Climbing
+}
+
+// newPathFinder builds a pathFinder over grid that respects terrain, its slopes and occupancy.
+func newPathFinder(grid board.Grid, terrain board.Terrain, slopes slopes, occupancy board.Occupancy) *pathFinder {
+	p := &pathFinder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
+	p.solver = astar.New[board.CellID](func(a, b board.CellID) float64 { return p.least * grid.Distance(a, b) })
+	return p
 }
 
 // findPath computes a route from 'from' toward 'to' for entity moving in domain — ok=false if
 // unreachable.
 func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to board.CellID) (Path, bool) {
+	// A descent is cheaper than the flat, so the heuristic counts every step at its steepest.
+	p.least = 1
+	if p.slopes != nil {
+		if c := p.slopes.Climbing(); c.Feels(domain) {
+			p.least = c.Least()
+		}
+	}
 	full := p.solver.Solve(from, to, p.transitionsFor(entity, domain))
 	if len(full) < 2 {
 		return Path{}, false
@@ -55,7 +69,11 @@ func (p *pathFinder) transitionsFor(entity uid.UID64, domain board.Domain) astar
 					continue
 				}
 			}
-			buf = append(buf, astar.Transition[board.CellID]{To: n, Cost: kind.CostFor(domain) * p.grid.NeighborCost(from, n)})
+			cost := kind.CostFor(domain) * p.grid.NeighborCost(from, n)
+			if p.slopes != nil {
+				cost *= p.slopes.Climb(from, n, domain)
+			}
+			buf = append(buf, astar.Transition[board.CellID]{To: n, Cost: cost})
 		}
 		return buf
 	}

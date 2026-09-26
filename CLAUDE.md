@@ -36,7 +36,7 @@ make demo-navigation-vision-hex                                    # the same on
 make demo-effect                                                   # an ice witch: frost and frozen as effects
 make demo-island                                                   # a map larger than the window under a moving camera
 make demo-island-25                                                # the island in Quasi3D from above: a map in relief, sight with heights
-make demo-island-isometric                                         # the island in Quasi3D through an isometric camera: relief, blocks, billboards
+make demo-island-isometric                                         # the island in Quasi3D through an isometric camera: relief, billboards
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -177,7 +177,8 @@ per tile corner, a walk towards the sun over the tops of the cells as the frame 
 above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
 the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
 world renderer lays on the ground away from the sun (tier `Ground+20`), stretched by their height
-and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are.
+and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are,
+save that slopes of its ground are shaded against level (lighter towards the sun, darker away).
 The time of day is `plugins/sky`: a `sky.Day{Time, Pace}` on the sky's own entity (made at Setup,
 found after a load), moved on every tick; at every one of `Config.Steps` a day the world's sun is
 set to `Config.LightAt` the hour — the sun (with `NoonWay` `sky.South`: east at 6, south at noon,
@@ -355,7 +356,11 @@ shows how much of it is boilerplate vs. real behavior.
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving behavior board
-  registers on the world (only entities carrying `Mover` are slowed); a unit's
+  registers on the world (only entities carrying `Mover` are slowed); slopes
+  cost too — `board.Climbing{Up, Down, Free}` (`WithClimbing`, `DefaultClimbing`: 1 in 10 up takes
+  twice as long, Air free) slows the Moving behavior along the heading and prices the planner's
+  steps through `Board.Climb` — both read a cell's slope off its own corners — so steep is the
+  relief, never a kind; a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
@@ -370,8 +375,12 @@ shows how much of it is boilerplate vs. real behavior.
   `cellSystem` learns from `effects.Active.Altered` and `effects.Idle` on the cells. In a Quasi3D world a `CellKind` has a `Height` (what stands on it), the ground's heights
   come from `Layout.Heights` and the shaping commands (`Raise`, `Lower`, `Level`, `Shaping`); the
   `Board` is the world's `Ground`; the `altitudeSystem` writes every `Z.Altitude` each tick from
-  the ground under the entity plus its `Lift`. A flat world refuses all of it at the first sight (`CellKindDict.Create`,
-  `NewUnits`, `Units.Define`, `Kinds.Register`).
+  the ground under the entity plus its `Lift`. A flat world refuses what stands at a height at the
+  first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`, `Kinds.Register`), yet its ground
+  may have heights: slopes cost there too and the board shades them. The ground has no vertical
+  walls: neighbouring square cells share the corners where they meet (`SetRelief` moves the
+  neighbours' with a cell's; a `Plot` an effect rewrites is sealed to its neighbours' by the
+  `cellSystem`).
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre and its kind) to
   `board.Each` behaviors registered on the board, naturally `board.Each[board.Mover]`;

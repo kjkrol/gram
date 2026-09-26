@@ -38,7 +38,7 @@ func newDriveRig(t *testing.T, order *MoveOrder) *driveRig {
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	water, _ := r.grid.CellIndex(6, 0)
 	terrain.Set(water, board.CellKind{Cost: 1, Allows: board.Water})
-	nav := newNavigationSystem(newPathFinder(r.grid, terrain, r.occupancy), r.grid, terrain, r.occupancy)
+	nav := newNavigationSystem(newPathFinder(r.grid, terrain, nil, r.occupancy), r.grid, terrain, r.occupancy)
 	sys := &driveSystem{nav: nav}
 
 	var cell goke.Comp[board.Cell]

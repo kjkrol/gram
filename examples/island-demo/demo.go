@@ -1,6 +1,8 @@
-// Command island-demo is a map larger than the window: an island of fields, forests, slow hills
-// and slower mountains in a sea that drowns whoever is pushed in, a road round it, units under
-// orders with sight cones, and a hawk on the Air plane whose cone nothing on the ground dims.
+// Command island-demo is a map larger than the window: an island of land in a sea that drowns
+// whoever is pushed in, a range of peaks and a plateau on it drawn in relief — a flat world whose
+// ground has heights all the same, so a climb is slow and routes go round what is steep — units
+// under orders with sight cones, and a hawk on the Air plane, over it all, whose cone nothing on the
+// ground dims.
 // Scroll with the wheel, drag with the middle button or push the cursor to an edge to move the
 // camera.
 package main
@@ -113,11 +115,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
-		board.CellKind{Name: board.Named("field"), Cost: 1.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("land"), Cost: 1, Allows: board.Land | board.Air},
+		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("hills"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("mountain"), Cost: 8, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 	)
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
@@ -204,7 +204,7 @@ func (s *mainStage) defineKinds() {
 	)
 }
 
-// Spawn lays the island out and puts a unit at every road stop, bound for the opposite one.
+// Spawn lays the island out and puts a unit at every stop, bound for the one across the range.
 func (s *mainStage) Spawn() error {
 	layout, stops := islandLayout(s.board.Res.Logic.Board)
 	s.board.Seed(layout)
@@ -213,7 +213,7 @@ func (s *mainStage) Spawn() error {
 	for i, from := range stops {
 		entries = append(entries, s.unit.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
 	}
-	// The hawk crosses the island from the first stop to the one across the mountains.
+	// The hawk crosses the island from the first stop to the one across the range.
 	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
 	s.world.Seed(entries...)
 	return nil
@@ -270,12 +270,9 @@ func (m *mainScene) Layers() []render.Layer {
 	kinds := s.board.CellKindDict()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
-		"water":    {R: 40, G: 90, B: 170, A: 255},
-		"field":    {R: 120, G: 170, B: 80, A: 255},
-		"forest":   {R: 30, G: 90, B: 45, A: 255},
-		"hills":    {R: 150, G: 140, B: 70, A: 255},
-		"mountain": {R: 120, G: 120, B: 125, A: 255},
-		"road":     {R: 190, G: 170, B: 120, A: 255},
+		"water":  {R: 40, G: 90, B: 170, A: 255},
+		"land":   {R: 120, G: 165, B: 80, A: 255},
+		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))

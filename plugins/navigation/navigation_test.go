@@ -57,7 +57,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	pusher := &pushOnce{grid: grid, size: 8}
 
 	start, _ := grid.CellIndex(0, 0)
@@ -130,7 +130,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
 	previous, _ := grid.CellIndex(0, 1)
 	expected, _ := grid.CellIndex(1, 0)
@@ -188,7 +188,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
 	start, _ := grid.CellIndex(2, 0)
 	target := start
@@ -247,7 +247,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)
 
@@ -311,7 +311,7 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)
 
@@ -406,7 +406,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	start, _ := grid.CellIndex(2, 4)
 	target, _ := grid.CellIndex(gridWidth-3, 4)
 
-	pathFinder := newPathFinder(grid, terrain, occupancy)
+	pathFinder := newPathFinder(grid, terrain, nil, occupancy)
 	steer := newNavigationSystem(pathFinder, grid, terrain, occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)

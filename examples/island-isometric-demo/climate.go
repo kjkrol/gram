@@ -39,7 +39,7 @@ const (
 	swayBelow   = 10
 	// snow first lies on ground this high, round the loosest few spots of the drifts' pattern
 	// (driftSeeds of it), and next to snow already lying; a winter begun has it on driftWinter
-	highSnow    = 15
+	highSnow    = 60
 	driftSeeds  = 0.12
 	driftWinter = 0.7
 	driftSize   = 5 // cells across one of the drifts' patches
@@ -48,11 +48,8 @@ const (
 // snowyColors is how each kind snow may lie on looks under it; iceColor, water frozen.
 var (
 	snowyColors = map[string]color.RGBA{
-		"field":    {R: 225, G: 232, B: 225, A: 255},
-		"forest":   {R: 150, G: 185, B: 165, A: 255},
-		"hills":    {R: 230, G: 228, B: 215, A: 255},
-		"mountain": {R: 240, G: 242, B: 248, A: 255},
-		"road":     {R: 215, G: 210, B: 200, A: 255},
+		"land":   {R: 232, G: 236, B: 235, A: 255},
+		"forest": {R: 150, G: 185, B: 165, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )

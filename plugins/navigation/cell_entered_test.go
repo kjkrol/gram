@@ -33,7 +33,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *ent
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 
 	steer := newNavigationSystem(
-		newPathFinder(ew.grid, terrain, occupancy), ew.grid, terrain, occupancy)
+		newPathFinder(ew.grid, terrain, nil, occupancy), ew.grid, terrain, occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)
 

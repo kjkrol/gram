@@ -271,7 +271,7 @@ func expectPanic(t *testing.T, want string, run func()) {
 	t.Errorf("no panic, want one mentioning %q", want)
 }
 
-func TestFlatWorld_RefusesHeights(t *testing.T) {
+func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 	flat := func() (*world.Plugin, *board.Plugin) {
 		w := world.NewPlugin(world.Config{
 			Space:    world.SpaceCfg{Width: 128, Height: 128},
@@ -285,11 +285,17 @@ func TestFlatWorld_RefusesHeights(t *testing.T) {
 		_, brd := flat()
 		expectPanic(t, "Quasi3D", func() { brd.CellKindDict().Create(board.CellKind{Name: board.Named("wall"), Height: 3}) })
 	})
-	t.Run("a layout with heights", func(t *testing.T) {
+	t.Run("a layout with heights is taken: its slopes cost", func(t *testing.T) {
 		_, brd := flat()
-		brd.Seed(board.Layout{Heights: func(geom.Vec) float64 { return 1 }})
-		if err := brd.Populate(); err == nil || !strings.Contains(err.Error(), "Quasi3D") {
-			t.Errorf("Populate = %v, want an error mentioning Quasi3D", err)
+		brd.Seed(board.Layout{Heights: func(p geom.Vec) float64 { return p.X / 4 }})
+		if err := brd.Populate(); err != nil {
+			t.Fatalf("Populate = %v, want the heights taken", err)
+		}
+		b := brd.Res.Logic.Board
+		from, _ := b.CellIndex(0, 0)
+		to, _ := b.CellIndex(1, 0)
+		if got := b.Climb(from, to, board.Land); got <= 1 {
+			t.Errorf("a climb in a flat world costs %v, want more than the flat", got)
 		}
 	})
 	t.Run("units with a height", func(t *testing.T) {

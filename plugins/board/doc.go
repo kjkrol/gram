@@ -24,6 +24,15 @@
 // witch over snow — and [CellKind.CostFor] is what an entity pays: the cheapest of its domains
 // the kind admits and prices, else Cost. [Terrain] is what a cell answers about itself.
 //
+// # Slopes
+//
+// What is steep is the relief, not a kind. [Climbing] says what a slope does to whoever goes over
+// it: a climb slows by Up per unit of rise over run, a descent speeds up by Down, and a Free
+// domain (Air by default) flies over. A cell's slope is read off its own corners, whichever way
+// one goes across it: the board's Moving behavior applies it along the entity's heading, and
+// [Board.Climb] prices a step by the slope of the cell it enters, which the planner multiplies
+// into the kind's cost. [Plugin.WithClimbing] sets it, [DefaultClimbing] otherwise.
+//
 // # Domains, Mover and Standing
 //
 // A [Domain] is a way of moving — [Land], [Water], [Air], or a game's own bit — and a cell's
@@ -74,19 +83,23 @@
 //
 // # Heights
 //
-// In a Quasi3D world (world.Config.Quasi3D) the ground has heights, apart from the kinds: a cell's
+// The ground has heights, apart from the kinds: a cell's
 // [Relief] holds its four corners, a [CellKind]'s Height is what stands on it. [Layout.Heights]
 // raises the ground when the Stage starts fresh ([Board.SetHeights]: sampled at the corners, or at
-// the centre of a hex, which is level; [MeanOfCells] builds one from a height per cell). The
-// [Board] is the world's Ground ([Board.GroundAt], [Board.Step]): on a square grid it reads between
+// the centre of a hex, which is level; [MeanOfCells] builds one from a height per cell). In a
+// Quasi3D world (world.Config.Quasi3D) the [Board] is the world's Ground ([Board.GroundAt], [Board.Step]): on a square grid it reads between
 // a cell's corners, so a hill has slopes and a unit on a slope stands at its height. Every tick the
 // board writes each Z-carrying entity's Altitude: the ground under its centre plus its Mover's
 // Lift, so a unit never declares where it stands in height and a hawk declares only how high it
 // flies. Units get their Z from the Shape. A hill is heights on
 // cell entities and never a body, so the cost of sight does not depend on how many a game has.
 // The renderer draws the tiles sloped, lit from the upper left so the relief reads, and faces only
-// where a top stands above its neighbour's — a wall over grass, a raised edge over the sea. A flat
-// world refuses heights, a Height or a Lift where it first meets one.
+// where a top stands above its neighbour's — a wall over grass. The ground has no vertical walls:
+// on a square grid neighbouring cells share the corners where they meet ([Board.SetRelief] moves
+// the neighbours' with a cell's, and a relief an effect writes into one cell's Plot is sealed to
+// its neighbours' the same tick). A flat world refuses a Height or a Lift where it first meets
+// one, but its ground may have heights all the same: slopes cost ([Climbing]) and the renderer
+// shades them, and no entity stands at a height.
 //
 // # Shaping
 //

@@ -2,94 +2,71 @@ package main
 
 import (
 	"math"
-	"math/rand/v2"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 )
 
-// islandLayout draws a fixed island: a wavy ellipse of fields in a sea, mountains ringed by
-// hills in the middle rising smoothly from the fields, the land a little above the sea so its shore
-// shows, forests scattered about, and a road looping round the mountains down to a southern harbour.
+// islandLayout draws a fixed island: a wavy ellipse of land in a sea, a range of mountains along
+// it with sharp peaks and spurs, a plateau at its western end, lowland by the coast, and the
+// stops, a ring of them on the lowland round the range. Every cell of it is land: what is high and
+// what is low is the heights alone.
 func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
-	rng := rand.New(rand.NewPCG(1, 2))
 	cell := func(x, y int) board.CellID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
-	kinds := map[board.CellID]string{}
-
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
-	inside := func(x, y int) bool {
-		dx, dy := float64(x)+0.5-cx, float64(y)+0.5-cy
+	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy) goes
+	edge := func(dx, dy float64) float64 {
 		a := math.Atan2(dy, dx)
-		r := 1 + 0.12*math.Sin(3*a+1) + 0.08*math.Sin(5*a+2) + 0.05*math.Sin(7*a)
+		return 1 + 0.12*math.Sin(3*a+1) + 0.08*math.Sin(5*a+2) + 0.05*math.Sin(7*a)
+	}
+	within := func(x, y float64) bool {
+		dx, dy := x-cx, y-cy
+		r := edge(dx, dy)
 		return (dx*dx)/(islandRX*islandRX)+(dy*dy)/(islandRY*islandRY) <= r*r
 	}
-	dist := func(x, y int) float64 { return math.Hypot(float64(x)+0.5-cx, float64(y)+0.5-cy) }
 
+	land := map[board.CellID]bool{}
+	var cells []board.CellEntry
 	for y := range GridHeight {
 		for x := range GridWidth {
-			if !inside(x, y) {
-				continue
-			}
-			switch d := dist(x, y); {
-			case d <= mountainR:
-				kinds[cell(x, y)] = "mountain"
-			case d <= hillsR:
-				kinds[cell(x, y)] = "hills"
-			default:
-				kinds[cell(x, y)] = "field"
+			if within(float64(x)+0.5, float64(y)+0.5) {
+				land[cell(x, y)] = true
+				cells = append(cells, board.CellEntry{Kind: "land", Cell: cell(x, y)})
 			}
 		}
 	}
-
-	for range forestCount {
-		fx, fy := rng.IntN(GridWidth), rng.IntN(GridHeight)
-		if !inside(fx, fy) || dist(fx, fy) <= hillsR+2 {
-			continue
-		}
-		radius := 4 + rng.Float64()*3
-		for y := range GridHeight {
-			for x := range GridWidth {
-				if math.Hypot(float64(x-fx), float64(y-fy)) <= radius && kinds[cell(x, y)] == "field" {
-					kinds[cell(x, y)] = "forest"
+	// the sea along the coast, which how far inland a point lies is measured from
+	var shore []geom.Vec
+	for y := range GridHeight {
+		for x := range GridWidth {
+			if land[cell(x, y)] {
+				continue
+			}
+			for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+				if land[cell(x+d[0], y+d[1])] {
+					shore = append(shore, geom.NewVec(float64(x)+0.5, float64(y)+0.5))
+					break
 				}
 			}
 		}
 	}
-
-	// The road: a hexagon of stops round the hills, joined by L-shaped runs, and a spur south.
-	var stops [][2]int
-	for k := range 6 {
-		a := float64(k) * math.Pi / 3
-		stops = append(stops, [2]int{int(cx + roadR*math.Cos(a)), int(cy + roadR*0.75*math.Sin(a))})
-	}
-	lay := func(from, to [2]int) {
-		x, y := from[0], from[1]
-		for x != to[0] {
-			x += sign(to[0] - x)
-			pave(kinds, cell(x, y))
+	inland := func(x, y float64) float64 {
+		d := math.Inf(1)
+		for _, s := range shore {
+			d = min(d, math.Hypot(x-s.X, y-s.Y))
 		}
-		for y != to[1] {
-			y += sign(to[1] - y)
-			pave(kinds, cell(x, y))
-		}
-	}
-	pave(kinds, cell(stops[0][0], stops[0][1]))
-	for k := range stops {
-		lay(stops[k], stops[(k+1)%len(stops)])
-	}
-	harbour := stops[1]
-	for y := harbour[1]; inside(harbour[0], y); y++ {
-		pave(kinds, cell(harbour[0], y))
+		return d - 0.5
 	}
 
-	var cells []board.CellEntry
-	for c, k := range kinds {
-		cells = append(cells, board.CellEntry{Kind: k, Cell: c})
+	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across it.
+	var stops []board.CellID
+	for k := range UnitCount {
+		a := (float64(k) + 0.5) * 2 * math.Pi / UnitCount
+		dx, dy := math.Cos(a)*islandRX, math.Sin(a)*islandRY
+		r := stopsAt * edge(dx, dy)
+		stops = append(stops, cell(int(cx+r*dx), int(cy+r*dy)))
 	}
-	var road []board.CellID
-	for _, s := range stops {
-		road = append(road, cell(s[0], s[1]))
-	}
+
 	cw, ch := grid.CellBounds()
 	// the land stands a little above the sea: a corner is raised where every cell round it is land,
 	// so the shore slopes down into water that stays level
@@ -97,50 +74,126 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		const eps = 1e-6
 		for _, d := range [4][2]float64{{-eps, -eps}, {eps, -eps}, {-eps, eps}, {eps, eps}} {
 			c, ok := grid.CellAt(geom.NewVec(p.X+d[0], p.Y+d[1]))
-			if _, land := kinds[c]; !ok || !land {
+			if !ok || !land[c] {
 				return false
 			}
 		}
 		return true
 	}
 	heights := func(p geom.Vec) float64 {
-		d := math.Hypot(p.X/cw-cx, p.Y/ch-cy)
-		h := hillsHeight*rim(d, hillsR) + (mountainHeight-hillsHeight)*rim(d, mountainR)
-		if ashore(p) {
-			h += landHeight
+		if !ashore(p) {
+			return 0
 		}
-		return h
+		x, y := p.X/cw, p.Y/ch
+		return landHeight + rise(inland(x, y)-1.5, coastWidth)*relief(x-cx, y-cy)
 	}
-	return board.Layout{Default: "water", Cells: cells, Heights: heights}, road
+	return board.Layout{Default: "water", Cells: cells, Heights: heights}, stops
 }
 
-// rim is 1 inside radius r and 0 outside, easing between the two across one cell.
-func rim(d, r float64) float64 {
-	t := min(max(r+0.5-d, 0), 1)
+// relief is how high the ground stands over the lowland at (x, y) cells from the island's middle:
+// the range with its peaks, cut by ridges and valleys, the plateau flat on top, and the lowland
+// rolling a little.
+func relief(x, y float64) float64 {
+	// the range: a crest along a bent line, highest in the middle, falling away to either side
+	t := min(max((x-rangeFrom)/(rangeTo-rangeFrom), 0), 1)
+	across := y - ridgeY(rangeFrom+t*(rangeTo-rangeFrom))
+	along := max(rangeFrom-x, x-rangeTo, 0)
+	h := rangeHeight * (1 - 0.35*math.Abs(2*t-1)) * sharp(math.Hypot(along, across)/rangeWidth, 1.3)
+	// ridges and valleys running down from the crest, and the peaks standing clear over it all
+	cut := ridged(x/5, y/5)
+	h *= 0.55 + 0.45*cut
+	for _, k := range peaks {
+		h = smoothMax(h, k.h*(0.85+0.15*cut)*sharp(math.Hypot(x-k.x, y-ridgeY(k.x)-k.y)/k.r, 1.8))
+	}
+	// the plateau: a flat top, its edge ragged and steep
+	a := math.Atan2(y-plateauY, x-plateauX)
+	r := plateauR + 2.5*(fbm(3*math.Cos(a)+11, 3*math.Sin(a)+5)-0.5)
+	top := rise(r-math.Hypot(x-plateauX, y-plateauY), plateauEdge)
+	h = h*(1-top) + max(h, plateauHeight)*top
+	return h + (1-top)*lowlandRoll*fbm(x/4+7, y/4+3)
+}
+
+// smoothMax is the larger of a and b, rounded where they are near: two slopes meet in a saddle,
+// not a crease.
+func smoothMax(a, b float64) float64 {
+	const k = 0.08
+	m := max(a, b)
+	return m + math.Log(math.Exp(k*(a-m))+math.Exp(k*(b-m)))/k
+}
+
+// ridged is noise in [0, 1] made of sharp crests: three octaves of folded value noise.
+func ridged(x, y float64) float64 {
+	sum, amp, norm := 0.0, 1.0, 0.0
+	for range 3 {
+		n := 1 - math.Abs(2*valueNoise(x, y)-1)
+		sum += amp * n * n
+		norm += amp
+		x, y, amp = 2*x+13, 2*y+7, amp/2
+	}
+	return sum / norm
+}
+
+// ridgeY is where across the island the range's crest runs at x cells from the middle.
+func ridgeY(x float64) float64 { return -0.08*x + 3*math.Sin(x/9) }
+
+// sharp is 1 at 0 falling to 0 at 1 and beyond, the steeper towards the top the larger p: a crest,
+// a peak.
+func sharp(s, p float64) float64 { return math.Pow(max(1-s, 0), p) }
+
+// rise is 0 below 0 and 1 from w up, easing between the two: a slope w cells wide.
+func rise(v, w float64) float64 {
+	t := min(max(v/w, 0), 1)
 	return t * t * (3 - 2*t)
 }
 
-// pave lays road on c unless the mountain is in the way — roads go round it.
-func pave(kinds map[board.CellID]string, c board.CellID) {
-	if kinds[c] != "mountain" {
-		kinds[c] = "road"
-	}
+// fbm is smooth noise in [0, 1): three octaves of value noise.
+func fbm(x, y float64) float64 {
+	return (valueNoise(x, y) + 0.5*valueNoise(2*x, 2*y) + 0.25*valueNoise(4*x, 4*y)) / 1.75
 }
 
-func sign(v int) int {
-	if v < 0 {
-		return -1
-	}
-	return 1
+func valueNoise(x, y float64) float64 {
+	x0, y0 := math.Floor(x), math.Floor(y)
+	u, v := x-x0, y-y0
+	u, v = u*u*(3-2*u), v*v*(3-2*v)
+	ix, iy := int64(x0), int64(y0)
+	a, b := lattice(ix, iy), lattice(ix+1, iy)
+	c, d := lattice(ix, iy+1), lattice(ix+1, iy+1)
+	return (a*(1-u)+b*u)*(1-v) + (c*(1-u)+d*u)*v
+}
+
+// lattice is a fixed random number in [0, 1) for the lattice point (x, y).
+func lattice(x, y int64) float64 {
+	h := uint64(x)*0x9E3779B97F4A7C15 ^ uint64(y)*0xC2B2AE3D27D4EB4F ^ 0x5DEECE66D
+	h ^= h >> 31
+	h *= 0xBF58476D1CE4E5B9
+	h ^= h >> 29
+	return float64(h>>11) / (1 << 53)
+}
+
+// peaks rise over the range: x cells from the middle, y off the crest, h high, r across.
+var peaks = []struct{ x, y, h, r float64 }{
+	{-4, 0, 200, 9},
+	{7, -1, 170, 8},
+	{16, 0, 150, 8},
+	{24, 1, 105, 6},
+	{1, 8, 115, 6},   // a spur to the south
+	{11, -8, 125, 6}, // and to the north
 }
 
 const (
 	islandRX, islandRY = 34.0, 22.0
-	mountainR          = 7.0
-	hillsR             = 12.0
 	landHeight         = 8.0
-	hillsHeight        = 20.0
-	mountainHeight     = 40.0
-	roadR              = 19.0
-	forestCount        = 10
+	coastWidth         = 5.0 // cells from the coast before the heights stand full
+	// the range runs from rangeFrom to rangeTo cells from the middle, rangeHeight at its crest's
+	// highest, reaching rangeWidth to either side
+	rangeFrom, rangeTo = -13.0, 26.0
+	rangeHeight        = 135.0
+	rangeWidth         = 13.0
+	// the plateau at its western end
+	plateauX, plateauY = -21.0, 1.0
+	plateauR           = 7.0
+	plateauEdge        = 2.0
+	plateauHeight      = 80.0
+	lowlandRoll        = 8.0
+	stopsAt            = 0.78 // how far out to the coast the stops lie
 )

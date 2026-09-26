@@ -21,6 +21,7 @@ type cellWorld struct {
 	brd     *board.Plugin
 	fx      *effects.Plugin
 	frost   effects.ID
+	mound   effects.ID
 	target  board.CellID
 	grass   board.CellKind
 	snow    board.CellKind
@@ -56,6 +57,9 @@ func newShapedWorld(t *testing.T, boardFirst, quasi3D bool, grid board.Grid, sha
 	cw.brd.Res.Logic.Board.SetAll(cw.grass)
 	snow := cw.snow
 	cw.frost = cw.fx.Define("frost", effects.Spec{effects.Lasts(2 * cellTick), effects.Alter(func(g *board.Ground) { g.Kind = snow })})
+	cw.mound = cw.fx.Define("mound", effects.Spec{effects.Lasts(2 * cellTick), effects.Alter(func(p *board.Plot) {
+		p.Relief = board.Relief{Corners: [4]float32{6, 6, 6, 6}}
+	})})
 
 	ctx := &installCtx{ecs: goke.New()}
 	for _, install := range []func() error{
@@ -293,4 +297,35 @@ func TestShaping_AFlatWorldHasNoShapingCommands(t *testing.T) {
 	if len(cw.brd.Queues()) != 0 || len(cw.brd.DefaultBindings()) != 0 {
 		t.Error("a flat world's board offers shaping commands")
 	}
+}
+
+// An effect raising one cell's Plot alone raises its neighbours' corners where they meet it, and
+// lowers them again when it ends: the ground has no vertical walls.
+func TestCells_AnEffectOnOneCellsReliefCarriesItsNeighboursCorners(t *testing.T) {
+	cw := newCellWorld(t, false)
+	id, _ := cw.brd.CellEntity(cw.target)
+	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(cb, id, cw.mound) }
+	cw.ecs.Tick(cellTick)
+	cw.ecs.Tick(cellTick)
+	corner := func() float32 { return cw.board().Relief(neighbour(t, cw)).Corners[3] }
+	if got := corner(); got != 6 {
+		t.Fatalf("the neighbour's corner at the raised cell stands at %v, want 6", got)
+	}
+	for range 4 {
+		cw.ecs.Tick(cellTick)
+	}
+	if got, own := corner(), cw.heights(); got != 0 || own != [4]float32{} {
+		t.Errorf("after the effect the cell's corners %v, the neighbour's %v; want all back at 0", own, got)
+	}
+}
+
+// neighbour is the cell up and left of the target, meeting it at its top-left corner.
+func neighbour(t *testing.T, cw *cellWorld) board.CellID {
+	t.Helper()
+	x, y, _ := cw.board().Coords(cw.target)
+	c, ok := cw.board().CellIndex(x-1, y-1)
+	if !ok {
+		t.Fatal("no cell up and left of the target")
+	}
+	return c
 }

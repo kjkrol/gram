@@ -77,7 +77,7 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	grid := board.DefaultGrids{}.Square(7, 1, legCellSize)
 	terrain := openTerrain()
 	occupancy := &board.SingleOccupancy{}
-	pf := newPathFinder(grid, terrain, occupancy)
+	pf := newPathFinder(grid, terrain, nil, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
 	const mover, other = uid.UID64(1), uid.UID64(2)
@@ -100,7 +100,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(10, 10, legCellSize)
 	occupancy := &board.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(5, 5)
 	starts := []board.CellID{at(5, 0), at(5, 4), at(5, 2)}

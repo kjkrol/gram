@@ -26,7 +26,7 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 		})
 	}
 	run := func(b *testing.B, terrain board.Terrain) {
-		pf := newPathFinder(grid, terrain, &board.MultipleOccupancy{})
+		pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
 		if _, ok := pf.findPath(1, board.Land, from, to); !ok {
 			b.Fatal("no route across the board")
 		}

@@ -92,6 +92,21 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   `View.Shadows`); the renderer fills them over the ground as holes in the view (`ConeShader`,
   `DefaultShadow`). A flat world keeps its reach cut at walls.
 - The vision demos run in a Quasi3D world with a hill; aabbworld is taken from v1.8.0.
+- Slopes slow a climb and speed a descent (`board.Climbing{Up, Down, Free}`, `DefaultClimbing`: a
+  climb of 1 in 10 takes twice as long, Air flies over; `board.Plugin.WithClimbing`). A cell's
+  slope is read off its own corners whichever way one crosses it: the board's Moving behavior
+  along the entity's heading, the planner through `Board.Climb`, the slope of the cell a step
+  enters, times the kind's cost (its heuristic counts every step at the steepest descent,
+  `Climbing.Least`). A hex cell is level: there the step's rise between the two cells counts.
+- The ground has no vertical walls: on a square grid neighbours share the corners where they meet.
+  `Board.SetRelief` moves the neighbours' corners with a cell's, and a relief an effect writes into
+  one cell's `Plot` is sealed to its neighbours' the same tick, and again when the effect ends.
+- A flat world's ground may have heights (`Layout.Heights`): no entity stands at one, but slopes
+  cost as in a Quasi3D world and the board shades them, level ground keeping its sprites' colours.
+- The islands are land and water: the fields, hills, mountains and the road are gone, and a range
+  of peaks up to 200, a plateau and the lowland are the heights alone — island-demo's flat island
+  too. No forest grows on them until plants get a plugin; the forest kind, its snow and its
+  swaying stay for it.
 
 **Scenes and viewports**
 - A Scene's `Layers()` are `render.Layer`s: a `render.Renderer` draws on the screen, a

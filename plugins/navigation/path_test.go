@@ -19,7 +19,7 @@ func TestPathFinder_FindPath_UnreachableTarget_ReportsNotFound(t *testing.T) {
 		terrain.Set(n, board.CellKind{Cost: 1, Solid: true})
 	}
 
-	_, ok := newPathFinder(grid, terrain, occupancy).findPath(uid.UID64(1), board.Land, from, to)
+	_, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), board.Land, from, to)
 	if ok {
 		t.Error("expected findPath to report not-found for a target walled in on every side")
 	}
@@ -32,7 +32,7 @@ func TestPathFinder_FindPath_ReusesSolverAcrossCalls(t *testing.T) {
 	occupancy := &board.SingleOccupancy{}
 	entity := uid.UID64(1)
 
-	pf := newPathFinder(grid, terrain, occupancy)
+	pf := newPathFinder(grid, terrain, nil, occupancy)
 
 	firstFrom, _ := grid.CellIndex(0, 0)
 	firstTo, _ := grid.CellIndex(4, 0)
@@ -68,7 +68,7 @@ func TestPathFinder_FindPath_NeverCutsThroughABlockedCorner(t *testing.T) {
 
 	from, _ := grid.CellIndex(1, 2)
 	to, _ := grid.CellIndex(3, 2)
-	path, ok := newPathFinder(grid, terrain, occupancy).findPath(uid.UID64(1), board.Land, from, to)
+	path, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), board.Land, from, to)
 	if !ok {
 		t.Fatal("expected a path around the wall to exist")
 	}

@@ -32,7 +32,7 @@ func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrde
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	pw.terrain = terrain
 	occupancy := &board.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(pw.grid, terrain, occupancy), pw.grid, terrain, occupancy)
+	nav := newNavigationSystem(newPathFinder(pw.grid, terrain, nil, occupancy), pw.grid, terrain, occupancy)
 	space := testSpace(t)
 	nav.BindSpace(space)
 
@@ -126,7 +126,7 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
 	var cell goke.Comp[board.Cell]
@@ -286,7 +286,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
 	var cell goke.Comp[board.Cell]
@@ -402,7 +402,7 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	terrain := board.NewTerrainMap()
 	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	occupancy := &board.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, occupancy), grid, terrain, occupancy)
+	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
 	var cell goke.Comp[board.Cell]

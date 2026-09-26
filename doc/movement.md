@@ -121,7 +121,11 @@ over `Standing` that turns the cells under her `Box` (`Grid.CellsUnder`, exact o
 a hex) into snow and the water into ice (undoing it in time is the coming effects plugin's job). `Allows` and
 `Mover` alone decide who may plan where, and `CellKind.Costing` makes a kind cheaper for some
 domains (`CostFor` is what the planner and the terrain's `Moving` behavior charge), so the witch is fast on her
-own snow and elves feel no forest; the solver keeps units out of whatever is solid.
+own snow and elves feel no forest; the solver keeps units out of whatever is solid. What is
+steep is the relief, in a flat world too: `board.Climbing` makes a climb slower and a descent a
+little quicker, on the move and in the planner (`Board.Climb`, the slope of the cell a step enters,
+off its corners), and a flyer pays neither. The ground has no vertical walls: square cells share
+their corners.
 
 ## 6. Pushed onto forbidden ground — done
 
@@ -309,8 +313,8 @@ from the data — a flat game pays nothing for heights, and a game that wants th
   corner, `Level` an area, and the ground round about follows within `Shaping.MaxStep`, so a canal
   is ground lowered and then turned to water. A game must keep its eyes in proportion to its
   relief: the smoothed edge of a plateau is a slope a unit or two below its top, and an eye lower
-  than that difference sees the rim, not the valley (island-isometric-demo: hills 20, mountains
-  40, eyes 6).
+  than that difference sees the rim, not the valley (island-isometric-demo: peaks up to 200, a plateau
+  88 up, eyes 6).
 - **Sight with heights.** aabbworld v1.7.0's `Cone.Eye/Elevation/Ground/GroundStep`: an entity is
   seen when the line from the eye (`Z.Altitude + Sight.Eye`) to its top clears every nearer ground
   sample and every nearer blocking band within the budget; the reach of an angle is the farthest

@@ -166,6 +166,13 @@ func (p *Plugin) WithShaping(s Shaping) *Plugin {
 	return p
 }
 
+// WithClimbing sets how slopes slow a climb and speed a descent, on the move and in the planner's
+// reckoning; DefaultClimbing unless set. Call before Use.
+func (p *Plugin) WithClimbing(c Climbing) *Plugin {
+	p.Res.Logic.Board.SetClimbing(c)
+	return p
+}
+
 // Queues are where Raise, Lower and Level land in a Quasi3D world; none in a flat one.
 func (p *Plugin) Queues() []control.CommandQueue {
 	if !p.worldPlugin.Quasi3D() {
@@ -205,9 +212,6 @@ func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
-	}
-	if p.seeded.Heights != nil && !p.worldPlugin.Quasi3D() {
-		return fmt.Errorf("board: a Layout with Heights in a flat world; set world.Config.Quasi3D")
 	}
 	resolve := func(name string) (CellKind, error) {
 		kind, ok := p.kinds.Get(name)

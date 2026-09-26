@@ -48,13 +48,10 @@ func (t *Tile) Beside(dx, dy int) [4]float32 {
 
 // Light is the light the world's sun casts on the tile's top at its corners, from the slope of
 // the ground there — the tile's own corners and its neighbours', so slopes run on smoothly from
-// tile to tile; what stands on the cell is lit as the ground under it. A flat world is drawn as its
-// sprites are.
+// tile to tile; what stands on the cell is lit as the ground under it. A flat world keeps its
+// sprites' colours on level ground and shows the relief by its slopes alone.
 func (t *Tile) Light() render.Shade {
 	r := t.r
-	if !r.board.quasi3D {
-		return render.Even(1)
-	}
 	g := r.topOf(t.ID).ground
 	left, lok := t.groundBeside(-1, 0)
 	right, rok := t.groundBeside(1, 0)
@@ -76,6 +73,13 @@ func (t *Tile) Light() render.Shade {
 	sun := r.lamp
 	lit := t.sunlit()
 	corner := func(k int, dx, dy float32) render.Light { return sun.Shaded(-dx, -dy, 1, lit[k]) }
+	if !r.board.quasi3D {
+		level := sun.Shaded(0, 0, 1, 1)
+		corner = func(_ int, dx, dy float32) render.Light {
+			l := sun.Shaded(-dx, -dy, 1, 1)
+			return render.Light{l[0] / level[0], l[1] / level[1], l[2] / level[2]}
+		}
+	}
 	return render.Shade{
 		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
 		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),

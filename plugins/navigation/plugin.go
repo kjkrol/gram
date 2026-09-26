@@ -54,7 +54,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.board = brd
 
 	occupancy := p.boardPlugin.Occupancy()
-	finder := newPathFinder(brd, brd, occupancy)
+	finder := newPathFinder(brd, brd, brd, occupancy)
 	p.finder = finder
 	if p.pathRenderer != nil {
 		p.pathRenderer.finder = finder

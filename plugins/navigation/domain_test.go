@@ -27,7 +27,7 @@ func riverBoard() (board.Grid, *board.TerrainMap) {
 
 func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	grid, terrain := riverBoard()
-	pf := newPathFinder(grid, terrain, &board.MultipleOccupancy{})
+	pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
 	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 
 	path, ok := pf.findPath(uid.UID64(1), board.Land, at(0, 0), at(0, 2))
@@ -66,7 +66,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	terrain.Set(lake, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water})
 
 	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, &board.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &board.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
@@ -113,7 +113,7 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), board.CellKind{Name: board.Named("snow"), Cost: 5, Allows: board.Land | frost}.Costing(frost, 0.2))
 	}
-	pf := newPathFinder(grid, terrain, &board.MultipleOccupancy{})
+	pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
 
 	walker, _ := pf.findPath(uid.UID64(1), board.Land, at(0, 0), at(2, 0))
 	for _, step := range walker.Steps[:walker.Length] {

@@ -1,6 +1,8 @@
 package board
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
+	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -166,6 +168,24 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	compose(r, icamera.NewFromSpace(64, 64, 0))
 	if got != render.Even(1) {
 		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
+	}
+}
+
+// A flat world with heights shows its slopes: ground facing the sun lighter than as drawn, ground
+// turned away darker.
+func TestTile_AFlatWorldShadesItsSlopes(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 1, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetHeights(func(p geom.Vec) float64 { return 16 - math.Abs(p.X-64)/2 }) // a ridge along x = 64
+	got := map[CellID]render.Shade{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got[t.ID] = t.Light() })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+	compose(r, icamera.NewFromSpace(128, 32, 0))
+	east, _ := grid.CellIndex(2, 0) // falls to the east, where the default sun stands
+	west, _ := grid.CellIndex(1, 0)
+	if e, w := got[east][1][0], got[west][0][0]; e <= 1 || w >= 1 {
+		t.Errorf("the ridge's east side is lit %v and its west side %v, want above and below 1", e, w)
 	}
 }
 

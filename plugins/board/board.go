@@ -19,13 +19,14 @@ import (
 type Board struct {
 	Grid
 
-	square  *squareGrid // the grid when it is square, for the ground's fast path; nil otherwise
-	seed    *TerrainMap
-	relief  []Relief // the seed's relief by ordinal; nil is level at 0
-	cells   *cellStore
-	version uint64
-	quasi3D bool        // the world has heights: cover spans the cells' bands
-	boxes   []geom.AABB // scratch for the boxes of a cell
+	square   *squareGrid // the grid when it is square, for the ground's fast path; nil otherwise
+	seed     *TerrainMap
+	relief   []Relief // the seed's relief by ordinal; nil is level at 0
+	cells    *cellStore
+	version  uint64
+	quasi3D  bool // the world has heights: cover spans the cells' bands
+	climbing Climbing
+	boxes    []geom.AABB // scratch for the boxes of a cell
 }
 
 // cellStore is where the cells' entities are: their ids by ordinal, and a query for each of the
@@ -44,7 +45,7 @@ var _ Terrain = (*Board)(nil)
 // NewBoard is a board over grid seeded with terrain.
 func NewBoard(grid Grid, terrain *TerrainMap) *Board {
 	sq, _ := grid.(*squareGrid)
-	return &Board{Grid: grid, square: sq, seed: terrain}
+	return &Board{Grid: grid, square: sq, seed: terrain, climbing: DefaultClimbing}
 }
 
 // bind hands the terrain over to the cell entities in st.
@@ -180,15 +181,39 @@ func (b *Board) reliefAt(i int) Relief {
 	return b.plotOf(i).Relief
 }
 
-// SetRelief puts c's corners at r's heights, leaving its neighbours' as they are.
+// SetRelief puts c's corners at r's heights. On a square grid the neighbours meeting at a corner
+// go with it: the ground has no vertical walls. A hex cell is level, at r's first corner.
 func (b *Board) SetRelief(c CellID, r Relief) {
 	if !b.sloped() {
 		r = Relief{Corners: [4]float32{r.Corners[0], r.Corners[0], r.Corners[0], r.Corners[0]}}
+		if b.setRelief(c, r) {
+			b.version++
+		}
+		return
 	}
-	if b.setRelief(c, r) {
+	if b.setCorners(c, r) {
 		b.version++
 	}
 }
+
+// setCorners puts c's corners at r's heights and the neighbours' corners meeting them with them.
+func (b *Board) setCorners(c CellID, r Relief) bool {
+	x, y, ok := b.Coords(c)
+	if !ok {
+		return false
+	}
+	changed := false
+	for k, d := range [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+		if v, ok := b.foldVertex(int64(x)+d[0], int64(y)+d[1]); ok {
+			changed = b.setHeightAt(v, float64(r.Corners[k])) || changed
+		}
+	}
+	return changed
+}
+
+// seal brings the neighbours' corners to c's where they meet, so a relief written into c's Plot
+// alone, by an effect, leaves no vertical wall; false where they met already.
+func (b *Board) seal(c CellID) bool { return b.sloped() && b.setCorners(c, b.Relief(c)) }
 
 func (b *Board) setRelief(c CellID, r Relief) bool {
 	i, ok := b.ordinal(c)
