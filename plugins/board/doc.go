@@ -33,6 +33,24 @@
 // [Board.Climb] prices a step by the slope of the cell it enters, which the planner multiplies
 // into the kind's cost. [Plugin.WithClimbing] sets it, [DefaultClimbing] otherwise.
 //
+// # Ways
+//
+// A [Way] is what runs across a cell over its ground — a brook, a river, a road: a band Width wide
+// from the cell's middle out towards each neighbour its [Links] name, a bit for each of the grid's
+// directions ([Link] finds the bit for a neighbour, [Toward] the neighbour for a bit). Every cell
+// entity carries one beside its Plot and Ground, the zero Way where nothing runs, so it is saved
+// with the cell and an effect may alter it — a stream freezing over. Its kind decides who may cross
+// the cell and what it costs there ([Way.Over]; [Board.Kind] is the ground as whoever crosses it
+// meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
+// [Board.SetWay] read and write it, [Layout.Ways] seeds it. The renderer draws it over its tile
+// ([Tile.Way], [Tile.DrawWay]): a band out to halfway to each neighbour, as wide as the way at the
+// middle and as the mean of the two ways at the far end, and a square joining the bands where it
+// turns; a way of a kind that shines is water running down its band, the Flow by the square root
+// of the band's fall. Ways lie on a tier of their own just over the tiles, so from above no tile
+// covers one; a band running on slantwise reaches into the two cells either side of the corner it
+// runs through, so its last stretch is a piece of its own at the depth of the nearest of the four
+// cells meeting there, and none of their tiles covers it in a view that sorts.
+//
 // # Domains, Mover and Standing
 //
 // A [Domain] is a way of moving — [Land], [Water], [Air], or a game's own bit — and a cell's
@@ -139,8 +157,8 @@
 // render.Frame.Stream): down the slope of its cell, read off its corners, as fast as the Flow by
 // the square root of the slope, averaged at each corner over the running cells meeting there, so
 // the current follows a bending river without a seam and never turns into a bank; where it runs
-// fast it foams white, a rapid or a waterfall. Streams and rivers are worked out of a relief by
-// plugins/board/water. Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
+// fast it foams white, a rapid or a waterfall. Brooks, streams and rivers are worked out of a
+// relief by plugins/board/water and laid as ways (see Ways). Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
 // and a kind with a Sway — trees, set by an effect when the wind blows — leans its top with the
 // wind ([Tile.Sway]). Snow and ice are kinds an effect puts on a cell, drawn as any other. A flat
 // world is drawn as its sprites are, save that its slopes are shaded.

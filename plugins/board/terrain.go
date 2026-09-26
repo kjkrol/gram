@@ -129,6 +129,9 @@ func (d *cellKindDict) All() []CellKind {
 type TerrainMap struct {
 	Cells   map[CellID]CellKind
 	Default CellKind
+	// Ways is what runs across the cells over their kinds; Kind leaves them out — Board.Kind lays
+	// them over.
+	Ways map[CellID]Way
 
 	version uint64
 }
@@ -136,7 +139,7 @@ type TerrainMap struct {
 var _ Terrain = (*TerrainMap)(nil)
 
 func NewTerrainMap() *TerrainMap {
-	return &TerrainMap{Cells: make(map[CellID]CellKind)}
+	return &TerrainMap{Cells: make(map[CellID]CellKind), Ways: make(map[CellID]Way)}
 }
 
 func (t *TerrainMap) Kind(c CellID) CellKind {
@@ -152,6 +155,22 @@ func (t *TerrainMap) Set(c CellID, kind CellKind) {
 		return
 	}
 	t.Cells[c] = kind
+	t.version++
+}
+
+// SetWay lays w across c, the zero Way taking what ran there away.
+func (t *TerrainMap) SetWay(c CellID, w Way) {
+	if t.Ways[c] == w {
+		return
+	}
+	if !w.Runs() {
+		delete(t.Ways, c)
+	} else {
+		if t.Ways == nil {
+			t.Ways = make(map[CellID]Way)
+		}
+		t.Ways[c] = w
+	}
 	t.version++
 }
 
@@ -176,6 +195,6 @@ func (t *TerrainMap) SetAll(kind CellKind) {
 	t.version++
 }
 
-// Version counts the changes made through Set, SetMany and SetAll — a write that changes nothing
-// does not count; a load starts it over.
+// Version counts the changes made through Set, SetMany, SetAll and SetWay — a write that changes
+// nothing does not count; a load starts it over.
 func (t *TerrainMap) Version() uint64 { return t.version }

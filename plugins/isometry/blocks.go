@@ -56,11 +56,12 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
 		if flow, ok := t.Flow(); ok {
-			f.Stream(x0, y0, x1, y1, shine, lit, flow)
+			f.Stream(render.World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}, shine, lit, flow)
 		} else {
 			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 		}
 	}
+	t.DrawWay(f, cam, depth)
 }
 
 // sloped projects the four corners of a world box, each at its own height.

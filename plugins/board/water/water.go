@@ -9,41 +9,49 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 )
 
-// Course is what runs through a cell: nothing, a stream, a river, or a ford across a river.
+// Course is what runs through a cell: nothing, a brook, a stream, a river, or a ford across a
+// river.
 type Course uint8
 
 const (
 	Dry Course = iota
+	Brook
 	Stream
 	River
 	Ford
 )
 
-// Config is how a relief drains: how much gathered water makes a stream, a river and a river two
-// cells wide; the rain on a cell at a level (nil: 1 a cell); how deep a stream's and a river's
-// beds lie; every how many cells from its mouth a ford crosses a river (0: none), and the
-// steepest a ford may lie on, rise over run.
+// Config is how a relief drains: how much gathered water makes a brook, a stream and a river; the
+// rain on a cell at a level (nil: 1 a cell); how deep their beds lie; every how many cells from its
+// mouth a ford crosses a river (0: none), and the steepest a ford may lie on, rise over run; how
+// wide a course is by the square root of the water gathered in it, up to a cell; how far, up or
+// down, each cell's level is nudged for the draining alone, so courses wander instead of running
+// straight down an even slope.
 type Config struct {
-	StreamAt, RiverAt, WideAt float64
-	Rain                      func(level float64) float64
-	StreamDepth, RiverDepth   float64
-	FordEvery                 int
-	FordSlope                 float64
+	BrookAt, StreamAt, RiverAt          float64
+	Rain                                func(level float64) float64
+	BrookDepth, StreamDepth, RiverDepth float64
+	FordEvery                           int
+	FordSlope                           float64
+	WidthPerRoot                        float64
+	Meander                             float64
 }
 
-// Network is the streams and rivers draining a relief to the sea: each wet cell's course, where
-// every land cell's water goes and how much has gathered in it.
+// Network is the brooks, streams and rivers draining a relief to the sea: each wet cell's course,
+// where every land cell's water goes and how much has gathered in it.
 type Network struct {
 	Courses  map[board.CellID]Course
 	Down     map[board.CellID]board.CellID
 	Gathered map[board.CellID]float64
 
+	up      map[board.CellID][]board.CellID // the cells draining straight into each one
+	perRoot float64                         // WidthPerRoot
+
 	cw, ch       float64
 	width        int64
 	height       int64
 	wrapX, wrapY bool
-	beds         map[[2]int64]float64          // a course's bed at each lattice corner it touches
-	wide         map[board.CellID]board.CellID // the side a river widened to, and its channel
+	beds         map[[2]int64]float64 // a course's bed at each lattice corner it touches
 }
 
 // ErrNotSquare is Drain's answer for a grid other than square: it has no corners to carve.
@@ -59,7 +67,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	cw, ch := grid.CellBounds()
 	n := &Network{
 		Courses: map[board.CellID]Course{}, Down: map[board.CellID]board.CellID{}, Gathered: map[board.CellID]float64{},
-		cw: cw, ch: ch, beds: map[[2]int64]float64{}, wide: map[board.CellID]board.CellID{},
+		cw: cw, ch: ch, beds: map[[2]int64]float64{}, up: map[board.CellID][]board.CellID{}, perRoot: cfg.WidthPerRoot,
 	}
 	grid.EachCell(func(c board.CellID) {
 		x, y, _ := grid.Coords(c)
@@ -75,7 +83,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 		for _, d := range corners {
 			sum += heights(geom.NewVec(float64(int64(x)+d[0])*cw, float64(int64(y)+d[1])*ch))
 		}
-		level[c] = sum / 4
+		level[c] = sum/4 + cfg.Meander*(nudge(c)-0.5)
 	})
 
 	// Flood from the sea up, the lowest first: each cell drains to the one that reached it.
@@ -91,11 +99,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	var order []board.CellID
 	for q.Len() > 0 {
 		c := heap.Pop(&q).(cell)
-		for _, d := range sides {
-			m, ok := n.beside(grid, c.id, d)
-			if !ok {
-				continue
-			}
+		for _, m := range grid.Neighbors(c.id) {
 			if _, seen := filled[m]; seen {
 				continue
 			}
@@ -127,30 +131,17 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 			n.Courses[c], bed[c] = River, filled[c]-cfg.RiverDepth
 		case g >= cfg.StreamAt:
 			n.Courses[c], bed[c] = Stream, filled[c]-cfg.StreamDepth
+		case g >= cfg.BrookAt:
+			n.Courses[c], bed[c] = Brook, filled[c]-cfg.BrookDepth
 		}
 	}
-	// A wide river takes the lower of its sides across the current too.
-	for _, c := range order {
-		if n.Courses[c] != River || n.Gathered[c] < cfg.WideAt {
-			continue
-		}
-		dx, dy := n.step(grid, c, n.Down[c])
-		best, found := board.CellID(0), false
-		for _, s := range [2][2]int64{{dy, dx}, {-dy, -dx}} {
-			m, ok := n.beside(grid, c, s)
-			if !ok || sea(m) || n.Courses[m] != Dry {
-				continue
-			}
-			if !found || level[m] < level[best] {
-				best, found = m, true
-			}
-		}
-		if found {
-			n.Courses[best], n.Down[best], n.Gathered[best], bed[best] = River, c, n.Gathered[c], bed[c]
-			n.wide[best] = c
+	for c, k := range n.Courses {
+		if k != Dry {
+			d := n.Down[c]
+			n.up[d] = append(n.up[d], c)
 		}
 	}
-	n.ford(grid, cfg, level, sea)
+	n.ford(cfg, level, sea)
 
 	for c, b := range bed {
 		x, y, _ := grid.Coords(c)
@@ -166,7 +157,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 
 // ford lays a ford on every river cell FordEvery cells up from the mouth where the river runs no
 // steeper than FordSlope, across the whole river there.
-func (n *Network) ford(grid board.Grid, cfg Config, level map[board.CellID]float64, sea func(board.CellID) bool) {
+func (n *Network) ford(cfg Config, level map[board.CellID]float64, sea func(board.CellID) bool) {
 	if cfg.FordEvery <= 0 {
 		return
 	}
@@ -186,7 +177,7 @@ func (n *Network) ford(grid board.Grid, cfg Config, level map[board.CellID]float
 	}
 	var fords []board.CellID
 	for c, k := range n.Courses {
-		if _, side := n.wide[c]; side || k != River || from(c)%cfg.FordEvery != cfg.FordEvery/2 {
+		if k != River || from(c)%cfg.FordEvery != cfg.FordEvery/2 {
 			continue
 		}
 		if d := n.Down[c]; math.Abs(level[c]-level[d])/n.cw > cfg.FordSlope {
@@ -197,11 +188,33 @@ func (n *Network) ford(grid board.Grid, cfg Config, level map[board.CellID]float
 	for _, c := range fords {
 		n.Courses[c] = Ford
 	}
-	for side, c := range n.wide {
-		if n.Courses[c] == Ford {
-			n.Courses[side] = Ford // the river's other half, where it is two cells wide
+}
+
+// Links is which of c's neighbours its course runs on to: down to where its water goes, the sea
+// at a mouth included, and up to each course draining into it; none where no course runs.
+func (n *Network) Links(grid board.Grid, c board.CellID) board.Links {
+	if n.Courses[c] == Dry {
+		return 0
+	}
+	var out board.Links
+	if l, ok := board.Link(grid, c, n.Down[c]); ok {
+		out |= l
+	}
+	for _, u := range n.up[c] {
+		if l, ok := board.Link(grid, c, u); ok {
+			out |= l
 		}
 	}
+	return out
+}
+
+// Width is how wide c's course runs, cell wide at most: WidthPerRoot by the square root of the
+// water gathered in it, so a brook is a thread and a river fills its cell.
+func (n *Network) Width(c board.CellID, cell float64) float64 {
+	if n.Courses[c] == Dry {
+		return 0
+	}
+	return min(n.perRoot*math.Sqrt(n.Gathered[c]), cell)
 }
 
 // Carved is heights with the channels cut: every corner touching a course at its bed, the corners
@@ -235,38 +248,17 @@ func (n *Network) key(x, y int64) [2]int64 {
 	return [2]int64{x, y}
 }
 
-// beside is c's neighbour d away, across the seam where the grid wraps; false off the grid.
-func (n *Network) beside(grid board.Grid, c board.CellID, d [2]int64) (board.CellID, bool) {
-	x, y, _ := grid.Coords(c)
-	nx, ny := int64(x)+d[0], int64(y)+d[1]
-	if n.wrapX {
-		nx = (nx%n.width + n.width) % n.width
-	}
-	if n.wrapY {
-		ny = (ny%n.height + n.height) % n.height
-	}
-	if nx < 0 || ny < 0 || nx >= n.width || ny >= n.height {
-		return 0, false
-	}
-	return grid.CellIndex(uint32(nx), uint32(ny))
+// nudge is a fixed number in [0, 1) for c.
+func nudge(c board.CellID) float64 {
+	h := uint64(c)*0x9E3779B97F4A7C15 + 0x632BE59BD9B4E019
+	h ^= h >> 31
+	h *= 0xBF58476D1CE4E5B9
+	h ^= h >> 29
+	return float64(h>>11) / (1 << 53)
 }
 
-// step is the way from a to its side neighbour b.
-func (n *Network) step(grid board.Grid, a, b board.CellID) (dx, dy int64) {
-	for _, d := range sides {
-		if m, ok := n.beside(grid, a, d); ok && m == b {
-			return d[0], d[1]
-		}
-	}
-	return 0, 0
-}
-
-// corners are a cell's corners from its top-left, in board.Relief's order; sides its four
-// neighbours.
-var (
-	corners = [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
-	sides   = [4][2]int64{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
-)
+// corners are a cell's corners from its top-left, in board.Relief's order.
+var corners = [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
 // cell is a cell on the flood's queue, at the level it was filled to, seq keeping ties in the
 // order they came.

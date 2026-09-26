@@ -26,6 +26,7 @@ type cellSystem struct {
 	idlePlot    goke.Comp[Plot]
 	spawnPlot   goke.Comp[Plot]
 	spawnGround goke.Comp[Ground]
+	spawnWay    goke.Comp[Way]
 }
 
 func newCellSystem(brd *Board, shape *shaping) *cellSystem {
@@ -36,6 +37,7 @@ func (s *cellSystem) Init(si *goke.SysInit) {
 	st := &cellStore{ids: make([]uid.UID64, s.brd.CellCount())}
 	st.plots = si.NewQueryBuilder(&st.plot).Build()
 	st.kinds = si.NewQueryBuilder(&st.ground).Build()
+	st.ways = si.NewQueryBuilder(&st.way).Build()
 	s.active = si.NewQueryBuilder(&s.activeComp, &s.activePlot).Build()
 	s.idle = si.NewQueryBuilder(&s.idlePlot).Include(goke.Include[effects.Idle]()).Build()
 
@@ -68,15 +70,16 @@ func (s *cellSystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 			cells[o] = c
 		}
 	})
-	factory := si.NewFactory(&s.spawnPlot, &s.spawnGround)
+	factory := si.NewFactory(&s.spawnPlot, &s.spawnGround, &s.spawnWay)
 	factory.Create(len(cells))
 	o := 0
 	for factory.Next() {
-		plots, grounds := s.spawnPlot.Slice(&factory.Cursor), s.spawnGround.Slice(&factory.Cursor)
+		plots, grounds, ways := s.spawnPlot.Slice(&factory.Cursor), s.spawnGround.Slice(&factory.Cursor), s.spawnWay.Slice(&factory.Cursor)
 		for i, id := range factory.IDs {
 			c := cells[o]
 			plots[i] = Plot{Cell: c, Relief: s.brd.Relief(c)}
-			grounds[i] = Ground{Kind: s.brd.Kind(c)}
+			grounds[i] = Ground{Kind: s.brd.seed.Kind(c)}
+			ways[i] = s.brd.Way(c)
 			ids[o] = id
 			o++
 		}

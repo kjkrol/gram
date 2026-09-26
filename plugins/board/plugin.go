@@ -238,12 +238,24 @@ func (p *Plugin) Populate() error {
 		cells[i] = kind
 	}
 
+	ways := make([]Way, len(p.seeded.Ways))
+	for i, e := range p.seeded.Ways {
+		kind, err := resolve(e.Kind)
+		if err != nil {
+			return err
+		}
+		ways[i] = Way{Kind: kind, Width: e.Width, Links: e.Links}
+	}
+
 	brd := p.Res.Logic.Board
 	if p.seeded.Default != "" {
 		brd.SetAll(def)
 	}
 	for i, e := range p.seeded.Cells {
 		brd.Set(e.Cell, cells[i])
+	}
+	for i, e := range p.seeded.Ways {
+		brd.SetWay(e.Cell, ways[i])
 	}
 	if p.seeded.Heights != nil {
 		brd.SetHeights(p.seeded.Heights)

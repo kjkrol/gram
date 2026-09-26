@@ -264,23 +264,31 @@ func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id Spr
 // corners, and the sky the more the flatter the eye looks at it; near a shore the waves turn to
 // face it and break into foam.
 func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore) {
-	o := overlay{box: [4]float32{x0, y0, x1, y1}, red: [4]float32{shine, shine, shine, shine}, shore: &shore}
+	o := overlay{world: box(x0, y0, x1, y1), red: [4]float32{shine, shine, shine, shine}, shore: &shore}
 	for k, l := range lit {
 		o.alpha[k] = glintMark + l
 	}
 	f.over(&o)
 }
 
-// Stream lays over the last sprite added, as Glint does, water running at flow: ripples carried
-// down with the current, foaming white where it runs fast — a rapid, a waterfall. It throws the sun
-// and the sky back as Glint's water does and has no shore to roll in on.
-func (f *Frame) Stream(x0, y0, x1, y1, shine float32, lit [4]float32, flow Flow) {
-	o := overlay{box: [4]float32{x0, y0, x1, y1}, red: [4]float32{shine, shine, shine, shine}, flow: &flow}
+// Stream lays over the last sprite added, whose corners lie at world in the world, water running
+// at flow: ripples carried down with the current, foaming white where it runs fast — a rapid, a
+// waterfall. It throws the sun and the sky back as Glint's water does and has no shore to roll in
+// on.
+func (f *Frame) Stream(world World, shine float32, lit [4]float32, flow Flow) {
+	o := overlay{world: world, red: [4]float32{shine, shine, shine, shine}, flow: &flow}
 	for k, l := range lit {
 		o.alpha[k] = streamMark + l
 	}
 	f.over(&o)
 }
+
+// World is where each corner of a piece lies in the world — top-left, top-right, bottom-left,
+// bottom-right, as its Corners on screen — for what the shader works out where it lies.
+type World [4][2]float32
+
+// box is the World of the world box (x0, y0)-(x1, y1).
+func box(x0, y0, x1, y1 float32) World { return World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} }
 
 // Flow is how fast water runs at each corner of what streams — top-left, top-right, bottom-left,
 // bottom-right — in world units a second along x and y.
@@ -288,18 +296,21 @@ type Flow [4][2]float32
 
 // Overcast lays over the last sprite added, as Glint does, the shadows of the clouds drifting over
 // the ground of the world box (x0, y0)-(x1, y1). A frame with a clear sky lays nothing.
-func (f *Frame) Overcast(x0, y0, x1, y1 float32) {
+func (f *Frame) Overcast(x0, y0, x1, y1 float32) { f.OvercastAt(box(x0, y0, x1, y1)) }
+
+// OvercastAt is Overcast over the last sprite added, whose corners lie at world in the world.
+func (f *Frame) OvercastAt(world World) {
 	if f.weather.Clouds <= 0 {
 		return
 	}
-	f.over(&overlay{box: [4]float32{x0, y0, x1, y1}, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}})
+	f.over(&overlay{world: world, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}})
 }
 
-// overlay is a quad laid over a sprite for the shader to work out: the sprite's world box, red and
-// alpha at its corners, and the shore or the flow, if any, in its customs; green and blue are
-// where each point lies in the world.
+// overlay is a quad laid over a sprite for the shader to work out: where the sprite's corners lie
+// in the world, red and alpha at its corners, and the shore or the flow, if any, in its customs;
+// green and blue are where each point lies in the world.
 type overlay struct {
-	box        [4]float32
+	world      World
 	red, alpha [4]float32
 	shore      *Shore
 	flow       *Flow
@@ -311,12 +322,13 @@ func (f *Frame) over(o *overlay) {
 		return
 	}
 	wu, wv := f.lastAtlas.White()
-	x0, y0, x1, y1 := o.box[0], o.box[1], o.box[2], o.box[3]
+	w := o.world
+	xs, ys := [4]float32{w[0][0], w[1][0], w[2][0], w[3][0]}, [4]float32{w[0][1], w[1][1], w[2][1], w[3][1]}
 	piece := func(first int, u0, v0, u1, v1 float32) {
 		for k, uv := range [4][2]float32{{u0, v0}, {u1, v0}, {u0, v1}, {u1, v1}} {
 			u, w := uv[0], uv[1]
 			v := ebiten.Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
-				ColorR: blend(o.red, u, w), ColorG: x0 + (x1-x0)*u, ColorB: y0 + (y1-y0)*w, ColorA: blend(o.alpha, u, w)}
+				ColorR: blend(o.red, u, w), ColorG: blend(xs, u, w), ColorB: blend(ys, u, w), ColorA: blend(o.alpha, u, w)}
 			if o.shore != nil {
 				c := o.shore.at(u, w)
 				v.Custom0, v.Custom1, v.Custom2, v.Custom3 = c.X, c.Y, c.Dist, c.Near

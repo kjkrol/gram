@@ -81,6 +81,8 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	stage.boardPlugin.Res.Logic.Board.Set(cell, wall)
 	slope := board.Relief{Corners: [4]float32{1, 2, 3, 4}}
 	stage.boardPlugin.Res.Logic.Board.SetRelief(cell, slope)
+	way := board.Way{Kind: board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land}, Width: 5, Links: 1 << 3}
+	stage.boardPlugin.Res.Logic.Board.SetWay(cell, way)
 	id, _ := stage.boardPlugin.CellEntity(cell)
 
 	if err := eng.Persistence().Save(basePath, ""); err != nil {
@@ -93,8 +95,11 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	if got := game2.boardPlugin.Res.Logic.Board.Kind(cell); got != wall {
-		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, wall)
+	if got := game2.boardPlugin.Res.Logic.Board.Kind(cell); got != way.Over(wall) {
+		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, way.Over(wall))
+	}
+	if got := game2.boardPlugin.Res.Logic.Board.Way(cell); got != way {
+		t.Errorf("Way(cell) after Load = %+v, want %+v", got, way)
 	}
 	if got := game2.boardPlugin.Res.Logic.Board.Relief(cell); got != slope {
 		t.Errorf("Relief(cell) after Load = %v, want %v", got, slope)

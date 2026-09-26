@@ -108,9 +108,10 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	}
 	// the rain runs off it to the sea in streams and rivers, cutting their channels
 	rivers, err := water.Drain(grid, ground, func(c board.CellID) bool { return !land[c] }, water.Config{
-		StreamAt: streamAt, RiverAt: riverAt, WideAt: wideAt,
-		Rain:        func(level float64) float64 { return 1 + level/100 }, // more on the heights
-		StreamDepth: 2, RiverDepth: 5, FordEvery: fordEvery, FordSlope: 0.15,
+		BrookAt: brookAt, StreamAt: streamAt, RiverAt: riverAt,
+		Rain:       func(level float64) float64 { return 1 + level/100 }, // more on the heights
+		BrookDepth: 1, StreamDepth: 2, RiverDepth: 5, FordEvery: fordEvery, FordSlope: 0.15,
+		WidthPerRoot: widthPerRoot, Meander: meander,
 	})
 	if err != nil {
 		panic(err)
@@ -118,6 +119,7 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 	heights := rivers.Carved(ground)
 
 	var cells []board.CellEntry
+	var ways []board.WayEntry
 	soils := map[board.CellID]string{}
 	for y := range GridHeight {
 		for x := range GridWidth {
@@ -129,17 +131,14 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 				hs[k] = heights(geom.NewVec(float64(x+d[0])*cw, float64(y+d[1])*ch))
 			}
 			fx, fy := float64(x)+0.5, float64(y)+0.5
-			kind := soil(hs, cw, inland(fx, fy), fx, fy)
-			switch rivers.Courses[cell(x, y)] {
-			case water.Stream:
-				kind = "stream"
-			case water.River:
-				kind = "river"
-			case water.Ford:
-				kind = "ford"
+			c := cell(x, y)
+			soils[c] = soil(hs, cw, inland(fx, fy), fx, fy)
+			cells = append(cells, board.CellEntry{Kind: soils[c], Cell: c})
+			// running water crosses the ground as a band down the middle of the cell
+			if course := rivers.Courses[c]; course != water.Dry {
+				ways = append(ways, board.WayEntry{Kind: courses[course], Cell: c,
+					Width: float32(rivers.Width(c, cw)), Links: rivers.Links(grid, c)})
 			}
-			soils[cell(x, y)] = kind
-			cells = append(cells, board.CellEntry{Kind: kind, Cell: cell(x, y)})
 		}
 	}
 
@@ -155,7 +154,8 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		for ring := 0; ring < 8; ring++ {
 			for oy := -ring; oy <= ring; oy++ {
 				for ox := -ring; ox <= ring; ox++ {
-					if s := soils[cell(sx+ox, sy+oy)]; s == "earth" || s == "sand" {
+					at := cell(sx+ox, sy+oy)
+					if s := soils[at]; (s == "earth" || s == "sand") && rivers.Courses[at] == water.Dry {
 						sx, sy = sx+ox, sy+oy
 						break search
 					}
@@ -164,8 +164,11 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		}
 		stops = append(stops, cell(sx, sy))
 	}
-	return board.Layout{Default: "water", Cells: cells, Heights: heights}, stops
+	return board.Layout{Default: "water", Cells: cells, Ways: ways, Heights: heights}, stops
 }
+
+// courses are the kinds of the ways running water lays across the ground.
+var courses = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford"}
 
 // soil is the ground of a cell whose corners stand at hs, w wide, in cells from the coast, at
 // (x, y): rock where it is steep or high, sand on the lowland by the sea and in dunes, earth
@@ -321,12 +324,14 @@ const (
 	coastRise  = 2.0
 	coastPlain = 15.0
 	stopsAt    = 0.78 // how far out to the coast the stops lie
-	// how much rain gathered makes a stream, a river and a river two cells wide, and every how
-	// many cells from its mouth a ford crosses a river
-	streamAt  = 50.0
-	riverAt   = 170.0
-	wideAt    = 600.0
-	fordEvery = 8
+	// how much rain gathered makes a brook, a stream and a river, every how many cells from its
+	// mouth a ford crosses a river, and how wide a course runs by the square root of its water
+	brookAt      = 30.0
+	streamAt     = 60.0
+	riverAt      = 170.0
+	fordEvery    = 8
+	widthPerRoot = 1.4
+	meander      = 6.0 // how far the draining nudges a cell's level, so courses wander
 	// rock stands where the ground rises rockSlope across a cell or tops rockHeight; sand lies
 	// within beachWidth cells of the sea, and in dunes where the lowland is flatter than duneSlope
 	rockSlope  = 0.5

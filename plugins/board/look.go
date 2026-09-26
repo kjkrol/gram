@@ -209,7 +209,7 @@ func (t *Tile) groundBeside(dx, dy int) ([4]float32, bool) {
 // by the sun where the ground slopes.
 type flatLook struct{}
 
-func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
+func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
 	// what sways is seen from above by its top, leaning with the wind
 	if amount, rise := t.Sway(); amount > 0 {
@@ -224,9 +224,10 @@ func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
 	f.Overcast(x0, y0, x1, y1)
 	if shine, lit, ok := t.Shine(); ok {
 		if flow, ok := t.Flow(); ok {
-			f.Stream(x0, y0, x1, y1, shine, lit, flow)
+			f.Stream(render.World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}, shine, lit, flow)
 		} else {
 			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
 		}
 	}
+	t.DrawWay(f, cam, 0)
 }

@@ -135,7 +135,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
 		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		// running water: a stream is waded through, a river only at a ford; its current is its slope
+		// running water, laid across the ground: a brook is stepped over, a stream waded through, a
+		// river crossed only at a ford; its current is its slope
+		board.CellKind{Name: board.Named("brook"), Cost: 1.3, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 60}.Costing(board.Water|board.Air, 1),
 		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 60}.Costing(board.Water|board.Air, 1),
 		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9, Flow: 45},
 		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 45}.Costing(board.Water|board.Air, 1),
@@ -322,6 +324,7 @@ func (m *mainScene) Layers() []render.Layer {
 		"earth":  {R: 110, G: 150, B: 75, A: 255},
 		"sand":   {R: 215, G: 195, B: 140, A: 255},
 		"rock":   {R: 130, G: 125, B: 120, A: 255},
+		"brook":  {R: 85, G: 140, B: 200, A: 255},
 		"stream": {R: 70, G: 125, B: 195, A: 255},
 		"river":  {R: 45, G: 100, B: 180, A: 255},
 		"ford":   {R: 105, G: 150, B: 195, A: 255},

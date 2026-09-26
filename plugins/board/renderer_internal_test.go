@@ -220,6 +220,85 @@ func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	}
 }
 
+// wayPieces draws brd from above and returns each tile's way pieces.
+func wayPieces(t *testing.T, brd *Board, w, h uint32) map[CellID][]WayPiece {
+	t.Helper()
+	got := map[CellID][]WayPiece{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got[t.ID] = append([]WayPiece(nil), t.Way()...) })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return world.DefaultSun })
+	compose(r, icamera.NewFromSpace(w, h, 0))
+	return got
+}
+
+// A stream straight across a cell is two bands from its middle to its sides, as wide as it is at
+// the middle and as the mean of it and its neighbour at the side, the water running down both.
+func TestTile_AWayIsBandsFromTheMiddleToEachNeighbourItRunsOnTo(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.quasi3D = true
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetHeights(func(p geom.Vec) float64 { return 20 - 0.5*p.X }) // falling east
+	at := func(x, y uint32) CellID { c, _ := grid.CellIndex(x, y); return c }
+	stream := CellKind{Allows: Land | Water, Shine: 1, Flow: 10}
+	west, east := Links(1<<2), Links(1<<3)
+	brd.SetWay(at(1, 1), Way{Kind: stream, Width: 4, Links: west | east})
+	brd.SetWay(at(0, 1), Way{Kind: stream, Width: 8, Links: east})
+
+	pieces := wayPieces(t, brd, 30, 30)[at(1, 1)]
+	if len(pieces) != 2 {
+		t.Fatalf("%d pieces, want the two bands and no square: the way runs straight", len(pieces))
+	}
+	want := map[float32]render.World{
+		20: {{15, 17}, {20, 17}, {15, 13}, {20, 13}}, // east: its own width at the far end, no way beyond
+		10: {{15, 13}, {10, 12}, {15, 17}, {10, 18}}, // west: the mean of 4 and 8 at the side
+	}
+	speed := float32(10 * math.Sqrt(0.5))
+	for _, p := range pieces {
+		if w, ok := want[p.World[1][0]]; !ok || p.World != w {
+			t.Errorf("band %v, want one of %v", p.World, want)
+		}
+		if z := p.Z[0]; math.Abs(float64(z-(20-0.5*p.World[0][0]))) > 1e-4 {
+			t.Errorf("band corner at %v stands at %v, want on the ground", p.World[0], z)
+		}
+		for k, f := range p.Flow {
+			if math.Abs(float64(f[0]-speed)) > 1e-4 || f[1] != 0 {
+				t.Errorf("band %v corner %d runs at %v, want %v eastward, down the slope", p.World[1], k, f, speed)
+			}
+		}
+	}
+	if len(wayPieces(t, brd, 30, 30)[at(2, 2)]) != 0 {
+		t.Error("a cell with no way drew pieces")
+	}
+}
+
+// A way running on slantwise reaches the corner the two cells share: within the cell as a band,
+// the last stretch, which reaches into the cells either side, as a piece across the corner. One that
+// ends in the cell gets a square at its middle.
+func TestTile_AWayRunsSlantwiseToTheCornerAndEndsInASquare(t *testing.T) {
+	grid := DefaultGrids{}.Square(3, 3, 10)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	c, _ := grid.CellIndex(1, 1)
+	brd.SetWay(c, Way{Kind: CellKind{Allows: Land}, Width: 2, Links: 1 << 7}) // south-east
+	pieces := wayPieces(t, brd, 30, 30)[c]
+	if len(pieces) != 3 {
+		t.Fatalf("%d pieces, want the band, the stretch across the corner and the square", len(pieces))
+	}
+	for _, at := range pieces[0].World {
+		if at[0] < 10 || at[0] > 20 || at[1] < 10 || at[1] > 20 || pieces[0].Across {
+			t.Errorf("the band within the cell reaches %v, out of it", at)
+		}
+	}
+	across := pieces[1]
+	end := [2]float32{(across.World[1][0] + across.World[3][0]) / 2, (across.World[1][1] + across.World[3][1]) / 2}
+	if !across.Across || across.Corner != [2]float32{20, 20} || math.Abs(float64(end[0]-20)) > 1e-4 || math.Abs(float64(end[1]-20)) > 1e-4 {
+		t.Errorf("the last stretch ends at %v, across %v at %v; want across the corner (20, 20)", end, across.Across, across.Corner)
+	}
+	if sq := pieces[2].World; sq != (render.World{{14, 14}, {16, 14}, {14, 16}, {16, 16}}) {
+		t.Errorf("the square is %v, want 2 wide round the middle", sq)
+	}
+}
+
 // wallInSun is a 6x3 board of level grass with a wall 10 tall at (3, 1), under a sun low in the
 // east: its shadow falls 50 to the west.
 func wallInSun(t *testing.T) (*Board, Grid, world.Sun) {

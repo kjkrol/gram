@@ -21,14 +21,9 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 		kinds[e.Cell] = e.Kind
 	}
 	for k, n := range count {
-		switch k {
-		case "earth", "sand", "rock", "stream", "river", "ford":
-		default:
-			t.Errorf("%d cells of %q on the island, want ground and running water alone", n, k)
+		if k != "earth" && k != "sand" && k != "rock" {
+			t.Errorf("%d cells of %q on the island, want earth, sand and rock alone", n, k)
 		}
-	}
-	if count["stream"] < 30 || count["river"]+count["ford"] < 5 {
-		t.Errorf("the island's running water %v, want streams and a river", count)
 	}
 	if count["earth"] < len(layout.Cells)/2 || count["sand"] < 30 || count["rock"] < 100 {
 		t.Errorf("the island's ground %v, want earth mostly, beaches and rocky heights", count)
@@ -54,11 +49,11 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 	land, wet := map[board.CellID]bool{}, map[[2]int]bool{}
 	for _, e := range layout.Cells {
 		land[e.Cell] = true
-		if e.Kind == "stream" || e.Kind == "river" || e.Kind == "ford" {
-			x, y, _ := grid.Coords(e.Cell)
-			for _, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-				wet[[2]int{int(x) + d[0], int(y) + d[1]}] = true // a channel's bed lies below the land
-			}
+	}
+	for _, w := range layout.Ways {
+		x, y, _ := grid.Coords(w.Cell)
+		for _, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+			wet[[2]int{int(x) + d[0], int(y) + d[1]}] = true // a channel's bed lies below the land
 		}
 	}
 	cliffs := 0
@@ -157,7 +152,10 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 	layout, stops := islandLayout(grid)
 	walk := map[board.CellID]bool{}
 	for _, e := range layout.Cells {
-		walk[e.Cell] = e.Kind != "river"
+		walk[e.Cell] = true
+	}
+	for _, w := range layout.Ways {
+		walk[w.Cell] = w.Kind != "river"
 	}
 	seen := map[board.CellID]bool{stops[0]: true}
 	queue := []board.CellID{stops[0]}
@@ -184,11 +182,8 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 func TestIslandLayout_HasAWaterfall(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _ := islandLayout(grid)
-	for _, e := range layout.Cells {
-		if e.Kind != "stream" && e.Kind != "river" {
-			continue
-		}
-		x, y, _ := grid.Coords(e.Cell)
+	for _, w := range layout.Ways {
+		x, y, _ := grid.Coords(w.Cell)
 		lo, hi := math.Inf(1), math.Inf(-1)
 		for _, d := range [4][2]uint32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 			h := layout.Heights(geom.NewVec(float64((x+d[0])*CellSize), float64((y+d[1])*CellSize)))
@@ -199,4 +194,26 @@ func TestIslandLayout_HasAWaterfall(t *testing.T) {
 		}
 	}
 	t.Error("no waterfall: the running water nowhere drops a cell's width")
+}
+
+// Brooks, streams and rivers run across the ground, each the wider the more water it carries, each
+// linked on to a neighbour.
+func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	layout, _ := islandLayout(grid)
+	count, width := map[string]int{}, map[string]float32{}
+	for _, w := range layout.Ways {
+		count[w.Kind]++
+		width[w.Kind] += w.Width
+		if w.Links == 0 || w.Width <= 0 || w.Width > CellSize {
+			t.Errorf("a %s at %v runs %v wide, links %b", w.Kind, w.Cell, w.Width, w.Links)
+		}
+	}
+	if count["brook"] < 30 || count["stream"] < 10 || count["river"]+count["ford"] < 5 {
+		t.Fatalf("running water %v, want brooks, streams and a river", count)
+	}
+	brook, stream, river := width["brook"]/float32(count["brook"]), width["stream"]/float32(count["stream"]), width["river"]/float32(count["river"])
+	if brook >= stream || stream >= river {
+		t.Errorf("brooks run %v wide, streams %v, rivers %v; want each wider than the last", brook, stream, river)
+	}
 }

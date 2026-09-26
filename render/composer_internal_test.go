@@ -365,7 +365,7 @@ func TestFrame_AStreamIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndThe
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
 	f.Sprite(Ground, 3, sheet{}, 0, dst, Even(0.5))
 	flow := Flow{{4, 0}, {8, 0}, {4, -2}, {8, -2}}
-	f.Stream(100, 200, 132, 232, 0.9, [4]float32{1, 0.5, 0, 0.25}, flow)
+	f.Stream(World{{100, 200}, {132, 200}, {100, 232}, {132, 232}}, 0.9, [4]float32{1, 0.5, 0, 0.25}, flow)
 	if f.Len() != 2 || len(f.items) != 1 {
 		t.Fatalf("%d pieces in %d items, want the sprite and its stream in one", f.Len(), len(f.items))
 	}
@@ -380,13 +380,36 @@ func TestFrame_AStreamIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndThe
 	}
 }
 
+// A stream over a slanted band carries each corner's place in the world, and a cloud's shadow laid
+// over it too.
+func TestFrame_AStreamAndItsShadowFollowTheCornersOfASlantedBand(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	f.Weather(Weather{Clouds: 0.5})
+	f.Sprite(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
+	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
+	f.OvercastAt(band)
+	f.Stream(band, 1, [4]float32{1, 1, 1, 1}, Flow{})
+	v := f.verts
+	if len(v) != 12 {
+		t.Fatalf("%d vertices, want the sprite's, its shadow's and its stream's", len(v))
+	}
+	for k, want := range band {
+		for _, o := range [][]ebiten.Vertex{v[4:8], v[8:12]} {
+			if got := [2]float32{o[k].ColorG, o[k].ColorB}; got != want {
+				t.Errorf("corner %d lies at %v, want %v", k, got, want)
+			}
+		}
+	}
+}
+
 func TestFrame_AStreamFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
 	f.SpriteRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	f.Stream(992, 0, 1008, 10, 1, [4]float32{1, 1, 1, 1}, Flow{{0, 0}, {16, 0}, {0, 0}, {16, 0}})
+	f.Stream(World{{992, 0}, {1008, 0}, {992, 10}, {1008, 10}}, 1, [4]float32{1, 1, 1, 1}, Flow{{0, 0}, {16, 0}, {0, 0}, {16, 0}})
 	v := f.verts
 	if len(v) != 16 {
 		t.Fatalf("%d vertices, want the two pieces' 8 and their streams' 8", len(v))

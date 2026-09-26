@@ -105,7 +105,8 @@ it does all day over the south in the isometric view (hence `sky.Config.NoonWay`
 default). The tile keeps
 its outline; the uniforms are written over in place, so a frame allocates nothing for them.
 
-Running water is a glint of its own. `Frame.Stream(box, shine, lit, flow)` lays the same quad with
+Running water is a glint of its own. `Frame.Stream(world, shine, lit, flow)` lays the same quad —
+over a piece of any shape, `render.World` saying where each corner lies — with
 5 plus the sun in alpha and, in `Custom0..1`, how fast the water runs at each corner
 (`render.Flow`, world units a second): the board hands it for a kind with a `Flow`
 (`board.Tile.Flow`), down the slope of the cell as fast as the Flow by the square root of the
@@ -113,6 +114,14 @@ slope, each corner the mean of the running cells meeting there. The shader has n
 ripples standing in the water carried down with the current, rougher the faster it runs, flecks
 of foam riding it so the way it runs shows whatever the sun, a sheen of the sky that follows the
 ripples, and white water from `whiteFrom` to `whiteFull`: a rapid, a waterfall off a cliff.
+A `board.Way` across a cell — a brook, a river — is drawn over its tile the same way
+(`board.Tile.DrawWay`): bands from the middle of the cell out to halfway to each neighbour it runs on
+to, a square where it turns, each projected corner by corner at the height of the ground under it,
+on a tier just over the tiles (`Ground+5`) — and the last stretch of a band running slantwise,
+which reaches into the cells either side of the corner, at the depth of the nearest of the four
+cells meeting there, as a piece lying across cells takes the depth of its nearest end —
+its clouds' shadows laid with `Frame.OvercastAt` and its water with `Frame.Stream`, running down the
+band.
 
 The weather is drawn the same way (`Frame.Weather`, which the board and the world set from
 `world.Weather`). `Frame.Overcast(box)` after a tile lays a quad over it — only under clouds —

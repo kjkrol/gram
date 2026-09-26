@@ -111,13 +111,28 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   Flow by the square root of the slope; `board.Tile.Flow` hands the current at each corner to
   `render.Frame.Stream`, whose shader carries ripples and flecks of foam down with it and turns
   it white where it runs fast: rapids and waterfalls.
+- Ways: `board.Way{Kind, Width, Links}`, what runs across a cell over its ground — a stream, a
+  river, a road — on every cell entity beside `Plot` and `Ground` (saved, and an effect may alter
+  it). Its kind decides who may cross the cell and what it costs (`Way.Over`; `Board.Kind` lays it
+  over the ground), the ground keeps the rest. `Board.Way`, `SetWay`, `Layout.Ways`
+  (`WayEntry`), `TerrainMap.Ways`; `board.Link` and `board.Toward` name a neighbour by the grid's
+  direction, the bits of `Links`. `Tile.Way` cuts it into bands from the cell's middle out to
+  halfway to each neighbour it runs on to, the width eased between cells, and a square where it
+  turns; `Tile.DrawWay` draws them over the tile, as water running down the band where the kind
+  shines.
+- `render.World`, where each corner of a piece lies in the world: `Frame.Stream` and the new
+  `Frame.OvercastAt` lay over a quad of any shape.
 - `plugins/board/water` drains a relief to the sea: `water.Drain(grid, heights, sea, Config)`
-  floods it from the sea up over a square grid's four neighbours, gathers the rain downstream and
-  lays streams, rivers (two cells wide where much has gathered) and fords across them;
-  `Network.Carved` cuts their beds, falling all the way to the sea, into the heights.
-- The islands have streams, rivers and fords worked out by plugins/board/water: a stream is
-  waded (2), a river crossed only at a ford (2.5); water leaving over the northern cliffs falls
-  into the sea. The lowland rises gently from the sea and swells, and the plateau is flat at 118.
+  floods it from the sea up over every neighbour of a square grid's cells, across the corners
+  too, each level nudged a little (`Meander`) so courses wander; gathers the rain downstream and
+  lays brooks, streams, rivers and fords across them. `Network.Links` and `Network.Width` (by the
+  square root of the water, a cell at most) are a course's way; `Network.Carved` cuts their beds,
+  falling all the way to the sea, into the heights.
+- The islands' running water is ways over their ground, worked out by plugins/board/water: a
+  brook is stepped over (1.3), a stream waded (2), a river crossed only at a ford (2.5), each the
+  wider the more water it carries and running slantwise where the land does; water leaving over
+  the northern cliffs falls into the sea. The lowland rises gently from the sea and swells, and
+  the plateau is flat at 118.
 - The islands' ground is earth, sand and rock, laid by the heights and the coast: rock where the
   ground is steep or high, sand on beaches and dunes behind them, earth elsewhere; sand (1.6) and
   rock (1.3) cost on top of the climb, and each has its snowy look. Stretches of sea cliff, most

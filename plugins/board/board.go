@@ -35,8 +35,10 @@ type cellStore struct {
 	ids    []uid.UID64
 	plots  *goke.Query
 	kinds  *goke.Query
+	ways   *goke.Query
 	plot   goke.Comp[Plot]
 	ground goke.Comp[Ground]
+	way    goke.Comp[Way]
 }
 
 var _ world.Ground = (*Board)(nil)
@@ -89,16 +91,17 @@ func (b *Board) CellEntity(c CellID) (uid.UID64, bool) {
 	return b.cells.ids[i], true
 }
 
-// Kind is c's terrain kind; off the board, the zero kind admitting nobody.
+// Kind is c's terrain kind as whoever crosses it meets it: its ground's, with a Way running across
+// it deciding who may and what it costs (Way.Over); off the board, the zero kind admitting nobody.
 func (b *Board) Kind(c CellID) CellKind {
 	if b.cells == nil {
-		return b.seed.Kind(c)
+		return b.seed.Ways[c].Over(b.seed.Kind(c))
 	}
 	i, ok := b.ordinal(c)
 	if !ok {
 		return CellKind{}
 	}
-	return b.groundOf(i).Kind
+	return b.wayOf(i).Over(b.groundOf(i).Kind)
 }
 
 // Set assigns c's terrain kind, taking effect immediately.

@@ -50,7 +50,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Cell](), goke.LoadComp[Mover](),
-		goke.LoadComp[Plot](), goke.LoadComp[Ground](),
+		goke.LoadComp[Plot](), goke.LoadComp[Ground](), goke.LoadComp[Way](),
 		goke.LoadComp[effects.Active](), goke.LoadComp[effects.Idle](),
 	}
 }

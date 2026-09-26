@@ -30,7 +30,7 @@ func valley() (board.Grid, func(geom.Vec) float64, func(board.CellID) bool) {
 	return grid, heights, sea
 }
 
-var cfg = water.Config{StreamAt: 8, RiverAt: 30, WideAt: 1e9, StreamDepth: 2, RiverDepth: 4, FordEvery: 4, FordSlope: 0.5}
+var cfg = water.Config{BrookAt: 4, StreamAt: 8, RiverAt: 30, BrookDepth: 1, StreamDepth: 2, RiverDepth: 4, FordEvery: 4, FordSlope: 0.5, WidthPerRoot: 1}
 
 // Every cell of land drains to the sea, the hollow's too, and the valley gathers a river.
 func TestDrain_EveryCellDrainsToTheSeaAndTheValleyGathersARiver(t *testing.T) {
@@ -128,5 +128,74 @@ func TestDrain_RefusesAGridOtherThanSquare(t *testing.T) {
 	grid := board.DefaultGrids{}.Hex(6, 6, size)
 	if _, err := water.Drain(grid, func(geom.Vec) float64 { return 1 }, func(board.CellID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
 		t.Errorf("Drain over a hex grid: %v, want ErrNotSquare", err)
+	}
+}
+
+// A valley running slantwise gathers a river running slantwise: its water goes down across the
+// corners of its cells, not round them in steps.
+func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(20, 20, size)
+	heights := func(p geom.Vec) float64 {
+		if p.X+p.Y >= 34*size {
+			return 0
+		}
+		return 8 + 0.4*(34*size-p.X-p.Y) + 0.6*math.Abs(p.X-p.Y)
+	}
+	sea := func(c board.CellID) bool { x, y, _ := grid.Coords(c); return x+y >= 33 }
+	n, err := water.Drain(grid, heights, sea, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slant, rivers := 0, 0
+	for c, k := range n.Courses {
+		if k != water.River && k != water.Ford {
+			continue
+		}
+		rivers++
+		x, y, _ := grid.Coords(c)
+		dx, dy, _ := grid.Coords(n.Down[c])
+		if dx != x && dy != y {
+			slant++
+		}
+	}
+	if rivers == 0 || slant*2 < rivers {
+		t.Errorf("%d of %d river cells run slantwise, want most down the slanting valley", slant, rivers)
+	}
+}
+
+// A course links down to where its water goes and up to each course draining into it, and runs
+// the wider the more water it gathers, a cell wide at most.
+func TestNetwork_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
+	grid, heights, sea := valley()
+	n, _ := water.Drain(grid, heights, sea, cfg)
+	kinds := map[water.Course]int{}
+	for c, k := range n.Courses {
+		kinds[k]++
+		links := n.Links(grid, c)
+		if l, _ := board.Link(grid, c, n.Down[c]); links&l == 0 {
+			t.Errorf("course %v does not link down to %v", c, n.Down[c])
+		}
+		for m, km := range n.Courses {
+			if km != water.Dry && n.Down[m] == c {
+				if l, _ := board.Link(grid, c, m); links&l == 0 {
+					t.Errorf("course %v does not link up to %v draining into it", c, m)
+				}
+			}
+		}
+		if w := n.Width(c, size); w <= 0 || w > size || w != min(math.Sqrt(n.Gathered[c]), size) {
+			t.Errorf("course %v gathering %v runs %v wide", c, n.Gathered[c], w)
+		}
+	}
+	if kinds[water.Brook] == 0 || kinds[water.Stream] == 0 || kinds[water.River]+kinds[water.Ford] == 0 {
+		t.Errorf("courses %v, want brooks, streams and a river", kinds)
+	}
+	var dry board.CellID
+	grid.EachCell(func(c board.CellID) {
+		if _, wet := n.Courses[c]; !wet && !sea(c) {
+			dry = c
+		}
+	})
+	if n.Links(grid, dry) != 0 || n.Width(dry, size) != 0 {
+		t.Error("a dry cell links on or has a width")
 	}
 }

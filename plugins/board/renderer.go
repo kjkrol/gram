@@ -36,6 +36,7 @@ type Renderer struct {
 	cellH   float64
 	state   *RenderState
 	outline []geom.Vec
+	ways    []WayPiece // the pieces of the last tile's Way
 	tile    Tile
 	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
 	seen  []uint32
@@ -85,6 +86,7 @@ type cellTop struct {
 	shine  float32
 	flow   float32
 	sway   float32
+	way    Way
 	sprite render.SpriteID
 	stamp  uint32
 }
@@ -191,6 +193,7 @@ func (l *Renderer) topOf(c CellID) *cellTop {
 	r := l.board.Relief(c)
 	rise := float32(kind.Height)
 	t.alt, t.shine, t.flow, t.sway, t.sprite, t.stamp = float32(r.Level()), float32(kind.Shine), float32(kind.Flow), float32(kind.Sway), kind.SpriteID, l.topStamp
+	t.way = l.board.Way(c)
 	if l.board.sloped() {
 		t.ground = r.Corners
 	} else {
