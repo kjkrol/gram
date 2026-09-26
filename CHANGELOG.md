@@ -192,9 +192,18 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   island-isometric-demo have days; a unit's shadow is capped at 6 units a unit of height, the sun
   on the horizon would cast it for ever.
 - `CellKind.Shine`: a shiny kind glints where its surface faces halfway between the sun and the
-  eye (`world.Sun.Glint`, `camera.Projection.Toward`), over ripples fixed for each corner, so a sea
-  sparkles in patches that move with the sun; the islands with heights give their water 0.9. A
-  save of an older Ground does not load.
+  eye (`camera.Projection.Toward`). The glint is worked out per pixel in the composer's shader
+  over small waves running across the surface as time goes by, so a sea twinkles under a high sun
+  and hardly at all under a low one; within 3 cells of a shore — the nearest cell that does not
+  shine — the waves turn to face it and roll in, arriving at different times along the coast, and
+  break into foam the last cell before it: the surf shows on every shore whatever the sun, dimmed
+  with the light at night. A look hands `Tile.Shine` and `Tile.Shore` to
+  `render.Frame.Glint` after the tile, which lays a quad of light over it; the board hands the
+  frame its sun (`Frame.Sun`). The islands with heights give their water 0.9. A save of an older
+  Ground does not load.
+- `sky.Config.NoonWay`: the way the sun stands at noon, its whole path turned with it; the south
+  by default. `sky.SunAt(t, noon)` is `Config.SunAt(t)`. island-isometric-demo has its noon in the
+  north-west, beyond the sea as the view looks, so the sea there glints.
 - A plugin can add lines to the telemetry: `render.Reporter`, handed to
   `TelemetryRenderer.With`; `sky.Plugin.Reporter` shows the time of day (and the pace when it is
   hurried or held) in both islands with heights.

@@ -158,7 +158,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.sky = sky.NewPlugin(s.world, sky.Config{})
+	// The noon sun stands over the north-west, beyond the sea as the view looks at it, so the water
+	// throws it back towards the eye.
+	s.sky = sky.NewPlugin(s.world, sky.Config{NoonWay: [2]float32{-1, -1}})
 	if err := ctx.Use(s.sky); err != nil {
 		return err
 	}

@@ -69,7 +69,7 @@ func (s *skySystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		// a hair over, so a time moved onto a step by halves is on it, not a rounding short of it
 		if step := int(day.Time*float32(s.cfg.Steps)+1e-3) % s.cfg.Steps; step != s.step {
 			s.step = step
-			s.world.SetSun(SunAt(float32(step)/float32(s.cfg.Steps), s.cfg.Noon))
+			s.world.SetSun(s.cfg.SunAt(float32(step) / float32(s.cfg.Steps)))
 		}
 		return
 	}

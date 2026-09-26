@@ -29,9 +29,12 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	corners := sloped(cam, x0, y0, x1, y1, top)
 	if t.Outlined {
 		f.Tile(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
-		return
+	} else {
+		f.Sprite(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
 	}
-	f.Sprite(render.Ground, depth, t.Atlas, sprite, corners, t.Light())
+	if shine, ok := t.Shine(); ok {
+		f.Glint(x0, y0, x1, y1, shine, t.Shore())
+	}
 }
 
 // sloped projects the four corners of a world box, each at its own height.

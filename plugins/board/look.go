@@ -1,8 +1,6 @@
 package board
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
@@ -77,17 +75,7 @@ func (t *Tile) Light() render.Shade {
 	}
 	sun := r.lighted
 	lit := t.sunlit()
-	shine := r.topOf(t.ID).shine
-	toward := r.camera.Projection().Toward()
-	at := [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}
-	corner := func(k int, dx, dy float32) float32 {
-		light := sun.Shaded(-dx, -dy, 1, lit[k])
-		if shine > 0 {
-			rx, ry := ripple(at[k][0], at[k][1])
-			light += sun.Glint(rx-dx, ry-dy, 1, toward, shine, lit[k])
-		}
-		return light
-	}
+	corner := func(k int, dx, dy float32) float32 { return sun.Shaded(-dx, -dy, 1, lit[k]) }
 	return render.Shade{
 		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
 		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
@@ -96,20 +84,23 @@ func (t *Tile) Light() render.Shade {
 	}
 }
 
-// rippleTilt is how far a shiny surface's ripples tilt it, as a slope.
-const rippleTilt = 0.25
-
-// ripple is the slope the ripples give a shiny surface at the world point (x, y): fixed for the
-// point, different from its neighbours', so the sun glints off some and not others.
-func ripple(x, y float32) (float32, float32) {
-	h := uint32(int32(math.Round(float64(x))))*73856093 ^ uint32(int32(math.Round(float64(y))))*19349663
-	h ^= h >> 13
-	h *= 0x5bd1e995
-	h ^= h >> 15
-	angle := float64(h&0xffff) / 0x10000 * 2 * math.Pi
-	tilt := rippleTilt * float32(h>>16) / 0x10000
-	return tilt * float32(math.Cos(angle)), tilt * float32(math.Sin(angle))
+// Shine is how much of the sun the tile's top throws back at the eye at its corners — its kind's
+// Shine where the sun reaches it, none at night — and false where the tile does not shine at all:
+// a kind without shine, a flat world. A Look hands it to [render.Frame.Glint] after the top's
+// sprite.
+func (t *Tile) Shine() (render.Shade, bool) {
+	shine := t.r.topOf(t.ID).shine
+	if shine <= 0 || !t.r.board.quasi3D {
+		return render.Shade{}, false
+	}
+	lit := t.sunlit()
+	return render.Shade{shine * lit[0], shine * lit[1], shine * lit[2], shine * lit[3]}, true
 }
+
+// Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
+// shine — the shore of the water the tile is part of — how far it is and how near; open water
+// beyond, and on a grid other than square. A Look hands it to [render.Frame.Glint] with the Shine.
+func (t *Tile) Shore() render.Shore { return t.r.shoreOf(t.X0, t.Y0, t.X1, t.Y1) }
 
 // sunlit is how much sun reaches each corner of the tile's top: all of it where the board casts no
 // shadows.
@@ -160,7 +151,10 @@ type flatLook struct{}
 func (flatLook) Cell(f *render.Frame, _ camera.Camera, t *Tile) {
 	if t.Outlined {
 		f.TileRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
-		return
+	} else {
+		f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
 	}
-	f.SpriteRect(render.Ground, 0, t.Atlas, t.Sprite(), t.X0, t.Y0, t.X1, t.Y1, t.Light())
+	if shine, ok := t.Shine(); ok {
+		f.Glint(t.X0, t.Y0, t.X1, t.Y1, shine, t.Shore())
+	}
 }

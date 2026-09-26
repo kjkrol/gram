@@ -160,6 +160,22 @@ the frame read them, stopped as soon as the line to the sun is above the highest
 cells of the view — two or three steps under a high sun. The first version sought every sample's
 cell and ground in the ECS and walked the whole 16 cells: 59.5 ms anew.
 
+## Shores — `Benchmark_Board_Shores`
+
+The board's renderer composing the whole of a 96×64 board of sea (shine 0.9) round islands 4 cells
+a side every 8 cells, from above — every cell of the sea within 3 of a shore, the worst case: warm,
+the shores kept from the frame before, and after a cell has changed, every shore worked out anew.
+Measured on 2026-09-26, three runs.
+
+| Shores | Frame composed |
+|:--|--:|
+| kept | 2.54 ms |
+| worked out anew | 4.89 ms |
+
+A corner of the grid is worked out once for the four tiles round it, over the cells as the frame
+read them, ring by ring outwards until no ring further out can be nearer. Worked out per tile, five
+distances a corner for the way to the shore and each cell's kind sought in the ECS, it took 21 ms.
+
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
 * **The world tick is the space rebuild plus a walk.** Moving 5,000 entities and handing the space

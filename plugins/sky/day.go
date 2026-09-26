@@ -17,14 +17,15 @@ type Day struct {
 }
 
 // Config is the day: how long a whole one takes at pace 1, the time a Stage starting fresh begins
-// at, how high the sun stands at noon (radians above the horizon), and in how many steps a day the
-// sun moves — the terrain's shadows are worked out anew at every step. Zero fields are 4 minutes,
-// 8 in the morning, 60° and 96 steps.
+// at, how high the sun stands at noon (radians above the horizon) and which way along the ground
+// (x, y), and in how many steps a day the sun moves — the terrain's shadows are worked out anew at
+// every step. Zero fields are 4 minutes, 8 in the morning, 60°, the south (0, 1) and 96 steps.
 type Config struct {
-	Length time.Duration
-	Start  float32
-	Noon   float32
-	Steps  int
+	Length  time.Duration
+	Start   float32
+	Noon    float32
+	NoonWay [2]float32
+	Steps   int
 }
 
 func (c Config) withDefaults() Config {
@@ -36,6 +37,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.Noon == 0 {
 		c.Noon = math.Pi / 3
+	}
+	if c.NoonWay == [2]float32{} {
+		c.NoonWay = [2]float32{0, 1}
 	}
 	if c.Steps <= 0 {
 		c.Steps = 96
@@ -50,15 +54,20 @@ const (
 	nightAmbient = 0.12
 )
 
-// SunAt is the sun at time of day t: rising in the east (+x) at 6, over the south (+y) at noon at
-// the height noon, setting in the west at 18, below the horizon at night; its strength and the
-// ambient light rise and fall with it.
-func SunAt(t, noon float32) world.Sun {
+// SunAt is the sun of the day c at time of day t: over NoonWay at noon at the height Noon, a
+// quarter turn round from it at 6 and at 18 — with noon in the south rising in the east (+x) and
+// setting in the west — below the horizon at night; its strength and the ambient light rise and
+// fall with it.
+func (c Config) SunAt(t float32) world.Sun {
+	c = c.withDefaults()
 	across := (float64(t) - 0.25) * 2 * math.Pi
-	up := float64(noon) * math.Sin(across)
+	up := float64(c.Noon) * math.Sin(across)
+	// the path over the south, turned round so its noon stands over NoonWay
+	turn := math.Atan2(float64(c.NoonWay[1]), float64(c.NoonWay[0])) - math.Pi/2
+	way := across + turn
 	dir := [3]float32{
-		float32(math.Cos(up) * math.Cos(across)),
-		float32(math.Cos(up) * math.Sin(across)),
+		float32(math.Cos(up) * math.Cos(way)),
+		float32(math.Cos(up) * math.Sin(way)),
 		float32(math.Sin(up)),
 	}
 	height := float32(math.Sin(up))

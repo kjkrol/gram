@@ -35,6 +35,8 @@
 // front by depth, ties by tier, so a mountain hides the route and the cone behind it while the
 // selection stays on top; otherwise the tier alone decides. Every piece is drawn with one shader, sampling a
 // sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
-// call. Ties keep the order pieces came in. [ProjectCorners] projects a world box at a height
+// call. Ties keep the order pieces came in. [Frame.Glint] lays over the sprite just added the
+// frame's sun ([Frame.Sun]) thrown back at the eye off small waves the shader runs across it,
+// turned to face a [Shore] near one: water. [ProjectCorners] projects a world box at a height
 // through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.
 package render

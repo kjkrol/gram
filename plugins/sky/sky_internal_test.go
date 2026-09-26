@@ -12,22 +12,39 @@ import (
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
+// defaults is the day of a zero Config.
+var defaults Config
+
 func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
-	noon := float32(math.Pi / 3)
-	if s := SunAt(0.25, noon); s.Dir[0] < 0.99 || !near(s.Dir[2], 0) || s.Strength != 0 {
+	if s := defaults.SunAt(0.25); s.Dir[0] < 0.99 || !near(s.Dir[2], 0) || s.Strength != 0 {
 		t.Errorf("at 6 the sun is %+v, want it on the eastern horizon, no strength yet", s)
 	}
-	if s := SunAt(0.5, noon); !near(s.Dir[1], 0.5) || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength || s.Ambient != dayAmbient {
+	if s := defaults.SunAt(0.5); !near(s.Dir[1], 0.5) || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength || s.Ambient != dayAmbient {
 		t.Errorf("at noon the sun is %+v, want it over the south 60° up at full strength", s)
 	}
-	if s := SunAt(0.75, noon); s.Dir[0] > -0.99 {
+	if s := defaults.SunAt(0.75); s.Dir[0] > -0.99 {
 		t.Errorf("at 18 the sun is %+v, want it on the western horizon", s)
 	}
-	if s := SunAt(0, noon); s.Dir[2] >= 0 || s.Strength != 0 || s.Ambient != nightAmbient {
+	if s := defaults.SunAt(0); s.Dir[2] >= 0 || s.Strength != 0 || s.Ambient != nightAmbient {
 		t.Errorf("at midnight the sun is %+v, want it below the horizon, the night's ambient alone", s)
 	}
-	if morning, noonSun := SunAt(0.3, noon), SunAt(0.5, noon); morning.Dir[2] >= noonSun.Dir[2] {
+	if morning, noonSun := defaults.SunAt(0.3), defaults.SunAt(0.5); morning.Dir[2] >= noonSun.Dir[2] {
 		t.Error("the morning sun stands as high as the noon sun")
+	}
+}
+
+func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
+	northWest := Config{NoonWay: [2]float32{-1, -1}}
+	s := northWest.SunAt(0.5)
+	if !near(s.Dir[0], s.Dir[1]) || s.Dir[0] >= 0 || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) {
+		t.Errorf("at noon the sun is %+v, want it over the north-west 60° up", s)
+	}
+	// a quarter turn round from noon at 6: south-west, as the east is from the south
+	if s := northWest.SunAt(0.25); !near(s.Dir[0], -s.Dir[1]) || s.Dir[1] <= 0 || !near(s.Dir[2], 0) {
+		t.Errorf("at 6 the sun is %+v, want it on the horizon in the south-west", s)
+	}
+	if s, south := northWest.SunAt(0.4), defaults.SunAt(0.4); s.Strength != south.Strength || s.Ambient != south.Ambient {
+		t.Errorf("turned round the sun lights %v/%v, want the same light as over the south %v/%v", s.Strength, s.Ambient, south.Strength, south.Ambient)
 	}
 }
 
@@ -63,15 +80,15 @@ func TestSky_TheDayGoesByAndTheSunFollowsItInSteps(t *testing.T) {
 		t.Fatalf("a fresh sky is at %+v, want noon at pace 1", d)
 	}
 	tick(time.Second / 60)
-	if w.Sun() != SunAt(0.5, math.Pi/3) {
+	if w.Sun() != defaults.SunAt(0.5) {
 		t.Errorf("the world's sun %+v, want noon's", w.Sun())
 	}
 	tick(time.Second / 2) // half an hour of a 24-second day: still the noon step
-	if w.Sun() != SunAt(0.5, math.Pi/3) {
+	if w.Sun() != defaults.SunAt(0.5) {
 		t.Error("the sun moved within a step")
 	}
 	tick(time.Second) // past one: the next step
-	if d := day(); !near(d.Time, 0.5+1.5/24+1.0/60/24) || w.Sun() != SunAt(13.0/24, math.Pi/3) {
+	if d := day(); !near(d.Time, 0.5+1.5/24+1.0/60/24) || w.Sun() != defaults.SunAt(13.0/24) {
 		t.Errorf("an hour and a half on the day is at %v and the sun %+v, want the step at 13", d.Time, w.Sun())
 	}
 }
@@ -115,7 +132,7 @@ func TestSky_AStoppedDayMovesByHalfAnHourAndGoesOnAtItsPace(t *testing.T) {
 	}
 	q.forward.Add(0, Forward{})
 	tick(0)
-	if w.Sun() != SunAt(13.0/24, math.Pi/3) { // the sun moves by the day's steps, hours here
+	if w.Sun() != defaults.SunAt(13.0/24) { // the sun moves by the day's steps, hours here
 		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", w.Sun())
 	}
 	q.back.Add(0, Back{})

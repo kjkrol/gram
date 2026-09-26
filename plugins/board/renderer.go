@@ -49,6 +49,17 @@ type Renderer struct {
 	sunFor   sunKey
 	highest  float32 // the highest top a shadow may come from, measured when the shadows go stale
 	stale    bool    // the shadows went stale this frame: highest is still to be measured
+	// shores holds by corner of a square grid, row by row, the way to the shore from it, good
+	// while its stamp is shoreStamp: as long as the terrain does not change.
+	shores     []cornerShore
+	shoreStamp uint32
+	shoreFor   uint64
+}
+
+// cornerShore is the shore as one corner of the grid sees it.
+type cornerShore struct {
+	corner render.ShoreCorner
+	stamp  uint32
 }
 
 // cellSunlit is how much of the sun reaches each corner of a cell's top, 0 to 1.
@@ -105,7 +116,9 @@ func (l *Renderer) Init(*goke.SysInit) {}
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	l.lighted = l.sun()
+	f.Sun(l.lighted.Dir, l.lighted.Strength)
 	l.nextSunlit()
+	l.nextShores()
 	look := l.look()
 	grid := l.gridShown()
 	square := l.board.square != nil
@@ -318,4 +331,115 @@ func (l *Renderer) measureHighest(cam camera.Camera) {
 			l.highest = max(l.highest, z)
 		}
 	})
+}
+
+// nextShores starts a Compose: when the terrain has changed since the last one, every shore is
+// worked out anew as it comes into sight.
+func (l *Renderer) nextShores() {
+	sq := l.board.square
+	if sq == nil {
+		return
+	}
+	version := l.board.Version()
+	if n := int(sq.Width+1) * int(sq.Height+1); len(l.shores) != n {
+		l.shores, l.shoreStamp = make([]cornerShore, n), 0
+	} else if version == l.shoreFor && l.shoreStamp != 0 {
+		return
+	}
+	l.shoreFor = version
+	if l.shoreStamp++; l.shoreStamp == 0 { // wrapped round: old results would pass for new
+		clear(l.shores)
+		l.shoreStamp = 1
+	}
+}
+
+// shoreReach is how many cells from a shore its waves turn to face it.
+const shoreReach = 3
+
+// shoreOf is the shore from each corner of the box x0..x1, y0..y1 of a cell: open water everywhere
+// off a square grid.
+func (l *Renderer) shoreOf(x0, y0, x1, y1 float32) render.Shore {
+	if l.board.square == nil {
+		return render.Shore{}
+	}
+	return render.Shore{l.shoreAt(x0, y0), l.shoreAt(x1, y0), l.shoreAt(x0, y1), l.shoreAt(x1, y1)}
+}
+
+// shoreAt is the shore from the grid's corner at (x, y), worked out the first time it is asked
+// for since the terrain changed.
+func (l *Renderer) shoreAt(x, y float32) render.ShoreCorner {
+	sq := l.board.square
+	size := float32(sq.CellSize)
+	gx, gy := int64(math.Round(float64(x/size))), int64(math.Round(float64(y/size)))
+	slot, ok := cornerSlot(gx, int64(sq.Width), sq.WrapX)
+	row, okY := cornerSlot(gy, int64(sq.Height), sq.WrapY)
+	if !ok || !okY {
+		return l.workShore(gx, gy, size)
+	}
+	s := &l.shores[row*(int64(sq.Width)+1)+slot]
+	if s.stamp != l.shoreStamp {
+		s.corner, s.stamp = l.workShore(gx, gy, size), l.shoreStamp
+	}
+	return s.corner
+}
+
+// cornerSlot is corner g of n cells along an axis, folded onto 0..n-1 when it wraps; false off the
+// grid.
+func cornerSlot(g, n int64, wrap bool) (int64, bool) {
+	if wrap {
+		return (g%n + n) % n, true
+	}
+	return g, g >= 0 && g <= n
+}
+
+// workShore is the way from the grid's corner gx, gy to the nearest cell within shoreReach that
+// does not shine, how far it is and how near; on the shore itself, the way into the land it
+// touches.
+func (l *Renderer) workShore(gx, gy int64, size float32) render.ShoreCorner {
+	reach := shoreReach * size
+	px, py := float32(gx)*size, float32(gy)*size
+	best, bx, by := reach*reach, float32(0), float32(0)
+	var ax, ay float32 // on the shore: towards the middles of the land cells touching the corner
+	look := func(cx, cy int64) {
+		c, ok := l.board.squareCell(cx, cy)
+		if !ok || l.topOf(c).shine > 0 {
+			return
+		}
+		x0, y0 := float32(cx)*size, float32(cy)*size
+		dx, dy := min(max(px, x0), x0+size)-px, min(max(py, y0), y0+size)-py
+		d := dx*dx + dy*dy
+		if d == 0 {
+			ax, ay = ax+x0+size/2-px, ay+y0+size/2-py
+		}
+		if d < best {
+			best, bx, by = d, dx, dy
+		}
+	}
+	// ring r is the cells r away from the four touching the corner, none of them nearer than r cells
+	for r := int64(0); r <= shoreReach; r++ {
+		if near := float32(r) * size; near*near >= best {
+			break
+		}
+		lo, hi := -1-r, r
+		for cx := lo; cx <= hi; cx++ {
+			look(gx+cx, gy+lo)
+			look(gx+cx, gy+hi)
+		}
+		for cy := lo + 1; cy < hi; cy++ {
+			look(gx+lo, gy+cy)
+			look(gx+hi, gy+cy)
+		}
+	}
+	if best >= reach*reach {
+		return render.ShoreCorner{Dist: reach}
+	}
+	d := float32(math.Sqrt(float64(best)))
+	if d == 0 {
+		bx, by = ax, ay
+	}
+	corner := render.ShoreCorner{Dist: d, Near: 1 - d/reach}
+	if n := float32(math.Hypot(float64(bx), float64(by))); n > 0 {
+		corner.X, corner.Y = bx/n, by/n
+	}
+	return corner
 }

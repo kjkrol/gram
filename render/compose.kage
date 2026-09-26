@@ -2,10 +2,24 @@
 
 package main
 
+// Sun is the way towards the sun, Toward the way towards the eye; Glint holds the time in seconds
+// and the sun's strength, for what glints in it.
+var Sun vec3
+var Toward vec3
+var Glint vec4
+
 // Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
 // asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
 // out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
+// A glint's vertex (alpha over 1.5) holds its shine in red, where it lies in the world in green and
+// blue, 2 plus the brightness of the tile under it in alpha and its shore in custom: the light it
+// throws back is added to the tile, the surf's foam laid over it.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
+	if color.a > 1.5 {
+		s := sea(color.gb, custom)
+		foam := s.y * (color.a - 2)
+		return vec4(vec3(color.r*s.x+foam), s.y)
+	}
 	faded := step(0.5, custom)
 	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
 	f := mix(vec4(1), ramp, faded)
@@ -18,5 +32,64 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	return vec4(c.rgb*(1-outlineDark*edge), c.a)
 }
 
+// sea is the sun thrown back at the eye by water at p, and how much foam covers it. Waves run
+// across it as time goes by; near a shore (the way to it, how far and how near) a swell comes in
+// facing it and breaks into foam the last stretch before it, whatever the sun.
+func sea(p vec2, shore vec4) vec2 {
+	t := Glint.x
+	slope := wave(p, vec2(1, 0.1), 53, 10, t)
+	slope += wave(p, vec2(0.3, 1), 41, 9, t)
+	slope += wave(p, vec2(-0.8, 0.6), 31, 8, t)
+	slope += wave(p, vec2(-0.6, -0.8), 23, 7, t)
+	slope += wave(p, vec2(0.7, -0.7), 17, 6, t)
+	slope += wave(p, vec2(1, 0.8), 13, 5, t)
+	slope += wave(p, vec2(-0.2, 1), 9, 4, t)
+	foam := 0.0
+	if way := length(shore.xy); way > 0.01 {
+		// the crests follow the shore: their phase is the distance to it, falling as they come in,
+		// shifted slowly along the coast so they do not reach it everywhere at once
+		d := shore.xy / way
+		drift := 2 * pi * (sin(p.x/173+p.y/241) + 0.5*sin(p.y/97-p.x/131))
+		phase := 2*pi/swellLength*(shore.z+swellSpeed*t) + drift
+		swell := d * (swellSlope * cos(phase))
+		swell += d * (swellSlope * 0.5 * cos(2.2*phase+1))
+		near := smoothstep(0, 1, clamp(shore.w, 0, 1))
+		slope = mix(slope, swell+slope*0.3, near)
+		// a crest breaks the last surfWidth before the shore, torn into patches
+		crest := smoothstep(0.2, 1, sin(phase))
+		breaking := 1 - smoothstep(0, surfWidth, shore.z)
+		torn := 0.6 + 0.4*sin(p.x*0.37+p.y*0.23+t)*sin(p.y*0.41-p.x*0.19-t*0.7)
+		foam = foamCover * crest * breaking * torn
+	}
+	n := normalize(vec3(-slope.x, -slope.y, 1))
+	h := normalize(normalize(Sun) + Toward)
+	return vec2(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1))
+}
+
+// wave is the slope at p of a wave running along way, length world units from crest to crest, at
+// speed world units a second.
+func wave(p vec2, way vec2, length float, speed float, t float) vec2 {
+	d := normalize(way)
+	k := 2 * pi / length
+	return d * (waveSlope * cos(k*(dot(p, d)-speed*t)))
+}
+
 // outlineDark is how much an outline darkens what it is drawn on.
 const outlineDark = 0.45
+
+// waveSlope is how steep a wave's side gets; glintSharpness how narrowly a glint gathers round the
+// perfect reflection.
+const waveSlope = 0.12
+const glintSharpness = 400
+
+// The swell coming ashore: how steep, how long from crest to crest and how fast, in world units.
+const swellSlope = 0.3
+const swellLength = 40
+const swellSpeed = 12
+
+// surfWidth is how far from the shore, in world units, a crest breaks; foamCover how much of the
+// water its foam covers at most.
+const surfWidth = 32
+const foamCover = 0.9
+
+const pi = 3.14159265

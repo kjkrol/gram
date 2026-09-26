@@ -80,6 +80,23 @@ wide. The grid of a square board is that: the tiles it is drawn on anyway, a few
 their vertices (CPU drawing of island-isometric-demo with the grid on: 2.5 ms with lines, 1.9 ms
 outlined; navigation-demo from above: 0.67 ms, 0.13 ms).
 
+What glints — a sea, ice — is worked out per pixel. `Frame.Glint(x0, y0, x1, y1, shine, shore)`
+after a sprite lays a quad over it on the same sheet, sampling its white texel: red is the shine,
+green and blue where each corner lies in the world, alpha 2 plus the brightness of the sprite under
+it (a colour's alpha is never over 1, so the shader tells them apart), `Custom0..3` the shore — the
+way to it, how far, how near. The shader tilts the surface there by seven small waves running in
+different directions, moved on by the composer's clock; near a shore the waves give way to a swell
+whose crests follow the distance to it, so they face the shore and roll in, their phase drifting
+slowly along the coast so they do not reach it everywhere at once. What the surface throws back of
+the frame's sun (`Frame.Sun`, which the board sets) towards the eye (`camera.Projection.Toward`),
+gathered tightly round the perfect reflection, is added to the tile. A glint alone would show the
+swell only where its slopes face halfway between the sun and the eye — never on a coast it runs
+across — so each crest also breaks into foam the last cell before the shore, as bright as the tile
+under it and laid over it with its own alpha: the surf shows on every shore, whatever the sun. Sparse points twinkle under
+a high sun and all but vanish under a low one — and none where the sun stands behind the eye, as
+it does all day over the south in the isometric view (hence `sky.Config.NoonWay`). The tile keeps
+its outline; the uniforms are written over in place, so a frame allocates nothing for them.
+
 ## 4. Sight on the ground
 
 The vision renderer hands its style a ring of `vision.ConePoint`s: the observer at its altitude,

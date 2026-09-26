@@ -97,3 +97,58 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		})
 	}
 }
+
+// Benchmark_Board_Shores composes the whole of a 96x64 board of sea round islands 4 cells a side,
+// every 8 cells, from above: warm, with the shores as they were, and after a cell has changed,
+// every shore worked out anew — what a frame pays when the terrain changes.
+func Benchmark_Board_Shores(b *testing.B) {
+	const w, h, size = 96, 64, 32
+	ctx := newHeadless()
+	ctx.UseWorld(world.Config{
+		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
+		Quasi3D:  true,
+	})
+	grid := board.DefaultGrids{}.Square(w, h, size)
+	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	if err := ctx.Use(p); err != nil {
+		b.Fatal(err)
+	}
+	brd := p.Res.Logic.Board
+	sea := board.CellKind{Cost: 1, Allows: board.Water, Shine: 0.9}
+	brd.SetAll(sea)
+	land := board.CellKind{Cost: 1, Allows: board.Land}
+	for y := range uint32(h) {
+		for x := range uint32(w) {
+			if c, _ := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
+				brd.Set(c, land)
+			}
+		}
+	}
+	atlas := render.NewAtlas()
+	atlas.RegisterAt(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Close()
+	p.WithRenderer(atlas)
+	ctx.start(b, func(goke.RunCtx, time.Duration) {})
+	src := p.Renderer().(render.Source)
+	cam := ctx.world.Camera()
+	var f render.Frame
+	far, _ := grid.CellIndex(6, 6)
+	shallows := sea
+	shallows.Cost = 2
+	for _, sc := range []struct {
+		name    string
+		changed bool
+	}{{"shores=warm", false}, {"shores=anew", true}} {
+		b.Run(sc.name, func(b *testing.B) {
+			for b.Loop() {
+				if sc.changed {
+					shallows.Cost = 3 - shallows.Cost // the terrain changes: every shore is stale
+					brd.Set(far, shallows)
+				}
+				f.Reset(cam)
+				src.Compose(&f, cam)
+			}
+		})
+	}
+}

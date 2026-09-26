@@ -193,7 +193,10 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Sprite(Ground, float32(i%7), a, 0, unit, Even(1))
 			f.Line(Overlays, float32(i%5), 0, 0, 5, 5, 1, white)
 			f.Soft(Overlays, 1, unit, black, Fade{Top: 3})
+			f.Tile(Ground, float32(i%7), a, 0, unit, Even(1))
+			f.Glint(0, 0, 32, 32, Even(1), Shore{})
 		}
+		f.Sun([3]float32{0, 0, 1}, 0.7)
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
@@ -307,5 +310,66 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	// the first piece's right side is the seam: 2 from the tile's left edge, 10 from its right
 	if v[1].Custom0 != -3 || v[1].Custom1 != -11 {
 		t.Errorf("at the seam the first piece gives %v %v, want -3 and -11: no outline along the seam", v[1].Custom0, v[1].Custom1)
+	}
+}
+
+func TestFrame_AGlintIsAQuadOverTheSpriteMarkedWithTheWorldTheShineAndTheShore(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Tile(Ground, 3, sheet{}, 0, dst, Even(0.5))
+	shore := Shore{{X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}, {X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}}
+	f.Glint(100, 200, 132, 232, Shade{1, 0.5, 0, 0.25}, shore)
+	if f.Len() != 2 || len(f.items) != 1 {
+		t.Fatalf("%d pieces in %d items, want the tile and its glint in one", f.Len(), len(f.items))
+	}
+	v := f.verts[4:]
+	for k, want := range [4][4]float32{{1, 100, 200, 2.5}, {0.5, 132, 200, 2.5}, {0, 100, 232, 2.5}, {0.25, 132, 232, 2.5}} {
+		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
+			t.Errorf("glint corner %d is %v, want its shine, where it lies and 2 plus the tile's brightness: %v", k, got, want)
+		}
+		if v[k].DstX != dst[k][0] || v[k].DstY != dst[k][1] || v[k].SrcX != 40 || v[k].SrcY != 40 {
+			t.Errorf("glint corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the white texel",
+				k, v[k].DstX, v[k].DstY, v[k].SrcX, v[k].SrcY)
+		}
+	}
+	if v[0].Custom0 != 1 || v[0].Custom2 != 8 || v[0].Custom3 != 0.75 || v[1].Custom2 != 40 {
+		t.Errorf("the glint carries the shore %v %v %v / %v, want the way, the distance and how near", v[0].Custom0, v[0].Custom2, v[0].Custom3, v[1].Custom2)
+	}
+	if f.verts[0].Custom0 != -1 {
+		t.Errorf("the tile lost its outline: %v", f.verts[0].Custom0)
+	}
+}
+
+func TestFrame_AGlintFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam.Translate(1000, 0)
+	var f Frame
+	f.Reset(cam)
+	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.Glint(992, 0, 1008, 10, Shade{0, 1, 0, 1}, Shore{})
+	v := f.verts
+	if len(v) != 16 {
+		t.Fatalf("%d vertices, want the two pieces' 8 and their glints' 8", len(v))
+	}
+	g := v[8:]
+	if g[1].ColorG != 1000 || g[1].ColorR != 0.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX {
+		t.Errorf("at the seam the glints lie at x %v and %v with shine %v, want 1000 both sides and halfway shine 0.5",
+			g[1].ColorG, g[4].ColorG, g[1].ColorR)
+	}
+}
+
+func TestComposer_HandsTheShaderTheFramesSunAndTheEye(t *testing.T) {
+	c := NewComposer(items(func(f *Frame) { f.Sun([3]float32{0.6, 0, 0.8}, 0.7) }))
+	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
+	c.compose(topDown())
+	c.render(nil)
+	if c.sun[0] != 0.6 || c.sun[2] != 0.8 || c.glint[1] != 0.7 || c.toward[2] != 1 {
+		t.Errorf("the shader is handed sun %v, strength %v, eye %v; want the frame's sun and the eye above", c.sun, c.glint[1], c.toward)
+	}
+	c.frame.Reset(topDown())
+	c.render(nil)
+	if c.glint[1] != 0 {
+		t.Errorf("a frame no one lit hands the shader a sun of strength %v, want 0: nothing glints", c.glint[1])
 	}
 }

@@ -233,23 +233,64 @@ func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
 	}
 }
 
-func TestTile_AShinyCellGlintsInTheSunOffItsRipples(t *testing.T) {
+func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
 	sea, _ := grid.CellIndex(1, 1)
-	brd.Set(sea, CellKind{Cost: 1, Allows: Water, Shine: 1})
-	sun := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3} // overhead, as the eye
-	lights := lightsOf(brd, sun)
 	grass, _ := grid.CellIndex(3, 3)
-	plain := lights[grass][0]
-	water := lights[sea]
-	for k, l := range water {
-		if l <= plain {
-			t.Errorf("water corner %d is lit %v, no brighter than grass %v", k, l, plain)
-		}
+	brd.Set(sea, CellKind{Cost: 1, Allows: Water, Shine: 0.8})
+	shines := func(sun world.Sun, quasi3D bool) map[CellID]render.Shade {
+		brd.quasi3D = quasi3D
+		out := map[CellID]render.Shade{}
+		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) {
+			if s, ok := t.Shine(); ok {
+				out[t.ID] = s
+			}
+		})
+		r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return sun })
+		compose(r, icamera.NewFromSpace(256, 256, 0))
+		return out
 	}
-	if water[0] == water[1] && water[1] == water[2] && water[2] == water[3] {
-		t.Errorf("water glints %v alike at every corner, want its ripples to tell them apart", water)
+	day := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
+	got := shines(day, true)
+	if got[sea] != render.Even(0.8) {
+		t.Errorf("the sea in the full sun shines %v, want its kind's 0.8 at every corner", got[sea])
+	}
+	if _, ok := got[grass]; ok {
+		t.Errorf("grass shines %v, want nothing", got[grass])
+	}
+	if got := shines(world.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (render.Shade{}) {
+		t.Errorf("at night the sea shines %v, want nothing thrown back: still water with its foam, none of the sun", got[sea])
+	}
+	if got := shines(day, false); len(got) > 0 {
+		t.Errorf("in a flat world %d cells shine, want none: it is drawn as its sprites are", len(got))
+	}
+}
+
+func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
+	grid := DefaultGrids{}.Square(10, 4, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Water, Shine: 1})
+	for y := range uint32(4) {
+		land, _ := grid.CellIndex(0, y)
+		brd.Set(land, CellKind{Cost: 1, Allows: Land}) // a coast along x = 32, the sea east of it
+	}
+	brd.quasi3D = true
+	shores := map[CellID]render.Shore{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { shores[t.ID] = t.Shore() })
+	sun := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, func() Look { return look }, func() world.Sun { return sun })
+	compose(r, icamera.NewFromSpace(320, 128, 0))
+	at := func(x uint32) render.Shore { c, _ := grid.CellIndex(x, 1); return shores[c] }
+
+	if c := at(1)[0]; c.Dist != 0 || c.Near != 1 || abs32(c.X+1) > 1e-4 || abs32(c.Y) > 1e-4 {
+		t.Errorf("on the coast a corner sees the shore %+v, want it right there to the west", c)
+	}
+	if c := at(2)[1]; abs32(c.Dist-64) > 1e-4 || abs32(c.Near-1.0/3) > 1e-4 || abs32(c.X+1) > 1e-4 {
+		t.Errorf("two cells out a corner sees the shore %+v, want it 64 to the west, a third near", c)
+	}
+	if c := at(6)[0]; c.Near != 0 || c.X != 0 || c.Y != 0 {
+		t.Errorf("out at sea a corner sees the shore %+v, want open water", c)
 	}
 }

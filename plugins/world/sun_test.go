@@ -47,25 +47,3 @@ func TestPlugin_SetSunLightsTheWorldWithIt(t *testing.T) {
 		t.Errorf("sun after SetSun %+v, want %+v", w.Sun(), dusk)
 	}
 }
-
-func TestSun_GlintsOnlyWhereTheSurfaceFacesHalfwayBetweenSunAndEye(t *testing.T) {
-	overhead := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
-	above := [3]float32{0, 0, 1}
-	if g := overhead.Glint(0, 0, 1, above, 1, 1); !near(g, 0.6) {
-		t.Errorf("a level mirror under the sun seen from above throws back %v, want the sun's whole 0.6", g)
-	}
-	if g := overhead.Glint(0.5, 0, 1, above, 1, 1); g > 0.01 {
-		t.Errorf("a surface tilted away from the reflection throws back %v, want next to nothing", g)
-	}
-	if g := overhead.Glint(0, 0, 1, above, 0.5, 1); !near(g, 0.3) {
-		t.Errorf("half the shine throws back %v, want half the glint", g)
-	}
-	if g := overhead.Glint(0, 0, 1, above, 1, 0); g != 0 {
-		t.Errorf("a surface in shadow throws back %v, want none", g)
-	}
-	// a low sun in the east and an eye above: the surface that throws it back leans east
-	east := world.Sun{Dir: [3]float32{1, 0, 1}, Strength: 0.6}
-	if lean, level := east.Glint(0.4, 0, 1, above, 1, 1), east.Glint(0, 0, 1, above, 1, 1); lean <= level {
-		t.Errorf("a surface leaning towards the sun throws back %v, a level one %v; want the leaning more", lean, level)
-	}
-}
