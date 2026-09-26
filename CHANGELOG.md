@@ -178,6 +178,10 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   come into sight — a walk towards the sun over the frame's tops, stopped above the highest top
   within 16 cells — and kept until the terrain or the sun changes: a 96x64 board anew in 2.2 ms,
   nothing on a frame after. `board.Plugin.WithShadows(false)` turns them off.
+- Units cast shadows: in a world with heights the world's renderer lays a soft patch under each
+  entity with a `Z`, away from the sun, stretched by its Height and pushed off by how far above the
+  ground it stands, over the ground and under what stands. The renderer's Drawing accessor is bound
+  once, so a frame allocates no method value per chunk.
 - `render.Shade`, a brightness per corner, blended across a piece: `Frame.Sprite`, `Tile`,
   `SpriteRect`, `SpriteRectUV` and `TileRect` take one (`render.Even(1)` draws a sprite as it is).
 

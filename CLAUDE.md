@@ -153,7 +153,9 @@ for upright faces) and both looks draw with it, so a top-down map shows its reli
 `render.Shade` per corner. The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
 per tile corner, a walk towards the sun over the tops of the cells as the frame read them, stopped
 above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
-the renderer until `Board.Version` or the sun changes. A flat world is drawn as its sprites are. The renderers keep
+the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
+world renderer lays on the ground away from the sun (tier `Ground+20`), stretched by their height
+and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are. The renderers keep
 their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
 the camera. Heights (`Quasi3D`) are the model and work in either view. `plugin`
