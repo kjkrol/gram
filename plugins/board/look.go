@@ -1,8 +1,6 @@
 package board
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
@@ -14,6 +12,25 @@ import (
 type Look interface {
 	// Cell hands f the visible cell t.
 	Cell(f *render.Frame, cam camera.Camera, t *Tile)
+}
+
+// Dressing is what a plugin lays over the board's tiles beyond their sprites (plugins/landscape):
+// the light on them and whatever lies on them, given its turn by the board's renderer and its
+// Look. A board without one draws its sprites in even light and nothing over them.
+type Dressing interface {
+	// Begin readies the dressing for a frame through cam, before any tile.
+	Begin(f *render.Frame, cam camera.Camera)
+	// Sheet is what the tiles are drawn from this frame, the board's atlas given: it, or a sheet
+	// of the dressing's with the atlas's sprites where they are on it and more.
+	Sheet(atlas render.AtlasSource) render.AtlasSource
+	// Base is the sprite t's top is drawn in first.
+	Base(t *Tile) render.SpriteID
+	// Light is the light on t's top at its corners.
+	Light(t *Tile) render.Shade
+	// FaceLight is the light on t's upright face looking dx, dy cells away.
+	FaceLight(t *Tile, dx, dy int) render.Light
+	// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it.
+	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32)
 }
 
 // Tile is one visible cell as the board's renderer hands it to a Look, good for that call.
@@ -30,10 +47,14 @@ type Tile struct {
 // Sprite is the sprite of the cell's kind.
 func (t *Tile) Sprite() render.SpriteID { return t.r.topOf(t.ID).sprite }
 
-// Base is the sprite the tile's top is drawn in first: its own kind's, or the kind Under it where
-// the tile spreads and touches one — the sea by a coast — its own kind then laid over it by
-// DrawBlends along the line the cells draw.
-func (t *Tile) Base() render.SpriteID { return t.r.base(t.ID).sprite }
+// Base is the sprite the tile's top is drawn in first: its own kind's, unless the Dressing says
+// otherwise — the sea under a coast.
+func (t *Tile) Base() render.SpriteID {
+	if d := t.r.dressing(); d != nil {
+		return d.Base(t)
+	}
+	return t.Sprite()
+}
 
 // Top is the height of the tile's corners — top-left, top-right, bottom-left, bottom-right — with
 // its kind standing on them, and its ground level.
@@ -53,104 +74,29 @@ func (t *Tile) Beside(dx, dy int) [4]float32 {
 	return t.r.topOf(c).z
 }
 
-// Light is the light the world's sun casts on the tile's top at its corners, from the slope of
-// the ground there — the tile's own corners and its neighbours', so slopes run on smoothly from
-// tile to tile; what stands on the cell is lit as the ground under it. A flat world keeps its
-// sprites' colours on level ground and shows the relief by its slopes alone.
+// Light is the light on the tile's top at its corners: the Dressing's, even without one.
 func (t *Tile) Light() render.Shade {
-	r := t.r
-	g := r.topOf(t.ID).ground
-	left, lok := t.groundBeside(-1, 0)
-	right, rok := t.groundBeside(1, 0)
-	up, uok := t.groundBeside(0, -1)
-	down, dok := t.groundBeside(0, 1)
-	w, h := t.X1-t.X0, t.Y1-t.Y0
-	// the ground's rise along x and y at each corner, from the corners either side of it
-	slope := func(ahead, behind float32, aok, bok bool, own0, own1, step float32) float32 {
-		switch {
-		case aok && bok:
-			return (ahead - behind) / (2 * step)
-		case aok:
-			return (ahead - own0) / step
-		case bok:
-			return (own1 - behind) / step
-		}
-		return (own1 - own0) / step
+	if d := t.r.dressing(); d != nil {
+		return d.Light(t)
 	}
-	sun := r.lamp
-	lit := t.sunlit()
-	corner := func(k int, dx, dy float32) render.Light { return sun.Shaded(-dx, -dy, 1, lit[k]) }
-	if !r.board.quasi3D {
-		level := sun.Shaded(0, 0, 1, 1)
-		corner = func(_ int, dx, dy float32) render.Light {
-			l := sun.Shaded(-dx, -dy, 1, 1)
-			return render.Light{l[0] / level[0], l[1] / level[1], l[2] / level[2]}
-		}
-	}
-	return render.Shade{
-		corner(0, slope(g[1], left[0], true, lok, g[0], g[1], w), slope(g[2], up[0], true, uok, g[0], g[2], h)),
-		corner(1, slope(right[1], g[0], rok, true, g[0], g[1], w), slope(g[3], up[1], true, uok, g[1], g[3], h)),
-		corner(2, slope(g[3], left[2], true, lok, g[2], g[3], w), slope(down[2], g[0], dok, true, g[0], g[2], h)),
-		corner(3, slope(right[3], g[2], rok, true, g[2], g[3], w), slope(down[3], g[1], dok, true, g[1], g[3], h)),
-	}
+	return render.Even(1)
 }
 
-// Shine is how shiny the tile's top is — its kind's Shine — and how much of the sun reaches each of
-// its corners, none at night; false where the tile does not shine at all: a kind without shine, a
-// flat world. A Look hands them to [render.Frame.Glint] after the top's sprite.
-func (t *Tile) Shine() (shine float32, lit [4]float32, ok bool) {
-	shine = t.r.base(t.ID).shine
-	if shine <= 0 || !t.r.board.quasi3D {
-		return 0, lit, false
+// FaceLight is the light on an upright face of the tile looking dx, dy cells away — towards a
+// neighbour it stands above: the Dressing's, even without one.
+func (t *Tile) FaceLight(dx, dy int) render.Light {
+	if d := t.r.dressing(); d != nil {
+		return d.FaceLight(t, dx, dy)
 	}
-	return shine, t.sunlit(), true
+	return render.Light{1, 1, 1}
 }
 
-// Flow is how fast the water on the tile runs at each of its corners: down the slope of each cell
-// of running water meeting there, as fast as its kind's Flow by the square root of the slope,
-// the cells' runs averaged; banks that do not run count for nothing, so the current neither turns
-// into them nor breaks between two tiles. False where the tile's water is still, off a square grid.
-func (t *Tile) Flow() (render.Flow, bool) {
-	r := t.r
-	sq := r.board.square
-	if sq == nil || r.base(t.ID).flow <= 0 {
-		return render.Flow{}, false
+// Dress lays over the tile's top, just drawn over the box x0..x1, y0..y1 at depth, what the
+// Dressing has lie on it; nothing without one.
+func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1, depth float32) {
+	if d := t.r.dressing(); d != nil {
+		d.Dress(f, cam, t, x0, y0, x1, y1, depth)
 	}
-	x, y := sq.cellXY(t.ID)
-	w, h := r.board.CellBounds()
-	var out render.Flow
-	for k, d := range [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-		n := 0
-		for _, o := range [4][2]int64{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
-			c, ok := r.board.squareCell(int64(x)+d[0]+o[0], int64(y)+d[1]+o[1])
-			if !ok {
-				continue
-			}
-			top := r.topOf(c)
-			if top.flow <= 0 {
-				continue
-			}
-			vx, vy := runOf(top.ground, top.flow, float32(w), float32(h))
-			out[k][0], out[k][1], n = out[k][0]+vx, out[k][1]+vy, n+1
-		}
-		if n > 0 {
-			out[k][0], out[k][1] = out[k][0]/float32(n), out[k][1]/float32(n)
-		}
-	}
-	return out, true
-}
-
-// runOf is how fast water runs over a cell whose corners stand at g, w by h, running at flow down a
-// slope of 1 in 1: down its slope, by the square root of it.
-func runOf(g [4]float32, flow, w, h float32) (vx, vy float32) {
-	gx := (g[1] - g[0] + g[3] - g[2]) / (2 * w)
-	gy := (g[2] - g[0] + g[3] - g[1]) / (2 * h)
-	slope := float32(math.Hypot(float64(gx), float64(gy)))
-	if slope == 0 {
-		return 0, 0
-	}
-	speed := flow * float32(math.Sqrt(float64(slope)))
-	return -gx / slope * speed, -gy / slope * speed
 }
 
 // Sway is how much what stands on the cell bends in the wind — its kind's Sway — and how high it
@@ -163,55 +109,8 @@ func (t *Tile) Sway() (amount, rise float32) {
 	return c.sway, c.z[0] - c.ground[0]
 }
 
-// Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
-// shine — the shore of the water the tile is part of — how far it is and how near; open water
-// beyond, and on a grid other than square. A Look hands it to [render.Frame.Glint] with the Shine.
-func (t *Tile) Shore() render.Shore { return t.r.shoreOf(t.X0, t.Y0, t.X1, t.Y1) }
-
-// sunlit is how much sun reaches each corner of the tile's top: all of it where the board casts no
-// shadows.
-func (t *Tile) sunlit() [4]float32 {
-	r := t.r
-	if !r.shadows || !r.board.sloped() {
-		return [4]float32{1, 1, 1, 1}
-	}
-	return r.sunlitOf(t.ID, t.X0, t.Y0, t.X1, t.Y1)
-}
-
-// FaceLight is the light the world's sun casts on an upright face of the tile looking dx, dy
-// cells away — towards a neighbour it stands above — as much in the sun as the top's edge over it.
-func (t *Tile) FaceLight(dx, dy int) render.Light {
-	if !t.r.board.quasi3D {
-		return render.Light{1, 1, 1}
-	}
-	lit := t.sunlit()
-	var edge float32
-	switch {
-	case dx > 0:
-		edge = (lit[1] + lit[3]) / 2
-	case dx < 0:
-		edge = (lit[0] + lit[2]) / 2
-	case dy > 0:
-		edge = (lit[2] + lit[3]) / 2
-	default:
-		edge = (lit[0] + lit[1]) / 2
-	}
-	return t.r.lamp.Shaded(float32(dx), float32(dy), 0, edge)
-}
-
-// groundBeside is the ground's corners of the cell dx, dy cells away; false off the board.
-func (t *Tile) groundBeside(dx, dy int) ([4]float32, bool) {
-	w, h := t.X1-t.X0, t.Y1-t.Y0
-	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
-	c, ok := t.r.board.CellAt(geom.NewVec(float64(x), float64(y)))
-	if !ok {
-		return [4]float32{}, false
-	}
-	return t.r.topOf(c).ground, true
-}
-
-// flatLook is the board seen from above: each cell's sprite over its box, split at a wrap seam, lit
-// by the sun where the ground slopes.
+// flatLook is the board seen from above: each cell's sprite over its box, split at a wrap seam, in
+// the Dressing's light and dressed by it.
 type flatLook struct{}
 
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
@@ -226,14 +125,5 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	} else {
 		f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	}
-	f.Overcast(x0, y0, x1, y1)
-	if shine, lit, ok := t.Shine(); ok {
-		if flow, ok := t.Flow(); ok {
-			f.Stream(render.World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}, shine, lit, flow)
-		} else {
-			f.Glint(x0, y0, x1, y1, shine, lit, t.Shore())
-		}
-	}
-	t.DrawBlends(f, cam, 0)
-	t.DrawWay(f, cam, 0)
+	t.Dress(f, cam, x0, y0, x1, y1, 0)
 }

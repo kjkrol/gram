@@ -2,12 +2,16 @@ package bench_test
 
 import (
 	"image/color"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/water"
+	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/landscape"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -64,6 +68,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
+	landscape.NewPlugin(p, ctx.world) // the terrain's shadows are the landscape's
 	brd := p.Res.Logic.Board
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	brd.SetHeights(board.MeanOfCells(grid, func(c board.CellID) float64 {
@@ -116,7 +121,8 @@ func Benchmark_Board_Shores(b *testing.B) {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
-	sea := board.CellKind{Cost: 1, Allows: board.Water, Shine: 0.9}
+	sea := board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water}
+	landscape.NewPlugin(p, ctx.world).Style("sea", landscape.Style{Shine: 0.9})
 	brd.SetAll(sea)
 	land := board.CellKind{Cost: 1, Allows: board.Land}
 	for y := range uint32(h) {
@@ -153,5 +159,152 @@ func Benchmark_Board_Shores(b *testing.B) {
 				src.Compose(&f, cam)
 			}
 		})
+	}
+}
+
+// island seeds a 96x64 board of cells 32 wide with an island in a sea lying Under it: earth, sand
+// by the coast and rock on the heights, blending, with the streams and rivers water.Drain works
+// out of its heights laid across it as ways, running out to sea; seen from above, or isometric;
+// near, a cell 32 pixels across, or far, the whole island on a screen of 576 by 384.
+func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source) {
+	const w, h, size = 96, 64, 32
+	ctx := newHeadless()
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
+		Quasi3D:  true,
+	}
+	if far {
+		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384
+	}
+	ctx.UseWorld(cfg)
+	var view *isometry.Plugin
+	if iso {
+		view = isometry.NewPlugin(ctx.world, isometry.Config{Cell: size, HeightUnit: 1})
+	}
+	grid := board.DefaultGrids{}.Square(w, h, size)
+	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	kinds := p.CellKindDict()
+	kinds.Create(
+		board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water},
+		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land},
+		board.CellKind{Name: board.Named("sand"), Cost: 1, Allows: board.Land},
+		board.CellKind{Name: board.Named("rock"), Cost: 1, Allows: board.Land},
+		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water},
+		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water},
+	)
+	landscape.NewPlugin(p, ctx.world).
+		Style("sea", landscape.Style{Shine: 0.9, Under: true}).
+		Style("earth", landscape.Style{Spread: 0.3}).
+		Style("sand", landscape.Style{Spread: 0.35}).
+		Style("rock", landscape.Style{Spread: 0.25}).
+		Style("stream", landscape.Style{Shine: 0.9, Flow: 60}).
+		Style("estuary", landscape.Style{Shine: 0.9, Flow: 45})
+	if err := ctx.Use(p); err != nil {
+		b.Fatal(err)
+	}
+	if iso {
+		if err := ctx.Use(view.WithBoard(p)); err != nil {
+			b.Fatal(err)
+		}
+	}
+	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast, below it at sea
+		dx, dy := (x-w/2)/34, (y-h/2)/22
+		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
+	}
+	land := map[board.CellID]bool{}
+	grid.EachCell(func(c board.CellID) {
+		x, y, _ := grid.Coords(c)
+		land[c] = inside(float64(x)+0.5, float64(y)+0.5) > 0
+	})
+	heights := func(q geom.Vec) float64 {
+		x, y := q.X/size, q.Y/size
+		for _, d := range [4][2]float64{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
+			if c, ok := grid.CellAt(geom.NewVec((x+d[0])*size, (y+d[1])*size)); !ok || !land[c] {
+				return 0
+			}
+		}
+		in := inside(x, y)
+		return 8 + 160*in*in*(0.7+0.3*math.Sin(x/3)*math.Cos(y/4)) + 10*math.Sin(x/2+y/3)
+	}
+	rivers, err := water.Drain(grid, heights, func(c board.CellID) bool { return !land[c] }, water.Config{
+		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,
+		WidthPerRoot: 1.4, Meander: 6, Plume: 0.25,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	layout := board.Layout{Default: "sea", Heights: rivers.Carved(heights)}
+	grid.EachCell(func(c board.CellID) {
+		if land[c] {
+			at := grid.CellCenter(c)
+			kind := "earth"
+			switch in := inside(at.X/size, at.Y/size); {
+			case in < 0.08:
+				kind = "sand"
+			case heights(at) > 110:
+				kind = "rock"
+			}
+			layout.Cells = append(layout.Cells, board.CellEntry{Kind: kind, Cell: c})
+		}
+		if course := rivers.Courses[c]; course != water.Dry {
+			kind := "stream"
+			if course == water.Mouth {
+				kind = "estuary"
+			}
+			layout.Ways = append(layout.Ways, board.WayEntry{Kind: kind, Cell: c, Width: float32(rivers.Width(c, size)),
+				Links: rivers.Links(grid, c), Fade: float32(rivers.Fade(c))})
+		}
+	})
+	p.Seed(layout)
+	atlas := render.NewAtlas()
+	for _, k := range kinds.All() {
+		atlas.RegisterAt(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
+	}
+	atlas.Close()
+	p.WithRenderer(atlas)
+	ctx.start(b, func(goke.RunCtx, time.Duration) {})
+	if far {
+		ctx.world.Camera().ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
+	}
+	return ctx, p.Res.Logic.Board, p.Renderer().(render.Source)
+}
+
+// Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
+// far: warm, and after a cell ashore has changed — what a frame pays for the ground blending, the
+// coast and the running water.
+func Benchmark_Board_Island(b *testing.B) {
+	for _, v := range []struct{ iso, far bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		ctx, brd, src := island(b, v.iso, v.far)
+		cam := ctx.world.Camera()
+		far, _ := brd.CellIndex(48, 32)
+		rock, _ := brd.CellIndex(48, 30)
+		view := "above"
+		if v.iso {
+			view = "iso"
+		}
+		if v.far {
+			view += ",far"
+		}
+		var f render.Frame
+		for _, changed := range []bool{false, true} {
+			name := view + ",warm"
+			if changed {
+				name = view + ",changed"
+			}
+			b.Run(name, func(b *testing.B) {
+				for i := 0; b.Loop(); i++ {
+					if changed {
+						if i%2 == 0 {
+							brd.Set(far, brd.Kind(rock))
+						} else {
+							brd.Set(far, brd.Kind(far))
+						}
+					}
+					f.Reset(cam)
+					src.Compose(&f, cam)
+				}
+			})
+		}
 	}
 }

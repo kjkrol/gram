@@ -2,9 +2,10 @@
 
 package main
 
-// Sun is the way towards the sun, Toward the way towards the eye; Glint holds the time in seconds
-// and the sun's strength, for what glints in it; SunColor, SkyColor and Ambience are the colours of
-// the sun, of the sky and of the light every surface gets from it.
+// The frame's daylight: Sun is the way towards the sun, Toward the way towards the eye; Glint holds
+// the time in seconds, the sun's strength and how many world units a pixel spans; SunColor,
+// SkyColor and Ambience are the colours of the sun, of the sky and of the light every surface gets
+// from it.
 var Sun vec3
 var Toward vec3
 var Glint vec4
@@ -12,8 +13,8 @@ var SunColor vec3
 var SkyColor vec3
 var Ambience vec3
 
-// Wind blows in world units a second, Drift is how far it has carried the clouds; Weather holds
-// how much of the sky the clouds cover, 0 to 1.
+// The frame's weather: Wind blows in world units a second, Drift is how far it has carried the
+// clouds; Weather holds how much of the sky the clouds cover, 0 to 1.
 var Wind vec2
 var Drift vec2
 var Weather vec4
@@ -21,172 +22,45 @@ var Weather vec4
 // Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
 // asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
 // out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
-// A glint's vertex (alpha over 1.5) holds its shine in red, where it lies in the world in green and
-// blue, 2 plus how much of the sun reaches it in alpha and its shore in custom: the sky it reflects
-// and the surf's foam are laid over the tile under it, the sun it throws back added.
-// The clouds' shadow on the ground (alpha over 3.5) holds where it lies in green and blue, and in
-// red and custom how faint the sprite under it is and how it fades or blends: it darkens that
-// sprite as much as the clouds over it take of the sun.
 // A blended sprite (the last custom over 5.5, 10 plus how soft) holds its weight in alpha: it shows
-// where the weight is over a half.
-// Running water (alpha over 4.5) is a glint whose alpha starts from 5 and whose custom holds how
-// fast it runs, along x and y — and over a blended sprite that sprite's weight and softness in z
-// and w: carried ripples and white water instead of a shore's swell.
+// where the weight is over a half. An overlay (alpha over 1.5, 2 plus twice its material's number
+// plus a fraction 0 to 1 it reads) is its material's to work out: where it lies in the world in
+// green and blue, what the material reads in red, the fraction and custom — see material.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
-	if color.a > 4.5 {
-		shine, lit := color.r, color.a-5
-		s := stream(color.gb, custom.xy)
-		c := water(shine, lit*(1-clouds(color.gb)), s)
-		if custom.w > 5.5 {
-			// over a blended sprite: only where it shows
-			c *= smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), custom.z)
-		}
-		return c
-	}
-	if color.a > 3.5 {
-		under := mix(vec4(1), smoothstep(0, 1, clamp(custom-1, 0, 1)), step(0.5, custom))
-		weight := color.r * under.x * under.y * under.z * under.w
-		if custom.w > 5.5 {
-			weight = smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), color.r)
-		}
-		shadow := cloudDark * clouds(color.gb) * clamp(Glint.y*1.4, 0, 1) * weight
-		return vec4(0, 0, 0, shadow)
-	}
 	if color.a > 1.5 {
-		shine, lit := color.r, color.a-2
-		s := sea(color.gb, custom)
-		return water(shine, lit*(1-clouds(color.gb)), s)
+		k := floor((color.a - 2) / 2)
+		return material(k, color.gb, color.r, color.a-2-2*k, custom)
 	}
 	if custom.w > 5.5 {
 		// a blended sprite: shown where its weight is over a half, fading in round it
-		a := smoothstep(0.5-(custom.w-10), 0.5+(custom.w-10), color.a)
+		a := blended(color.a, custom.w)
 		c := imageSrc0At(src)
 		return vec4(c.rgb*color.rgb*a, c.a*a)
 	}
-	faded := step(0.5, custom)
-	ramp := smoothstep(0, 1, clamp(custom-1, 0, 1))
-	f := mix(vec4(1), ramp, faded)
-
+	f := faded(custom)
 	outlined := step(custom, vec4(-0.5))
 	near := outlined * (1 - smoothstep(0, 1, clamp(-custom-1, 0, 1)))
 	edge := max(max(near.x, near.y), max(near.z, near.w))
 
-	c := imageSrc0At(src) * color * f.x * f.y * f.z * f.w
+	c := imageSrc0At(src) * color * f
 	return vec4(c.rgb*(1-outlineDark*edge), c.a)
 }
 
-// water is what a glint lays over its tile: the sky reflected, the foam as bright as the tile in
-// the light, the sun thrown back — of s, the sun, foam and sky a surface gives back, shine as much
-// as it shines and lit of the sun reaching it.
-func water(shine float, lit float, s vec3) vec4 {
-	mirror, foam := shine*s.z, s.y
-	light := Ambience + SunColor*(Glint.y*lit*max(sunWay().z, 0))
-	rgb := overcastSky()*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
-	return vec4(rgb, 1-(1-mirror)*(1-foam))
+// faded is how much of a sprite shows by the fades its custom asks for: 1 where it asks none.
+func faded(custom vec4) float {
+	f := mix(vec4(1), smoothstep(0, 1, clamp(custom-1, 0, 1)), step(0.5, custom))
+	return f.x * f.y * f.z * f.w
 }
 
-// stream is, for water at p running at v, what sea is for still water: ripples carried down with
-// the current, rougher the faster it runs, and torn white water where it runs fast — a rapid, a
-// waterfall.
-func stream(p vec2, v vec2) vec3 {
-	t := Glint.x
-	speed := length(v)
-	way := vec2(1, 0)
-	if speed > 0.01 {
-		way = v / speed
-	}
-	// p along the current and across it, the ripples standing still in the water carried down
-	q := vec2(way.x*p.x+way.y*p.y, way.x*p.y-way.y*p.x)
-	q.x -= speed * t
-	slope := wave(q, vec2(1, 0.15), 17, 0, t)
-	slope += wave(q, vec2(0.8, -0.6), 11, 0, t)
-	slope += wave(q, vec2(0.5, 0.9), 23, 0, t)
-	slope += wave(q, vec2(1, -0.1), 7, 0, t)
-	rough := clamp(streamCalm+speed/fastWater, streamCalm, streamRough)
-	slope = rough * vec2(way.x*slope.x-way.y*slope.y, way.y*slope.x+way.x*slope.y)
-	white := smoothstep(whiteFrom, whiteFull, speed)
-	torn := 0.55 + 0.45*sin(q.x*0.45+q.y*0.3)*sin(q.y*0.5-q.x*0.21+t*3)
-	// flecks of foam ride the current, so which way it runs shows whatever the sun
-	fleck := smoothstep(0.62, 0.9, noise(vec2(q.x/fleckLength, q.y/fleckWidth))) * smoothstep(fleckFrom, fleckFull, speed)
-	foam := white*clamp(torn+0.5*white, 0, 1) + fleckCover*fleck
-	n := normalize(vec3(-slope.x, -slope.y, 1))
-	h := normalize(sunWay() + Toward)
-	// the sky seen in it follows its ripples: the current shows in the light it throws back
-	fresnel := streamMirror + (1-streamMirror)*pow(1-max(dot(n, Toward), 0), 3)
-	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
-}
-
-// sea is, for water at p, the sun thrown back at the eye, how much foam covers it and how much of
-// the sky it reflects. Waves run across it as time goes by; near a shore (the way to it, how far
-// and how near) a swell comes in facing it and breaks into foam the last stretch before it,
-// whatever the sun. The flatter the eye looks at a wave, the more of the sky it reflects.
-func sea(p vec2, shore vec4) vec3 {
-	t := Glint.x
-	// the waves run with the wind, the steeper the harder it blows
-	blow := length(Wind)
-	rough := clamp(calmSea+blow/fullWind, calmSea, stormSea)
-	way := vec2(1, 0)
-	if blow > 0.01 {
-		way = Wind / blow
-	}
-	q := vec2(way.x*p.x+way.y*p.y, way.x*p.y-way.y*p.x) // p along the wind and across it
-	slope := wave(q, vec2(1, 0.1), 53, 10, t)
-	slope += wave(q, vec2(0.3, 1), 41, 9, t)
-	slope += wave(q, vec2(-0.8, 0.6), 31, 8, t)
-	slope += wave(q, vec2(-0.6, -0.8), 23, 7, t)
-	slope += wave(q, vec2(0.7, -0.7), 17, 6, t)
-	slope += wave(q, vec2(1, 0.8), 13, 5, t)
-	slope += wave(q, vec2(-0.2, 1), 9, 4, t)
-	slope = rough * vec2(way.x*slope.x-way.y*slope.y, way.y*slope.x+way.x*slope.y)
-	foam := 0.0
-	if way := length(shore.xy); way > 0.01 {
-		// the crests follow the shore: their phase is the distance to it, falling as they come in,
-		// shifted slowly along the coast so they do not reach it everywhere at once
-		d := shore.xy / way
-		drift := 2 * pi * (sin(p.x/173+p.y/241) + 0.5*sin(p.y/97-p.x/131))
-		phase := 2*pi/swellLength*(shore.z+swellSpeed*t) + drift
-		swell := d * (rough * swellSlope * cos(phase))
-		swell += d * (rough * swellSlope * 0.5 * cos(2.2*phase+1))
-		near := smoothstep(0, 1, clamp(shore.w, 0, 1))
-		slope = mix(slope, swell+slope*0.3, near)
-		// a crest breaks the last surfWidth before the shore, torn into patches
-		crest := smoothstep(0.2, 1, sin(phase))
-		breaking := 1 - smoothstep(0, surfWidth, shore.z)
-		torn := 0.6 + 0.4*sin(p.x*0.37+p.y*0.23+t)*sin(p.y*0.41-p.x*0.19-t*0.7)
-		foam = foamCover * crest * breaking * torn * clamp(rough, 0.3, 1.2)
-	}
-	n := normalize(vec3(-slope.x, -slope.y, 1))
-	h := normalize(sunWay() + Toward)
-	// the sky seen in the water follows only the swell of the waves, not every ripple: fine waves
-	// flattened far off would stripe it
-	calm := normalize(vec3(-slope.x*mirrorSwell, -slope.y*mirrorSwell, 1))
-	fresnel := mirrorHead + (1-mirrorHead)*pow(1-max(dot(calm, Toward), 0), 5)
-	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
-}
-
-// overcastSky is the sky's colour under the clouds covering it, as render.Overcast has it.
-func overcastSky() vec3 {
-	grey := dot(SkyColor, vec3(0.3, 0.5, 0.2)) * 0.85
-	return mix(SkyColor, vec3(grey), clamp(Weather.x, 0, 1)*0.8)
+// blended is how much of a blended sprite shows at weight, its mark 10 plus how soft it is.
+func blended(weight float, mark float) float {
+	soft := mark - 10
+	return smoothstep(0.5-soft, 0.5+soft, weight)
 }
 
 // sunWay is the way towards the sun, of length 1.
 func sunWay() vec3 {
 	return Sun / max(length(Sun), 1e-6)
-}
-
-// clouds is how thick the clouds are over the ground at p: 0 in the clear, 1 under the thickest,
-// drifting with the wind. Their shadow falls straight under them: they are not drawn, only their
-// shadows, and a shadow cast off them towards the sun would jump whenever the sun steps on.
-func clouds(p vec2) float {
-	cover := Weather.x
-	if cover <= 0 {
-		return 0
-	}
-	q := (p - Drift) / cloudSize
-	n := (noise(q) + 0.5*noise(q*2.03+17) + 0.25*noise(q*4.01+31) + 0.125*noise(q*8.07+53)) / 1.875
-	n = clamp((n-0.5)*cloudContrast+0.5, 0, 1) // the sum bunches round a half: spread it out
-	return smoothstep(1-cover, 1.15-cover, n)
 }
 
 // noise is smooth value noise at p: 0 to 1, changing over a unit.
@@ -206,67 +80,19 @@ func hash(i vec2) float {
 	return fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453)
 }
 
-// wave is the slope at p of a wave running along way, length world units from crest to crest, at
-// speed world units a second.
-func wave(p vec2, way vec2, length float, speed float, t float) vec2 {
-	d := normalize(way)
-	k := 2 * pi / length
-	return d * (waveSlope * cos(k*(dot(p, d)-speed*t)))
+// seen is how much of a pattern length world units long shows: all of it over a few pixels long,
+// none of it where it would flicker, finer than a pixel or two.
+func seen(length float) float {
+	return smoothstep(finest, 2*finest, length/max(Glint.z, 1e-3))
 }
 
 // outlineDark is how much an outline darkens what it is drawn on.
 const outlineDark = 0.45
 
-// waveSlope is how steep a wave's side gets; glintSharpness how narrowly a glint gathers round the
-// perfect reflection.
-const waveSlope = 0.12
-const glintSharpness = 400
-
-// The swell coming ashore: how steep, how long from crest to crest and how fast, in world units.
-const swellSlope = 0.3
-const swellLength = 40
-const swellSpeed = 12
-
-// surfWidth is how far from the shore, in world units, a crest breaks; foamCover how much of the
-// water its foam covers at most.
-const surfWidth = 32
-const foamCover = 0.9
-
-// mirrorHead is how much of the sky water reflects looked at straight down; flatter it reflects
-// more, all of it along the surface.
-const mirrorHead = 0.02
-
-// mirrorSwell is how much of the waves' slope tilts the sky water reflects.
-const mirrorSwell = 0.3
-
-// The weather: how wide a cloud is, in world units; how much of the sun's light the thickest
-// takes; how far the noise is spread to make clouds and clear sky between them.
-const cloudSize = 420
-const cloudDark = 0.5
-const cloudContrast = 1.8
-
-// How rough the sea is: calm with no wind, as the waves were made at fullWind (world units a
-// second), and at most stormSea times that.
-const calmSea = 0.35
-const fullWind = 40
-const stormSea = 1.8
-
-// Running water: how rough it is still and at most, the speed (world units a second) it gets as
-// rough as fastWater says, and the speeds it begins to foam at and is white from.
-const streamCalm = 0.4
-const streamRough = 1.6
-const fastWater = 40
-const whiteFrom = 30
-const whiteFull = 55
-
-// The flecks of foam running water carries: how long and wide they are, in world units, how much
-// of it they cover at most, and the speeds they begin to show at and show fully from; how much of
-// the sky it reflects looked at straight down.
-const fleckLength = 9
-const fleckWidth = 4
-const fleckCover = 0.35
-const fleckFrom = 3
-const fleckFull = 15
-const streamMirror = 0.08
+// finest is how many pixels long the finest pattern drawn is.
+const finest = 2
 
 const pi = 3.14159265
+
+
+// The materials registered follow, and material, which hands an overlay to its own.

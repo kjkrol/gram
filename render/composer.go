@@ -1,7 +1,6 @@
 package render
 
 import (
-	_ "embed"
 	"fmt"
 	"image/color"
 	"slices"
@@ -11,23 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 )
-
-//go:embed compose.kage
-var composeKage []byte
-
-var composeShader *ebiten.Shader
-
-// shader is the one program every item is drawn with, compiled at first use.
-func shader() *ebiten.Shader {
-	if composeShader == nil {
-		s, err := ebiten.NewShader(composeKage)
-		if err != nil {
-			panic(fmt.Sprintf("render: the composer's shader: %v", err))
-		}
-		composeShader = s
-	}
-	return composeShader
-}
 
 // Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
 // its items to a Frame, the Composer orders them — by depth below the Marks when the camera's
@@ -140,6 +122,10 @@ func (c *Composer) render(screen *ebiten.Image) {
 	copy(c.sun, day.Dir[:])
 	copy(c.toward, toward[:])
 	c.glint[0], c.glint[1] = f.time, day.Strength
+	c.glint[2] = 1 // world units a pixel spans: what is finer than a few of them is not drawn
+	if z := f.cam.Zoom(); z > 0 {
+		c.glint[2] = 1 / z
+	}
 	copy(c.sunColor, day.Sun[:])
 	copy(c.skyColor, day.Sky[:])
 	copy(c.ambience, day.Ambient[:])

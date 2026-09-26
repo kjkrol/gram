@@ -42,66 +42,10 @@
 // with the cell and an effect may alter it — a stream freezing over. Its kind decides who may cross
 // the cell and what it costs there ([Way.Over]; [Board.Kind] is the ground as whoever crosses it
 // meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
-// [Board.SetWay] read and write it, [Layout.Ways] seeds it. The renderer draws it over its tile
-// ([Tile.Way], [Tile.DrawWay]): each way out ends halfway to its neighbour, as wide as the mean of
-// the two ways there; the two out to the widest neighbours are one band curving round the cell's
-// middle, any other joins it curving in, so where two cells meet both curves run along the line
-// between their middles and a winding stream bends smoothly; a way out to one neighbour alone ends
-// square across itself. A way of a kind that shines is water running down its band, the Flow by
-// the square root of the band's fall. A way's Fade has it show the less the further it has faded
-// (render.Frame.SpriteBlend, the water over it too), down to nothing where it ends, and on level
-// ground its water runs on the way it fades: a river running out into the sea. Ways lie on a tier of their own just over the tiles, so from above no tile
-// covers one; a band running on slantwise reaches into the two cells either side of the corner it
-// runs through, so its last stretch is a piece of its own at the depth of the nearest of the four
-// cells meeting there, and none of their tiles covers it in a view that sorts.
-//
-// # Domains, Mover and Standing
-//
-// A [Domain] is a way of moving — [Land], [Water], [Air], or a game's own bit — and a cell's
-// Allows says which may stand on it: water admits Water, a hole nobody. An entity's [Mover] says
-// which it uses (none means Land); the planner keeps it to cells that admit it. Every tick, after
-// collisions, the board tells each entity carrying Cell where it stands as a [Standing] —
-// [Plugin.RegisterBehavior] takes an [Each] of it, naturally one over Mover — and
-// [Standing.Fell] says the entity is where its domain may not be: pushed into water, dropped
-// into a hole. What follows is the
-// game's: despawn, teleport, damage. Call [Plugin.RunPlan] every tick, after collision's.
-//
-// # Cell entities: Plot and Ground
-//
-// The terrain lives in the ECS. At Setup every cell becomes an entity for good — a [Plot] naming
-// the cell and holding its [Relief], the heights of its corners, and a [Ground] holding its kind —
-// or, after a load, the saved ones are found again; the board keeps only which entity is which cell's.
-// Cell entities carry no world.Base: they are not in the world's space and do not count against
-// its MaxCount. The Board reads and writes them ([Board.Kind], [Board.Set], [Board.Relief]), and
-// until Setup, or on a board no ECS runs, it keeps a seed instead: a [TerrainMap] and the corner
-// heights. [Plugin.CellEntity] is a cell's entity, so anything done to entities can be done to a
-// cell: an effect altering Ground (or Plot) changes the terrain, and the board counts it in its
-// [Board.Version] the tick it happens and the tick it ends, as effects.Active.Altered and
-// effects.Idle say. A change never costs a pass over every cell: whoever writes says so. The kind
-// and the heights are two components because an effect ending puts back the whole component it
-// altered: a frost ending restores the kind and leaves the ground shaped meanwhile as it is.
-//
-// # Solid ground and cover
-//
-// Terrain is never an entity in the world's space: the [Board] is the world's solid ground and its
-// cover (world.Field and world.Cover, set by [NewPlugin]), read straight from the cell entities
-// whenever collision or sight asks, so a cell changed now counts from the next tick and costs
-// nothing to change. [Board.Solid] gives collision the cells under a box that are Solid and keep
-// out a layer the entity is on, each with the sides open where the neighbour is not, so a unit
-// slides along a wall and never catches on the seam between two cells. [Board.Walk] gives sight
-// the cells along a ray whose kind veils the observer's Sight.Blockers (the kind's Veils; zero
-// veils everyone): τ is 1 - Veil, and in a Quasi3D world the cover stands from the cell's ground
-// up by the kind's Height, so it casts a shadow and is looked over from above. Solid and Veil are
-// apart: a fence is solid and hides nothing, a thicket hides and is walked through, a Warcraft
-// forest is both. On a square grid both are exact, cell by cell; on a hex one Solid gives the
-// boxes of [Grid.CellBoxes] (one for a square, [HexCapStrips] strips over each cap of a hex) and
-// Walk steps a quarter of a cell along the ray.
-//
-// The board requires of every unit a [Cell] (where it starts) and a [Mover] (the domains it moves
-// in) through the world's kind.Roster — and makes them itself in [Units]: a game binds its rows to
-// the board once ([NewUnits]: the units' [Shape], where a row says a unit stands) and defines each
-// kind by its Mover and steering profile plus its own components; Position and Cell come from the
-// one point, Layers from the domain.
+// [Board.SetWay] read and write it, [Layout.Ways] seeds it; a landscape (plugins/landscape) draws
+// it as a band through the cell's middle. [Board.CellVersion] counts the changes to each cell alone
+// — its kind, its way, its heights, an effect on it — and [Board.Changes] to them all, so whoever
+// keeps something worked out of a cell knows when it is stale.
 //
 // # Heights
 //
@@ -115,12 +59,12 @@
 // Lift, so a unit never declares where it stands in height and a hawk declares only how high it
 // flies. Units get their Z from the Shape. A hill is heights on
 // cell entities and never a body, so the cost of sight does not depend on how many a game has.
-// The renderer draws the tiles sloped, lit from the upper left so the relief reads, and faces only
-// where a top stands above its neighbour's — a wall over grass. The ground has no vertical walls:
+// A view plugin draws the tiles sloped (plugins/isometry), and faces only where a top stands above
+// its neighbour's — a wall over grass. The ground has no vertical walls:
 // on a square grid neighbouring cells share the corners where they meet ([Board.SetRelief] moves
 // the neighbours' with a cell's, and a relief an effect writes into one cell's Plot is sealed to
 // its neighbours' the same tick). A flat world refuses a Height or a Lift where it first meets
-// one, but its ground may have heights all the same: slopes cost ([Climbing]) and the renderer
+// one, but its ground may have heights all the same: slopes cost ([Climbing]) and a landscape
 // shades them, and no entity stands at a height.
 //
 // # Shaping
@@ -141,42 +85,21 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer: it
-// reads each visible cell and hands it, as a [Tile] — its box, its sprite, the heights of its top
-// and its neighbours' — to the board's [Look], which lays it on the render.Ground tier: from above
-// its sprite over its box, unless a view plugin ([Plugin.SetLook], plugins/isometry) stands it up
-// as a block with faces. In a world with heights the tile is lit by the world's sun ([Tile.Light]:
-// per corner, from the slope of the ground there and at the neighbours', so a slope runs on
-// without a seam; [Tile.FaceLight] for an upright face), from above as through any other look — a
-// map in relief. The terrain casts shadows too: a corner the ground or what stands on it hides from
-// the sun, walked towards it up to 16 cells, gets the ambient light alone, and a face as much sun as
-// the top's edge over it. The shadows are worked out as cells come into sight and kept until the
-// terrain or the sun changes; [Plugin.WithShadows] turns them off. A kind with a Shine — water,
-// ice, anything a game or an effect makes shiny — also glints ([Tile.Shine] and [Tile.Shore],
-// handed to render.Frame.Glint): the shader ripples its surface with small waves as time goes by
-// and throws the sun back towards the eye where it faces halfway between them, so the sea twinkles
-// under a high sun; within a few cells of a shore — the nearest cell that does not shine, worked
-// out per corner of a square grid as the terrain changes — the waves face it, roll in and break
-// into foam. Water of a kind with a Flow runs instead ([Tile.Flow], handed to
-// render.Frame.Stream): down the slope of its cell, read off its corners, as fast as the Flow by
-// the square root of the slope, averaged at each corner over the running cells meeting there, so
-// the current follows a bending river without a seam and never turns into a bank; where it runs
-// fast it foams white, a rapid or a waterfall. Brooks, streams and rivers are worked out of a
-// relief by plugins/board/water and laid as ways (see Ways). Under the world's weather each tile gets the clouds' shadows (render.Frame.Overcast),
-// and a kind with a Sway — trees, set by an effect when the wind blows — leans its top with the
-// wind ([Tile.Sway]). Snow and ice are kinds an effect puts on a cell, drawn as any other. A flat
-// world is drawn as its sprites are, save that its slopes are shaded. Kinds with a Spread run into
-// each other along a line their cells draw, not along the cells' edges ([Tile.Blends], drawn by
-// [Tile.DrawBlends] with render.Frame.SpriteBlend): over each quarter of a tile a neighbour's kind
-// is weighed at the quarter's corners by the share of the cells meeting there that are of it and
-// shown where the weight is over a half, fading in over the mean of the two Spreads; the weights at
-// a corner or a side are the same from every tile, so the line runs on without a seam, a staircase
-// of cells turning into a slant and a cell alone into a rounded diamond. A kind Under the others —
-// water — keeps its glint: a tile that spreads next to it is drawn as it ([Tile.Base]) and its own
-// kind laid over it by the share of cells not under, and the water's tile has the land round it
-// laid over it the same way, so a coast runs round instead of in teeth.
-// [RenderState] holds its live toggles, such as the grid: on a square grid each tile outlined by the
-// shader along its own edges (render.Frame.Tile), costing no piece of its own; on a hex grid the
-// cells' outlines as lines on a tier just above the tiles. It is left out where a cell spans fewer
-// than a few pixels on screen.
+// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer
+// ([NewRenderer] for a board no plugin runs): it reads each visible cell and hands it, as a [Tile]
+// — its box, its sprite, the heights of its top and its neighbours' — to the board's [Look], which
+// lays it on the render.Ground tier: from above its sprite over its box, unless a view plugin
+// ([Plugin.SetLook], plugins/isometry) stands it up as a block with faces. A kind with a Sway —
+// trees, set by an effect when the wind blows — leans its top with the wind ([Tile.Sway]).
+//
+// That is all a board draws alone: its sprites in even light. What a map needs beyond them — the
+// sun's light on the relief and the terrain's shadows, grounds blending, coasts, water glinting and
+// running, ways drawn across the cells, the clouds' shadows — is a [Dressing]'s, set by
+// [Plugin.SetDressing] (plugins/landscape): the renderer hands it each frame first and takes from
+// it the sheet the tiles are drawn from ([Tile].Atlas: the board's atlas or a sheet of the
+// dressing's with the atlas on it), the tile asks it its [Tile.Base] and its [Tile.Light] and
+// [Tile.FaceLight], and the Look has it lay what lies on the tile ([Tile.Dress]). [RenderState] holds its live toggles, such as the grid: on a square
+// grid each tile outlined by the shader along its own edges (render.Frame.Tile), costing no piece
+// of its own; on a hex grid the cells' outlines as lines on a tier just above the tiles. It is left
+// out where a cell spans fewer than a few pixels on screen.
 package board

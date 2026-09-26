@@ -1,0 +1,39 @@
+// The world's weather over the ground, a material of the composer's shader (render.RegisterMaterial):
+// the clouds drifting on the wind, their shadows and the grey they give the sky.
+
+// CloudShadow is the clouds' shadow over a sprite: where it lies at p, how faint the sprite under
+// it is in red and how it fades or blends in custom; it darkens the sprite as much as the clouds
+// over it take of the sun.
+func CloudShadow(p vec2, red float, frac float, custom vec4) vec4 {
+	weight := red * faded(custom)
+	if custom.w > 5.5 {
+		weight = blended(red, custom.w)
+	}
+	return vec4(0, 0, 0, cloudDark*clouds(p)*clamp(Glint.y*1.4, 0, 1)*weight)
+}
+
+// overcastSky is the sky's colour under the clouds covering it, as render.Overcast has it.
+func overcastSky() vec3 {
+	grey := dot(SkyColor, vec3(0.3, 0.5, 0.2)) * 0.85
+	return mix(SkyColor, vec3(grey), clamp(Weather.x, 0, 1)*0.8)
+}
+
+// clouds is how thick the clouds are over the ground at p: 0 in the clear, 1 under the thickest,
+// drifting with the wind. Their shadow falls straight under them: they are not drawn, only their
+// shadows, and a shadow cast off them towards the sun would jump whenever the sun steps on.
+func clouds(p vec2) float {
+	cover := Weather.x
+	if cover <= 0 {
+		return 0
+	}
+	q := (p - Drift) / cloudSize
+	n := (noise(q) + 0.5*noise(q*2.03+17) + 0.25*noise(q*4.01+31) + 0.125*noise(q*8.07+53)) / 1.875
+	n = clamp((n-0.5)*cloudContrast+0.5, 0, 1) // the sum bunches round a half: spread it out
+	return smoothstep(1-cover, 1.15-cover, n)
+}
+
+// The weather: how wide a cloud is, in world units; how much of the sun's light the thickest
+// takes; how far the noise is spread to make clouds and clear sky between them.
+const cloudSize = 420
+const cloudDark = 0.5
+const cloudContrast = 1.8

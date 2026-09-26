@@ -329,3 +329,34 @@ func neighbour(t *testing.T, cw *cellWorld) board.CellID {
 	}
 	return c
 }
+
+// A cell's version grows with every change to it — its kind, its way, its heights, an effect on it
+// — and a change to another cell leaves it be.
+func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
+	cw := newCellWorld(t, false)
+	brd := cw.board()
+	far, _ := brd.CellIndex(0, 0)
+	v, other := brd.CellVersion(cw.target), brd.CellVersion(far)
+	step := func(what string, change func()) {
+		t.Helper()
+		change()
+		if now := brd.CellVersion(cw.target); now <= v {
+			t.Errorf("%s: version %d, want more than %d", what, now, v)
+		} else {
+			v = now
+		}
+	}
+	step("kind", func() { brd.Set(cw.target, cw.snow) })
+	step("way", func() { brd.SetWay(cw.target, board.Way{Kind: cw.grass, Width: 3, Links: 1}) })
+	step("heights", func() { brd.SetRelief(cw.target, board.Relief{Corners: [4]float32{1, 1, 1, 1}}) })
+	brd.Set(cw.target, cw.grass)
+	v = brd.CellVersion(cw.target)
+	step("effect", func() {
+		cw.castFrost()
+		cw.ecs.Tick(cellTick)
+		cw.ecs.Tick(cellTick)
+	})
+	if brd.CellVersion(far) != other {
+		t.Errorf("a cell far off went from version %d to %d", other, brd.CellVersion(far))
+	}
+}

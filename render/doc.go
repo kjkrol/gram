@@ -36,15 +36,19 @@
 // front by depth, ties by tier, so a mountain hides the route and the cone behind it while the
 // selection stays on top; otherwise the tier alone decides. Every piece is drawn with one shader, sampling a
 // sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
-// call. Ties keep the order pieces came in. [Frame.Glint] lays over the sprite just added the
-// frame's sun ([Frame.Daylight]) thrown back at the eye off small waves the shader runs across it,
-// turned to face a [Shore] near one, and the sky reflected the flatter the eye looks: water.
-// [Frame.Stream] lays running water instead over a piece of any shape ([World]), its [Flow] at each
-// corner: ripples and flecks of foam carried down with the current, white water where it runs
-// fast; [Frame.OvercastAt] lays the clouds' shadows over such a piece, as faint as the sprite under
-// it. [Frame.SpriteBlend] draws a sprite only where a weight blended between its corners is over a
-// half: one ground running into another along a line, not along the edges of a quad.
-// [Frame.Overcast] lays the clouds' shadows of the frame's weather ([Frame.Weather]) over the
-// ground, and [Sway] is how far what sways in the frame's wind leans at its time ([Frame.Time]). [ProjectCorners] projects a world box at a height
+// call. Ties keep the order pieces came in. [Frame.SpriteBlend] draws a sprite only where a weight
+// blended between its corners is over a half: one ground running into another along a line, not
+// along the edges of a quad.
+//
+// What is worked out per pixel beyond that — water, the clouds' shadows — is a material a plugin
+// brings in Kage of its own and registers ([RegisterMaterials]); the composer's one shader is its
+// own part and every material registered, put together and compiled once ([Compile],
+// [ShaderSource]). [Frame.Overlay] lays over the sprite just added a quad for a material to work out,
+// where its corners lie in the world ([World], [Box]) and what the material reads at each —
+// [Frame.OverlayOn] over one added earlier ([Frame.Last]), over all drawn on it since; the frame's
+// daylight ([Frame.Daylight]) and weather ([Frame.Weather]) are every material's to read.
+// [Frame.SpritePart] draws any part of a sheet, and [Paint] paints a frame's sprites once into an
+// image of one's own, through the same shader: a sheet painted once and drawn from every frame.
+// [Sway] is how far what sways in the frame's wind leans at its time ([Frame.Time]). [ProjectCorners] projects a world box at a height
 // through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.
 package render

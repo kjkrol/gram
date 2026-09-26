@@ -34,6 +34,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/effects"
 	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/landscape"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -94,6 +95,7 @@ type mainStage struct {
 	world     *world.Plugin
 	isometry  *isometry.Plugin
 	board     *board.Plugin
+	landscape *landscape.Plugin
 	nav       *navigation.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
@@ -136,23 +138,35 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).
 		WithShaping(board.Shaping{Step: 5, MaxStep: 20}) // = and - under the cursor, L-drag levels
 	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("water"), Cost: 1, Under: true, Allows: board.Water | board.Air, Shine: 0.9},
+		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
 		// the ground: sand is slow going, rock rough; a climb costs on top of either; each blends
 		// into its neighbours as far as its Spread
-		board.CellKind{Name: board.Named("earth"), Cost: 1, Spread: 0.3, Allows: board.Land | board.Air},
-		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Spread: 0.35, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Spread: 0.25, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
+		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		// running water, laid across the ground: a brook is stepped over, a stream waded through, a
 		// river crossed only at a ford; its current is its slope
-		board.CellKind{Name: board.Named("brook"), Cost: 1.3, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 60}.Costing(board.Water|board.Air, 1),
-		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 60}.Costing(board.Water|board.Air, 1),
-		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9, Flow: 45},
-		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air, Shine: 0.9, Flow: 45}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("brook"), Cost: 1.3, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air},
+		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
 		// where a river runs out into the sea: lighter, muddy water carried out on its current
-		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9, Flow: 45},
+		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water | board.Air},
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
 	)
+	// how the kinds look beyond their sprites: the sea glinting under the land's blended grounds,
+	// the running water running
+	s.landscape = landscape.NewPlugin(s.board, s.world)
+	s.landscape.Style("water", landscape.Style{Under: true, Shine: 0.9})
+	s.landscape.Style("earth", landscape.Style{Spread: 0.3})
+	s.landscape.Style("sand", landscape.Style{Spread: 0.35})
+	s.landscape.Style("rock", landscape.Style{Spread: 0.25})
+	s.landscape.Style("brook", landscape.Style{Shine: 0.9, Flow: 60})
+	s.landscape.Style("stream", landscape.Style{Shine: 0.9, Flow: 60})
+	s.landscape.Style("river", landscape.Style{Shine: 0.9, Flow: 45})
+	s.landscape.Style("ford", landscape.Style{Shine: 0.9, Flow: 45})
+	s.landscape.Style("estuary", landscape.Style{Shine: 0.9, Flow: 45})
 	s.defineClimate() // snow, ice and the forest swaying: effects the climate casts
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err

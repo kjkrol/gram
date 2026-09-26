@@ -8,13 +8,13 @@ import (
 
 var (
 	earth = board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air, Veil: 0.2}
-	river = board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air, Shine: 0.9}
+	river = board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air}
 )
 
 // A way decides who may cross its cell and what it costs; the ground keeps the rest.
 func TestWay_OverTakesWhoMayCrossAndTheCostFromTheWay(t *testing.T) {
 	got := board.Way{Kind: river, Width: 8}.Over(earth)
-	if got.Allows != river.Allows || got.Name != earth.Name || got.Veil != earth.Veil || got.Shine != 0 {
+	if got.Allows != river.Allows || got.Name != earth.Name || got.Veil != earth.Veil {
 		t.Errorf("a river over earth is %+v, want the river's Allows, the rest the earth's", got)
 	}
 	if got := (board.Way{Kind: river}).Over(earth); got != earth {

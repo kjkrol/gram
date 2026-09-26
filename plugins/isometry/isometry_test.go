@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/landscape"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -148,12 +149,14 @@ func TestBlocks_StandTheCellsWithFacesWhereTheyRiseOverTheirNeighbours(t *testin
 	}
 }
 
+// Under a landscape the tops are lit by the sun as the ground slopes.
 func TestBlocks_LightTheTopsFromTheUpperLeft(t *testing.T) {
 	w := newWorld(0)
 	p := isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	b := hillBoard(t, w, grid)
 	p.WithBoard(b)
+	landscape.NewPlugin(b, w)
 	b.WithRenderer(sheet{})
 	cam := w.Camera()
 	cam.MoveTo(0, 0)

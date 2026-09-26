@@ -187,6 +187,37 @@ A corner of the grid is worked out once for the four tiles round it, over the ce
 read them, ring by ring outwards until no ring further out can be nearer. Worked out per tile, five
 distances a corner for the way to the shore and each cell's kind sought in the ECS, it took 21 ms.
 
+## Island — `Benchmark_Board_Island`
+
+The board's renderer composing the whole of a 96×64 island of cells 32 wide, from above and
+isometric: a sea lying `Under` it, earth, sand and rock blending, and the brooks, streams and
+rivers `water.Drain` works out of its heights laid across it as curving ways, running out to sea —
+warm, and after a cell ashore has changed. Measured on 2026-09-26, three runs.
+
+| View | Before baking | Warm | A cell changed |
+|:--|--:|--:|--:|
+| from above | 6.63 ms | 3.16 ms | 3.14 ms |
+| isometric | 8.25 ms | 4.64 ms | 4.62 ms |
+| from above, far | — | 1.89 ms | 1.88 ms |
+| isometric, far | — | 1.60 ms | 1.63 ms |
+
+Far — the whole island on a screen of 576 by 384, a cell 6 pixels across — a tile's water lays no
+overlay (the landscape's detail), and its shore is not worked out. There the tiles are dressed from
+the ground sheet: what lies on a tile is one piece of it, painted once, not a piece per blend and
+per stretch of a way (2.03 and 1.77 ms before). The benchmark counts composing alone; handing
+Ebitengine the pieces costs as much again, which the sheet saves too: in the island demos at 1024
+by 768, fully zoomed out, a frame took 10.5 ms of the CPU isometric and 5.0 ms from above, and takes
+8.9 and 3.1 ms — 8.5 and 2.95 ms before the island had blends and ways. Measured on 2026-09-26.
+
+Before, every frame read every cell anew from the ECS, worked out every tile's light three times,
+and every blend's weights and every way's curve over again. Now the renderer keeps what it read of
+a cell while `Board.CellVersion` says the cell is as it was, a tile's blends and way while the
+cells round it are (placed as if the tile stood at 0, 0, lit per frame), and a tile's light while
+neither the terrain nor the sun changes; while nothing on the board has changed at all, one
+comparison stands for all of it. A cell changing works out its bake and its neighbours' anew, and
+nothing else: a changed frame costs what a warm one does. What is left is handing the frame its
+quads — the tiles, their outlines, the glints and the ways.
+
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
 * **The world tick is the space rebuild plus a walk.** Moving 5,000 entities and handing the space

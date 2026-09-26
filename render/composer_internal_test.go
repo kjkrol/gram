@@ -194,7 +194,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Line(Overlays, float32(i%5), 0, 0, 5, 5, 1, white)
 			f.Soft(Overlays, 1, unit, black, Fade{Top: 3})
 			f.Tile(Ground, float32(i%7), a, 0, unit, Even(1))
-			f.Glint(0, 0, 32, 32, 1, [4]float32{1, 1, 1, 1}, Shore{})
+			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
 		f.Daylight(Daylight{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sun: Light{1, 1, 1}})
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
@@ -277,9 +277,138 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	}
 }
 
-func TestComposer_ItsShaderCompiles(t *testing.T) {
-	if _, err := ebiten.NewShader(composeKage); err != nil {
-		t.Fatalf("the composer's shader: %v", err)
+// tint is a material registered for these tests: it paints what it reads.
+var tint = RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
+func TestTint(p vec2, red float, fraction float, custom vec4) vec4 {
+	return vec4(red, fraction, custom.x, 1)
+}
+`), "TestTint")[0]
+
+func TestComposer_ItsShaderCompilesWithTheMaterialsRegistered(t *testing.T) {
+	if err := Compile(); err != nil {
+		t.Fatal(err)
+	}
+	if src := string(ShaderSource()); !strings.Contains(src, "return TestTint(p, red, fraction, custom)") {
+		t.Errorf("the shader hands no overlay to the material registered:\n%s", src)
+	}
+}
+
+// An overlay is a quad over the sprite marked with its material and what the material reads:
+// where each corner lies in the world, red, the fraction and the customs.
+func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Tile(Ground, 3, sheet{}, 0, dst, Even(0.5))
+	f.Overlay(&Overlay{Material: 3, World: Box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
+		Fraction: [4]float32{1, 0.5, 0, 0.25}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40, 0}}})
+	if f.Len() != 2 || len(f.items) != 1 {
+		t.Fatalf("%d pieces in %d items, want the tile and its overlay in one", f.Len(), len(f.items))
+	}
+	v := f.verts[4:]
+	for k, want := range [4][4]float32{{0.9, 100, 200, 9}, {0.9, 132, 200, 8.5}, {0.9, 100, 232, 8}, {0.9, 132, 232, 8.25}} {
+		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
+			t.Errorf("overlay corner %d is %v, want red, where it lies and 2 + 2·3 + its fraction: %v", k, got, want)
+		}
+		if v[k].DstX != dst[k][0] || v[k].DstY != dst[k][1] || v[k].SrcX != 40 || v[k].SrcY != 40 {
+			t.Errorf("overlay corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the white texel",
+				k, v[k].DstX, v[k].DstY, v[k].SrcX, v[k].SrcY)
+		}
+	}
+	if v[0].Custom0 != 1 || v[0].Custom2 != 8 || v[0].Custom3 != 0.75 || v[1].Custom2 != 40 {
+		t.Errorf("the overlay carries customs %v %v %v / %v, want its corners'", v[0].Custom0, v[0].Custom2, v[0].Custom3, v[1].Custom2)
+	}
+	if f.verts[0].Custom0 != -1 {
+		t.Errorf("the tile lost its outline: %v", f.verts[0].Custom0)
+	}
+}
+
+// Over a rect split at a wrap seam an overlay follows each piece, what it reads blended to where
+// the seam cuts.
+func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam.Translate(1000, 0)
+	var f Frame
+	f.Reset(cam)
+	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.Overlay(&Overlay{World: Box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
+	v := f.verts
+	if len(v) != 16 {
+		t.Fatalf("%d vertices, want the two pieces' 8 and their overlays' 8", len(v))
+	}
+	g := v[8:]
+	if g[1].ColorG != 1000 || g[1].ColorA != 2.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX || g[1].Custom0 != 8 {
+		t.Errorf("at the seam the overlays lie at x %v and %v, fraction %v, custom %v; want 1000 both sides, halfway 2.5 and 8",
+			g[1].ColorG, g[4].ColorG, g[1].ColorA, g[1].Custom0)
+	}
+}
+
+// A part of a sheet is drawn from the pixels asked for, not from a sprite.
+func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	f.SpritePart(Ground, 0, sheet{}, [4]float32{16, 32, 24, 40}, Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}, Even(1))
+	v := f.verts
+	if v[0].SrcX != 16 || v[0].SrcY != 32 || v[3].SrcX != 24 || v[3].SrcY != 40 {
+		t.Errorf("the part samples %v,%v to %v,%v; want 16,32 to 24,40", v[0].SrcX, v[0].SrcY, v[3].SrcX, v[3].SrcY)
+	}
+}
+
+// An overlay laid on a sprite drawn earlier lies over it, at its tier and depth, not over the last;
+// over a rect split at a seam it follows each of its pieces still.
+func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
+	f.Tile(Ground, 3, sheet{}, 0, dst, Even(1))
+	top := f.Last()
+	f.Sprite(Ground+5, 7, sheet{}, 0, Corners{{50, 50}, {60, 50}, {50, 60}, {60, 60}}, Even(1))
+	f.OverlayOn(top, &Overlay{Material: 1, World: Box(0, 0, 10, 20)})
+	last := f.items[len(f.items)-1]
+	if last.tier != Ground || last.depth != 3 {
+		t.Errorf("the overlay is at tier %v, depth %v; want the tile's %v, 3", last.tier, last.depth, Ground)
+	}
+	for k, v := range f.verts[8:] {
+		if v.DstX != dst[k][0] || v.DstY != dst[k][1] {
+			t.Errorf("overlay corner %d lies at %v,%v; want the tile's %v", k, v.DstX, v.DstY, dst[k])
+		}
+	}
+
+	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam.Translate(1000, 0)
+	f.Reset(cam)
+	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	split := f.Last()
+	f.TileRect(Ground, 0, sheet{}, 0, 0, 100, 10, 110, Even(1))
+	f.OverlayOn(split, &Overlay{World: Box(992, 0, 1008, 10)})
+	if v := f.verts; len(v) != 20 || v[12].DstX != v[0].DstX || v[16].DstX != v[4].DstX {
+		t.Fatalf("%d vertices, the overlays at x %v and %v; want 20, over the split rect's pieces at %v and %v",
+			len(v), v[12].DstX, v[16].DstX, v[0].DstX, v[4].DstX)
+	}
+}
+
+// An overlay Under a sprite takes how faint it is and how it fades; one Blended over a blended
+// sprite takes its weight and mark; one over a slanted band lies where its corners do.
+func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}
+	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
+	weight := [4]float32{0, 0.5, 0.25, 1}
+	f.SpriteBlend(Ground, 0, sheet{}, 0, dst, Even(1), weight, 0.2)
+	f.Overlay(&Overlay{Material: 1, World: band, Under: true})
+	f.Overlay(&Overlay{Material: 2, World: band, Custom: [4][4]float32{{3}, {3}, {3}, {3}}, Blended: true})
+	v := f.verts
+	for k, w := range weight {
+		if s := v[4+k]; s.ColorR != w || s.Custom3 != v[k].Custom3 {
+			t.Errorf("under corner %d: red %v, mark %v; want the sprite's weight %v and mark %v", k, s.ColorR, s.Custom3, w, v[k].Custom3)
+		}
+		if s := v[8+k]; s.Custom0 != 3 || s.Custom2 != w || s.Custom3 != v[k].Custom3 {
+			t.Errorf("blended corner %d: customs %v %v %v; want its own 3, the sprite's weight %v and mark", k, s.Custom0, s.Custom2, s.Custom3, w)
+		}
+		if got := [2]float32{v[8+k].ColorG, v[8+k].ColorB}; got != band[k] {
+			t.Errorf("corner %d lies at %v, want %v", k, got, band[k])
+		}
 	}
 }
 
@@ -310,153 +439,6 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	// the first piece's right side is the seam: 2 from the tile's left edge, 10 from its right
 	if v[1].Custom0 != -3 || v[1].Custom1 != -11 {
 		t.Errorf("at the seam the first piece gives %v %v, want -3 and -11: no outline along the seam", v[1].Custom0, v[1].Custom1)
-	}
-}
-
-func TestFrame_AGlintIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndTheShore(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(Ground, 3, sheet{}, 0, dst, Even(0.5))
-	shore := Shore{{X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}, {X: 1, Dist: 8, Near: 0.75}, {X: 1, Dist: 40}}
-	f.Glint(100, 200, 132, 232, 0.9, [4]float32{1, 0.5, 0, 0.25}, shore)
-	if f.Len() != 2 || len(f.items) != 1 {
-		t.Fatalf("%d pieces in %d items, want the tile and its glint in one", f.Len(), len(f.items))
-	}
-	v := f.verts[4:]
-	for k, want := range [4][4]float32{{0.9, 100, 200, 3}, {0.9, 132, 200, 2.5}, {0.9, 100, 232, 2}, {0.9, 132, 232, 2.25}} {
-		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
-			t.Errorf("glint corner %d is %v, want its shine, where it lies and 2 plus the sun reaching it: %v", k, got, want)
-		}
-		if v[k].DstX != dst[k][0] || v[k].DstY != dst[k][1] || v[k].SrcX != 40 || v[k].SrcY != 40 {
-			t.Errorf("glint corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the white texel",
-				k, v[k].DstX, v[k].DstY, v[k].SrcX, v[k].SrcY)
-		}
-	}
-	if v[0].Custom0 != 1 || v[0].Custom2 != 8 || v[0].Custom3 != 0.75 || v[1].Custom2 != 40 {
-		t.Errorf("the glint carries the shore %v %v %v / %v, want the way, the distance and how near", v[0].Custom0, v[0].Custom2, v[0].Custom3, v[1].Custom2)
-	}
-	if f.verts[0].Custom0 != -1 {
-		t.Errorf("the tile lost its outline: %v", f.verts[0].Custom0)
-	}
-}
-
-func TestFrame_AGlintFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
-	cam.Translate(1000, 0)
-	var f Frame
-	f.Reset(cam)
-	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	f.Glint(992, 0, 1008, 10, 1, [4]float32{0, 1, 0, 1}, Shore{})
-	v := f.verts
-	if len(v) != 16 {
-		t.Fatalf("%d vertices, want the two pieces' 8 and their glints' 8", len(v))
-	}
-	g := v[8:]
-	if g[1].ColorG != 1000 || g[1].ColorA != 2.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX {
-		t.Errorf("at the seam the glints lie at x %v and %v with the sun at %v, want 1000 both sides and halfway sun 2.5",
-			g[1].ColorG, g[4].ColorG, g[1].ColorA)
-	}
-}
-
-func TestFrame_AStreamIsAQuadOverTheSpriteMarkedWithTheWorldTheShineTheSunAndTheFlow(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Sprite(Ground, 3, sheet{}, 0, dst, Even(0.5))
-	flow := Flow{{4, 0}, {8, 0}, {4, -2}, {8, -2}}
-	f.Stream(World{{100, 200}, {132, 200}, {100, 232}, {132, 232}}, 0.9, [4]float32{1, 0.5, 0, 0.25}, flow)
-	if f.Len() != 2 || len(f.items) != 1 {
-		t.Fatalf("%d pieces in %d items, want the sprite and its stream in one", f.Len(), len(f.items))
-	}
-	v := f.verts[4:]
-	for k, want := range [4][4]float32{{0.9, 100, 200, 6}, {0.9, 132, 200, 5.5}, {0.9, 100, 232, 5}, {0.9, 132, 232, 5.25}} {
-		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
-			t.Errorf("stream corner %d is %v, want its shine, where it lies and 5 plus the sun reaching it: %v", k, got, want)
-		}
-		if got := [2]float32{v[k].Custom0, v[k].Custom1}; got != flow[k] {
-			t.Errorf("stream corner %d runs at %v, want %v", k, got, flow[k])
-		}
-	}
-}
-
-// A stream over a slanted band carries each corner's place in the world, and a cloud's shadow laid
-// over it too.
-func TestFrame_AStreamAndItsShadowFollowTheCornersOfASlantedBand(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	f.Weather(Weather{Clouds: 0.5})
-	f.Sprite(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
-	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
-	f.OvercastAt(band)
-	f.Stream(band, 1, [4]float32{1, 1, 1, 1}, Flow{})
-	v := f.verts
-	if len(v) != 12 {
-		t.Fatalf("%d vertices, want the sprite's, its shadow's and its stream's", len(v))
-	}
-	for k, want := range band {
-		for _, o := range [][]ebiten.Vertex{v[4:8], v[8:12]} {
-			if got := [2]float32{o[k].ColorG, o[k].ColorB}; got != want {
-				t.Errorf("corner %d lies at %v, want %v", k, got, want)
-			}
-		}
-	}
-}
-
-// A blended sprite carries its corners' weights and how soft it is, and a cloud's shadow over it
-// carries them too, so what lies under it is not shaded twice.
-func TestFrame_ABlendedSpriteAndItsShadowCarryItsWeights(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	f.Weather(Weather{Clouds: 0.5})
-	dst := Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}
-	weight := [4]float32{0, 0.5, 0.25, 1}
-	f.SpriteBlend(Ground, 0, sheet{}, 0, dst, Even(1), weight, 0.2)
-	f.OvercastAt(World{{0, 0}, {8, 0}, {0, 10}, {8, 10}})
-	v := f.verts
-	if len(v) != 8 {
-		t.Fatalf("%d vertices, want the sprite's and its shadow's", len(v))
-	}
-	for k, w := range weight {
-		if v[k].ColorA != w || math.Abs(float64(v[k].Custom3-10.2)) > 1e-6 || v[k].ColorR != 1 {
-			t.Errorf("sprite corner %d: weight %v, mark %v, red %v; want %v, 10.2 and its light", k, v[k].ColorA, v[k].Custom3, v[k].ColorR, w)
-		}
-		if s := v[4+k]; s.ColorR != w || s.Custom3 != v[k].Custom3 || s.ColorA != 4 {
-			t.Errorf("shadow corner %d: weight %v, mark %v, alpha %v; want the sprite's", k, s.ColorR, s.Custom3, s.ColorA)
-		}
-	}
-}
-
-// Running water over a blended sprite carries the sprite's weights and softness, so it shows only
-// where the sprite does.
-func TestFrame_AStreamOverABlendedSpriteCarriesItsWeights(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	weight := [4]float32{1, 0.5, 1, 0}
-	f.SpriteBlend(Ground, 0, sheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}, Even(1), weight, 0.5)
-	f.Stream(World{{0, 0}, {8, 0}, {0, 10}, {8, 10}}, 1, [4]float32{1, 1, 1, 1}, Flow{{3, 0}, {3, 0}, {3, 0}, {3, 0}})
-	v := f.verts[4:]
-	for k, w := range weight {
-		if v[k].Custom0 != 3 || v[k].Custom2 != w || v[k].Custom3 != 10.5 {
-			t.Errorf("corner %d runs at %v with weight %v, mark %v; want 3, %v and 10.5", k, v[k].Custom0, v[k].Custom2, v[k].Custom3, w)
-		}
-	}
-}
-
-func TestFrame_AStreamFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
-	cam.Translate(1000, 0)
-	var f Frame
-	f.Reset(cam)
-	f.SpriteRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	f.Stream(World{{992, 0}, {1008, 0}, {992, 10}, {1008, 10}}, 1, [4]float32{1, 1, 1, 1}, Flow{{0, 0}, {16, 0}, {0, 0}, {16, 0}})
-	v := f.verts
-	if len(v) != 16 {
-		t.Fatalf("%d vertices, want the two pieces' 8 and their streams' 8", len(v))
-	}
-	g := v[8:]
-	if g[1].Custom0 != 8 || g[4].Custom0 != 8 || g[5].Custom0 != 16 {
-		t.Errorf("at the seam the streams run at %v and %v, want halfway 8 both sides", g[1].Custom0, g[4].Custom0)
 	}
 }
 
@@ -496,28 +478,6 @@ func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing
 	b, _ := Sway(0.7, [2]float32{30, 0}, 0, 0, 1)
 	if a == b {
 		t.Error("a tree in the wind stands still: want it rocking")
-	}
-}
-
-func TestFrame_OvercastMarksTheGroundWithTheWorldOnlyUnderClouds(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(Ground, 3, sheet{}, 0, dst, Even(1))
-	f.Overcast(100, 200, 132, 232)
-	if f.Len() != 1 {
-		t.Fatalf("under a clear sky the ground got %d pieces, want the tile alone", f.Len())
-	}
-	f.Weather(Weather{Clouds: 0.5})
-	f.Overcast(100, 200, 132, 232)
-	if f.Len() != 2 {
-		t.Fatalf("under clouds %d pieces, want the tile and the clouds' shadow over it", f.Len())
-	}
-	v := f.verts[4:]
-	for k, want := range [4][3]float32{{100, 200, 4}, {132, 200, 4}, {100, 232, 4}, {132, 232, 4}} {
-		if got := [3]float32{v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
-			t.Errorf("overcast corner %d is %v, want where it lies and the mark 4: %v", k, got, want)
-		}
 	}
 }
 

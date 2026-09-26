@@ -32,7 +32,7 @@ type Plugin struct {
 	occupancy Occupancy
 	renderer  *Renderer
 	look      Look
-	flat      bool // the terrain casts no shadows
+	dressing  Dressing
 	kinds     *cellKindDict
 	seeded    *Layout
 	shaping   shaping
@@ -104,7 +104,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = &RenderState{ShowGridLines: true}
 	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look, p.worldPlugin.Sun)
 	p.renderer.weather = p.worldPlugin.Weather
-	p.renderer.shadows = !p.flat
+	p.renderer.dressed = func() Dressing { return p.dressing }
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -136,12 +136,9 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // board-specific
 // =================================================================
 
-// WithShadows says whether, in a world with heights, the terrain casts shadows — the ground and
-// what stands on it hiding the sun from what lies behind; on by default. Call before WithRenderer.
-func (p *Plugin) WithShadows(on bool) *Plugin {
-	p.flat = !on
-	return p
-}
+// SetDressing has the board's tiles lit and dressed by d beyond their sprites: a landscape's
+// (plugins/landscape).
+func (p *Plugin) SetDressing(d Dressing) { p.dressing = d }
 
 // SetLook has the board's cells drawn by look: a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }

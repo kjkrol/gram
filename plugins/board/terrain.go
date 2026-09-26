@@ -12,8 +12,9 @@ type Terrain interface {
 }
 
 // CellKind is a named terrain kind: whom it admits, what it does to movement and sight, and the
-// sprite drawn for it. A wall is Solid; water Allows Water; a hole Allows nobody and is not
-// Solid; a forest Allows Land and has a Veil.
+// sprite drawn for it; how it looks beyond its sprite is a landscape's (plugins/landscape). A wall
+// is Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has
+// a Veil.
 type CellKind struct {
 	Name Name // Named("grass")
 	// Cost 1 is full speed and the baseline path weight; above 1 the cell slows an entity and costs
@@ -33,21 +34,6 @@ type CellKind struct {
 	// Height is what stands on the cell (a wall, a forest) in a Quasi3D world; a flat world refuses
 	// it — see world.Config.Quasi3D. The ground under it is the cell's Relief.
 	Height float64
-	// Shine is how much of the sun the cell's surface throws back at whoever looks at it, 0 to 1:
-	// water, ice, wet rock glint where the sun and the eye meet over its ripples.
-	Shine float64
-	// Spread is how softly the kind runs into a neighbour of another kind that spreads too, 0 to a
-	// half: the two meet along a line their cells draw, not along the cells' edges, blending over
-	// the mean of their Spreads either side of it; 0 keeps the kind's cells square. See Tile.Blends.
-	Spread float64
-	// Under has the kind lie under the kinds round it — water: a tile that spreads next to it is
-	// drawn as it, glinting and all, and its own kind laid over along the line the cells draw, so a
-	// coast runs round and not in teeth. See Tile.Base.
-	Under bool
-	// Flow is how fast the water on the cell runs down its slope: world units a second where it
-	// falls 1 in 1, by the square root of the slope; 0 is still water, a sea or a lake. Drawn on a
-	// square grid, whose cells slope; a hex cell is level and its water still.
-	Flow float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
 	Sway     float64

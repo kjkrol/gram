@@ -26,6 +26,9 @@ type Board struct {
 	version  uint64
 	quasi3D  bool // the world has heights: cover spans the cells' bands
 	climbing Climbing
+	stamps   []uint64    // by ordinal: the count of changes when each cell last changed
+	changes  uint64      // how many cells have changed, one at a time
+	everyone uint64      // the count when every cell last changed at once
 	boxes    []geom.AABB // scratch for the boxes of a cell
 }
 
@@ -47,21 +50,72 @@ var _ Terrain = (*Board)(nil)
 // NewBoard is a board over grid seeded with terrain.
 func NewBoard(grid Grid, terrain *TerrainMap) *Board {
 	sq, _ := grid.(*squareGrid)
-	return &Board{Grid: grid, square: sq, seed: terrain, climbing: DefaultClimbing}
+	return &Board{Grid: grid, square: sq, seed: terrain, climbing: DefaultClimbing, stamps: make([]uint64, grid.CellCount())}
+}
+
+// CellVersion counts the changes to c — its kind, its way, its heights, through the board or by an
+// effect on its entity — so whoever keeps something worked out of a cell knows when it is stale;
+// it only grows, and changes to other cells leave it as it is.
+func (b *Board) CellVersion(c CellID) uint64 {
+	i, ok := b.ordinal(c)
+	if !ok || i >= len(b.stamps) {
+		return b.everyone
+	}
+	return max(b.stamps[i], b.everyone)
+}
+
+// Changes counts the changes to the board's cells, one at a time or all at once: while it stays
+// as it was, no cell has changed.
+func (b *Board) Changes() uint64 { return b.changes }
+
+// SquareShape is a square grid's: how many columns and rows of cells how wide, and whether each
+// axis wraps.
+type SquareShape struct {
+	Cols, Rows   uint32
+	Cell         float64
+	WrapX, WrapY bool
+}
+
+// Square is the board's grid's shape when it is square; false for any other.
+func (b *Board) Square() (SquareShape, bool) {
+	sq := b.square
+	if sq == nil {
+		return SquareShape{}, false
+	}
+	return SquareShape{Cols: sq.Width, Rows: sq.Height, Cell: float64(sq.CellSize), WrapX: sq.WrapX, WrapY: sq.WrapY}, true
+}
+
+// touch counts a change to c.
+func (b *Board) touch(c CellID) {
+	if i, ok := b.ordinal(c); ok && i < len(b.stamps) {
+		b.changes++
+		b.stamps[i] = b.changes
+	}
+}
+
+// touchAll counts a change to every cell at once.
+func (b *Board) touchAll() {
+	b.changes++
+	b.everyone = b.changes
 }
 
 // bind hands the terrain over to the cell entities in st.
 func (b *Board) bind(st *cellStore) {
 	b.version += b.seed.Version()
 	b.cells, b.seed, b.relief = st, nil, nil
+	b.touchAll()
 }
+
+// Ordinal is Grid.Ordinal, straight from the id on a square grid: c's slot in a table of one per
+// cell.
+func (b *Board) Ordinal(c CellID) (int, bool) { return b.ordinal(c) }
 
 // ordinal is Grid.Ordinal, straight from the id on a square grid, whose ids count row by row.
 func (b *Board) ordinal(c CellID) (int, bool) {
 	if sq := b.square; sq != nil {
 		return int(c), uint64(c) < uint64(sq.Width)*uint64(sq.Height)
 	}
-	return b.Ordinal(c)
+	return b.Grid.Ordinal(c)
 }
 
 // groundOf is the i-th cell's Ground, in place.
@@ -126,7 +180,11 @@ func (b *Board) set(c CellID, kind CellKind) bool {
 	if b.cells == nil {
 		before := b.seed.Version()
 		b.seed.Set(c, kind)
-		return b.seed.Version() != before
+		if b.seed.Version() == before {
+			return false
+		}
+		b.touch(c)
+		return true
 	}
 	i, ok := b.ordinal(c)
 	if !ok {
@@ -137,11 +195,13 @@ func (b *Board) set(c CellID, kind CellKind) bool {
 		return false
 	}
 	g.Kind = kind
+	b.touch(c)
 	return true
 }
 
 // SetAll resets every cell's terrain kind to kind.
 func (b *Board) SetAll(kind CellKind) {
+	b.touchAll()
 	if b.cells == nil {
 		b.seed.SetAll(kind)
 		return
@@ -234,6 +294,7 @@ func (b *Board) setRelief(c CellID, r Relief) bool {
 			return false
 		}
 		b.relief[i] = r
+		b.touch(c)
 		return true
 	}
 	p := b.plotOf(i)
@@ -241,6 +302,7 @@ func (b *Board) setRelief(c CellID, r Relief) bool {
 		return false
 	}
 	p.Relief = r
+	b.touch(c)
 	return true
 }
 

@@ -121,7 +121,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   turns; `Tile.DrawWay` draws them over the tile, as water running down the band where the kind
   shines.
 - Kinds blend: `CellKind.Spread` has two kinds that both spread meet along a line their cells
-  draw, not along the cells' edges. `board.Tile.Blends` weighs each neighbouring kind at a tile's
+  draw, not along the cells' edges. The landscape weighs each neighbouring kind at a tile's
   corners, the middles of its sides and its middle by the share of the cells meeting there, and
   `render.Frame.SpriteBlend` shows it where the weight is over a half, fading in over the mean of
   the Spreads: a staircase of cells becomes a slant, a cell alone a rounded diamond. A cloud's
@@ -139,6 +139,41 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   runs a course reaching the sea on out into it, a `water.Mouth` on each cell, wider and more
   faded (`Network.Fade`). The islands' rivers and streams run on into lighter, muddy estuary
   water, carried out on their current until it fades into the sea.
+- `plugins/landscape`: everything a board draws beyond its sprites leaves the board for a landscape
+  (`landscape.NewPlugin(board, world)`), set as the board's `board.Dressing`
+  (`board.Plugin.SetDressing`; `Tile.Base`, `Tile.Light`, `Tile.FaceLight` ask it, `Tile.Dress`
+  lays what lies on a tile): the sun's light on the relief and the terrain's shadows
+  (`landscape.Plugin.WithShadows`), grounds blending, coasts, water glinting and running
+  (`landscape.Glint`, `Stream`, `Shore`, `Flow`), ways drawn across the cells, the clouds' shadows
+  (`landscape.Overcast`) and less far off, with its materials (`water.kage`, `overcast.kage`). How a
+  kind looks is its `landscape.Style{Shine, Flow, Spread, Under}`, set by name
+  (`landscape.Plugin.Style`); `CellKind.Shine`, `Flow`, `Spread`, `Under` and
+  `board.Plugin.WithShadows` are gone. A board alone draws its sprites in even light, and a game
+  that never imports the landscape never compiles its shader. `board.NewRenderer`,
+  `Board.Changes`, `Board.Square`.
+- Far off, the landscape dresses the tiles from a ground sheet: under 16 pixels a cell on a square
+  grid a tile's blends and ways are painted once (`render.Paint`), 16 pixels a cell below a copy of
+  the board's atlas, and drawn as one piece of it (`Frame.SpritePart`); a cell is painted anew when
+  it or a cell round it changes. `board.Dressing.Sheet` hands the renderer the tiles' sheet. A
+  way's water eases out between 24 and 16 pixels a cell, and from far its curves are cut in fewer
+  pieces where no sheet is painted. The clouds' shadow is laid once over a tile's top, after all
+  on it (`Frame.Last`, `Frame.OverlayOn`, `landscape.OvercastOn`), not once per piece. The islands
+  zoomed out draw within a few percent of what they did before blends and ways.
+- The composer's shader is put together: `render/compose.kage` (sprites, fades, outlines, blends)
+  and every material a plugin registers with `render.RegisterMaterials` from its own Kage, compiled
+  once (`render.Compile`, `render.ShaderSource`). `Frame.Overlay` lays an overlay for a material.
+  The landscape brings the clouds' shadows and the water (`landscape.Overcast`, `Glint`, `Stream`,
+  `Shore`, `Flow`); `Frame.Glint`, `Stream`,
+  `Overcast` and `OvercastAt` are gone, and so are the alpha marks 2, 4 and 5: an overlay carries
+  its material's number.
+- Far off, less is drawn: a tile's detail (the landscape's) eases a tile's water glint and running out between 12
+  and 6 pixels a cell and its shore below 16, and the shader leaves out waves finer than a pixel
+  or two (`Glint.z`, world units a pixel spans) — the whole island far off composes in about 2 ms.
+- Running water is a flow map: noise in the world carried down the current in two crossfaded
+  phases, seamless from piece to piece; the faster, the rougher, more flecked and at last white.
+- `Board.CellVersion` counts the changes to each cell alone; the board's renderer keeps what it
+  read of a cell, a tile's blends and way and its light until they go stale, so composing the whole
+  island takes half what it did (`Benchmark_Board_Island`: 3.0 ms from above, 4.5 ms isometric).
 - `render.World`, where each corner of a piece lies in the world: `Frame.Stream` and the new
   `Frame.OvercastAt` lay over a quad of any shape.
 - `plugins/board/water` drains a relief to the sea: `water.Drain(grid, heights, sea, Config)`

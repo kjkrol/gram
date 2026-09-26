@@ -3,6 +3,7 @@ package render
 import (
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
@@ -107,6 +108,10 @@ func (f *Frame) Weather(w Weather) { f.weather = w }
 // Wind is the frame's wind, for what sways in it.
 func (f *Frame) Wind() [2]float32 { return f.weather.Wind }
 
+// Clouds is how much of the frame's sky the clouds cover, 0 to 1: under a clear one nothing need
+// be laid for their shadows.
+func (f *Frame) Clouds() float32 { return f.weather.Clouds }
+
 // Time is the composer's clock, in seconds, for what moves by itself: the waves, the clouds,
 // what sways.
 func (f *Frame) Time() float32 { return f.time }
@@ -183,6 +188,17 @@ func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
 	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas = len(f.verts), false, tier, depth, atlas
 	u0, v0, u1, v1 := inset(atlas.UV(id))
+	f.verts = append(f.verts,
+		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
+		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
+	f.add(tier, depth, atlas, quad, 4)
+}
+
+// SpritePart is Sprite drawing the part src — x0, y0, x1, y1 in the sheet's pixels — of atlas's
+// sheet rather than a sprite of it.
+func (f *Frame) SpritePart(tier Tier, depth float32, atlas AtlasSource, src [4]float32, dst Corners, shade Shade) {
+	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas = len(f.verts), false, tier, depth, atlas
+	u0, v0, u1, v1 := src[0], src[1], src[2], src[3]
 	f.verts = append(f.verts,
 		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
 		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
@@ -272,141 +288,119 @@ func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id Spr
 	}
 }
 
-// Glint lays over the last sprite added — a Sprite or Tile over the corners of the world box
-// (x0, y0)-(x1, y1), or every piece of the last SpriteRect or TileRect over it — a shiny surface
-// rippled by small waves the shader runs across it as time goes by: water, ice, wet rock. It
-// throws the frame's sun back at the eye as much as shine says, where lit of the sun reaches its
-// corners, and the sky the more the flatter the eye looks at it; near a shore the waves turn to
-// face it and break into foam.
-func (f *Frame) Glint(x0, y0, x1, y1, shine float32, lit [4]float32, shore Shore) {
-	o := overlay{world: box(x0, y0, x1, y1), red: [4]float32{shine, shine, shine, shine}, shore: &shore}
-	for k, l := range lit {
-		o.alpha[k] = glintMark + l
-	}
-	f.over(&o)
-}
-
-// Stream lays over the last sprite added, whose corners lie at world in the world, water running
-// at flow: ripples carried down with the current, foaming white where it runs fast — a rapid, a
-// waterfall. It throws the sun and the sky back as Glint's water does and has no shore to roll in
-// on; over a sprite drawn with SpriteBlend it shows only where the sprite does.
-func (f *Frame) Stream(world World, shine float32, lit [4]float32, flow Flow) {
-	o := overlay{world: world, red: [4]float32{shine, shine, shine, shine}, flow: &flow}
-	for k, l := range lit {
-		o.alpha[k] = streamMark + l
-	}
-	f.over(&o)
-}
-
 // World is where each corner of a piece lies in the world — top-left, top-right, bottom-left,
 // bottom-right, as its Corners on screen — for what the shader works out where it lies.
 type World [4][2]float32
 
-// box is the World of the world box (x0, y0)-(x1, y1).
-func box(x0, y0, x1, y1 float32) World { return World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} }
+// Box is the World of the world box (x0, y0)-(x1, y1).
+func Box(x0, y0, x1, y1 float32) World { return World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} }
 
-// Flow is how fast water runs at each corner of what streams — top-left, top-right, bottom-left,
-// bottom-right — in world units a second along x and y.
-type Flow [4][2]float32
-
-// Overcast lays over the last sprite added, as Glint does, the shadows of the clouds drifting over
-// the ground of the world box (x0, y0)-(x1, y1). A frame with a clear sky lays nothing.
-func (f *Frame) Overcast(x0, y0, x1, y1 float32) { f.OvercastAt(box(x0, y0, x1, y1)) }
-
-// OvercastAt is Overcast over the last sprite added, whose corners lie at world in the world. The
-// shadow is as faint and fades as the sprite does (SpriteSoft), so a sprite laid over another is
-// never shaded twice.
-func (f *Frame) OvercastAt(world World) {
-	if f.weather.Clouds <= 0 {
-		return
-	}
-	f.over(&overlay{world: world, alpha: [4]float32{overcastMark, overcastMark, overcastMark, overcastMark}, under: true})
+// Overlay is a quad laid over a sprite for a material to work out in the shader (see
+// RegisterMaterials): where the sprite's corners lie in the world, and what the material reads at
+// each corner — Red, a Fraction 0 to 1, and four Custom values — blended across the quad. Under
+// has the overlay take how faint the sprite under it is into its red and how it fades or blends
+// into its custom, as a shadow over it must; Blended, over a sprite drawn with SpriteBlend, takes
+// the sprite's weight and mark into its custom's third and fourth.
+type Overlay struct {
+	Material MaterialID
+	World    World
+	Red      [4]float32
+	Fraction [4]float32
+	Custom   [4][4]float32
+	Under    bool
+	Blended  bool
 }
 
-// overlay is a quad laid over a sprite for the shader to work out: where the sprite's corners lie
-// in the world, red and alpha at its corners, and the shore or the flow, if any, in its customs;
-// green and blue are where each point lies in the world.
-type overlay struct {
-	world      World
-	red, alpha [4]float32
-	shore      *Shore
-	flow       *Flow
-	under      bool // as faint as the sprite under it, fading as it does
+// Overlay lays o over the last sprite added — a Sprite or Tile, or every piece of the last
+// SpriteRect or TileRect — on its sheet's white texel.
+func (f *Frame) Overlay(o *Overlay) {
+	f.overlay(Mark{first: f.lastFirst, rect: f.lastRect, tier: f.lastTier, depth: f.lastDepth, atlas: f.lastAtlas, quads: f.quads}, o)
 }
 
-// over lays o over each piece of the last sprite added, on its sheet's white texel.
-func (f *Frame) over(o *overlay) {
-	if f.lastAtlas == nil {
+// Mark is a sprite already in a frame (Frame.Last), for an overlay laid over it later.
+type Mark struct {
+	first int
+	rect  bool
+	tier  Tier
+	depth float32
+	atlas AtlasSource
+	quads []camera.Quad // a SpriteRect's pieces; none when it is one whole
+}
+
+// Last is the last sprite added, for an overlay laid over it later (OverlayOn).
+func (f *Frame) Last() Mark {
+	m := Mark{first: f.lastFirst, rect: f.lastRect, tier: f.lastTier, depth: f.lastDepth, atlas: f.lastAtlas}
+	if f.lastRect && !whole(f.quads) {
+		m.quads = slices.Clone(f.quads)
+	}
+	return m
+}
+
+// OverlayOn is Overlay laid over the sprite m, over all drawn on it since at its tier and depth.
+func (f *Frame) OverlayOn(m Mark, o *Overlay) { f.overlay(m, o) }
+
+// whole reports whether a SpriteRect's pieces are one, the whole of it.
+func whole(quads []camera.Quad) bool {
+	return len(quads) == 0 || len(quads) == 1 && quads[0].T0X == 0 && quads[0].T0Y == 0 && quads[0].T1X == 1 && quads[0].T1Y == 1
+}
+
+func (f *Frame) overlay(m Mark, o *Overlay) {
+	if m.atlas == nil {
 		return
 	}
-	wu, wv := f.lastAtlas.White()
-	w := o.world
+	wu, wv := m.atlas.White()
+	w := o.World
 	xs, ys := [4]float32{w[0][0], w[1][0], w[2][0], w[3][0]}, [4]float32{w[0][1], w[1][1], w[2][1], w[3][1]}
+	mark := [4]float32{}
+	for k := range mark {
+		mark[k] = overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1)
+	}
+	custom := func(i int, u, v float32) float32 {
+		return blend([4]float32{o.Custom[0][i], o.Custom[1][i], o.Custom[2][i], o.Custom[3][i]}, u, v)
+	}
 	piece := func(first int, u0, v0, u1, v1 float32) {
 		for k, uv := range [4][2]float32{{u0, v0}, {u1, v0}, {u0, v1}, {u1, v1}} {
-			u, w := uv[0], uv[1]
-			v := ebiten.Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
-				ColorR: blend(o.red, u, w), ColorG: blend(xs, u, w), ColorB: blend(ys, u, w), ColorA: blend(o.alpha, u, w)}
-			if o.shore != nil {
-				c := o.shore.at(u, w)
-				v.Custom0, v.Custom1, v.Custom2, v.Custom3 = c.X, c.Y, c.Dist, c.Near
+			u, v := uv[0], uv[1]
+			vx := ebiten.Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
+				ColorR: blend(o.Red, u, v), ColorG: blend(xs, u, v), ColorB: blend(ys, u, v), ColorA: blend(mark, u, v),
+				Custom0: custom(0, u, v), Custom1: custom(1, u, v), Custom2: custom(2, u, v), Custom3: custom(3, u, v)}
+			s := f.verts[first+k]
+			if o.Under {
+				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
 			}
-			if o.under {
-				s := f.verts[first+k]
-				v.ColorR, v.Custom0, v.Custom1, v.Custom2, v.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
+			if o.Blended && s.Custom3 > blendMark-4.5 {
+				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
-			if fl := o.flow; fl != nil {
-				v.Custom0 = blend([4]float32{fl[0][0], fl[1][0], fl[2][0], fl[3][0]}, u, w)
-				v.Custom1 = blend([4]float32{fl[0][1], fl[1][1], fl[2][1], fl[3][1]}, u, w)
-				// over a blended sprite the water shows only where the sprite does
-				if s := f.verts[first+k]; s.Custom3 > blendMark-4.5 {
-					v.Custom2, v.Custom3 = s.ColorA, s.Custom3
-				}
-			}
-			f.verts = append(f.verts, v)
+			f.verts = append(f.verts, vx)
 		}
-		f.add(f.lastTier, f.lastDepth, f.lastAtlas, quad, 4)
+		f.add(m.tier, m.depth, m.atlas, quad, 4)
 	}
-	if !f.lastRect {
-		piece(f.lastFirst, 0, 0, 1, 1)
+	if !m.rect || whole(m.quads) {
+		// the whole quad: each corner takes its own, nothing blended
+		for k := range 4 {
+			s := f.verts[m.first+k]
+			c := o.Custom[k]
+			vx := ebiten.Vertex{DstX: s.DstX, DstY: s.DstY, SrcX: wu, SrcY: wv, ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
+				ColorA: mark[k], Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]}
+			if o.Under {
+				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
+			}
+			if o.Blended && s.Custom3 > blendMark-4.5 {
+				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
+			}
+			f.verts = append(f.verts, vx)
+		}
+		f.add(m.tier, m.depth, m.atlas, quad, 4)
 		return
 	}
-	for k, q := range f.quads {
-		piece(f.lastFirst+4*k, q.T0X, q.T0Y, q.T1X, q.T1Y)
+	for k, q := range m.quads {
+		piece(m.first+4*k, q.T0X, q.T0Y, q.T1X, q.T1Y)
 	}
 }
 
-// overcastMark is the alpha of the clouds' shadows on the ground, above any glint's.
-const overcastMark = 4
-
-// streamMark is what running water's alpha starts from, above the clouds' shadows: the sun reaching
-// the corner above it.
-const streamMark = 5
-
-// glintMark is what a glint's alpha starts from, telling the shader it is one — no colour's is over
-// 1 — the sun reaching the corner above it.
-const glintMark = 2
-
-// Shore is where the nearest shore lies from each corner of what glints — top-left, top-right,
-// bottom-left, bottom-right; the zero Shore is open water.
-type Shore [4]ShoreCorner
-
-// ShoreCorner is the way to the nearest shore (X, Y, of length 1, or 0 with none near), how far
-// it is in world units, and how near: 1 on the shore down to 0 where the open water begins.
-type ShoreCorner struct{ X, Y, Dist, Near float32 }
-
-// at is the shore at (u, v) across the box, 0 to 1 each way, blended from its corners.
-func (s Shore) at(u, v float32) ShoreCorner {
-	mix := func(get func(c ShoreCorner) float32) float32 {
-		return blend([4]float32{get(s[0]), get(s[1]), get(s[2]), get(s[3])}, u, v)
-	}
-	return ShoreCorner{
-		X:    mix(func(c ShoreCorner) float32 { return c.X }),
-		Y:    mix(func(c ShoreCorner) float32 { return c.Y }),
-		Dist: mix(func(c ShoreCorner) float32 { return c.Dist }),
-		Near: mix(func(c ShoreCorner) float32 { return c.Near }),
-	}
-}
+// overlayMark is what an overlay's alpha starts from, telling the shader it is one — no colour's
+// is over 1 — twice its material's number and its fraction above it.
+const overlayMark = 2
 
 // at is the light at (u, v) across the piece, 0 to 1 each way, blended from its corners.
 func (s Shade) at(u, v float32) Light {

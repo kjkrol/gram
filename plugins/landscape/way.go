@@ -1,11 +1,11 @@
-package board
+package landscape
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/render"
+	"math"
 )
 
 // WayPiece is one piece of what runs across a tile: a band from the cell's middle out towards a
@@ -21,7 +21,7 @@ type WayPiece struct {
 	Light  render.Shade
 	Shine  float32
 	Lit    [4]float32
-	Flow   render.Flow
+	Flow   Flow
 	Across bool
 	Corner [2]float32
 	// Weight is how much of the way shows at each corner, 1 all of it: a way fading out is drawn
@@ -30,7 +30,8 @@ type WayPiece struct {
 	Faded  bool
 }
 
-// Way is the tile's Way cut into the pieces it is drawn in. Each way out ends halfway to the
+// Way is the tile's board.Way cut into the pieces it is drawn in, its water shining as far as its
+// wayDetail. Each way out ends halfway to the
 // neighbour it runs on to, as wide there as the mean of the two ways; the two out to the widest
 // neighbours are one band curving from the one end to the other round the cell's middle, and any
 // other joins it curving in to its middle, so a winding stream bends smoothly from cell to cell:
@@ -41,19 +42,54 @@ type WayPiece struct {
 // it has faded, the ends of a band as much as the mean of the two ways there, and where it runs
 // level its water runs on the way it fades: a river running out into the sea. Good until the next
 // call; nothing where no way runs.
-func (t *Tile) Way() []WayPiece {
+func (t *tile) Way() []WayPiece {
+	r := t.r
+	r.ways = r.ways[:0]
+	if !r.topOf(t.ID).way.Runs() {
+		return nil
+	}
+	b := r.bakeOf(t)
+	light, lit, w, h := t.Light(), t.sunlit(), t.X1-t.X0, t.Y1-t.Y0
+	detail := t.wayDetail()
+	pieces := b.ways
+	if r.cellPx < nearCell {
+		pieces = b.farWays // a curve in fewer, longer pieces: a cell spans a few pixels
+	}
+	for _, p := range pieces {
+		p.Shine *= detail
+		for k, at := range p.World {
+			u, v := at[0]/w, at[1]/h
+			p.Light[k], p.Lit[k] = mixLight(light, u, v), mix4(lit, u, v)
+		}
+		p.World = shift(p.World, t.X0, t.Y0)
+		p.Corner[0], p.Corner[1] = p.Corner[0]+t.X0, p.Corner[1]+t.Y0
+		r.ways = append(r.ways, p)
+	}
+	return r.ways
+}
+
+// wayDetail is how much a way's water shines, 0 to 1: on a square grid none where the tile is
+// dressed from the ground sheet, fading in above it; elsewhere as far as the tile's Detail.
+func (t *tile) wayDetail() float32 {
+	if !t.r.square {
+		return t.Detail()
+	}
+	return min(max((t.r.cellPx-bakeCell)/(bakeCell/2), 0), 1)
+}
+
+// wayAnew works out the tile's board.Way into out, in no light; its curves in fewer pieces unless
+// fine.
+func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	r := t.r
 	top := r.topOf(t.ID)
 	w := top.way
-	r.ways = r.ways[:0]
 	if !w.Runs() {
-		return nil
+		return out
 	}
 	cx, cy := (t.X0+t.X1)/2, (t.Y0+t.Y1)/2
-	light, lit := t.Light(), t.sunlit()
 	shine := float32(0)
-	if r.board.quasi3D {
-		shine = float32(w.Kind.Shine)
+	if r.quasi3D {
+		shine = top.wayShine
 	}
 	ground := func(x, y float32) float32 {
 		return float32(r.board.GroundAt(geom.NewVec(float64(x), float64(y))))
@@ -61,12 +97,15 @@ func (t *Tile) Way() []WayPiece {
 	piece := func(world render.World) WayPiece {
 		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine}
 		for k, at := range world {
-			u, v := (at[0]-t.X0)/(t.X1-t.X0), (at[1]-t.Y0)/(t.Y1-t.Y0)
 			p.Z[k] = ground(at[0], at[1])
-			p.Light[k] = mixLight(light, u, v)
-			p.Lit[k] = mix4(lit, u, v)
 		}
 		return p
+	}
+	steps := func(n int) int {
+		if fine {
+			return n
+		}
+		return max(n/3, 1)
 	}
 	h := w.Width / 2
 	var outs [8]wayOut
@@ -75,12 +114,12 @@ func (t *Tile) Way() []WayPiece {
 		if w.Links&(1<<i) == 0 {
 			continue
 		}
-		nb, ok := Toward(r.board, t.ID, i)
+		nb, ok := board.Toward(r.board, t.ID, i)
 		if !ok {
 			continue
 		}
 		ex, ey := t.toward(nb, i)
-		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, slant: r.board.square != nil && i >= 4}
+		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, slant: r.square && i >= 4}
 		if other := r.topOf(nb).way; other.Runs() {
 			o.half, o.wide, o.fade = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2
 		}
@@ -101,7 +140,7 @@ func (t *Tile) Way() []WayPiece {
 		}
 		length := float32(math.Hypot(float64(a.x-mx), float64(a.y-my)) + math.Hypot(float64(b.x-mx), float64(b.y-my)))
 		speed := float32(0)
-		if length > 0 && w.Kind.Flow > 0 {
+		if length > 0 && top.wayFlow > 0 {
 			fall := (ground(a.x, a.y) - ground(b.x, b.y)) / length
 			// level water runs on the way the way fades: out into the sea
 			if math.Abs(float64(fall)) < stillFall && a.fade != b.fade {
@@ -111,7 +150,7 @@ func (t *Tile) Way() []WayPiece {
 				}
 			}
 			if fall != 0 {
-				speed = float32(w.Kind.Flow) * float32(math.Sqrt(math.Abs(float64(fall))))
+				speed = top.wayFlow * float32(math.Sqrt(math.Abs(float64(fall))))
 				if fall < 0 {
 					speed = -speed
 				}
@@ -121,7 +160,7 @@ func (t *Tile) Way() []WayPiece {
 		for k := 1; k <= steps; k++ {
 			x1, y1, tx1, ty1, h1, s1 := at(float32(k) / float32(steps))
 			p := piece(render.World{{x0 - ty0*h0, y0 + tx0*h0}, {x1 - ty1*h1, y1 + tx1*h1}, {x0 + ty0*h0, y0 - tx0*h0}, {x1 + ty1*h1, y1 - tx1*h1}})
-			p.Flow = render.Flow{{tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}, {tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}}
+			p.Flow = Flow{{tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}, {tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}}
 			p.Weight, p.Faded = [4]float32{s0, s1, s0, s1}, s0 < 1 || s1 < 1
 			// the stretch by a corner a band runs slantwise through reaches into the cells either side
 			near := func(e wayOut) bool {
@@ -133,7 +172,7 @@ func (t *Tile) Way() []WayPiece {
 			case near(b):
 				p.Across, p.Corner = true, [2]float32{b.x, b.y}
 			}
-			r.ways = append(r.ways, p)
+			out = append(out, p)
 			x0, y0, tx0, ty0, h0, s0 = x1, y1, tx1, ty1, h1, s1
 		}
 	}
@@ -141,7 +180,7 @@ func (t *Tile) Way() []WayPiece {
 	case 0:
 		p := piece(render.World{{cx - h, cy - h}, {cx + h, cy - h}, {cx - h, cy + h}, {cx + h, cy + h}})
 		p.Weight, p.Faded = [4]float32{1 - w.Fade, 1 - w.Fade, 1 - w.Fade, 1 - w.Fade}, w.Fade > 0
-		r.ways = append(r.ways, p)
+		out = append(out, p)
 	case 1:
 		// straight out to the one neighbour, from square across itself behind the middle
 		o := outs[0]
@@ -154,7 +193,7 @@ func (t *Tile) Way() []WayPiece {
 		mid := wayOut{x: cx, y: cy, half: h, fade: w.Fade}
 		// round a point on the line, the curve runs straight
 		band(back, mid, (back.x+mid.x)/2, (back.y+mid.y)/2, 1)
-		band(mid, o, (mid.x+o.x)/2, (mid.y+o.y)/2, 4)
+		band(mid, o, (mid.x+o.x)/2, (mid.y+o.y)/2, steps(4))
 	default:
 		// the stem: the ways out to the two widest neighbours; any other joins it halfway
 		a, b := 0, 1
@@ -169,7 +208,7 @@ func (t *Tile) Way() []WayPiece {
 				b = i
 			}
 		}
-		band(outs[a], outs[b], cx, cy, 6)
+		band(outs[a], outs[b], cx, cy, steps(6))
 		// the middle of the stem's curve, where the others join it
 		jx := 0.25*outs[a].x + 0.5*cx + 0.25*outs[b].x
 		jy := 0.25*outs[a].y + 0.5*cy + 0.25*outs[b].y
@@ -177,10 +216,10 @@ func (t *Tile) Way() []WayPiece {
 			if i == a || i == b {
 				continue
 			}
-			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade}, cx, cy, 4)
+			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade}, cx, cy, steps(4))
 		}
 	}
-	return r.ways
+	return out
 }
 
 // wayOut is one way out of a way's cell: where it ends, halfway to its neighbour, how half wide it
@@ -197,8 +236,8 @@ const stillFall = 0.01
 
 // toward is the way from the middle of the tile to halfway to its neighbour n, the grid's i-th
 // direction.
-func (t *Tile) toward(n CellID, i int) (float32, float32) {
-	if t.r.board.square != nil {
+func (t *tile) toward(n board.CellID, i int) (float32, float32) {
+	if t.r.square {
 		return float32(squareDirs[i][0]) * (t.X1 - t.X0) / 2, float32(squareDirs[i][1]) * (t.Y1 - t.Y0) / 2
 	}
 	a, b := t.r.board.CellCenter(t.ID), t.r.board.CellCenter(n)
@@ -212,7 +251,7 @@ const wayTier = render.Ground + 5
 // DrawWay draws what runs across the tile over it, at depth: each piece in its light, the clouds'
 // shadows over it and, where it shines, its water running. A piece reaching across a corner takes
 // the depth of the nearest of the four cells meeting there, so none of them covers it.
-func (t *Tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
+func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
 	for _, p := range t.Way() {
 		var corners render.Corners
@@ -231,9 +270,9 @@ func (t *Tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 		} else {
 			f.Sprite(wayTier, d, t.Atlas, p.Sprite, corners, p.Light)
 		}
-		f.OvercastAt(p.World)
+		Overcast(f, p.World)
 		if p.Shine > 0 {
-			f.Stream(p.World, p.Shine, p.Lit, p.Flow)
+			Stream(f, p.World, p.Shine, p.Lit, p.Flow)
 		}
 	}
 }
@@ -252,4 +291,56 @@ func mix4(c [4]float32, u, v float32) float32 {
 	top := c[0] + (c[1]-c[0])*u
 	bottom := c[2] + (c[3]-c[2])*u
 	return top + (bottom-top)*v
+}
+
+// cellBake is what a cell's tile draws over itself, worked out once while the cells round it stay
+// as they are: its blends and its way, near and far, placed as if the tile's top-left corner were
+// at 0, 0, in no light yet.
+type cellBake struct {
+	ver     uint64 // one more than the newest version round the cell when baked; 0 never
+	seen    uint64 // the board's count of changes when last found as it was
+	blends  []BlendPiece
+	ways    []WayPiece
+	farWays []WayPiece
+}
+
+// bakeOf is t's bake, worked out anew when a cell round it has changed since.
+func (l *dresser) bakeOf(t *tile) *cellBake {
+	i, _ := l.ordinal(t.ID)
+	b := &l.bakes[i]
+	if b.ver != 0 && b.seen == l.board.Changes() { // nothing on the board has changed since
+		return b
+	}
+	b.seen = l.board.Changes()
+	v := l.board.CellVersion(t.ID)
+	for d := range 8 {
+		if n, ok := board.Toward(l.board, t.ID, d); ok {
+			v = max(v, l.board.CellVersion(n))
+		}
+	}
+	if b.ver == v+1 {
+		return b
+	}
+	b.ver = v + 1
+	b.blends = t.blendsAnew(b.blends[:0])
+	b.ways, b.farWays = t.wayAnew(b.ways[:0], true), t.wayAnew(b.farWays[:0], false)
+	for k := range b.blends {
+		b.blends[k].World = shift(b.blends[k].World, -t.X0, -t.Y0)
+	}
+	for _, ways := range [2][]WayPiece{b.ways, b.farWays} {
+		for k := range ways {
+			p := &ways[k]
+			p.World = shift(p.World, -t.X0, -t.Y0)
+			p.Corner[0], p.Corner[1] = p.Corner[0]-t.X0, p.Corner[1]-t.Y0
+		}
+	}
+	return b
+}
+
+// shift is w moved by dx, dy.
+func shift(w render.World, dx, dy float32) render.World {
+	for k := range w {
+		w[k][0], w[k][1] = w[k][0]+dx, w[k][1]+dy
+	}
+	return w
 }

@@ -90,6 +90,7 @@ func (b *Board) SetWay(c CellID, w Way) {
 		b.seed.SetWay(c, w)
 		if b.seed.Version() != before {
 			b.version++
+			b.touch(c)
 		}
 		return
 	}
@@ -100,6 +101,7 @@ func (b *Board) SetWay(c CellID, w Way) {
 	if p := b.wayOf(i); *p != w {
 		*p = w
 		b.version++
+		b.touch(c)
 	}
 }
 

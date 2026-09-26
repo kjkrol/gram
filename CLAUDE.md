@@ -192,8 +192,10 @@ backdrop, a `render.Source`: the viewport in the sky's colour on `render.Backdro
 −∞), drawn only when some corner of the screen is off the world's ground. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
 `Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it half an hour on or
 back while it stands. Both islands with heights use it.
-`CellKind.Shine` (0–1) makes a kind glint, per pixel in `render/compose.kage`: after the tile a
-look calls `Frame.Glint(box, t.Shine(), t.Shore())`, a quad over the tile added to it (alpha 0)
+`CellKind.Shine` (0–1) makes a kind glint, per pixel in the landscape's material
+(`plugins/landscape/water.kage`; the composer's shader is `render/compose.kage` plus every material a
+plugin registers with `render.RegisterMaterials`, compiled once): after the tile a look calls
+`t.DrawSurface` (`landscape.Overcast`, then `landscape.Glint(f, box, shine, lit, shore)` or `landscape.Stream`), a quad over the tile added to it (alpha 0)
 whose vertices carry the kind's shine in red, the world position in green and blue, 2 + the sun
 reaching the corner in alpha and the shore in Custom0..3 (the way to it, the distance, how near). The shader tilts the surface by seven waves moving with the composer's clock —
 within `shoreReach` (3) cells of the nearest cell that does not shine, by a swell whose crests
@@ -236,7 +238,7 @@ its drifts and shores laid at once. `Change` (W) and `Set{Name}`;
 `Renderer()` is the precipitation Source (screen-space streaks and flakes from a hash of their
 number and `Frame.Time`, tier `render.Air` 350, depth +∞); `Reporter()` the telemetry line. The
 board and the world renderers hand `Weather.Frame()` to `Frame.Weather`; looks call
-`Frame.Overcast(box)` after each tile (a quad only under clouds: alpha 4, green/blue the world
+`landscape.Overcast(f, box)` (the landscape's `CloudShadow` material) after each tile (a quad only under clouds: alpha 4, green/blue the world
 position; the shader's `clouds(p)` — value noise at `cloudSize` 420 minus `Drift`, spread by
 `cloudContrast`, the shadow straight under: cast off towards the sun it would jump with every step
 of the sun — dims the sun by `cloudDark`), glints die under clouds, waves turn with `Wind` and
@@ -361,17 +363,23 @@ shows how much of it is boilerplate vs. real behavior.
   twice as long, Air free) slows the Moving behavior along the heading and prices the planner's
   steps through `Board.Climb` — both read a cell's slope off its own corners — so steep is the
   relief, never a kind. A shiny kind with a `Flow` runs down its cell's slope
-  (`Tile.Flow` → `render.Frame.Stream`: ripples and foam carried with the current, white where it
+  (`Tile.Flow` → `landscape.Stream`, a flow map: ripples and foam carried with the current, white where it
   is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), laid as a `board.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
   tile's corners, side middles and middle by the share of the cells meeting there, shown where the
-  weight is over a half — one line across the tiles, not the cells' edges; a `CellKind.Under` kind
+  weight is over a half — one line across the tiles, not the cells' edges; a kind whose `landscape.Style` lies `Under`
   (water) is drawn as the tile's base (`Tile.Base`) under its neighbours, glint and all, the land
   laid over it the same way. Ways curve round the cell's middle; a way's `Fade` has it fade out
-  (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`); a unit's
+  (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`).
+  `Board.CellVersion` counts each cell's changes; the renderer keeps a cell's read, its tile's
+  blends and way (baked relative to the tile, lit per frame) and its light (by the sun stamp) until
+  stale; under 16 px a cell (square grids) the landscape paints blends and ways once onto a ground
+  sheet (the board's atlas + the cells, `board.Dressing.Sheet`, `render.Paint`) and a tile draws
+  them as one `Frame.SpritePart`; the clouds' shadow goes once per tile after all on it
+  (`landscape.OvercastOn`); a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and

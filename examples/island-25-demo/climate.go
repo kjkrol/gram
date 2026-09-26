@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/climate"
 	"github.com/kjkrol/gram/plugins/effects"
+	"github.com/kjkrol/gram/plugins/landscape"
 	"github.com/kjkrol/gram/plugins/sky"
 	"github.com/kjkrol/gram/render"
 )
@@ -66,10 +67,12 @@ func (s *mainStage) defineClimate() {
 		k, _ := kinds.Get(name)
 		k.Name = board.Named("snowy " + name)
 		kinds.Create(k) // the same ground to cross and stand on, another look
+		s.landscape.Style("snowy "+name, s.landscape.StyleOf(name))
 		c.snowy[board.Named(name)], _ = kinds.Get("snowy " + name)
 	}
-	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 2, Under: true, Allows: board.Land | board.Air, Shine: 0.3}.Costing(board.Air, 1))
+	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1))
 	c.frozen, _ = kinds.Get("ice")
+	s.landscape.Style("ice", landscape.Style{Under: true, Shine: 0.3})
 
 	c.snow = s.effects.Define("snow", effects.Spec{effects.Alter(func(g *board.Ground) {
 		if under, ok := c.snowy[g.Kind.Name]; ok {

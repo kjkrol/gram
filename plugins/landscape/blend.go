@@ -1,8 +1,9 @@
-package board
+package landscape
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -33,16 +34,36 @@ type BlendPiece struct {
 // spreads round the tile is laid weighed by its own share, blending over the mean of its Spread and
 // the land's. Nothing blends where the tile's kind keeps its cells square (no Spread, not Under),
 // where a kind stands a Height over its ground, nor off a square grid. Good until the next call.
-func (t *Tile) Blends() []BlendPiece {
+func (t *tile) Blends() []BlendPiece {
 	r := t.r
 	r.blends = r.blends[:0]
-	sq := r.board.square
-	if sq == nil {
+	if !r.square {
 		return nil
+	}
+	b := r.bakeOf(t)
+	if len(b.blends) == 0 {
+		return nil
+	}
+	light, w, h := t.Light(), t.X1-t.X0, t.Y1-t.Y0
+	for _, p := range b.blends {
+		for k, at := range p.World {
+			p.Light[k] = mixLight(light, at[0]/w, at[1]/h)
+		}
+		p.World = shift(p.World, t.X0, t.Y0)
+		r.blends = append(r.blends, p)
+	}
+	return r.blends
+}
+
+// blendsAnew works out the tile's Blends into out, in no light.
+func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
+	r := t.r
+	if !r.square {
+		return out
 	}
 	mine := r.topOf(t.ID)
 	if mine.raised || !mine.under && mine.spread <= 0 {
-		return nil
+		return out
 	}
 	near := r.around(t.ID)
 	land := func(n *cellTop) bool { return !n.under && n.spread > 0 && !n.raised }
@@ -50,43 +71,50 @@ func (t *Tile) Blends() []BlendPiece {
 	top := mine
 	if mine.under {
 		top = nil
-		counts := map[render.SpriteID]int{}
+		var kinds [9]*cellTop
+		var counts [9]int
+		seen, most := 0, 0
 		for _, row := range near {
 			for _, n := range row {
-				if land(n) {
-					counts[n.sprite]++
-					if top == nil || counts[n.sprite] > counts[top.sprite] {
-						top = n
-					}
+				if !land(n) {
+					continue
+				}
+				k := 0
+				for k < seen && kinds[k].sprite != n.sprite {
+					k++
+				}
+				if k == seen {
+					kinds[k], seen = n, seen+1
+				}
+				if counts[k]++; counts[k] > most {
+					top, most = kinds[k], counts[k]
 				}
 			}
 		}
 		if top == nil {
-			return nil // open water
+			return out // open water
 		}
 	}
 	w, h := t.X1-t.X0, t.Y1-t.Y0
-	light := t.Light()
 	lay := func(sprite render.SpriteID, soft float32, of func(n *cellTop) bool) {
 		weight := weigh(&near, of)
 		for qj := range 2 {
 			for qi := range 2 {
 				q := [4]float32{weight[qj][qi], weight[qj][qi+1], weight[qj+1][qi], weight[qj+1][qi+1]}
-				if q == ([4]float32{}) {
-					continue
+				if max(q[0], q[1], q[2], q[3]) <= 0.5-soft {
+					continue // shows nowhere
 				}
 				x0, y0 := t.X0+float32(qi)*w/2, t.Y0+float32(qj)*h/2
 				p := BlendPiece{World: render.World{{x0, y0}, {x0 + w/2, y0}, {x0, y0 + h/2}, {x0 + w/2, y0 + h/2}},
 					Sprite: sprite, Weight: q, Soft: soft}
 				for k, at := range p.World {
 					p.Z[k] = float32(r.board.GroundAt(geom.NewVec(float64(at[0]), float64(at[1]))))
-					p.Light[k] = mixLight(light, (at[0]-t.X0)/w, (at[1]-t.Y0)/h)
 				}
-				r.blends = append(r.blends, p)
+				out = append(out, p)
 			}
 		}
 	}
-	if base := r.base(t.ID); base != top {
+	if base := t.baseTop(); base != top {
 		lay(top.sprite, top.spread, func(n *cellTop) bool { return !n.under })
 	}
 	var done [9]render.SpriteID
@@ -100,20 +128,19 @@ func (t *Tile) Blends() []BlendPiece {
 			lay(other.sprite, (top.spread+other.spread)/2, func(n *cellTop) bool { return n.sprite == other.sprite })
 		}
 	}
-	return r.blends
+	return out
 }
 
 // base is what c's top is drawn in first: a kind Under it round it where c's own kind spreads, else
 // its own.
-func (l *Renderer) base(c CellID) *cellTop {
+func (l *dresser) base(c board.CellID) *cellTop {
 	mine := l.topOf(c)
-	sq := l.board.square
-	if sq == nil || mine.under || mine.raised || mine.spread <= 0 {
+	if !l.square || mine.under || mine.raised || mine.spread <= 0 {
 		return mine
 	}
-	x, y := sq.cellXY(c)
+	x, y := l.xy(c)
 	for _, d := range [8][2]int64{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
-		if n, ok := l.board.squareCell(int64(x)+d[0], int64(y)+d[1]); ok && l.topOf(n).under {
+		if n, ok := l.cellAt(int64(x)+d[0], int64(y)+d[1]); ok && l.topOf(n).under {
 			return l.topOf(n)
 		}
 	}
@@ -121,14 +148,14 @@ func (l *Renderer) base(c CellID) *cellTop {
 }
 
 // around is the cells round c, c's own standing in for any off the board.
-func (l *Renderer) around(c CellID) [3][3]*cellTop {
-	x, y := l.board.square.cellXY(c)
+func (l *dresser) around(c board.CellID) [3][3]*cellTop {
+	x, y := l.xy(c)
 	mine := l.topOf(c)
 	var near [3][3]*cellTop
 	for dy := int64(-1); dy <= 1; dy++ {
 		for dx := int64(-1); dx <= 1; dx++ {
 			near[dy+1][dx+1] = mine
-			if n, ok := l.board.squareCell(int64(x)+dx, int64(y)+dy); ok {
+			if n, ok := l.cellAt(int64(x)+dx, int64(y)+dy); ok {
 				near[dy+1][dx+1] = l.topOf(n)
 			}
 		}
@@ -167,15 +194,13 @@ func contains(ids []render.SpriteID, id render.SpriteID) bool {
 	return false
 }
 
-// DrawBlends draws the neighbours' grounds running into the tile at depth, and the clouds' shadows
-// over them only where they show.
-func (t *Tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
+// DrawBlends draws the neighbours' grounds running into the tile at depth.
+func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
 	for _, p := range t.Blends() {
 		var c render.Corners
 		for k, at := range p.World {
 			c[k][0], c[k][1] = cam.Project(at[0], at[1], p.Z[k])
 		}
 		f.SpriteBlend(render.Ground, depth, t.Atlas, p.Sprite, c, p.Light, p.Weight, p.Soft)
-		f.OvercastAt(p.World)
 	}
 }

@@ -94,6 +94,7 @@ func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
 		plots := s.activePlot.Slice(cur)
 		for i, a := range s.activeComp.Slice(cur) {
 			if a.Altered {
+				s.brd.touch(plots[i].Cell)
 				s.brd.seal(plots[i].Cell)
 				changed = true
 			}
@@ -101,6 +102,7 @@ func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
 	}
 	for s.idle.All(); s.idle.Next(); {
 		for _, p := range s.idlePlot.Slice(s.idle.Cursor()) {
+			s.brd.touch(p.Cell)
 			s.brd.seal(p.Cell)
 			changed = true
 		}
