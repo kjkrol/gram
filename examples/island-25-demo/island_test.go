@@ -220,29 +220,33 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 	}
 }
 
-// Every river reaching the sea runs on out into it: its mouth out at sea is estuary, only over the
-// sea, wider and more faded than the river where it leaves the land.
-func TestIslandLayout_RiversRunOnOutIntoTheSea(t *testing.T) {
+// Running water lies ashore and takes on the sea's look down its course, all of it where it
+// reaches the sea (the landscape runs it on into the water, fading).
+func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _ := islandLayout(grid)
 	land := map[board.CellID]bool{}
 	for _, e := range layout.Cells {
 		land[e.Cell] = true
 	}
-	estuaries := 0
+	mouths, heads := 0, 0
 	for _, w := range layout.Ways {
-		if w.Kind != "estuary" {
-			if w.Fade != 0 {
-				t.Errorf("a %s ashore at %v faded %v", w.Kind, w.Cell, w.Fade)
-			}
-			continue
+		if !land[w.Cell] || w.Fade != 0 || w.Mix < 0 || w.Mix > 1 {
+			t.Errorf("a %s at %v: ashore %v, faded %v, mixed %v; want ashore, unfaded, mixed 0 to 1", w.Kind, w.Cell, land[w.Cell], w.Fade, w.Mix)
 		}
-		estuaries++
-		if land[w.Cell] || w.Fade <= 0 || w.Fade >= 1 {
-			t.Errorf("estuary at %v: ashore %v, faded %v; want out at sea, fading", w.Cell, land[w.Cell], w.Fade)
+		if w.Mix == 0 {
+			heads++
+		}
+		for i := range 8 {
+			if n, ok := board.Toward(grid, w.Cell, i); ok && w.Links&(1<<i) != 0 && !land[n] {
+				mouths++
+				if w.Mix != 1 {
+					t.Errorf("a %s reaching the sea at %v mixed %v, want all the sea's look", w.Kind, w.Cell, w.Mix)
+				}
+			}
 		}
 	}
-	if estuaries < 5 {
-		t.Errorf("%d cells of estuary, want the rivers running out to sea", estuaries)
+	if mouths < 5 || heads < 5 {
+		t.Errorf("%d mouths, %d heads; want the courses rising inland and reaching the sea", mouths, heads)
 	}
 }

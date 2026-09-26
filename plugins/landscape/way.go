@@ -28,6 +28,13 @@ type WayPiece struct {
 	// blended (render.Frame.SpriteBlend) down to nothing.
 	Weight [4]float32
 	Faded  bool
+	// Mix is how far the way's look has turned at each corner into MixSprite, its Style's MixWith,
+	// where Mixes: glazed over it (render.Frame.Glaze), its water running the less and glinting as
+	// that kind's does, as shiny as MixShine, the more.
+	Mix       [4]float32
+	MixSprite render.SpriteID
+	Mixes     bool
+	MixShine  float32
 }
 
 // Way is the tile's board.Way cut into the pieces it is drawn in, its water shining as far as its
@@ -55,8 +62,10 @@ func (t *tile) Way() []WayPiece {
 	if r.cellPx < nearCell {
 		pieces = b.farWays // a curve in fewer, longer pieces: a cell spans a few pixels
 	}
+	sea := t.Detail() // what a way turns into glints as far as the ground's water
 	for _, p := range pieces {
 		p.Shine *= detail
+		p.MixShine *= sea
 		for k, at := range p.World {
 			u, v := at[0]/w, at[1]/h
 			p.Light[k], p.Lit[k] = mixLight(light, u, v), mix4(lit, u, v)
@@ -95,7 +104,10 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		return float32(r.board.GroundAt(geom.NewVec(float64(x), float64(y))))
 	}
 	piece := func(world render.World) WayPiece {
-		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine}
+		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine, MixSprite: top.wayMix, Mixes: top.wayMixes}
+		if r.quasi3D {
+			p.MixShine = top.wayMixShine
+		}
 		for k, at := range world {
 			p.Z[k] = ground(at[0], at[1])
 		}
@@ -119,16 +131,19 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			continue
 		}
 		ex, ey := t.toward(nb, i)
-		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, slant: r.square && i >= 4}
-		if other := r.topOf(nb).way; other.Runs() {
-			o.half, o.wide, o.fade = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2
+		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, mix: w.Mix, slant: r.square && i >= 4}
+		if other := r.topOf(nb); other.way.Runs() {
+			o.half, o.wide, o.fade, o.mix = (w.Width+other.way.Width)/4, other.way.Width, (w.Fade+other.way.Fade)/2, (w.Mix+other.way.Mix)/2
+		} else if other.under {
+			// out into water: the way the water leaves, so wider than any way in and always the stem
+			o.fade, o.wide = w.Fade, 2*w.Width
 		}
 		outs[n], n = o, n+1
 	}
 	// band lays the curve from a round (mx, my) to b, half wide at its ends as they say and h at
 	// its middle, in steps pieces, the water running down it from the higher end
 	band := func(a, b wayOut, mx, my float32, steps int) {
-		at := func(u float32) (x, y, tx, ty, half, shows float32) {
+		at := func(u float32) (x, y, tx, ty, half, shows, mix float32) {
 			v := 1 - u
 			x = v*v*a.x + 2*u*v*mx + u*u*b.x
 			y = v*v*a.y + 2*u*v*my + u*u*b.y
@@ -136,7 +151,8 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			if l := float32(math.Hypot(float64(tx), float64(ty))); l > 0 {
 				tx, ty = tx/l, ty/l
 			}
-			return x, y, tx, ty, v*v*a.half + 2*u*v*h + u*u*b.half, 1 - (v*v*a.fade + 2*u*v*w.Fade + u*u*b.fade)
+			return x, y, tx, ty, v*v*a.half + 2*u*v*h + u*u*b.half, 1 - (v*v*a.fade + 2*u*v*w.Fade + u*u*b.fade),
+				v*v*a.mix + 2*u*v*w.Mix + u*u*b.mix
 		}
 		length := float32(math.Hypot(float64(a.x-mx), float64(a.y-my)) + math.Hypot(float64(b.x-mx), float64(b.y-my)))
 		speed := float32(0)
@@ -156,12 +172,13 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 				}
 			}
 		}
-		x0, y0, tx0, ty0, h0, s0 := at(0)
+		x0, y0, tx0, ty0, h0, s0, m0 := at(0)
 		for k := 1; k <= steps; k++ {
-			x1, y1, tx1, ty1, h1, s1 := at(float32(k) / float32(steps))
+			x1, y1, tx1, ty1, h1, s1, m1 := at(float32(k) / float32(steps))
 			p := piece(render.World{{x0 - ty0*h0, y0 + tx0*h0}, {x1 - ty1*h1, y1 + tx1*h1}, {x0 + ty0*h0, y0 - tx0*h0}, {x1 + ty1*h1, y1 - tx1*h1}})
 			p.Flow = Flow{{tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}, {tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}}
 			p.Weight, p.Faded = [4]float32{s0, s1, s0, s1}, s0 < 1 || s1 < 1
+			p.Mix = [4]float32{m0, m1, m0, m1}
 			// the stretch by a corner a band runs slantwise through reaches into the cells either side
 			near := func(e wayOut) bool {
 				return e.slant && min(math.Hypot(float64(x0-e.x), float64(y0-e.y)), math.Hypot(float64(x1-e.x), float64(y1-e.y))) < float64(e.half)
@@ -173,24 +190,25 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 				p.Across, p.Corner = true, [2]float32{b.x, b.y}
 			}
 			out = append(out, p)
-			x0, y0, tx0, ty0, h0, s0 = x1, y1, tx1, ty1, h1, s1
+			x0, y0, tx0, ty0, h0, s0, m0 = x1, y1, tx1, ty1, h1, s1, m1
 		}
 	}
 	switch n {
 	case 0:
 		p := piece(render.World{{cx - h, cy - h}, {cx + h, cy - h}, {cx - h, cy + h}, {cx + h, cy + h}})
 		p.Weight, p.Faded = [4]float32{1 - w.Fade, 1 - w.Fade, 1 - w.Fade, 1 - w.Fade}, w.Fade > 0
+		p.Mix = [4]float32{w.Mix, w.Mix, w.Mix, w.Mix}
 		out = append(out, p)
 	case 1:
 		// straight out to the one neighbour, from square across itself behind the middle
 		o := outs[0]
 		ax, ay := o.x-cx, o.y-cy
 		l := float32(math.Hypot(float64(ax), float64(ay)))
-		back := wayOut{x: cx - ax/l*h, y: cy - ay/l*h, half: h, fade: w.Fade}
+		back := wayOut{x: cx - ax/l*h, y: cy - ay/l*h, half: h, fade: w.Fade, mix: w.Mix}
 		if w.Fade > 0 {
 			back.fade = 1 // a way fading out ends in nothing
 		}
-		mid := wayOut{x: cx, y: cy, half: h, fade: w.Fade}
+		mid := wayOut{x: cx, y: cy, half: h, fade: w.Fade, mix: w.Mix}
 		// round a point on the line, the curve runs straight
 		band(back, mid, (back.x+mid.x)/2, (back.y+mid.y)/2, 1)
 		band(mid, o, (mid.x+o.x)/2, (mid.y+o.y)/2, steps(4))
@@ -216,18 +234,18 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			if i == a || i == b {
 				continue
 			}
-			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade}, cx, cy, steps(4))
+			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade, mix: w.Mix}, cx, cy, steps(4))
 		}
 	}
 	return out
 }
 
 // wayOut is one way out of a way's cell: where it ends, halfway to its neighbour, how half wide it
-// is there and how faded, how wide the neighbour's way is, and whether it runs slantwise through a
-// corner.
+// is there, how faded and how far its look has turned, how wide the neighbour's way is, and whether
+// it runs slantwise through a corner.
 type wayOut struct {
-	x, y, half, fade, wide float32
-	slant                  bool
+	x, y, half, fade, mix, wide float32
+	slant                       bool
 }
 
 // stillFall is the fall, rise over run, under which water lies level: there a way's water runs on
@@ -265,16 +283,41 @@ func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 				d = max(d, cam.Depth(x, y, float32(t.r.board.GroundAt(geom.NewVec(float64(x), float64(y))))))
 			}
 		}
-		if p.Faded {
-			f.SpriteBlend(wayTier, d, t.Atlas, p.Sprite, corners, p.Light, p.Weight, 0.5)
-		} else {
-			f.Sprite(wayTier, d, t.Atlas, p.Sprite, corners, p.Light)
+		OvercastOn(f, p.draw(f, wayTier, d, t.Atlas, corners, p.Light), p.World)
+		// the water runs the less, and glints as what it turns into the more, the further it has turned
+		var runs, glints [4]float32
+		for k, m := range p.Mix {
+			if !p.Mixes {
+				m = 0
+			}
+			runs[k], glints[k] = p.Shine*(1-m), p.MixShine*m
 		}
-		Overcast(f, p.World)
-		if p.Shine > 0 {
-			Stream(f, p.World, p.Shine, p.Lit, p.Flow)
+		if p.Shine > 0 && max(runs[0], runs[1], runs[2], runs[3]) > 0 {
+			Stream(f, p.World, runs, p.Lit, p.Flow)
+		}
+		if !p.Faded && max(glints[0], glints[1], glints[2], glints[3]) > 0 {
+			Glint(f, p.World, glints, p.Lit, Shore{})
 		}
 	}
+}
+
+// draw draws the piece over corners in shade and gives its sprite: blended where it fades, in the
+// look it has mostly turned into; else its own with what it turns into glazed over it.
+func (p *WayPiece) draw(f *render.Frame, tier render.Tier, depth float32, atlas render.AtlasSource, corners render.Corners, shade render.Shade) render.Mark {
+	if p.Faded {
+		sprite := p.Sprite
+		if p.Mixes && p.Mix[0]+p.Mix[1]+p.Mix[2]+p.Mix[3] > 2 {
+			sprite = p.MixSprite
+		}
+		f.SpriteBlend(tier, depth, atlas, sprite, corners, shade, p.Weight, 0.5)
+		return f.Last()
+	}
+	f.Sprite(tier, depth, atlas, p.Sprite, corners, shade)
+	drawn := f.Last()
+	if p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0 {
+		f.Glaze(tier, depth, atlas, p.MixSprite, corners, shade, p.Mix)
+	}
+	return drawn
 }
 
 // mixLight is the light at (u, v) across a tile lit s at its corners.

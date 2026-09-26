@@ -111,7 +111,7 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		BrookAt: brookAt, StreamAt: streamAt, RiverAt: riverAt,
 		Rain:       func(level float64) float64 { return 1 + level/100 }, // more on the heights
 		BrookDepth: 1, StreamDepth: 2, RiverDepth: 5, FordEvery: fordEvery, FordSlope: 0.15,
-		WidthPerRoot: widthPerRoot, Meander: meander, Plume: plume,
+		WidthPerRoot: widthPerRoot, Meander: meander,
 	})
 	if err != nil {
 		panic(err)
@@ -137,16 +137,7 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			// running water crosses the ground as a band down the middle of the cell
 			if course := rivers.Courses[c]; course != water.Dry {
 				ways = append(ways, board.WayEntry{Kind: courses[course], Cell: c,
-					Width: float32(rivers.Width(c, cw)), Links: rivers.Links(grid, c), Fade: float32(rivers.Fade(c))})
-			}
-		}
-	}
-	// and runs on out to sea, widening and fading
-	for y := range GridHeight {
-		for x := range GridWidth {
-			if c := cell(x, y); rivers.Courses[c] == water.Mouth {
-				ways = append(ways, board.WayEntry{Kind: courses[water.Mouth], Cell: c,
-					Width: float32(rivers.Width(c, cw)), Links: rivers.Links(grid, c), Fade: float32(rivers.Fade(c))})
+					Width: float32(rivers.Width(c, cw)), Links: rivers.Links(grid, c), Mix: float32(rivers.Along(c))})
 			}
 		}
 	}
@@ -177,7 +168,7 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 }
 
 // courses are the kinds of the ways running water lays across the ground.
-var courses = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford", water.Mouth: "estuary"}
+var courses = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford"}
 
 // soil is the ground of a cell whose corners stand at hs, w wide, in cells from the coast, at
 // (x, y): rock where it is steep or high, sand on the lowland by the sea and in dunes, earth
@@ -340,8 +331,7 @@ const (
 	riverAt      = 170.0
 	fordEvery    = 8
 	widthPerRoot = 1.4
-	meander      = 6.0  // how far the draining nudges a cell's level, so courses wander
-	plume        = 0.25 // how many cells a course runs out to sea, by the square root of its water
+	meander      = 6.0 // how far the draining nudges a cell's level, so courses wander
 	// rock stands where the ground rises rockSlope across a cell or tops rockHeight; sand lies
 	// within beachWidth cells of the sea, and in dunes where the lowland is flatter than duneSlope
 	rockSlope  = 0.5

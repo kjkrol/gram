@@ -53,6 +53,7 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	} else {
 		f.Sprite(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
 	}
+	f.Fold(top)
 	t.Dress(f, cam, x0, y0, x1, y1, depth)
 }
 

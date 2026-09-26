@@ -154,7 +154,7 @@ func (c *Composer) render(screen *ebiten.Image) {
 			}
 			base := uint16(len(c.verts))
 			c.append(f.verts[k:k+4], it.atlas == nil, sheet)
-			c.indices = append(c.indices, base, base+1, base+2, base+1, base+2, base+3)
+			c.indices = appendQuad(c.indices, base, it.shape)
 		}
 	}
 	c.flush(screen, sheet)
@@ -211,3 +211,12 @@ func (w *whiteSheet) Atlas() *ebiten.Image {
 }
 func (w *whiteSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (w *whiteSheet) White() (u, v float32)                    { return 1.5, 1.5 }
+
+// appendQuad adds the two triangles of the quad whose vertices begin at base, meeting along the
+// diagonal its shape says.
+func appendQuad(indices []uint16, base uint16, s shape) []uint16 {
+	if s == folded {
+		return append(indices, base, base+1, base+3, base, base+2, base+3)
+	}
+	return append(indices, base, base+1, base+2, base+1, base+2, base+3)
+}

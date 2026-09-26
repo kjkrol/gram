@@ -13,6 +13,7 @@ type dresser struct {
 	board   *board.Board
 	sun     func() world.Sun
 	styles  map[board.Name]Style
+	kinds   board.CellKindDict // for the kinds Styles name
 	quasi3D bool
 	square  bool
 	sq      board.SquareShape
@@ -74,20 +75,23 @@ type tile struct {
 // cellTop is a cell as the landscape reads it: its corners with its kind standing on them, the
 // ground's corners under it, its level, its sprite, its kind's Style and the way across it.
 type cellTop struct {
-	z        [4]float32
-	ground   [4]float32
-	alt      float32
-	shine    float32
-	flow     float32
-	spread   float32
-	raised   bool // something stands a Height over the ground
-	under    bool
-	sprite   render.SpriteID
-	way      board.Way
-	wayShine float32 // the Style of the way's kind
-	wayFlow  float32
-	ver      uint64 // one more than the cell's version when read; 0 not read yet
-	seen     uint64 // the board's count of changes when last found as it was
+	z           [4]float32
+	ground      [4]float32
+	alt         float32
+	shine       float32
+	flow        float32
+	spread      float32
+	raised      bool // something stands a Height over the ground
+	under       bool
+	sprite      render.SpriteID
+	way         board.Way
+	wayShine    float32 // the Style of the way's kind
+	wayFlow     float32
+	wayMix      render.SpriteID // the sprite of the kind the way turns into, where wayMixes, and its Shine
+	wayMixes    bool
+	wayMixShine float32
+	ver         uint64 // one more than the cell's version when read; 0 not read yet
+	seen        uint64 // the board's count of changes when last found as it was
 }
 
 // Begin readies the dresser for a frame through cam: the sun, how near the eye is, and what has
@@ -166,6 +170,12 @@ func (l *dresser) topOf(c board.CellID) *cellTop {
 	t.alt, t.sprite, t.ver = float32(r.Level()), kind.SpriteID, v
 	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
 	t.way, t.wayShine, t.wayFlow = way, ws.Shine, ws.Flow
+	t.wayMixes, t.wayMixShine = false, 0
+	if ws.MixWith != "" && l.kinds != nil {
+		if k, ok := l.kinds.Get(ws.MixWith); ok {
+			t.wayMix, t.wayMixes, t.wayMixShine = k.SpriteID, true, l.styles[k.Name].Shine
+		}
+	}
 	if l.square {
 		t.ground = r.Corners
 	} else {

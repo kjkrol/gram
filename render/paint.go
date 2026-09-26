@@ -20,7 +20,7 @@ func Paint(dst *ebiten.Image, f *Frame) {
 		verts, indices = verts[:0], indices[:0]
 	}
 	for _, it := range f.items {
-		if it.atlas == nil || it.shape != quad {
+		if it.atlas == nil || it.shape == fan {
 			continue // only sprites are painted
 		}
 		if it.atlas != sheet {
@@ -33,7 +33,7 @@ func Paint(dst *ebiten.Image, f *Frame) {
 			}
 			base := uint16(len(verts))
 			verts = append(verts, f.verts[k:k+4]...)
-			indices = append(indices, base, base+1, base+2, base+1, base+2, base+3)
+			indices = appendQuad(indices, base, it.shape)
 		}
 	}
 	flush()

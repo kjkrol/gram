@@ -343,6 +343,37 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	}
 }
 
+// A top whose corner stands apart folds along the diagonal whose corners stand nearer in height,
+// and what is laid over it folds with it; a level top keeps the usual diagonal.
+func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	dst := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
+	f.Sprite(Ground, 0, sheet{}, 0, dst, Even(1))
+	f.Fold([4]float32{0, 0, 0, 0})
+	f.Sprite(Ground, 0, sheet{}, 0, dst, Even(1))
+	f.Fold([4]float32{5, 0, 5, 5}) // the top-right corner stands apart
+	f.Overlay(&Overlay{World: Box(0, 0, 10, 10)})
+	if len(f.items) != 2 || f.items[0].shape != quad || f.items[0].count != 4 || f.items[1].shape != folded || f.items[1].count != 8 {
+		t.Fatalf("items %+v, want the level top as it is, the other and its overlay folded", f.items)
+	}
+	if got := appendQuad(nil, 0, folded); got[0] != 0 || got[2] != 3 || got[3] != 0 || got[5] != 3 {
+		t.Errorf("a folded quad's triangles are %v, want both meeting along 0 to 3", got)
+	}
+}
+
+// A glaze shows as much as its opacity at each corner: its light and its alpha scaled by it.
+func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	f.Glaze(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}, Even(0.8), [4]float32{0, 0.5, 1, 2})
+	for k, want := range [4]float32{0, 0.5, 1, 1} {
+		if v := f.verts[k]; v.ColorA != want || math.Abs(float64(v.ColorR-0.8*want)) > 1e-6 {
+			t.Errorf("corner %d glazed %v, alpha %v; want %v, %v", k, v.ColorR, v.ColorA, 0.8*want, want)
+		}
+	}
+}
+
 // A part of a sheet is drawn from the pixels asked for, not from a sprite.
 func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	var f Frame

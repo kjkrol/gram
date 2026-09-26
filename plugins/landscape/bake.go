@@ -198,11 +198,7 @@ func (l *dresser) lay(i int, blends []BlendPiece, ways []WayPiece) {
 		l.canvas.SpriteBlend(render.Ground, 0, s.atlas, p.Sprite, at(p.World), render.Even(1), p.Weight, p.Soft)
 	}
 	for _, p := range ways {
-		if p.Faded {
-			l.canvas.SpriteBlend(render.Ground, 0, s.atlas, p.Sprite, at(p.World), render.Even(1), p.Weight, 0.5)
-		} else {
-			l.canvas.Sprite(render.Ground, 0, s.atlas, p.Sprite, at(p.World), render.Even(1))
-		}
+		p.draw(&l.canvas, render.Ground, 0, s.atlas, at(p.World), render.Even(1))
 	}
 }
 
@@ -261,4 +257,5 @@ func (l *dresser) dressBaked(f *render.Frame, t *tile, corners render.Corners, d
 	r := s.cell(uint32(i%cols), uint32(i/cols))
 	src := [4]float32{float32(r.Min.X), float32(r.Min.Y), float32(r.Max.X), float32(r.Max.Y)}
 	f.SpritePart(render.Ground, depth, s, src, corners, t.Light())
+	f.Fold(l.topOf(t.ID).z)
 }

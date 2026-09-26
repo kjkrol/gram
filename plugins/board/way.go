@@ -6,12 +6,15 @@ import "fmt"
 // from the cell's middle out towards each neighbour its Links name. Its Kind decides who may cross
 // the cell and what it costs there, and how the band looks; the ground keeps the rest — whether it
 // is solid, what it veils. Fade is how far it has faded out across the cell, 0 not at all to 1
-// gone: a river running out into the sea. The zero Way is none.
+// gone: a river running out into the sea. Mix is how far its look has turned into another's, 0 to 1,
+// for a Dressing to show (plugins/landscape: its kind's Style.MixWith): a river taking on the
+// sea's colour towards its mouth. The zero Way is none.
 type Way struct {
 	Kind  CellKind
 	Width float32
 	Links Links
 	Fade  float32
+	Mix   float32
 }
 
 // Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction — on a square

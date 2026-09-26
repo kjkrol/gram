@@ -241,7 +241,7 @@ func (p *Plugin) Populate() error {
 		if err != nil {
 			return err
 		}
-		ways[i] = Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade}
+		ways[i] = Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
 
 	brd := p.Res.Logic.Board

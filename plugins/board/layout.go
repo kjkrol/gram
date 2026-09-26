@@ -13,13 +13,14 @@ type Layout struct {
 }
 
 // WayEntry lays a Way of the CellKind named Kind across Cell, Width wide, running on as Links says,
-// faded out as far as Fade.
+// faded out as far as Fade, its look turned as far as Mix.
 type WayEntry struct {
 	Kind  string
 	Cell  CellID
 	Width float32
 	Links Links
 	Fade  float32
+	Mix   float32
 }
 
 // CellEntry sets Cell to the CellKind named Kind.

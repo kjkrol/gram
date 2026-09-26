@@ -128,8 +128,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
 		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air},
 		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		// where a river runs out into the sea: lighter, muddy water carried out on its current
-		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water | board.Air},
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
 		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
 	)
@@ -140,11 +138,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.landscape.Style("earth", landscape.Style{Spread: 0.3})
 	s.landscape.Style("sand", landscape.Style{Spread: 0.35})
 	s.landscape.Style("rock", landscape.Style{Spread: 0.25})
-	s.landscape.Style("brook", landscape.Style{Shine: 0.9, Flow: 60})
-	s.landscape.Style("stream", landscape.Style{Shine: 0.9, Flow: 60})
-	s.landscape.Style("river", landscape.Style{Shine: 0.9, Flow: 45})
-	s.landscape.Style("ford", landscape.Style{Shine: 0.9, Flow: 45})
-	s.landscape.Style("estuary", landscape.Style{Shine: 0.9, Flow: 45})
+	s.landscape.Style("brook", landscape.Style{Shine: 0.9, Flow: 60, MixWith: "water"})
+	s.landscape.Style("stream", landscape.Style{Shine: 0.9, Flow: 60, MixWith: "water"})
+	s.landscape.Style("river", landscape.Style{Shine: 0.9, Flow: 45, MixWith: "water"})
+	s.landscape.Style("ford", landscape.Style{Shine: 0.9, Flow: 45, MixWith: "water"})
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
 	}
@@ -296,16 +293,15 @@ func (m *mainScene) Layers() []render.Layer {
 	kinds := s.board.CellKindDict()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
-		"water":   {R: 40, G: 90, B: 170, A: 255},
-		"earth":   {R: 110, G: 150, B: 75, A: 255},
-		"sand":    {R: 215, G: 195, B: 140, A: 255},
-		"rock":    {R: 130, G: 125, B: 120, A: 255},
-		"brook":   {R: 85, G: 140, B: 200, A: 255},
-		"stream":  {R: 70, G: 125, B: 195, A: 255},
-		"river":   {R: 45, G: 100, B: 180, A: 255},
-		"ford":    {R: 105, G: 150, B: 195, A: 255},
-		"estuary": {R: 85, G: 130, B: 150, A: 255},
-		"forest":  {R: 30, G: 90, B: 45, A: 255},
+		"water":  {R: 40, G: 90, B: 170, A: 255},
+		"earth":  {R: 110, G: 150, B: 75, A: 255},
+		"sand":   {R: 215, G: 195, B: 140, A: 255},
+		"rock":   {R: 130, G: 125, B: 120, A: 255},
+		"brook":  {R: 90, G: 145, B: 205, A: 255},
+		"stream": {R: 90, G: 145, B: 205, A: 255},
+		"river":  {R: 90, G: 145, B: 205, A: 255},
+		"ford":   {R: 90, G: 145, B: 205, A: 255},
+		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))

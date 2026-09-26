@@ -241,3 +241,38 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 		}
 	}
 }
+
+// Along a course the way down grows from 0 at its head to 1 at its last cell ashore, never falling
+// downstream.
+func TestNetwork_AlongGrowsDownACourseToTheSea(t *testing.T) {
+	grid, heights, sea := valley()
+	n, err := water.Drain(grid, heights, sea, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heads, ends := 0, 0
+	for c, k := range n.Courses {
+		if k == water.Dry {
+			continue
+		}
+		a := n.Along(c)
+		if a < 0 || a > 1 {
+			t.Fatalf("along %v at %v, want 0 to 1", a, c)
+		}
+		if a == 0 {
+			heads++
+		}
+		d := n.Down[c]
+		if sea(d) {
+			ends++
+			if a != 1 {
+				t.Errorf("the last cell ashore at %v is %v along, want 1", c, a)
+			}
+		} else if n.Courses[d] != water.Dry && n.Along(d) < a {
+			t.Errorf("along falls from %v at %v to %v below it", a, c, n.Along(d))
+		}
+	}
+	if heads == 0 || ends == 0 {
+		t.Errorf("%d heads, %d ends; want courses starting and reaching the sea", heads, ends)
+	}
+}

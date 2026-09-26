@@ -50,6 +50,7 @@ type Network struct {
 	Gathered map[board.CellID]float64
 
 	up      map[board.CellID][]board.CellID // the cells draining straight into each one
+	runs    map[board.CellID][2]int         // Along's: how many cells of course above and below
 	perRoot float64                         // WidthPerRoot
 	mouths  map[board.CellID]mouth          // the cells of the sea a course runs out into
 
@@ -82,6 +83,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	_, n.wrapX = grid.CellIndex(uint32(n.width), 0)
 	_, n.wrapY = grid.CellIndex(0, uint32(n.height))
 
+	shore := stepsFromSea(grid, sea)
 	level := map[board.CellID]float64{}
 	grid.EachCell(func(c board.CellID) {
 		x, y, _ := grid.Coords(c)
@@ -89,7 +91,8 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 		for _, d := range corners {
 			sum += heights(geom.NewVec(float64(int64(x)+d[0])*cw, float64(int64(y)+d[1])*ch))
 		}
-		level[c] = sum/4 + cfg.Meander*(nudge(c)-0.5)
+		calm := min(float64(shore[c])/calmNear, 1) // near the sea a course runs straight for it
+		level[c] = sum/4 + cfg.Meander*(nudge(c)-0.5)*calm
 	})
 
 	// Flood from the sea up, the lowest first: each cell drains to the one that reached it.
@@ -160,6 +163,33 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 		}
 	}
 	return n, nil
+}
+
+// calmNear is how many cells from the sea a course starts to wander: nearer, the Meander eases off
+// and it runs straight for the sea instead of along the shore into another.
+const calmNear = 4
+
+// stepsFromSea is how many steps between neighbours each cell lies from the sea, 0 the sea's own.
+func stepsFromSea(grid board.Grid, sea func(board.CellID) bool) map[board.CellID]int {
+	steps := map[board.CellID]int{}
+	var ring []board.CellID
+	grid.EachCell(func(c board.CellID) {
+		if sea(c) {
+			steps[c], ring = 0, append(ring, c)
+		}
+	})
+	for len(ring) > 0 {
+		var next []board.CellID
+		for _, c := range ring {
+			for _, m := range grid.Neighbors(c) {
+				if _, ok := steps[m]; !ok {
+					steps[m], next = steps[c]+1, append(next, m)
+				}
+			}
+		}
+		ring = next
+	}
+	return steps
 }
 
 // ford lays a ford on every river cell FordEvery cells up from the mouth where the river runs no
@@ -260,6 +290,50 @@ func (n *Network) Fade(c board.CellID) float64 {
 		return 0
 	}
 	return float64(m.out) / float64(m.reach+1)
+}
+
+// Along is how far down its course c lies: 0 at the head of the longest course running into it, 1
+// at its last cell ashore and out at sea, by the cells of course above and below it; 0 where no
+// course runs. A river turning into the sea as it nears it takes its look from it.
+func (n *Network) Along(c board.CellID) float64 {
+	switch n.Courses[c] {
+	case Dry:
+		return 0
+	case Mouth:
+		return 1
+	}
+	r := n.run(c)
+	if r[0]+r[1] == 0 {
+		return 1
+	}
+	return float64(r[0]) / float64(r[0]+r[1])
+}
+
+// run is how many cells of course ashore lie above c, along the longest course into it, and below
+// it on to the sea.
+func (n *Network) run(c board.CellID) [2]int {
+	if r, ok := n.runs[c]; ok {
+		return r
+	}
+	if n.runs == nil {
+		n.runs = map[board.CellID][2]int{}
+	}
+	ashore := func(c board.CellID) bool { k := n.Courses[c]; return k != Dry && k != Mouth }
+	var r [2]int
+	for _, u := range n.up[c] {
+		if ashore(u) {
+			r[0] = max(r[0], n.run(u)[0]+1)
+		}
+	}
+	for at := c; r[1] < len(n.Courses); r[1]++ { // water runs down a tree: no course comes back
+		next, ok := n.Down[at]
+		if !ok || !ashore(next) {
+			break
+		}
+		at = next
+	}
+	n.runs[c] = r
+	return r
 }
 
 // Links is which of c's neighbours its course runs on to: down to where its water goes, the sea

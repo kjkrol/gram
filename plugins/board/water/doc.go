@@ -10,7 +10,8 @@
 // [Drain] floods the relief from the sea up, cell by cell, the lowest first, over every neighbour
 // of a cell, across the corners too, so water runs slantwise down a slanting valley; each cell's
 // level is nudged a little for it ([Config.Meander]), so courses wander instead of running straight
-// down an even slope. Each cell's
+// down an even slope — less and less within a few cells of the sea, so a course near it runs
+// straight for it instead of along the shore into another. Each cell's
 // water goes down to the cell that reached it, and a hollow is filled until it spills: every cell
 // drains to the sea. The rain ([Config.Rain], one a cell by default) gathers downstream; where
 // enough has gathered it is a [Brook], where more a [Stream], where more still a [River]. On a
@@ -21,7 +22,9 @@
 // across a corner to cells it may enter on both sides. A course reaching the sea runs on out into
 // it ([Config.Plume] cells by the square root of its water, the way of its last step): a [Mouth]
 // on each cell of the sea, wider than the last and more faded ([Network.Fade]), the biggest
-// course's first where two would take the same sea.
+// course's first where two would take the same sea. [Network.Along] is how far down its course a
+// cell lies, 0 at the head of the longest course into it to 1 where it reaches the sea: for a
+// river to take on the sea's look as it nears it (board.Way.Mix).
 //
 // # Carving
 //

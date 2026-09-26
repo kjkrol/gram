@@ -51,8 +51,11 @@
 // wide as the mean of the two ways there; the two out to the widest neighbours are one band curving
 // round the cell's middle, any other joins it curving in, so a winding stream bends smoothly; a way
 // out to one neighbour alone ends square across itself. A way whose kind shines is water running
-// down its band; a way's Fade has it show the less the further it has faded, down to nothing where
-// it ends, its water running on level ground the way it fades: a river running out into the sea.
+// down its band; a way whose kind's Style names a kind to MixWith takes on that kind's look as far
+// as its Mix, the other sprite glazed over its own and blended along the band (render.Frame.Glaze)
+// — a river turning into the sea's colour towards its mouth; a way's Fade has it show the less the
+// further it has faded, down to nothing where it ends, its water running on level ground the way
+// it fades: a river running out into the sea.
 // Ways lie on a tier just over the tiles; a band running slantwise reaches into the cells either
 // side of the corner it runs through, so its last stretch takes the depth of the nearest of the
 // four cells meeting there.

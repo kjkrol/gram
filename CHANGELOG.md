@@ -137,8 +137,16 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   further it has faded, down to nothing where it ends, its water running on level ground the way
   it fades; `Frame.Stream` over a blended sprite shows only where it does. `water.Config.Plume`
   runs a course reaching the sea on out into it, a `water.Mouth` on each cell, wider and more
-  faded (`Network.Fade`). The islands' rivers and streams run on into lighter, muddy estuary
-  water, carried out on their current until it fades into the sea.
+  faded (`Network.Fade`). `Way.Mix` (and `WayEntry.Mix`) is how far a way's look has turned into
+  the kind its `landscape.Style.MixWith` names, glazed over it and blended along the band
+  (`Frame.Glaze`); `water.Network.Along` is how far down its course a cell lies. `water.Drain` stops
+  meandering near the sea, so a course runs straight for it instead of along the shore into
+  another. The islands' running water is one fresh colour, brook to river, turning into the sea's
+  down its course, all of it at the coast, and lays no plume.
+- A top whose corners stand at heights of their own folds along the diagonal whose corners stand
+  nearer in height (`Frame.Fold`), so a steep cell with one corner apart — a cliff along a
+  stepped coast — bends towards it instead of standing up as a dark fin; what is laid over it folds
+  with it.
 - `plugins/landscape`: everything a board draws beyond its sprites leaves the board for a landscape
   (`landscape.NewPlugin(board, world)`), set as the board's `board.Dressing`
   (`board.Plugin.SetDressing`; `Tile.Base`, `Tile.Light`, `Tile.FaceLight` ask it, `Tile.Dress`

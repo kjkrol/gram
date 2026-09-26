@@ -29,6 +29,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{styles: map[board.Name]Style{}}
 	p.dresser = newDresser(boardPlugin.Res.Logic.Board, worldPlugin.Sun, worldPlugin.Quasi3D(), p.styles)
+	p.dresser.kinds = boardPlugin.CellKindDict()
 	boardPlugin.SetDressing(p.dresser)
 	return p
 }

@@ -800,3 +800,54 @@ func TestDresser_FromFarTilesAreDressedFromTheGroundSheet(t *testing.T) {
 		t.Errorf("a sea laid at 3, 3 left it and its neighbour undressed on the sheet")
 	}
 }
+
+// kindsOf is a CellKindDict of the kinds given.
+type kindsOf []board.CellKind
+
+func (k kindsOf) Create(...board.CellKind) {}
+func (k kindsOf) All() []board.CellKind    { return k }
+func (k kindsOf) Get(name string) (board.CellKind, bool) {
+	for _, c := range k {
+		if c.Name == board.Named(name) {
+			return c, true
+		}
+	}
+	return board.CellKind{}, false
+}
+
+// A way turning into another kind's look carries that kind's sprite and how far it has turned at
+// each corner, the mean of its cell's Mix and its neighbour's where a band meets it.
+func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	sea := board.CellKind{Name: board.Named("k44"), Allows: board.Water, SpriteID: 7}
+	stream := styled(st, board.CellKind{Name: board.Named("k45"), Allows: board.Land | board.Water, SpriteID: 3}, Style{MixWith: "k44"})
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	west, east := board.Links(1<<2), board.Links(1<<3)
+	brd.SetWay(at(0, 1), board.Way{Kind: stream, Width: 4, Links: east, Mix: 0})
+	brd.SetWay(at(1, 1), board.Way{Kind: stream, Width: 4, Links: west | east, Mix: 0.5})
+	brd.SetWay(at(2, 1), board.Way{Kind: stream, Width: 4, Links: west, Mix: 1})
+
+	var pieces []WayPiece
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
+		if t.ID == at(1, 1) {
+			pieces = append([]WayPiece(nil), t.Way()...)
+		}
+	})
+	d := newDresser(brd, func() world.Sun { return world.DefaultSun }, false, st)
+	d.kinds = kindsOf{sea, stream}
+	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	compose(r, icamera.NewFromSpace(30, 30, 0))
+	if len(pieces) == 0 {
+		t.Fatal("no pieces")
+	}
+	first, last := pieces[0], pieces[len(pieces)-1]
+	if !first.Mixes || first.MixSprite != 7 {
+		t.Fatalf("the way mixes %v with sprite %v, want the sea's, 7", first.Mixes, first.MixSprite)
+	}
+	if math.Abs(float64(first.Mix[0]-0.25)) > 1e-5 || math.Abs(float64(last.Mix[1]-0.75)) > 1e-5 {
+		t.Errorf("the band turns from %v to %v, want 0.25 on the west side to 0.75 on the east", first.Mix[0], last.Mix[1])
+	}
+}

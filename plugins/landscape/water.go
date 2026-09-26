@@ -35,22 +35,24 @@ type ShoreCorner struct{ X, Y, Dist, Near float32 }
 type Flow [4][2]float32
 
 // Glint lays over the last sprite added to f, whose corners lie at w, water rippled by small waves
-// the shader runs across it as time goes by, shine as shiny, lit of the sun reaching each corner:
+// the shader runs across it as time goes by, as shiny at each corner as shine, lit of the sun
+// reaching each corner:
 // it throws the sun back at the eye where it faces halfway between them and the sky the flatter the
 // eye looks; near a shore the waves turn to face it and break into foam.
-func Glint(f *render.Frame, w render.World, shine float32, lit [4]float32, shore Shore) {
-	o := render.Overlay{Material: seaGlint, World: w, Red: [4]float32{shine, shine, shine, shine}, Fraction: lit}
+func Glint(f *render.Frame, w render.World, shine, lit [4]float32, shore Shore) {
+	o := render.Overlay{Material: seaGlint, World: w, Red: shine, Fraction: lit}
 	for k, c := range shore {
 		o.Custom[k] = [4]float32{c.X, c.Y, c.Dist, c.Near}
 	}
 	f.Overlay(&o)
 }
 
-// Stream lays over the last sprite added to f, whose corners lie at w, water running at flow:
+// Stream lays over the last sprite added to f, whose corners lie at w, water running at flow, as
+// shiny at each corner as shine:
 // ripples and flecks of foam carried down with the current, white where it runs fast — a rapid, a
 // waterfall; over a sprite drawn blended it shows only where the sprite does.
-func Stream(f *render.Frame, w render.World, shine float32, lit [4]float32, flow Flow) {
-	o := render.Overlay{Material: runningWater, World: w, Red: [4]float32{shine, shine, shine, shine}, Fraction: lit, Blended: true}
+func Stream(f *render.Frame, w render.World, shine, lit [4]float32, flow Flow) {
+	o := render.Overlay{Material: runningWater, World: w, Red: shine, Fraction: lit, Blended: true}
 	for k, v := range flow {
 		o.Custom[k] = [4]float32{v[0], v[1], 0, 0}
 	}
@@ -137,9 +139,10 @@ func (t *tile) DrawSurface(f *render.Frame, x0, y0, x1, y1 float32) {
 	if !ok {
 		return
 	}
+	even := [4]float32{shine, shine, shine, shine}
 	if flow, ok := t.Flow(); ok {
-		Stream(f, box, shine, lit, flow)
+		Stream(f, box, even, lit, flow)
 	} else {
-		Glint(f, box, shine, lit, t.Shore())
+		Glint(f, box, even, lit, t.Shore())
 	}
 }
