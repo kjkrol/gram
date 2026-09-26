@@ -84,6 +84,7 @@
 //	          plugins/collision/behavior, plugins/vision/behavior — ready-made reactions              (→ their plugin, world, plugin)
 //	Layer 7   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
 //	          plugins/isometry    — the isometric view: the world's cameras, entities as billboards, cells as blocks (→ world, board, …)
+//	          plugins/sky         — a day going by: the time of day saved with the game, the world's sun following it (→ world, …)
 //	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
 //	Layer 8   internal/engine     — the Engine: the Ebitengine loop, one active Stage, persistence   (→ game, plugin, world, camera, control, render)
 //	Layer 9   gram                — Run; the package you import                                     (→ game, internal/engine)

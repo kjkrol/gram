@@ -10,7 +10,8 @@
 // split screen and a minimap alike; no renderer keeps a camera of its own. [Whole] is the one
 // viewport of a camera over the whole screen. [SolidBackground] fills the screen with one color; [CachedRenderer] draws an inner Renderer once into an offscreen image and
 // reuses it until Invalidate or the screen changes size, for a board that rarely changes; [TelemetryRenderer] prints the
-// tick rate, the entity count and collisions a second from a running total.
+// tick rate, the entity count and collisions a second from a running total, and under them the
+// lines of any [Reporter] it is built With — a plugin's own, such as the sky's time of day.
 //
 // # Atlas and AtlasSource
 //

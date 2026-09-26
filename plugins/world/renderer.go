@@ -50,6 +50,10 @@ func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *View, host
 // shadowTier puts the shadows of what stands over the ground and its grid and under what stands.
 const shadowTier = render.Ground + 20
 
+// maxShadowReach caps how far a unit of height casts its shadow: a sun on the horizon would cast it
+// for ever.
+const maxShadowReach = 6
+
 // shadowColor is the veil a shadow lays on the ground at its middle.
 var shadowColor = color.RGBA{A: 110}
 
@@ -109,7 +113,7 @@ func (s *Renderer) shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z Z
 	if across > 0 {
 		ux, uy = -sx/across, -sy/across
 	}
-	reach := across / sz
+	reach := min(across/sz, maxShadowReach)
 	above := max(float32(z.Altitude)-groundAt(cx, cy), 0)
 	start, length := above*reach, float32(z.Height)*reach
 	mid := start + length/2

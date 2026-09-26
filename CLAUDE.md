@@ -155,7 +155,17 @@ per tile corner, a walk towards the sun over the tops of the cells as the frame 
 above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
 the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
 world renderer lays on the ground away from the sun (tier `Ground+20`), stretched by their height
-and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are. The renderers keep
+and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are.
+The time of day is `plugins/sky`: a `sky.Day{Time, Pace}` on the sky's own entity (made at Setup,
+found after a load), moved on every tick; at every one of `Config.Steps` a day the world's sun is
+set to `sky.SunAt` the hour (east at 6, south at noon, west at 18, below the horizon at night, the
+strength and ambient rising and falling), so the terrain's shadows are worked out anew only per
+step. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
+`Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it an hour on or back
+while it stands. Both islands with heights use it.
+A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
+reading its own components through its own query); a scene hands it over with
+`render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
 their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
 the camera. Heights (`Quasi3D`) are the model and work in either view. `plugin`

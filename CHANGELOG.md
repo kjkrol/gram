@@ -182,6 +182,18 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   entity with a `Z`, away from the sun, stretched by its Height and pushed off by how far above the
   ground it stands, over the ground and under what stands. The renderer's Drawing accessor is bound
   once, so a frame allocates no method value per chunk.
+- `plugins/sky`: a day going by. The time of day is a `sky.Day` on the sky's own entity, saved
+  with the game; every tick it moves on at its pace, and at every step (`Config.Steps`, 96 a day by
+  default) the world's sun becomes `sky.SunAt` the hour — rising in the east, over the south at
+  noon, setting in the west, below the horizon at night, strength and ambient light rising and
+  falling with it. `Pause` (P) stops the day where it is and lets it go on; `Forward` and `Back`
+  (] and [) double and halve its pace while it goes by and move it an hour on or back while it
+  stands. island-25-demo and
+  island-isometric-demo have days; a unit's shadow is capped at 6 units a unit of height, the sun
+  on the horizon would cast it for ever.
+- A plugin can add lines to the telemetry: `render.Reporter`, handed to
+  `TelemetryRenderer.With`; `sky.Plugin.Reporter` shows the time of day (and the pace when it is
+  hurried or held) in both islands with heights.
 - `render.Shade`, a brightness per corner, blended across a piece: `Frame.Sprite`, `Tile`,
   `SpriteRect`, `SpriteRectUV` and `TileRect` take one (`render.Even(1)` draws a sprite as it is).
 

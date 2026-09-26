@@ -1,8 +1,10 @@
 // Command island-isometric-demo is the island of island-demo in a Quasi3D world seen through an
 // isometric camera, Transport Tycoon's way: hills 20 and mountains 40 up with sloping sides,
 // forests standing 8 tall, units drawn upright on the ground and a hawk 40 up whose cone looks
-// over everything a walker's stops at. Scroll with the wheel, drag with the middle button or push
-// the cursor to an edge to move the camera.
+// over everything a walker's stops at. A day goes by (plugins/sky): long shadows morning and
+// evening, dark nights; P stops it, ] and [ hurry it on and hold it back — or, stopped, move it an
+// hour on or back. Scroll with the wheel, drag with the middle button or push the cursor to an edge
+// to move the camera.
 package main
 
 import (
@@ -26,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/sky"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -87,6 +90,7 @@ type mainStage struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	vision    *vision.Plugin
+	sky       *sky.Plugin
 	unit      kind.Of[unit]
 	hawk      kind.Of[unit]
 	stack     game.Scenes
@@ -154,7 +158,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board)
+	s.sky = sky.NewPlugin(s.world, sky.Config{})
+	if err := ctx.Use(s.sky); err != nil {
+		return err
+	}
+
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.board, s.sky)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
@@ -255,6 +264,7 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
+	s.sky.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
@@ -307,7 +317,7 @@ func (m *mainScene) Layers() []render.Layer {
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
 	layers := []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none))
+	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.sky.Reporter()))
 }
 
 // Viewports are where the world is shown: the local players' views.

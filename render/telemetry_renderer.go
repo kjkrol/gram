@@ -11,11 +11,15 @@ import (
 
 var _ Renderer = (*TelemetryRenderer)(nil)
 
+// TelemetryRenderer prints how the game runs in the corner of the screen: the tick rate, the
+// entity count, collisions, and the lines of every Reporter it was built With.
 type TelemetryRenderer struct {
 	measuredTPS    *int
 	entityCount    func() int
 	collisionTotal *int
 	collisions     perSecond
+	reporters      []Reporter
+	text           []byte
 }
 
 // NewTelemetryRenderer shows tick rate, entity count and collisions a second from a running total.
@@ -27,7 +31,17 @@ func NewTelemetryRenderer(measuredTPS *int, entityCount func() int, collisionTot
 	}
 }
 
-func (s *TelemetryRenderer) Init(si *goke.SysInit) {}
+// With adds the lines of reporters, in order, under the engine's own.
+func (s *TelemetryRenderer) With(reporters ...Reporter) *TelemetryRenderer {
+	s.reporters = append(s.reporters, reporters...)
+	return s
+}
+
+func (s *TelemetryRenderer) Init(si *goke.SysInit) {
+	for _, r := range s.reporters {
+		r.Init(si)
+	}
+}
 
 func (s *TelemetryRenderer) Draw(screen *ebiten.Image) {
 	collisionsPerSec := s.collisions.observe(*s.collisionTotal, time.Now())
@@ -35,7 +49,7 @@ func (s *TelemetryRenderer) Draw(screen *ebiten.Image) {
 	if *s.measuredTPS > 0 {
 		avgCollisionsPerTick = collisionsPerSec / float64(*s.measuredTPS)
 	}
-	debugMsg := fmt.Sprintf(
+	s.text = fmt.Appendf(s.text[:0],
 		"FPS: %0.2f\nTPS (Ebiten): %0.2f\nTPS (Physics): %d\nEntities: %d\nCollision/Sec: %0.1f\nCollisions/Tick: %0.2f",
 		ebiten.ActualFPS(),
 		ebiten.ActualTPS(),
@@ -44,7 +58,18 @@ func (s *TelemetryRenderer) Draw(screen *ebiten.Image) {
 		collisionsPerSec,
 		avgCollisionsPerTick,
 	)
-	ebitenutil.DebugPrint(screen, debugMsg)
+	s.text = s.reported(s.text)
+	ebitenutil.DebugPrint(screen, string(s.text))
+}
+
+// reported appends to text a line "label: value" for every line of the reporters.
+func (s *TelemetryRenderer) reported(text []byte) []byte {
+	for _, r := range s.reporters {
+		r.Report(func(label, value string) {
+			text = append(append(append(append(text, '\n'), label...), ": "...), value...)
+		})
+	}
+	return text
 }
 
 // smoothedWindows is how many closed one-second windows a rate is averaged over:
