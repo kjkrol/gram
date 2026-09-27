@@ -70,7 +70,7 @@ func (s *mainStage) defineClimate() {
 		s.landscape.Style("snowy "+name, s.landscape.StyleOf(name))
 		c.snowy[board.Named(name)], _ = kinds.Get("snowy " + name)
 	}
-	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1))
+	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 5, Allows: board.Land | board.Air}.Costing(board.Air, 1))
 	c.frozen, _ = kinds.Get("ice")
 	s.landscape.Style("ice", landscape.Style{Under: true, Shine: 0.3})
 

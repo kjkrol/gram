@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/network"
 	"github.com/kjkrol/gram/plugins/board/water"
 )
 
@@ -120,6 +121,7 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 
 	var cells []board.CellEntry
 	soils := map[board.CellID]string{}
+	levels := map[board.CellID]float64{} // the mean of each land cell's corners
 	for y := range GridHeight {
 		for x := range GridWidth {
 			if !land[cell(x, y)] {
@@ -132,11 +134,13 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 			fx, fy := float64(x)+0.5, float64(y)+0.5
 			c := cell(x, y)
 			soils[c] = soil(hs, cw, inland(fx, fy), fx, fy)
+			levels[c] = (hs[0] + hs[1] + hs[2] + hs[3]) / 4
 			cells = append(cells, board.CellEntry{Kind: soils[c], Cell: c})
 		}
 	}
 	// running water crosses the ground as a band down the middle of the cell
-	ways := rivers.Net(courses).Ways()
+	streams := rivers.Net(courses)
+	ways := streams.Ways()
 
 	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across
 	// it, each on the nearest ground that is neither rock nor water.
@@ -160,7 +164,49 @@ func islandLayout(grid board.Grid) (board.Layout, []board.CellID) {
 		}
 		stops = append(stops, cell(sx, sy))
 	}
-	return board.Layout{Default: "water", Cells: cells, Ways: ways, Heights: heights}, stops
+
+	// Roads run from stop to stop round the hexagon, the cheapest way over the ground: along the
+	// lowland rather than up and down, round the rock where they can, never out to sea, on along a
+	// road laid already rather than beside it; a bridge carries a road over whatever water runs
+	// across it.
+	roads := network.New(grid)
+	passable := func(c board.CellID) bool { return land[c] }
+	cost := func(a, b board.CellID) float64 {
+		if !passable(b) {
+			return math.Inf(1)
+		}
+		ax, ay, _ := grid.Coords(a)
+		bx, by, _ := grid.Coords(b)
+		step := 1.0
+		if ax != bx && ay != by {
+			// slantwise only between two cells a road may take, and never past water: a road
+			// crosses it square, over a bridge
+			l, r := cell(int(ax), int(by)), cell(int(bx), int(ay))
+			if !passable(l) || !passable(r) || rivers.Courses[l] != water.Dry || rivers.Courses[r] != water.Dry {
+				return math.Inf(1)
+			}
+			step = math.Sqrt2
+		}
+		c := step * (1 + roadClimb*math.Abs(levels[b]-levels[a])/cw)
+		if rivers.Courses[b] != water.Dry {
+			c += roadBridge
+		}
+		if soils[b] == "rock" {
+			c *= roadRock
+		}
+		if _, laid := roads.Node(b); laid {
+			c *= roadReuse
+		}
+		return c
+	}
+	for k, from := range stops {
+		if path, ok := network.Route(grid, from, stops[(k+1)%len(stops)], cost); ok {
+			roads.Path(path, network.Node{Kind: "road", Width: roadWidth})
+		}
+	}
+	roadWays, bridges := roads.Across(streams, "bridge")
+	ways = append(ways, roadWays...)
+	return board.Layout{Default: "water", Cells: cells, Ways: ways, Crossings: bridges, Heights: heights}, stops
 }
 
 // courses are the kinds of the ways running water lays across the ground.
@@ -320,6 +366,13 @@ const (
 	coastRise  = 2.0
 	coastPlain = 15.0
 	stopsAt    = 0.78 // how far out to the coast the stops lie
+	// how wide a road runs; how much a road's cost grows with the climb, rise over run; what a
+	// bridge adds to it; and how much of it a road laid already costs
+	roadWidth  = 7.0
+	roadClimb  = 6.0
+	roadBridge = 4.0
+	roadRock   = 8.0
+	roadReuse  = 0.3
 	// how much rain gathered makes a brook, a stream and a river, every how many cells from its
 	// mouth a ford crosses a river, and how wide a course runs by the square root of its water
 	brookAt      = 30.0

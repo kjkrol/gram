@@ -119,17 +119,20 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
 		// the ground: sand is slow going, rock rough; a climb costs on top of either; each blends
 		// into its neighbours as far as its Spread
-		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air},
-		board.CellKind{Name: board.Named("sand"), Cost: 1.6, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("rock"), Cost: 1.3, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("earth"), Cost: 2.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("sand"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("rock"), Cost: 3.25, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		// running water, laid across the ground: a brook is stepped over, a stream waded through, a
 		// river crossed only at a ford; its current is its slope
-		board.CellKind{Name: board.Named("brook"), Cost: 1.3, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("brook"), Cost: 3.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("stream"), Cost: 5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
 		board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air},
-		board.CellKind{Name: board.Named("ford"), Cost: 2.5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		board.CellKind{Name: board.Named("ford"), Cost: 6.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
+		// roads, laid from stop to stop, and the bridges carrying them over running water
+		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
+		board.CellKind{Name: board.Named("bridge"), Cost: 1, Allows: board.Land | board.Air},
 		// no forest grows on the island until plants have a plugin of their own; the kind stays for them
-		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
+		board.CellKind{Name: board.Named("forest"), Cost: 7.5, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
 	)
 	// how the kinds look beyond their sprites: the sea glinting under the land's blended grounds,
 	// the running water running
@@ -301,6 +304,8 @@ func (m *mainScene) Layers() []render.Layer {
 		"stream": {R: 90, G: 145, B: 205, A: 255},
 		"river":  {R: 90, G: 145, B: 205, A: 255},
 		"ford":   {R: 90, G: 145, B: 205, A: 255},
+		"road":   {R: 165, G: 135, B: 95, A: 255},
+		"bridge": {R: 115, G: 85, B: 55, A: 255},
 		"forest": {R: 30, G: 90, B: 45, A: 255},
 	} {
 		k, _ := kinds.Get(name)

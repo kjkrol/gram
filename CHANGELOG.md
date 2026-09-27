@@ -4,7 +4,23 @@
 
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape.
 
+**Movement costs**
+- A kind's Cost 1 is full speed and the cheapest step: on the islands a road and a bridge; the
+  ground off them costs 2.5 times what it did (earth 2.5, sand 4, rock 3.25, forest 7.5), flyers
+  and boats still 1. `board.Climbing` gains `Ease` and `Steep`: a descent is quickest at a fall of
+  `Ease` (1 in 10 by default, 0.7 as long) and slows past it by `Steep` a unit, so the steeper
+  either way the dearer; the slope multiplies the kind's cost, in the planner and in the Moving
+  behavior alike.
+
 **Networks**
+- Roads and bridges. `board.Crossing` is what crosses a cell over its way — a bridge over a river:
+  a way of its own on the cell entity, admitting whoever it admits over too at its cost, the water
+  running on under it (`Crossing.Over`, `Board.Crossing`/`SetCrossing`, `Layout.Crossings`);
+  `Board.Kind` lays ground, way and crossing in turn. `network.Route` finds the cheapest way over
+  a grid at a game's cost, `Network.Path` lays it, and `Network.Across(river, kind)` lays a road
+  over a river as ways and crossings. The landscape draws a crossing over its way. The islands'
+  roads run from stop to stop round the lowland, round the rock where they can, a bridge over
+  every course they cross. Saves written before the crossings do not load.
 - `plugins/board/network`: what runs from cell to cell across a board as a graph over its grid —
   nodes of a board kind, a width and a fade (`Network.Set`); `Link` for a road both ways, `Flow`
   down for water, its last cell on to where it leaves; `Links`, `Down`, `Along`, `Crossings` (where
@@ -155,7 +171,9 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
   stepped coast — bends towards it instead of standing up as a dark fin; what is laid over it folds
   with it.
 - The board's grid is laid over all that lies on a tile (`Frame.OutlineOn`, the render's own
-  `Outline` material), so coasts and grounds running in no longer hide it.
+  `Outline` material), so coasts and grounds running in no longer hide it — only where a dressing
+  covers the top (`Dressing.Covers`, `Tile.Covered`); elsewhere the tile outlines itself at no
+  piece of its own, and the dressing lays it before the ways, so the frame stays in order.
 - The water lies over a way: a way running out into water runs on to its middle under it, shown
   only where the land is, as the grounds round a coast are laid over the water; its look turns
   there too (`Frame.GlazeBlend`: a blended sprite glazed as far as an opacity).
@@ -267,7 +285,7 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 - `vision.ConeStyle.Compose(frame, ring)` takes the view's ring of `ConePoint`s, draped over the
   ground with the cone's edges in steps of it, each point with its depth; `ConeShader` is gone.
   `selection.HighlightStyle.Compose(frame, cam, box, alt)` composes on `Marks`.
-- The island demos' frames are 25–60% shorter (doc/rendering.md §6); gathering 5,000 sprites
+- The island demos' frames are 25–60% shorter; gathering 5,000 sprites
   costs about 18% more (BENCHMARKS.md). An isometric camera no longer allocates for `Projection`.
 
 **The isometric view is a plugin**

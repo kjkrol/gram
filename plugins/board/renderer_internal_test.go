@@ -33,7 +33,7 @@ func compose(r *Renderer, cam camera.Camera) map[render.Tier]int {
 	return out
 }
 
-// outlinedTiles counts the tiles r hands a frame through cam and the outlines laid over them.
+// outlinedTiles counts the tiles r hands a frame through cam that carry an outline.
 func outlinedTiles(r *Renderer, cam camera.Camera) (tiles, outlined int) {
 	var f render.Frame
 	f.Reset(cam)
@@ -42,10 +42,8 @@ func outlinedTiles(r *Renderer, cam camera.Camera) (tiles, outlined int) {
 		if tier != render.Ground {
 			return
 		}
-		switch {
-		case v[0].ColorA <= 1.5:
-			tiles++
-		case v[0].Custom0 < 0: // an overlay drawing an outline
+		tiles++
+		if v[0].Custom0 < 0 {
 			outlined++
 		}
 	})
@@ -68,8 +66,8 @@ func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.
 	r := flatRenderer(brd, &RenderState{ShowGridLines: true})
 
 	cam := icamera.NewFromSpace(128, 128, 0)
-	if got := compose(r, cam); len(got) != 1 || got[render.Ground] != 32 {
-		t.Errorf("composed %v, want the 16 tiles and their outlines and nothing more", got)
+	if got := compose(r, cam); len(got) != 1 || got[render.Ground] != 16 {
+		t.Errorf("composed %v, want the 16 tiles and nothing more", got)
 	}
 	if tiles, outlined := outlinedTiles(r, cam); outlined != tiles {
 		t.Errorf("%d of %d tiles outlined, want all", outlined, tiles)

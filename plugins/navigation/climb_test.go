@@ -46,3 +46,45 @@ func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 		t.Errorf("the flyer: ok=%v, %d steps, want 6 straight over", ok, fly.Length)
 	}
 }
+
+// Where the ground off a road costs 2.5 times the road, a walker goes round by the road rather
+// than straight across; where it costs as much, straight across.
+func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(7, 5, 10)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	road := board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land}
+	for _, c := range []struct {
+		ground   float64
+		roadOnly bool
+	}{{2.5, true}, {1, false}} {
+		terrain := board.NewTerrainMap()
+		terrain.SetAll(board.CellKind{Name: board.Named("grass"), Cost: c.ground, Allows: board.Land})
+		roadCells := map[board.CellID]bool{}
+		for x := range uint32(7) {
+			roadCells[at(x, 0)] = true
+		}
+		for y := range uint32(3) {
+			roadCells[at(0, y)], roadCells[at(6, y)] = true, true
+		}
+		for rc := range roadCells {
+			terrain.Set(rc, road)
+		}
+		pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
+		path, ok := pf.findPath(uid.UID64(1), board.Land, at(0, 2), at(6, 2))
+		if !ok {
+			t.Fatalf("grass at %v: no way", c.ground)
+		}
+		off := 0
+		for _, s := range path.Steps[:path.Length] {
+			if !roadCells[s] {
+				off++
+			}
+		}
+		switch {
+		case c.roadOnly && off > 0:
+			t.Errorf("grass at %v: %d of %d steps off the road, want the road round", c.ground, off, path.Length)
+		case !c.roadOnly && path.Length != 6:
+			t.Errorf("grass at %v: %d steps, want 6 straight across", c.ground, path.Length)
+		}
+	}
+}

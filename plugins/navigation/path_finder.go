@@ -33,7 +33,8 @@ func newPathFinder(grid board.Grid, terrain board.Terrain, slopes slopes, occupa
 // findPath computes a route from 'from' toward 'to' for entity moving in domain — ok=false if
 // unreachable.
 func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to board.CellID) (Path, bool) {
-	// A descent is cheaper than the flat, so the heuristic counts every step at its steepest.
+	// A gentle descent is cheaper than the flat, so the heuristic counts every step at its quickest;
+	// a kind costs at least 1 (full speed), or the estimate would overshoot.
 	p.least = 1
 	if p.slopes != nil {
 		if c := p.slopes.Climbing(); c.Feels(domain) {

@@ -48,13 +48,13 @@ func (blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 		}
 	}
 	corners := sloped(cam, x0+dx, y0+dy, x1+dx, y1+dy, top)
-	f.Sprite(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
-	f.Fold(top)
-	drawn := f.Last()
-	t.Dress(f, cam, x0, y0, x1, y1, depth)
-	if t.Outlined {
-		f.OutlineOn(drawn) // over all that lies on the top
+	if t.Outlined && !t.Covered() {
+		f.Tile(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
+	} else {
+		f.Sprite(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
 	}
+	f.Fold(top)
+	t.Dress(f, cam, x0, y0, x1, y1, depth)
 }
 
 // sloped projects the four corners of a world box, each at its own height.

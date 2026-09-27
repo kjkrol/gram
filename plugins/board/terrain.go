@@ -17,8 +17,9 @@ type Terrain interface {
 // a Veil.
 type CellKind struct {
 	Name Name // Named("grass")
-	// Cost 1 is full speed and the baseline path weight; above 1 the cell slows an entity and costs
-	// more to plan through, below 1 is a boost — a game's choice, still capped by the move's step.
+	// Cost 1 is full speed and the cheapest step the planner counts on — a road; above 1 the cell
+	// slows an entity and costs more to plan through — the ground off a road, say 2.5. Below 1
+	// would be a boost past full speed, which the planner's estimate does not allow for.
 	Cost float64
 	// Allows is the domains that may stand here; the planner keeps the others out, and one that
 	// ends up here anyway has fallen in — see Standing.
@@ -123,9 +124,10 @@ func (d *cellKindDict) All() []CellKind {
 type TerrainMap struct {
 	Cells   map[CellID]CellKind
 	Default CellKind
-	// Ways is what runs across the cells over their kinds; Kind leaves them out — Board.Kind lays
-	// them over.
-	Ways map[CellID]Way
+	// Ways is what runs across the cells over their kinds, Crossings what crosses over the ways;
+	// Kind leaves them out — Board.Kind lays them over.
+	Ways      map[CellID]Way
+	Crossings map[CellID]Crossing
 
 	version uint64
 }
@@ -133,7 +135,7 @@ type TerrainMap struct {
 var _ Terrain = (*TerrainMap)(nil)
 
 func NewTerrainMap() *TerrainMap {
-	return &TerrainMap{Cells: make(map[CellID]CellKind), Ways: make(map[CellID]Way)}
+	return &TerrainMap{Cells: make(map[CellID]CellKind), Ways: make(map[CellID]Way), Crossings: make(map[CellID]Crossing)}
 }
 
 func (t *TerrainMap) Kind(c CellID) CellKind {
@@ -168,6 +170,22 @@ func (t *TerrainMap) SetWay(c CellID, w Way) {
 	t.version++
 }
 
+// SetCrossing lays x across c over its way, the zero Crossing taking what crossed there away.
+func (t *TerrainMap) SetCrossing(c CellID, x Crossing) {
+	if t.Crossings[c] == x {
+		return
+	}
+	if !x.Runs() {
+		delete(t.Crossings, c)
+	} else {
+		if t.Crossings == nil {
+			t.Crossings = make(map[CellID]Crossing)
+		}
+		t.Crossings[c] = x
+	}
+	t.version++
+}
+
 // SetMany assigns kind to every cell in cells in one call, instead of looping Set per cell.
 func (t *TerrainMap) SetMany(cells []CellID, kind CellKind) {
 	changed := false
@@ -189,6 +207,6 @@ func (t *TerrainMap) SetAll(kind CellKind) {
 	t.version++
 }
 
-// Version counts the changes made through Set, SetMany, SetAll and SetWay — a write that changes
+// Version counts the changes made through Set, SetMany, SetAll, SetWay and SetCrossing — a write that changes
 // nothing does not count; a load starts it over.
 func (t *TerrainMap) Version() uint64 { return t.version }

@@ -344,11 +344,7 @@ shows how much of it is boilerplate vs. real behavior.
   `Scan` and collisions read that grid until the next tick. After movement the `ViewSystem` refreshes every
   `world.View` (a rectangle plus the `EntitySet` of entities the space finds in it; `Plugin.NewView`
   over any bounds source, `Plugin.View()` is the camera's) — the entity renderer draws only what
-  the camera's View contains. `doc/views.md` maps where this leads: players (a view, a
-  command queue and a translator each — bindings for a person, a brain for an AI; plugins define
-  the command types and ship default, labelled bindings) and a networking plugin over them; `doc/movement.md` sketches
-  movement along a route through `Steering` (motion profile, lookahead point, waypoints, walls
-  as solid cells, holes). `Populate` and
+  the camera's View contains. `Populate` and
   `PostLoad` rebuild it too, so it is whole before the first tick; a despawned
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
@@ -359,15 +355,18 @@ shows how much of it is boilerplate vs. real behavior.
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving behavior board
   registers on the world (only entities carrying `Mover` are slowed); slopes
-  cost too — `board.Climbing{Up, Down, Free}` (`WithClimbing`, `DefaultClimbing`: 1 in 10 up takes
-  twice as long, Air free) slows the Moving behavior along the heading and prices the planner's
+  cost too — `board.Climbing{Up, Down, Ease, Steep, Free}` (`WithClimbing`, `DefaultClimbing`: 1 in
+  10 up takes twice as long, 1 in 10 down is the quickest at 0.7, steeper down slows by 5 a unit,
+  Air free), multiplying the kind's cost (the islands: road and bridge 1, the rest 2.5 times what
+  it was) slows the Moving behavior along the heading and prices the planner's
   steps through `Board.Climb` — both read a cell's slope off its own corners — so steep is the
   relief, never a kind. A shiny kind with a `Flow` runs down its cell's slope
   (`Tile.Flow` → `landscape.Stream`, a flow map: ripples and foam carried with the current, white where it
   is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
-  down for water, `Along`, `Crossings`, laid by `Ways()`), laid as a `board.Way` — a
+  down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`, over
+  rivers as `board.Crossing`s by `Across`), laid as a `board.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
@@ -622,9 +621,7 @@ that bypass it.
 
 ## Docs, benchmarks and commits
 
-`doc/roadmap.md` is the map: what is done and what comes next, in order, with the reasoning in
-`doc/movement.md` and `doc/views.md`; keep it current when a stage lands. `doc/rendering.md` is a
-proposal, not built: one composer per viewport sorting draw items by layer and depth.
+`doc/roadmap.md` lists what is left to do, and only that: take an item out when it lands.
 Every package has a `doc.go` with `# Type` sections describing what it brings; the root `doc.go`
 carries the concepts, the tick lifecycle and the layered package graph. README leads with what the
 library is; its code example is `examples/minimal`, so change that program first and keep the

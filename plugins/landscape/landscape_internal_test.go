@@ -888,3 +888,52 @@ func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 		}
 	}
 }
+
+// A crossing is cut into pieces as a way is, over the way under it: a bridge runs from its cell's
+// middle out to the road either side, as wide there as the mean of the two; the road meets the
+// bridge, not the river under it.
+func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	river := board.CellKind{Name: board.Named("k52"), Allows: board.Water, SpriteID: 4}
+	road := board.CellKind{Name: board.Named("k53"), Allows: board.Land, SpriteID: 6}
+	bridge := board.CellKind{Name: board.Named("k54"), Allows: board.Land, SpriteID: 7}
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	north, south, west, east := board.Links(1<<0), board.Links(1<<1), board.Links(1<<2), board.Links(1<<3)
+	for y := range uint32(3) {
+		brd.SetWay(at(1, y), board.Way{Kind: river, Width: 8, Links: north | south})
+	}
+	brd.SetWay(at(0, 1), board.Way{Kind: road, Width: 4, Links: east})
+	brd.SetWay(at(2, 1), board.Way{Kind: road, Width: 4, Links: west})
+	brd.SetCrossing(at(1, 1), board.Crossing{Way: board.Way{Kind: bridge, Width: 6, Links: west | east}})
+
+	var ways, crossings map[board.CellID][]WayPiece = map[board.CellID][]WayPiece{}, map[board.CellID][]WayPiece{}
+	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
+		ways[t.ID] = append([]WayPiece(nil), t.Way()...)
+		crossings[t.ID] = append([]WayPiece(nil), t.Crossing()...)
+	})
+	d := newDresser(brd, func() world.Sun { return world.DefaultSun }, false, st)
+	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	cam := icamera.NewFromSpace(30, 30, 0)
+	cam.ZoomIn(2, 15, 15)
+	cam.CenterOn(15, 15, 0)
+	compose(r, cam)
+
+	bridgePieces := crossings[at(1, 1)]
+	if len(bridgePieces) == 0 || bridgePieces[0].Sprite != 7 || len(ways[at(1, 1)]) == 0 || ways[at(1, 1)][0].Sprite != 4 {
+		t.Fatalf("at the crossing %d bridge pieces over %d of river, want both", len(bridgePieces), len(ways[at(1, 1)]))
+	}
+	for _, p := range bridgePieces {
+		if p.World[0][1] < 10 || p.World[2][1] > 20 {
+			t.Errorf("a piece of the bridge runs %v, want across the cell west to east", p.World)
+		}
+	}
+	// the road's end at the bridge is as wide as the mean of road and bridge, 5, not of road and river, 6
+	road0 := ways[at(0, 1)]
+	last := road0[len(road0)-1]
+	if w := math.Abs(float64(last.World[3][1] - last.World[1][1])); math.Abs(w-5) > 0.01 {
+		t.Errorf("the road meets the bridge %v wide, want 5", w)
+	}
+}

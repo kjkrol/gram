@@ -231,6 +231,9 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 	}
 	mouths, heads := 0, 0
 	for _, w := range layout.Ways {
+		if w.Kind == "road" {
+			continue
+		}
 		if !land[w.Cell] || w.Fade != 0 || w.Mix < 0 || w.Mix > 1 {
 			t.Errorf("a %s at %v: ashore %v, faded %v, mixed %v; want ashore, unfaded, mixed 0 to 1", w.Kind, w.Cell, land[w.Cell], w.Fade, w.Mix)
 		}
@@ -248,5 +251,73 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 	}
 	if mouths < 5 || heads < 5 {
 		t.Errorf("%d mouths, %d heads; want the courses rising inland and reaching the sea", mouths, heads)
+	}
+}
+
+// Roads run from every stop to the next round the hexagon over land, one network of them, round
+// the rock where they can, and a bridge carries a road over every course it crosses.
+func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	layout, stops := islandLayout(grid)
+	soil := map[board.CellID]string{}
+	for _, e := range layout.Cells {
+		soil[e.Cell] = e.Kind
+	}
+	road := map[board.CellID]board.Links{}
+	course := map[board.CellID]board.WayEntry{}
+	for _, w := range layout.Ways {
+		if w.Kind == "road" {
+			road[w.Cell] = w.Links
+		} else {
+			course[w.Cell] = w
+		}
+	}
+	for _, b := range layout.Crossings {
+		if b.Kind != "bridge" {
+			t.Errorf("a %s crossing at %v, want bridges alone", b.Kind, b.Cell)
+		}
+		if _, over := course[b.Cell]; !over {
+			t.Errorf("a bridge at %v over no water", b.Cell)
+		}
+		if _, both := road[b.Cell]; both {
+			t.Errorf("a road and a bridge both at %v", b.Cell)
+		}
+		road[b.Cell] = b.Links
+	}
+	if len(layout.Crossings) == 0 {
+		t.Error("no bridge: the roads cross no water")
+	}
+	rock := 0
+	for c := range road {
+		switch soil[c] {
+		case "":
+			t.Errorf("a road at %v out at sea", c)
+		case "rock":
+			rock++
+		}
+	}
+	if rock*4 > len(road) {
+		t.Errorf("%d of %d cells of road on rock, want the roads round it where they can", rock, len(road))
+	}
+	// every stop on the one network: walk the links from the first
+	seen := map[board.CellID]bool{stops[0]: true}
+	for queue := []board.CellID{stops[0]}; len(queue) > 0; queue = queue[1:] {
+		c := queue[0]
+		for i := range 8 {
+			if road[c]&(1<<i) == 0 {
+				continue
+			}
+			if n, ok := board.Toward(grid, c, i); ok && !seen[n] {
+				if _, on := road[n]; on {
+					seen[n] = true
+					queue = append(queue, n)
+				}
+			}
+		}
+	}
+	for _, s := range stops {
+		if !seen[s] {
+			t.Errorf("the stop at %v is not on the roads", s)
+		}
 	}
 }

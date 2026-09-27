@@ -1,6 +1,9 @@
 package render
 
-import _ "embed"
+import (
+	_ "embed"
+	"math"
+)
 
 //go:embed outline.kage
 var outlineKage []byte
@@ -27,8 +30,39 @@ func (f *Frame) OutlineOn(m Mark) {
 		dst = Corners{{left, top}, {left + w, top}, {left, top + h}, {left + w, top + h}}
 	}
 	o := Overlay{Material: outlineMaterial, Red: [4]float32{1, 1, 1, 1}}
+	edges := [4]edge{newEdge(dst[0], dst[2]), newEdge(dst[1], dst[3]), newEdge(dst[0], dst[1]), newEdge(dst[2], dst[3])}
 	for k, p := range dst {
-		o.Custom[k] = [4]float32{outline(p, dst[0], dst[2]), outline(p, dst[1], dst[3]), outline(p, dst[0], dst[1]), outline(p, dst[2], dst[3])}
+		for e := range edges {
+			o.Custom[k][e] = edges[e].outline(p)
+		}
 	}
 	f.OverlayOn(m, &o)
+}
+
+// edge is the line through a and b, its normal worked out once for the corners measured from it.
+type edge struct {
+	a        [2]float32
+	nx, ny   float32 // of length 1
+	straight bool    // false where a and b are one point
+}
+
+func newEdge(a, b [2]float32) edge {
+	ex, ey := b[0]-a[0], b[1]-a[1]
+	n := float32(math.Hypot(float64(ex), float64(ey)))
+	if n == 0 {
+		return edge{a: a}
+	}
+	return edge{a: a, nx: ey / n, ny: -ex / n, straight: true}
+}
+
+// outline is as the package's outline: minus 1 minus p's distance to the edge's line, in pixels.
+func (e edge) outline(p [2]float32) float32 {
+	if !e.straight {
+		return 0
+	}
+	d := (p[0]-e.a[0])*e.nx + (p[1]-e.a[1])*e.ny
+	if d < 0 {
+		d = -d
+	}
+	return -1 - d
 }

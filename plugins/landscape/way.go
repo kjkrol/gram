@@ -51,17 +51,29 @@ type WayPiece struct {
 // it has faded, the ends of a band as much as the mean of the two ways there, and where it runs
 // level its water runs on the way it fades: a river running out into the sea. Good until the next
 // call; nothing where no way runs.
-func (t *tile) Way() []WayPiece {
+func (t *tile) Way() []WayPiece { return t.lanePieces(false) }
+
+// Crossing is the tile's board.Crossing cut into pieces as its Way is. Good until the next call;
+// nothing where nothing crosses.
+func (t *tile) Crossing() []WayPiece { return t.lanePieces(true) }
+
+// lanePieces is Way's, or Crossing's where cross.
+func (t *tile) lanePieces(cross bool) []WayPiece {
 	r := t.r
 	r.ways = r.ways[:0]
-	if !r.topOf(t.ID).way.Runs() {
+	if top := r.topOf(t.ID); !cross && !top.way.Runs() || cross && !top.cross.Runs() {
 		return nil
 	}
 	b := r.bakeOf(t)
 	light, lit, w, h := t.Light(), t.sunlit(), t.X1-t.X0, t.Y1-t.Y0
 	detail := t.wayDetail()
 	pieces := b.ways
-	if r.cellPx < nearCell {
+	switch {
+	case cross && r.cellPx < nearCell:
+		pieces = b.farCrossings
+	case cross:
+		pieces = b.crossings
+	case r.cellPx < nearCell:
 		pieces = b.farWays // a curve in fewer, longer pieces: a cell spans a few pixels
 	}
 	sea := t.Detail() // what a way turns into glints as far as the ground's water
@@ -88,27 +100,30 @@ func (t *tile) wayDetail() float32 {
 	return min(max((t.r.cellPx-bakeCell)/(bakeCell/2), 0), 1)
 }
 
-// wayAnew works out the tile's board.Way into out, in no light; its curves in fewer pieces unless
-// fine.
-func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
+// wayAnew works out the tile's board.Way into out, or its board.Crossing where cross, in no light;
+// its curves in fewer pieces unless fine.
+func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 	r := t.r
 	top := r.topOf(t.ID)
 	w := top.way
+	if cross {
+		w = top.cross
+	}
 	if !w.Runs() {
 		return out
 	}
 	cx, cy := (t.X0+t.X1)/2, (t.Y0+t.Y1)/2
 	shine := float32(0)
 	if r.quasi3D {
-		shine = top.wayShine
+		shine = w.shine
 	}
 	ground := func(x, y float32) float32 {
 		return float32(r.board.GroundAt(geom.NewVec(float64(x), float64(y))))
 	}
 	piece := func(world render.World) WayPiece {
-		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine, MixSprite: top.wayMix, Mixes: top.wayMixes}
+		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine, MixSprite: w.mix, Mixes: w.mixes}
 		if r.quasi3D {
-			p.MixShine = top.wayMixShine
+			p.MixShine = w.mixShine
 		}
 		for k, at := range world {
 			p.Z[k] = ground(at[0], at[1])
@@ -134,9 +149,9 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		}
 		ex, ey := t.toward(nb, i)
 		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, mix: w.Mix, slant: r.square && i >= 4}
-		if other := r.topOf(nb); other.way.Runs() {
-			o.half, o.wide, o.fade, o.mix = (w.Width+other.way.Width)/4, other.way.Width, (w.Fade+other.way.Fade)/2, (w.Mix+other.way.Mix)/2
-		} else if other.under {
+		if other, ok := r.partner(t.ID, nb); ok {
+			o.half, o.wide, o.fade, o.mix = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2, (w.Mix+other.Mix)/2
+		} else if r.topOf(nb).under {
 			// out into water: the way the water leaves, so wider than any way in and always the
 			// stem, running on to the water's middle under it
 			o.fade, o.wide = w.Fade, 2*w.Width
@@ -160,7 +175,7 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		}
 		length := float32(math.Hypot(float64(a.x-mx), float64(a.y-my)) + math.Hypot(float64(b.x-mx), float64(b.y-my)))
 		speed := float32(0)
-		if length > 0 && top.wayFlow > 0 {
+		if length > 0 && w.flow > 0 {
 			fall := (ground(a.x, a.y) - ground(b.x, b.y)) / length
 			// level water runs on the way the way fades: out into the sea
 			if math.Abs(float64(fall)) < stillFall && a.fade != b.fade {
@@ -170,7 +185,7 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 				}
 			}
 			if fall != 0 {
-				speed = top.wayFlow * float32(math.Sqrt(math.Abs(float64(fall))))
+				speed = w.flow * float32(math.Sqrt(math.Abs(float64(fall))))
 				if fall < 0 {
 					speed = -speed
 				}
@@ -277,6 +292,16 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	return out
 }
 
+// partner is what runs across nb that c's way or crossing running on to it meets: whichever of its
+// Way and Crossing runs back to c, its Way where neither does; false where nothing runs there.
+func (l *dresser) partner(c, nb board.CellID) (board.Way, bool) {
+	top := l.topOf(nb)
+	if back, ok := board.Link(l.board, nb, c); ok && top.way.Links&back == 0 && top.cross.Links&back != 0 {
+		return top.cross.Way, true
+	}
+	return top.way.Way, top.way.Runs()
+}
+
 // landAt is how much of the ground at the world point x, y is land, as the grounds round a coast
 // are laid over the water: the share of the cells meeting there that do not lie under, blended
 // across the tile as its blends are; 1 inland, 1 off a square grid.
@@ -326,12 +351,21 @@ func (t *tile) toward(n board.CellID, i int) (float32, float32) {
 // neighbour's cell is never covered by its tile.
 const wayTier = render.Ground + 5
 
+// crossingTier puts what crosses over a way over it: a bridge over its river.
+const crossingTier = wayTier + 1
+
 // DrawWay draws what runs across the tile over it, at depth: each piece in its light, the clouds'
 // shadows over it and, where it shines, its water running. A piece reaching across a corner takes
 // the depth of the nearest of the four cells meeting there, so none of them covers it.
 func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
+	t.drawLane(f, cam, depth, wayTier, t.Way())
+	t.drawLane(f, cam, depth, crossingTier, t.Crossing())
+}
+
+// drawLane draws pieces of what runs across the tile on tier, at depth.
+func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier render.Tier, pieces []WayPiece) {
 	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
-	for _, p := range t.Way() {
+	for _, p := range pieces {
 		var corners render.Corners
 		for k, at := range p.World {
 			corners[k][0], corners[k][1] = cam.Project(at[0], at[1], p.Z[k])
@@ -343,7 +377,7 @@ func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 				d = max(d, cam.Depth(x, y, float32(t.r.board.GroundAt(geom.NewVec(float64(x), float64(y))))))
 			}
 		}
-		OvercastOn(f, p.draw(f, wayTier, d, t.Atlas, corners, p.Light), p.World)
+		OvercastOn(f, p.draw(f, tier, d, t.Atlas, corners, p.Light), p.World)
 		// the water runs the less, and glints as what it turns into the more, the further it has turned
 		var runs, glints [4]float32
 		for k, m := range p.Mix {
@@ -405,11 +439,13 @@ func mix4(c [4]float32, u, v float32) float32 {
 // as they are: its blends and its way, near and far, placed as if the tile's top-left corner were
 // at 0, 0, in no light yet.
 type cellBake struct {
-	ver     uint64 // one more than the newest version round the cell when baked; 0 never
-	seen    uint64 // the board's count of changes when last found as it was
-	blends  []BlendPiece
-	ways    []WayPiece
-	farWays []WayPiece
+	ver          uint64 // one more than the newest version round the cell when baked; 0 never
+	seen         uint64 // the board's count of changes when last found as it was
+	blends       []BlendPiece
+	ways         []WayPiece
+	farWays      []WayPiece
+	crossings    []WayPiece
+	farCrossings []WayPiece
 }
 
 // bakeOf is t's bake, worked out anew when a cell round it has changed since.
@@ -431,11 +467,12 @@ func (l *dresser) bakeOf(t *tile) *cellBake {
 	}
 	b.ver = v + 1
 	b.blends = t.blendsAnew(b.blends[:0])
-	b.ways, b.farWays = t.wayAnew(b.ways[:0], true), t.wayAnew(b.farWays[:0], false)
+	b.ways, b.farWays = t.wayAnew(b.ways[:0], true, false), t.wayAnew(b.farWays[:0], false, false)
+	b.crossings, b.farCrossings = t.wayAnew(b.crossings[:0], true, true), t.wayAnew(b.farCrossings[:0], false, true)
 	for k := range b.blends {
 		b.blends[k].World = shift(b.blends[k].World, -t.X0, -t.Y0)
 	}
-	for _, ways := range [2][]WayPiece{b.ways, b.farWays} {
+	for _, ways := range [4][]WayPiece{b.ways, b.farWays, b.crossings, b.farCrossings} {
 		for k := range ways {
 			p := &ways[k]
 			p.World = shift(p.World, -t.X0, -t.Y0)

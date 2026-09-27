@@ -32,16 +32,18 @@ type Board struct {
 	boxes    []geom.AABB // scratch for the boxes of a cell
 }
 
-// cellStore is where the cells' entities are: their ids by ordinal, and a query for each of the
-// two components, so a read seeks only the column it needs.
+// cellStore is where the cells' entities are: their ids by ordinal, and a query for each of their
+// components, so a read seeks only the column it needs.
 type cellStore struct {
-	ids    []uid.UID64
-	plots  *goke.Query
-	kinds  *goke.Query
-	ways   *goke.Query
-	plot   goke.Comp[Plot]
-	ground goke.Comp[Ground]
-	way    goke.Comp[Way]
+	ids       []uid.UID64
+	plots     *goke.Query
+	kinds     *goke.Query
+	ways      *goke.Query
+	crossings *goke.Query
+	plot      goke.Comp[Plot]
+	ground    goke.Comp[Ground]
+	way       goke.Comp[Way]
+	crossing  goke.Comp[Crossing]
 }
 
 var _ world.Ground = (*Board)(nil)
@@ -146,16 +148,17 @@ func (b *Board) CellEntity(c CellID) (uid.UID64, bool) {
 }
 
 // Kind is c's terrain kind as whoever crosses it meets it: its ground's, with a Way running across
-// it deciding who may and what it costs (Way.Over); off the board, the zero kind admitting nobody.
+// it deciding who may and what it costs (Way.Over), and a Crossing over that letting whoever it
+// admits over too (Crossing.Over); off the board, the zero kind admitting nobody.
 func (b *Board) Kind(c CellID) CellKind {
 	if b.cells == nil {
-		return b.seed.Ways[c].Over(b.seed.Kind(c))
+		return b.seed.Crossings[c].Over(b.seed.Ways[c].Over(b.seed.Kind(c)))
 	}
 	i, ok := b.ordinal(c)
 	if !ok {
 		return CellKind{}
 	}
-	return b.wayOf(i).Over(b.groundOf(i).Kind)
+	return b.crossingOf(i).Over(b.wayOf(i).Over(b.groundOf(i).Kind))
 }
 
 // Set assigns c's terrain kind, taking effect immediately.

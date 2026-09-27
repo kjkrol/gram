@@ -18,8 +18,8 @@
 // A [CellID] names one cell; [Cell] is an entity's current one. A [CellKind] is a named terrain:
 // its movement cost, the [Domain]s it admits, whether it is solid (a wall) or how much it veils
 // sight (a forest), and the sprite drawn for it; kinds are created
-// through the Plugin's [CellKindDict]. Cost 1 is full speed and the baseline path weight; above 1
-// slows and costs more to plan through; below 1 is a boost a game may choose to offer.
+// through the Plugin's [CellKindDict]. Cost 1 is full speed and the cheapest step — a road; above
+// 1 slows and costs more to plan through — the ground off a road, the islands' at 2.5.
 // [CellKind.Costing] prices a kind differently for some domains — elves through a forest, a
 // witch over snow — and [CellKind.CostFor] is what an entity pays: the cheapest of its domains
 // the kind admits and prices, else Cost. [Terrain] is what a cell answers about itself.
@@ -27,8 +27,9 @@
 // # Slopes
 //
 // What is steep is the relief, not a kind. [Climbing] says what a slope does to whoever goes over
-// it: a climb slows by Up per unit of rise over run, a descent speeds up by Down, and a Free
-// domain (Air by default) flies over. A cell's slope is read off its own corners, whichever way
+// it: a climb slows by Up per unit of rise over run; a descent is quickest, by Down, at a fall of
+// Ease and slows past it by Steep a unit — a steep way down is picked carefully — and a Free domain
+// (Air by default) flies over. The slope multiplies the kind's cost, on a road and off it. A cell's slope is read off its own corners, whichever way
 // one goes across it: the board's Moving behavior applies it along the entity's heading, and
 // [Board.Climb] prices a step by the slope of the cell it enters, which the planner multiplies
 // into the kind's cost. [Plugin.WithClimbing] sets it, [DefaultClimbing] otherwise.
@@ -92,6 +93,10 @@
 // ([Plugin.SetLook], plugins/isometry) stands it up as a block with faces. A kind with a Sway —
 // trees, set by an effect when the wind blows — leans its top with the wind ([Tile.Sway]).
 //
+// Over a cell's ground may run a [Way] — a river, a road — and over that a [Crossing] — a bridge:
+// the way decides who may cross the cell and at what cost, the crossing lets whoever it admits
+// over too, the water running on under it ([Board.Kind]).
+//
 // That is all a board draws alone: its sprites in even light. What a map needs beyond them — the
 // sun's light on the relief and the terrain's shadows, grounds blending, coasts, water glinting and
 // running, ways drawn across the cells, the clouds' shadows — is a [Dressing]'s, set by
@@ -100,7 +105,8 @@
 // dressing's with the atlas on it), the tile asks it its [Tile.Base] and its [Tile.Light] and
 // [Tile.FaceLight], and the Look has it lay what lies on the tile ([Tile.Dress]). [RenderState]
 // holds its live toggles, such as the grid: on a square grid each tile outlined by the shader along
-// its own edges, laid over all that lies on it (render.Frame.OutlineOn), so grounds running in and
-// coasts do not cover it; on a hex grid the cells' outlines as lines on a tier just above the
+// its own edges at no piece of its own (render.Frame.Tile) — where a Dressing lays grounds or ways
+// over it ([Tile.Covered]), outlined by the dressing over them instead (render.Frame.OutlineOn);
+// on a hex grid the cells' outlines as lines on a tier just above the
 // tiles. It is left out where a cell spans fewer than a few pixels on screen.
 package board

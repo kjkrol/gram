@@ -2,6 +2,7 @@ package landscape
 
 import (
 	"image"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/plugins/board"
@@ -141,7 +142,8 @@ func (l *dresser) cellTile(c board.CellID) *tile {
 	return &l.bakeTile
 }
 
-// paintAll paints the whole board anew: every cell's grounds, then every way over them.
+// paintAll paints the whole board anew: every cell's grounds, then every way over them, then every
+// crossing over those.
 func (l *dresser) paintAll() {
 	s := l.sheet
 	cells := s.img.SubImage(image.Rect(0, s.top, int(l.sq.Cols)*s.px, s.top+int(l.sq.Rows)*s.px)).(*ebiten.Image)
@@ -158,10 +160,14 @@ func (l *dresser) paintAll() {
 		l.lay(i, nil, l.bakes[i].ways)
 		l.markWays(i)
 	}
+	for i := range n {
+		l.lay(i, nil, l.bakes[i].crossings)
+	}
 	render.Paint(cells, &l.canvas)
 }
 
-// paintCell paints cell i anew: its grounds and the ways of it and its neighbours reaching over it.
+// paintCell paints cell i anew: its grounds and the ways and crossings of it and its neighbours
+// reaching over it.
 func (l *dresser) paintCell(i int) {
 	s := l.sheet
 	cols := int(l.sq.Cols)
@@ -177,6 +183,7 @@ func (l *dresser) paintCell(i int) {
 			s.dressed[i] = true
 		}
 	})
+	l.around8(i, func(j int) { l.lay(j, nil, l.bakes[j].crossings) })
 	render.Paint(part, &l.canvas)
 }
 
@@ -202,9 +209,9 @@ func (l *dresser) lay(i int, blends []BlendPiece, ways []WayPiece) {
 	}
 }
 
-// markWays marks dressed every cell cell i's ways reach over.
+// markWays marks dressed every cell cell i's ways and crossings reach over.
 func (l *dresser) markWays(i int) {
-	if len(l.bakes[i].ways) == 0 {
+	if len(l.bakes[i].ways) == 0 && len(l.bakes[i].crossings) == 0 {
 		return
 	}
 	l.around8(i, func(j int) {
@@ -214,7 +221,8 @@ func (l *dresser) markWays(i int) {
 	})
 }
 
-// waysOver reports whether a piece of cell i's ways lies over cell j, i itself or a neighbour.
+// waysOver reports whether a piece of cell i's ways or crossings lies over cell j, i itself or a
+// neighbour.
 func (l *dresser) waysOver(i, j int) bool {
 	cols := int(l.sq.Cols)
 	// j's box as i's pieces are placed, from i's top-left; a step round a wrap folded back
@@ -222,7 +230,7 @@ func (l *dresser) waysOver(i, j int) bool {
 	dx, dy = unwrap(dx, cols), unwrap(dy, int(l.sq.Rows))
 	w, h := float32(l.cellW), float32(l.cellH)
 	bx0, by0 := float32(dx)*w, float32(dy)*h
-	for _, p := range l.bakes[i].ways {
+	for _, p := range slices.Concat(l.bakes[i].ways, l.bakes[i].crossings) {
 		px0, py0, px1, py1 := p.World[0][0], p.World[0][1], p.World[0][0], p.World[0][1]
 		for _, q := range p.World[1:] {
 			px0, py0, px1, py1 = min(px0, q[0]), min(py0, q[1]), max(px1, q[0]), max(py1, q[1])

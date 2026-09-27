@@ -11,4 +11,9 @@
 // last cell before it leaves: a river taking on the sea's look as it nears it (board.Way.Mix).
 // Where two networks run through the same cells ([Network.Crossings]) a road meets a river: a
 // ford, a bridge.
+//
+// A road is found over the grid ([Route]: the cheapest way from cell to cell at a cost a game
+// says, round what may not be crossed) and laid along its cells ([Network.Path]). Laid over a
+// river ([Network.Across]) it is a way of its own where the river does not run and a
+// board.Crossing — a bridge — over the river's way where it does.
 package network

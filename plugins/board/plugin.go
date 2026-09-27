@@ -243,6 +243,14 @@ func (p *Plugin) Populate() error {
 		}
 		ways[i] = Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
+	crossings := make([]Crossing, len(p.seeded.Crossings))
+	for i, e := range p.seeded.Crossings {
+		kind, err := resolve(e.Kind)
+		if err != nil {
+			return err
+		}
+		crossings[i] = Crossing{Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
+	}
 
 	brd := p.Res.Logic.Board
 	if p.seeded.Default != "" {
@@ -253,6 +261,9 @@ func (p *Plugin) Populate() error {
 	}
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])
+	}
+	for i, e := range p.seeded.Crossings {
+		brd.SetCrossing(e.Cell, crossings[i])
 	}
 	if p.seeded.Heights != nil {
 		brd.SetHeights(p.seeded.Heights)

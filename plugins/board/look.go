@@ -29,6 +29,9 @@ type Dressing interface {
 	Light(t *Tile) render.Shade
 	// FaceLight is the light on t's upright face looking dx, dy cells away.
 	FaceLight(t *Tile, dx, dy int) render.Light
+	// Covers reports whether Dress lays over t's top what would hide its outline: a Look draws the
+	// top without one then, and the dressing lays the outline over what it covers.
+	Covers(t *Tile) bool
 	// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it.
 	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32)
 }
@@ -91,6 +94,15 @@ func (t *Tile) FaceLight(dx, dy int) render.Light {
 	return render.Light{1, 1, 1}
 }
 
+// Covered reports whether the Dressing lays over the tile's top what would hide its outline, and
+// outlines it over that itself where it is Outlined: its Look draws the top without an outline.
+func (t *Tile) Covered() bool {
+	if d := t.r.dressing(); d != nil {
+		return d.Covers(t)
+	}
+	return false
+}
+
 // Dress lays over the tile's top, just drawn over the box x0..x1, y0..y1 at depth, what the
 // Dressing has lie on it; nothing without one.
 func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1, depth float32) {
@@ -120,10 +132,10 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 		lx, ly := render.Sway(f.Time(), f.Wind(), (x0+x1)/2, (y0+y1)/2, amount)
 		x0, y0, x1, y1 = x0+lx*rise, y0+ly*rise, x1+lx*rise, y1+ly*rise
 	}
-	f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
-	drawn := f.Last()
-	t.Dress(f, cam, x0, y0, x1, y1, 0)
-	if t.Outlined {
-		f.OutlineOn(drawn) // over all that lies on the top
+	if t.Outlined && !t.Covered() {
+		f.TileRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
+	} else {
+		f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	}
+	t.Dress(f, cam, x0, y0, x1, y1, 0)
 }

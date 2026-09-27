@@ -116,7 +116,7 @@
 // bounds cover the whole world is not queried and simply sees everything, as does the zero View a
 // Stage has before its first tick. [Plugin.View] is the camera's, made by the plugin itself; the
 // entity renderer reads it. A View over another camera or a remote player's bounds is the same
-// thing — see doc/views.md for where that leads.
+// thing.
 //
 // # Telemetry
 //

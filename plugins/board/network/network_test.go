@@ -1,6 +1,7 @@
 package network_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
@@ -109,5 +110,50 @@ func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
 	}
 	if got := road.Crossings(river); len(got) != 1 || got[0] != at(2, 3) {
 		t.Errorf("the road crosses the river at %v, want %v", got, at(2, 3))
+	}
+}
+
+// A route is the cheapest way from cell to cell, round what may not be crossed; none where
+// nothing gets there.
+func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
+	wall := map[board.CellID]bool{at(2, 0): true, at(2, 1): true, at(2, 2): true, at(2, 3): true}
+	cost := func(a, b board.CellID) float64 {
+		if wall[b] {
+			return math.Inf(1)
+		}
+		return 1
+	}
+	path, ok := network.Route(grid, at(0, 0), at(4, 0), cost)
+	if !ok || path[0] != at(0, 0) || path[len(path)-1] != at(4, 0) {
+		t.Fatalf("route %v, %v; want one from (0, 0) to (4, 0)", path, ok)
+	}
+	for _, c := range path {
+		if wall[c] {
+			t.Errorf("the route runs through the wall at %v", c)
+		}
+	}
+	if len(path) != 9 {
+		t.Errorf("the route is %d cells, want 9: down round the wall's end and back up", len(path))
+	}
+	wall[at(2, 4)] = true
+	if _, ok := network.Route(grid, at(0, 0), at(4, 0), cost); ok {
+		t.Error("a route through a wall across the whole grid")
+	}
+}
+
+// A road laid over a river is its own way where the river does not run, and a crossing of the
+// kind given where it does: a bridge.
+func TestNetwork_ARoadAcrossARiverBridgesIt(t *testing.T) {
+	river, road := network.New(grid), network.New(grid)
+	for y := range uint32(5) {
+		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
+	}
+	road.Path([]board.CellID{at(1, 2), at(2, 2), at(3, 2)}, network.Node{Kind: "road", Width: 4})
+	ways, crossings := road.Across(river, "bridge")
+	if len(ways) != 2 || len(crossings) != 1 {
+		t.Fatalf("%d ways and %d crossings, want the road's 2 ends and a bridge", len(ways), len(crossings))
+	}
+	if b := crossings[0]; b.Cell != at(2, 2) || b.Kind != "bridge" || b.Links != west|east || b.Width != 4 {
+		t.Errorf("the bridge is %+v, want one at (2, 2) running west and east, as wide as the road", b)
 	}
 }

@@ -75,23 +75,19 @@ type tile struct {
 // cellTop is a cell as the landscape reads it: its corners with its kind standing on them, the
 // ground's corners under it, its level, its sprite, its kind's Style and the way across it.
 type cellTop struct {
-	z           [4]float32
-	ground      [4]float32
-	alt         float32
-	shine       float32
-	flow        float32
-	spread      float32
-	raised      bool // something stands a Height over the ground
-	under       bool
-	sprite      render.SpriteID
-	way         board.Way
-	wayShine    float32 // the Style of the way's kind
-	wayFlow     float32
-	wayMix      render.SpriteID // the sprite of the kind the way turns into, where wayMixes, and its Shine
-	wayMixes    bool
-	wayMixShine float32
-	ver         uint64 // one more than the cell's version when read; 0 not read yet
-	seen        uint64 // the board's count of changes when last found as it was
+	z      [4]float32
+	ground [4]float32
+	alt    float32
+	shine  float32
+	flow   float32
+	spread float32
+	raised bool // something stands a Height over the ground
+	under  bool
+	sprite render.SpriteID
+	way    lane   // what runs across the cell
+	cross  lane   // and what crosses over that
+	ver    uint64 // one more than the cell's version when read; 0 not read yet
+	seen   uint64 // the board's count of changes when last found as it was
 }
 
 // Begin readies the dresser for a frame through cam: the sun, how near the eye is, and what has
@@ -120,9 +116,22 @@ func (l *dresser) FaceLight(t *board.Tile, dx, dy int) render.Light {
 	return l.tileOf(t).FaceLight(dx, dy)
 }
 
+// Covers reports whether Dress lays over t's top the grounds round it or a way — from far a piece
+// of the ground sheet — which would hide its outline.
+func (l *dresser) Covers(t *board.Tile) bool {
+	d := l.tileOf(t)
+	if l.baking {
+		i, ok := l.ordinal(t.ID)
+		return ok && l.sheet != nil && l.sheet.dressed[i]
+	}
+	b := l.bakeOf(d)
+	return len(b.blends) > 0 || len(b.ways) > 0 || len(b.crossings) > 0
+}
+
 // Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it: its water,
-// the grounds round it running in and the way across it — from far as one piece of the ground
-// sheet — and the clouds' shadows over the top once, after the grounds on it.
+// the grounds round it running in — from far with its way as one piece of the ground sheet — the
+// clouds' shadows and, where it Covers an Outlined top, its outline over them, and then the way
+// across it: laid in the order the frame draws them, so it needs no sorting.
 func (l *dresser) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y0, x1, y1, depth float32) {
 	d, top := l.tileOf(t), f.Last()
 	d.DrawSurface(f, x0, y0, x1, y1)
@@ -135,9 +144,14 @@ func (l *dresser) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y
 		l.dressBaked(f, d, corners, depth)
 	} else {
 		d.DrawBlends(f, cam, depth)
-		d.DrawWay(f, cam, depth)
 	}
 	OvercastOn(f, top, render.Box(x0, y0, x1, y1))
+	if t.Outlined && l.Covers(t) {
+		f.OutlineOn(top)
+	}
+	if !l.baking {
+		d.DrawWay(f, cam, depth)
+	}
 }
 
 // tileOf is t as the dresser dresses it, what it worked out of it kept while it is the same cell.
@@ -165,17 +179,9 @@ func (l *dresser) topOf(c board.CellID) *cellTop {
 	kind := l.board.Kind(c)
 	style := l.styles[kind.Name]
 	r := l.board.Relief(c)
-	way := l.board.Way(c)
-	ws := l.styles[way.Kind.Name]
 	t.alt, t.sprite, t.ver = float32(r.Level()), kind.SpriteID, v
 	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
-	t.way, t.wayShine, t.wayFlow = way, ws.Shine, ws.Flow
-	t.wayMixes, t.wayMixShine = false, 0
-	if ws.MixWith != "" && l.kinds != nil {
-		if k, ok := l.kinds.Get(ws.MixWith); ok {
-			t.wayMix, t.wayMixes, t.wayMixShine = k.SpriteID, true, l.styles[k.Name].Shine
-		}
-	}
+	t.way, t.cross = l.laneOf(l.board.Way(c)), l.laneOf(l.board.Crossing(c).Way)
 	if l.square {
 		t.ground = r.Corners
 	} else {
@@ -185,6 +191,28 @@ func (l *dresser) topOf(c board.CellID) *cellTop {
 		t.z[k] = t.ground[k] + float32(kind.Height)
 	}
 	return t
+}
+
+// lane is what runs across a cell as the landscape draws it: a Way, and its kind's Style — how its
+// water shines and runs — and the kind it turns into, where it mixes, and how that one shines.
+type lane struct {
+	board.Way
+	shine, flow float32
+	mix         render.SpriteID
+	mixes       bool
+	mixShine    float32
+}
+
+// laneOf is w with its kind's Style.
+func (l *dresser) laneOf(w board.Way) lane {
+	s := l.styles[w.Kind.Name]
+	ln := lane{Way: w, shine: s.Shine, flow: s.Flow}
+	if s.MixWith != "" && l.kinds != nil {
+		if k, ok := l.kinds.Get(s.MixWith); ok {
+			ln.mix, ln.mixes, ln.mixShine = k.SpriteID, true, l.styles[k.Name].Shine
+		}
+	}
+	return ln
 }
 
 // ordinal is c's slot in a table of one per cell.

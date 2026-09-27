@@ -7,27 +7,42 @@ import (
 )
 
 // Climbing is what slopes do to whoever goes over them, by the slope: rise over run. A climb takes
-// 1 + Up·slope times as long as the flat, a descent 1 − Down·fall with the fall counted up to 1
-// (Down below 1). Whoever moves in a Free domain flies over.
+// 1 + Up·slope times as long as the flat. A gentle descent is quicker, the quickest — 1 − Down
+// times as long, Down below 1 — at a fall of Ease; a steeper one slows again by Steep for every
+// unit of fall past Ease: a steep way down is picked carefully. Whoever moves in a Free domain
+// flies over.
 type Climbing struct {
-	Up, Down float64
-	Free     Domain
+	Up, Down    float64
+	Ease, Steep float64
+	Free        Domain
 }
 
-// DefaultClimbing has a climb of 1 in 10 take twice as long as the flat, a descent a little
-// quicker, and Air fly over.
-var DefaultClimbing = Climbing{Up: 10, Down: 0.3, Free: Air}
+// DefaultClimbing has a climb of 1 in 10 take twice as long as the flat, a descent of 1 in 10 the
+// quickest, 0.7 as long, one of 1 in 5 slower than the flat, and Air fly over.
+var DefaultClimbing = Climbing{Up: 10, Down: 0.3, Ease: 0.1, Steep: 5, Free: Air}
 
 // Factor is how many times as long a step over slope takes as one on the flat.
 func (c Climbing) Factor(slope float64) float64 {
 	if slope >= 0 {
 		return 1 + c.Up*slope
 	}
-	return 1 - c.Down*min(-slope, 1)
+	fall := -slope
+	switch {
+	case c.Ease <= 0:
+		return 1 + c.Steep*fall // no descent is quick
+	case fall <= c.Ease:
+		return 1 - c.Down*fall/c.Ease
+	}
+	return 1 - c.Down + c.Steep*(fall-c.Ease)
 }
 
-// Least is the smallest Factor, on the steepest descent.
-func (c Climbing) Least() float64 { return min(1-c.Down, 1) }
+// Least is the smallest Factor, on a descent of Ease.
+func (c Climbing) Least() float64 {
+	if c.Ease <= 0 {
+		return 1
+	}
+	return min(1-c.Down, 1)
+}
 
 // Feels reports whether an entity moving in d climbs: none of its domains is Free.
 func (c Climbing) Feels(d Domain) bool { return d&c.Free == 0 }

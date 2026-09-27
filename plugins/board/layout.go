@@ -3,13 +3,14 @@ package board
 import "github.com/kjkrol/aabbworld/geom"
 
 // Layout is a board's initial terrain for Plugin.Seed: Default fills every cell, then each
-// CellEntry overrides one; each WayEntry lays a Way across a cell; Heights, when set, raises the
-// ground — see Board.SetHeights.
+// CellEntry overrides one; each of Ways lays a Way across a cell, each of Crossings a Crossing over
+// a cell's way; Heights, when set, raises the ground — see Board.SetHeights.
 type Layout struct {
-	Default string
-	Cells   []CellEntry
-	Ways    []WayEntry
-	Heights func(p geom.Vec) float64
+	Default   string
+	Cells     []CellEntry
+	Ways      []WayEntry
+	Crossings []WayEntry
+	Heights   func(p geom.Vec) float64
 }
 
 // WayEntry lays a Way of the CellKind named Kind across Cell, Width wide, running on as Links says,
