@@ -67,8 +67,8 @@ for it, measured alternately against the renderer that batched its own quads:
 | a twentieth | 44 µs | 50 µs |
 
 What the frame pays back is the drawing: one call per sheet for everything a view shows, instead of
-a call or several per cone, shadow, route and outline — see doc/rendering.md §6, where whole frames
-of the island demos are 25–60% shorter.
+a call or several per cone, shadow, route and outline: whole frames of the island demos are 25–60%
+shorter.
 
 ## Collision tick — `Benchmark_Collision_Tick`
 
@@ -229,7 +229,7 @@ quads — the tiles, their outlines, the glints and the ways.
   in the view's bounds, marked by entity index — and the renderer masks its walk with it, so a
   frame costs the visible boxes plus one bit test per entity; a view of the whole world skips the
   query. The same shape serves a view per player or per remote client: one query each, one
-  sequential walk for all (see doc/views.md).
+  sequential walk for all.
 * **Drawing pays for the camera's wrap arithmetic.** ~110 ns per drawn box, mostly `math.Mod` in
   projecting a box onto a torus — a camera optimisation waiting for a reason.
 * **The terrain lives in the ECS at no cost.** Reading a cell's ground or kind from its entity is
