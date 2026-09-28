@@ -279,6 +279,42 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twenty-second round: the ground traced on the GPU.** Stage 4 of the same order: a
+  switchable renderer of the relief on the GPU, in its own package. Ebitengine has fragment
+  shaders only, no depth buffer and no retained vertex buffers, so a "GPU terrain" cannot be a
+  mesh the CPU does not build every frame; it is a heightfield ray-marched per pixel. (1)
+  **Where it draws.** The composer draws the frame's pieces in one shader; a shader of its own
+  needs a place in that order: `render.Direct` is a Source drawing itself before the first piece
+  of its tier or over — after the sky's quads at −∞ depth, before the tiles' tier. (2) **What it
+  reads.** The relief's lattice (`Relief.Lattice`, cols by rows corners, the values to read) as
+  an image of 16 bits a corner, written when the relief's version moves; the kinds' Colors a
+  cell (`Board.Kind`, so a way's kind colours its cell) written when the board changes; the
+  camera's lines of sight as six vectors (`camera.Rays`/`RayField`: origin and direction each
+  affine in the screen point — a perspective's from the eye through the picture plane a focal
+  length ahead, the isometric and the flat view's parallel, from Headroom over the highest
+  ground down along −Toward, which is the way everything projects along); the sun and the air
+  as the composer's shader gets them. The shader splits a cell into the two triangles a tile is
+  drawn as (`drawnAt`'s rule), so the ground it traces is the ground the tiles draw and the
+  units stand on; it sinks the ground by the perspective's Bend as the tiles do. Steps are
+  bounded (Kage needs constants): 160 at most, a quarter cell or six tenths of the height above
+  the ground, six bisections after a hit; shadows 24 half-cell steps towards the sun, on by
+  default in the demo for parity with the tiles. (3) **What hides what.** Without a depth
+  buffer a billboard drawn after the ground would show through a hill: `Renderer.Hides` walks
+  the line of sight from where it starts to the unit's middle every half cell on the CPU and
+  the topography's `worldLook` leaves the billboard out; the cones, routes and shadows are
+  overlays on the ground and stay. (4) **The switch.** `Config.Heightfield` makes the renderer
+  (`Plugin.Renderer`, nil without) and binds G to the `Heightfield` command; shown, the board's
+  Map gives `board.Nothing` for its Look — the renderer readies the dressing for the frame (the
+  sun's and the air's uniforms the billboards need) and lays no tile. Tiles stay the default:
+  a strategy beside the old, not in its place. (5) **Not done, and doubts.** The colours are
+  the kinds' flat colours: no blends, no water glints, no ways' curves — the ground sheet has
+  all of them painted and could be the albedo (a cell's rectangle of the sheet), the next step.
+  Unmeasured on a GPU: no headless measure exists, and the island's machine has an Intel UHD
+  620, where 1080p × 160 steps × several texel reads may well cost more than the 4 ms the CPU
+  takes; a half-resolution offscreen image upscaled would quarter it. Compiles and traces right
+  by its tests (the shader compiles, the heights round-trip, the occlusion hides what a ridge
+  hides and not a hawk, the rays pass through what the screen points unproject to); to be
+  looked at in the demo.
 - **Twenty-first round: the tiles and the cones on every CPU.** The user asked what of the
   topography's drawing could go to the GPU, or failing that be spread over the CPUs, and ordered
   the whole plan in stages. Ebitengine's Kage is fragment shaders only, so the tiles stay on the

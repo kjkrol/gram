@@ -112,13 +112,18 @@ func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	d := l.dressing()
-	sheet := l.atlas
+	look := l.mapping().Look()
 	if d != nil {
 		d.Begin(f, cam)
+	}
+	if look == Nothing {
+		return // the ground is drawn some other way: the dressing is readied for the frame, no more
+	}
+	sheet := l.atlas
+	if d != nil {
 		sheet = d.Sheet(l.atlas)
 	}
 	l.tile.Atlas, l.tile.dress = sheet, d
-	look := l.mapping().Look()
 	l.nextTops()
 	w, h := cam.Viewport()
 	x0, y0 := cam.Unproject(w/2, 0, 0)

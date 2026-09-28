@@ -137,3 +137,15 @@ func TestBoard_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 		t.Errorf("walked through %v after a second forest, want it from 60 to 70 too", got)
 	}
 }
+
+// Under the Nothing look the renderer readies the dressing for the frame and lays no tile.
+func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
+	grid := DefaultGrids{}.Square(4, 4, 32)
+	brd := NewBoard(grid, NewTerrainMap())
+	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	d := &stripes{}
+	r := newRenderer(brd, flatAtlas{}, &RenderState{ShowGridLines: true}, func() Map { return stripedMap{lookMap{Nothing}, d} })
+	if _, n := piecesOf(r, icamera.NewFromSpace(128, 128, 0)); n != 0 || len(d.dressed) != 0 || d.warmed.Load() != 0 {
+		t.Errorf("%d pieces, %d tiles dressed, %d warmed under Nothing; want none of each", n, len(d.dressed), d.warmed.Load())
+	}
+}

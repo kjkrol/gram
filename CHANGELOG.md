@@ -5,6 +5,22 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The ground traced on the GPU from its heightmap**
+- `topography/heightfield` is the topography's other way of drawing the ground: one shader
+  traces every pixel's line of sight over the relief (heightfield.kage) — the heights a lattice
+  image of 16 bits a corner, a colour a cell from the kinds' Colors, the ground split into the
+  two triangles a tile is, lit by the sun with its shadows cast, hazed towards the Fog as far off
+  as it lies — in place of the tiles, which lay nothing then (`board.Nothing`); what stands on
+  the ground is drawn as before, a billboard the ground hides from the eye left out
+  (`Renderer.Hides`). `Config.Heightfield` reaches it and G switches ([`Heightfield`],
+  `Plugin.ShowHeightfield`); `Plugin.Renderer` is its renderer, for the scene's composer beside
+  the board's. Drawn through every view, from above, isometrically and in perspective, from the
+  camera's lines of sight (`camera.Rays`, a `camera.RayField`: the ray of a screen point from six
+  vectors). Not yet measured on a GPU, nor drawn with the ground sheet's blends and water: a
+  first cut, the kinds' colours only.
+- `render.Direct` is a Source that draws a part of the picture itself, with a shader of its own,
+  where its tier comes among the frame's pieces; the composer leaves a nil layer out.
+
 **The tiles dressed and the cones scanned on every CPU**
 - The board's renderer dresses the tiles on several goroutines at once when the Map's Dressing
   is a `board.Parallel` and its Look a `board.ParallelLook` (`board.Plugin.WithWorkers`: 0 every

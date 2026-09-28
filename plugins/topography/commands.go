@@ -51,6 +51,11 @@ const LookStep = 0.0025
 // the camera was in, over the entity; Follow, LookFrom and LookAt let go first too.
 type LookOut struct{ Camera camera.Camera }
 
+// Heightfield draws the ground from its heightmap on the GPU, every pixel's line of sight traced
+// over it (topography/heightfield), in place of the tiles — and the tiles again, given once more;
+// nothing without Config.Heightfield.
+type Heightfield struct{}
+
 // Turn turns Camera by Angle radians, the world clockwise on the screen, keeping the ground point in
 // the middle of the screen where it is; a camera of another view stays as it is.
 type Turn struct {
@@ -86,9 +91,9 @@ const (
 	TiltStep = math.Pi / 180
 )
 
-// Queues are where the view's and the shaping commands land.
+// Queues are where the view's, the heightfield's and the shaping commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.shaping.raise, &p.shaping.lower, &p.shaping.level}
+	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.fields, &p.shaping.raise, &p.shaping.lower, &p.shaping.level}
 }
 
 // DefaultBindings switch the player's view on Tab, turn the camera while Q or E is held, raise its
@@ -128,6 +133,10 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
 			}),
+	}
+	if p.cfg.Heightfield {
+		out = append(out, control.Command(control.KeyPress{Key: ebiten.KeyG}, "Draw the ground from its heightmap on the GPU, or as tiles",
+			func(control.Context) (Heightfield, bool) { return Heightfield{}, true }))
 	}
 	if p.selection != nil {
 		drive := func(ahead, turn int8) func(control.Context) (Drive, bool) {

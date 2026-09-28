@@ -79,13 +79,18 @@ func TestDresser_WorkersDressWhatOneGoroutineDoes(t *testing.T) {
 	many := board.NewRenderer(brd, flatAtlas{}, testMap{look: boardLook{d: dw}, d: dw})
 	many.Workers(4)
 	persp := newCamera(testProjection, 512, 512, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
-	persp.enterInside([3]float32{300, 300, 20}, 0.4, 0)
-	persp.Tilt(0.2)
+	persp.LookFrom(256, 900, 400) // the whole islet ahead, the eye high over its shore
 	iso := newCamera(testProjection, 512, 512, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
 	iso.ZoomOut(2, 200, 150)
 	part := newCamera(testProjection, 512, 512, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
 	part.CenterOn(120, 300, 0) // the hill's shadows fall here from cells off the screen
-	for name, cam := range map[string]camera.Camera{"above": icamera.NewFromSpace(512, 512, 0), "iso": iso, "part": part, "persp": persp} {
+	views := []struct {
+		name string
+		cam  camera.Camera
+	}{{"above", icamera.NewFromSpace(512, 512, 0)}, {"iso", iso}, {"part", part}, {"persp", persp}}
+	for _, v := range views {
+		name, cam := v.name, v.cam
+		dw.workers = nil
 		want, wantN := piecesOf(one, cam)
 		got, gotN := piecesOf(many, cam)
 		if len(dw.workers) < 2 {

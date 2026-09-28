@@ -148,3 +148,48 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 		t.Errorf("inside a unit whose eye says nothing the focal length is %v, want the camera's own %v", f, own)
 	}
 }
+
+// The rays of every view pass through the world points its screen points unproject to: in
+// perspective from the eye the way Ray says, from above and isometrically one way through the
+// point under the pixel at any height.
+func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
+	c := newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	seen := map[string]bool{}
+	for range 3 {
+		view := "iso"
+		switch {
+		case c.inPersp:
+			view = "persp"
+		case c.iso.proj.flat:
+			view = "above"
+		}
+		seen[view] = true
+		field, ok := c.Rays()
+		if !ok {
+			t.Fatalf("%s: no rays", view)
+		}
+		for _, s := range [][2]float32{{0, 0}, {200, 150}, {399, 20}, {30, 299}} {
+			o, d := field.At(s[0], s[1])
+			if view == "persp" {
+				dx, dy, dz, _ := c.Ray(s[0], s[1])
+				n := norm(d)
+				ex, ey, ez, _ := c.Eye()
+				if !near(d[0]/n, dx) || !near(d[1]/n, dy) || !near(d[2]/n, dz) || o != [3]float32{ex, ey, ez} {
+					t.Errorf("%s: the ray through %v is %v from %v, want %v from the eye %v", view, s, d, o, [3]float32{dx, dy, dz}, [3]float32{ex, ey, ez})
+				}
+				continue
+			}
+			for _, z := range []float32{0, 40} {
+				k := (z - o[2]) / d[2]
+				x, y := c.Unproject(s[0], s[1], z)
+				if px, py := o[0]+k*d[0], o[1]+k*d[1]; math.Abs(float64(px-x)) > 0.05 || math.Abs(float64(py-y)) > 0.05 {
+					t.Errorf("%s: the ray through %v meets height %v at (%v, %v), the screen point sees (%v, %v)", view, s, z, px, py, x, y)
+				}
+			}
+		}
+		c.next()
+	}
+	if len(seen) != 3 {
+		t.Errorf("the views seen were %v, want all three", seen)
+	}
+}

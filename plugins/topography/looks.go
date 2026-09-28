@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/topography/heightfield"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -36,11 +37,15 @@ var _ world.Look = worldLook{}
 // isometric view, the world's own flat sprites from above — lit by the sky's sun on level ground,
 // leaning with its wind, each casting its shadow on the relief away from the sun.
 type worldLook struct {
-	flat world.Look
-	d    *dresser
+	flat  world.Look
+	d     *dresser
+	field *heightfield.Renderer // the ground drawn from its heightmap, hiding what lies behind it; nil none
 }
 
 func (l worldLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+	if l.field != nil && l.field.Hides(cam, float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2), float32(z.Altitude+z.Height/2)) {
+		return // behind the ground the heightfield draws, which no painter's order hides it by
+	}
 	sun, weather := l.d.sky.Sun(), l.d.sky.Air()
 	if l.d.heights {
 		sun.Shadow(f, cam, box.AABB, z, l.groundAt)

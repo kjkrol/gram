@@ -31,6 +31,28 @@ var _ contract.Scaler = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
 var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
+var _ contract.Rays = (*viewCamera)(nil)
+
+// Rays is every line of sight at once: in perspective from the eye, through the picture plane a
+// focal length ahead; from above or isometrically all one way — the way everything projects
+// along, down from Headroom over the highest ground.
+func (c *viewCamera) Rays() (contract.RayField, bool) {
+	if c.inPersp {
+		p := c.persp.proj
+		w, h := c.persp.Viewport()
+		f := contract.RayField{Origin: p.eye, Bend: p.bend}
+		f.DDX, f.DDY = scale(p.right, 1/p.focal), scale(p.up, -1/p.focal)
+		f.Dir = add(p.forward, add(scale(f.DDX, -w/2), scale(f.DDY, -h/2)))
+		return f, true
+	}
+	_, high := c.iso.layer()
+	x0, y0 := c.iso.Unproject(0, 0, high)
+	x1, y1 := c.iso.Unproject(1, 0, high)
+	x2, y2 := c.iso.Unproject(0, 1, high)
+	f := contract.RayField{Origin: [3]float32{x0, y0, high}, DX: [3]float32{x1 - x0, y1 - y0, 0}, DY: [3]float32{x2 - x0, y2 - y0, 0}}
+	f.Dir = scale(c.iso.Projection().Toward(), -1)
+	return f, true
+}
 
 // Ray is the way the screen point looks, in perspective; the other views look from infinitely far.
 func (c *viewCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {

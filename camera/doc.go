@@ -42,7 +42,8 @@
 // [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
 // [Rayer] is a camera that says which way a screen point looks, [Eyed] one with an eye at a point
 // of the world and [Vanisher] one with vanishing points — a perspective's all three; a sky is
-// drawn by them. [ScaleAt] is the scale at a point through any camera — a Scaler's own, else the Zoom — which is
+// drawn by them. [Rays] says every line of sight at once, as a [RayField] a shader traces the world
+// with per pixel — a perspective's from its eye, a parallel projection's all one way. [ScaleAt] is the scale at a point through any camera — a Scaler's own, else the Zoom — which is
 // what sizes what is drawn where it lies: detail, the grid, soft edges, billboards.
 //
 // # FromScreenRect

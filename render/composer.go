@@ -13,9 +13,11 @@ import (
 
 // Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
 // its items to a Frame, the Composer orders them — by depth below the Marks when the camera's
-// projection sorts — and draws each run of items sampling one sheet in one call.
+// projection sorts — and draws each run of items sampling one sheet in one call; a Direct source
+// draws its part itself where its tier comes.
 type Composer struct {
 	sources []Source
+	directs []Direct // by tier
 	frame   Frame
 	white   whiteSheet
 
@@ -33,7 +35,8 @@ type Composer struct {
 
 var _ WorldRenderer = (*Composer)(nil)
 
-// NewComposer takes the layers to compose, which must all be Sources.
+// NewComposer takes the layers to compose, which must all be Sources; a nil layer — a plugin with
+// no renderer — is left out.
 func NewComposer(layers ...Layer) *Composer {
 	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(), uniforms: map[string][]float32{}}
 	c.opts.Uniforms = map[string]any{}
@@ -41,12 +44,19 @@ func NewComposer(layers ...Layer) *Composer {
 	c.uniform("Clock", 1)
 	c.uniform("Pixel", 1)
 	for _, l := range layers {
+		if l == nil {
+			continue
+		}
 		src, ok := l.(Source)
 		if !ok {
 			panic(fmt.Sprintf("render: %T cannot be composed: it is no Source", l))
 		}
 		c.sources = append(c.sources, src)
+		if d, ok := l.(Direct); ok {
+			c.directs = append(c.directs, d)
+		}
 	}
+	slices.SortStableFunc(c.directs, func(a, b Direct) int { return int(a.Tier()) - int(b.Tier()) })
 	c.draw = c.drawTriangles
 	return c
 }
@@ -166,14 +176,21 @@ func (c *Composer) setUniforms() {
 }
 
 // render draws the ordered items, one call per run sharing a sheet; a plain colour joins the run
-// it falls in and samples that sheet's white texel.
+// it falls in and samples that sheet's white texel. A Direct source draws before the first item
+// of its tier or over, after all before it.
 func (c *Composer) render(screen *ebiten.Image) {
 	f := &c.frame
 	c.setUniforms()
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
+	direct := 0
 	for _, i := range f.order {
 		it := &f.items[i]
+		for direct < len(c.directs) && c.directs[direct].Tier() <= it.tier {
+			c.flush(screen, sheet)
+			c.directs[direct].Draw(screen, f.cam)
+			direct++
+		}
 		switch {
 		case it.atlas != nil && it.atlas != sheet:
 			c.flush(screen, sheet)
@@ -207,6 +224,9 @@ func (c *Composer) render(screen *ebiten.Image) {
 		}
 	}
 	c.flush(screen, sheet)
+	for ; direct < len(c.directs); direct++ {
+		c.directs[direct].Draw(screen, f.cam)
+	}
 }
 
 // fan adds a fan item, whole, to the call being gathered.

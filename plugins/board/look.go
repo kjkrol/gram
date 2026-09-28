@@ -131,6 +131,14 @@ func (t *Tile) Sway() (amount, rise float32) {
 	return c.sway, c.height
 }
 
+// Nothing is a Look laying no tile: a Map's whose ground is drawn some other way — traced from its
+// heights on the GPU. The board's renderer readies the Dressing for the frame and hands it no cell.
+var Nothing Look = nothing{}
+
+type nothing struct{}
+
+func (nothing) Cell(*render.Frame, camera.Camera, *Tile) {}
+
 // flatLook is the board seen from above: each cell's sprite over its box, split at a wrap seam, in
 // the Dressing's light and dressed by it.
 type flatLook struct{}

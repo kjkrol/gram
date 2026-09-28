@@ -183,6 +183,17 @@
 // in a unit, on a slope above the eye lands on the cell drawn there; the ground point in the middle
 // of the screen, which Turn goes round, is found the same way.
 //
+// # Heightfield
+//
+// The ground has another way of being drawn: traced on the GPU from its heightmap, every pixel's
+// line of sight marched over the relief in a shader of its own (topography/heightfield) — the
+// same ground, split into the two triangles a tile is, in the sun's light with its shadows, the
+// cells in their kinds' colours, hazed far off — in place of the tiles, which lay nothing then
+// (board.Nothing). Config.Heightfield reaches it, [Heightfield] (G) switches between the two,
+// [Plugin.ShowHeightfield] from a game's code; [Plugin.Renderer] is its renderer, a render.Direct
+// for the scene's composer beside the board's and the world's. What stands on the ground is drawn
+// as before, a billboard the ground hides from the eye left out. The tiles stay the default.
+//
 // # Commands
 //
 // The plugin is a plugin.CommandHandler, its commands carrying the camera of whoever gave them
@@ -207,6 +218,7 @@
 // view going there first where the game reaches it. [Drive] (W, S, A and D riding; the arrows
 // following) steers the unit a camera is fastened to: the camera system keeps a steering.Driven on it
 // while fastened, writes the keys into it every tick and stops it when let go; navigation carries it out on the ground. [Raise],
-// [Lower] and [Level] shape the ground. Call [Plugin.RunPlan] after the world has moved and before
+// [Lower] and [Level] shape the ground; [Heightfield] (G, with Config.Heightfield) draws the ground
+// from its heightmap or as tiles again. Call [Plugin.RunPlan] after the world has moved and before
 // the players' RunPlan.
 package topography

@@ -97,6 +97,16 @@ func NewRelief(grid board.Grid) *Relief {
 	return r
 }
 
+// Lattice is the ground's heights over a square grid as a lattice: cols by rows corners a cell
+// apart, row by row, the relief's own values to read and not to keep — for whoever draws them all
+// at once (topography/heightfield); false off a square grid.
+func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	if !r.square {
+		return 0, 0, 0, nil, false
+	}
+	return r.cols, r.rows, float32(r.sq.Cell), r.values, true
+}
+
 // Sloped reports whether the ground runs between a cell's corners: a square grid's.
 func (r *Relief) Sloped() bool { return r.square }
 

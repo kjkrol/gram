@@ -154,7 +154,13 @@ the board's tiles are dressed on every CPU: its dresser is a `board.Parallel` an
 visible tile (shores), has the dresser `Ready` (the highest top, every top a worker may read, then
 frozen), and shares the tiles out among `Worker` dressers, each with its own scratch, clouds and
 `render.Frame` (`Frame.Branch`/`Append`), so the picture is piece for piece the serial one
-(`internal/parallel` shares the runs out). One camera, two
+(`internal/parallel` shares the runs out). With `Config.Heightfield`, G (`topography.Heightfield`,
+`Plugin.ShowHeightfield`) draws the ground on the GPU instead: `topography/heightfield` is a
+`render.Direct` source at the Ground tier ray-marching the relief's lattice (`Relief.Lattice`, 16
+bits a corner in an image, the kinds' colours a cell) from the camera's `camera.Rays` (a
+`RayField`: origin and direction affine in the screen point; the perspective's from its eye, the
+isometric and flat views' parallel), the board's Look becoming `board.Nothing`; `Renderer.Hides`
+walks a line of sight on the CPU so `worldLook` leaves out billboards behind hills. One camera, two
 views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
 sorting); `View{Camera}` (Tab) flips it keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole

@@ -1,0 +1,183 @@
+//kage:unit pixels
+
+package main
+
+// The lines of sight (camera.RayField): the ray through the screen pixel (x, y), handed in the
+// custom values, starts at Origin + x·DX + y·DY and runs along Dir + x·DDX + y·DDY; Bend is how far
+// under the eye's level the ground d off is drawn, per d².
+var Origin vec3
+var DX vec3
+var DY vec3
+var Dir vec3
+var DDX vec3
+var DDY vec3
+var Bend float
+
+// The lattice: Corners.x by Corners.y corners a Cell apart, their heights Low up to Low+Span held
+// in the first image's red and green as 16 bits; the second image is a colour a cell.
+var Cell float
+var Corners vec2
+var Low float
+var Span float
+
+// The light: Sun towards the sun, a unit vector; its Strength and the colour of its light; the
+// Ambience every surface gets from the sky. Shadows over a half casts the terrain's shadows.
+var Sun vec3
+var SunStrength float
+var SunColor vec3
+var Ambience vec3
+var Shadows float
+
+// The air: Fog is the colour what lies far off turns to, over Visibility world units; 0 without end.
+var Fog vec3
+var Visibility float
+
+// How many steps a ray takes at most, how many bisections settle where it met the ground, and how
+// many steps a ray towards the sun takes.
+const steps = 160
+const refine = 6
+const shadowSteps = 24
+
+// height is the ground's height at the world point p as a tile is drawn: two flat triangles split
+// along the diagonal whose corners stand nearer in height (topography.Relief.GroundAt).
+func height(p vec2) float {
+	g := clamp(p/Cell, vec2(0), Corners-1.0001)
+	i := floor(g)
+	f := g - i
+	h0 := corner(i)
+	h1 := corner(i + vec2(1, 0))
+	h2 := corner(i + vec2(0, 1))
+	h3 := corner(i + vec2(1, 1))
+	if abs(h0-h3) < abs(h1-h2) {
+		if f.x >= f.y {
+			return h0 + f.x*(h1-h0) + f.y*(h3-h1)
+		}
+		return h0 + f.y*(h2-h0) + f.x*(h3-h2)
+	}
+	if f.x+f.y <= 1 {
+		return h0 + f.x*(h1-h0) + f.y*(h2-h0)
+	}
+	return h3 + (1-f.x)*(h2-h3) + (1-f.y)*(h1-h3)
+}
+
+// corner is the height at the lattice corner i, decoded from 16 bits of the heightmap.
+func corner(i vec2) float {
+	c := imageSrc0At(i + 0.5)
+	return Low + (c.r*255*256+c.g*255)/65535*Span
+}
+
+// ground is the ground under the point p as the eye sees it: sunk by the Bend as far off as it
+// lies from where the rays start.
+func ground(p vec3) float {
+	d := p.xy - Origin.xy
+	return height(p.xy) - Bend*dot(d, d)
+}
+
+// normal is the way the ground faces at p, from its rise a quarter cell either side.
+func normal(p vec2) vec3 {
+	e := Cell / 4
+	dx := height(p+vec2(e, 0)) - height(p-vec2(e, 0))
+	dy := height(p+vec2(0, e)) - height(p-vec2(0, e))
+	return normalize(vec3(-dx, -dy, 2*e))
+}
+
+// sunlit is how much of the sun reaches p: none where the ground towards the sun rises over the
+// line to it within shadowSteps half cells.
+func sunlit(p vec3) float {
+	if Shadows < 0.5 || Sun.z <= 0 {
+		return 1
+	}
+	step := Cell / 2
+	top := Low + Span
+	for k := 1; k <= shadowSteps; k++ {
+		q := p + Sun*(step*float(k))
+		if q.z > top {
+			return 1
+		}
+		if q.z < height(q.xy)-0.01 {
+			return 0
+		}
+	}
+	return 1
+}
+
+// Fragment traces the pixel's line of sight over the ground: nothing where it misses, else the
+// cell's colour there in the sun's light, turned to the Fog as far off as it lies.
+func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
+	px := custom.xy
+	o := Origin + DX*px.x + DY*px.y
+	d := normalize(Dir + DDX*px.x + DDY*px.y)
+	size := (Corners - 1) * Cell
+	top := Low + Span
+	// where the ray enters the box over the lattice, and leaves it
+	tmin := 0.0
+	tmax := 1.0e9
+	if abs(d.z) > 1.0e-6 {
+		ta := (top - o.z) / d.z
+		tmin = max(tmin, ta)
+		if d.z > 0 {
+			tmax = ta // going up: gone once over the top
+		}
+	} else if o.z > top {
+		return vec4(0)
+	}
+	if abs(d.x) > 1.0e-6 {
+		ta := (0 - o.x) / d.x
+		tb := (size.x - o.x) / d.x
+		tmin = max(tmin, min(ta, tb))
+		tmax = min(tmax, max(ta, tb))
+	} else if o.x < 0 || o.x > size.x {
+		return vec4(0)
+	}
+	if abs(d.y) > 1.0e-6 {
+		ta := (0 - o.y) / d.y
+		tb := (size.y - o.y) / d.y
+		tmin = max(tmin, min(ta, tb))
+		tmax = min(tmax, max(ta, tb))
+	} else if o.y < 0 || o.y > size.y {
+		return vec4(0)
+	}
+	if tmin > tmax {
+		return vec4(0)
+	}
+	t := tmin
+	last := tmin
+	hit := false
+	for k := 0; k < steps; k++ {
+		p := o + d*t
+		h := ground(p)
+		if p.z < h {
+			hit = true
+			break
+		}
+		last = t
+		t += max(Cell*0.25, (p.z-h)*0.6)
+		if t > tmax {
+			break
+		}
+	}
+	if !hit {
+		return vec4(0)
+	}
+	// the ground lies between last and t: halve the way till it is close
+	for k := 0; k < refine; k++ {
+		m := (last + t) / 2
+		p := o + d*m
+		if p.z < ground(p) {
+			t = m
+		} else {
+			last = m
+		}
+	}
+	p := o + d*t
+	n := normal(p.xy)
+	direct := max(dot(n, Sun), 0) * sunlit(vec3(p.xy, height(p.xy))) * SunStrength
+	light := Ambience + SunColor*direct
+	cell := clamp(floor(p.xy/Cell), vec2(0), Corners-2)
+	albedo := imageSrc1At(cell + 0.5).rgb
+	rgb := albedo * light
+	if Visibility > 0 {
+		rgb = mix(rgb, Fog, 1-exp(-t/Visibility))
+	}
+	return vec4(rgb, 1)
+}

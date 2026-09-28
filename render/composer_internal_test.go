@@ -539,3 +539,42 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 		t.Errorf("a warm frame with uniforms allocates %v times, want none", n)
 	}
 }
+
+// direct is a Direct source for tests: it hands the frame nothing and notes, when it draws, how
+// many calls the composer had issued before it.
+type direct struct {
+	tier  Tier
+	after *int
+	drawn []int
+}
+
+func (*direct) Init(*goke.SysInit)                  {}
+func (*direct) Compose(*Frame, camera.Camera)       {}
+func (d *direct) Tier() Tier                        { return d.tier }
+func (d *direct) Draw(*ebiten.Image, camera.Camera) { d.drawn = append(d.drawn, *d.after) }
+
+// A Direct source draws after every piece the frame orders before its tier and before the rest,
+// whatever order the sources came in; a nil layer is left out.
+func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
+	a := sheet{"a"}
+	calls := 0
+	ground := &direct{tier: Ground, after: &calls}
+	marks := &direct{tier: Marks, after: &calls}
+	c := NewComposer(marks, items(func(f *Frame) {
+		f.Sprite(Backdrop, 0, a, 0, unit, Even(1)) // the sky, drawn first
+		f.Sprite(Ground, 0, a, 0, unit, Even(1))   // a tile
+		f.Sprite(Overlays, 0, a, 0, unit, Even(1)) // a route
+	}), nil, ground)
+	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) { calls++ }
+	c.compose(topDown())
+	c.render(nil)
+	if len(c.sources) != 3 || len(c.directs) != 2 || c.directs[0] != ground {
+		t.Fatalf("%d sources, %d directs in order %v; want the nil layer left out and the directs by tier", len(c.sources), len(c.directs), c.directs)
+	}
+	if got := ground.drawn; len(got) != 1 || got[0] != 1 {
+		t.Errorf("the ground's direct drew after %v calls, want once after the sky's one", got)
+	}
+	if got := marks.drawn; len(got) != 1 || got[0] != 2 || calls != 2 {
+		t.Errorf("the marks' direct drew after %v calls of %d, want once after the tile's and the route's run", got, calls)
+	}
+}

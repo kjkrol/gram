@@ -151,7 +151,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
 	// glinting under the land's blended grounds, the running water running
-	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
+	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Heightfield: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
@@ -348,7 +348,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
-	layers := []render.Layer{render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())}
+	layers := []render.Layer{render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())}
 	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
 }
 
