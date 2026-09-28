@@ -57,12 +57,12 @@ func wholeWorld(w, h uint32) camera.AABB {
 
 func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	r := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
-	sight := Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 4, Radius: 400}
+	sight := Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 400}
 
 	out := SightOutline{Count: 3}
 	out.Depths[0], out.Depths[1], out.Depths[2] = 100, 200, 300
 
-	pts := r.fan(505, 505, &sight, &out)
+	pts := r.fan(505, 505, math.Pi/4, &sight, &out)
 	if len(pts) != 4 {
 		t.Fatalf("fan returned %d points, want the observer plus three samples", len(pts))
 	}
@@ -86,15 +86,16 @@ func TestRenderer_QueryVisitsOnlyEntitiesWithAnOutline(t *testing.T) {
 
 	var withOutline, withoutOutline goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
 
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			spawn(si.NewFactory(&withOutline, &sight, &outline), 1)
+			spawn(si.NewFactory(&withOutline, &sight, &eye, &outline), 1)
 		}},
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			spawn(si.NewFactory(&withoutOutline, &sight), 2)
+			spawn(si.NewFactory(&withoutOutline, &sight, &eye), 2)
 		}},
 		goke.SystemFn{OnInit: r.Init},
 	)
@@ -120,17 +121,19 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 
 	var pos goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
 
 	good := SightOutline{Count: 3}
 	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
 
 	place := func(si *goke.SysInit, at geom.Vec, o SightOutline) {
-		f := si.NewFactory(&pos, &sight, &outline)
+		f := si.NewFactory(&pos, &sight, &eye, &outline)
 		f.Create(1)
 		for f.Next() {
 			pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
-			sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: 0.5, Radius: 100}
+			sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
+			eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 1}
 			outline.Slice(&f.Cursor)[0] = o
 		}
 	}
@@ -159,6 +162,7 @@ func TestRenderer_HiddenComposesNothing(t *testing.T) {
 
 	var pos goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
 	good := SightOutline{Count: 3}
 	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
@@ -166,11 +170,12 @@ func TestRenderer_HiddenComposesNothing(t *testing.T) {
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			f := si.NewFactory(&pos, &sight, &outline)
+			f := si.NewFactory(&pos, &sight, &eye, &outline)
 			f.Create(1)
 			for f.Next() {
 				pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
-				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: 0.5, Radius: 100}
+				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
+				eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 1}
 				outline.Slice(&f.Cursor)[0] = good
 			}
 		}},
@@ -213,6 +218,7 @@ func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoi
 
 	var pos goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
 
 	o := SightOutline{Count: 9}
@@ -223,13 +229,12 @@ func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoi
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			f := si.NewFactory(&pos, &sight, &outline)
+			f := si.NewFactory(&pos, &sight, &eye, &outline)
 			f.Create(1)
 			for f.Next() {
 				pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10)}
-				sight.Slice(&f.Cursor)[0] = Sight{
-					Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi, Radius: radius,
-				}
+				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}
+				eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 2 * math.Pi}
 				outline.Slice(&f.Cursor)[0] = o
 			}
 		}},
@@ -321,10 +326,10 @@ func isoRenderer(t *testing.T) *Renderer {
 
 func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	r := isoRenderer(t)
-	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 50}
+	sight := Sight{Facing: geom.NewVec(1, 0), Radius: 50}
 	o := SightOutline{Count: 3}
 	o.Depths[0], o.Depths[1], o.Depths[2] = 45, 50, 25
-	ring := r.draped(100, 100, 7, &sight, &o)
+	ring := r.draped(100, 100, 7, 0.2, &sight, &o)
 
 	// the apex, the near edge every 10 short of 45, the three reaches, the far edge every 10 short of 25
 	if len(ring) != 1+4+3+2 {
@@ -349,12 +354,12 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 	f := new(render.Frame)
 	f.Reset(r.camera)
 	r.frame = f
-	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 100}
+	sight := Sight{Facing: geom.NewVec(1, 0), Radius: 100}
 	o := SightOutline{Count: 5}
 	for i := 1; i <= 3; i++ {
 		o.Shadows[i][0] = Band{From: 40, To: 60} // two steps of ground at each of three angles
 	}
-	r.shade(100, 100, &sight, &o)
+	r.shade(100, 100, 0.2, &sight, &o)
 
 	var pieces [][]float32 // per piece: left, right, top, bottom fade distance at its first corner
 	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
@@ -416,12 +421,12 @@ func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	f := new(render.Frame)
 	f.Reset(r.camera)
 	r.frame = f
-	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 100}
+	sight := Sight{Facing: geom.NewVec(1, 0), Radius: 100}
 	o := SightOutline{Count: 5}
 	for i := 1; i <= 3; i++ {
 		o.Shadows[i][0] = Band{From: 40, To: 60} // two steps of ground at each of three angles
 	}
-	r.shade(100, 100, &sight, &o)
+	r.shade(100, 100, 0.2, &sight, &o)
 	n := 0
 	f.Each(func(render.Tier, float32, []ebiten.Vertex) { n++ })
 	if n != 3 {

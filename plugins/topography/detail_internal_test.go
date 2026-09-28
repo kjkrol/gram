@@ -32,7 +32,7 @@ func TestDresser_DetailGoesWithEachTilesDistanceThroughAPerspective(t *testing.T
 	})
 	r := dressed(brd, d, look)
 	cam := newCamera(testProjection, 3200, 3200, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
-	cam.enterInside([3]float32{3000, 3000, 40}, 0)
+	cam.enterInside([3]float32{3000, 3000, 40}, 0, 0)
 	cam.Tilt(0.25)
 	compose(r, cam)
 	ahead := facing(0)
@@ -80,7 +80,7 @@ func TestBlocks_TheTileTheEyeStandsInIsDrawnOnlyInFront(t *testing.T) {
 	ground := func(x, y float32) float32 { return float32(relief.GroundAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) { low, high := relief.Extent(); return float32(low), float32(high) }
 	cam := newCamera(testProjection, 640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, ground, extent, 0)
-	cam.enterInside([3]float32{320, 320, ground(320, 320) + 0.64}, math.Pi) // looking down the slope, south-east
+	cam.enterInside([3]float32{320, 320, ground(320, 320) + 0.64}, math.Pi, 0) // looking down the slope, south-east
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)

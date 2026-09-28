@@ -34,6 +34,7 @@ type perspCamera struct {
 	zooms      uint32                     // how many times the player has zoomed
 	tilts      uint32                     // how many times the player has tilted
 	inside     bool                       // the eye is a unit's, looking out from it
+	across     float32                    // inside a unit, the field of view across the screen, radians; 0, fov
 	bend       float32                    // how far the ground d off sinks under the eye's level, per d²
 
 	at         [3]float32 // the ground point in the middle of the screen; far along the way looked, at the sky
@@ -67,8 +68,13 @@ func newPerspCamera(proj projection, fov float32, world geom.Vec, viewport contr
 	return c
 }
 
-// focal is the focal length in screen units: the screen's height fills the field of view.
+// focal is the focal length in screen units: the screen's height fills the field of view — or,
+// inside a unit whose eye says how wide it sees, its width fills that, the height following the
+// screen's shape.
 func (c *perspCamera) focal() float32 {
+	if c.inside && c.across > 0 {
+		return float32(c.viewportSize.X) / 2 / float32(math.Tan(float64(c.across)/2))
+	}
 	return float32(c.viewportSize.Y) / 2 / float32(math.Tan(float64(c.fov)/2))
 }
 
@@ -106,6 +112,16 @@ func (c *perspCamera) layer() (low, high float32) {
 		low, high = c.extent()
 	}
 	return low, high + c.headroom
+}
+
+// Ray is the way from the eye through the screen point (sx, sy), a unit vector.
+func (c *perspCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
+	d := c.proj.ray(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2))
+	n := norm(d)
+	if n == 0 {
+		return 0, 0, 0, false
+	}
+	return d[0] / n, d[1] / n, d[2] / n, true
 }
 
 // Vanish is where the direction (dx, dy, dz) vanishes on the screen, false for one not ahead of
@@ -285,10 +301,11 @@ func (c *perspCamera) LookAt(x, y, z float32) {
 	c.look()
 }
 
-// enterInside makes the eye a unit's at eye, looking along the ground from heading: where
-// CenterOn moves it and Turn turns it.
-func (c *perspCamera) enterInside(eye [3]float32, heading float32) {
-	c.inside, c.narrow = true, 1
+// enterInside makes the eye a unit's at eye, looking along the ground from heading and seeing
+// across radians across the screen (0: the camera's own field): where CenterOn moves it and
+// Turn turns it.
+func (c *perspCamera) enterInside(eye [3]float32, heading, across float32) {
+	c.inside, c.narrow, c.across = true, 1, across
 	c.origin, c.alt = geom.NewVec(float64(eye[0]), float64(eye[1])), eye[2]
 	c.heading, c.pitch = heading, 0
 	c.look()

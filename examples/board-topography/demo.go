@@ -64,11 +64,13 @@ const (
 	// EntitySize is a unit's box, world units a side: 3, about 9.4 m — a giant, as a game shows its
 	// units larger than life, that every system, drawing, sight and collision alike, reads the same;
 	// spritePx is how many pixels its sprite is painted in.
-	EntitySize  = 3
-	spritePx    = 22
-	UnitSpeed   = CellSize * 3
-	sightRadius = 220
-	sightHalf   = math.Pi / 5
+	EntitySize = 3
+	spritePx   = 22
+	UnitSpeed  = CellSize * 3
+	// sightRadius is how far a unit sees, 3 km; eyeAngle how wide, 72° across, the field its
+	// eye and the camera riding in it share.
+	sightRadius = 960
+	eyeAngle    = 72 * math.Pi / 180
 	// MaxEntCount is the units and the hawk, with room to spare.
 	MaxEntCount = 4 * island.Stops
 
@@ -171,7 +173,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
+	// sight follows the board's ground, sampled every 50 m along a ray
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel)); err != nil {
 		return err
 	}
@@ -249,22 +252,22 @@ type unit struct{ start, target board.CellID }
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	// Every unit is a giant, about 9.4 m across and 20 m tall with its eye at 18 m: from a slope's
+	// Every unit is a giant, about 9.4 m across and 20 m tall, looking from its top: from a slope's
 	// edge an eye sees the rim, not the valley below. The board writes where a unit stands in height.
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	sight := func(eye float64) comp.Comp {
-		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
-	}
+	// the cone of sight and the camera riding in the unit read the one Eye: at the top, 72° across
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
+	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		sight(scale.Units(18)), comp.Const(vision.SightOutline{}),
+		sight, eye, comp.Const(vision.SightOutline{}),
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
 	// walker's cone climbs and stops at, and it flies over them as over the flat.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
-		sight(scale.Units(0.3)), comp.Const(vision.SightOutline{}),
+		sight, eye, comp.Const(vision.SightOutline{}),
 	)
 }
 

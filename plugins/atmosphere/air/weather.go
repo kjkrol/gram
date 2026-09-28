@@ -11,12 +11,18 @@ import (
 //go:embed weather.kage
 var weatherKage []byte
 
-// cloudShadow is the material of the clouds' shadows over the ground (weather.kage), with the
-// air's uniforms; a material of water calls its functions. Registered as the package is set up.
-var cloudShadow = render.RegisterMaterials(weatherKage, "CloudShadow")[0]
+// The materials of weather.kage, with the air's uniforms, registered as the package is set up:
+// cloudShadow the clouds' shadows over the ground, cloudsOverhead the clouds on the sky; a
+// material of water calls their functions.
+var weatherMaterials = render.RegisterMaterials(weatherKage, "CloudShadow", "Clouds")
+
+var cloudShadow, cloudsOverhead = weatherMaterials[0], weatherMaterials[1]
 
 // CloudShadow is the material of the clouds' shadows, for a test telling its overlays apart.
 func CloudShadow() render.MaterialID { return cloudShadow }
+
+// CloudsOverhead is the material of the clouds on the sky, for a test telling its pieces apart.
+func CloudsOverhead() render.MaterialID { return cloudsOverhead }
 
 // Weather is the air over the world: Wind blowing, world units a second along x and y; Clouds
 // covering the sky, 0 to 1; Rain and Snow falling now, 0 to 1 each; the Temperature, degrees

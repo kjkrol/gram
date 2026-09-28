@@ -85,7 +85,7 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 	check("free, bowed", free)
 	for _, pitch := range []float32{0, -0.2, -0.45, 0.3, -1.4} {
 		c := testPersp(hills, func() float32 { return 250 })
-		c.enterInside([3]float32{320, 320, 154}, 0)
+		c.enterInside([3]float32{320, 320, 154}, 0, 0)
 		c.Tilt(pitch)
 		check("inside a unit", c)
 		if b := c.Bounds(); !inBounds(b, 320, 320) {
@@ -93,11 +93,11 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 		}
 	}
 	level := testPersp(nil, nil) // low over level ground, the screen's sides crossing the horizon
-	level.enterInside([3]float32{620, 620, 40}, 0)
+	level.enterInside([3]float32{620, 620, 40}, 0, 0)
 	level.Tilt(0.25)
 	check("inside a unit, looking far over level ground", level)
 	c := testPersp(hills, func() float32 { return 250 })
-	c.enterInside([3]float32{320, 320, 154}, 0)
+	c.enterInside([3]float32{320, 320, 154}, 0, 0)
 	ahead := facing(0)
 	if x, y := 320+float32(ahead.X)*150, 320+float32(ahead.Y)*150; !inBounds(c.Bounds(), x, y) {
 		t.Errorf("inside a unit looking level, the ground 150 ahead (%v, %v) is outside Bounds %v", x, y, c.Bounds())
@@ -107,7 +107,7 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 		t.Error("inside a unit, a walker on the hill 100 up near the bottom of the screen is not Visible")
 	}
 	up := testPersp(nil, nil)
-	up.enterInside([3]float32{320, 320, 500}, 0) // over everything, looking up
+	up.enterInside([3]float32{320, 320, 500}, 0, 0) // over everything, looking up
 	up.Tilt(-1.4)
 	if b := up.Bounds(); !inBounds(b, 320, 320) || b.BottomRight.X-b.TopLeft.X > 1e-3 || b.BottomRight.Y-b.TopLeft.Y > 1e-3 {
 		t.Errorf("looking up from over everything, Bounds %v, want the eye's point alone", b)

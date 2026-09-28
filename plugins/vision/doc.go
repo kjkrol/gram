@@ -4,11 +4,14 @@
 //
 // # Sight and Seen
 //
-// [Sight] is what an entity can take in — Facing, its own direction whichever way it moves;
-// HalfAngle either side of it; Radius — and what the last scan found there: [Sighted], at most
-// [MaxSeen] entities nearest first. The outline buffer is sized for [MaxSightRadius] and
-// MaxHalfAngleMilli; a larger Sight still sees, its outline is only coarser. The [ScanSystem]
-// scans every Sight against the world's space through aabbworld's line-of-sight scan, once a tick.
+// [Sight] is what an entity can take in — Facing, its own direction whichever way it moves, and
+// Radius — and what the last scan found there: [Sighted], at most [MaxSeen] entities nearest
+// first. How wide it sees, and from how high, is its world.Eye: Angle the whole field across,
+// Height over its bottom (zero: its top) — the one Eye a camera riding in the entity looks from
+// too (plugins/topography), so the cone drawn is what the rider sees. A Sight without an Eye is
+// never scanned. The outline buffer is sized for [MaxSightRadius] and MaxHalfAngleMilli; a larger
+// Sight still sees, its outline is only coarser. The [ScanSystem] scans every Sight against the
+// world's space through aabbworld's line-of-sight scan, once a tick.
 //
 // # Transparency
 //
@@ -26,7 +29,8 @@
 // # Heights
 //
 // In a world with heights (world.Config.Heights) sight follows geometry instead of planes: the cone's
-// eye is the observer's Z.Altitude plus Sight.Eye, every entity spans its world.Z, and the ground
+// eye is where the observer's Eye stands (Eye.Level: Height over its Z.Altitude, its top for
+// none), every entity spans its world.Z, and the ground
 // is the board's heights ([Plugin.WithBoard]; [Plugin.WithHeights] and [Plugin.WithCover] for a
 // ground and a cover of one's own) sampled every [Plugin.WithGroundStep] along a ray (default:
 // the board's cell). An entity is seen when the line from the eye to its top clears every nearer ground
@@ -34,8 +38,9 @@
 // forest and the hill a walker's cone stops at. On a world with a scale (world.Scale) the ground,
 // the cover and the entities sink under the observer's level as far off as they lie
 // (world.Scale.Drop): what lies past the observer's horizon is out of sight, a hawk's horizon far
-// beyond a walker's. Blockers are refused in a world with heights, Eye in a flat one. The scan costs
-// about three times the flat one; a longer ground step is cheaper.
+// beyond a walker's. Blockers are refused in a world with heights, Eye.Height in a flat one. The
+// scan costs about three times the flat one; a longer ground step is cheaper, and the Renderer
+// drapes the shadows in the same step.
 //
 // # Sighting
 //

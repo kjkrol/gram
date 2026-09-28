@@ -3,6 +3,7 @@ package air
 import (
 	"math"
 
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -21,6 +22,20 @@ const (
 	overcastGrey = 0.85
 	overcastSky  = 0.8
 )
+
+// Overhead is the colour of the sky straight up, deeper than at the horizon, where Overcast has it
+// pale with the air between: the sky's blue kept, its red and green held back.
+func Overhead(sky render.Light, clouds float32) render.Light {
+	deep := render.Light{sky[0] * 0.55, sky[1] * 0.7, sky[2] * 0.95}
+	return Overcast(deep, clouds)
+}
+
+// CloudBase is how high the clouds hang, in metres: over the highest ground of an island and the
+// eye flying over it, so they are seen from below.
+const CloudBase = 3000.0
+
+// Base is the height of the cloud layer on a world of scale, in world units.
+func Base(scale world.Scale) float32 { return float32(scale.Units(CloudBase)) }
 
 // The clouds: how wide one is, in world units; how far their noise is spread to make clouds and
 // clear sky between them; how much of a cloud's edge the shadow softens over, as a part of the
@@ -112,5 +127,20 @@ func (w Weather) OvercastQuad(f *render.Frame, tier render.Tier, depth float32, 
 		return
 	}
 	o := render.Overlay{Material: cloudShadow, World: wo, Red: [4]float32{1, 1, 1, 1}, Fraction: cloud}
+	f.Material(tier, depth, dst, &o)
+}
+
+// CloudQuad draws the clouds themselves on the screen quad dst, a piece of the sky whose corners
+// look at the points wo of the cloud layer under clouds of noise cloud (Cloud at each corner) —
+// the same noise that lays their shadows straight under them — hazed as far as haze says each
+// corner lies in the air; nothing over a piece the clouds miss.
+func (w Weather) CloudQuad(f *render.Frame, tier render.Tier, depth float32, dst render.Corners, wo render.World, cloud, haze [4]float32) {
+	if !w.Shadowed(cloud) {
+		return
+	}
+	o := render.Overlay{Material: cloudsOverhead, World: wo, Red: [4]float32{1, 1, 1, 1}, Fraction: cloud}
+	for k := range haze {
+		o.Custom[k][0] = haze[k]
+	}
 	f.Material(tier, depth, dst, &o)
 }

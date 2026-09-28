@@ -36,7 +36,8 @@ func benchVision(b *testing.B, n int, outlines bool) *goke.ECS {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(d.x, d.y), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
-		comp.Const(vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 6, Radius: 200}),
+		comp.Const(vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 200}),
+		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	}
 	if outlines {
 		spec = append(spec, comp.Const(vision.SightOutline{}))

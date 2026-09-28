@@ -13,7 +13,7 @@ const MaxSeen = 8
 const (
 	// MaxSightRadius is the longest range the outline is sized for; a longer Radius still sees,
 	// its outline is only coarser.
-	MaxSightRadius = 300
+	MaxSightRadius = 600
 	// MaxHalfAngleMilli is the widest half-angle the sizing assumes, in milliradians (pi/6).
 	MaxHalfAngleMilli = 524
 	// EdgeTolerance is how far a shadow edge may land from its true angle at full range.
@@ -25,20 +25,17 @@ const (
 	MaxSamples = (arcMilli+gapMilli-1)/gapMilli + 1
 )
 
-// Sight is what an entity can take in — where it looks, how wide, how far — and
-// what the last scan found there. Facing is its own, whichever way the entity moves.
+// Sight is what an entity can take in — where it looks and how far — and what the last scan
+// found there. Facing is its own, whichever way the entity moves; how wide it sees and from how
+// high is its world.Eye, which the scan needs beside it.
 type Sight struct {
-	Facing    geom.Vec // unit vector
-	HalfAngle float64  // radians either side of Facing
-	Radius    float64  // world units
+	Facing geom.Vec // unit vector
+	Radius float64  // world units
 	// Blockers are the world.Layers whose entities cut or dim this sight; one on none of them is
 	// looked over — a walker under a hawk — and still seen. Zero: every entity does. A flat world's;
 	// a world with heights refuses it.
 	Blockers world.Layers
-	// Eye is how high above the entity's bottom (its Z.Altitude) it looks from, in a world with heights;
-	// a flat world refuses it.
-	Eye  float64
-	Seen Sighted // nearest first
+	Seen     Sighted // nearest first
 }
 
 // Transparency is how see-through an entity is to a Sight: 0 cuts sight as an entity without it

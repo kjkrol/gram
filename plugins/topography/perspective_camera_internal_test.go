@@ -314,7 +314,7 @@ func TestPerspCamera_PersistedRoundTrip(t *testing.T) {
 func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testing.T) {
 	c := testPersp(func(_, _ float32) float32 { return 0 }, nil)
 	free := c.pose()
-	c.enterInside([3]float32{300, 300, 20}, 0)
+	c.enterInside([3]float32{300, 300, 20}, 0, 0)
 	if e := c.eye(); e != [3]float32{300, 300, 20} || !near(c.Pitch(), 0) {
 		t.Fatalf("inside, the eye stands at %v looking down at %v, want (300, 300, 20) along the ground", e, c.Pitch())
 	}
@@ -358,10 +358,25 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	if c.inside || c.narrow != 1 || !near(c.eye()[2], 64) || !near(c.Pitch(), free.pitch) {
 		t.Errorf("set back free the eye is inside %v, narrowed %v, at %v looking down at %v; want free as it was", c.inside, c.narrow, c.eye(), c.Pitch())
 	}
-	c.enterInside([3]float32{300, 300, 20}, 0)
+	c.enterInside([3]float32{300, 300, 20}, 0, 0)
 	c.Tilt(-1)
 	c.Restore()
 	if c.inside || c.Pitch() < c.minPitch {
 		t.Error("a restored camera is inside, or looks at the sky: a save keeps the view, not the eye in a unit")
+	}
+}
+
+// Ray is the way a screen point looks: the middle of the screen the way the eye looks, the top of
+// it higher, all of length 1.
+func TestPerspCamera_RayIsTheWayAScreenPointLooks(t *testing.T) {
+	c := testPersp(nil, nil)
+	dx, dy, dz, ok := c.Ray(200, 150)
+	if f := c.proj.forward; !ok || !near(dx, f[0]) || !near(dy, f[1]) || !near(dz, f[2]) || !near(dx*dx+dy*dy+dz*dz, 1) {
+		t.Errorf("the middle of the screen looks along (%v, %v, %v) %v, want the eye's way %v, of length 1", dx, dy, dz, ok, f)
+	}
+	_, _, up, _ := c.Ray(200, 0)
+	_, _, down, _ := c.Ray(200, 300)
+	if !(up > dz && down < dz) {
+		t.Errorf("the top of the screen looks %v up and the bottom %v, want higher and lower than the middle's %v", up, down, dz)
 	}
 }

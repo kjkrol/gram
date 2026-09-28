@@ -90,7 +90,7 @@ func TestPerspCamera_PickFindsTheGroundOnASteepSlopeOverTheCurve(t *testing.T) {
 func TestPerspCamera_InsideAUnitPickReachesUpASlopeAndMissesTheSky(t *testing.T) {
 	slope := func(x, y float32) float32 { return min(max(2*(600-(x+y)), 0), 200) }
 	c := testPersp(slope, func() float32 { return 200 })
-	c.enterInside([3]float32{330, 330, 5}, 0) // looking along the ground towards the slope ahead
+	c.enterInside([3]float32{330, 330, 5}, 0, 0) // looking along the ground towards the slope ahead
 	c.Tilt(-0.3)
 	x, y, ok := c.Pick(200, 150)
 	if !ok || slope(x, y) <= 5 {

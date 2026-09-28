@@ -201,21 +201,20 @@ func (s *mainStage) defineKinds() {
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	sight := func(eye float64) comp.Comp {
-		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
-	}
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
+	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
 		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: board.Land}, scout, order,
 			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-			sight(1.5), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag)))
+			sight, eye(1.5), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, flyer, order,
 		comp.Tagged(s.selection.Tags().Selectable),
-		sight(1), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag))
+		sight, eye(1), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag))
 }
 
 // Spawn says who is there when the game starts fresh.

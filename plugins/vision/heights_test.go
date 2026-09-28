@@ -12,9 +12,9 @@ import (
 
 func z(altitude, height float64) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
-// eyed is an eastward Sight looking from eye above its bottom.
-func eyed(eye float64) *vision.Sight {
-	return &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 8, Radius: 300, Eye: eye}
+// eyed is an eastward look from eye above its bottom.
+func eyed(eye float64) *look {
+	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 300}, Eye: world.Eye{Height: eye, Angle: math.Pi / 4}}
 }
 
 // A wall 10 tall 100 ahead and a walker 240 ahead: a walker looking from 1.5 sees the wall alone,
@@ -73,8 +73,9 @@ func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *te
 		run()
 		t.Errorf("no panic, want one mentioning %q", want)
 	}
-	expect(t, "Sight.Eye", func() { scene(t, spawn{x: 0, y: 0, sight: eyed(1.5)}) })
-	blocked := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 8, Radius: 300, Blockers: 1}
+	expect(t, "Eye.Height", func() { scene(t, spawn{x: 0, y: 0, sight: eyed(1.5)}) })
+	blocked := eastward(math.Pi/8, 300)
+	blocked.Blockers = 1
 	expect(t, "Sight.Blockers", func() { sceneIn(t, &relief{}, spawn{x: 0, y: 0, sight: blocked}) })
 }
 

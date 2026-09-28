@@ -50,6 +50,7 @@ type ScanSystem struct {
 
 	query   *goke.Query
 	sight   goke.Comp[Sight]
+	eye     goke.Comp[world.Eye]
 	base    goke.Comp[world.Base]
 	steer   goke.OptComp[steering.Steering]
 	outline goke.OptComp[SightOutline]
@@ -93,7 +94,7 @@ func newScanSystem(space *aabbworld.Space, host *host.PairHost[Sighting]) *ScanS
 }
 
 func (s *ScanSystem) Init(si *goke.SysInit) {
-	walk := si.NewQueryBuilder(&s.sight, &s.base).Optional(&s.outline, &s.steer, &s.z)
+	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.outline, &s.steer, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.host.Bind(walk, seek)
 	s.query, s.lookup = walk.Build(), seek.Build()
@@ -181,6 +182,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		sights := s.sight.Slice(cursor)
+		eyes := s.eye.Slice(cursor)
 		bases := s.base.Slice(cursor)
 		steers := s.steer.Slice(cursor)
 		zs := s.z.Slice(cursor)
@@ -196,14 +198,14 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			box := bases[i].Pos.AABB
 			s.ox, s.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 			s.covering.ox, s.covering.oy = s.ox, s.oy
-			altitude := 0.0
+			var z world.Z
 			if zs != nil {
-				altitude = zs[i].Altitude
+				z = zs[i]
 			}
-			if s.space.Scan(id, s.cone(sight, altitude), &s.view) {
+			if s.space.Scan(id, s.cone(sight, eyes[i], z), &s.view) {
 				record(&sight.Seen, &s.view)
 				if outlines != nil {
-					s.trace(&outlines[i], sight)
+					s.trace(&outlines[i], sight, eyes[i].Angle/2)
 				}
 			} else {
 				sight.Seen.Count = 0
@@ -251,23 +253,24 @@ func (s *ScanSystem) sighting(matched []int) Sighting {
 	return out
 }
 
-// cone is the query for one Sight, see-through as the entities are to it and, in a world with heights,
-// from an eye at altitude + Sight.Eye over the ground.
-func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
-	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: sight.HalfAngle, Radius: sight.Radius, Transparency: s.tau}
+// cone is the query for one Sight, as wide as its eye sees, see-through as the entities are to
+// it and, in a world with heights, from the eye's level over the ground: its Height above the
+// entity's bottom, its top for none.
+func (s *ScanSystem) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
+	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: eye.Angle / 2, Radius: sight.Radius, Transparency: s.tau}
 	if s.covering.cover != nil {
 		c.Cover = &s.covering
 	}
 	if !s.heights {
-		if sight.Eye != 0 {
-			panic("vision: Sight.Eye in a flat world; set world.Config.Heights")
+		if eye.Height != 0 {
+			panic("vision: Eye.Height in a flat world; set world.Config.Heights")
 		}
 		return c
 	}
 	if sight.Blockers != 0 {
 		panic("vision: Sight.Blockers in a world with heights; layers cut sight only in a flat one")
 	}
-	c.Eye, c.Elevation, c.Ground, c.GroundStep = altitude+sight.Eye, s.elev, s.groundAt, s.step
+	c.Eye, c.Elevation, c.Ground, c.GroundStep = eye.Level(z), s.elev, s.groundAt, s.step
 	if s.sunk != nil {
 		c.Ground = s.sunk
 	}
@@ -320,8 +323,8 @@ func record(dst *Sighted, view *aabbworld.View) {
 
 // trace samples the cone at the resolution its reach and width call for, within the buffer. In a
 // world with heights the view reaches its full Radius and the ground out of sight is kept as shadows.
-func (s *ScanSystem) trace(dst *SightOutline, sight *Sight) {
-	k := samplesFor(sight)
+func (s *ScanSystem) trace(dst *SightOutline, sight *Sight, half float64) {
+	k := samplesFor(sight, half)
 	dst.Shadows = [MaxSamples][MaxShadowsPerSample]Band{}
 	if !s.heights {
 		dst.Count = uint8(len(s.view.Depths(k, dst.Depths[:0])))
@@ -344,7 +347,7 @@ func (s *ScanSystem) trace(dst *SightOutline, sight *Sight) {
 }
 
 // samplesFor is how many samples keep the reach within EdgeTolerance at full range.
-func samplesFor(s *Sight) int {
-	k := int(math.Ceil(2*s.HalfAngle*s.Radius/EdgeTolerance)) + 1
+func samplesFor(s *Sight, half float64) int {
+	k := int(math.Ceil(2*half*s.Radius/EdgeTolerance)) + 1
 	return min(max(k, 2), MaxSamples)
 }

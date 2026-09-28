@@ -152,9 +152,11 @@
 // Earth: the ground far off sinks under the eye's level (world.Scale.Drop), level ground past the
 // horizon out of sight, and fades to the sky's colour as far off as the air's Visibility says —
 // the tiles, their faces and the units, not what is laid over the tiles (render.Frame.Haze).
-// Riding in a unit ([LookOut], first person) the eye is the unit's, on its top — its world.Z,
-// Altitude plus Height, a unit 2 m tall looking from 2 m — with a near plane a thousandth of a
-// cell: it goes with it, looking the way the unit faces; [Look] (the mouse,
+// Riding in a unit ([LookOut], first person) the eye is the unit's, where its world.Eye stands
+// — Height over its bottom, its top without one, a unit 2 m tall looking from 2 m — seeing across
+// the screen as wide as the Eye's Angle says, the height following the screen's shape (the
+// camera's own field of view without one), with a near plane a thousandth of a cell: it goes with
+// it, looking the way the unit faces; [Look] (the mouse,
 // the cursor captured) turns the view at once and the unit to face it, and raises and lowers the
 // head into the sky and down to the feet; Zoom narrows the view, Pan and Turn do nothing; the
 // camera is then a camera.Rider in camera.FirstPerson, and the bindings holding in that mode — the

@@ -1,6 +1,7 @@
 package topography
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -65,7 +66,7 @@ func TestViewCamera_LookFromGoesIntoPerspectiveWhereReached(t *testing.T) {
 		t.Errorf("the eye is at %v, want (100, 100) at the ceiling %v: no lower than it flies", e, c.persp.ceiling())
 	}
 	unreached := testViews(false)
-	if unreached.LookFrom(100, 100, 50) || unreached.LookAt(1, 2, 3) || unreached.enterInside([3]float32{1, 1, 1}, 0) || unreached.inPersp {
+	if unreached.LookFrom(100, 100, 50) || unreached.LookAt(1, 2, 3) || unreached.enterInside([3]float32{1, 1, 1}, 0, 0) || unreached.inPersp {
 		t.Error("a camera not reaching the perspective moved its eye")
 	}
 }
@@ -123,5 +124,27 @@ func TestViewCamera_SetViewportAndZoomLimitsReachEveryView(t *testing.T) {
 	c.ZoomIn(100, 320, 320)
 	if z := c.Zoom(); z > 6+1e-3 {
 		t.Errorf("in perspective zoomed far in the zoom is %v, want capped at 6", z)
+	}
+}
+
+// Inside a unit whose eye says how wide it sees, the screen's width fills that field and the
+// height follows the screen's shape; out again, the camera's own field of view is back.
+func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
+	c := testViews(true)
+	own := c.persp.focal()
+	c.enterInside([3]float32{320, 320, 7}, 0, math.Pi/2)
+	if f := c.persp.focal(); !near(f, 200) {
+		t.Errorf("seeing 90° across a 400-wide screen the focal length is %v, want 200", f)
+	}
+	if x, _ := c.Unproject(0, 150, 7); !near(x, 320-200) && !near(x, 320+200) && x > 120 && x < 520 {
+		t.Errorf("the screen's edge looks at x %v, want 200 off along the ground from the eye at 320", x)
+	}
+	c.leaveInside()
+	if f := c.persp.focal(); !near(f, own) {
+		t.Errorf("out of the unit the focal length is %v, want the camera's own %v", f, own)
+	}
+	c.enterInside([3]float32{320, 320, 7}, 0, 0)
+	if f := c.persp.focal(); !near(f, own) {
+		t.Errorf("inside a unit whose eye says nothing the focal length is %v, want the camera's own %v", f, own)
 	}
 }

@@ -42,6 +42,7 @@ type cameraSystem struct {
 	query    *goke.Query
 	base     goke.Comp[world.Base]
 	z        goke.OptComp[world.Z]
+	eye      goke.OptComp[world.Eye]
 	marks    goke.OptComp[plugin.Tags[selection.Family]]
 	driven   goke.OptComp[steering.Driven]
 	drivenID goke.CompID
@@ -79,7 +80,7 @@ const followEase = 250 * time.Millisecond
 const clearStep = 5 * math.Pi / 180
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.marks).Optional(&s.driven).Build()
+	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.eye).Optional(&s.marks).Optional(&s.driven).Build()
 	s.drivenID = si.RegComp[steering.Driven]()
 }
 
@@ -310,9 +311,13 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 			base := s.base.Slice(cur)[i]
 			box := base.Pos.AABB
 			cx, cy := (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
-			alt, top := 0.0, 0.0
+			var z world.Z
 			if zs := s.z.Slice(cur); zs != nil {
-				alt, top = zs[i].Altitude, zs[i].Top()
+				z = zs[i]
+			}
+			alt, level := z.Altitude, z.Top()
+			if eyes := s.eye.Slice(cur); eyes != nil {
+				level = eyes[i].Level(z)
 			}
 			dir := base.Vel.Dir
 			faces := dir.X != 0 || dir.Y != 0
@@ -339,7 +344,7 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 						f.cam.Turn(by)
 					}
 				}
-				f.cam.CenterOn(cx, cy, s.riding(cx, cy, top, f.cam.persp.cell)) // on the entity's top
+				f.cam.CenterOn(cx, cy, s.riding(cx, cy, level, f.cam.persp.cell)) // where its eye is
 				return true
 			}
 			if faces {
@@ -428,7 +433,7 @@ func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera) {
 	if !ok {
 		return
 	}
-	eye, dir, ok := s.eyeOf(id)
+	eye, across, dir, ok := s.eyeOf(id)
 	if !ok {
 		return
 	}
@@ -437,15 +442,16 @@ func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera) {
 		heading = behind(float32(dir.X), float32(dir.Y))
 	}
 	eye[2] = float32(s.riding(float64(eye[0]), float64(eye[1]), float64(eye[2]), cam.persp.cell))
-	if !cam.enterInside(eye, heading) {
+	if !cam.enterInside(eye, heading, across) {
 		return
 	}
 	s.fasten(cb, cam, id, true)
 }
 
-// eyeOf is the top of id — its centre, as high as its Z says it stands (world.Z.Top) — and the
-// way it faces, of length 1 or none; false when id is gone.
-func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, dir geom.Vec, ok bool) {
+// eyeOf is where id looks from — its centre, as high as its world.Eye stands over its Z, its top
+// without one — how wide it sees across (radians; 0 without an Eye: the camera's own field) and
+// the way it faces, of length 1 or none; false when id is gone.
+func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, across float32, dir geom.Vec, ok bool) {
 	s.query.All()
 	for s.query.Next() {
 		cur := s.query.Cursor()
@@ -455,18 +461,22 @@ func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, dir geom.Vec, ok boo
 			}
 			base := s.base.Slice(cur)[i]
 			box := base.Pos.AABB
-			top := 0.0
+			var z world.Z
 			if zs := s.z.Slice(cur); zs != nil {
-				top = zs[i].Top()
+				z = zs[i]
 			}
-			eye = [3]float32{float32((box.TopLeft.X + box.BottomRight.X) / 2), float32((box.TopLeft.Y + box.BottomRight.Y) / 2), float32(top)}
+			level := z.Top()
+			if eyes := s.eye.Slice(cur); eyes != nil {
+				level, across = eyes[i].Level(z), float32(eyes[i].Angle)
+			}
+			eye = [3]float32{float32((box.TopLeft.X + box.BottomRight.X) / 2), float32((box.TopLeft.Y + box.BottomRight.Y) / 2), float32(level)}
 			if n := math.Hypot(base.Vel.Dir.X, base.Vel.Dir.Y); n > 0 {
 				dir = geom.NewVec(base.Vel.Dir.X/n, base.Vel.Dir.Y/n)
 			}
-			return eye, dir, true
+			return eye, across, dir, true
 		}
 	}
-	return eye, dir, false
+	return eye, across, dir, false
 }
 
 // riding is how high an eye riding in an entity at (x, y) stands: on the entity's top, but never

@@ -45,9 +45,15 @@ type spawn struct {
 	size    float64
 	tau     float64
 	layers  world.Layers
-	z       *world.Z      // heights, in a scene with heights
-	sight   *vision.Sight // nil for something that is merely seen
+	z       *world.Z // heights, in a scene with heights
+	sight   *look    // nil for something that is merely seen
 	outline bool
+}
+
+// look is a Sight with the Eye it sees from: how wide, and how high in a scene with heights.
+type look struct {
+	vision.Sight
+	world.Eye
 }
 
 // relief is what a scene with heights stands on: nil for flat ground at 0.
@@ -111,7 +117,7 @@ func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Si
 			spec = append(spec, comp.Const(*s.z))
 		}
 		if s.sight != nil {
-			spec = append(spec, comp.Const(*s.sight))
+			spec = append(spec, comp.Const(s.sight.Sight), comp.Const(s.sight.Eye))
 			if s.outline {
 				spec = append(spec, comp.Const(vision.SightOutline{}))
 			}
@@ -165,8 +171,8 @@ func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Si
 
 func kindName(i int) string { return string(rune('a' + i)) }
 
-func eastward(half, radius float64) *vision.Sight {
-	return &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: half, Radius: radius}
+func eastward(half, radius float64) *look {
+	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}, Eye: world.Eye{Angle: 2 * half}}
 }
 
 func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
@@ -256,7 +262,7 @@ func TestScan_FillsTheOutlineWhenAsked(t *testing.T) {
 
 // A cone wider and longer than the buffer was sized for must still fit it.
 func TestScan_OutlineNeverOverrunsItsBuffer(t *testing.T) {
-	huge := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi/2 - 0.01, Radius: 1900}
+	huge := eastward(math.Pi/2-0.01, 1900)
 	_, _, outlines := scene(t,
 		spawn{x: 50, y: 500, sight: huge, outline: true},
 		spawn{x: 700, y: 500},
@@ -280,7 +286,7 @@ func TestMaxSamples_IsTheSmallestThatHoldsTheTolerance(t *testing.T) {
 }
 
 func TestScan_ClearsSightedWhenTheConeIsUnanswerable(t *testing.T) {
-	blind := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: 0, Radius: 0}
+	blind := eastward(0, 0)
 	_, seen, _ := scene(t,
 		spawn{x: 500, y: 500, sight: blind},
 		spawn{x: 700, y: 500},

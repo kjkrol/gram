@@ -5,6 +5,25 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The sky of the day, with the clouds on it**
+- Through a perspective the backdrop is a mesh of the sky from the horizon up: paler at the
+  horizon, deeper overhead (`air.Overhead`), greyed by the cover, the sun in it, and on a layer
+  `air.Base` high (`air.CloudBase`, 3 km) the clouds themselves — the same clouds, by the same
+  noise at the mesh's corners, that lay their shadows on the ground (`air.Weather.CloudQuad`,
+  the `Clouds` material of weather.kage), hazed away towards the horizon; nothing from above the
+  layer. `camera.Rayer` is a camera that says which way a screen point looks; the topography's
+  perspective is one. `render.Frame.Quad` fills a quad in a colour per corner.
+
+**One Eye for the cone of sight and the camera riding in the unit**
+- `world.Eye{Height, Angle}` is where an entity looks from and how wide: `Height` over its
+  bottom (zero: its top), `Angle` the whole field across. Vision's cone takes its width and its
+  eye from it (`Sight.HalfAngle` and `Sight.Eye` are gone; a Sight without an Eye is not
+  scanned; `Eye.Height` is refused in a flat world), and the first-person camera rides where the
+  Eye stands and shows the Eye's angle across the screen, the height following the screen's
+  shape, so the cone drawn is what the rider sees. `MaxSightRadius` is 600; the vision renderer
+  drapes the shadows in the scan's ground step (`Renderer.WithGroundStep`, set by the plugin's).
+- The island's units see 3 km, 72° across from their top, the ground sampled every 50 m.
+
 **Routes drawn as lines, goals as outlines**
 - The navigation renderer draws every selected unit's goals as the entity's outline where it
   will stand — on the ground at the spot, orange-yellow, the Marks tier, always — and its routes,

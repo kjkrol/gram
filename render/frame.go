@@ -540,6 +540,14 @@ func (f *Frame) Material(tier Tier, depth float32, dst Corners, o *Overlay) {
 	f.add(tier, depth, nil, quad, 4)
 }
 
+// Quad fills dst in a colour per corner, blended across: a sky from the horizon up.
+func (f *Frame) Quad(tier Tier, depth float32, dst Corners, c [4]color.RGBA) {
+	for i, p := range dst {
+		f.verts = append(f.verts, vertex(p[0], p[1], 0, 0, premultiplied(c[i])))
+	}
+	f.add(tier, depth, nil, quad, 4)
+}
+
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it. However
 // large the quad, its fades never read as a blended sprite's mark (softCap under blendMark).
 func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade Fade) {

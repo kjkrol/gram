@@ -45,6 +45,7 @@ type mover struct {
 	cell    board.CellID
 	heading geom.Vec
 	sight   *vision.Sight
+	eye     world.Eye // how wide the sight sees, with it
 	domain  board.Domain
 	offset  float64 // shifts the box right, to straddle two cells
 }
@@ -122,7 +123,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 			}))
 		}
 		if u.sight != nil {
-			spec = append(spec, comp.Const(*u.sight))
+			spec = append(spec, comp.Const(*u.sight), comp.Const(u.eye))
 		}
 		name := string(rune('a' + i))
 		bw.w.Seed(kind.Define[mover](bw.w.Kinds(), name, spec).Entry(u))
@@ -341,7 +342,7 @@ func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 8, Radius: 300}}
+	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 	target := mover{cell: cell(5, 7)}
 
 	bw, _ := squareWorld(t, observer, target)
@@ -369,7 +370,7 @@ func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 			brd.Set(cell(3, y), board.CellKind{Name: board.Named("fence"), Cost: 1, Solid: true})
 		}
 	}
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 8, Radius: 300}}
+	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, fence, []mover{observer, {cell: cell(5, 7)}})
 	bw.tick()
 	if seen, ok := bw.seen(); !ok || seen.Count != 1 {
@@ -395,7 +396,7 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 	forest := forestColumn(grid, 1, false)
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 8, Radius: 300}}
+	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{observer, {cell: cell(5, 7)}})
 	bw.tick()
 	if seen, ok := bw.seen(); !ok || seen.Count != 0 {
@@ -422,7 +423,7 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	forest := forestColumn(grid, 0.6, false)
 	target := mover{cell: cell(5, 7)}
 	look := func(radius float64, blockers world.Layers) uint8 {
-		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 8, Radius: radius, Blockers: blockers}}
+		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 		bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{observer, target})
 		bw.tick()
 		seen, ok := bw.seen()
@@ -448,7 +449,7 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	observer := mover{cell: cell(1, 3), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 16, Radius: 160}}
+	observer := mover{cell: cell(1, 3), sight: &vision.Sight{Facing: east, Radius: 160}, eye: world.Eye{Angle: 2 * math.Pi / 16}}
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forestColumn(grid, 0.6, true),
 		[]mover{observer, {cell: cell(5, 3)}, {cell: cell(1, 9), heading: east}})
 	walls := bw.solid(world.Layers(board.Land))
@@ -479,7 +480,7 @@ func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 	for _, blockers := range []world.Layers{0, world.Layers(board.Land), world.Layers(board.Air)} {
-		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 8, Radius: 300, Blockers: blockers}}
+		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 		bw, _ := squareWorld(t, observer, mover{cell: cell(5, 7)})
 		bw.tick()
 		if seen, ok := bw.seen(); !ok || seen.Count != 0 {
@@ -535,7 +536,7 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	hex, _ := grid.CellIndex(2, 1)
 	from, _ := grid.CellIndex(0, 1)
 	to, _ := grid.CellIndex(4, 1)
-	observer := mover{cell: from, sight: &vision.Sight{Facing: east, HalfAngle: math.Pi / 32, Radius: 300}}
+	observer := mover{cell: from, sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 32}}
 	look := func(veil float64) uint8 {
 		bw := newGroundWorld(t, grid, 400, 200, func(brd *board.Board) {
 			brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})

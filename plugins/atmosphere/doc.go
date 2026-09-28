@@ -26,8 +26,10 @@
 //
 // The plugin is a plugin.CommandHandler, its keys the players carry: P freezes the light and lets
 // it go, Shift+] and Shift+[ move a frozen light half an hour on and back, Shift+W changes the
-// weather. [Plugin.Renderer] is the sky behind the world, [Plugin.Precipitation] the rain and the
-// snow, [Plugin.Clouds] the flat world's cloud shadows, all render.Sources for a scene's Composer;
+// weather. [Plugin.Renderer] is the sky behind the world — through a perspective the sky of the
+// day from the horizon up, the sun in it and the clouds on it, the same clouds whose shadows lie
+// on the ground — [Plugin.Precipitation] the rain and the snow, [Plugin.Clouds] the flat world's
+// cloud shadows, all render.Sources for a scene's Composer;
 // [Plugin.Reporter] adds the time of day, the date, the light and the weather to a scene's
 // render.TelemetryRenderer, [Plugin.HUD] the calendar to its layers.
 package atmosphere

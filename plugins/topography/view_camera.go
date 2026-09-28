@@ -30,6 +30,15 @@ var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
 var _ contract.Picker = (*viewCamera)(nil)
+var _ contract.Rayer = (*viewCamera)(nil)
+
+// Ray is the way the screen point looks, in perspective; the other views look from infinitely far.
+func (c *viewCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
+	if !c.inPersp {
+		return 0, 0, 0, false
+	}
+	return c.persp.Ray(sx, sy)
+}
 
 // Pick is the first ground the screen point sees, in the view the camera is in.
 func (c *viewCamera) Pick(sx, sy float32) (float32, float32, bool) {
@@ -222,10 +231,10 @@ func (c *viewCamera) LookAt(x, y, z float32) bool {
 	return true
 }
 
-// enterInside makes the eye a unit's at eye, looking along the ground from heading, in
-// perspective, minding the view it was in to come back to; false when the perspective is not
-// reached.
-func (c *viewCamera) enterInside(eye [3]float32, heading float32) bool {
+// enterInside makes the eye a unit's at eye, looking along the ground from heading and seeing
+// across radians across the screen (0: the camera's own field), in perspective, minding the view
+// it was in to come back to; false when the perspective is not reached.
+func (c *viewCamera) enterInside(eye [3]float32, heading, across float32) bool {
 	if !c.reaches {
 		return false
 	}
@@ -233,7 +242,7 @@ func (c *viewCamera) enterInside(eye [3]float32, heading float32) bool {
 		c.wasPersp, c.was = c.inPersp, c.persp.pose()
 	}
 	c.inPersp, c.cur = true, c.persp
-	c.persp.enterInside(eye, heading)
+	c.persp.enterInside(eye, heading, across)
 	return true
 }
 

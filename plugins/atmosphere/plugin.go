@@ -111,7 +111,7 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {}
 // Renderer is the sky behind the world, a render.Source for a scene's Composer: the viewport in
 // the sky's colour under everything, wherever the ground does not cover it.
 func (p *Plugin) Renderer() render.Layer {
-	return NewBackdrop(p.worldPlugin.Res.Config.Space, p.Sun, p.Air)
+	return NewBackdrop(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air)
 }
 
 // Precipitation is what falls — rain, snow — a render.Source for a scene's Composer, on render.Air.

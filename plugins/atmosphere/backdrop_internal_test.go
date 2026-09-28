@@ -24,7 +24,7 @@ func (s shifted) Unproject(sx, sy, _ float32) (float32, float32) { return sx + s
 func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.5, Sky: render.Light{0.5, 0.7, 1}}
-	b := NewBackdrop(w.Res.Config.Space, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
+	b := NewBackdrop(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
 	pieces := func(dx float32) (n int, tier render.Tier, depth float32, v ebiten.Vertex) {
 		cam := shifted{Camera: w.Camera(), dx: dx}
 		var f render.Frame

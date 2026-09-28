@@ -279,6 +279,21 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twentieth round: one Eye for the cone and the rider.** The user, in first person: the cones
+  are too short, their shadows fall wrong, the eye seemed too low and the width did not match the
+  lens. Measured: the cone's eye stood at 18 m (`Sight.Eye`) and the camera's at 20 m (the top);
+  the cone spanned 72° and the camera 57.8° across a 1024×768 screen (45° up and down, the width
+  following); the cone reached 687 m where the camera shows kilometres, and from an eye 20 m up
+  the first 48 m lie under the screen's bottom edge. The shadows themselves were right: a sample
+  is hidden when the line from the eye to it dips under a nearer one. Chosen with the user: one
+  `world.Eye{Height, Angle}` on the entity, read by the cone (its width and its eye) and by the
+  camera riding in it, which now fills the screen's width with the Eye's angle and lets the
+  height follow the screen's shape — no distortion, no cropping, the same picture on any screen
+  across; the demo's units see 72°, the user's own screen. `MaxSightRadius` 600 as the user
+  preferred over 1000 (the outline is a saved component, 2.5 KB against 4). The island's radius
+  3 km with the ground sampled every 50 m: about 2000 samples per observer and tick, the whole
+  map (9.6 km) would be 7000 and want a scan every few ticks. The renderer drapes the shadows in
+  the scan's step, not the relief's cell, so the pieces are as fine as the bands.
 - **Nineteenth round: routes as lines, goals as outlines.** The user: the route drawing is ugly,
   in first person it wobbles on straight stretches, the goal should be the entity's outline at
   the point it goes to, routes on Shift+P, goals always, cones hidden by default, rivers half as

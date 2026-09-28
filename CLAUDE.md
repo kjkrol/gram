@@ -174,7 +174,7 @@ the screen by sin and heights by cos; saved with the camera; a fastened camera p
 and `Config.Perspective`: rides in the selected unit, first person — the camera a `camera.Rider`,
 bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive`, the mouse `Look` (`control.CursorMove`,
 cursor captured by players; across turns the view and the unit via `steering.Driven.Face`, up/down the
-head), V/Tab leave back to the view it was in; the eye `riderLift` a cell over the unit's top; Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
+head), V/Tab leave back to the view it was in; the eye where the unit's `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle` (`perspCamera.across`; the camera's own field without one); Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
 without the perspective, bound only `WithSelection(sel)`, which hands it the Selected tag as
 navigation takes it: fastens the camera
 behind the one selected unit — centred, turned with an ease of `followEase` until its `Vel.Dir`
@@ -356,7 +356,7 @@ shows how much of it is boilerplate vs. real behavior.
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
   `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`Sight.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
+  geometry (`world.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
   them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
@@ -546,7 +546,9 @@ shows how much of it is boilerplate vs. real behavior.
   `WithRouteStyle`. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
 - **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
-  `MaxSpeed`), `Velocity`, `Z`, `Layers`. A leaf: the world's sub-packages read the components
+  `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
+  from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike. A
+  leaf: the world's sub-packages read the components
   from it, and the world re-exports them as type aliases (`world.Base = entity.Base`, …), so
   every other plugin and a game say `world.Base` as before and the component is one type for goke
   and the saves. Nothing outside `plugins/world` needs to import it.
@@ -629,10 +631,13 @@ shows how much of it is boilerplate vs. real behavior.
   looked into as much as a wall. `Sight.Blockers` are the `world.Layers` that cut or dim this
   sight at all (zero: every entity): a hawk with `Blockers` of `Air` looks over walls, forests
   and walkers and still sees them; a walker with `Land` looks under the hawk. In a world with heights
-  sight has heights instead: the cone's eye is `Z.Altitude + Sight.Eye`, every entity spans its
-  `Z`, the ground is the world's `Ground` sampled every `WithGroundStep` (default: a cell), and a
-  hawk 40 up looks over the wall, the forest and the hill a walker's cone stops at; `Blockers`
-  are refused there, `Eye` in a flat world. It
+  sight has heights instead: the cone's eye is where the unit's `world.Eye` stands (`Eye.Level`:
+  `Height` over `Z.Altitude`, its top for none) and as wide as `Eye.Angle` — the one Eye the
+  first-person camera rides at, so the cone is what the rider sees; a Sight without an Eye is not
+  scanned — every entity spans its `Z`, the ground is the board's heights sampled every
+  `WithGroundStep` (default: a sixteenth of the radius; the renderer drapes the shadows in the
+  same step), and a hawk 40 up looks over the wall, the forest and the hill a walker's cone stops
+  at; `Blockers` are refused there, `Eye.Height` in a flat world. It
   hosts `vision.Between(a, b, fn)` of a `Sighting` inside the scan's own pass: once
   a tick per observer carrying `a`, with everything in view carrying `b` — a
   directed pair, grouped by observer, empty included. A behavior tells its seen

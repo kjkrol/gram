@@ -174,8 +174,9 @@ func sees() kind.Spec {
 		comp.Load(func(b body) world.Position { return b.pos }),
 		comp.Load(func(b body) world.Velocity { return b.vel }),
 		comp.Load(func(b body) vision.Sight {
-			return vision.Sight{Facing: b.vel.Dir, HalfAngle: sightHalf, Radius: sightRadius}
+			return vision.Sight{Facing: b.vel.Dir, Radius: sightRadius}
 		}),
+		comp.Const(world.Eye{Angle: 2 * sightHalf}),
 		comp.Const(vision.SightOutline{}),
 		comp.Const(collision.Collider{}),
 	}

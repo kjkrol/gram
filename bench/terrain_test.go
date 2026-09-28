@@ -94,7 +94,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []boar
 		comp.Const(board.Mover{Domain: board.Land}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
-		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: math.Pi / 6, Radius: 200}),
+		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}),
+		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	})
 	entries := make([]kind.Entry, terrainUnits)
 	for i := range entries {
