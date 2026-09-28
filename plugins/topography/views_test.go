@@ -31,9 +31,9 @@ func (sheet) White() (u, v float32)                           { return 9, 9 }
 
 func newWorld(edges aabbworld.Edges) *world.Plugin {
 	return world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 128, Height: 128, Edges: edges},
+		Space:    world.SpaceCfg{Width: 256, Height: 256, Edges: edges},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 400, ViewportHeight: 300},
+		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
 }
@@ -79,8 +79,8 @@ func TestPlugin_MakesTheWorldsCamerasIsometric(t *testing.T) {
 		if sx, sy := cam.Project(0, 0, 10); sx == 0 && sy == 0 {
 			t.Errorf("%s camera draws a height 10 at the screen's origin: heights are not lifted", name)
 		}
-		if vw, vh := cam.Viewport(); vw != 400 || vh != 300 {
-			t.Errorf("%s camera is %v x %v, want the world's 400 x 300", name, vw, vh)
+		if vw, vh := cam.Viewport(); vw != 128 || vh != 64 {
+			t.Errorf("%s camera is %v x %v, want the world's 128 x 64", name, vw, vh)
 		}
 	}
 	if w.ViewFor(w.Camera()) != w.View() {
@@ -95,7 +95,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2048, Height: 2048},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 400, ViewportHeight: 300},
+		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
 	b := board.NewPlugin(board.DefaultGrids{}.Square(64, 64, 32), &board.MultipleOccupancy{}, w)
@@ -147,7 +147,7 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	w, _, _, _ := isometricIsland()
 	cam := w.Camera()
-	cam.MoveTo(0, 0)
+	cam.CenterOn(64, 64, 0)
 	look := w.Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
 
@@ -219,7 +219,7 @@ func TestBlocks_StandTheCellsWithFacesWhereTheyRiseOverTheirNeighbours(t *testin
 	b.WithRenderer(sheet{})
 	b.Res.Render.ShowGridLines = false
 	cam := w.Camera()
-	cam.MoveTo(0, 0)
+	cam.CenterOn(64, 64, 0)
 
 	if got, _ := compose(b, cam); got[render.Ground] != 16 {
 		t.Errorf("composed %v, want the 16 cells: the hill slopes into its neighbours, no faces", got)
@@ -233,8 +233,9 @@ func TestBlocks_StandTheCellsWithFacesWhereTheyRiseOverTheirNeighbours(t *testin
 	if _, outlined := compose(b, cam); outlined != 16 {
 		t.Errorf("%d tops outlined with the grid on, want the 16 tops and no face", outlined)
 	}
-	// from above the same cells lie flat, no faces
+	// from above the same cells lie flat, no faces: the screen zoomed out over the whole board
 	topography.SwitchView(cam)
+	cam.ZoomOut(2, 64, 64)
 	cam.CenterOn(64, 64, 0)
 	if got, _ := compose(b, cam); got[render.Ground] != 16 {
 		t.Errorf("from above composed %v, want the 16 cells alone", got)
@@ -247,7 +248,7 @@ func TestBlocks_LightTheTopsFromTheUpperLeft(t *testing.T) {
 	raiseHill(p, grid)
 	b.WithRenderer(sheet{})
 	cam := w.Camera()
-	cam.MoveTo(0, 0)
+	cam.CenterOn(64, 64, 0)
 	var f render.Frame
 	f.Reset(cam)
 	b.Renderer().(render.Source).Compose(&f, cam)

@@ -56,7 +56,8 @@ type Camera interface {
 	Pan(dx, dy float32)
 	// Zoom returns the current zoom factor (1 = default).
 	Zoom() float32
-	// ZoomIn multiplies the zoom by factor, keeping world point (anchorX, anchorY) fixed on screen.
+	// ZoomIn multiplies the zoom by factor, keeping the ground point (anchorX, anchorY) fixed on
+	// screen — at its drawn height in a camera in relief, and as far as the camera's limits allow.
 	ZoomIn(factor float32, anchorX, anchorY float32)
 	// ZoomOut is ZoomIn(1/factor, anchorX, anchorY).
 	ZoomOut(factor float32, anchorX, anchorY float32)

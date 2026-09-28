@@ -279,6 +279,33 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Fifteenth round: the cameras in relief kept over the map.** The user, playing: the wheel does
+  not zoom into the point under the cursor, zooming out shows the void beyond the map, WASD drive
+  off the map. Diagnosis: `isoCamera.ZoomIn` held the anchor at sea level while the cursor points
+  at ground drawn at its height (a 640-unit peak slid 64 px a notch at zoom 1); the perspective
+  zooms by narrowing the field of view once the eye is at the ceiling, about the middle of the
+  screen, and with 2 km peaks the eye is always at the ceiling; `place` held only the screen's
+  middle over the diamond, `minZoom` fitted the diamond into the screen; the perspective clamped
+  only the eye's height. Chosen with the user: iso and from above keep the whole screen over the
+  world at sea level — the footprint of the screen is a parallelogram (the projection is affine
+  at sea level), its rectangle fitted into the world along x and y like `basicCamera.fitAxis`,
+  the floor where it just fits; consequences said out loud: the widest view on the island is zoom
+  0.66 instead of 0.25 and a rectangular screen never reaches a diamond map's corners (the corner
+  cells of the topography's test board were unreachable, so its fixtures have a screen that fits
+  the board). The perspective cannot hide the void — from the 704 ceiling at 30° the middle row of
+  a 1280 px screen spans 112 cells of a 96-cell map — so it keeps the ground point in the middle
+  of the screen over the world (`confine`, one pass on the relief) and caps the eye where the
+  middle row shows the world's diagonal at the flattest pitch: one height whatever the heading and
+  pitch, so a turn or a tilt never moves the eye — a cap by the map's extent along the screen's
+  horizontal, or by the current pitch, would have lowered the eye while turning or raising the
+  head. The anchor in perspective: the eye moves along the line to the ground under the cursor
+  (the point stays by construction), the ceiling and the cap shorten the step along that line,
+  and where the view narrows or widens the head turns until the point is drawn where it was
+  (`aim`, small-angle steps); at the pitch floor the head cannot rise, so the eye flies on along
+  the ground to the distance that draws the point at its height (`advance`) — zoom in flies
+  towards the point, zoom out backs off. Not done: keeping the anchor inside a unit (the wheel
+  narrows about the middle there, the user's rule); `LookFrom`/`LookAt` stay unconfined, being
+  the game's placing. Verified by tests; the demo is to be eyeballed.
 - **Fourteenth round: the world in sub-packages.** The user asked what `plugins/world` could be
   split into ("steering, movement, something else?") and for a better word than `Quasi3D`; chose
   steering and view only, movement staying in the world, and `Heights`. The constraint that shaped

@@ -168,6 +168,57 @@ func TestPerspCamera_ZoomComesInToTheCeilingThenNarrowsAndOutTheOtherWayRound(t 
 	}
 }
 
+// At the ceiling zooming in narrows the view about the middle of the screen; the head turns so
+// the ground under the cursor stays where it is drawn, the view swinging towards it.
+func TestPerspCamera_ZoomAtTheCeilingKeepsTheAnchorByTurningTheHead(t *testing.T) {
+	c := testPersp(nil, nil)
+	heading, pitch := c.heading, c.pitch
+	bx, by := c.Project(330, 300, 0)
+	c.ZoomIn(2, 330, 300)
+	if ax, ay := c.Project(330, 300, 0); math.Abs(float64(ax-bx)) > 0.5 || math.Abs(float64(ay-by)) > 0.5 || !near(c.narrow, 2) {
+		t.Errorf("zoomed in at the ceiling the anchor moved from (%v, %v) to (%v, %v), narrowed %v; want it still, narrowed twice", bx, by, ax, ay, c.narrow)
+	}
+	if c.heading == heading && c.pitch == pitch {
+		t.Error("the head did not turn towards the anchor")
+	}
+	c.ZoomOut(2, 330, 300)
+	if ax, ay := c.Project(330, 300, 0); math.Abs(float64(ax-bx)) > 0.5 || math.Abs(float64(ay-by)) > 0.5 || !near(c.narrow, 1) {
+		t.Errorf("widened back the anchor is at (%v, %v), want (%v, %v) still", ax, ay, bx, by)
+	}
+}
+
+// The ground point in the middle of the screen stays over the world however the eye is moved, and
+// zooming out lifts the eye no higher than where the middle of the screen shows the world's
+// diagonal across at the flattest pitch.
+func TestPerspCamera_TheMiddleStaysOverTheWorldAndTheEyeNoHigherThanShowsItAcross(t *testing.T) {
+	c := testPersp(nil, nil)
+	over := func(what string) {
+		if at := c.target(); at[0] < -1e-2 || at[0] > 640+1e-2 || at[1] < -1e-2 || at[1] > 640+1e-2 {
+			t.Errorf("%s the middle of the screen looks at %v, beyond the 640x640 world", what, at)
+		}
+	}
+	for range 40 {
+		c.Pan(200, 200)
+	}
+	over("panned far")
+	c.Translate(1e6, -1e6)
+	over("translated far")
+	if at := c.target(); !near(at[0], 640) || !near(at[1], 0) {
+		t.Errorf("translated far to the north-east the middle looks at %v, want the world's corner (640, 0)", at)
+	}
+	c.CenterOn(320, 320, 0)
+	c.ZoomOut(1000, 320, 320)
+	w, _ := c.Viewport()
+	diagonal := float32(math.Hypot(640, 640))
+	if across := w / c.Zoom(); across > diagonal+1 || across < diagonal-1 || c.eye()[2] < c.ceiling() {
+		t.Errorf("zoomed far out the middle of the screen shows %v across from %v up, want the diagonal %v", across, c.eye()[2], diagonal)
+	}
+	if !near(c.eye()[2], c.maxAlt()) || !near(c.narrow, 1) {
+		t.Errorf("zoomed far out the eye flies at %v narrowed %v, want maxAlt %v unnarrowed", c.eye()[2], c.narrow, c.maxAlt())
+	}
+	over("zoomed far out")
+}
+
 func TestPerspCamera_LookFromStaysOverTheCeilingAndLookAtKeepsTheEye(t *testing.T) {
 	c := testPersp(nil, nil)
 	c.LookFrom(320, 520, 30)

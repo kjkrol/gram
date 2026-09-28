@@ -37,6 +37,7 @@ type perspCamera struct {
 	bend       float32                    // how far the ground d off sinks under the eye's level, per d²
 
 	at         [3]float32 // the ground point in the middle of the screen; far along the way looked, at the sky
+	sky        bool       // the middle of the screen looks at the sky: at is no ground point
 	proj       perspective
 	projection contract.Projection // proj boxed once, so asking for it allocates nothing
 }
@@ -114,12 +115,18 @@ func (c *perspCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return sx + float32(c.viewportSize.X/2), sy + float32(c.viewportSize.Y/2), ok
 }
 
-// maxAlt is the highest the eye flies: the world's diagonal, or where the bottom zoom puts it.
+// maxAlt is the highest the eye flies: where the middle of the screen, unnarrowed and at the
+// flattest pitch, shows the world's diagonal across — one height whatever the heading and the
+// pitch, so a turn or a tilt never moves the eye — or the world's diagonal, or where the bottom
+// zoom puts it, whichever is lowest.
 func (c *perspCamera) maxAlt() float32 {
+	diagonal := float32(math.Hypot(c.world.X, c.world.Y))
+	alt := diagonal
 	if c.minZoomCfg > 0 {
-		return c.focal() * float32(math.Sin(float64(max(c.pitch, c.minPitch)))) / c.minZoomCfg
+		alt = c.focal() * float32(math.Sin(float64(max(c.pitch, c.minPitch)))) / c.minZoomCfg
 	}
-	return float32(math.Hypot(c.world.X, c.world.Y))
+	across := diagonal * c.focal() / float32(c.viewportSize.X) * float32(math.Sin(float64(c.minPitch)))
+	return min(alt, across)
 }
 
 // target is the ground point in the middle of the screen.
@@ -149,7 +156,7 @@ func (c *perspCamera) look() {
 	c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
 	c.proj.bend = c.bend
 	c.projection = c.proj
-	c.at = c.middle()
+	c.at, c.sky = c.middle()
 	if c.maxZoom > 0 { // the top zoom caps the narrowing
 		if z := c.Zoom(); z > c.maxZoom && c.narrow > 1 {
 			c.narrow = max(1, c.narrow*c.maxZoom/z)
@@ -161,17 +168,71 @@ func (c *perspCamera) look() {
 }
 
 // middle is the ground point the middle of the screen looks at, read on the relief; far along the
-// way looked when it looks at the sky.
-func (c *perspCamera) middle() [3]float32 {
+// way looked, and true, when it looks at the sky.
+func (c *perspCamera) middle() ([3]float32, bool) {
 	x, y, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
 	if !hit {
-		return add(c.proj.eye, scale(c.proj.forward, c.far()))
+		return add(c.proj.eye, scale(c.proj.forward, c.far())), true
 	}
 	var z float32
 	if c.ground != nil {
 		z = c.ground(x, y)
 	}
-	return [3]float32{x, y, z}
+	return [3]float32{x, y, z}, false
+}
+
+// confine keeps the ground point in the middle of the screen over the world, moving the eye along
+// the ground by however far that point lies outside; not inside a unit, which goes where it goes,
+// nor when the middle looks at the sky.
+func (c *perspCamera) confine() {
+	if c.inside || c.sky {
+		return
+	}
+	x := min(max(c.at[0], 0), float32(c.world.X))
+	y := min(max(c.at[1], 0), float32(c.world.Y))
+	if x == c.at[0] && y == c.at[1] {
+		return
+	}
+	c.origin = geom.NewVec(c.origin.X+float64(x-c.at[0]), c.origin.Y+float64(y-c.at[1]))
+	c.look()
+}
+
+// aim turns the head — the heading, and the pitch no flatter than the floor — until the point a
+// is drawn at (sx, sy) again, from where narrowing or widening the view about the middle of the
+// screen has moved it: the view swings towards the point zoomed at. Where the floor holds the
+// head, the eye flies on along the ground towards the point instead, as far as puts it back.
+func (c *perspCamera) aim(a [3]float32, sx, sy float32) {
+	for range 8 {
+		ax, ay := c.Project(a[0], a[1], a[2])
+		ex, ey := ax-sx, ay-sy
+		if math.Abs(float64(ex)) < 1e-2 && math.Abs(float64(ey)) < 1e-2 {
+			return
+		}
+		f := c.focal() * c.narrow
+		c.heading -= ex / f
+		pitch := c.pitch + ey/f
+		c.pitch = min(max(pitch, c.minPitch), maxPitch)
+		if pitch < c.pitch {
+			c.advance(a, sy)
+		}
+		c.look()
+	}
+}
+
+// advance moves the eye along the ground, the way it looks, to where the point a is drawn sy down
+// the screen at the pitch as it stands: nearer draws it lower.
+func (c *perspCamera) advance(a [3]float32, sy float32) {
+	f := c.focal() * c.narrow
+	below := float64(c.pitch) + math.Atan(float64(sy-float32(c.viewportSize.Y/2))/float64(f)) // how far under the horizontal the point should lie
+	e := c.proj.eye
+	drop := float64(e[2] - a[2])
+	if below <= 1e-4 || drop <= 0 {
+		return // no distance draws it there
+	}
+	s, k := math.Sincos(float64(c.heading) + math.Pi/4) // the eye looks along the ground the way -(s, k)
+	ahead := -(float64(a[0]-e[0])*s + float64(a[1]-e[1])*k)
+	on := ahead - drop/math.Tan(below)
+	c.origin = geom.NewVec(c.origin.X-on*s, c.origin.Y-on*k)
 }
 
 // Pick is the first ground the screen point sees, along its line from the eye, the ground's curve
@@ -435,8 +496,8 @@ func (c *perspCamera) MoveTo(x, y float64) {
 }
 
 // CenterOn looks at the point (x, y) at height z: the eye, as high as it flies, stands back from
-// it along the way it looks so that it is drawn in the middle of the screen. Inside a unit, it
-// puts the eye there.
+// it along the way it looks so that it is drawn in the middle of the screen, as far as the middle
+// stays over the world. Inside a unit, it puts the eye there.
 func (c *perspCamera) CenterOn(x, y, z float64) {
 	if c.inside {
 		c.origin, c.alt = geom.NewVec(x, y), float32(z)
@@ -451,17 +512,20 @@ func (c *perspCamera) CenterOn(x, y, z float64) {
 	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
 	c.origin = geom.NewVec(x+s*r, y+k*r)
 	c.look()
+	c.confine()
 }
 
-// Translate moves the eye by a world delta along the ground.
+// Translate moves the eye by a world delta along the ground, as far as the middle of the screen
+// stays over the world.
 func (c *perspCamera) Translate(dx, dy float64) {
 	c.origin = geom.NewVec(c.origin.X+dx, c.origin.Y+dy)
 	c.look()
+	c.confine()
 }
 
 // Pan moves the eye along the ground as far as the ground point in the middle of the screen would
-// move a screen delta, the same pixels at any height, as far as that point is on the ground.
-// Inside a unit it does nothing: the eye goes where the unit goes.
+// move a screen delta, the same pixels at any height, as far as that point is on the ground and
+// stays over the world. Inside a unit it does nothing: the eye goes where the unit goes.
 func (c *perspCamera) Pan(dx, dy float32) {
 	if c.inside {
 		return
@@ -474,6 +538,7 @@ func (c *perspCamera) Pan(dx, dy float32) {
 	}
 	c.origin = geom.NewVec(c.origin.X+float64(x1-x0), c.origin.Y+float64(y1-y0))
 	c.look()
+	c.confine()
 }
 
 // Zoom is how many screen units a world unit spans at the ground point in the middle of the
@@ -484,8 +549,9 @@ func (c *perspCamera) Zoom() float32 {
 
 // ZoomIn brings the eye factor times nearer the ground under (anchorX, anchorY) along its line of
 // sight to it — the point stays where it is drawn — down to the ceiling, and narrows the field of
-// view from there: less of the ground, larger. Zooming out widens the view back first, then lifts
-// the eye. Inside a unit it narrows the view alone.
+// view from there, turning the head so the point still stays: less of the ground, larger, the
+// view swinging towards the point. Zooming out widens the view back first, then lifts the eye, no
+// higher than maxAlt. Inside a unit it narrows the view alone.
 func (c *perspCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	if factor <= 0 {
 		return
@@ -500,6 +566,8 @@ func (c *perspCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	if c.ground != nil {
 		a[2] = c.ground(anchorX, anchorY)
 	}
+	bx, by := c.Project(a[0], a[1], a[2])
+	narrow := c.narrow
 	e := c.proj.eye
 	if factor >= 1 {
 		to := add(a, scale(sub(e, a), 1/factor))
@@ -521,11 +589,23 @@ func (c *perspCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 			c.narrow = n
 		}
 		if rest < 1 {
-			e = add(a, scale(sub(e, a), 1/rest))
+			to := add(a, scale(sub(e, a), 1/rest))
+			if top := max(c.maxAlt(), c.ceiling()); to[2] > top { // the step shortened along the same line
+				k := float32(1)
+				if rise := to[2] - e[2]; rise > 0 {
+					k = max(min((top-e[2])/rise, 1), 0)
+				}
+				to = add(e, scale(sub(to, e), k))
+			}
+			e = to
 		}
 	}
 	c.origin, c.alt = geom.NewVec(float64(e[0]), float64(e[1])), e[2]
 	c.look()
+	if c.narrow != narrow {
+		c.aim(a, bx, by)
+	}
+	c.confine()
 }
 
 func (c *perspCamera) ZoomOut(factor float32, anchorX, anchorY float32) {
@@ -557,4 +637,5 @@ func (c *perspCamera) Restore() {
 	c.inside = false
 	c.pitch = max(c.pitch, c.minPitch) // a game saved riding in a unit comes back free
 	c.look()
+	c.confine()
 }

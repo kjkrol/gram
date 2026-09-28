@@ -151,7 +151,18 @@ the board's Map (`boardLook`: blocks with the faces turned towards the eye, or `
 and the world's Ground (its `Relief`); it refuses a flat or a wrapping world. One camera, two
 views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
 sorting); `View{Camera}` (Tab) flips it keeping the ground point in the middle and a cell as wide
-(zoom × Cell/TileW); the view is saved with the camera. The isometric camera turns by any angle
+(zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
+screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
+corners into the world along x and y, `minZoom` is where the screen's footprint — `spanX`,
+`spanY` at zoom 1 — just fits the world, the top-down camera's rule), so a pan stops at the edge,
+zooming out stops where the screen fits the map and the corners of a diamond map are out of reach;
+`ZoomIn` keeps the ground under the cursor at its drawn height (`ground`). The perspective keeps
+the ground point in the middle of the screen over the world (`perspCamera.confine` after Pan,
+Translate, CenterOn, ZoomIn; not LookFrom/LookAt, not riding) and flies no higher than shows the
+world's diagonal across the middle of the screen at the flattest pitch (`maxAlt`, one height
+whatever the heading and pitch); zooming at the ceiling turns the head so the ground under the
+cursor stays put (`aim`), the eye flying on towards it where the pitch floor holds the head
+(`advance`). The isometric camera turns by any angle
 (heading saved with the camera): the projection turns the ground frame from the 2:1 view, Depth is
 how far down the screen the middle of the cell lies (every point of a cell ties with its tile),
 Toward follows the heading. The plugin is a CommandHandler with a RunPlan (after the world, before

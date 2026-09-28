@@ -32,13 +32,13 @@ func TestCamera_DrawsThroughItsProjectionAndPansInPixels(t *testing.T) {
 	if _, ok := cam.Projection().(projection); !ok {
 		t.Fatalf("Projection is %T, want Isometric", cam.Projection())
 	}
-	cam.MoveTo(320, 320)
-	if sx, sy := cam.Project(320, 320, 0); !near(sx, 0) || !near(sy, 0) {
+	cam.MoveTo(100, 300)
+	if sx, sy := cam.Project(100, 300, 0); !near(sx, 0) || !near(sy, 0) {
 		t.Errorf("after MoveTo the point sits at (%v, %v), want the screen's corner", sx, sy)
 	}
-	bx, by := cam.Project(320, 320, 0)
+	bx, by := cam.Project(100, 300, 0)
 	cam.Pan(10, -5)
-	if ax, ay := cam.Project(320, 320, 0); !near(ax, bx-10) || !near(ay, by+5) {
+	if ax, ay := cam.Project(100, 300, 0); !near(ax, bx-10) || !near(ay, by+5) {
 		t.Errorf("Pan(10, -5) moved the point from (%v, %v) to (%v, %v)", bx, by, ax, ay)
 	}
 	px, py := cam.Project(100, 200, 0)
@@ -50,11 +50,20 @@ func TestCamera_DrawsThroughItsProjectionAndPansInPixels(t *testing.T) {
 
 func TestCamera_ZoomKeepsTheAnchorAndBoundsStayInTheWorld(t *testing.T) {
 	cam := testCamera(t, 0)
-	cam.MoveTo(320, 320)
+	cam.MoveTo(100, 300)
 	bx, by := cam.Project(330, 300, 0)
 	cam.ZoomIn(2, 330, 300)
 	if ax, ay := cam.Project(330, 300, 0); !near(ax, bx) || !near(ay, by) || cam.Zoom() != 2 {
 		t.Errorf("after ZoomIn the anchor moved from (%v, %v) to (%v, %v) at zoom %v", bx, by, ax, ay, cam.Zoom())
+	}
+	// over ground the anchor is the point as it is drawn, on the ground's height
+	hilly := newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true,
+		func(x, y float32) float32 { return 100 }, func() (float32, float32) { return 0, 100 }, 0)
+	hilly.MoveTo(100, 300)
+	hx, hy := hilly.Project(330, 300, 100)
+	hilly.ZoomIn(2, 330, 300)
+	if ax, ay := hilly.Project(330, 300, 100); !near(ax, hx) || !near(ay, hy) {
+		t.Errorf("over ground 100 high the anchor moved from (%v, %v) to (%v, %v), want the hill's top still under the cursor", hx, hy, ax, ay)
 	}
 	b := cam.Bounds()
 	if b.TopLeft.X < 0 || b.TopLeft.Y < 0 || b.BottomRight.X > 640 || b.BottomRight.Y > 640 || b.TopLeft.X >= b.BottomRight.X {
@@ -142,13 +151,53 @@ func TestCamera_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testi
 		"isometric": testCamera(t, 0),
 	} {
 		cam.CenterOn(330, 310, 0)
-		cam.SetViewport(500, 400)
-		if w, h := cam.Viewport(); w != 500 || h != 400 {
-			t.Errorf("%s: Viewport %v x %v after SetViewport(500, 400)", name, w, h)
+		cam.SetViewport(440, 330)
+		if w, h := cam.Viewport(); w != 440 || h != 330 {
+			t.Errorf("%s: Viewport %v x %v after SetViewport(440, 330)", name, w, h)
 		}
-		if sx, sy := cam.Project(330, 310, 0); !near(sx, 250) || !near(sy, 200) {
-			t.Errorf("%s: the point in the middle moved to (%v, %v), want (250, 200)", name, sx, sy)
+		if sx, sy := cam.Project(330, 310, 0); !near(sx, 220) || !near(sy, 165) {
+			t.Errorf("%s: the point in the middle moved to (%v, %v), want (220, 165)", name, sx, sy)
 		}
+	}
+}
+
+// cornersOver reports whether the ground under every corner of the screen lies in the world.
+func cornersOver(cam contract.Camera, size float32) bool {
+	w, h := cam.Viewport()
+	for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
+		x, y := cam.Unproject(corner[0], corner[1], 0)
+		if x < -1e-2 || x > size+1e-2 || y < -1e-2 || y > size+1e-2 {
+			return false
+		}
+	}
+	return true
+}
+
+// The screen never shows the ground beyond the world at sea level: a pan stops at the edge, and
+// zooming out stops where the screen just fits over the world — the top-down camera's floor, for
+// the ground the screen covers.
+func TestCamera_TheScreenStaysOverTheWorld(t *testing.T) {
+	cam := testCamera(t, 0)
+	for _, pan := range [][2]float32{{-1e4, 0}, {1e4, 0}, {0, -1e4}, {0, 1e4}, {1e4, 1e4}, {-1e4, 1e4}} {
+		cam.Pan(pan[0], pan[1])
+		if !cornersOver(cam, 640) {
+			t.Errorf("after Pan%v the screen's corners see %v, beyond the world", pan, cam.Bounds())
+		}
+	}
+	cam.CenterOn(320, 320, 0)
+	cam.ZoomOut(1000, 320, 320)
+	// the screen's footprint at zoom 1 is 500 across and 500 down: half its width plus its height
+	if !near(cam.Zoom(), 500.0/640) || !cornersOver(cam, 640) {
+		t.Errorf("zoomed far out the zoom is %v with the screen over %v, want 500/640 with the screen over the world", cam.Zoom(), cam.Bounds())
+	}
+	cam.(*viewCamera).iso.SetIsometric(false)
+	cam.ZoomOut(1000, 320, 320)
+	if !near(cam.Zoom(), 400.0/640) || !cornersOver(cam, 640) {
+		t.Errorf("from above zoomed far out the zoom is %v, want 400/640: the screen just covered by the world", cam.Zoom())
+	}
+	cam.Pan(1e4, 1e4)
+	if !cornersOver(cam, 640) {
+		t.Errorf("from above panned far the screen sees %v, beyond the world", cam.Bounds())
 	}
 }
 

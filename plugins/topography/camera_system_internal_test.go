@@ -46,7 +46,7 @@ type followRig struct {
 func newFollowRig(t *testing.T) *followRig {
 	t.Helper()
 	r := &followRig{t: t, ecs: goke.New()}
-	r.cam = newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	r.cam = newCamera(testProjection, 1280, 1280, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
 	r.sys = &cameraSystem{turns: &r.turns, tilts: &r.tilts, follows: &r.follow, drives: &r.drives, lookOuts: &r.lookOuts, views: &r.views, looks: &r.looks, selected: selected, selecting: true}
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]

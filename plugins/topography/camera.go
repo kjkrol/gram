@@ -28,8 +28,9 @@ type isoCamera struct {
 	pitch   float32
 	flat    bool
 
-	// the projected world's extent at zoom 1 and height 0, for fitting and clamping
-	minSX, maxSX, minSY, maxSY float32
+	// the ground the screen covers at zoom 1 and sea level, across and down the world, for the
+	// zoom floor; at any zoom it is this over the zoom
+	spanX, spanY float32
 	// extent is the lowest and the highest ground, for what the screen may show; nil, level at 0
 	extent func() (low, high float32)
 	// ground is the top of the ground as it is drawn, for Pick; nil, level at 0
@@ -47,6 +48,7 @@ func newIsoCamera(proj projection, world geom.Vec, viewport contract.AABB, edges
 	c := &isoCamera{world: world, zoom: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y)}
 	c.look(proj)
+	c.zoom = max(c.zoom, c.minZoom())
 	c.MoveTo(viewport.TopLeft.X, viewport.TopLeft.Y)
 	return c
 }
@@ -74,16 +76,30 @@ func (c *isoCamera) SetIsometric(iso bool) {
 	c.CenterOn(float64(x), float64(y), 0)
 }
 
-// look draws through proj from now on, and measures the projected world anew.
+// look draws through proj from now on, and measures the ground the screen covers anew.
 func (c *isoCamera) look(proj projection) {
 	c.proj, c.projection, c.heading, c.pitch, c.flat = proj, proj, proj.Heading, proj.Pitch, proj.flat
-	c.minSX, c.maxSX, c.minSY, c.maxSY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
-	w, h := float32(c.world.X), float32(c.world.Y)
+	c.measure()
+}
+
+// measure is the ground the screen covers at zoom 1 and sea level: the projection is affine
+// there, so the screen's footprint is a parallelogram and its extent scales as one over the zoom.
+func (c *isoCamera) measure() {
+	minX, maxX, minY, maxY := c.under(c.proj.Unproject)
+	c.spanX, c.spanY = maxX-minX, maxY-minY
+}
+
+// under is the world rectangle round the ground under the screen's corners at sea level, each
+// found through unproject.
+func (c *isoCamera) under(unproject func(sx, sy, z float32) (float32, float32)) (minX, maxX, minY, maxY float32) {
+	minX, maxX, minY, maxY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
+	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
 	for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
-		sx, sy := proj.Project(corner[0], corner[1], 0)
-		c.minSX, c.maxSX = min(c.minSX, sx), max(c.maxSX, sx)
-		c.minSY, c.maxSY = min(c.minSY, sy), max(c.maxSY, sy)
+		x, y := unproject(corner[0], corner[1], 0)
+		minX, maxX = min(minX, x), max(maxX, x)
+		minY, maxY = min(minY, y), max(maxY, y)
 	}
+	return
 }
 
 // Turn turns the view by angle radians, the world clockwise on the screen, keeping the ground point
@@ -127,6 +143,7 @@ func (c *isoCamera) SetViewport(w, h float32) {
 	}
 	x, y := c.Unproject(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2), 0)
 	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.measure()
 	c.zoom = max(c.zoom, c.minZoom())
 	c.CenterOn(float64(x), float64(y), 0)
 }
@@ -239,15 +256,34 @@ func (c *isoCamera) Pan(dx, dy float32) {
 	c.place(geom.NewVec(c.pan.X-float64(dx), c.pan.Y-float64(dy)))
 }
 
-// place sets the pan, keeping the screen's centre over the projected world.
+// place sets the pan and holds the whole screen over the world at sea level: the ground under
+// its corners is kept inside the world along x and along y, as the top-down camera keeps its
+// window, so at an edge the screen slides along it; a screen wider than the world along an axis
+// stands over its middle.
 func (c *isoCamera) place(pan geom.Vec) {
-	z := float64(c.zoom)
-	cx, cy := c.viewportSize.X/2, c.viewportSize.Y/2
-	pan.X = min(max(pan.X, cx-float64(c.maxSX)*z), cx-float64(c.minSX)*z)
-	pan.Y = min(max(pan.Y, cy-float64(c.maxSY)*z), cy-float64(c.minSY)*z)
 	c.pan = pan
+	minX, maxX, minY, maxY := c.under(c.Unproject)
+	dx, dy := fitSpan(minX, maxX, float32(c.world.X)), fitSpan(minY, maxY, float32(c.world.Y))
+	if dx != 0 || dy != 0 {
+		sx, sy := c.proj.Project(dx, dy, 0)
+		c.pan = geom.NewVec(c.pan.X-float64(sx)*float64(c.zoom), c.pan.Y-float64(sy)*float64(c.zoom))
+	}
 	x, y := c.Unproject(0, 0, 0)
 	c.origin = geom.NewVec(float64(x), float64(y))
+}
+
+// fitSpan is how far to move the stretch lo..hi to lie within 0..size: onto the middle when it is
+// longer than size.
+func fitSpan(lo, hi, size float32) float32 {
+	switch {
+	case hi-lo > size:
+		return (size - lo - hi) / 2
+	case lo < 0:
+		return -lo
+	case hi > size:
+		return size - hi
+	}
+	return 0
 }
 
 func (c *isoCamera) Zoom() float32 { return c.zoom }
@@ -261,9 +297,14 @@ func (c *isoCamera) scale() float32 {
 	return c.zoom * c.proj.TileW / (math.Sqrt2 * c.proj.Cell)
 }
 
-// ZoomIn multiplies the zoom by factor, keeping the ground point (anchorX, anchorY) where it is.
+// ZoomIn multiplies the zoom by factor, keeping the ground point (anchorX, anchorY) where it is
+// drawn, at its own height — as far as the screen stays over the world.
 func (c *isoCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
-	beforeX, beforeY := c.Project(anchorX, anchorY, 0)
+	var z float32
+	if c.ground != nil {
+		z = c.ground(anchorX, anchorY)
+	}
+	beforeX, beforeY := c.Project(anchorX, anchorY, z)
 	zoom := max(c.zoom*factor, 0.01)
 	if floor := c.minZoom(); zoom < floor {
 		zoom = floor
@@ -272,7 +313,7 @@ func (c *isoCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 		zoom = c.maxZoom
 	}
 	c.zoom = zoom
-	afterX, afterY := c.Project(anchorX, anchorY, 0)
+	afterX, afterY := c.Project(anchorX, anchorY, z)
 	c.place(geom.NewVec(c.pan.X+float64(beforeX-afterX), c.pan.Y+float64(beforeY-afterY)))
 }
 
@@ -280,9 +321,10 @@ func (c *isoCamera) ZoomOut(factor float32, anchorX, anchorY float32) {
 	c.ZoomIn(1/factor, anchorX, anchorY)
 }
 
-// minZoom fits the projected world's diamond into the viewport, or the configured floor if higher.
+// minZoom is the zoom at which the screen just fits over the world at sea level — the top-down
+// camera's world-fit floor, for the ground the screen covers — or the configured floor if higher.
 func (c *isoCamera) minZoom() float32 {
-	floor := min(float32(c.viewportSize.X)/(c.maxSX-c.minSX), float32(c.viewportSize.Y)/(c.maxSY-c.minSY))
+	floor := max(c.spanX/float32(c.world.X), c.spanY/float32(c.world.Y))
 	return max(floor, c.minZoomCfg)
 }
 
@@ -299,6 +341,6 @@ func (c *isoCamera) Persisted() []any {
 
 func (c *isoCamera) Restore() {
 	c.look(c.proj.turned(c.heading).tilted(c.pitch).viewed(c.flat))
-	c.zoom = max(c.zoom, 0.01)
+	c.zoom = max(c.zoom, 0.01, c.minZoom())
 	c.MoveTo(c.origin.X, c.origin.Y)
 }

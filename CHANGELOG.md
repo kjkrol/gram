@@ -5,6 +5,21 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Cameras in relief kept over the map**
+- From above and isometrically the topography's camera keeps the whole screen over the world at
+  sea level, as the top-down camera does: a pan (WASD, the cursor at an edge, a middle drag)
+  stops where a corner of the screen reaches the world's edge, and zooming out stops where the
+  screen just fits over the world — the widest view is nearer than before (on the 96x64 island
+  zoom 0.66 for 0.25), the void beyond a diamond map is never shown, and neither are its corners.
+  A save with a lower zoom comes back at the floor.
+- Zoom keeps the ground under the cursor where it is drawn, at its own height: a hill under the
+  cursor no longer slides away as the wheel turns.
+- In perspective the ground point in the middle of the screen stays over the world, and the eye
+  flies no higher than shows the world's diagonal across the middle of the screen at the flattest
+  pitch; zooming at the ceiling turns the head so the ground under the cursor stays put, the eye
+  flying on towards it where the pitch floor holds the head. `LookFrom` and `LookAt` still place
+  the eye anywhere.
+
 **The cones of sight on and off**
 - `vision.Plugin` is a `plugin.CommandHandler`: `vision.Cones{}` hides every view drawn — the
   cones and the ground out of sight — or shows them again, Shift+C by default; `Plugin.Hide(bool)`

@@ -127,7 +127,12 @@
 // world's Look. The isometric camera turns by any angle — the world clockwise on the screen as the
 // heading grows, keeping the ground point in the middle of the screen — and tilts from
 // Config.MinPitch over the ground (30°, the 2:1 view's, unless the game lowers it: flatter, the
-// near relief hides what lies behind it) to straight down.
+// near relief hides what lies behind it) to straight down. From above and in the isometric view
+// the whole screen stays over the world at sea level, as the top-down camera keeps its window:
+// a pan stops where a corner of the screen reaches the world's edge, and zooming out stops where
+// the screen just fits over the world — so a rectangular screen never shows the ground beyond a
+// diamond-shaped map, and never reaches the map's corners either. Zoom keeps the ground under the
+// cursor where it is drawn, at its own height, as far as the screen stays over the world.
 //
 // The perspective is an eye flying over the world, never lower than two cells over its highest
 // ground, seeing Config.FieldOfView from the top of the screen to the bottom (45° when zero): what
@@ -135,9 +140,14 @@
 // the ground; Turn (Q and E) goes round the ground point in the middle of the screen, as high;
 // Tilt raises the head (R: further off, no flatter than Config.MinPitch) or bows it (F: straight
 // down at most), the eye where it is; Zoom comes in along the line to the ground under the cursor
-// down to the ceiling and narrows the field of view from there — less of the ground, larger — and
-// zooming out widens it back, then lifts the eye. [LookFrom] and [LookAt] put the eye and its
-// look where the game wants them. On a world with a scale (world.Scale) the perspective shows the
+// down to the ceiling and narrows the field of view from there — less of the ground, larger, the
+// head turning so the ground under the cursor stays where it is drawn, the eye flying on towards
+// it where the pitch floor holds the head — and zooming out widens it back, then lifts the eye, no
+// higher than where the middle of the screen shows the world's diagonal across at the flattest
+// pitch. The screen shows the horizon and what lies past the world's edge whatever the eye does,
+// so the perspective keeps the ground point in the middle of the screen over the world instead:
+// Pan stops where that point reaches the world's edge. [LookFrom] and [LookAt] put the eye and its
+// look where the game wants them, over the edge too; the next Pan brings the middle back. On a world with a scale (world.Scale) the perspective shows the
 // Earth: the ground far off sinks under the eye's level (world.Scale.Drop), level ground past the
 // horizon out of sight, and fades to the sky's colour as far off as the air's Visibility says —
 // the tiles, their faces and the units, not what is laid over the tiles (render.Frame.Haze).
