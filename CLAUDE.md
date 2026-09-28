@@ -148,7 +148,13 @@ Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`
 the world and the board, sets the world's camera factory (`world.SetCameras`; `camera.Config` has no
 projection), its Look (`worldLook`: billboards isometrically, the world's `FlatLook` from above),
 the board's Map (`boardLook`: blocks with the faces turned towards the eye, or `board.FlatLook`)
-and the world's Ground (its `Relief`); it refuses a flat or a wrapping world. One camera, two
+and the world's Ground (its `Relief`); it refuses a flat or a wrapping world. Under the topography
+the board's tiles are dressed on every CPU: its dresser is a `board.Parallel` and `boardLook` a
+`board.ParallelLook` (`board.Plugin.WithWorkers`, 0 all CPUs, 1 none) — the renderer warms every
+visible tile (shores), has the dresser `Ready` (the highest top, every top a worker may read, then
+frozen), and shares the tiles out among `Worker` dressers, each with its own scratch, clouds and
+`render.Frame` (`Frame.Branch`/`Append`), so the picture is piece for piece the serial one
+(`internal/parallel` shares the runs out). One camera, two
 views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
 sorting); `View{Camera}` (Tab) flips it keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
@@ -191,7 +197,9 @@ selection must not import topography, even in tests (topography imports selectio
 that is the view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the plain top-down camera of a world without a topography. `world.Z`, relief and `Heights` are not the view but the world's heights: sight
-over walls and hills reads them in a top-down game too (navigation-vision-demo). **Layering: the
+over walls and hills reads them in a top-down game too (navigation-vision-demo); the scan runs
+observers on every CPU, a `scanner` per goroutine (`vision.Plugin.WithWorkers`), after `Board.Ready`
+has read the cells' cover (`board.Readied`) and one query has settled the space's index. **Layering: the
 world knows its entities and nothing else; the ground is the board's, the sky the atmosphere's,
 `render` generic.** A relief is lit by the sun of its `topography.Atmosphere`
 (`WithAtmosphere(atmospherePlugin)`; without one `sky.DefaultSun` in still clear air): `sky.Sun`

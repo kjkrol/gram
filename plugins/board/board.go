@@ -27,6 +27,11 @@ type Board struct {
 	changes  uint64      // how many cells have changed, one at a time
 	everyone uint64      // the count when every cell last changed at once
 	boxes    []geom.AABB // scratch for the boxes of a cell
+	// veils holds by ordinal the cover of every cell (Ready), good while the board's changes and
+	// version are as they were
+	veils        []veil
+	veilsChanges uint64
+	veilsVersion uint64
 }
 
 // cellStore is where the cells' entities are: their ids by ordinal, and a query for each of their

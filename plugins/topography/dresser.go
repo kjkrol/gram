@@ -66,6 +66,10 @@ type dresser struct {
 	canvas    render.Frame
 	scratch   board.Tile
 	bakeTile  tile
+	// workers are the dressers of the goroutines sharing a frame's tiles (Worker); a worker is
+	// frozen: it reads the tops as Ready read them
+	workers []*dresser
+	frozen  bool
 }
 
 var _ board.Dressing = (*dresser)(nil)
@@ -304,6 +308,9 @@ func (l *dresser) tileOf(t *board.Tile) *tile {
 func (l *dresser) topOf(c board.CellID) *cellTop {
 	i, _ := l.ordinal(c)
 	t := &l.tops[i]
+	if l.frozen {
+		return t
+	}
 	changes := l.board.Changes()
 	if t.ver != 0 && t.seen == changes { // nothing on the board has changed since
 		return t

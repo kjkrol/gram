@@ -11,7 +11,10 @@
 // too (plugins/topography), so the cone drawn is what the rider sees. A Sight without an Eye is
 // never scanned. The outline buffer is sized for [MaxSightRadius] and MaxHalfAngleMilli; a larger
 // Sight still sees, its outline is only coarser. The [ScanSystem] scans every Sight against the
-// world's space through aabbworld's line-of-sight scan, once a tick.
+// world's space through aabbworld's line-of-sight scan, once a tick — observers enough at a time
+// on several goroutines at once, as many as there are CPUs unless told otherwise
+// ([Plugin.WithWorkers]), each with a scanner of its own; the behaviors then run one observer at
+// a time, in order.
 //
 // # Transparency
 //

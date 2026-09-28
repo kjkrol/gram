@@ -279,6 +279,44 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twenty-first round: the tiles and the cones on every CPU.** The user asked what of the
+  topography's drawing could go to the GPU, or failing that be spread over the CPUs, and ordered
+  the whole plan in stages. Ebitengine's Kage is fragment shaders only, so the tiles stay on the
+  CPU; what is parallel is composing them. (1) **The renderer, not the dresser, shares the work
+  out**, through two contracts: `board.Parallel` (Warm, Ready, Worker) on the Dressing and
+  `board.ParallelLook` (Worker) on the Look — both, or the tiles stay on one goroutine, since a
+  look such as a test's records what it sees. Each worker draws into its own `render.Frame`,
+  appended in order, so the composer's stable sort sees what one goroutine would have handed
+  it: piece for piece the same picture (tested vertex for vertex, from above, isometric, a part
+  of the island with shadows cast from off the screen, and in perspective). (2) **What a
+  worker may write.** The dresser's caches are keyed by cell or by corner. A cell's light, its
+  shadows and its bake belong to the one worker drawing the cell, so they are worked out in the
+  workers; a corner's shore is met by four tiles, so the shores are warmed on the frame's
+  goroutine (cached across frames, so cheap); a corner's cloud noise is per frame, so every
+  worker keeps clouds of its own and the corners along a run's edge are worked out twice.
+  `topOf` reads a cell anew through the ECS when the board changed — a goke Seek, not for
+  several goroutines — so `Ready` reads every top a worker may read (the camera's bounds, plus
+  a shadow's reach and a few cells) and the workers are *frozen*: their `topOf` is a plain read,
+  a missed cell a stale top rather than a race. `measureHighest` is done in Ready too. (3) **The
+  first cut moved too little.** Warming light, shadows, bakes and clouds on the frame's
+  goroutine left the parallel part small: a moving sun recomputes every shadow every frame, and
+  the cloud noise is 4 octaves a corner. Measured at 10% gains, and a loss on the far view.
+  With them in the workers: from above 4.3 → 2.6 ms, isometric 2.7 → 1.8, perspective through
+  1080p 6.8 → 3.9, the far views 2.5/2.7 → 1.6/1.7 (8 threads). What stays serial: `eachVisible`
+  with `onScreen` culling, the ground sheet's painting, the gather pass, and `Frame.Append`
+  copying every vertex once more — the last is stage 3's question. (4) **Vision.** A scanner per
+  goroutine (view, lookup query with its own component handles, covering with its closures),
+  phase A the scans, phase B the behaviors in order as before. Two lazy readers had to be
+  settled first: aabbworld's grid reindexes on the first Query when stale (one query on the
+  frame's goroutine), and the board's cover read each cell's kind through a goke Seek as a ray
+  met it — `Board.Ready` (the `Readied` contract) now reads every cell's veil into a table when
+  the board changed, and `Walk` reads the table. Chunks: an archetype with `SightOutline` holds
+  a few entities a chunk (the struct is big), so parallelising within a chunk gained nothing
+  with outlines; the runs cut across chunks now (`job` per chunk, a global index). 500
+  observers: 0.54 → 0.26 ms, with outlines 1.31 → 0.49. (5) **Found on the way**: the bench
+  harness never replayed the world's clock, so the vision benchmark had measured an empty tick
+  (300 ns) since the clock came; `headless.start` replays it after the plan now. `trace` zeroed
+  the whole shadow buffer per observer; it clears the samples read.
 - **Twentieth round: one Eye for the cone and the rider.** The user, in first person: the cones
   are too short, their shadows fall wrong, the eye seemed too low and the width did not match the
   lens. Measured: the cone's eye stood at 18 m (`Sight.Eye`) and the camera's at 20 m (the top);

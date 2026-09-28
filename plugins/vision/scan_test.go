@@ -81,6 +81,12 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 // sceneIn is scene in a world with heights standing on r (nil: a flat world).
 func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
+	return sceneWith(t, r, 0, spawns...)
+}
+
+// sceneWith is sceneIn with the scan shared among workers goroutines at most (0: the CPUs, 1: none).
+func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
+	t.Helper()
 
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2000, Height: 2000},
@@ -88,7 +94,7 @@ func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Si
 		Heights:  r != nil,
 		Scale:    scaleOf(r),
 	})
-	v := vision.NewPlugin(w)
+	v := vision.NewPlugin(w).WithWorkers(workers)
 	if r != nil {
 		ground := r.ground
 		v.WithHeights(func() board.Heights { return ground }).WithGroundStep(r.step)

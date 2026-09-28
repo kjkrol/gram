@@ -22,7 +22,15 @@ type Cover interface {
 	Walk(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool)
 }
 
+// Readied is a Cover that reads the board as it is walked and can read it all at once instead —
+// for whoever walks it from several goroutines at a time, on their goroutine before they do. The
+// Board is one.
+type Readied interface {
+	Ready()
+}
+
 var _ Cover = (*Board)(nil)
+var _ Readied = (*Board)(nil)
 var _ collision.Field = (*Board)(nil)
 
 // Heights is the board's ground heights: its Map's, nil on a flat map.

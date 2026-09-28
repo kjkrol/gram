@@ -96,15 +96,19 @@ coverage at one size quadruples the contacts and the tick alike.
 One tick of the vision plugin alone over a 4000×4000 world: every observer, on a 120-unit
 lattice with a 60° cone of radius 200 facing right, scans the shared space and fills its `Seen`.
 With outlines, every observer also carries a `SightOutline`, so its view's shape is computed for
-drawing.
+drawing. The scan is shared out among the CPUs (`vision.Plugin.WithWorkers`); `serial` is one
+goroutine. Measured on 2026-09-29, the better of two runs of 300 ticks.
 
-| Observers | Scan | Scan with outlines |
-|---:|---:|---:|
-| 100 | 101 µs | 237 µs |
-| 500 | 503 µs | 1.27 ms |
+| Observers | Scan | Scan, serial | With outlines | With outlines, serial |
+|---:|---:|---:|---:|---:|
+| 100 | 70 µs | 107 µs | 120 µs | 264 µs |
+| 500 | 256 µs | 540 µs | 495 µs | 1.31 ms |
 
-About 1 µs per observer to know what it sees, 2.5 µs to also know the shape of its view; both
-scale linearly with the observers.
+On one goroutine about 1 µs per observer to know what it sees, 2.6 µs to also know the shape of
+its view; both scale linearly with the observers. On eight threads a tick is a half to a third of
+that: what stays on one goroutine is walking the ECS's chunks and, with behaviors, running them.
+Before 2026-09-29 the harness did not replay the world's clock, so these benchmarks had measured
+an empty tick since the clock came; the numbers before that agree with today's serial ones.
 
 ## Ground — `Benchmark_Board_GroundAt`
 
@@ -192,22 +196,31 @@ distances a corner for the way to the shore and each cell's kind sought in the E
 The board's renderer composing the whole of a 96×64 island of cells 32 wide, from above and
 isometric: a sea lying `Under` it, earth, sand and rock blending, and the brooks, streams and
 rivers `water.Drain` works out of its heights laid across it as curving ways, running out to sea —
-warm, and after a cell ashore has changed. Measured on 2026-09-26, three runs.
+warm, and after a cell ashore has changed; and the isometric and the perspective island through a
+1080p screen, as a player sees it. The tiles are dressed on every CPU (`board.Plugin.WithWorkers`);
+`serial` is one goroutine. Measured on 2026-09-29, the better of two runs of 100 frames.
 
-| View | Before baking | Warm | A cell changed |
-|:--|--:|--:|--:|
-| from above | 6.63 ms | 3.16 ms | 3.14 ms |
-| isometric | 8.25 ms | 4.64 ms | 4.62 ms |
-| from above, far | — | 1.89 ms | 1.88 ms |
-| isometric, far | — | 1.60 ms | 1.63 ms |
+| View | Warm | A cell changed | Warm, serial | A cell changed, serial |
+|:--|--:|--:|--:|--:|
+| from above | 2.57 ms | 2.55 ms | 4.30 ms | 4.43 ms |
+| isometric | 1.80 ms | 1.80 ms | 2.71 ms | 2.72 ms |
+| isometric, 1080p | 0.73 ms | 0.73 ms | 0.91 ms | 0.90 ms |
+| perspective, 1080p | 3.95 ms | 3.94 ms | 6.83 ms | 6.83 ms |
+| from above, far | 1.57 ms | 1.57 ms | 2.49 ms | 2.52 ms |
+| isometric, far | 1.72 ms | 1.73 ms | 2.70 ms | 2.73 ms |
 
 Far — the whole island on a screen of 576 by 384, a cell 6 pixels across — a tile's water lays no
 overlay (the landscape's detail), and its shore is not worked out. There the tiles are dressed from
 the ground sheet: what lies on a tile is one piece of it, painted once, not a piece per blend and
-per stretch of a way (2.03 and 1.77 ms before). The benchmark counts composing alone; handing
-Ebitengine the pieces costs as much again, which the sheet saves too: in the island demos at 1024
-by 768, fully zoomed out, a frame took 10.5 ms of the CPU isometric and 5.0 ms from above, and takes
-8.9 and 3.1 ms — 8.5 and 2.95 ms before the island had blends and ways. Measured on 2026-09-26.
+per stretch of a way. The benchmark counts composing alone; handing Ebitengine the pieces costs as
+much again, which the sheet saves too: in the island demos at 1024 by 768, fully zoomed out, a
+frame took 10.5 ms of the CPU isometric and 5.0 ms from above before the sheet, 8.9 and 3.1 ms
+after it (2026-09-26).
+
+On eight threads the tiles take a half to two thirds of the time they took on one: what stays on
+the frame's goroutine is culling the cells under the camera (`onScreen`, every cell of the board
+in perspective), painting the ground sheet when the board changed, warming the shores, and
+appending every worker's vertices to the frame once more (`render.Frame.Append`).
 
 Before, every frame read every cell anew from the ECS, worked out every tile's light three times,
 and every blend's weights and every way's curve over again. Now the renderer keeps what it read of

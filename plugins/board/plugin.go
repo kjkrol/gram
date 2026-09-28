@@ -38,6 +38,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 	standing    host.EachHost[Standing]
+	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -98,6 +99,17 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	}
 	p.Res.Render = &RenderState{ShowGridLines: true}
 	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map)
+	p.renderer.Workers(p.workers)
+}
+
+// WithWorkers sets how many goroutines at most share a frame's tiles when the Map's Dressing
+// dresses them in parallel (Parallel): 0, as it starts, as many as there are CPUs; 1 none.
+func (p *Plugin) WithWorkers(n int) *Plugin {
+	p.workers = n
+	if p.renderer != nil {
+		p.renderer.Workers(n)
+	}
+	return p
 }
 
 // DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite

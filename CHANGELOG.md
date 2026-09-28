@@ -5,6 +5,30 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The tiles dressed and the cones scanned on every CPU**
+- The board's renderer dresses the tiles on several goroutines at once when the Map's Dressing
+  is a `board.Parallel` and its Look a `board.ParallelLook` (`board.Plugin.WithWorkers`: 0 every
+  CPU, as it starts; 1 none): every visible tile is Warmed on the frame's goroutine, the dressing
+  made Ready, then the tiles are shared out in runs, each drawn by a Worker of the dressing and
+  of the look into a frame of its own (`render.Frame.Branch`, `Append`) and appended in order —
+  piece for piece the picture one goroutine draws. The topography's dresser is one: a worker
+  reads the tops as Ready read them (frozen), keeps its own scratch and its own clouds, and
+  writes only its own cells' light, shadows and bakes; the shores, met by the tiles round a
+  corner, are warmed first. The island composes in 2.6 ms from above, 1.8 isometric and 3.9 in
+  perspective through 1080p — 4.3, 2.7 and 6.8 on one goroutine (8 threads).
+- Vision scans observers enough on several goroutines at once (`vision.Plugin.WithWorkers`), a
+  scanner of its own each — its view, its lookup, the cover walked for it — in runs cut across
+  the ECS's chunks (a chunk of outlines holds a few); the behaviors then run one observer at a
+  time, in order, as before. The board reads every cell's cover at once beforehand
+  (`Board.Ready`, the `board.Readied` contract) rather than cell by cell through the ECS as a ray
+  meets it, and one query settles the space's index first. 500 observers scan in 0.26 ms, 0.49
+  with outlines — 0.54 and 1.31 on one goroutine. An outline's shadows are cleared only as far as
+  its samples reach.
+- `internal/parallel` shares a run of items among goroutines. The benchmarks' harness replays the
+  world's clock after the plan, as the engine does: `Benchmark_Vision_*` had measured an empty
+  tick since the clock came; `Benchmark_Board_Island` and `Benchmark_Vision_*` measure on every
+  CPU and (`serial`) on one goroutine.
+
 **The sky of the day, with the clouds on it**
 - Through a perspective the backdrop is a mesh of the sky from the horizon up: paler at the
   horizon, deeper overhead (`air.Overhead`), greyed by the cover, the sun in it, and on a layer

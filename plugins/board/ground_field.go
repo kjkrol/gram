@@ -22,16 +22,54 @@ func (b *Board) Walk(origin, dir geom.Vec, length float64, blockers world.Layers
 
 // covers is the cover c puts on the ray for blockers: its band and τ, or false for none.
 func (b *Board) covers(c CellID, blockers world.Layers) (bottom, top, tau float64, ok bool) {
-	k := b.kindOf(c)
-	if k == nil || k.Veil <= 0 || !world.Layers(k.Veils).Meets(blockers) {
+	i, ok := b.ordinal(c)
+	if !ok {
 		return 0, 0, 0, false
 	}
-	bottom, top = math.Inf(-1), math.Inf(1)
-	if b.heights {
-		bottom = b.altitude(c)
-		top = bottom + k.Height
+	b.Ready()
+	v := &b.veils[i]
+	if !v.ok || !v.veils.Meets(blockers) {
+		return 0, 0, 0, false
 	}
-	return bottom, top, 1 - min(k.Veil, 1), true
+	return v.bottom, v.top, v.tau, true
+}
+
+// veil is the cover a cell puts on a ray: the band it covers and how see-through it is, for whom;
+// ok false for a cell that covers nothing.
+type veil struct {
+	bottom, top, tau float64
+	veils            world.Layers
+	ok               bool
+}
+
+// Ready reads every cell's cover at once, when any cell has changed since — the Readied contract:
+// walked from several goroutines at a time after it, the board reads nothing.
+func (b *Board) Ready() {
+	n := b.Grid.CellCount()
+	if len(b.veils) == n && b.veilsChanges == b.Changes() && b.veilsVersion == b.Version() {
+		return
+	}
+	if len(b.veils) != n {
+		b.veils = make([]veil, n)
+	}
+	b.veilsChanges, b.veilsVersion = b.Changes(), b.Version()
+	b.Grid.EachCell(func(c CellID) {
+		i, ok := b.ordinal(c)
+		if !ok {
+			return
+		}
+		v := &b.veils[i]
+		k := b.kindOf(c)
+		if k == nil || k.Veil <= 0 {
+			*v = veil{}
+			return
+		}
+		*v = veil{bottom: math.Inf(-1), top: math.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
+		if b.heights {
+			v.bottom = b.altitude(c)
+			v.top = v.bottom + k.Height
+		}
+	})
 }
 
 func (b *Board) walkSquare(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {

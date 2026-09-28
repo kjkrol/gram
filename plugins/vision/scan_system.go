@@ -1,14 +1,15 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
 	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -17,36 +18,28 @@ import (
 
 var _ goke.System = (*ScanSystem)(nil)
 
-// ScanSystem fills in what every Sight-carrying entity sees,
-// and the outline of those that also carry SightOutline.
+// ScanSystem fills in what every Sight-carrying entity sees, and the outline of those that also
+// carry SightOutline: observers enough at a time on several goroutines at once (Workers), each
+// with a scanner of its own; then it runs the Between behaviors over what each saw.
 type ScanSystem struct {
-	space *aabbworld.Space
-	view  aabbworld.View // one for the whole system — see Update
+	scanner // the system's own, for one observer at a time
 
-	shadows []aabbworld.Shadow // the view's shadows, read into an outline
+	// scanners are the system's own and one more a goroutine sharing a chunk's observers, at most
+	// count of them: 0 as many as there are CPUs, 1 none
+	scanners []*scanner
+	count    int
 
-	// tau answers the cone how see-through an entity is to the observer in hand.
-	tau func(uid.UID64) float64
-
-	// In a world with heights the cone has heights: elev answers an entity's band, groundAt the ground,
-	// step how far apart the ground is sampled; groundOf resolves the world's Ground at first use.
+	// In a world with heights the cone has heights: groundOf resolves the world's Ground at first
+	// use, grounded once it has.
 	heights  bool
-	elev     func(uid.UID64) (float64, float64)
 	groundOf func() board.Heights
-	groundAt func(geom.Vec) float64
 	step     float64
 	grounded bool
-	// On a world with a Scale the ground and what stands on it sink under the observer's level
-	// bend·d², d how far off: sunk is the ground so, for the observer at ox, oy.
-	bend   float64
-	sunk   func(geom.Vec) float64
-	ox, oy float64
+	bend     float64
 
-	// coverOf resolves the world's Cover at first use; covering walks it for the observer in hand
-	// and holds its Blockers.
-	coverOf  func() board.Cover
-	covering covering
-	covered  bool
+	// coverOf resolves the world's Cover at first use, covered once it has.
+	coverOf func() board.Cover
+	covered bool
 
 	query   *goke.Query
 	sight   goke.Comp[Sight]
@@ -56,16 +49,10 @@ type ScanSystem struct {
 	outline goke.OptComp[SightOutline]
 	z       goke.OptComp[world.Z]
 
-	// lookup resolves a sighted id back to the entity and what it carries.
-	lookup     *goke.Query
-	lookupBase goke.Comp[world.Base]
-	lookupTau  goke.OptComp[Transparency]
-	lookupLay  goke.OptComp[world.Layers]
-	lookupZ    goke.OptComp[world.Z]
-	lookupHot  bool
-
 	// host runs the Between behaviors registered with the plugin, inside this pass.
 	host *host.PairHost[Sighting]
+
+	jobs []job // the frame's chunks of observers
 
 	// What the host is being run over: the observer in hand, everyone it sees, and their tags.
 	observer   Sighting
@@ -74,6 +61,44 @@ type ScanSystem struct {
 	matched    []Seen
 	sightingOf func(matched []int) Sighting
 }
+
+// scanner is what scanning one observer's cone works with: a view of its own, the cone's callbacks
+// resolving what it meets through a lookup of its own, and the cover walked for the observer.
+type scanner struct {
+	space *aabbworld.Space
+	view  aabbworld.View
+
+	shadows []aabbworld.Shadow // the view's shadows, read into an outline
+
+	// tau answers the cone how see-through an entity is to the observer in hand.
+	tau func(uid.UID64) float64
+
+	// In a world with heights the cone has heights: elev answers an entity's band, groundAt the
+	// ground, step how far apart the ground is sampled.
+	heights  bool
+	elev     func(uid.UID64) (float64, float64)
+	groundAt func(geom.Vec) float64
+	step     float64
+	// On a world with a Scale the ground and what stands on it sink under the observer's level
+	// bend·d², d how far off: sunk is the ground so, for the observer at ox, oy.
+	bend   float64
+	sunk   func(geom.Vec) float64
+	ox, oy float64
+
+	// covering walks the world's Cover for the observer in hand and holds its Blockers.
+	covering covering
+
+	// lookup resolves a sighted id back to the entity and what it carries.
+	lookup     *goke.Query
+	lookupBase goke.Comp[world.Base]
+	lookupTau  goke.OptComp[Transparency]
+	lookupLay  goke.OptComp[world.Layers]
+	lookupZ    goke.OptComp[world.Z]
+	lookupHot  bool
+}
+
+// observersPerWorker is the fewest observers worth a goroutine of their own.
+const observersPerWorker = 8
 
 // The two queries the scan offers its hosted behaviors, by index.
 const (
@@ -86,23 +111,41 @@ func NewScanSystem(space *aabbworld.Space) *ScanSystem {
 }
 
 func newScanSystem(space *aabbworld.Space, host *host.PairHost[Sighting]) *ScanSystem {
-	s := &ScanSystem{space: space, host: host}
+	s := &ScanSystem{host: host}
+	s.scanner.bind(space)
 	s.sightingOf = s.sighting
-	s.tau = s.transparency
-	s.elev = s.elevation
 	return s
 }
+
+// bind makes the scanner one of space's, answering the cone itself.
+func (c *scanner) bind(space *aabbworld.Space) {
+	c.space = space
+	c.tau = c.transparency
+	c.elev = c.elevation
+}
+
+// Workers sets how many goroutines at most share a chunk's observers: 0 as many as there are CPUs,
+// 1 none. Call it before Init.
+func (s *ScanSystem) Workers(n int) { s.count = max(n, 0) }
 
 func (s *ScanSystem) Init(si *goke.SysInit) {
 	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.outline, &s.steer, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.host.Bind(walk, seek)
 	s.query, s.lookup = walk.Build(), seek.Build()
+	s.scanners = append(s.scanners[:0], &s.scanner)
+	for range parallel.Workers(1<<30, 1, s.count) - 1 {
+		w := &scanner{heights: s.heights, step: s.step, bend: s.bend}
+		w.bind(s.space)
+		w.covering.bend = s.covering.bend
+		w.lookup = si.NewQueryBuilder(&w.lookupBase).Optional(&w.lookupTau, &w.lookupLay, &w.lookupZ).Build()
+		s.scanners = append(s.scanners, w)
+	}
 }
 
 // transparency is how see-through id is to the observer in hand: as empty on none of its
 // Blockers, else its Transparency, 0 without one.
-func (s *ScanSystem) transparency(id uid.UID64) float64 {
+func (s *scanner) transparency(id uid.UID64) float64 {
 	if !s.lookup.Seek(id) {
 		return 0
 	}
@@ -118,7 +161,7 @@ func (s *ScanSystem) transparency(id uid.UID64) float64 {
 }
 
 // elevation is the band id spans in height: its Z, or the ground level at no height without one.
-func (s *ScanSystem) elevation(id uid.UID64) (bottom, top float64) {
+func (s *scanner) elevation(id uid.UID64) (bottom, top float64) {
 	if !s.lookup.Seek(id) {
 		return 0, 0
 	}
@@ -136,26 +179,41 @@ func (s *ScanSystem) elevation(id uid.UID64) (bottom, top float64) {
 	return -sink, -sink
 }
 
-// ground binds the world's Ground once, when the board has had its say.
+// ground binds the world's Ground once, when the board has had its say, to every scanner.
 func (s *ScanSystem) ground() {
 	s.grounded = true
 	if s.groundOf == nil {
 		return
 	}
-	if g := s.groundOf(); g != nil {
-		s.groundAt = g.At
-		if s.step == 0 {
-			s.step = g.Step()
+	g := s.groundOf()
+	for _, c := range s.scanners {
+		if g != nil {
+			c.groundAt = g.At
+			if c.step == 0 {
+				c.step = g.Step()
+			}
+		}
+		if c.bend > 0 {
+			c.sunk = c.sunkGround
 		}
 	}
-	if s.bend > 0 {
-		s.sunk = s.sunkGround
+}
+
+// cover binds the world's Cover once to every scanner.
+func (s *ScanSystem) cover() {
+	s.covered = true
+	if s.coverOf == nil {
+		return
+	}
+	cover := s.coverOf()
+	for _, c := range s.scanners {
+		c.covering.cover = cover
 	}
 }
 
 // sunkGround is the ground at p as the observer in hand sees it: sunk under its level as far off
 // as p lies.
-func (s *ScanSystem) sunkGround(p geom.Vec) float64 {
+func (s *scanner) sunkGround(p geom.Vec) float64 {
 	g := 0.0
 	if s.groundAt != nil {
 		g = s.groundAt(p)
@@ -172,46 +230,44 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.ground()
 	}
 	if !s.covered {
-		s.covered = true
-		if s.coverOf != nil {
-			s.covering.cover = s.coverOf()
-		}
+		s.cover()
+	}
+
+	// every chunk's observers, counted: shared out among the scanners when they are many — a chunk
+	// of observers with outlines holds a few, so the runs cut across chunks
+	s.jobs = s.jobs[:0]
+	n := 0
+	s.query.All()
+	for s.query.Next() {
+		j := s.job(s.query.Cursor())
+		j.first = n
+		n += len(j.ids)
+		s.jobs = append(s.jobs, j)
+	}
+	k := parallel.Workers(n, observersPerWorker, len(s.scanners))
+	if k > 1 {
+		s.settle(s.jobs[0].bases[0].Pos.AABB.AABB)
+		parallel.Run(k, n, func(w, from, to int) {
+			for _, j := range s.jobs {
+				for i := max(from, j.first); i < min(to, j.first+len(j.ids)); i++ {
+					j.scan(s.scanners[w], i-j.first)
+				}
+			}
+		})
 	}
 
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		sights := s.sight.Slice(cursor)
-		eyes := s.eye.Slice(cursor)
-		bases := s.base.Slice(cursor)
+		j := s.job(cursor)
 		steers := s.steer.Slice(cursor)
-		zs := s.z.Slice(cursor)
-
-		var outlines []SightOutline
-		if s.outline.Present(cursor) {
-			outlines = s.outline.Slice(cursor)
-		}
-
 		for i, id := range cursor.IDs {
-			sight := &sights[i]
-			s.covering.blockers = sight.Blockers
-			box := bases[i].Pos.AABB
-			s.ox, s.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
-			s.covering.ox, s.covering.oy = s.ox, s.oy
-			var z world.Z
-			if zs != nil {
-				z = zs[i]
-			}
-			if s.space.Scan(id, s.cone(sight, eyes[i], z), &s.view) {
-				record(&sight.Seen, &s.view)
-				if outlines != nil {
-					s.trace(&outlines[i], sight, eyes[i].Angle/2)
-				}
-			} else {
-				sight.Seen.Count = 0
+			if k <= 1 {
+				j.scan(&s.scanner, i)
 			}
 			if hosting {
-				s.observer = Sighting{Self: id, Base: &bases[i], Sight: sight}
+				sight := &j.sights[i]
+				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
 				if i < len(steers) {
 					s.observer.Steering = &steers[i]
 				}
@@ -219,6 +275,66 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				s.host.DispatchGrouped(t, s.host.InChunk(walked, cursor, i), s.seenTags, s.sightingOf)
 			}
 		}
+	}
+}
+
+// job is one chunk of observers as the scanners take them: what each carries, by index, and where
+// the chunk's first stands among all the frame's observers.
+type job struct {
+	ids      []uid.UID64
+	sights   []Sight
+	eyes     []world.Eye
+	bases    []world.Base
+	zs       []world.Z
+	outlines []SightOutline
+	first    int
+}
+
+// job is the chunk under cursor as a job.
+func (s *ScanSystem) job(cursor *goke.Cursor) job {
+	j := job{ids: cursor.IDs, sights: s.sight.Slice(cursor), eyes: s.eye.Slice(cursor), bases: s.base.Slice(cursor), zs: s.z.Slice(cursor)}
+	if s.outline.Present(cursor) {
+		j.outlines = s.outline.Slice(cursor)
+	}
+	return j
+}
+
+// scan has c scan the job's i-th observer.
+func (j *job) scan(c *scanner, i int) {
+	var z world.Z
+	if j.zs != nil {
+		z = j.zs[i]
+	}
+	var outline *SightOutline
+	if j.outlines != nil {
+		outline = &j.outlines[i]
+	}
+	c.scan(j.ids[i], &j.sights[i], &j.bases[i], j.eyes[i], z, outline)
+}
+
+// settle reads once, here, what the scanners are about to read together: the space's index and
+// the cover, which read the world as they are first asked and would else do so all at once.
+func (s *ScanSystem) settle(box geom.AABB) {
+	s.space.Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
+	if r, ok := s.covering.cover.(board.Readied); ok {
+		r.Ready()
+	}
+}
+
+// scan fills in what the observer id sees — its Seen, and its outline where it has one — from its
+// base, the eye it sees with and its height.
+func (c *scanner) scan(id uid.UID64, sight *Sight, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {
+	c.covering.blockers = sight.Blockers
+	box := base.Pos.AABB
+	c.ox, c.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
+	c.covering.ox, c.covering.oy = c.ox, c.oy
+	if c.space.Scan(id, c.cone(sight, eye, z), &c.view) {
+		record(&sight.Seen, &c.view)
+		if outline != nil {
+			c.trace(outline, sight, eye.Angle/2)
+		}
+	} else {
+		sight.Seen.Count = 0
 	}
 }
 
@@ -256,7 +372,7 @@ func (s *ScanSystem) sighting(matched []int) Sighting {
 // cone is the query for one Sight, as wide as its eye sees, see-through as the entities are to
 // it and, in a world with heights, from the eye's level over the ground: its Height above the
 // entity's bottom, its top for none.
-func (s *ScanSystem) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
+func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: eye.Angle / 2, Radius: sight.Radius, Transparency: s.tau}
 	if s.covering.cover != nil {
 		c.Cover = &s.covering
@@ -322,10 +438,11 @@ func record(dst *Sighted, view *aabbworld.View) {
 }
 
 // trace samples the cone at the resolution its reach and width call for, within the buffer. In a
-// world with heights the view reaches its full Radius and the ground out of sight is kept as shadows.
-func (s *ScanSystem) trace(dst *SightOutline, sight *Sight, half float64) {
+// world with heights the view reaches its full Radius and the ground out of sight is kept as
+// shadows; only the samples read (Count) are written, the buffer beyond them is left as it was.
+func (s *scanner) trace(dst *SightOutline, sight *Sight, half float64) {
 	k := samplesFor(sight, half)
-	dst.Shadows = [MaxSamples][MaxShadowsPerSample]Band{}
+	clear(dst.Shadows[:k])
 	if !s.heights {
 		dst.Count = uint8(len(s.view.Depths(k, dst.Depths[:0])))
 		return

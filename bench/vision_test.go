@@ -19,15 +19,16 @@ import (
 type watcher struct{ x, y float64 }
 
 // benchVision installs n observers on a 120-unit lattice of a 4000x4000 world, each with a 60°
-// cone of radius 200 facing right, and ticks only the vision plugin.
-func benchVision(b *testing.B, n int, outlines bool) *goke.ECS {
+// cone of radius 200 facing right, and ticks only the vision plugin, scanning on workers
+// goroutines at most (0: every CPU, 1: one).
+func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	b.Helper()
 	ctx := newHeadless()
 	w := ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 4000, Height: 4000},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
 	})
-	v := vision.NewPlugin(w)
+	v := vision.NewPlugin(w).WithWorkers(workers)
 	if err := ctx.Use(v); err != nil {
 		b.Fatal(err)
 	}
@@ -49,35 +50,48 @@ func benchVision(b *testing.B, n int, outlines bool) *goke.ECS {
 		entries = append(entries, watchers.Entry(watcher{float64(100 + (i%side)*120), float64(100 + (i/side)*120)}))
 	}
 	w.Seed(entries...)
-	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) { v.RunPlan(rc, d) })
+	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d) // the world's clock runs the scan's step
+		v.RunPlan(rc, d)
+		rc.Sync()
+	})
 }
 
-func observers(n int) string { return fmt.Sprintf("observers=%d", n) }
+func observers(n, workers int) string {
+	if workers == 1 {
+		return fmt.Sprintf("observers=%d,serial", n)
+	}
+	return fmt.Sprintf("observers=%d", n)
+}
 
 // Benchmark_Vision_Scan is one tick of the vision plugin: every observer's cone scanned against
-// the shared space and its Seen filled.
+// the shared space and its Seen filled — on every CPU at once, and (serial) on one goroutine.
 func Benchmark_Vision_Scan(b *testing.B) {
-	for _, n := range []int{100, 500} {
-		b.Run(observers(n), func(b *testing.B) {
-			ecs := benchVision(b, n, false)
-			b.ReportAllocs()
-			for b.Loop() {
-				ecs.Tick(step)
-			}
-		})
+	for _, workers := range []int{0, 1} {
+		for _, n := range []int{100, 500} {
+			b.Run(observers(n, workers), func(b *testing.B) {
+				ecs := benchVision(b, n, false, workers)
+				b.ReportAllocs()
+				for b.Loop() {
+					ecs.Tick(step)
+				}
+			})
+		}
 	}
 }
 
 // Benchmark_Vision_ScanWithOutlines is the same tick with every observer also carrying a
 // SightOutline, so each view's shape is computed for drawing.
 func Benchmark_Vision_ScanWithOutlines(b *testing.B) {
-	for _, n := range []int{100, 500} {
-		b.Run(observers(n), func(b *testing.B) {
-			ecs := benchVision(b, n, true)
-			b.ReportAllocs()
-			for b.Loop() {
-				ecs.Tick(step)
-			}
-		})
+	for _, workers := range []int{0, 1} {
+		for _, n := range []int{100, 500} {
+			b.Run(observers(n, workers), func(b *testing.B) {
+				ecs := benchVision(b, n, true, workers)
+				b.ReportAllocs()
+				for b.Loop() {
+					ecs.Tick(step)
+				}
+			})
+		}
 	}
 }

@@ -25,6 +25,7 @@ type Plugin struct {
 	heights     func() board.Heights // the ground sight follows; nil, flat
 	cover       func() board.Cover   // what holds sight back; nil, nothing
 	hidden      bool                 // the views drawn are hidden, as they start — see Cones
+	workers     int                  // how many goroutines at most share a scan: 0 all the CPUs, 1 none
 	cones       control.Queue[Cones]
 
 	sightings host.PairHost[Sighting]
@@ -50,7 +51,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.worldPlugin.HasHeights() {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf)
+	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
 	p.module.clock = p.worldPlugin.Clock()
 	ctx.UseModule(p.module)
 	return nil
@@ -163,5 +164,12 @@ func (p *Plugin) coverOf() board.Cover {
 // board's cell; a longer step is a cheaper scan. Call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
+	return p
+}
+
+// WithWorkers sets how many goroutines at most share a scan's observers: 0, as it starts, as many
+// as there are CPUs; 1 none. Call before Use.
+func (p *Plugin) WithWorkers(n int) *Plugin {
+	p.workers = n
 	return p
 }

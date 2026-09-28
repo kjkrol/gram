@@ -601,3 +601,29 @@ func ProjectCorners(cam camera.Camera, x0, y0, x1, y1, z float32) Corners {
 func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {
 	return sx0 + 0.5, sy0 + 0.5, sx1 - 0.5, sy1 - 0.5
 }
+
+// Branch readies dst to gather a part of f's picture on another goroutine — through f's camera,
+// at f's time — for Append to take back.
+func (f *Frame) Branch(dst *Frame) {
+	dst.Reset(f.cam)
+	dst.time = f.time
+}
+
+// Append takes into f all that o holds, after what f holds already: o's items keep their order
+// and their places in the picture, and what o set for the shader is set on f.
+func (f *Frame) Append(o *Frame) {
+	base := int32(len(f.verts))
+	f.verts = append(f.verts, o.verts...)
+	for _, it := range o.items {
+		it.first += base
+		f.items = append(f.items, it)
+	}
+	f.count += o.count
+	for _, u := range o.uniforms {
+		f.Uniform(u.name, u.v[:u.n]...)
+	}
+	if o.count > 0 {
+		f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = o.lastFirst+int(base), o.lastRect, o.lastTier, o.lastDepth, o.lastAtlas, o.lastShape
+		f.quads = append(f.quads[:0], o.quads...)
+	}
+}

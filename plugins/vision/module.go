@@ -19,12 +19,14 @@ type module struct {
 	clock    *clock.Clock // the world's; nil, run at once
 }
 
-func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() board.Cover) *module {
+func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() board.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.sys.coverOf = coverOf
+	m.sys.Workers(workers)
 	if heights != nil {
 		m.sys.heights, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
-		m.sys.bend, m.sys.covering.bend = heights.bend, heights.bend
+		m.sys.scanner.heights, m.sys.scanner.step = true, heights.step
+		m.sys.bend, m.sys.scanner.bend, m.sys.covering.bend = heights.bend, heights.bend, heights.bend
 	}
 	return m
 }

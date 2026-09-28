@@ -106,4 +106,15 @@
 // Dressing lays grounds or ways over it ([Tile.Covered]), outlined by the dressing over them
 // instead (render.Frame.OutlineOn); on a hex grid the cells' outlines as lines on a tier just
 // above the tiles. It is left out where a cell spans fewer than a few pixels on screen.
+//
+// A Dressing that is [Parallel], under a Look that is a [ParallelLook], dresses the tiles on
+// several goroutines at once ([Plugin.WithWorkers]; as many as there are CPUs unless told
+// otherwise, none for a few tiles): the renderer Warms every visible tile on its own goroutine,
+// has the dressing Ready itself, then shares the tiles out in runs, each drawn by a Worker of the
+// dressing and of the look into a frame of its own, appended in order — the picture one goroutine
+// would draw, piece for piece. The topography's dressing is one; the simple map's is not.
+//
+// The board is the [Cover] sight is held back by ([Board.Walk]) and reads the cells' cover all at
+// once when asked ([Board.Ready], the [Readied] contract), for whoever walks it from several
+// goroutines at a time.
 package board

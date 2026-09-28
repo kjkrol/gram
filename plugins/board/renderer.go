@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -21,7 +22,8 @@ type RenderState struct {
 func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines }
 
 // Renderer is the render.Source of Board's cells: each visible cell laid on the screen by the
-// board's Look, and the grid when it is on.
+// board's Look, and the grid when it is on. Under a Parallel Dressing the tiles are dressed on
+// several goroutines at once (Workers).
 type Renderer struct {
 	board   *Board
 	mapping func() Map    // what the board is drawn by: its Look and its Dressing
@@ -29,9 +31,15 @@ type Renderer struct {
 	atlas   render.AtlasSource
 	cellW   float64
 	cellH   float64
+	square  bool
 	state   *RenderState
 	outline []geom.Vec
 	tile    Tile
+	// cells are the frame's visible cells in the order they are drawn, and workers the goroutines
+	// sharing them, at most count: 0 as many as there are CPUs, 1 none
+	cells   []CellID
+	workers []*tileWorker
+	count   int
 	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
 	seen  []uint32
 	stamp uint32
@@ -70,46 +78,116 @@ var _ render.Source = (*Renderer)(nil)
 // them.
 const gridTier = render.Ground + 10
 
+// tileWorker is one goroutine's share of a frame's tiles: the frame it draws them into, its tile
+// and outline scratch, and the Dressing and Look it draws by.
+type tileWorker struct {
+	frame   render.Frame
+	tile    Tile
+	outline []geom.Vec
+	dress   Dressing
+	look    Look
+}
+
+// tilesPerWorker is the fewest tiles worth a goroutine of their own.
+const tilesPerWorker = 64
+
 func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, mapping func() Map) *Renderer {
 	w, h := board.CellBounds()
-	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, mapping: mapping}
+	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, square: board.square != nil, state: state, mapping: mapping}
 	r.tile.r, r.tile.Atlas = r, atlas
 	return r
 }
 
 func (l *Renderer) Init(*goke.SysInit) {}
 
+// Workers sets how many goroutines at most share a frame's tiles under a Parallel Dressing: 0 as
+// many as there are CPUs, 1 none.
+func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
+
 // Compose hands the Map's Look every cell under cam, and the grid when it is on: on a square
 // grid the Look outlines each tile along its own edges, on any other the cells' outlines are
-// drawn as lines.
+// drawn as lines. Under a Parallel Dressing and a ParallelLook, with tiles enough, every tile is
+// warmed first, then the tiles are shared out among goroutines, each drawing its run into a frame
+// of its own, appended to f in order: the picture is the one goroutine would draw.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
-	l.tile.Atlas = l.atlas
-	if d := l.dressing(); d != nil {
+	d := l.dressing()
+	sheet := l.atlas
+	if d != nil {
 		d.Begin(f, cam)
-		l.tile.Atlas = d.Sheet(l.atlas)
+		sheet = d.Sheet(l.atlas)
 	}
+	l.tile.Atlas, l.tile.dress = sheet, d
 	look := l.mapping().Look()
-	square := l.board.square != nil
 	l.nextTops()
 	w, h := cam.Viewport()
 	x0, y0 := cam.Unproject(w/2, 0, 0)
 	x1, y1 := cam.Unproject(w/2, h, 0)
 	top := camera.ScaleAt(cam, x0, y0, 0)
 	l.scaleVaries = top != camera.ScaleAt(cam, x1, y1, 0) || top != cam.Zoom()
+	par, ok := d.(Parallel)
+	pl, okLook := look.(ParallelLook)
+	if !ok || !okLook || l.count == 1 {
+		l.eachVisible(func(c CellID) { l.outline = l.cell(f, look, &l.tile, c, l.outline) })
+		return
+	}
+	l.cells = l.cells[:0]
 	l.eachVisible(func(c CellID) {
-		center := l.board.CellCenter(c)
-		t := &l.tile
-		t.ID = c
-		t.X0, t.Y0 = float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
-		t.X1, t.Y1 = float32(center.X+l.cellW/2), float32(center.Y+l.cellH/2)
-		grid := l.gridShown(c, center)
-		t.Outlined = grid && square
-		look.Cell(f, cam, t)
-		if grid && !square {
-			l.outlineLines(f, c)
+		l.topOf(c)
+		l.place(&l.tile, c)
+		par.Warm(&l.tile)
+		l.cells = append(l.cells, c)
+	})
+	k := parallel.Workers(len(l.cells), tilesPerWorker, l.count)
+	if k < 2 {
+		for _, c := range l.cells {
+			l.outline = l.cell(f, look, &l.tile, c, l.outline)
+		}
+		return
+	}
+	par.Ready()
+	for len(l.workers) < k {
+		tw := &tileWorker{}
+		tw.tile.r = l
+		l.workers = append(l.workers, tw)
+	}
+	for w, tw := range l.workers[:k] {
+		tw.dress = par.Worker(w)
+		tw.look = pl.Worker(w, tw.dress)
+		tw.tile.Atlas, tw.tile.dress = sheet, tw.dress
+		f.Branch(&tw.frame)
+	}
+	parallel.Run(k, len(l.cells), func(w, from, to int) {
+		tw := l.workers[w]
+		for _, c := range l.cells[from:to] {
+			tw.outline = l.cell(&tw.frame, tw.look, &tw.tile, c, tw.outline)
 		}
 	})
+	for _, tw := range l.workers[:k] {
+		f.Append(&tw.frame)
+	}
+}
+
+// place makes t cell c: its id and its box, whose centre it gives.
+func (l *Renderer) place(t *Tile, c CellID) geom.Vec {
+	center := l.board.CellCenter(c)
+	t.ID = c
+	t.X0, t.Y0 = float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
+	t.X1, t.Y1 = float32(center.X+l.cellW/2), float32(center.Y+l.cellH/2)
+	return center
+}
+
+// cell hands look cell c as tile t, and draws its grid lines where the grid is on and the tile is
+// not outlined by the look, with outline as scratch; it gives the scratch back.
+func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c CellID, outline []geom.Vec) []geom.Vec {
+	center := l.place(t, c)
+	grid := l.gridShown(c, center)
+	t.Outlined = grid && l.square
+	look.Cell(f, l.camera, t)
+	if grid && !l.square {
+		return l.outlineLines(f, c, outline)
+	}
+	return outline
 }
 
 // gridShown reports whether the grid is on and cell c, its centre at center, is large enough on
@@ -126,13 +204,14 @@ func (l *Renderer) gridShown(c CellID, center geom.Vec) bool {
 }
 
 // outlineLines draws c's outline on the ground at its level, leaving out an edge that straddles a
-// wrap seam — the cells either side draw its images — each edge at the depth of its nearer end.
-func (l *Renderer) outlineLines(f *render.Frame, c CellID) {
+// wrap seam — the cells either side draw its images — each edge at the depth of its nearer end;
+// outline is its scratch, given back.
+func (l *Renderer) outlineLines(f *render.Frame, c CellID, outline []geom.Vec) []geom.Vec {
 	alt := l.topOf(c).alt
-	l.outline = l.board.CellOutline(c, l.outline[:0])
+	outline = l.board.CellOutline(c, outline[:0])
 	reach := float32(l.cellW+l.cellH) * l.camera.Zoom()
-	for i, p := range l.outline {
-		q := l.outline[(i+1)%len(l.outline)]
+	for i, p := range outline {
+		q := outline[(i+1)%len(outline)]
 		px, py, qx, qy := float32(p.X), float32(p.Y), float32(q.X), float32(q.Y)
 		ax, ay := l.camera.Project(px, py, alt)
 		bx, by := l.camera.Project(qx, qy, alt)
@@ -141,6 +220,7 @@ func (l *Renderer) outlineLines(f *render.Frame, c CellID) {
 		}
 		f.Line(gridTier, max(l.camera.Depth(px, py, alt), l.camera.Depth(qx, qy, alt)), ax, ay, bx, by, 1, colorGridLine)
 	}
+	return outline
 }
 
 // nextTops starts a Compose: the cells read before stay read as long as they do not change.

@@ -191,7 +191,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 // out of its heights laid across it as ways, running out to sea; seen from above, isometric or in
 // perspective (view "above", "iso" or "persp"); near, a cell 32 pixels across, or far, the whole
 // island on a screen of 576 by 384.
-func island(b *testing.B, view string, far bool) (*headless, *board.Board, render.Source) {
+func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -276,7 +276,7 @@ func island(b *testing.B, view string, far bool) (*headless, *board.Board, rende
 		atlas.RegisterAt(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
-	p.WithRenderer(atlas)
+	p.WithWorkers(workers).WithRenderer(atlas)
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
 	if view == "persp" { // Tab once, from the isometric view
 		for _, q := range topo.Queues() {
@@ -293,15 +293,17 @@ func island(b *testing.B, view string, far bool) (*headless, *board.Board, rende
 }
 
 // Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
-// far, and the isometric and the perspective island through a 1080p screen, as a player sees it: warm, and
-// after a cell ashore has changed — what a frame pays for the ground blending, the coast and the
-// running water.
+// far, and the isometric and the perspective island through a 1080p screen, as a player sees it:
+// warm, and after a cell ashore has changed — what a frame pays for the ground blending, the coast
+// and the running water; the tiles dressed on every CPU at once, and (serial) on one goroutine.
 func Benchmark_Board_Island(b *testing.B) {
 	for _, v := range []struct {
 		view        string
 		far, screen bool
-	}{{"above", false, false}, {"iso", false, false}, {"iso", false, true}, {"persp", false, true}, {"above", true, false}, {"iso", true, false}} {
-		ctx, brd, src := island(b, v.view, v.far)
+		workers     int
+	}{{"above", false, false, 0}, {"iso", false, false, 0}, {"iso", false, true, 0}, {"persp", false, true, 0}, {"above", true, false, 0}, {"iso", true, false, 0},
+		{"above", false, false, 1}, {"iso", false, false, 1}, {"iso", false, true, 1}, {"persp", false, true, 1}, {"above", true, false, 1}, {"iso", true, false, 1}} {
+		ctx, brd, src := island(b, v.view, v.far, v.workers)
 		cam := ctx.world.Camera()
 		if v.screen {
 			cam.SetViewport(1920, 1080)
@@ -315,6 +317,9 @@ func Benchmark_Board_Island(b *testing.B) {
 		}
 		if v.screen {
 			view += ",screen"
+		}
+		if v.workers == 1 {
+			view += ",serial"
 		}
 		var f render.Frame
 		for _, changed := range []bool{false, true} {
