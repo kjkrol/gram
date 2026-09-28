@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -53,7 +54,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 		for _, u := range units {
 			var cell goke.Comp[board.Cell]
 			var pos goke.Comp[world.Base]
-			var profile goke.Comp[world.Steering]
+			var profile goke.Comp[steering.Steering]
 			comps := []goke.Addable{&cell, &pos, &profile}
 			var order goke.Comp[MoveOrder]
 			if u.hasOrder {
@@ -66,7 +67,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 			p := world.Position{AABB: board.CellAABB(lw.grid, u.start, legEntitySize)}
 			cell.Slice(&f.Cursor)[0] = board.Cell{ID: u.start}
 			pos.Slice(&f.Cursor)[0].Pos = p
-			profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: float64(legCellSize * 2)}
+			profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 			if u.hasOrder {
 				order.Slice(&f.Cursor)[0] = MoveOrder{Target: u.target}
 			}
@@ -77,7 +78,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	}})
 
 	steerHandle := lw.ecs.RegSys(steer)
-	steeringHandle := lw.ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := lw.ecs.RegSys(steering.NewSystem())
 	moveHandle := lw.ecs.RegSys(world.NewMoveSystem(space))
 	lw.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)

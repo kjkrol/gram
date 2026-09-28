@@ -114,7 +114,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 	}
 	cx, cy := (t.X0+t.X1)/2, (t.Y0+t.Y1)/2
 	shine := float32(0)
-	if r.quasi3D {
+	if r.heights {
 		shine = w.shine
 	}
 	ground := func(x, y float32) float32 {
@@ -122,7 +122,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 	}
 	piece := func(world render.World) WayPiece {
 		p := WayPiece{World: world, Sprite: w.Kind.SpriteID, Shine: shine, MixSprite: w.mix, Mixes: w.mixes}
-		if r.quasi3D {
+		if r.heights {
 			p.MixShine = w.mixShine
 		}
 		for k, at := range world {
@@ -382,9 +382,9 @@ func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier 
 		}
 		mark := p.draw(f, tier, d, t.Atlas, corners, p.Light)
 		lit := p.Lit
-		if t.r.cover > 0 {
+		if t.r.weather.Clouds > 0 {
 			cloud := t.r.cloudsAt(p.World)
-			f.OvercastOn(mark, p.World, cloud)
+			t.r.weather.OvercastOn(f, mark, p.World, cloud)
 			lit = t.r.shaded(lit, cloud)
 		}
 		// the water runs the less, and glints as what it turns into the more, the further it has turned

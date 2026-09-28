@@ -25,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -105,7 +106,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Quasi3D:  true, // heights: the hawk looks over the wall, the forest and the hill
+		Heights:  true, // heights: the hawk looks over the wall, the forest and the hill
 	})
 
 	s.collision = collision.NewPlugin(s.world)
@@ -114,7 +115,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize}) // the hills in relief, seen from above
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
@@ -150,7 +151,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	s.noticed = map[[2]uid.UID64]bool{}
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
-	s.vision = vision.NewPlugin(s.world)
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	if err := s.vision.RegisterBehavior(
 		vision.Between(plugin.Any, plugin.Any, faceTravel),
 		vision.Between(s.unitTag, s.unitTag, s.noticedEachOther),
@@ -203,7 +204,7 @@ func (s *mainStage) defineKinds() {
 	sight := func(eye float64) comp.Comp {
 		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
 	}
-	scout := world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
 		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: board.Land}, scout, order,
 			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
@@ -211,7 +212,7 @@ func (s *mainStage) defineKinds() {
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
-	flyer := world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
+	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, flyer, order,
 		comp.Tagged(s.selection.Tags().Selectable),
 		sight(1), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag))

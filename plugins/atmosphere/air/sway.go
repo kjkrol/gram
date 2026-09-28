@@ -1,11 +1,12 @@
-package render
+package air
 
 import "math"
 
-// Sway is how far something at the world point (x, y) swaying in the wind leans at time, as a
+// Sway is how far something at the world point (x, y) swaying in w's wind leans at time, as a
 // slope along x and y — a unit of height moves that far: with the wind, the harder it blows the
 // further, rocking about that as gusts roll through downwind; amount 0 or no wind, not at all.
-func Sway(time float32, wind [2]float32, x, y, amount float32) (float32, float32) {
+func (w Weather) Sway(time, x, y, amount float32) (float32, float32) {
+	wind := w.Wind
 	blow := float32(math.Hypot(float64(wind[0]), float64(wind[1])))
 	if blow == 0 || amount <= 0 {
 		return 0, 0

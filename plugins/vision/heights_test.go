@@ -62,7 +62,7 @@ func TestHeights_AHillHidesTheLowlandFromAWalkerAndNotFromAHawk(t *testing.T) {
 	}
 }
 
-func TestHeights_AFlatWorldRefusesAnEyeAndAQuasi3DWorldRefusesBlockers(t *testing.T) {
+func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *testing.T) {
 	expect := func(t *testing.T, want string, run func()) {
 		t.Helper()
 		defer func() {

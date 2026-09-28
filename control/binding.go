@@ -93,36 +93,27 @@ type Context struct {
 	Screen      geom.Vec // the window's size in pixels
 	Mods        Mods
 	FillsScreen bool
-	// Ground is the height of the ground at a world point in a world with heights, nil on a flat one;
-	// World follows it, so a click on a hill lands on the hill.
-	Ground func(x, y float32) float32
 }
 
-// World is the ground point under screen position s: a camera.Picker's own Pick; on flat ground
-// the camera's FromScreen; over Ground the point whose own height puts it under the cursor, found
-// by a few rounds of unprojecting at the height of the last answer, which gentle slopes only
-// settle.
+// World is the ground point under screen position s: a camera.Picker's own Pick — a camera
+// drawing heights finds the ground under the cursor itself, so a click on a hill lands on the
+// hill — else the camera's FromScreen.
 func (c Context) World(s geom.Vec) geom.Vec {
 	sx, sy := float32(s.X), float32(s.Y)
 	if p, ok := c.Camera.(camera.Picker); ok {
 		x, y, _ := p.Pick(sx, sy)
 		return geom.NewVec(float64(x), float64(y))
 	}
-	x, y := c.Camera.Unproject(sx, sy, 0)
-	if c.Ground != nil {
-		for range 4 {
-			x, y = c.Camera.Unproject(sx, sy, c.Ground(x, y))
-		}
-	}
+	x, y := c.Camera.FromScreen(sx, sy)
 	return geom.NewVec(float64(x), float64(y))
 }
 
 // WorldBox is the world rectangle between screen points a and b, at least one unit a side and no
-// wider than what was dragged even across a wrapping seam; over Ground it spans the ground points
-// under the two corners.
+// wider than what was dragged even across a wrapping seam; through a camera.Picker it spans the
+// ground points under the two corners.
 func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	var x0, y0, x1, y1 float32
-	if c.Ground == nil {
+	if _, picks := c.Camera.(camera.Picker); !picks {
 		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
 	} else {
 		pa, pb := c.World(a), c.World(b)

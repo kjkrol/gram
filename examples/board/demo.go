@@ -36,6 +36,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -116,7 +117,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKindDict().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
@@ -133,7 +134,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}
-	s.vision = vision.NewPlugin(s.world)
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel)); err != nil {
 		return err
 	}
@@ -147,6 +148,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.atmosphere); err != nil {
 		return err
 	}
+	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
@@ -208,7 +210,7 @@ func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius}), comp.Const(vision.SightOutline{}),
 	)
@@ -259,7 +261,6 @@ type mainScene struct {
 	stage *mainStage
 	keys  players.SceneKeys
 	tps   *game.TPS
-	none  int
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -287,7 +288,7 @@ func (m *mainScene) Layers() []render.Layer {
 	// the tiles and the bands, the units, the clouds' shadows over them all, then the cones, the
 	// overlays and the rain
 	layers := []render.Layer{render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
+	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
 }
 
 // Viewports are where the world is shown: the local players' views.

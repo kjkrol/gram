@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // fleeBody is a test entity: where it is, which way it is going (a zero dir is
@@ -63,7 +64,7 @@ func fleeRunWith(t *testing.T, tune func(*behavior.Flee), runner fleeBody, facin
 		comp.Load(fleeAt),
 		comp.Const(world.Velocity{Dir: facing, Value: 1}),
 		comp.Const(vision.Sight{Facing: facing, HalfAngle: math.Pi / 2.5, Radius: 600}),
-		comp.Const(world.Steering{}),
+		comp.Const(steering.Steering{}),
 		comp.Tagged(tags.Skittish),
 	})
 	moving := func(d fleeBody) world.Velocity {

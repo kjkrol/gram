@@ -25,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -157,12 +158,12 @@ func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil 
 func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	s.prey = kind.Define[body](kinds, "prey", append(sees(),
-		comp.Const(world.Steering{Reflex: 3, TurnRate: 0.12}),
+		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
 		comp.Tagged(s.tags.Skittish, s.tags.Prey),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
 	s.hunter = kind.Define[body](kinds, "hunter", append(sees(),
-		comp.Const(world.Steering{Reflex: 1, TurnRate: 0.30}),
+		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
 		comp.Tagged(s.tags.Predator, s.tags.Threat),
 	))
 }
@@ -251,7 +252,7 @@ func (m *mainScene) Layers() []render.Layer {
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.vision.Renderer(), s.world.Renderer()),
-		render.NewTelemetryRenderer(&m.tps.Ticks, count, &s.hits.Counter),
+		render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks)),
 	}
 }
 

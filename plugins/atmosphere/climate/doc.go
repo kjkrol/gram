@@ -24,9 +24,9 @@
 // brings rain or snow, how wet the zone has the season; brings the wind, the clouds, what falls
 // and the temperature — the zone's for the time of year and the hour, and the weather's own
 // Warmth — towards the weather's, the wind's way wandering slowly; carries the clouds on the wind;
-// lets what falls come down as snow below 1°C and as rain above; and sets the world's weather
-// (world.Weather), which the renderers draw: the clouds' shadows drifting over the ground, the sea
-// as rough as the wind, whatever sways swaying. A fresh game begins in the Start weather, or in one
+// lets what falls come down as snow below 1°C and as rain above; and keeps the air as it stands
+// ([Climate.Air], an air.Weather), which the renderers draw: the clouds' shadows drifting over the
+// ground, the sea as rough as the wind, whatever sways swaying. A fresh game begins in the Start weather, or in one
 // thrown as the zone and the season have them.
 //
 // [Every] hosts a behaviour told the weather and the season ([Weathering]) every step

@@ -279,6 +279,48 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Fourteenth round: the world in sub-packages.** The user asked what `plugins/world` could be
+  split into ("steering, movement, something else?") and for a better word than `Quasi3D`; chose
+  steering and view only, movement staying in the world, and `Heights`. The constraint that shaped
+  it: the world's module registers the sub-packages' systems, so the world imports them and none
+  may import the world; both systems read `Base`. So the components every entity carries go to a
+  leaf, `world/entity`, and the world re-exports them as type aliases — one type for goke, so a
+  save written before reads the same, and no plugin or demo changes a line for them. Aliases stop
+  there: `steering.Steering`, `steering.Driven`, `view.View` are named by their packages, or the
+  split would be a file move. `steering.System` and `view.System` are the packages' names
+  (`steering.NewSystem()`, `view.NewSystem(...)`), as `clock` and `effects` name theirs. The
+  steering tests that drive the world's ticks stay in `world` (they use its test harness); the one
+  reaching an unexported method moved with the code. The view system's loop became
+  `View.Refresh`, so the system is the loop and nothing else. Not done, on purpose: `MoveSystem`,
+  `VelocitySystem` and the leavers stay — they are the world's core, the user's word. `Quasi3D`
+  → `Config.Heights`, `Plugin.HasHeights()`; the board's, the topography's and vision's `quasi3D`
+  fields are `heights`; historical mentions in this file and the CHANGELOG stay. Verified: the
+  full suite, `go list -deps` on the three new packages showing no import of `world`.
+- **Thirteenth round: render generic, the world entities only.** The user: `render` is generic
+  and held `sway.go`, `overcast.go`, haze; then, on my plans, twice: no contract for the sky or the
+  ground in the world — "world nie może wiedzieć NIC o atmosphere, i najlepiej żeby o ground też
+  nic nie wiedział. On wie o ENCJACH; a ground do board, a sky itp to atmosphere." Rejected on the
+  way: keeping `Sun`/`Weather` in world as data (its home is the atmosphere), a `world.Atmosphere`
+  contract implemented by the atmosphere (the world would still name the sky), leaf packages
+  imported by `world` (the core importing a plugin). The import directions decide the rest
+  (real imports, tests aside): atmosphere → board → world; topography → board, world; nobody
+  imports topography. So: `render` gets generic uniforms (`Frame.Uniform`, the composer zeroing
+  what a frame did not set, ebiten ignoring names a shader lacks and taking a slice as long as the
+  type) and `Fog`; the sun's Kage and maths go to `atmosphere/sky`, the weather's to a new leaf
+  `atmosphere/air` (which imports sky: `Weather.Frame(f, sun)` needs the sky's colour for the
+  fog, and `CloudShadow` reads `SunStrength`; one concatenated Kage source, so declaration order
+  is free and the compile tests guard the names); the backdrop moves to the atmosphere root, as
+  it needs both. The world's renderer draws in white light and the `Look` lights: topography's
+  look (it imports the leaves and takes an `Atmosphere`, defaulting to `sky.DefaultSun` in still
+  air, so `navigation-vision-demo` shades as before) or the atmosphere's wrappers over a flat
+  board (`WithBoard`: the board's Map and the world's Look). The ground: `board.Heights` (the name
+  `Ground` was the cell component's), `board.Cover`, `collision.Field` set by
+  `board.Plugin.WithCollision` (collision cannot import board); sight takes the board with
+  `WithBoard`; `control.Context.Ground` goes, the topography's camera being a `Picker`. Entity
+  shadows moved from the world's renderer to `sky.Sun.Shadow`, laid by the topography's look.
+  Verified: the full suite, the shader compile tests in render, sky, air and topography, the
+  crowd and navigation tests unchanged. Not verified here: the look of the demos — A/B against the
+  tree before this round.
 - **Twelfth round: no lanes, the standing give way.** The user chose both open points: units go
   cell centre to cell centre, and one standing, struck by one on the move, gives way. It steps
   just off the line of the strike, the two boxes' halves across it and a quarter gap (the circles

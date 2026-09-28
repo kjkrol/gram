@@ -6,7 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -19,20 +19,20 @@ type module struct {
 	clock    *clock.Clock // the world's; nil, run at once
 }
 
-func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() world.Cover) *module {
+func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() board.Cover) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.sys.coverOf = coverOf
 	if heights != nil {
-		m.sys.quasi3D, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
+		m.sys.heights, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
 		m.sys.bend, m.sys.covering.bend = heights.bend, heights.bend
 	}
 	return m
 }
 
-// heights is what the scan needs of a Quasi3D world: where to find its Ground, and the step the
+// heights is what the scan needs of a world with heights: where to find its Ground, and the step the
 // game asked for (0: the Ground's own).
 type heights struct {
-	groundOf func() world.Ground
+	groundOf func() board.Heights
 	step     float64
 	bend     float64 // how far the ground d off sinks under an eye's level, per d² (world.Scale.Bend)
 }

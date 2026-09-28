@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -25,11 +24,8 @@ func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines
 // board's Look, and the grid when it is on.
 type Renderer struct {
 	board   *Board
-	mapping func() Map // what the board is drawn by: its Look and its Dressing
-	sun     func() world.Sun
-	sunlit  func() bool          // whether the sun lights flat tiles; nil, never
-	weather func() world.Weather // the air over the world; nil, a calm clear day
-	camera  camera.Camera        // the one of the frame being drawn
+	mapping func() Map    // what the board is drawn by: its Look and its Dressing
+	camera  camera.Camera // the one of the frame being drawn
 	atlas   render.AtlasSource
 	cellW   float64
 	cellH   float64
@@ -74,9 +70,9 @@ var _ render.Source = (*Renderer)(nil)
 // them.
 const gridTier = render.Ground + 10
 
-func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, mapping func() Map, sun func() world.Sun) *Renderer {
+func newRenderer(board *Board, atlas render.AtlasSource, state *RenderState, mapping func() Map) *Renderer {
 	w, h := board.CellBounds()
-	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, mapping: mapping, sun: sun}
+	r := &Renderer{board: board, atlas: atlas, cellW: w, cellH: h, state: state, mapping: mapping}
 	r.tile.r, r.tile.Atlas = r, atlas
 	return r
 }
@@ -88,12 +84,6 @@ func (l *Renderer) Init(*goke.SysInit) {}
 // drawn as lines.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
-	if l.sun != nil {
-		f.Daylight(l.sun().Daylight())
-	}
-	if l.weather != nil {
-		f.Weather(l.weather().Frame())
-	}
 	l.tile.Atlas = l.atlas
 	if d := l.dressing(); d != nil {
 		d.Begin(f, cam)
@@ -255,11 +245,11 @@ func (l *Renderer) eachVisible(fn func(c CellID)) {
 // dressing is the Dressing the board's tiles are dressed by, nil for none.
 func (l *Renderer) dressing() Dressing { return l.mapping().Dressing() }
 
-// NewRenderer is a renderer of brd's cells drawn from atlas by m — nil for the simple map — in
-// sun's light for the frame (nil for none): what WithRenderer builds, for a board no plugin runs.
-func NewRenderer(brd *Board, atlas render.AtlasSource, m Map, sun func() world.Sun) *Renderer {
+// NewRenderer is a renderer of brd's cells drawn from atlas by m — nil for the simple map: what
+// WithRenderer builds, for a board no plugin runs.
+func NewRenderer(brd *Board, atlas render.AtlasSource, m Map) *Renderer {
 	if m == nil {
 		m = brd.Map()
 	}
-	return newRenderer(brd, atlas, &RenderState{}, func() Map { return m }, sun)
+	return newRenderer(brd, atlas, &RenderState{}, func() Map { return m })
 }

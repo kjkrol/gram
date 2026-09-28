@@ -25,15 +25,16 @@
 //
 // # Heights
 //
-// In a Quasi3D world (world.Config.Quasi3D) sight follows geometry instead of planes: the cone's
+// In a world with heights (world.Config.Heights) sight follows geometry instead of planes: the cone's
 // eye is the observer's Z.Altitude plus Sight.Eye, every entity spans its world.Z, and the ground
-// is the world's Ground sampled every [Plugin.WithGroundStep] along a ray (default: the board's
-// cell). An entity is seen when the line from the eye to its top clears every nearer ground
+// is the board's heights ([Plugin.WithBoard]; [Plugin.WithHeights] and [Plugin.WithCover] for a
+// ground and a cover of one's own) sampled every [Plugin.WithGroundStep] along a ray (default:
+// the board's cell). An entity is seen when the line from the eye to its top clears every nearer ground
 // sample and every nearer blocking band within the budget, so a hawk 40 up looks over the wall, the
 // forest and the hill a walker's cone stops at. On a world with a scale (world.Scale) the ground,
 // the cover and the entities sink under the observer's level as far off as they lie
 // (world.Scale.Drop): what lies past the observer's horizon is out of sight, a hawk's horizon far
-// beyond a walker's. Blockers are refused in a Quasi3D world, Eye in a flat one. The scan costs
+// beyond a walker's. Blockers are refused in a world with heights, Eye in a flat one. The scan costs
 // about three times the flat one; a longer ground step is cheaper.
 //
 // # Sighting
@@ -56,7 +57,7 @@
 // under it, so in a view with depth (plugins/topography) a cone climbs a hill and a hill in front
 // hides it.
 //
-// In a Quasi3D world the reach of sight is not the reach of the ground: past a cliff the plain is
+// In a world with heights the reach of sight is not the reach of the ground: past a cliff the plain is
 // out of sight, a hawk above it or a higher hill beyond is not. There the outline reaches the full
 // Radius at every angle and keeps, per angle, up to [MaxShadowsPerSample] [Band]s of ground out of
 // sight (aabbworld's View.Shadows); the Renderer veils them over the ground as holes in the view,

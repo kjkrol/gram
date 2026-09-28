@@ -60,14 +60,10 @@ func (t *Tile) Base() render.SpriteID {
 // Kind is the cell's kind as whoever crosses it meets it.
 func (t *Tile) Kind() CellKind { return t.r.board.Kind(t.ID) }
 
-// Light is the light on the tile's top at its corners: the Dressing's; without one the sun's on
-// level ground where the world is sunlit, even otherwise.
+// Light is the light on the tile's top at its corners: the Dressing's; even without one.
 func (t *Tile) Light() render.Shade {
 	if d := t.r.dressing(); d != nil {
 		return d.Light(t)
-	}
-	if t.r.sunlit != nil && t.r.sunlit() {
-		return render.Lit(t.r.sun().Light(0, 0, 1))
 	}
 	return render.Even(1)
 }
@@ -103,7 +99,7 @@ func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1, depth f
 // world, where nothing stands at a height.
 func (t *Tile) Sway() (amount, rise float32) {
 	c := t.r.topOf(t.ID)
-	if c.sway <= 0 || !t.r.board.quasi3D {
+	if c.sway <= 0 || !t.r.board.heights {
 		return 0, 0
 	}
 	return c.sway, c.height
@@ -115,16 +111,11 @@ type flatLook struct{}
 
 // FlatLook is the board seen from above, the simple map's Look: each cell's sprite over its box,
 // in the Dressing's light and dressed by it — for another Map to lay its cells so where it looks
-// from above.
+// from above. It knows no wind: a sky over the board (plugins/atmosphere) leans what sways.
 func FlatLook() Look { return flatLook{} }
 
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
-	// what sways is seen from above by its top, leaning with the wind
-	if amount, rise := t.Sway(); amount > 0 {
-		lx, ly := render.Sway(f.Time(), f.Wind(), (x0+x1)/2, (y0+y1)/2, amount)
-		x0, y0, x1, y1 = x0+lx*rise, y0+ly*rise, x1+lx*rise, y1+ly*rise
-	}
 	if t.Outlined && !t.Covered() {
 		f.TileRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	} else {

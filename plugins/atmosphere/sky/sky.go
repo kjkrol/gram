@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
-	"github.com/kjkrol/gram/plugins/world"
 )
 
 // Sky is the light of the day over a world: the sun of the calendar's hour, or of a frozen one,
@@ -16,7 +15,7 @@ import (
 type Sky struct {
 	cfg      Config
 	calendar *calendar.Calendar
-	world    *world.Plugin
+	sun      Sun // the light of the hour, as Update last set it
 
 	frozen  bool
 	hour    float32 // the frozen light's time of day
@@ -26,15 +25,24 @@ type Sky struct {
 	earlier control.Queue[Earlier]
 }
 
-// New is the sky of cfg over w, the day and the season cal's, the sun going as it goes latitude
+// New is the sky of the day and the season cal's, as cfg says, the sun going as it goes latitude
 // degrees from the equator — north or south alike — high and with long summer days near the
 // equator, low and with short winter days towards the pole, all day or none at all past the polar
-// circle.
-func New(w *world.Plugin, cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
+// circle. Its light is the calendar's hour's from the start.
+func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 	cfg = cfg.withDefaults()
 	cfg.latitude = latitude
-	return &Sky{cfg: cfg, calendar: cal, world: w, frozen: cfg.Frozen, hour: cfg.Hour, step: -1}
+	s := &Sky{cfg: cfg, calendar: cal, frozen: cfg.Frozen, hour: cfg.Hour, step: -1}
+	m := cal.Now()
+	if s.frozen {
+		m.Time = s.hour
+	}
+	s.sun = cfg.LightAt(m.OfYear(), m.Time, m.Moon())
+	return s
 }
+
+// Sun is the light of the day as it stands: the hour's, or the frozen one's.
+func (s *Sky) Sun() Sun { return s.sun }
 
 // Frozen reports whether the light stands at Hour rather than going with the calendar.
 func (s *Sky) Frozen() bool { return s.frozen }
@@ -68,8 +76,8 @@ func (s *Sky) Shift(by float32) {
 // halfHour is what Later and Earlier move the frozen light by.
 const halfHour = float32(1) / 48
 
-// Update carries out the commands and sets the world's light to the hour's, by the calendar's or
-// the frozen one, whenever it moves onto another step.
+// Update carries out the commands and sets the light to the hour's, by the calendar's or the
+// frozen one, whenever it moves onto another step.
 func (s *Sky) Update() {
 	s.freeze.Drain(func(control.Issued[Freeze]) { s.SetFrozen(!s.frozen) })
 	s.later.Drain(func(control.Issued[Later]) { s.Shift(halfHour) })
@@ -83,7 +91,7 @@ func (s *Sky) Update() {
 	if at := int(m.Date)*s.cfg.Steps + step; at != s.step {
 		s.step = at
 		m.Time = float32(step) / float32(s.cfg.Steps)
-		s.world.SetSun(s.cfg.LightAt(m.OfYear(), m.Time, m.Moon()))
+		s.sun = s.cfg.LightAt(m.OfYear(), m.Time, m.Moon())
 	}
 }
 

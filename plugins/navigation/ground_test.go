@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 var (
@@ -15,9 +16,9 @@ var (
 // A land unit routed over an ice bridge that melts before it gets there stops short of the water
 // and goes round by the ford.
 func TestNavigation_IceMeltingAheadRerouteWithoutSteppingIn(t *testing.T) {
-	pw := newProfiledWorld(t, 5, 3, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 5, 3, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	start, bridge, goal := pw.cellAt(0, 0), pw.cellAt(0, 1), pw.cellAt(0, 2)
-	profile := world.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
+	profile := steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
 	pw = newProfiledWorld(t, 5, 3, start, MoveOrder{Target: goal}, profile, true)
 	for x := uint32(0); x < 4; x++ {
 		pw.terrain.Set(pw.cellAt(x, 1), water)
@@ -51,9 +52,9 @@ func TestNavigation_IceMeltingAheadRerouteWithoutSteppingIn(t *testing.T) {
 // A step further along the route than the current leg turning to water invalidates the route
 // as soon as the terrain changes; with no way round, the unit stops and gives the order up.
 func TestNavigation_GroundChangingUnderTheRouteIsNoticedBeforeTheLeg(t *testing.T) {
-	pw := newProfiledWorld(t, 1, 5, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 1, 5, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	start, far, goal := pw.cellAt(0, 0), pw.cellAt(0, 3), pw.cellAt(0, 4)
-	profile := world.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
+	profile := steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
 	pw = newProfiledWorld(t, 1, 5, start, MoveOrder{Target: goal}, profile, true)
 
 	pw.tick()
@@ -79,9 +80,9 @@ func TestNavigation_GroundChangingUnderTheRouteIsNoticedBeforeTheLeg(t *testing.
 
 // Weak brakes — a slipping unit — mean braking earlier, not overshooting the goal.
 func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
-	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	goal := pw.cellAt(7, 0)
-	runs := map[string]world.Steering{
+	runs := map[string]steering.Steering{
 		"firm":     {MaxSpeed: 64, Accel: 128, Brake: 256, V0: 16},
 		"slipping": {MaxSpeed: 64, Accel: 128, Brake: 16, V0: 16},
 	}
@@ -129,9 +130,9 @@ func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
 // A unit standing where its domain may not — frozen in — keeps its order and moves on once the
 // ground takes it again, instead of giving the order up as unreachable.
 func TestNavigation_StuckOnForbiddenGroundKeepsTheOrder(t *testing.T) {
-	pw := newProfiledWorld(t, 1, 6, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 1, 6, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	start, goal := pw.cellAt(0, 0), pw.cellAt(0, 5)
-	profile := world.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
+	profile := steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 512, V0: 16}
 	pw = newProfiledWorld(t, 1, 6, start, MoveOrder{Target: goal}, profile, true)
 
 	pw.terrain.Set(start, water) // the ground under it turns against it before it has set off

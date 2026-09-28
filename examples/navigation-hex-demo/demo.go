@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -101,7 +102,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.registerCellKinds()
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -190,7 +191,7 @@ type unit struct{ start, target board.CellID }
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
-	profile := world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	own := []comp.Comp{
 		comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),

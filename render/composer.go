@@ -22,12 +22,11 @@ type Composer struct {
 	verts   []ebiten.Vertex
 	indices []uint16
 	opts    *ebiten.DrawTrianglesShaderOptions
-	// the shader's uniforms, kept and written over so a frame allocates none: the sun, the eye, the
-	// time and the sun's strength, and the colours of the sun, the sky and the light from it
-	sun, toward, glint           []float32
-	sunColor, skyColor, ambience []float32
-	wind, drift, weather         []float32
-	start                        time.Time
+	// the shader's uniforms, kept and written over so a frame allocates none: the composer's own —
+	// the way towards the eye, the clock, the world units a pixel spans — and every one a source
+	// set (Frame.Uniform), zeroed in a frame that did not
+	uniforms map[string][]float32
+	start    time.Time
 	// draw issues one call; tests count them instead.
 	draw func(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image)
 }
@@ -36,13 +35,11 @@ var _ WorldRenderer = (*Composer)(nil)
 
 // NewComposer takes the layers to compose, which must all be Sources.
 func NewComposer(layers ...Layer) *Composer {
-	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(),
-		sun: make([]float32, 3), toward: make([]float32, 3), glint: make([]float32, 4),
-		sunColor: make([]float32, 3), skyColor: make([]float32, 3), ambience: make([]float32, 3),
-		wind: make([]float32, 2), drift: make([]float32, 2), weather: make([]float32, 4)}
-	c.opts.Uniforms = map[string]any{"Sun": c.sun, "Toward": c.toward, "Glint": c.glint,
-		"SunColor": c.sunColor, "SkyColor": c.skyColor, "Ambience": c.ambience,
-		"Wind": c.wind, "Drift": c.drift, "Weather": c.weather}
+	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(), uniforms: map[string][]float32{}}
+	c.opts.Uniforms = map[string]any{}
+	c.uniform("Toward", 3)
+	c.uniform("Clock", 1)
+	c.uniform("Pixel", 1)
 	for _, l := range layers {
 		src, ok := l.(Source)
 		if !ok {
@@ -60,16 +57,22 @@ func (c *Composer) Init(si *goke.SysInit) {
 	}
 }
 
-// DrawWorld composes the frame through cam and draws it; a nil screen only composes.
+// DrawWorld composes the frame through cam and draws it; a nil screen only composes and settles
+// the shader's uniforms (Uniforms), for a test.
 func (c *Composer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	c.compose(cam)
-	if screen != nil {
-		c.render(screen)
+	if screen == nil {
+		c.setUniforms()
+		return
 	}
+	c.render(screen)
 }
 
 // Composed is how many pieces the last frame held — for measuring without a screen.
 func (c *Composer) Composed() int { return c.frame.Len() }
+
+// Uniforms is what the last frame handed the shader, by name — for a test of a material's source.
+func (c *Composer) Uniforms() map[string][]float32 { return c.uniforms }
 
 func (c *Composer) compose(cam camera.Camera) {
 	c.frame.Reset(cam)
@@ -131,26 +134,42 @@ func (c *Composer) sort() {
 	}
 }
 
+// uniform is the slice the uniform name is handed to the shader in, made once, n long.
+func (c *Composer) uniform(name string, n int) []float32 {
+	u, ok := c.uniforms[name]
+	if !ok || len(u) != n {
+		u = make([]float32, n)
+		c.uniforms[name] = u
+		c.opts.Uniforms[name] = u
+	}
+	return u
+}
+
+// setUniforms hands the shader the composer's own uniforms and the frame's, every other it has
+// ever been handed zeroed.
+func (c *Composer) setUniforms() {
+	f := &c.frame
+	for _, u := range c.uniforms {
+		clear(u)
+	}
+	toward := f.cam.Projection().Toward()
+	copy(c.uniform("Toward", 3), toward[:])
+	c.uniform("Clock", 1)[0] = f.time
+	pixel := float32(1) // world units a pixel spans: what is finer than a few of them is not drawn
+	if z := f.cam.Zoom(); z > 0 {
+		pixel = 1 / z
+	}
+	c.uniform("Pixel", 1)[0] = pixel
+	for _, u := range f.uniforms {
+		copy(c.uniform(u.name, int(u.n)), u.v[:u.n])
+	}
+}
+
 // render draws the ordered items, one call per run sharing a sheet; a plain colour joins the run
 // it falls in and samples that sheet's white texel.
 func (c *Composer) render(screen *ebiten.Image) {
 	f := &c.frame
-	toward := f.cam.Projection().Toward()
-	day := &f.daylight
-	copy(c.sun, day.Dir[:])
-	copy(c.toward, toward[:])
-	c.glint[0], c.glint[1] = f.time, day.Strength
-	c.glint[2] = 1 // world units a pixel spans: what is finer than a few of them is not drawn
-	if z := f.cam.Zoom(); z > 0 {
-		c.glint[2] = 1 / z
-	}
-	copy(c.sunColor, day.Sun[:])
-	copy(c.skyColor, day.Sky[:])
-	copy(c.ambience, day.Ambient[:])
-	air := &f.weather
-	copy(c.wind, air.Wind[:])
-	copy(c.drift, air.Drift[:])
-	c.weather[0] = air.Clouds
+	c.setUniforms()
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
 	for _, i := range f.order {

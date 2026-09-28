@@ -1,4 +1,4 @@
-package world
+package entity
 
 import "github.com/kjkrol/aabbworld/plane"
 

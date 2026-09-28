@@ -162,13 +162,13 @@ the screen by sin and heights by cos; saved with the camera; a fastened camera p
 `shoulder`·cos(pitch) of the screen below the middle), `LookOut{Camera}` (V given `WithSelection`
 and `Config.Perspective`: rides in the selected unit, first person — the camera a `camera.Rider`,
 bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive`, the mouse `Look` (`control.CursorMove`,
-cursor captured by players; across turns the view and the unit via `world.Driven.Face`, up/down the
+cursor captured by players; across turns the view and the unit via `steering.Driven.Face`, up/down the
 head), V/Tab leave back to the view it was in; the eye `riderLift` a cell over the unit's top; Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
 without the perspective, bound only `WithSelection(sel)`, which hands it the Selected tag as
 navigation takes it: fastens the camera
 behind the one selected unit — centred, turned with an ease of `followEase` until its `Vel.Dir`
 runs up the screen — held through other selections, orders, pans and turns until V again or the
-unit is gone), `Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `world.Driven` on
+unit is gone), `Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `steering.Driven` on
 V, writes the keys every tick, writes a stop and detaches it on letting go; navigation's
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
 admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
@@ -179,15 +179,21 @@ players; which camera is fastened to what is the camera system's state, cameras 
 selection must not import topography, even in tests (topography imports selection). Everything
 that is the view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
-the plain top-down camera of a world without a topography. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
-over walls and hills reads them in a top-down game too (navigation-vision-demo). A world with heights
-is lit by `world.Sun` (`DefaultSun`, `SetSun`; direction, strength, ambient, and the colours of
-the sun's light and of the sky — zero is white; `Sun.Light`/`Shaded` give a `render.Light`: Ambient
-× Sky plus the direct light × Color): the board lights each tile per corner from the ground's slope
-there and at its neighbours (`board.Tile.Light`, `FaceLight` for upright faces) and both looks
-draw with it, so a top-down map shows its relief; pieces carry a `render.Shade` — a `render.Light`
-(RGB) per corner, `render.Even(v)` grey, `render.Lit(l)` one light — and entities are drawn in the
-sun's light on level ground (`world.Look.Sprite`'s light; white in a flat world). The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
+the plain top-down camera of a world without a topography. `world.Z`, relief and `Heights` are not the view but the world's heights: sight
+over walls and hills reads them in a top-down game too (navigation-vision-demo). **Layering: the
+world knows its entities and nothing else; the ground is the board's, the sky the atmosphere's,
+`render` generic.** A relief is lit by the sun of its `topography.Atmosphere`
+(`WithAtmosphere(atmospherePlugin)`; without one `sky.DefaultSun` in still clear air): `sky.Sun`
+(`Dir`, `Strength`, `Ambient`, the colours of its light and of the sky — zero is white;
+`Sun.Light`/`Shaded` give a `render.Light`: Ambient × Sky plus the direct light × Color; `Sun.Frame`
+hands the frame the uniforms of `sky/sun.kage`, `Sun.Shadow` lays an entity's shadow). The
+topography lights each tile per corner from the ground's slope there and at its neighbours
+(`board.Tile.Light`, `FaceLight` for upright faces) and both looks draw with it, so a top-down map
+shows its relief; pieces carry a `render.Shade` — a `render.Light` (RGB) per corner,
+`render.Even(v)` grey, `render.Lit(l)` one light. The world's renderer asks its `Look` for every
+entity in white light with its `Appearance.Sway`; the topography's look lights it by the sun on
+level ground, leans it with the wind and lays its shadow on the relief; the world's own flat look
+draws it as it is. The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
 per tile corner, a walk towards the sun over the tops of the cells as the frame read them, stopped
 above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
 the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
@@ -222,8 +228,8 @@ within `shoreReach` (3) cells of the nearest cell that does not shine, by a swel
 follow the distance to it, rolling in, its phase drifting along the coast, breaking into foam
 (`surfWidth`, in the sky's light and the sun's, laid over with its alpha) — reflects the sky, the
 more the flatter the eye looks (Fresnel over a calmed normal, `mirrorSwell`), and throws the
-frame's sun (`Frame.Daylight`, set by the board from `Sun.Daylight`: direction, strength, the
-sun's, the sky's and the ambient colours) towards
+frame's sun (the uniforms `sky.Sun.Frame` sets: `Sun`, `SunStrength`, `SunColor`, `SkyColor`,
+`Ambience`) towards
 `camera.Projection.Toward()` (the eye; straight up from above, along the diagonal in the isometric
 view). The board works the shore out per corner of a square grid (open water on any other), once
 per terrain version. A shiny tile gets its glint at night too (no sun, the foam and the night sky
@@ -241,7 +247,8 @@ clouds, fall and temperature, and goes from one of `Config.Weathers` to the next
 (`Blow` towards `Target`, `Heading` wandering), the clouds, what falls and the `Temperature` into
 the state's (`Blend`; the temperature the zone's `Mean` ± `Year` through the year, ± `Day` through
 the day, and `State.Warmth`, the day the calendar's), what falls coming down as snow below
-`snowsBelow` 1°C, integrating `Drift`, and sets `world.Weather` (`world.Plugin.SetWeather`) — every
+`snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
+`air.Weather`; `atmosphere.Plugin.Air()`) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
 tactical pause stops it. It hosts `climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`,
 run every step with the weather and season; `atmosphere.Plugin.RegisterBehavior`). `Change`
@@ -255,26 +262,28 @@ kind's snowy twin, what water freezes into, what sways — and `New` defines thr
 ground, a noise's seeds, next to snow) while it snows in the frost, melting lonely and late cells
 first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
 stopping below 10; a winter begun has its drifts and shores laid at once
-(`atmosphere.Plugin.WithWeathering(board, cfg)`). The board and the world renderers hand
-`Weather.Frame()` to `Frame.Weather`; looks call `f.Overcast(box)` (render's `CloudShadow` material,
-`render/overcast.kage`) after each tile (a quad only under clouds: alpha 4, green/blue the world
-position; the shader's `clouds(p)` — value noise at `cloudSize` 420 minus `Drift`, spread by
-`cloudContrast`, the shadow straight under: cast off towards the sun it would jump with every step
-of the sun — dims the sun by `cloudDark`), glints die under clouds, waves turn with `Wind` and
-steepen with it (`calmSea`..`stormSea`), `render.Overcast` greys the sky (backdrop and reflection).
-A flat world takes the clouds' shadows once over the whole screen (`atmosphere.Plugin.Clouds()`,
-`Frame.OvercastQuad`, tier `Objects+50`). `CellKind.Sway` and `world.Appearance.Sway` — set by an
-effect — lean tops with the wind on the CPU (`render.Sway` from `Frame.Wind` and `Frame.Time`; Kage
-cannot move vertices). A flat world is `world.Plugin.Sunlit()` once something set its sun
-(`SetSun`): its tiles (`board.Tile.Light` without a dressing) and sprites take the sun's light on
-level ground, so the day tints a flat map too; before that they are drawn as they are.
-Units' shadows are `shadowVeil` × the light's strength over `shadowFull`.
+(`atmosphere.Plugin.WithWeathering(board, cfg)`). `plugins/atmosphere/air` is the weather as
+drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift`, `Cover` and the
+`Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans what sways, `Weather.Cloud`/
+`Shade` are the clouds' noise and shadow, `Weather.Overcast`/`OvercastOn`/`OvercastQuad` lay the
+`CloudShadow` material (`air/weather.kage`: a quad only under clouds; the noise on the CPU at the
+corners, `cloudSize` 420 minus `Drift`, spread by `cloudContrast`, the shadow straight under: cast
+off towards the sun it would jump with every step of the sun; dims the sun by `cloudDark`),
+`Weather.Haze` is how much the air hides a point from a camera's eye (`render.Frame.Fog`). The
+topography's dresser reads all of it from its `Atmosphere` each frame; glints die under clouds,
+waves turn with `Wind` and steepen with it (`calmSea`..`stormSea`), water reflects `overcastSky()`.
+A flat board takes the clouds' shadows once over the whole screen (`atmosphere.Plugin.Clouds()`,
+tier `Objects+50`) and its light by the hour through `atmosphere.Plugin.WithBoard(board)`, which
+wraps the board's Map and the world's Look (`lit.go`: tiles lit on level ground, sprites too, what
+sways leaning; Kage cannot move vertices, so leaning is on the CPU). A flat board without an
+atmosphere is drawn as it is. Units' shadows are `shadowVeil` × the light's strength over
+`shadowFull` (`sky.Sun.Shadow`).
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
 their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
-the camera. Heights (`Quasi3D`) are the model and work in either view. `plugin`
+the camera. Heights (`Heights`) are the model and work in either view. `plugin`
 (root) — `Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`, the extension
 contract; imports `render` (`Plugin.WithRenderer(atlas
 render.AtlasSource)`). `game` (root) — `Game`/`Stage`/`Scene`/`Stack`/
@@ -327,18 +336,18 @@ shows how much of it is boilerplate vs. real behavior.
   it loses the mark.
   `world.Roster()` is what the plugins in the game ask of a unit's kind, gathered as the plugins
   are made: `kind.Require[T](&roster.Unit, by, why)` names what the game must supply (world:
-  `Position`; board: `Cell`, `Mover`; navigation: `Steering`), `roster.Unit.Default(comp.Const(v))`
+  `Position`; board: `Cell`, `Mover`; navigation: `steering.Steering`), `roster.Unit.Default(comp.Const(v))`
   what a plugin brings itself (world: `Velocity{}`; collision: `Collider{}`, `Physics{}`, dropped
   with `comp.Without[T]()`); a game builds a unit's Spec with `roster.Unit.Spec(own...)` and a
   missing requirement panics by plugin and reason. A plugin's requirements go in its `NewPlugin`.
   `world.Layers` are the planes an entity is on, one bit each (none, or the component absent:
   every plane); collision and vision read it, so a hawk on `Air` and a walker on `Land` neither
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
-  `world.Config{Quasi3D: true}` gives the world heights: entities carry `world.Z{Altitude,
-  Height}`, the board sets the world's `Ground`, sight follows geometry (`Sight.Eye`) while
-  collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
+  `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
+  `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
+  geometry (`Sight.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
-  them (a `Z` in a flat world, `Blockers` in a Quasi3D one). `world.Config.Scale{Metres}` says what
+  them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
   `Scale.Units`); with it the ground sinks under an eye's level (`Scale.Drop`, curve and
   refraction) in the perspective and in sight, and the air hazes far off (`Weather.Visibility`).
@@ -361,10 +370,10 @@ shows how much of it is boilerplate vs. real behavior.
   `Draw.With[T]`, `Draw.Facing` are ready-made). The space keeps no state of its own between ticks:
   `MoveSystem` moves every box under the edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
-  `Scan` and collisions read that grid until the next tick. After movement the `ViewSystem` refreshes every
-  `world.View` (a rectangle plus the `EntitySet` of entities the space finds in it; `Plugin.NewView`
-  over any bounds source, `Plugin.View()` is the camera's) — the entity renderer draws only what
-  the camera's View contains. `Populate` and
+  `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
+  `view.View` (a rectangle plus the `view.EntitySet` of entities the space finds in it; `Plugin.NewView`
+  over any bounds source, `Plugin.View()` is the camera's, `Plugin.ViewFor(cam)` any camera's) — the
+  entity renderer draws only what the camera's View contains. `Populate` and
   `PostLoad` rebuild it too, so it is whole before the first tick; a despawned
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
@@ -402,10 +411,10 @@ shows how much of it is boilerplate vs. real behavior.
   sheet (the board's atlas + the cells, `board.Dressing.Sheet`, `render.Paint`) and a tile draws
   them as one `Frame.SpritePart`; the clouds' shadow goes once per tile after all on it
   (`render.Frame.OvercastOn`); a unit's
-  `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
+  `Mover` says which domains it moves in (none: `Land`) and, in a world with heights, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
-  `Cell` from the one point `at` reads off a row, `Layers` from the domain, in a Quasi3D world a
+  `Cell` from the one point `at` reads off a row, `Layers` from the domain, in a world with heights a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
   cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
@@ -423,7 +432,7 @@ shows how much of it is boilerplate vs. real behavior.
   (`Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the topography's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
-  Quasi3D world a `CellKind` has a `Height` (what stands on it); a flat world refuses what stands
+  world with heights a `CellKind` has a `Height` (what stands on it); a flat world refuses what stands
   at a height at the first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
@@ -476,7 +485,7 @@ shows how much of it is boilerplate vs. real behavior.
   `RegisterBehavior(collision.Between(a, b, fn), ...)`. `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
-  `board`. A navigated unit carries a `world.Steering` profile: navigation only asks it for a
+  `board`. A navigated unit carries a `steering.Steering` profile: navigation only asks it for a
   heading (at a lookahead point, so turns start before the bend) and for its own top speed, braking
   from the profile before the goal; a waypoint is passed by projection, the goal by radius. A
   `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns
@@ -500,6 +509,23 @@ shows how much of it is boilerplate vs. real behavior.
   every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
   Shift appends. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
+- **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
+  `MaxSpeed`), `Velocity`, `Z`, `Layers`. A leaf: the world's sub-packages read the components
+  from it, and the world re-exports them as type aliases (`world.Base = entity.Base`, …), so
+  every other plugin and a game say `world.Base` as before and the component is one type for goke
+  and the saves. Nothing outside `plugins/world` needs to import it.
+- **`world/steering`** — `steering.Steering{Want, TurnRate, Reflex, MaxSpeed, Accel, Brake, V0,
+  Speed, WantSpeed}` (`Request(heading)`, `RequestSpeed`, `Braking`) and `steering.System`
+  (`steering.NewSystem()`), registered by the world in every simulation step before movement:
+  turns `Vel.Dir` towards `Want` by at most `TurnRate` a tick after `Reflex` ticks, writes
+  `Vel.Value` from the profile. `steering.Driven{Ahead, Turn, Face}` is an entity steered by hand
+  (the topography's camera system writes it, navigation's `driveSystem` carries it out). Imports
+  `world/entity`, not `world`.
+- **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`, `Refresh(space, area)`),
+  `view.EntitySet` (a bit set by entity index), `view.New(bounds)` and `view.System`
+  (`view.NewSystem(space, &views, w, h)`), registered by the world after movement. The world's
+  `Plugin.View/NewView/ViewFor/DropView` hand out `*view.View`; `players.Player.View` is one.
+  Imports nothing of the world.
 - **`world/clock`** — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
   clock's own entity, saved. Space is the tactical pause, ] and [ the tempo (`Config.Tempos`, ½ 1
@@ -539,8 +565,8 @@ shows how much of it is boilerplate vs. real behavior.
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
   defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
   `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
-  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera and, in a Quasi3D
-  world, on the ground under the cursor via `Context.Ground`) — lives in
+  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
+  `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
@@ -566,7 +592,7 @@ shows how much of it is boilerplate vs. real behavior.
   ray spending its radius as a budget through it; whatever the ray reaches is seen, a forest
   looked into as much as a wall. `Sight.Blockers` are the `world.Layers` that cut or dim this
   sight at all (zero: every entity): a hawk with `Blockers` of `Air` looks over walls, forests
-  and walkers and still sees them; a walker with `Land` looks under the hawk. In a Quasi3D world
+  and walkers and still sees them; a walker with `Land` looks under the hawk. In a world with heights
   sight has heights instead: the cone's eye is `Z.Altitude + Sight.Eye`, every entity spans its
   `Z`, the ground is the world's `Ground` sampled every `WithGroundStep` (default: a cell), and a
   hawk 40 up looks over the wall, the forest and the hill a walker's cone stops at; `Blockers`

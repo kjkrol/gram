@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -177,7 +178,7 @@ func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 			comp.Const(world.Velocity{}),
 			comp.Const(saveTestTag{}),
 			comp.Const(saveTestMark{Left: 3}),
-			comp.Const(world.Steering{TurnRate: 0.5}),
+			comp.Const(steering.Steering{TurnRate: 0.5}),
 		})
 		return []kind.Entry{marked.Entry(struct{}{})}
 	}

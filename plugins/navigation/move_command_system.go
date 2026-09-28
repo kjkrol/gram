@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // moveCommandSystem carries out MoveTo commands: every Selected entity whose domain the target
@@ -30,7 +31,7 @@ type moveCommandSystem struct {
 	mover   goke.OptComp[board.Mover]
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
-	steer   goke.OptComp[world.Steering]
+	steer   goke.OptComp[steering.Steering]
 	orderID goke.CompID
 }
 

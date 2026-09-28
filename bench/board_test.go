@@ -10,12 +10,23 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
+
+// fixedSky is a topography.Atmosphere of a fixed sun and weather.
+type fixedSky struct {
+	sun sky.Sun
+	air air.Weather
+}
+
+func (s fixedSky) Sun() sky.Sun     { return s.sun }
+func (s fixedSky) Air() air.Weather { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points a quarter cell apart along a diagonal of
 // a 256x256 square board of hills 4 cells a side, as sight samples it along one ray.
@@ -25,7 +36,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: side * size, Height: side * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	grid := board.DefaultGrids{}.Square(side, side, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
@@ -67,7 +78,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
@@ -94,7 +105,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	src := p.Renderer().(render.Source)
 	cam := ctx.world.Camera()
 	var f render.Frame
-	low := world.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
+	topo.WithAtmosphere(low)
 	for _, sc := range []struct {
 		name  string
 		moved bool
@@ -102,8 +114,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		b.Run(sc.name, func(b *testing.B) {
 			for b.Loop() {
 				if sc.moved {
-					low.Dir[0] = -low.Dir[0] // the sun moves: every shadow is stale
-					ctx.world.SetSun(low)
+					low.sun.Dir[0] = -low.sun.Dir[0] // the sun moves: every shadow is stale
+					topo.WithAtmosphere(low)
 				}
 				f.Reset(cam)
 				src.Compose(&f, cam)
@@ -122,7 +134,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
@@ -161,7 +173,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 		clouds  float32
 	}{{"shores=warm", false, 0}, {"shores=anew", true, 0}, {"shores=warm,clouds", false, 0.5}} {
 		b.Run(sc.name, func(b *testing.B) {
-			ctx.world.SetWeather(world.Weather{Clouds: sc.clouds})
+			topo.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Clouds: sc.clouds}})
 			for b.Loop() {
 				if sc.changed {
 					shallows.Cost = 3 - shallows.Cost // the terrain changes: every shore is stale
@@ -185,7 +197,7 @@ func island(b *testing.B, view string, far bool) (*headless, *board.Board, rende
 	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Quasi3D:  true,
+		Heights:  true,
 	}
 	if far {
 		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384

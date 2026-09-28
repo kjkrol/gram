@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -49,7 +50,7 @@ type rig struct {
 	angry   plugin.Tag[moods]
 	query   *goke.Query
 	base    goke.Comp[world.Base]
-	steer   goke.Comp[world.Steering]
+	steer   goke.Comp[steering.Steering]
 	look    goke.Comp[world.Appearance]
 	marks   goke.OptComp[plugin.Tags[moods]]
 	active  goke.OptComp[effects.Active]
@@ -68,7 +69,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	})
 	r.angry = r.w.Kinds().DefineTag[moods]("angry")
 	r.fx = r.w.Effects()
-	if err := r.w.RegisterBehavior(effects.Each[world.Steering](func(_ plugin.Tick, _ *world.Steering, i effects.Idling) {
+	if err := r.w.RegisterBehavior(effects.Each[steering.Steering](func(_ plugin.Tick, _ *steering.Steering, i effects.Idling) {
 		r.idled = append(r.idled, i.ID)
 	})); err != nil {
 		t.Fatal(err)
@@ -82,7 +83,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	spec := kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
-		comp.Const(world.Steering{MaxSpeed: 10}),
+		comp.Const(steering.Steering{MaxSpeed: 10}),
 	}
 	if withFamily {
 		spec = append(spec, comp.Tagged[moods]())
@@ -157,7 +158,7 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 		rage = r.fx.Define("rage", effects.Spec{
 			effects.Lasts(3 * tick),
 			effects.Grant(r.angry),
-			effects.Alter(func(s *world.Steering) { s.MaxSpeed *= 2 }),
+			effects.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
 			effects.Alter(func(a *world.Appearance) { a.SpriteID = 7 }),
 		})
 	})
@@ -221,7 +222,7 @@ func (r *rig) altered() bool {
 func TestEffects_AlteredMarksThePassThatRewroteAComponent(t *testing.T) {
 	var haste, mark effects.ID
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effects.Spec{effects.Lasts(4 * tick), effects.Alter(func(s *world.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Define("haste", effects.Spec{effects.Lasts(4 * tick), effects.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
 		mark = r.fx.Define("mark", effects.Spec{effects.Lasts(4 * tick), effects.Grant(r.angry)})
 	})
 	r.cast(haste)
@@ -243,8 +244,8 @@ func TestEffects_AlteredMarksThePassThatRewroteAComponent(t *testing.T) {
 func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 	var haste, slow effects.ID
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effects.Spec{effects.Lasts(5 * tick), effects.Alter(func(s *world.Steering) { s.MaxSpeed *= 2 })})
-		slow = r.fx.Define("slow", effects.Spec{effects.Lasts(2 * tick), effects.Alter(func(s *world.Steering) { s.MaxSpeed *= 0.5 })})
+		haste = r.fx.Define("haste", effects.Spec{effects.Lasts(5 * tick), effects.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		slow = r.fx.Define("slow", effects.Spec{effects.Lasts(2 * tick), effects.Alter(func(s *steering.Steering) { s.MaxSpeed *= 0.5 })})
 	})
 	r.casting = func(cb *goke.CmdBuf) {
 		r.fx.Cast(cb, r.id, haste)
@@ -273,7 +274,7 @@ func TestEffects_RecastRefreshesUnlessStacking(t *testing.T) {
 	var short, stacks effects.ID
 	r := newRig(t, true, func(r *rig) {
 		short = r.fx.Define("short", effects.Spec{effects.Lasts(2 * tick), effects.Grant(r.angry)})
-		stacks = r.fx.Define("stacks", effects.Spec{effects.Lasts(2 * tick), effects.Stacking(), effects.Alter(func(s *world.Steering) { s.MaxSpeed++ })})
+		stacks = r.fx.Define("stacks", effects.Spec{effects.Lasts(2 * tick), effects.Stacking(), effects.Alter(func(s *steering.Steering) { s.MaxSpeed++ })})
 	})
 	r.cast(short)
 	r.tick() // begins with two ticks left

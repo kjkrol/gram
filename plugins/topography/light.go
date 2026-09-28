@@ -3,8 +3,8 @@ package topography
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"math"
 )
@@ -56,7 +56,7 @@ func (t *tile) light() render.Shade {
 	sun := r.lamp
 	lit := t.sunlit()
 	corner := func(k int, dx, dy float32) render.Light { return sun.Shaded(-dx, -dy, 1, lit[k]) }
-	if !r.quasi3D {
+	if !r.heights {
 		level := sun.Shaded(0, 0, 1, 1)
 		corner = func(_ int, dx, dy float32) render.Light {
 			l := sun.Shaded(-dx, -dy, 1, 1)
@@ -91,7 +91,7 @@ func (t *tile) sunlitAnew() [4]float32 {
 // FaceLight is the light the world's sun casts on an upright face of the tile looking dx, dy
 // cells away — towards a neighbour it stands above — as much in the sun as the top's edge over it.
 func (t *tile) FaceLight(dx, dy int) render.Light {
-	if !t.r.quasi3D {
+	if !t.r.heights {
 		return render.Light{1, 1, 1}
 	}
 	lit := t.sunlit()
@@ -131,7 +131,7 @@ type cellSunlit struct {
 // sunKey is what the shadows depend on: the terrain as it stands and the sun.
 type sunKey struct {
 	version uint64
-	sun     world.Sun
+	sun     sky.Sun
 }
 
 // nextSunlit starts a Compose: when the terrain or the sun has changed since the last one, every

@@ -1,4 +1,4 @@
-package world
+package view
 
 import (
 	"testing"
@@ -28,8 +28,8 @@ func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.V
 	}
 	space.Rebuild(items)
 
-	views := []*View{newView(cam.Bounds)}
-	NewViewSystem(space, &views, 1000, 1000).Update(nil, time.Second)
+	views := []*View{New(cam.Bounds)}
+	NewSystem(space, &views, 1000, 1000).Update(nil, time.Second)
 	return views[0], ids
 }
 

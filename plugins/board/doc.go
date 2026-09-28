@@ -45,12 +45,18 @@
 // board asks it — [Map.Top] for a cell's corners and level, [Map.Climb], [Map.Least] and
 // [Map.Slope] for what a step and the speed cost beyond the kind's ([Plugin.Top], [Plugin.Climb],
 // [Plugin.Least], [Plugin.Slope] delegate). A [CellKind]'s Height is what stands on the cell — a
-// wall, a forest — in a Quasi3D world (world.Config.Quasi3D); a flat world refuses one, and its
+// wall, a forest — in a world with heights (world.Config.Heights); a flat world refuses one, and its
 // units carry no Z. Whoever changes a cell beyond the board — the topography shaping its corners
 // — says so with [Board.Touch], so the cell's version moves and whatever was worked out of it is
 // read anew.
 //
 // # Occupancy
+//
+// The board is the ground: [Heights] is the height of the ground at a point, the Map's — a
+// topography's relief — and nil on a flat map ([Plugin.Heights]); [Cover] is what stands on the
+// board and holds sight back, the Board itself ([Plugin.Cover]); and the Solid cells are the solid
+// ground collision pushes colliders out of ([Plugin.WithCollision], collision.Field). Sight takes
+// them with vision.Plugin.WithBoard. The world knows none of it: it knows its entities.
 //
 // [Occupancy] tracks who holds each cell and in which domains, gating and recording every step
 // navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart by
@@ -88,8 +94,8 @@
 // its [Tile.Light] and [Tile.FaceLight], and the Look has it lay what lies on the tile
 // ([Tile.Dress]). The simple map's lays the bands; a topography's the sun's light on the relief
 // and the terrain's shadows, grounds blending, coasts, water glinting and running, the ways drawn
-// across the cells, the clouds' shadows. Without a Dressing's light a tile is lit by the world's
-// sun on level ground where the world is sunlit (world.Plugin.Sunlit), evenly otherwise.
+// across the cells, the clouds' shadows. Without a Dressing's light a tile is drawn as it is; a sky
+// over a flat board (atmosphere.Plugin.WithBoard) lights it by the hour.
 // [RenderState] holds the renderer's live toggles, such as the grid: on a square grid each tile
 // outlined by the shader along its own edges at no piece of its own (render.Frame.Tile) — where a
 // Dressing lays grounds or ways over it ([Tile.Covered]), outlined by the dressing over them

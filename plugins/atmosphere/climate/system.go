@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
@@ -18,7 +19,7 @@ var _ goke.System = (*weatherSystem)(nil)
 // weatherSystem moves the weather on every step of the simulation, on the calendar's day: counts
 // its state down and throws the next when it runs out, or when Change or Set asks; brings the
 // wind, the clouds, what falls and the temperature towards the state's, the wind's way wandering;
-// carries the clouds on the wind; sets the world's weather; and runs the behaviours hosted with
+// carries the clouds on the wind; keeps the air as it stands; and runs the behaviours hosted with
 // it.
 type weatherSystem struct {
 	cfg      Config
@@ -34,6 +35,7 @@ type weatherSystem struct {
 	profile Profile                // the zone's climate in numbers
 	about   func(i int) Weathering // what a behaviour hears, bound once so a tick allocates nothing
 	told    Weathering
+	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 
 func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], behaviours *host.EachHost[Weathering]) *weatherSystem {
@@ -100,10 +102,10 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.enter(w, s.next(w, season))
 		}
 		s.settle(w, dt, m)
-		air := w.air()
-		s.world.SetWeather(air)
+		now := w.air(s.world.Scale())
+		s.current = now
 		if !s.host.Empty() {
-			s.told = Weathering{Weather: air, Season: season}
+			s.told = Weathering{Weather: now, Season: season}
 			s.host.Run(plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}, cursor, s.about)
 		}
 		return
@@ -209,9 +211,11 @@ func (w *Weather) wind() [2]float32 {
 	return [2]float32{float32(c) * w.Blow, float32(s) * w.Blow}
 }
 
-// air is w as the world's weather.
-func (w *Weather) air() world.Weather {
-	return world.Weather{Wind: w.wind(), Clouds: w.Clouds, Rain: w.Rain, Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift}
+// air is w as the air over a world of scale, seen as far through as the weather lets.
+func (w *Weather) air(scale world.Scale) air.Weather {
+	a := air.Weather{Wind: w.wind(), Clouds: w.Clouds, Rain: w.Rain, Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift}
+	a.Visibility = air.Visibility(scale, a)
+	return a
 }
 
 // roll throws the dice: a number from 0 up to 1, the dice moved on (xorshift).

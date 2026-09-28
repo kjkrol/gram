@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -69,7 +70,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: unitSize, MaxSize: unitSize},
 	})
 	c := collision.NewPlugin(bw.w)
-	bw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, bw.w)
+	bw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, bw.w).WithCollision(c)
 	terrain(bw.brd.Res.Logic.Board)
 	for _, b := range behaviors {
 		err := bw.brd.RegisterBehavior(b)
@@ -80,7 +81,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 			t.Fatal(err)
 		}
 	}
-	v := vision.NewPlugin(bw.w)
+	v := vision.NewPlugin(bw.w).WithBoard(bw.brd)
 
 	ctx := &installCtx{ecs: goke.New()}
 	if err := bw.w.Install(ctx); err != nil {
@@ -116,8 +117,8 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 			}),
 		}
 		if u.heading != (geom.Vec{}) {
-			spec = append(spec, comp.Load(func(m mover) world.Steering {
-				return world.Steering{Want: m.heading, WantSpeed: 64, MaxSpeed: 64}
+			spec = append(spec, comp.Load(func(m mover) steering.Steering {
+				return steering.Steering{Want: m.heading, WantSpeed: 64, MaxSpeed: 64}
 			}))
 		}
 		if u.sight != nil {
@@ -168,11 +169,11 @@ func (bw *groundWorld) snapshot() []geom.AABB {
 	return units
 }
 
-// solid lists the boxes the world's Field holds solid for an entity on layers, board-wide.
+// solid lists the boxes the board holds solid for an entity on layers, board-wide.
 func (bw *groundWorld) solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.w.Res.Config.Space.Width, bw.w.Res.Config.Space.Height
-	bw.w.Field().Solid(layers, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb world.FieldBox) bool {
+	bw.brd.Res.Logic.Board.Solid(layers, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
 		out = append(out, fb.Box)
 		return true
 	})
@@ -517,8 +518,8 @@ func TestGround_IsSolidForTheLayersItsKindKeepsOut(t *testing.T) {
 func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := squareWorld(t, mover{})
 	w := bw.w.Res.Config.Space.Width
-	var mid world.FieldBox
-	bw.w.Field().Solid(world.Layers(board.Land), geom.NewAABBAt(geom.NewVec(0, 7*cellSize), float64(w), cellSize), func(fb world.FieldBox) bool {
+	var mid collision.FieldBox
+	bw.brd.Res.Logic.Board.Solid(world.Layers(board.Land), geom.NewAABBAt(geom.NewVec(0, 7*cellSize), float64(w), cellSize), func(fb collision.FieldBox) bool {
 		if fb.Cell == uint64(gap) {
 			mid = fb
 		}

@@ -77,11 +77,17 @@ type Frame struct {
 	lastDepth float32
 	lastAtlas AtlasSource
 	lastShape shape
-	// the world's light and weather, set by whoever lights it, for what glints, reflects the sky,
-	// lies in the clouds' shadow and sways; the composer's clock
-	daylight Daylight
-	weather  Weather
+	// uniforms are what the sources set for the shader this frame (Uniform); time is the
+	// composer's clock
+	uniforms []uniform
 	time     float32
+}
+
+// uniform is one value a source set for the shader: a float or a vector of up to four.
+type uniform struct {
+	name string
+	n    uint8
+	v    [4]float32
 }
 
 // Camera is the camera the frame is drawn through.
@@ -93,48 +99,30 @@ func (f *Frame) Len() int { return f.count }
 // Reset starts the frame over, drawn through cam; a Composer does it every frame.
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
-	f.daylight, f.weather = Daylight{}, Weather{}
+	f.uniforms = f.uniforms[:0]
 }
 
-// Weather is the air over the world as a frame needs it: the wind, world units a second along x
-// and y, how far it has carried the clouds and how much of the sky they cover, 0 to 1, and how far
-// one sees through it, world units, 0 without end.
-type Weather struct {
-	Wind, Drift [2]float32
-	Clouds      float32
-	Visibility  float32
+// Uniform sets the shader's uniform name to v — a float, or a vector of two to four — for this
+// frame: what a source's materials read, declared in their own Kage (RegisterMaterials). A frame
+// hands the composer only what was set; the rest is zero. The names Toward, Clock, Pixel and Fog
+// are the composer's own.
+func (f *Frame) Uniform(name string, v ...float32) {
+	n := min(len(v), 4)
+	for i := range f.uniforms {
+		if f.uniforms[i].name == name {
+			f.uniforms[i].n = uint8(n)
+			copy(f.uniforms[i].v[:], v[:n])
+			return
+		}
+	}
+	u := uniform{name: name, n: uint8(n)}
+	copy(u.v[:], v[:n])
+	f.uniforms = append(f.uniforms, u)
 }
-
-// Weather sets the frame's weather; the source that draws the ground says so, and a frame without
-// it is a calm, clear day.
-func (f *Frame) Weather(w Weather) { f.weather = w }
-
-// Wind is the frame's wind, for what sways in it.
-func (f *Frame) Wind() [2]float32 { return f.weather.Wind }
-
-// Drift is how far the frame's wind has carried the clouds, for their noise (CloudAt).
-func (f *Frame) Drift() [2]float32 { return f.weather.Drift }
-
-// Clouds is how much of the frame's sky the clouds cover, 0 to 1: under a clear one nothing need
-// be laid for their shadows.
-func (f *Frame) Clouds() float32 { return f.weather.Clouds }
 
 // Time is the composer's clock, in seconds, for what moves by itself: the waves, the clouds,
 // what sways.
 func (f *Frame) Time() float32 { return f.time }
-
-// Daylight is the world's light as what glints and reflects the sky needs it: the way towards the
-// sun, its strength and colour, the colour of the sky, and the light every surface gets from it.
-type Daylight struct {
-	Dir      [3]float32
-	Strength float32
-	Sun, Sky Light
-	Ambient  Light
-}
-
-// Daylight sets the frame's light; the source that lights the world says so, and a frame without
-// it glints nowhere and reflects black.
-func (f *Frame) Daylight(d Daylight) { f.daylight = d }
 
 // Each calls fn with every piece in the order it came, its tier, depth and vertices — for tests
 // and tools; the vertices are the frame's own.
@@ -518,30 +506,11 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 	f.add(tier, depth, nil, fan, len(pts))
 }
 
-// Haze is how much of what lies at the world point (x, y, z) the air hides, 0 to 1: 1 − e^(−d/v),
-// d its distance from the eye of the frame's camera (camera.Eyed) and v the weather's Visibility;
-// 0 through a camera without an eye or in air without end.
-func (f *Frame) Haze(x, y, z float32) float32 {
-	v := f.weather.Visibility
-	if v <= 0 || f.cam == nil {
-		return 0
-	}
-	e, ok := f.cam.(camera.Eyed)
-	if !ok {
-		return 0
-	}
-	ex, ey, ez, ok := e.Eye()
-	if !ok {
-		return 0
-	}
-	d := math.Sqrt(float64((x-ex)*(x-ex) + (y-ey)*(y-ey) + (z-ez)*(z-ez)))
-	return float32(1 - math.Exp(-d/float64(v)))
-}
-
-// Hazed has the last plain Sprite, Tile or SpritePart added turn to the sky's colour as much as
-// haze says at each corner (Haze), as the air far off does; nothing where all of it is 0.
-func (f *Frame) Hazed(haze [4]float32) {
-	if haze == ([4]float32{}) || f.lastRect || len(f.verts) < f.lastFirst+4 {
+// Fog has the last plain Sprite, Tile or SpritePart added turn to the colour of the Fog uniform
+// as much as amount says at each corner, 0 to 1 — the air far off hiding what lies in it; nothing
+// where all of it is 0.
+func (f *Frame) Fog(amount [4]float32) {
+	if amount == ([4]float32{}) || f.lastRect || len(f.verts) < f.lastFirst+4 {
 		return
 	}
 	v := f.verts[f.lastFirst : f.lastFirst+4]
@@ -551,13 +520,25 @@ func (f *Frame) Hazed(haze [4]float32) {
 		}
 	}
 	for i := range v {
-		v[i].ColorA = 1 + hazeSpan*min(max(haze[i], 0), 1)
+		v[i].ColorA = 1 + fogSpan*min(max(amount[i], 0), 1)
 	}
 }
 
-// hazeSpan is how far over 1 a plain sprite's alpha goes for all the haze there is: under an
+// fogSpan is how far over 1 a plain sprite's alpha goes for all the fog there is: under an
 // overlay's mark (1.5), which the shader tells apart.
-const hazeSpan = 0.49
+const fogSpan = 0.49
+
+// Material lays o on its own, over nothing: the screen quad dst for o's material to work out,
+// with its Red, Fraction and Custom at each corner, on the frame's white texel.
+func (f *Frame) Material(tier Tier, depth float32, dst Corners, o *Overlay) {
+	w := o.World
+	for k, p := range dst {
+		c := o.Custom[k]
+		f.verts = append(f.verts, ebiten.Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
+			ColorA: overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1), Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]})
+	}
+	f.add(tier, depth, nil, quad, 4)
+}
 
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it. However
 // large the quad, its fades never read as a blended sprite's mark (softCap under blendMark).

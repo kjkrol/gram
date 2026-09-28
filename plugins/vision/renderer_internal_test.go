@@ -272,7 +272,7 @@ func (slope) Step() float64         { return 10 }
 // isoRenderer is a renderer over a 1000x1000 world of slope, through an isometric camera.
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() world.Ground { return slope{} })
+	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() board.Heights { return slope{} })
 	r.camera = isoCamera(1000, 1000, camera.Config{ViewportWidth: 800, ViewportHeight: 600})
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
@@ -350,7 +350,7 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Camera:   cfg,
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	b := board.NewPlugin(board.DefaultGrids{}.Square(width/32, height/32, 32), &board.MultipleOccupancy{}, w)
 	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})

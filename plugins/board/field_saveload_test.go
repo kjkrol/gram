@@ -35,7 +35,7 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(g.collision); err != nil {
 		return err
 	}
-	g.board = board.NewPlugin(g.grid, &board.MultipleOccupancy{}, g.world)
+	g.board = board.NewPlugin(g.grid, &board.MultipleOccupancy{}, g.world).WithCollision(g.collision)
 	g.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land},
 		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
@@ -77,11 +77,11 @@ func (g *fieldStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// solidCells counts the cells the world's Field holds solid for a walker anywhere on the board.
+// solidCells counts the cells the board holds solid for a walker anywhere on it.
 func (g *fieldStage) solidCells() int {
 	n := 0
 	all := geom.NewAABBAt(geom.NewVec(0, 0), 6*cellSize, 16*cellSize)
-	g.world.Field().Solid(world.Layers(board.Land), all, func(world.FieldBox) bool { n++; return true })
+	g.board.Res.Logic.Board.Solid(world.Layers(board.Land), all, func(collision.FieldBox) bool { n++; return true })
 	return n
 }
 

@@ -1,6 +1,7 @@
-package world
+package view
 
 import (
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/uid"
 )
@@ -21,7 +22,8 @@ type View struct {
 	add    func(uid.UID64)  // In.Add, bound once
 }
 
-func newView(bounds func() geom.AABB) *View {
+// New is a View over whatever bounds says, refreshed by the world's view System once a tick.
+func New(bounds func() geom.AABB) *View {
 	v := &View{bounds: bounds}
 	v.add = v.In.Add
 	return v
@@ -29,3 +31,17 @@ func newView(bounds func() geom.AABB) *View {
 
 // Contains reports whether id is in view.
 func (v *View) Contains(id uid.UID64) bool { return !v.Culled || v.In.Has(id) }
+
+// Refresh reads the bounds anew and marks the entities space finds in them; a View whose bounds
+// cover worldArea or more is not queried and simply sees everything.
+func (v *View) Refresh(space *aabbworld.Space, worldArea float64) {
+	b := v.bounds()
+	v.Bounds = b
+	v.In.Clear()
+	if (b.BottomRight.X-b.TopLeft.X)*(b.BottomRight.Y-b.TopLeft.Y) >= worldArea {
+		v.Culled = false
+		return
+	}
+	v.Culled = true
+	space.Query(b, aabbworld.AnyCapability, v.add)
+}

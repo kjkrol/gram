@@ -1,4 +1,4 @@
-package world
+package entity
 
 // Layers is the planes an entity is on, one bit each: two entities meet only where they share a
 // bit, and one without Layers, or with none set, is on every plane. Collision and sight read it.

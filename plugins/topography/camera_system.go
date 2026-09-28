@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -42,7 +43,7 @@ type cameraSystem struct {
 	base     goke.Comp[world.Base]
 	z        goke.OptComp[world.Z]
 	marks    goke.OptComp[plugin.Tags[selection.Family]]
-	driven   goke.OptComp[world.Driven]
+	driven   goke.OptComp[steering.Driven]
 	drivenID goke.CompID
 
 	following []following
@@ -55,7 +56,7 @@ type cameraSystem struct {
 type following struct {
 	cam    *viewCamera
 	target uid.UID64
-	drive  world.Driven
+	drive  steering.Driven
 	inside bool
 	// inside: the way the eye looks, the entity turning to face it, while aiming — till it does
 	aim    geom.Vec
@@ -79,7 +80,7 @@ const clearStep = 5 * math.Pi / 180
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.marks).Optional(&s.driven).Build()
-	s.drivenID = si.RegComp[world.Driven]()
+	s.drivenID = si.RegComp[steering.Driven]()
 }
 
 func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
@@ -148,7 +149,7 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		}
 	})
 	for k := range s.following {
-		s.following[k].drive = world.Driven{}
+		s.following[k].drive = steering.Driven{}
 	}
 	s.drives.Drain(func(i control.Issued[Drive]) {
 		for k := range s.following {
@@ -200,7 +201,7 @@ func (s *cameraSystem) fasten(cb *goke.CmdBuf, cam *viewCamera, id uid.UID64, in
 			break
 		}
 	}
-	cb.AddOne(id, s.drivenID, world.Driven{})
+	cb.AddOne(id, s.drivenID, steering.Driven{})
 	s.following = append(s.following, following{cam: cam, target: id, inside: inside})
 	s.keep(&s.following[len(s.following)-1], 0)
 }
@@ -210,7 +211,7 @@ func (s *cameraSystem) fasten(cb *goke.CmdBuf, cam *viewCamera, id uid.UID64, in
 func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
-			s.write(f.target, world.Driven{Ahead: -1})
+			s.write(f.target, steering.Driven{Ahead: -1})
 			s.released = append(s.released, f.target)
 			s.following = append(s.following[:i], s.following[i+1:]...)
 			if f.inside {
@@ -230,7 +231,7 @@ func (s *cameraSystem) comeOut(cam *viewCamera) {
 }
 
 // write sets how id is driven, when it carries a Driven yet.
-func (s *cameraSystem) write(id uid.UID64, in world.Driven) {
+func (s *cameraSystem) write(id uid.UID64, in steering.Driven) {
 	s.query.All()
 	for s.query.Next() {
 		cur := s.query.Cursor()

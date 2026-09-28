@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -21,6 +22,8 @@ type Plugin struct {
 	style       ConeStyle
 	shadow      *Shadow
 	groundStep  float64
+	heights     func() board.Heights // the ground sight follows; nil, flat
+	cover       func() board.Cover   // what holds sight back; nil, nothing
 
 	sightings host.PairHost[Sighting]
 }
@@ -40,10 +43,10 @@ func (p *Plugin) Name() string { return "gram.vision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
-	if p.worldPlugin.Quasi3D() {
-		h = &heights{groundOf: p.worldPlugin.Ground, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
+	if p.worldPlugin.HasHeights() {
+		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.worldPlugin.Cover)
+	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf)
 	p.module.clock = p.worldPlugin.Clock()
 	ctx.UseModule(p.module)
 	return nil
@@ -54,7 +57,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.worldPlugin.Ground)
+	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf)
 	if p.style != nil {
 		p.renderer.WithStyle(p.style)
 	}
@@ -102,7 +105,41 @@ func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 	return p
 }
 
-// WithGroundStep sets how far apart a Quasi3D scan samples the ground along a ray, in place of the
+// WithBoard has sight follow brd's ground and be held back by what stands on it — walls,
+// forests — as the board says (board.Plugin.Heights, Cover); call before Use.
+func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
+	return p.WithHeights(brd.Heights).WithCover(brd.Cover)
+}
+
+// WithHeights has sight follow the ground heights gives when a scan starts; nil, flat.
+func (p *Plugin) WithHeights(heights func() board.Heights) *Plugin {
+	p.heights = heights
+	return p
+}
+
+// WithCover has sight held back by the cover cover gives when a scan starts; nil, nothing.
+func (p *Plugin) WithCover(cover func() board.Cover) *Plugin {
+	p.cover = cover
+	return p
+}
+
+// groundOf is the ground as it stands now, nil without one.
+func (p *Plugin) groundOf() board.Heights {
+	if p.heights == nil {
+		return nil
+	}
+	return p.heights()
+}
+
+// coverOf is the cover as it stands now, nil without one.
+func (p *Plugin) coverOf() board.Cover {
+	if p.cover == nil {
+		return nil
+	}
+	return p.cover()
+}
+
+// WithGroundStep sets how far apart a scan with heights samples the ground along a ray, in place of the
 // board's cell; a longer step is a cheaper scan. Call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step

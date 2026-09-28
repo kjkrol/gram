@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -19,7 +20,7 @@ type Sighting struct {
 	Self     uid.UID64
 	Base     *world.Base
 	Sight    *Sight
-	Steering *world.Steering
+	Steering *steering.Steering
 	Seen     []Seen
 }
 

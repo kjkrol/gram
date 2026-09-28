@@ -1,4 +1,4 @@
-// Command board-topography is the island in relief: a Quasi3D world whose board is drawn and
+// Command board-topography is the island in relief: a world with heights whose board is drawn and
 // priced by a topography, a cell 100 m (world.Scale) — a range of peaks up to 2 km and a plateau
 // 0.9 km up, rock on the heights,
 // sand on the beaches, sea cliffs in the north, earth between, streams and rivers running down to
@@ -50,6 +50,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -132,7 +133,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	// Start over the island's middle rather than the world's corner.
 	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
@@ -143,7 +144,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKindDict().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
@@ -170,7 +171,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.vision = vision.NewPlugin(s.world)
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel)); err != nil {
 		return err
 	}
@@ -187,6 +188,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.atmosphere); err != nil {
 		return err
 	}
+	s.topography.WithAtmosphere(s.atmosphere) // the relief lit and shaded by the day, its weather over it
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.topography)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
@@ -254,13 +256,13 @@ func (s *mainStage) defineKinds() {
 	sight := func(eye float64) comp.Comp {
 		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
 	}
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
 		sight(scale.Units(18)), comp.Const(vision.SightOutline{}),
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
 	// walker's cone climbs and stops at, and it flies over them as over the flat.
-	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300)}, world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
+	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
 		sight(scale.Units(0.3)), comp.Const(vision.SightOutline{}),
 	)
@@ -319,7 +321,6 @@ type mainScene struct {
 	stage *mainStage
 	keys  players.SceneKeys
 	tps   *game.TPS
-	none  int
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -347,7 +348,7 @@ func (m *mainScene) Layers() []render.Layer {
 	count := func() int { return s.world.Res.Telemetry.Count }
 	// The terrain and the entities are one picture sorted by depth; the cones and the overlays go on top.
 	layers := []render.Layer{render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
+	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
 }
 
 // Viewports are where the world is shown: the local players' views.

@@ -10,7 +10,7 @@ const (
 	Air
 )
 
-// Mover says which domains an entity moves in and, in a Quasi3D world, how far above the ground
+// Mover says which domains an entity moves in and, in a world with heights, how far above the ground
 // it keeps (Lift: a hawk 40, a walker 0); an entity on the board without it moves on Land.
 type Mover struct {
 	Domain Domain

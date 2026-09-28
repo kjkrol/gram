@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -38,6 +39,15 @@ func New(w *world.Plugin, cal *calendar.Calendar, cfg Config) *Climate {
 
 // Config is the climate's, with its defaults filled in.
 func (c *Climate) Config() Config { return c.cfg }
+
+// Air is the weather as the last step of the simulation left it: a calm, clear day before the
+// first.
+func (c *Climate) Air() air.Weather {
+	if c.sys == nil {
+		return air.Weather{}
+	}
+	return c.sys.current
+}
 
 // Zone is where the climate lies.
 func (c *Climate) Zone() Zone { return c.cfg.Zone }

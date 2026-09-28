@@ -26,6 +26,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -94,7 +95,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	// the kinds carry colours too, for a board drawn without an atlas of the game's
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}},
@@ -147,7 +148,7 @@ func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected))
 }
 
@@ -254,7 +255,6 @@ type mainScene struct {
 	stage *mainStage
 	keys  players.SceneKeys
 	tps   *game.TPS
-	none  int
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -291,7 +291,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 	count := func() int { return s.world.Res.Telemetry.Count }
 	layers := []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count, &m.none).With(s.world.Clock().Reporter()), s.world.Clock().HUD())
+	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter()), s.world.Clock().HUD())
 }
 
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {

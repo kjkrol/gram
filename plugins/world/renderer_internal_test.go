@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -25,15 +26,15 @@ func (flatAtlas) White() (u, v float32)                           { return 0, 0 
 // drawThrough spawns one 10x10 entity per position, lets pick say which of them the View holds
 // (nil: the zero View, which sees everything), draws once and returns how many quads were drawn
 // and how many entities the Drawing behaviors were run for.
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.Vec) (drawn, visited int) {
+func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...geom.Vec) (drawn, visited int) {
 	t.Helper()
-	view := &View{}
+	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
 	host := &host.EachHost[Drawing]{}
 	if err := host.Add(Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, host, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, host, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -52,7 +53,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.V
 			}
 		}
 		if pick != nil {
-			pick(ids, view)
+			pick(ids, v)
 		}
 		r.Init(si)
 	}})
@@ -66,7 +67,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *View), at ...geom.V
 func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	quarters := []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
 
-	firstOnly := func(ids []uid.UID64, v *View) {
+	firstOnly := func(ids []uid.UID64, v *view.View) {
 		v.Culled = true
 		v.In.Add(ids[0])
 	}
@@ -75,97 +76,5 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	}
 	if drawn, _ := drawThrough(t, nil, quarters...); drawn != 4 {
 		t.Errorf("the zero View drew %d entities, want all 4", drawn)
-	}
-}
-
-// shadowsOf composes one 10x10 entity at (100, 100) standing as z says under sun, from above over
-// level ground, and gives the shadow pieces: their tier and middle.
-func shadowsOf(t *testing.T, z Z, sun Sun) (tiers []render.Tier, middles []geom.Vec) {
-	t.Helper()
-	view := &View{}
-	cam := icamera.NewFromSpace(1000, 1000, 0)
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
-	r.sun, r.ground = func() Sun { return sun }, func() Ground { return nil }
-	var base goke.Comp[Base]
-	var appearance goke.Comp[Appearance]
-	var zc goke.Comp[Z]
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&base, &appearance, &zc)
-		f.Create(1)
-		for f.Next() {
-			base.Slice(&f.Cursor)[0].Pos = Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
-			zc.Slice(&f.Cursor)[0] = z
-		}
-		r.Init(si)
-	}})
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
-		if tier != shadowTier {
-			return
-		}
-		tiers = append(tiers, tier)
-		var x, y float32
-		for _, p := range v {
-			x, y = x+p.DstX/4, y+p.DstY/4
-		}
-		middles = append(middles, geom.NewVec(float64(x), float64(y)))
-	})
-	return tiers, middles
-}
-
-func TestRenderer_LaysAShadowAwayFromTheSunPushedOffByHowHighItStands(t *testing.T) {
-	west := Sun{Dir: [3]float32{-1, 0, 1}, Strength: 0.6, Ambient: 0.3} // 45° up in the west
-	_, walker := shadowsOf(t, Z{Altitude: 0, Height: 4}, west)
-	_, hawk := shadowsOf(t, Z{Altitude: 40, Height: 4}, west)
-	if len(walker) != 1 || len(hawk) != 1 {
-		t.Fatalf("shadows %v and %v, want one each", walker, hawk)
-	}
-	// the walker's centre is at (105, 105): its shadow reaches east by its height, 4 at 45°
-	if walker[0].X != 107 || walker[0].Y != 105 {
-		t.Errorf("the walker's shadow lies round %v, want (107, 105): east of it by half its height", walker[0])
-	}
-	if hawk[0].X != 147 || hawk[0].Y != 105 {
-		t.Errorf("the hawk's shadow lies round %v, want (147, 105): pushed 40 further east", hawk[0])
-	}
-	if tiers, _ := shadowsOf(t, Z{Height: 4}, Sun{Dir: [3]float32{-1, 0, -0.1}}); len(tiers) != 0 {
-		t.Errorf("%d shadows with the sun down, want none", len(tiers))
-	}
-}
-
-func TestRenderer_DrawsAnEntityWhoseAppearanceSwaysLeaningWithTheWind(t *testing.T) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
-	view := &View{}
-	air := Weather{}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *View { return view }, &host.EachHost[Drawing]{}, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
-	r.weather = func() Weather { return air }
-	var base goke.Comp[Base]
-	var appearance goke.Comp[Appearance]
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&base, &appearance)
-		f.Create(1)
-		for f.Next() {
-			base.Slice(&f.Cursor)[0].Pos = Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
-			appearance.Slice(&f.Cursor)[0] = Appearance{Sway: 1}
-		}
-		r.Init(si)
-	}})
-	left := func() float32 {
-		var f render.Frame
-		f.Reset(cam)
-		r.Compose(&f, cam)
-		var x float32
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX })
-		return x
-	}
-	if calm := left(); calm != 100 {
-		t.Fatalf("in the calm the tree is drawn from x %v, want 100", calm)
-	}
-	air.Wind = [2]float32{40, 0}
-	if blown := left(); blown <= 100 {
-		t.Errorf("in an east wind the tree is drawn from x %v, want it leaning east", blown)
 	}
 }

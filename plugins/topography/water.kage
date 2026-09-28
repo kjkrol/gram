@@ -26,7 +26,7 @@ func RunningWater(p vec2, shine float, lit float, custom vec4) vec4 {
 // as it shines and lit of the sun reaching it.
 func water(shine float, lit float, s vec3) vec4 {
 	mirror, foam := shine*s.z, s.y
-	light := Ambience + SunColor*(Glint.y*lit*max(sunWay().z, 0))
+	light := Ambience + SunColor*(SunStrength*lit*max(sunWay().z, 0))
 	rgb := overcastSky()*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
 	return vec4(rgb, 1-(1-mirror)*(1-foam))
 }
@@ -37,7 +37,7 @@ func water(shine float, lit float, s vec3) vec4 {
 // pattern flows on for ever without stretching, and runs on without a seam from one piece of a
 // river to the next. The faster it runs the rougher it is, flecked with foam and at last white.
 func stream(p vec2, v vec2) vec3 {
-	t := Glint.x
+	t := Clock
 	speed := length(v)
 	a := fract(t / flowPeriod)
 	b := fract(t/flowPeriod + 0.5)
@@ -55,7 +55,7 @@ func stream(p vec2, v vec2) vec3 {
 	nrm := normalize(vec3(-slope.x, -slope.y, 1))
 	h := normalize(sunWay() + Toward)
 	fresnel := streamMirror + (1-streamMirror)*pow(1-max(dot(nrm, Toward), 0), 3)
-	return vec3(Glint.y*pow(max(dot(nrm, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
+	return vec3(SunStrength*pow(max(dot(nrm, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
 }
 
 // ripples is the height, 0 to 1, of running water's ripples at p and its slope: two sizes of noise,
@@ -78,7 +78,7 @@ func rippleHeight(p vec2) float {
 // and how near) a swell comes in facing it and breaks into foam the last stretch before it,
 // whatever the sun. The flatter the eye looks at a wave, the more of the sky it reflects.
 func sea(p vec2, shore vec4) vec3 {
-	t := Glint.x
+	t := Clock
 	// the waves run with the wind, the steeper the harder it blows
 	blow := length(Wind)
 	rough := clamp(calmSea+blow/fullWind, calmSea, stormSea)
@@ -118,7 +118,7 @@ func sea(p vec2, shore vec4) vec3 {
 	// flattened far off would stripe it
 	calm := normalize(vec3(-slope.x*mirrorSwell, -slope.y*mirrorSwell, 1))
 	fresnel := mirrorHead + (1-mirrorHead)*pow(1-max(dot(calm, Toward), 0), 5)
-	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
+	return vec3(SunStrength*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
 }
 
 // wave is the slope at p of a wave running along way, length world units from crest to crest, at

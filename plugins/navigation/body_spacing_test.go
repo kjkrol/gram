@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -25,7 +26,7 @@ type fieldUnit struct {
 	at       geom.Vec
 	side     float64
 	selected bool
-	driven   world.Driven // non-zero: steered by hand
+	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
 }
 
@@ -92,7 +93,7 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 				return world.Position{AABB: plane.NewAABB(geom.NewVec(u.at.X-u.side/2, u.at.Y-u.side/2), u.side, u.side)}
 			}),
 			comp.Const(world.Velocity{}),
-			comp.Const(world.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
+			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
 			comp.Load(func(u fieldUnit) board.Cell { c, _ := fw.grid.CellAt(u.at); return board.Cell{ID: c} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(board.Land)),
@@ -102,8 +103,8 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 		if u.selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		}
-		if u.driven != (world.Driven{}) {
-			s = append(s, comp.Load(func(u fieldUnit) world.Driven { return u.driven }))
+		if u.driven != (steering.Driven{}) {
+			s = append(s, comp.Load(func(u fieldUnit) steering.Driven { return u.driven }))
 		}
 		if u.order != nil {
 			s = append(s, comp.Load(func(u fieldUnit) MoveOrder { return *u.order }))
@@ -484,7 +485,7 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 // A unit walked by hand stops short of one standing ahead and does not push it.
 func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{
-		{at: geom.NewVec(40, 48), side: 6, driven: world.Driven{Ahead: 1, Face: geom.NewVec(1, 0)}},
+		{at: geom.NewVec(40, 48), side: 6, driven: steering.Driven{Ahead: 1, Face: geom.NewVec(1, 0)}},
 		{at: geom.NewVec(90, 48), side: 6},
 	})
 	for range 180 {

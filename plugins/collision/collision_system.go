@@ -60,9 +60,9 @@ type CollisionSystem struct {
 	outside  goke.CompID // world.Outside, for whoever the solver pushes out by an open edge
 	shapes   ShapeTest
 
-	// fieldOf resolves the world's solid ground when the engine is built; ground is the side it
-	// shows a contact, immovable and still.
-	fieldOf func() world.Field
+	// fieldOf resolves the solid ground when the engine is built; ground is the side it shows a
+	// contact, immovable and still.
+	fieldOf func() Field
 	field   solidField
 	ground  struct {
 		base    world.Base
@@ -89,9 +89,9 @@ func (h *handler) ContactField(id uid.UID64, cell uint64, pen geom.Vec) {
 	(*CollisionSystem)(h).contactGround(id, cell, pen)
 }
 
-// solidField is the world's Field as the engine asks for it: for an entity, on its Layers.
+// solidField is the Field as the engine asks for it: for an entity, on its Layers.
 type solidField struct {
-	field world.Field
+	field Field
 	d     *CollisionSystem
 }
 
@@ -109,14 +109,14 @@ func NewCollisionSystem(space *aabbworld.Space) *CollisionSystem {
 	return newCollisionSystem(space, &host.PairHost[Meeting]{}, &host.EachHost[Struck]{}, nil, nil)
 }
 
-func newCollisionSystem(space *aabbworld.Space, between *host.PairHost[Meeting], each *host.EachHost[Struck], shapes ShapeTest, fieldOf func() world.Field) *CollisionSystem {
+func newCollisionSystem(space *aabbworld.Space, between *host.PairHost[Meeting], each *host.EachHost[Struck], shapes ShapeTest, fieldOf func() Field) *CollisionSystem {
 	d := &CollisionSystem{space: space, between: between, each: each, shapes: shapes, fieldOf: fieldOf}
 	d.struckAt = d.struck
 	d.ground.physics = Physics{Mass: math.Inf(1)}
 	return d
 }
 
-// Init builds the engine too, once the board has given the world its solid ground.
+// Init builds the engine too, once the board has given collision its solid ground.
 func (d *CollisionSystem) Init(si *goke.SysInit) {
 	cfg := collide.Config{Reach: world.StepReach, Iterations: solverIterations}
 	if d.fieldOf != nil {

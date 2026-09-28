@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
@@ -48,7 +48,7 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 	var drives control.Queue[Drive]
 	sys := &driveSystem{drives: &drives}
 	var driver goke.Comp[Driver]
-	var steer goke.Comp[world.Steering]
+	var steer goke.Comp[steering.Steering]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&driver, &steer)
@@ -56,7 +56,7 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 		for f.Next() {
 			for i := range f.Cursor.IDs {
 				driver.Slice(&f.Cursor)[i] = Driver{Player: control.PlayerID(i + 1)}
-				steer.Slice(&f.Cursor)[i] = world.Steering{MaxSpeed: 100, WantSpeed: 50}
+				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100, WantSpeed: 50}
 			}
 		}
 	}}, sys)

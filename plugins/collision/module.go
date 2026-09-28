@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -25,7 +24,7 @@ type module struct {
 
 	system  goke.Runnable
 	shapes  ShapeTest
-	fieldOf func() world.Field
+	fieldOf func() Field
 	clock   *clock.Clock // the world's; nil, run at once
 	built   bool
 }

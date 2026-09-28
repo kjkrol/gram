@@ -8,12 +8,13 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*driveSystem)(nil)
 
-// driveSystem carries out world.Driven: an entity steered by hand turns — by Turn, or towards Face —
+// driveSystem carries out steering.Driven: an entity steered by hand turns — by Turn, or towards Face —
 // and walks the way it
 // faces, never towards a cell its domain may not stand on or the occupancy keeps it out of; a hand
 // on it ends any order it had, and without one it brakes. Its Cell and its hold on the occupancy
@@ -24,8 +25,8 @@ type driveSystem struct {
 	query  *goke.Query
 	cell   goke.Comp[board.Cell]
 	base   goke.Comp[world.Base]
-	steer  goke.Comp[world.Steering]
-	driven goke.Comp[world.Driven]
+	steer  goke.Comp[steering.Steering]
+	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
 	mover  goke.OptComp[board.Mover]
 

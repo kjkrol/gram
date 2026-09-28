@@ -196,7 +196,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Tile(Ground, float32(i%7), a, 0, unit, Even(1))
 			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
-		f.Daylight(Daylight{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sun: Light{1, 1, 1}})
+		f.Uniform("Sun", 0, 0, 1)
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
@@ -491,69 +491,51 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	}
 }
 
-func TestComposer_HandsTheShaderTheFramesDaylightAndTheEye(t *testing.T) {
-	c := NewComposer(items(func(f *Frame) {
-		f.Daylight(Daylight{Dir: [3]float32{0.6, 0, 0.8}, Strength: 0.7, Sun: Light{1, 0.8, 0.6}, Sky: Light{0.5, 0.7, 1}, Ambient: Light{0.2, 0.25, 0.3}})
-	}))
-	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
-	c.compose(topDown())
-	c.render(nil)
-	if c.sun[0] != 0.6 || c.sun[2] != 0.8 || c.glint[1] != 0.7 || c.toward[2] != 1 {
-		t.Errorf("the shader is handed sun %v, strength %v, eye %v; want the frame's sun and the eye above", c.sun, c.glint[1], c.toward)
-	}
-	if c.sunColor[2] != 0.6 || c.skyColor[1] != 0.7 || c.ambience[0] != 0.2 {
-		t.Errorf("the shader is handed colours sun %v, sky %v, ambience %v; want the frame's", c.sunColor, c.skyColor, c.ambience)
-	}
-	c.frame.Reset(topDown())
-	c.render(nil)
-	if c.glint[1] != 0 {
-		t.Errorf("a frame no one lit hands the shader a sun of strength %v, want 0: nothing glints", c.glint[1])
-	}
-}
-
-func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing.T) {
-	if x, y := Sway(1, [2]float32{}, 5, 5, 1); x != 0 || y != 0 {
-		t.Errorf("in the calm a tree leans %v, %v, want not at all", x, y)
-	}
-	if x, y := Sway(1, [2]float32{30, 0}, 5, 5, 0); x != 0 || y != 0 {
-		t.Errorf("what does not sway leans %v, %v", x, y)
-	}
-	breeze, _ := Sway(1, [2]float32{10, 0}, 5, 5, 1)
-	gale, across := Sway(1, [2]float32{50, 0}, 5, 5, 1)
-	if breeze <= 0 || gale <= breeze || across != 0 {
-		t.Errorf("an east wind leans a tree %v in a breeze, %v across and %v in a gale; want east, further in the gale", breeze, across, gale)
-	}
-	a, _ := Sway(0, [2]float32{30, 0}, 0, 0, 1)
-	b, _ := Sway(0.7, [2]float32{30, 0}, 0, 0, 1)
-	if a == b {
-		t.Error("a tree in the wind stands still: want it rocking")
-	}
-}
-
-func TestComposer_HandsTheShaderTheWeatherAndTheFrameItsTime(t *testing.T) {
+// The shader is handed the composer's own uniforms — the way towards the eye, the clock, the
+// world units a pixel spans — and every one the sources set; one set in an earlier frame and not
+// this one is zeroed, and a warm frame allocates none of it.
+func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T) {
 	var at float32
+	set := true
 	c := NewComposer(items(func(f *Frame) {
-		f.Weather(Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6})
+		if set {
+			f.Uniform("Sun", 0.6, 0, 0.8)
+			f.Uniform("Cover", 0.6)
+		}
 		at = f.Time()
 	}))
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
 	c.compose(topDown())
 	c.render(nil)
-	if c.wind[1] != 4 || c.drift[0] != 10 || c.weather[0] != 0.6 {
-		t.Errorf("the shader is handed wind %v, drift %v, weather %v; want the frame's", c.wind, c.drift, c.weather)
+	sun, cover := c.uniforms["Sun"], c.uniforms["Cover"]
+	if len(sun) != 3 || sun[0] != 0.6 || sun[2] != 0.8 || len(cover) != 1 || cover[0] != 0.6 {
+		t.Errorf("the shader is handed Sun %v and Cover %v, want the frame's (0.6, 0, 0.8) and 0.6", sun, cover)
 	}
-	if at != c.frame.time || c.glint[0] != at {
-		t.Errorf("the sources saw time %v and the shader %v, want the one clock", at, c.glint[0])
+	if toward := c.uniforms["Toward"]; toward[2] != 1 {
+		t.Errorf("the shader is handed Toward %v, want the eye above", toward)
 	}
-}
-
-func TestOvercast_GreysTheSkyTheMoreItIsCovered(t *testing.T) {
-	blue := Light{0.5, 0.72, 0.98}
-	if Overcast(blue, 0) != blue {
-		t.Errorf("a clear sky is %v, want it as it is", Overcast(blue, 0))
+	if clock := c.uniforms["Clock"]; clock[0] != at || at != c.frame.time {
+		t.Errorf("the sources saw time %v and the shader %v, want the one clock", at, clock[0])
 	}
-	half, full := Overcast(blue, 0.5), Overcast(blue, 1)
-	if !(full[2]-full[0] < half[2]-half[0] && half[2]-half[0] < blue[2]-blue[0]) {
-		t.Errorf("the sky goes %v, %v, %v as clouds cover it; want it greyer each time", blue, half, full)
+	if pixel := c.uniforms["Pixel"]; pixel[0] != 1 {
+		t.Errorf("the shader is handed Pixel %v at zoom 1, want 1", pixel)
+	}
+	for name, u := range c.uniforms {
+		if v, ok := c.opts.Uniforms[name].([]float32); !ok || &v[0] != &u[0] {
+			t.Errorf("the draw options hand the shader another %s than the composer keeps", name)
+		}
+	}
+	set = false
+	c.compose(topDown())
+	c.render(nil)
+	if sun, cover := c.uniforms["Sun"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 || cover[0] != 0 {
+		t.Errorf("a frame that set nothing hands the shader Sun %v and Cover %v, want zero", sun, cover)
+	}
+	set = true
+	cam := topDown()
+	c.compose(cam)
+	c.render(nil)
+	if n := testing.AllocsPerRun(20, func() { c.compose(cam); c.render(nil) }); n > 0 {
+		t.Errorf("a warm frame with uniforms allocates %v times, want none", n)
 	}
 }

@@ -9,7 +9,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -26,11 +28,11 @@ type ScanSystem struct {
 	// tau answers the cone how see-through an entity is to the observer in hand.
 	tau func(uid.UID64) float64
 
-	// In a Quasi3D world the cone has heights: elev answers an entity's band, groundAt the ground,
+	// In a world with heights the cone has heights: elev answers an entity's band, groundAt the ground,
 	// step how far apart the ground is sampled; groundOf resolves the world's Ground at first use.
-	quasi3D  bool
+	heights  bool
 	elev     func(uid.UID64) (float64, float64)
-	groundOf func() world.Ground
+	groundOf func() board.Heights
 	groundAt func(geom.Vec) float64
 	step     float64
 	grounded bool
@@ -42,14 +44,14 @@ type ScanSystem struct {
 
 	// coverOf resolves the world's Cover at first use; covering walks it for the observer in hand
 	// and holds its Blockers.
-	coverOf  func() world.Cover
+	coverOf  func() board.Cover
 	covering covering
 	covered  bool
 
 	query   *goke.Query
 	sight   goke.Comp[Sight]
 	base    goke.Comp[world.Base]
-	steer   goke.OptComp[world.Steering]
+	steer   goke.OptComp[steering.Steering]
 	outline goke.OptComp[SightOutline]
 	z       goke.OptComp[world.Z]
 
@@ -165,7 +167,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	t := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}
 	hosting := !s.host.Empty()
 	s.lookupHot = false
-	if s.quasi3D && !s.grounded {
+	if s.heights && !s.grounded {
 		s.ground()
 	}
 	if !s.covered {
@@ -249,21 +251,21 @@ func (s *ScanSystem) sighting(matched []int) Sighting {
 	return out
 }
 
-// cone is the query for one Sight, see-through as the entities are to it and, in a Quasi3D world,
+// cone is the query for one Sight, see-through as the entities are to it and, in a world with heights,
 // from an eye at altitude + Sight.Eye over the ground.
 func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: sight.HalfAngle, Radius: sight.Radius, Transparency: s.tau}
 	if s.covering.cover != nil {
 		c.Cover = &s.covering
 	}
-	if !s.quasi3D {
+	if !s.heights {
 		if sight.Eye != 0 {
-			panic("vision: Sight.Eye in a flat world; set world.Config.Quasi3D")
+			panic("vision: Sight.Eye in a flat world; set world.Config.Heights")
 		}
 		return c
 	}
 	if sight.Blockers != 0 {
-		panic("vision: Sight.Blockers in a Quasi3D world; layers cut sight only in a flat one")
+		panic("vision: Sight.Blockers in a world with heights; layers cut sight only in a flat one")
 	}
 	c.Eye, c.Elevation, c.Ground, c.GroundStep = altitude+sight.Eye, s.elev, s.groundAt, s.step
 	if s.sunk != nil {
@@ -274,7 +276,7 @@ func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 
 // covering is the world's Cover as the cone asks for it: walked for one observer's Blockers.
 type covering struct {
-	cover    world.Cover
+	cover    board.Cover
 	blockers world.Layers
 	// bend sinks the cover under the observer's level at ox, oy as far off as it stands: visit is
 	// the walk's own, sunk the step handed to the cover in its place
@@ -317,11 +319,11 @@ func record(dst *Sighted, view *aabbworld.View) {
 }
 
 // trace samples the cone at the resolution its reach and width call for, within the buffer. In a
-// Quasi3D world the view reaches its full Radius and the ground out of sight is kept as shadows.
+// world with heights the view reaches its full Radius and the ground out of sight is kept as shadows.
 func (s *ScanSystem) trace(dst *SightOutline, sight *Sight) {
 	k := samplesFor(sight)
 	dst.Shadows = [MaxSamples][MaxShadowsPerSample]Band{}
-	if !s.quasi3D {
+	if !s.heights {
 		dst.Count = uint8(len(s.view.Depths(k, dst.Depths[:0])))
 		return
 	}

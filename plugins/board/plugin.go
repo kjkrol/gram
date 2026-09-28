@@ -25,7 +25,7 @@ type Resources struct {
 	Render *RenderState
 }
 
-// Plugin wires a Board into a Game; it depends on world alone.
+// Plugin wires a Board into a Game; it depends on world, and hands collision its solid ground.
 type Plugin struct {
 	Res Resources
 
@@ -52,15 +52,13 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 	p := &Plugin{
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
-		kinds:       newCellKindDict(worldPlugin.Quasi3D()),
+		kinds:       newCellKindDict(worldPlugin.HasHeights()),
 	}
 	brd := NewBoard(grid, terrain)
 	p.Res.Logic.Board = brd
-	brd.quasi3D = worldPlugin.Quasi3D()
-	p.mapping = newSimpleMap(brd, worldPlugin.Sun, worldPlugin.Sunlit)
+	brd.heights = worldPlugin.HasHeights()
+	p.mapping = newSimpleMap(brd)
 	brd.mapping = p.mapping
-	worldPlugin.SetCover(brd)
-	worldPlugin.SetField(brd)
 	if ws, ok := p.Res.Logic.Board.Grid.(wrapSetter); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
@@ -99,9 +97,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 		atlas = p.DefaultAtlas()
 	}
 	p.Res.Render = &RenderState{ShowGridLines: true}
-	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map, p.worldPlugin.Sun)
-	p.renderer.sunlit = p.worldPlugin.Sunlit
-	p.renderer.weather = p.worldPlugin.Weather
+	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map)
 }
 
 // DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite

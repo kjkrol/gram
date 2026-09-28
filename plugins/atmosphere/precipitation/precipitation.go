@@ -6,20 +6,26 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/render"
 )
 
 var _ render.Source = (*Renderer)(nil)
 
 // Renderer is what falls through the air before the eye: rain as streaks slanting with the wind,
-// snow as flakes drifting down, as many as the world's weather says, in the light of its sun, on
+// snow as flakes drifting down, as many as the weather says, in the light of the sun, on
 // render.Air. Each drop is where its number and the frame's time put it, so nothing is kept
 // between frames; with nothing falling, nothing is drawn.
-type Renderer struct{ world *world.Plugin }
+type Renderer struct {
+	sun func() sky.Sun
+	air func() air.Weather
+}
 
-// New is what falls over w.
-func New(w *world.Plugin) *Renderer { return &Renderer{world: w} }
+// New is what falls under sun out of the weather air gives.
+func New(sun func() sky.Sun, weather func() air.Weather) *Renderer {
+	return &Renderer{sun: sun, air: weather}
+}
 
 // How it falls: pixels of screen a drop takes at full rain, a flake at full snow; how fast each
 // falls, pixels a second; how long a streak of rain is and how wide a flake.
@@ -38,12 +44,12 @@ const (
 func (*Renderer) Init(*goke.SysInit) {}
 
 func (p *Renderer) Compose(f *render.Frame, cam camera.Camera) {
-	air := p.world.Weather()
+	air := p.air()
 	if air.Rain < 0.02 && air.Snow < 0.02 {
 		return
 	}
 	w, h := cam.Viewport()
-	light := p.world.Sun().Light(0, 0, 1)
+	light := p.sun().Light(0, 0, 1)
 	// how far the wind carries a drop across the screen in a second, where the middle of the screen
 	// looks — through a perspective a point elsewhere may lie behind the eye — no more than it
 	// falls

@@ -35,7 +35,7 @@ entity's `Base` through a goke query, chunk by chunk. The boxes stand on a 30-un
 ### Drawing — `Benchmark_World_Draw`
 
 One frame of the entity renderer gathered with no screen (nothing is drawn). The renderer draws
-what the camera's `world.View` contains: the world refreshes that View once a tick after movement,
+what the camera's `view.View` contains: the world refreshes that View once a tick after movement,
 asking the Space for the entities in the camera's bounds and marking them in an `EntitySet` by
 entity index; a View whose bounds cover the whole world is not queried and sees everything. The
 frame then walks the entities and does the work — appearance, projection — only for those in

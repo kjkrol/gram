@@ -1,6 +1,11 @@
-// The world's weather over the ground, a material of the composer's shader (render.RegisterMaterial):
-// the clouds' shadows and the grey they give the sky. The clouds' noise is worked out on the CPU at
-// each piece's corners (render.CloudAt) and shaded between them here, so no pixel works it out.
+// The air over the world, in the composer's shader: Wind blows in world units a second, Drift is
+// how far it has carried the clouds, Cover how much of the sky the clouds cover, 0 to 1
+// (air.Weather.Frame sets them); and the clouds' shadows, a material — their noise is worked out
+// on the CPU at each piece's corners (air.Weather.Cloud) and shaded between them here, so no pixel
+// works it out.
+var Wind vec2
+var Drift vec2
+var Cover float
 
 // CloudShadow is the clouds' shadow over a sprite: the clouds' noise at the pixel in frac, shaded
 // between the corners, how faint the sprite under it is in red and how it fades or blends in
@@ -10,26 +15,25 @@ func CloudShadow(p vec2, red float, frac float, custom vec4) vec4 {
 	if custom.w > 50000 {
 		weight = blended(red, custom.w)
 	}
-	return vec4(0, 0, 0, cloudDark*cloudCover(frac)*clamp(Glint.y*1.4, 0, 1)*weight)
+	return vec4(0, 0, 0, cloudDark*cloudCover(frac)*clamp(SunStrength*1.4, 0, 1)*weight)
 }
 
-// overcastSky is the sky's colour under the clouds covering it, as render.Overcast has it.
+// overcastSky is the sky's colour under the clouds covering it, as air.Overcast has it.
 func overcastSky() vec3 {
 	grey := dot(SkyColor, vec3(0.3, 0.5, 0.2)) * 0.85
-	return mix(SkyColor, vec3(grey), clamp(Weather.x, 0, 1)*0.8)
+	return mix(SkyColor, vec3(grey), clamp(Cover, 0, 1)*0.8)
 }
 
 // cloudCover is how thick the clouds are over a point whose noise is n: 0 in the clear, 1 under
-// the thickest, the noise spread out and cut at the cover, as render.CloudCover has it. Their
+// the thickest, the noise spread out and cut at the cover, as air.Weather.Shade has it. Their
 // shadow falls straight under them: they are not drawn, only their shadows, and a shadow cast off
 // them towards the sun would jump whenever the sun steps on.
 func cloudCover(n float) float {
-	cover := Weather.x
-	if cover <= 0 {
+	if Cover <= 0 {
 		return 0
 	}
 	n = clamp((n-0.5)*cloudContrast+0.5, 0, 1) // the noise bunches round a half: spread it out
-	return smoothstep(1-cover, 1-cover+cloudEdge, n)
+	return smoothstep(1-Cover, 1-Cover+cloudEdge, n)
 }
 
 // The clouds' shadow: how much of the sun's light the thickest takes; how far the noise is spread

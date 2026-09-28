@@ -3,26 +3,28 @@ package topography
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
 // dresser is the board's Dressing the topography lays: the light on the tiles and what lies on
-// them, worked out of the board and its relief, the Styles of its kinds and the world's sun and
+// them, worked out of the board and its relief, the Styles of its kinds and the sky's sun and
 // weather.
 type dresser struct {
 	board   *board.Board
 	relief  *Relief
-	sun     func() world.Sun
+	sky     Atmosphere
 	styles  map[board.Name]Style
 	kinds   board.CellKindDict // for the kinds Styles name
-	quasi3D bool
+	heights bool
 	square  bool
 	sq      board.SquareShape
 
-	lighted world.Sun     // the sun of the frame being drawn
-	lamp    world.Lamp    // lighted, ready to light every corner
+	lighted sky.Sun       // the sun of the frame being drawn
+	lamp    sky.Lamp      // lighted, ready to light every corner
+	weather air.Weather   // the weather of the frame being drawn
 	camera  camera.Camera // the one of the frame being drawn
 	cellW   float64
 	cellH   float64
@@ -50,11 +52,8 @@ type dresser struct {
 	shores     []cornerShore
 	shoreStamp uint32
 	shoreFor   uint64
-	// the frame's clouds: how much of the sky they cover and how far the wind has carried them;
-	// clouds holds by corner of a square grid, row by row, their noise over it, good while its
-	// stamp is cloudFrame: this frame
-	cover      float32
-	drift      [2]float32
+	// the frame's clouds: clouds holds by corner of a square grid, row by row, their noise over
+	// it, good while its stamp is cloudFrame: this frame
 	clouds     []float32
 	cloudStamp []uint32
 	cloudFrame uint32
@@ -71,10 +70,10 @@ type dresser struct {
 
 var _ board.Dressing = (*dresser)(nil)
 
-func newDresser(b *board.Board, relief *Relief, sun func() world.Sun, quasi3D bool, styles map[board.Name]Style) *dresser {
+func newDresser(b *board.Board, relief *Relief, sky Atmosphere, heights bool, styles map[board.Name]Style) *dresser {
 	w, h := b.CellBounds()
 	sq, square := b.Square()
-	return &dresser{board: b, relief: relief, sun: sun, styles: styles, quasi3D: quasi3D, square: square, sq: sq, cellW: w, cellH: h, shadows: true}
+	return &dresser{board: b, relief: relief, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h, shadows: true}
 }
 
 // version counts the changes to the terrain and the relief together: what the light and the
@@ -159,12 +158,14 @@ type cellTop struct {
 	seen   uint64 // the board's count of changes when last found as it was
 }
 
-// Begin readies the dresser for a frame through cam: the sun, how near the eye is, and what has
-// gone stale since the last.
+// Begin readies the dresser for a frame through cam: the sun and the weather, handed to the frame
+// for its shader, how near the eye is, and what has gone stale since the last.
 func (l *dresser) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
-	l.lighted = l.sun()
+	l.lighted, l.weather = l.sky.Sun(), l.sky.Air()
 	l.lamp = l.lighted.Lamp()
+	l.lighted.Frame(f)
+	l.weather.Frame(f, l.lighted)
 	if n := l.board.CellCount(); len(l.tops) != n {
 		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
 	}
@@ -179,13 +180,12 @@ func (l *dresser) Begin(f *render.Frame, cam camera.Camera) {
 	l.varies = far != camera.ScaleAt(cam, x, y, 0) || far != cam.Zoom()
 	l.sheeted = l.square && min(l.cellPx, float32(min(l.cellW, l.cellH))*far) < bakeCell
 	l.nextShores()
-	l.nextClouds(f)
+	l.nextClouds()
 }
 
-// nextClouds starts a frame's clouds: the cover and the drift as the frame has them, every corner's
-// noise to be worked out anew as it comes into sight.
-func (l *dresser) nextClouds(f *render.Frame) {
-	l.cover, l.drift = f.Clouds(), f.Drift()
+// nextClouds starts a frame's clouds: every corner's noise to be worked out anew as it comes into
+// sight.
+func (l *dresser) nextClouds() {
 	if !l.square {
 		return
 	}
@@ -203,7 +203,7 @@ func (l *dresser) nextClouds(f *render.Frame) {
 func (l *dresser) cloudCorner(x, y int64) float32 {
 	i := int(y)*(int(l.sq.Cols)+1) + int(x)
 	if l.cloudStamp[i] != l.cloudFrame {
-		l.clouds[i] = render.CloudAt(float32(x)*float32(l.cellW), float32(y)*float32(l.cellH), l.drift)
+		l.clouds[i] = l.weather.Cloud(float32(x)*float32(l.cellW), float32(y)*float32(l.cellH))
 		l.cloudStamp[i] = l.cloudFrame
 	}
 	return l.clouds[i]
@@ -222,18 +222,18 @@ func (l *dresser) cloudsOf(t *board.Tile) [4]float32 {
 func (l *dresser) cloudsAt(w render.World) [4]float32 {
 	var out [4]float32
 	for k, p := range w {
-		out[k] = render.CloudAt(p[0], p[1], l.drift)
+		out[k] = l.weather.Cloud(p[0], p[1])
 	}
 	return out
 }
 
 // shaded is lit with the clouds' shadow taken off at each corner, the clouds' noise there cloud.
 func (l *dresser) shaded(lit, cloud [4]float32) [4]float32 {
-	if l.cover <= 0 {
+	if l.weather.Clouds <= 0 {
 		return lit
 	}
 	for k := range lit {
-		lit[k] *= 1 - render.CloudCover(cloud[k], l.cover)
+		lit[k] *= 1 - l.weather.Shade(cloud[k])
 	}
 	return lit
 }
@@ -279,8 +279,8 @@ func (l *dresser) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y
 	} else {
 		d.DrawBlends(f, cam, depth)
 	}
-	if l.cover > 0 {
-		f.OvercastOn(top, render.Box(x0, y0, x1, y1), d.clouds())
+	if l.weather.Clouds > 0 {
+		l.weather.OvercastOn(f, top, render.Box(x0, y0, x1, y1), d.clouds())
 	}
 	if t.Outlined && l.Covers(t) {
 		f.OutlineOn(top)

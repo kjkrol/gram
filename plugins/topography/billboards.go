@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -12,8 +13,9 @@ var _ world.Look = billboards{}
 
 // billboards is how entities stand in relief: a sprite as wide as the box and as tall as the entity
 // stands (world.Z.Height; as tall as the box is long without one), upright on its centre at its
-// altitude, at the depth of that centre, which ties with the tile it stands on.
-type billboards struct{}
+// altitude, at the depth of that centre, which ties with the tile it stands on; lit by the sky's sun
+// on level ground, leaning with its wind, hazed by its air.
+type billboards struct{ d *dresser }
 
 // tall is how tall the billboard of an entity whose box spans x0 to y1 and which stands as z says is.
 func tall(z world.Z, y0, y1 float32) float32 {
@@ -23,7 +25,7 @@ func tall(z world.Z, y0, y1 float32) float32 {
 	return y1 - y0
 }
 
-func (billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+func (b billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
 	alt, h := float32(z.Altitude), tall(z, y0, y1)
@@ -34,9 +36,10 @@ func (billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z w
 	if camera.ScaleAt(cam, cx, cy, alt) == 0 {
 		return // not in front of the eye
 	}
+	sun, weather := b.d.sky.Sun(), b.d.sky.Air()
 	corners := billboard(cam, cx, cy, alt, x1-x0, h)
 	if sway > 0 { // its top leans with the wind, as far as it stands high
-		lx, ly := render.Sway(f.Time(), f.Wind(), cx, cy, sway)
+		lx, ly := weather.Sway(f.Time(), cx, cy, sway)
 		fx, fy := cam.Project(cx, cy, alt)
 		tx, ty := cam.Project(cx+lx*h, cy+ly*h, alt)
 		for k := range 2 {
@@ -44,10 +47,16 @@ func (billboards) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z w
 			corners[k][1] += ty - fy
 		}
 	}
-	f.Sprite(render.Objects, cam.Depth(cx, cy, alt), atlas, id, corners, render.Lit(light))
-	if h := f.Haze(cx, cy, alt); h > 0 {
-		f.Hazed([4]float32{h, h, h, h})
+	f.Sprite(render.Objects, cam.Depth(cx, cy, alt), atlas, id, corners, render.Lit(lit(sun, light)))
+	if h := weather.Haze(cam, cx, cy, alt); h > 0 {
+		f.Fog([4]float32{h, h, h, h})
 	}
+}
+
+// lit is the sun's light on level ground, in the light an entity is asked to be drawn in.
+func lit(sun sky.Sun, light render.Light) render.Light {
+	l := sun.Light(0, 0, 1)
+	return render.Light{l[0] * light[0], l[1] * light[1], l[2] * light[2]}
 }
 
 func (billboards) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {

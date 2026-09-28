@@ -8,10 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-var _ world.Cover = (*Board)(nil)
-var _ world.Field = (*Board)(nil)
-
-// Walk is the cover of the board along a ray — the world.Cover contract: every cell whose kind has
+// Walk is the cover of the board along a ray — the Cover contract: every cell whose kind has
 // a Veil that dims an observer on blockers, in order, the stretch of the ray inside it, the band
 // from the cell's level to Height above it (±Inf in a flat world) and τ = 1 − Veil. A square grid
 // is walked exactly, cell by cell; any other grid in steps of a quarter cell.
@@ -30,7 +27,7 @@ func (b *Board) covers(c CellID, blockers world.Layers) (bottom, top, tau float6
 		return 0, 0, 0, false
 	}
 	bottom, top = math.Inf(-1), math.Inf(1)
-	if b.quasi3D {
+	if b.heights {
 		bottom = b.altitude(c)
 		top = bottom + k.Height
 	}
@@ -105,12 +102,12 @@ func (b *Board) walkSteps(origin, dir geom.Vec, length float64, blockers world.L
 	}
 }
 
-// Solid is the solid ground of the board round box for an entity on layers — the world.Field
+// Solid is the solid ground of the board round box for an entity on layers — the collision.Field
 // contract: every cell whose kind is Solid and keeps one of those layers out, as its boxes. On a
 // square grid a side is open where the neighbour across it is not solid for the entity, and the
 // boxes lie in box's frame across a wrapping seam; any other grid gives its cell boxes open all
 // round.
-func (b *Board) Solid(layers world.Layers, box geom.AABB, visit func(world.FieldBox) bool) {
+func (b *Board) Solid(layers world.Layers, box geom.AABB, visit func(collide.FieldBox) bool) {
 	sq := b.square
 	if sq == nil {
 		b.solidCells(layers, box, visit)
@@ -137,7 +134,7 @@ func (b *Board) Solid(layers world.Layers, box geom.AABB, visit func(world.Field
 					open |= n.side
 				}
 			}
-			fb := world.FieldBox{Box: geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size), Cell: uint64(c), Open: open}
+			fb := collide.FieldBox{Box: geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size), Cell: uint64(c), Open: open}
 			if !visit(fb) {
 				return
 			}
@@ -157,7 +154,7 @@ func (b *Board) squareCell(x, y int64) (CellID, bool) {
 }
 
 // solidCells is Solid over a grid other than square: the boxes of every solid cell under box.
-func (b *Board) solidCells(layers world.Layers, box geom.AABB, visit func(world.FieldBox) bool) {
+func (b *Board) solidCells(layers world.Layers, box geom.AABB, visit func(collide.FieldBox) bool) {
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
 	b.CellsUnder(box, func(c CellID) {
@@ -166,7 +163,7 @@ func (b *Board) solidCells(layers world.Layers, box geom.AABB, visit func(world.
 		}
 		b.boxes = b.CellBoxes(c, b.boxes[:0])
 		for _, cb := range b.boxes {
-			if !visit(world.FieldBox{Box: cb, Cell: uint64(c), Open: all}) {
+			if !visit(collide.FieldBox{Box: cb, Cell: uint64(c), Open: all}) {
 				done = true
 				return
 			}

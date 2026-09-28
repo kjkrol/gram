@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 func TestUnits_CarryNoZInAFlatWorld(t *testing.T) {
@@ -48,22 +49,22 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 
 	t.Run("a kind with a height", func(t *testing.T) {
 		_, brd := flat()
-		expectPanic(t, "Quasi3D", func() { brd.CellKindDict().Create(board.CellKind{Name: board.Named("wall"), Height: 3}) })
+		expectPanic(t, "Heights", func() { brd.CellKindDict().Create(board.CellKind{Name: board.Named("wall"), Height: 3}) })
 	})
 	t.Run("units with a height", func(t *testing.T) {
 		_, brd := flat()
-		expectPanic(t, "Quasi3D", func() { board.NewUnits[recruit](brd, board.Shape{Size: 20, Height: 2}, at) })
+		expectPanic(t, "Heights", func() { board.NewUnits[recruit](brd, board.Shape{Size: 20, Height: 2}, at) })
 	})
 	t.Run("a unit with a lift", func(t *testing.T) {
 		_, brd := flat()
 		units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, at)
-		expectPanic(t, "Quasi3D", func() { units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, world.Steering{}) })
+		expectPanic(t, "Heights", func() { units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, steering.Steering{}) })
 	})
 	t.Run("a unit with a Z of its own", func(t *testing.T) {
 		_, brd := flat()
 		units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, at)
-		expectPanic(t, "Quasi3D", func() {
-			units.Define("tower", board.Mover{Domain: board.Land}, world.Steering{}, comp.Const(world.Z{Height: 3}))
+		expectPanic(t, "Heights", func() {
+			units.Define("tower", board.Mover{Domain: board.Land}, steering.Steering{}, comp.Const(world.Z{Height: 3}))
 		})
 	})
 }

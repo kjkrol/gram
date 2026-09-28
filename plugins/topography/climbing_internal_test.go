@@ -88,7 +88,7 @@ func TestClimbing_CostsTheMoreTheSteeperEitherWay(t *testing.T) {
 // the flat, and a flyer over it as on the flat: what the Map's Slope tells the board's Moving
 // behaviour.
 func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 40, Height: 10}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4}, Quasi3D: true})
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 40, Height: 10}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4}, Heights: true})
 	grid := board.DefaultGrids{}.Square(4, 1, 10)
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
 	p := NewPlugin(w, b, Config{Cell: 10})

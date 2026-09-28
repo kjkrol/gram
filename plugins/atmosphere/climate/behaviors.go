@@ -3,14 +3,14 @@ package climate
 import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
-	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Weathering is what a behaviour hosted by the weather hears every step: the world's weather now
-// and the season.
+// Weathering is what a behaviour hosted by the weather hears every step: the air over the world
+// now and the season.
 type Weathering struct {
-	Weather world.Weather
+	Weather air.Weather
 	Season  calendar.Season
 }
 

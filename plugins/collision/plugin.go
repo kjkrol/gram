@@ -21,6 +21,7 @@ type Plugin struct {
 	pairs    host.PairHost[Meeting]
 	entities host.EachHost[Struck]
 	shapes   ShapeTest
+	field    Field // the solid ground, nil for none
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -40,9 +41,16 @@ func (p *Plugin) Name() string { return "gram.collision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p.worldPlugin.Space(), ctx.ECS(), &p.pairs, &p.entities)
-	p.module.shapes, p.module.fieldOf, p.module.clock = p.shapes, p.worldPlugin.Field, p.worldPlugin.Clock()
+	p.module.shapes, p.module.fieldOf, p.module.clock = p.shapes, func() Field { return p.field }, p.worldPlugin.Clock()
 	ctx.UseModule(p.module)
 	return nil
+}
+
+// WithField makes f the solid ground the engine pushes colliders out of — the board's Solid
+// cells (board.Plugin.WithCollision); call before Use.
+func (p *Plugin) WithField(f Field) *Plugin {
+	p.field = f
+	return p
 }
 
 // WithShapeTest runs test on every overlapping pair before it is separated; call before Use.

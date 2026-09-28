@@ -3,18 +3,17 @@ package world
 import "math"
 
 // Scale is how the world measures against ours: Metres a world unit spans, across and up alike.
-// The zero Scale leaves the world a board — flat as far as the eye goes, the air clear. With one
-// the world is a stretch of the Earth's surface: a line of sight bends over it (Bend), the ground
-// far off sinking under the horizon, and the air thickens with distance (Visibility). A game
-// gives its sizes and heights in metres through Units.
+// The zero Scale leaves the world a board — flat as far as the eye goes. With one the world is a
+// stretch of the Earth's surface: a line of sight bends over it (Bend), the ground far off sinking
+// under the horizon. A game gives its sizes and heights in metres through Units; the atmosphere
+// works out of it how far the air lets one see.
 type Scale struct{ Metres float64 }
 
-// The Earth's radius in metres; how much the air bends a line of sight back towards the ground,
-// the standard refraction; and how far one sees through clear air, in metres.
+// The Earth's radius in metres, and how much the air bends a line of sight back towards the
+// ground, the standard refraction.
 const (
 	EarthRadius = 6371000.0
 	Refraction  = 0.13
-	ClearAir    = 40000.0
 )
 
 // Units is m metres in world units; m itself without a scale.
@@ -46,15 +45,3 @@ func (s Scale) Horizon(h float64) float64 {
 	}
 	return math.Inf(1)
 }
-
-// Visibility is how far one sees through the air of w, in world units: ClearAir under a clear sky,
-// less under clouds, much less in rain and snow; 0 — no end to it — without a scale.
-func (s Scale) Visibility(w Weather) float64 {
-	if s.Metres <= 0 {
-		return 0
-	}
-	clouds, rain, snow := clamp01(w.Clouds), clamp01(w.Rain), clamp01(w.Snow)
-	return s.Units(ClearAir * (1 - 0.35*float64(clouds)) / (1 + 8*float64(rain) + 20*float64(snow)))
-}
-
-func clamp01(v float32) float32 { return min(max(v, 0), 1) }

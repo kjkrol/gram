@@ -2,6 +2,11 @@
 // Velocity each, a shared spatial index other plugins query, and motion integrated each tick,
 // never further than Position.MaxStep. What an entity carries is set by its kind — see kind.
 //
+// The world has sub-packages: kind (what an entity is), entity (what every entity carries; the
+// world names its types itself, see below), steering (heading and speed asked for and reached
+// gradually), view (what one pair of eyes sees), clock (game time) and effects (temporary changes
+// to entities). The world makes and runs their systems; none of them imports the world.
+//
 // # Plugin
 //
 // [Plugin] is installed by a Stage's Init through ctx.UseWorld, once, from a [Config]: the
@@ -16,8 +21,9 @@
 // package kind; world requires a Position and brings a Velocity. [Layers] are the planes an
 // entity is on, one bit each, read by collision and
 // sight: two entities meet only where they share a bit, and one carrying none is on every plane.
-// Config.Quasi3D gives the world heights: entities carry a [Z] (bottom and rise), the board sets
-// the world's [Ground] ([Plugin.SetGround]) and sight follows it; a flat world refuses a Z.
+// Config.Heights gives the world heights: entities carry a [Z] (bottom and rise), which the board
+// in relief (plugins/topography) writes from its ground; a flat world refuses a Z. The world knows
+// its entities and nothing else: the ground is the board's, the sky the atmosphere's.
 // The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]) and the shared camera
 // ([Plugin.Camera]; the players plugin moves it through Pan and Zoom commands).
 //
@@ -29,19 +35,27 @@
 // A host hands Base to whatever it hosts instead of anyone binding it twice. No entity moves
 // further in a tick than [StepReach] of its own shorter side ([Position.MaxStep],
 // [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest.
-// [Driven] marks an entity steered by hand — walk on or stop, turn, or turn to face a way — written every tick by whoever
-// steers it and carried out by the plugin that moves entities over the ground (navigation).
+// These, with [Z] and [Layers], are the types of package entity under the world's own names
+// (type aliases: one type, so a component is the same wherever it is named and saves do not
+// care); the world's sub-packages read them from entity, everyone else from here.
+//
+// # Steering
+//
+// Package steering is how an entity's wants become motion: a steering.Steering carries the heading
+// asked for and a motion profile, and the steering.System, run in every step before movement,
+// turns the entity's heading by at most its TurnRate a tick and writes its base speed from the
+// profile. steering.Driven marks an entity steered by hand, carried out by the plugin that moves
+// entities over the ground (navigation).
 //
 // # Scale
 //
 // [Config].Scale ([Scale]) says how many metres a world unit spans, across and up alike. Without
-// one the world is a board: flat as far as the eye goes, the air clear. With one it is a stretch
-// of the Earth's surface: a line of sight bends over it — the ground d off sinks [Scale.Drop],
+// one the world is a board: flat as far as the eye goes. With one it is a stretch of the Earth's
+// surface: a line of sight bends over it — the ground d off sinks [Scale.Drop],
 // (1 − [Refraction])·d²/(2·[EarthRadius]), under an eye's level, so level ground past
-// [Scale.Horizon] is out of sight — and the air thickens with distance: [Weather].Visibility,
-// worked out of the weather by [Plugin.SetWeather] when the weather leaves it 0 ([ClearAir] under
-// a clear sky, less in cloud, rain and snow). A game gives heights, sizes and reaches in metres
-// through [Scale.Units]; sight (plugins/vision) and the topography's perspective read the rest.
+// [Scale.Horizon] is out of sight. A game gives heights, sizes and reaches in metres through
+// [Scale.Units]; sight (plugins/vision) and the topography's perspective read the rest, and the
+// atmosphere works out of it how far the air lets one see (plugins/atmosphere/air).
 //
 // # Kinds, Seed and Populate
 //
@@ -63,8 +77,8 @@
 // [Bodies] spawns entities of a kind reserved with [Kinds.Reserve]: a Base and the caller's own
 // columns, no Appearance and no size bounds, counted against MaxCount. It is how a plugin
 // materializes geometry of its own from inside a system, at any tick. Terrain on a grid needs none:
-// it is the world's Field and Cover (see [Plugin.SetField], [Plugin.SetCover]), which collision
-// and sight read cell by cell.
+// it is the board's solid ground and cover (board.Plugin.WithCollision, board.Plugin.Cover), which
+// collision and sight read cell by cell.
 //
 // # Attach, Detach and Declare
 //
@@ -82,8 +96,8 @@
 // [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
 // the simulation the clock replays as many times as the tempo says and not at all in the pause,
 // every registered [Behavior] (a decision system, see
-// [Plugin.RegisterBehavior]), then [SteeringSystem] carries out [Steering] requests (heading, and base
-// speed for an entity with a motion profile), [VelocitySystem] runs the [Each] and [Every]
+// [Plugin.RegisterBehavior]), then the steering.System carries out steering.Steering requests
+// (heading, and base speed for an entity with a motion profile), [VelocitySystem] runs the [Each] and [Every]
 // behaviors of a [Moving] over every entity so they may scale that speed, then [MoveSystem] moves every box under the
 // edge rules and hands the space every Base as an aabbworld.Item — Space.Rebuild. The space keeps
 // no state of its own between ticks: Populate and PostLoad rebuild it too, so it is whole before
@@ -97,45 +111,24 @@
 // [Renderer] over an atlas, and the Each behaviors of a [Drawing] registered on the plugin settle
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
 // ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
-// entities in the camera's [View] and nothing else, each laid on the screen by the world's [Look]
+// entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]
 // with its box and its [Z] — where it stands and how tall — from above its box, unless a view
-// plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
-// ([Plugin.SetCameras], [Cameras]).
+// plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says.
+// The Renderer asks the Look for every entity in white light, swaying as its Appearance says: the
+// world knows no sun and no wind; the Look — a view plugin's, or the atmosphere's over a flat board
+// (atmosphere.Plugin.WithBoard) — lights the entity, leans it and lays its shadow. Picking and
+// outlines ask the same Look. A view plugin also makes the world's cameras ([Plugin.SetCameras],
+// [Cameras]).
 //
-// # Sun
+// # Views
 //
-// A world with heights is lit by its [Sun] ([Plugin.Sun]): a direction towards it, a strength, how
-// much of the sky's light every surface gets anyway, and the colours of the sun's light and of the
-// sky (white when zero); [Sun.Light] is the light — a render.Light — it casts on a surface of a
-// given normal, [Sun.Shaded] the same with only part of the sun reaching it — the rest in shadow —
-// and [Sun.Daylight] what a render.Frame needs of it for glints and reflections. Entities are drawn
-// in its light on level ground — in a flat world too once something set the sun ([Plugin.Sunlit]);
-// a flat world nothing lit is drawn as its sprites are.
-// Under it every entity with a [Z] casts a shadow: the Renderer lays a soft patch on the ground away
-// from the sun, as wide as the entity, stretched by its Height and pushed off by how far above the
-// ground it stands — a hawk's falls where it flies over — over the ground and under what stands. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
-// game's, or a day going by.
-//
-// # Weather
-//
-// The air over the world is its [Weather] ([Plugin.Weather], [Plugin.SetWeather]): the wind, the
-// clouds and how far the wind has carried them, rain, snow falling and lying — a calm clear day
-// unless something sets another, plugins/atmosphere or a game. The renderers hand it to their frames:
-// the board lays the clouds' shadows over the ground, and whatever sways — an entity whose
-// [Appearance] has a Sway, a board cell whose kind has one — leans with the wind. Snow lying, ice,
-// trees swaying only in a wind are effects on the board's cells (plugins/atmosphere/weathering),
-// cast as the weather says: the Temperature, what falls, the wind.
-//
-// # View and EntitySet
-//
-// A [View] is what one pair of eyes sees: a rectangle of the world and the entities the Space finds
-// in it, as an [EntitySet] — a set of the world's entities by index. The world keeps any number of
-// Views ([Plugin.NewView] over a source of bounds, [Plugin.DropView]) and the [ViewSystem]
+// A view.View is what one pair of eyes sees: a rectangle of the world and the entities the Space
+// finds in it, as a view.EntitySet — a set of the world's entities by index. The world keeps any
+// number of Views ([Plugin.NewView] over a source of bounds, [Plugin.DropView]) and the view.System
 // refreshes each of them once a tick, right after movement has rebuilt the Space; a View whose
 // bounds cover the whole world is not queried and simply sees everything, as does the zero View a
-// Stage has before its first tick. [Plugin.View] is the camera's, made by the plugin itself; the
-// entity renderer reads it. A View over another camera or a remote player's bounds is the same
-// thing.
+// Stage has before its first tick. [Plugin.View] is the camera's, made by the plugin itself, and
+// [Plugin.ViewFor] the View of any camera of the world's; the entity renderer reads them.
 //
 // # Telemetry
 //

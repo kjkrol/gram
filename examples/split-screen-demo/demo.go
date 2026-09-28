@@ -21,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -121,7 +122,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("floor"), Cost: 1, Allows: board.Land},
 		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
@@ -182,7 +183,7 @@ type block struct {
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
-	profile := world.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
+	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
 	driver := comp.Load(func(b block) Driver { return Driver{Player: b.player} })
 	s.redBlock = units.Define("red", board.Mover{Domain: board.Land}, profile, driver)
 	s.blueBlock = units.Define("blue", board.Mover{Domain: board.Land}, profile, driver)
@@ -247,7 +248,7 @@ type driveSystem struct {
 
 	query  *goke.Query
 	driver goke.Comp[Driver]
-	steer  goke.Comp[world.Steering]
+	steer  goke.Comp[steering.Steering]
 }
 
 func (s *driveSystem) Init(si *goke.SysInit) {

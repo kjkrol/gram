@@ -5,6 +5,65 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The world in sub-packages, `Heights` for `Quasi3D`**
+- `plugins/world/steering`: `steering.Steering`, `steering.Driven` and `steering.System`
+  (`steering.NewSystem()`) were `world.Steering`, `world.Driven`, `world.SteeringSystem`
+  (`NewSteeringSystem`). Every profile in a kind, `board.Units.Define`, `vision.Sighting.Steering`
+  and the navigation say `steering.Steering` now.
+- `plugins/world/view`: `view.View`, `view.EntitySet` and `view.System` (`view.NewSystem`) were
+  `world.View`, `world.EntitySet`, `world.ViewSystem`; `view.New(bounds)` is what `Plugin.NewView`
+  makes, `View.Refresh(space, area)` what the system does to each. `world.Plugin.View/NewView/
+  ViewFor/DropView` and `players.Player.View` hand out `*view.View`.
+- `plugins/world/entity` holds `Base`, `Position`, `Velocity`, `Z` and `Layers`; the world
+  re-exports them as type aliases, so `world.Base` and the rest stay, the same types, and saves
+  are unchanged by it.
+- `world.Config.Heights` was `Quasi3D`; `world.Plugin.HasHeights()` was `Quasi3D()`. The refusals
+  say "set world.Config.Heights".
+
+**Layering: the world knows its entities, the ground is the board's, the sky the atmosphere's**
+- `render` is generic drawing again. `Frame.Uniform(name, values...)` hands the shader any
+  uniform a material declares in its own Kage; the composer's own are `Toward`, `Clock`, `Pixel`
+  and `Fog`, the colour a plain sprite far off turns to (`Frame.Fog`, the former `Hazed`). Gone
+  from render: `Daylight`, `Weather`, `Frame.Daylight/Weather/Wind/Drift/Clouds/Haze/Hazed/
+  Overcast/OvercastOn/OvercastQuad`, `Sway`, `CloudAt`, `CloudCover`, `Shadowed`, `Overcast`,
+  `CloudShadow`, `overcast.kage`, and the sun's and the weather's uniforms and functions in
+  `compose.kage`. `NewTelemetryRenderer(tps, entityCount)` prints no collisions: the collision
+  plugin's `behavior.ContactStats.Reporter(tps)` does, through `With`.
+- `plugins/world` holds entities only. Gone: `Sun`, `Lamp`, `DefaultSun`, `Weather`,
+  `SetSun/Sun/Sunlit/SetWeather/Weather`, `Scale.Visibility`, `ClearAir`, the contracts `Ground`,
+  `Cover`, `Field`, `FieldBox` and `SetGround/Ground/SetCover/Cover/SetField/Field`. The world's
+  renderer hands its `Look` every entity in white light with its `Appearance.Sway`; the Look —
+  a view plugin's, or the atmosphere's — lights it, leans it and lays its shadow. The flat look
+  draws as it is.
+- `plugins/board` is the ground: `board.Heights` (a point's height and the sampling step; the
+  Map's, `Map.Heights()`, a topography's relief, nil on a flat map; `Plugin.Heights`),
+  `board.Cover` (the Board; `Plugin.Cover`), and `Plugin.WithCollision(c)` hands collision the
+  Solid cells as its `collision.Field`. `vision.Plugin.WithBoard(brd)` (or `WithHeights`,
+  `WithCover`) has sight follow them; navigation reads the board's heights. A flat board's tiles
+  are drawn as they are; `board.NewRenderer(brd, atlas, m)` takes no sun.
+- `plugins/atmosphere` is the sky. `sky.Sun`, `sky.Lamp`, `sky.DefaultSun` (from world), with
+  `Sun.Frame` (the uniforms of `sky/sun.kage`: `Sun`, `SunStrength`, `SunColor`, `SkyColor`,
+  `Ambience`, `sunWay()`) and `Sun.Shadow` (an entity's shadow, from the world's renderer);
+  `sky.New(cal, cfg, latitude)` holds its light, `Sky.Sun()`. New leaf `plugins/atmosphere/air`:
+  `air.Weather` (from world), `Visibility(scale, w)`, `ClearAir`, `Weather.Sway`, `Cloud`, `Shade`,
+  `Shadowed`, `Overcast/OvercastOn/OvercastQuad(f, ...)`, `Haze(cam, x, y, z)`, `air.Overcast(sky,
+  clouds)` and `Weather.Frame(f, sun)` (`air/weather.kage`: `Wind`, `Drift`, `Cover`, the
+  `CloudShadow` material, `overcastSky()`). The climate keeps the air (`Climate.Air()`);
+  `atmosphere.Plugin.Sun()` and `Air()` give both; `Backdrop` moved to the root
+  (`NewBackdrop(space, sun, air)`); `precipitation.New(sun, air)`, `weathering.New(brd, air, ...)`;
+  `climate.Weathering.Weather` is an `air.Weather`. `Plugin.WithBoard(brd)` lights a flat board
+  and the world's sprites by the hour and leans what sways, wrapping the board's Map and the
+  world's Look.
+- `plugins/topography` stands under an `Atmosphere` (`Sun() sky.Sun; Air() air.Weather`):
+  `Plugin.WithAtmosphere(a)`, `sky.DefaultSun` in still clear air without one, so a relief
+  without an atmosphere is shaded as before. The dresser lights, shades, lays cloud shadows and
+  hazes by it; the topography's look lights the entities on level ground, leans them with the wind
+  and lays their shadows on the relief. `Plugin.Heights()` is the relief; `water.kage` reads
+  `Clock` and `SunStrength`.
+- `control.Context.Ground` is gone: `World` is a `camera.Picker`'s pick, else `FromScreen`.
+- Demos: `board.NewPlugin(...).WithCollision(c)`, `vision.NewPlugin(w).WithBoard(brd)`,
+  `topography.WithAtmosphere(atmo)` in `board-topography`, `atmosphere.WithBoard(brd)` in `board`.
+
 **Time**
 - `plugins/world/clock`: the tactical clock. Game time is the sum of the simulation's steps, kept
   as `clock.State{Time, Tempo, Paused}` on the clock's own entity and saved with the game. Space

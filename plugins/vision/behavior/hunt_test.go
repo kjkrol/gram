@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 type huntBody struct{ x, y float64 }
@@ -55,7 +56,7 @@ func search(t *testing.T, lookEvery time.Duration, hunter huntBody, prey []huntB
 		comp.Load(huntAt),
 		comp.Const(world.Velocity{Dir: east, Value: 1}),
 		comp.Const(vision.Sight{Facing: east, HalfAngle: math.Pi / 2.5, Radius: 600}),
-		comp.Const(world.Steering{}),
+		comp.Const(steering.Steering{}),
 		comp.Tagged(tags.Predator),
 	})
 	preyKind := kind.Define[huntBody](w.Kinds(), "prey", kind.Spec{comp.Load(huntAt), comp.Const(world.Velocity{}), comp.Tagged(tags.Prey)})

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -38,7 +39,7 @@ type followRig struct {
 	base   goke.Comp[world.Base]
 	marks  goke.Comp[plugin.Tags[selection.Family]]
 	q      *goke.Query
-	driven goke.OptComp[world.Driven]
+	driven goke.OptComp[steering.Driven]
 	dq     *goke.Query
 }
 
@@ -194,7 +195,7 @@ func TestTurn_TurnsACameraOfThisViewAndNoOther(t *testing.T) {
 }
 
 // drivenOf is how id is driven, and whether it carries a Driven at all.
-func (r *followRig) drivenOf(id uid.UID64) (world.Driven, bool) {
+func (r *followRig) drivenOf(id uid.UID64) (steering.Driven, bool) {
 	r.dq.All()
 	for r.dq.Next() {
 		cur := r.dq.Cursor()
@@ -203,11 +204,11 @@ func (r *followRig) drivenOf(id uid.UID64) (world.Driven, bool) {
 				if d := r.driven.Slice(cur); d != nil {
 					return d[i], true
 				}
-				return world.Driven{}, false
+				return steering.Driven{}, false
 			}
 		}
 	}
-	return world.Driven{}, false
+	return steering.Driven{}, false
 }
 
 func TestDrive_SteersTheFastenedUnitOnlyAndStopsItWhenLetGo(t *testing.T) {
@@ -223,14 +224,14 @@ func TestDrive_SteersTheFastenedUnitOnlyAndStopsItWhenLetGo(t *testing.T) {
 	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1})
 	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Turn: -1})
 	r.ecs.Tick(time.Second / 60)
-	if d, ok := r.drivenOf(r.walkers[0]); !ok || d != (world.Driven{Ahead: 1, Turn: -1}) {
+	if d, ok := r.drivenOf(r.walkers[0]); !ok || d != (steering.Driven{Ahead: 1, Turn: -1}) {
 		t.Errorf("with Up and Left held the fastened walker is driven %+v (%v), want walking on and turning anticlockwise", d, ok)
 	}
 	if _, ok := r.drivenOf(r.walkers[1]); ok {
 		t.Error("the other walker is driven too")
 	}
 	r.ecs.Tick(time.Second / 60)
-	if d, _ := r.drivenOf(r.walkers[0]); d != (world.Driven{}) {
+	if d, _ := r.drivenOf(r.walkers[0]); d != (steering.Driven{}) {
 		t.Errorf("with no key held the walker is driven %+v, want nothing asked", d)
 	}
 	r.pressV()

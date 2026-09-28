@@ -7,7 +7,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 )
 
 // Corners is a cell's ground height at its corners: top-left, top-right, bottom-left, bottom-right.
@@ -308,9 +307,9 @@ func foldAxis(v, n int64, wraps bool) (int64, bool) {
 	return v, v >= 0 && v < n
 }
 
-var _ world.Ground = (*Relief)(nil)
+var _ board.Heights = (*Relief)(nil)
 
-// At is GroundAt — the world.Ground contract.
+// At is GroundAt — the board.Heights contract.
 func (r *Relief) At(p geom.Vec) float64 { return r.GroundAt(p) }
 
 // Step is how far apart sight samples the ground: the shorter side of a cell.

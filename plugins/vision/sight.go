@@ -33,9 +33,9 @@ type Sight struct {
 	Radius    float64  // world units
 	// Blockers are the world.Layers whose entities cut or dim this sight; one on none of them is
 	// looked over — a walker under a hawk — and still seen. Zero: every entity does. A flat world's;
-	// a Quasi3D world refuses it.
+	// a world with heights refuses it.
 	Blockers world.Layers
-	// Eye is how high above the entity's bottom (its Z.Altitude) it looks from, in a Quasi3D world;
+	// Eye is how high above the entity's bottom (its Z.Altitude) it looks from, in a world with heights;
 	// a flat world refuses it.
 	Eye  float64
 	Seen Sighted // nearest first
@@ -61,7 +61,7 @@ const MaxShadowsPerSample = 2
 type Band struct{ From, To float32 }
 
 // SightOutline is the drawn shape of one entity's view: a reach per evenly spaced angle across the
-// cone and, in a Quasi3D world, the stretches of ground out of sight along each — the holes in a
+// cone and, in a world with heights, the stretches of ground out of sight along each — the holes in a
 // view that reaches its full Radius. Only an entity carrying it has its outline computed.
 type SightOutline struct {
 	Depths  [MaxSamples]float32

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 var hill = board.CellKind{Name: board.Named("hill"), Cost: 1, Allows: board.Land | board.Air}
@@ -144,7 +145,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 
 type recruit struct{ start board.CellID }
 
-// quasiWorld is a Quasi3D world with a board over a 4x4 square grid in relief, a hill at (2,1), and
+// quasiWorld is a world with heights with a board over a 4x4 square grid in relief, a hill at (2,1), and
 // the units define makes; collide adds the collision plugin.
 type quasiWorld struct {
 	ecs  *goke.ECS
@@ -160,7 +161,7 @@ func newQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[re
 	qw.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: 20},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	var c *collision.Plugin
 	if collide {
@@ -232,8 +233,8 @@ func (qw *quasiWorld) zs() map[kind.ID][]world.Z {
 func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	var walker, hawk kind.Of[recruit]
 	qw := newQuasiWorld(t, false, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
-		walker = units.Define("walker", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: 10})
-		hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, world.Steering{MaxSpeed: 10})
+		walker = units.Define("walker", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: 10})
+		hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, steering.Steering{MaxSpeed: 10})
 		onHill, _ := grid.CellIndex(2, 1)
 		onGrass, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{walker.Entry(recruit{start: onHill}), hawk.Entry(recruit{start: onHill}), walker.Entry(recruit{start: onGrass})}
@@ -256,15 +257,15 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != hillGround+40 || got[0].Height != 2 {
 		t.Errorf("hawk's Z = %v, want altitude %v (the hill plus its lift) and height 2", got, hillGround+40)
 	}
-	if qw.w.Ground() != qw.topo.Relief() {
-		t.Error("the world's Ground is not the topography's relief")
+	if qw.brd.Heights() != qw.topo.Relief() {
+		t.Error("the board's heights are not the topography's relief")
 	}
 }
 
-// coverAcross walks the world's Cover along row 3, west to east, listing every stretch.
+// coverAcross walks the board's Cover along row 3, west to east, listing every stretch.
 func (qw *quasiWorld) coverAcross() [][5]float64 {
 	var out [][5]float64
-	qw.w.Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
+	qw.brd.Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
 		out = append(out, [5]float64{near, far, bottom, top, tau})
 		return true
 	})
@@ -275,7 +276,7 @@ func (qw *quasiWorld) coverAcross() [][5]float64 {
 // when it is lifted.
 func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	qw := newQuasiWorld(t, true, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
-		k := units.Define("walker", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: 10})
+		k := units.Define("walker", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: 10})
 		start, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(recruit{start: start})}
 	})
@@ -298,7 +299,7 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 // relief takes over.
 func TestHeights_LiveOnTheTopographysEntity(t *testing.T) {
 	qw := newQuasiWorld(t, false, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
-		k := units.Define("walker", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: 10})
+		k := units.Define("walker", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: 10})
 		start, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(recruit{start: start})}
 	})
@@ -321,8 +322,8 @@ func TestHeights_LiveOnTheTopographysEntity(t *testing.T) {
 
 func TestPlugin_RefusesAFlatWorld(t *testing.T) {
 	defer func() {
-		if r, _ := recover().(string); !strings.Contains(r, "Quasi3D") {
-			t.Errorf("NewPlugin over a flat world: %q, want a refusal naming Quasi3D", r)
+		if r, _ := recover().(string); !strings.Contains(r, "Heights") {
+			t.Errorf("NewPlugin over a flat world: %q, want a refusal naming Heights", r)
 		}
 	}()
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}})

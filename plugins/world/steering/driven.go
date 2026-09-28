@@ -1,4 +1,4 @@
-package world
+package steering
 
 import "github.com/kjkrol/aabbworld/geom"
 

@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -42,17 +43,11 @@ type Plugin struct {
 	renderer *Renderer
 	kinds    *Kinds
 	roster   *kind.Roster
-	ground   Ground
-	cover    Cover
-	field    Field
 	seeded   []kind.Entry
-	view     *View // the camera's
-	views    map[camera.Camera]*View
+	view     *view.View // the camera's
+	views    map[camera.Camera]*view.View
 	cameras  Cameras
 	look     Look
-	sun      Sun
-	sunlit   bool // something set the sun: a flat world is lit by it too
-	weather  Weather
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -67,11 +62,11 @@ func (*Plugin) Builtin() {}
 // NewPlugin builds Plugin around a fresh world, usable before Install.
 func NewPlugin(cfg Config) *Plugin {
 	m := newModule(cfg)
-	kinds := newKinds(cfg.Quasi3D)
+	kinds := newKinds(cfg.Heights)
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
-		cameras: icamera.NewFromSpaceWithConfig, sun: DefaultSun,
-		look: &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
+		cameras: icamera.NewFromSpaceWithConfig,
+		look:    &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
 	p.Res.Camera = p.NewCamera()
 	p.view = p.NewView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
@@ -91,34 +86,16 @@ func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
 // in the clock's time.
 func (p *Plugin) Effects() *effects.Effects { return p.module.effects }
 
-// Quasi3D reports whether this world has heights — see Config.Quasi3D.
-func (p *Plugin) Quasi3D() bool { return p.Res.Config.Quasi3D }
-
-// SetGround gives a Quasi3D world its ground heights; the board calls it, sight reads Ground.
-func (p *Plugin) SetGround(g Ground) { p.ground = g }
-
-// Ground is the world's ground heights, nil for flat ground at 0.
-func (p *Plugin) Ground() Ground { return p.ground }
-
-// SetCover gives the world the cover standing on its ground; the board calls it, sight reads Cover.
-func (p *Plugin) SetCover(c Cover) { p.cover = c }
-
-// Cover is the cover standing on the world's ground, nil for none.
-func (p *Plugin) Cover() Cover { return p.cover }
-
-// SetField gives the world its solid ground; the board calls it, collisions read Field.
-func (p *Plugin) SetField(f Field) { p.field = f }
-
-// Field is the world's solid ground, nil for none.
-func (p *Plugin) Field() Field { return p.field }
+// HasHeights reports whether this world has heights — see Config.Heights.
+func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 
 // View is what the camera sees: refreshed each tick after movement, drawn by the entity renderer.
-func (p *Plugin) View() *View { return p.view }
+func (p *Plugin) View() *view.View { return p.view }
 
 // NewView keeps a View current over whatever bounds says, from the next tick on — a second
 // camera's, a remote player's, anything that watches a part of the world.
-func (p *Plugin) NewView(bounds func() geom.AABB) *View {
-	v := newView(bounds)
+func (p *Plugin) NewView(bounds func() geom.AABB) *view.View {
+	v := view.New(bounds)
 	p.module.views = append(p.module.views, v)
 	return v
 }
@@ -139,33 +116,8 @@ func (p *Plugin) SetCameras(make Cameras) {
 	p.view = p.NewView(p.Res.Camera.Bounds)
 }
 
-// SetSun lights the world with sun from now on — a game's, or the sky of a day going by. From
-// then on a flat world is Sunlit too.
-func (p *Plugin) SetSun(sun Sun) { p.sun, p.sunlit = sun, true }
-
-// Sunlit reports whether the Sun lights what is drawn: always in a world with heights, whose
-// ground it shades; in a flat one once something set it (SetSun) — the sky of a day going by
-// tinting the tiles and the sprites, night dark, dawn warm — and never before, its sprites drawn
-// as they are.
-func (p *Plugin) Sunlit() bool { return p.Res.Config.Quasi3D || p.sunlit }
-
-// Sun is the world's light: DefaultSun unless something set another.
-func (p *Plugin) Sun() Sun { return p.sun }
-
-// SetWeather has the air over the world be w from now on — a game's, or the weather going by —
-// seen as far through as its Visibility says, or the world's Scale works out.
-func (p *Plugin) SetWeather(w Weather) {
-	if w.Visibility == 0 {
-		w.Visibility = p.Res.Config.Scale.Visibility(w)
-	}
-	p.weather = w
-}
-
 // Scale is how many metres a world unit spans, as the world was made with.
 func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
-
-// Weather is the air over the world: a calm, clear day unless something set another.
-func (p *Plugin) Weather() Weather { return p.weather }
 
 // SetLook has the world's entities drawn, picked and outlined by look: a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }
@@ -181,7 +133,7 @@ func (p *Plugin) FlatLook() Look {
 
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
 // camera, one made at the first call for any other.
-func (p *Plugin) ViewFor(cam camera.Camera) *View {
+func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	if cam == p.Res.Camera {
 		return p.view
 	}
@@ -189,7 +141,7 @@ func (p *Plugin) ViewFor(cam camera.Camera) *View {
 		return v
 	}
 	if p.views == nil {
-		p.views = map[camera.Camera]*View{}
+		p.views = map[camera.Camera]*view.View{}
 	}
 	v := p.NewView(cam.Bounds)
 	p.views[cam] = v
@@ -197,7 +149,7 @@ func (p *Plugin) ViewFor(cam camera.Camera) *View {
 }
 
 // DropView stops refreshing v; it keeps whatever it last saw.
-func (p *Plugin) DropView(v *View) {
+func (p *Plugin) DropView(v *view.View) {
 	views := p.module.views
 	for i, w := range views {
 		if w == v {
@@ -242,11 +194,6 @@ func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.Def
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
-	p.renderer.sun, p.renderer.sunlit = p.Sun, p.Sunlit
-	if p.Quasi3D() {
-		p.renderer.ground = p.Ground
-	}
-	p.renderer.weather = p.Weather
 	p.renderer.clock = p.module.clock.Time
 }
 

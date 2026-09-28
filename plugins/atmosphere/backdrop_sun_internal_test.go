@@ -1,4 +1,4 @@
-package sky
+package atmosphere
 
 import (
 	"math"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -49,7 +51,8 @@ func (sorting) Wraps() bool { return false }
 
 func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	b := NewBackdrop(w)
+	sun, weather := sky.Sun{}, air.Weather{}
+	b := NewBackdrop(w.Res.Config.Space, func() sky.Sun { return sun }, func() air.Weather { return weather })
 	pieces := func(cam camera.Camera) (n int, fans [][2]float32, depth float32) {
 		var f render.Frame
 		f.Reset(cam)
@@ -65,7 +68,7 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 		})
 		return
 	}
-	w.SetSun(world.Sun{Dir: eyedF, Strength: 0.7})
+	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
 	n, fans, depth := pieces(eyed{})
 	if n != 3 || len(fans) != 2 || math.IsInf(float64(depth), -1) {
 		t.Fatalf("the sun ahead: %d pieces, %d fans at depth %v; want the sky and the sun's glow and disc after it", n, len(fans), depth)
@@ -75,24 +78,24 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 			t.Errorf("the sun ahead is drawn round (%v, %v), want the middle of the screen", p[0], p[1])
 		}
 	}
-	w.SetSun(world.Sun{Dir: [3]float32{0.2, -0.8855, 0.5059}, Strength: 0.7}) // a fifth up and to the right of the way looked
+	sun = sky.Sun{Dir: [3]float32{0.2, -0.8855, 0.5059}, Strength: 0.7} // a fifth up and to the right of the way looked
 	if _, fans, _ := pieces(eyed{}); len(fans) != 2 || fans[0][0] <= 50 || fans[0][1] >= 50 {
 		t.Errorf("the sun up to the right is drawn at %v, want right of and above the middle", fans)
 	}
-	w.SetSun(world.Sun{Dir: [3]float32{0, 0.9487, 0.3162}, Strength: 0.7}) // behind the eye
+	sun = sky.Sun{Dir: [3]float32{0, 0.9487, 0.3162}, Strength: 0.7} // behind the eye
 	if n, fans, _ := pieces(eyed{}); n != 1 || len(fans) != 0 {
 		t.Errorf("the sun behind the eye: %d pieces, %d fans; want the sky alone", n, len(fans))
 	}
-	w.SetSun(world.Sun{Dir: [3]float32{0, -0.7, -0.7}, Strength: 0.7}) // set
+	sun = sky.Sun{Dir: [3]float32{0, -0.7, -0.7}, Strength: 0.7} // set
 	if n, _, _ := pieces(eyed{}); n != 1 {
 		t.Errorf("the sun under the horizon: %d pieces, want the sky alone", n)
 	}
-	w.SetSun(world.Sun{Dir: eyedF, Strength: 0.7})
-	w.SetWeather(world.Weather{Clouds: 1})
+	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
+	weather = air.Weather{Clouds: 1}
 	if n, _, _ := pieces(eyed{}); n != 1 {
 		t.Errorf("the sun under full cloud: %d pieces, want the sky alone", n)
 	}
-	w.SetWeather(world.Weather{})
+	weather = air.Weather{}
 	if n, _, _ := pieces(shifted{Camera: w.Camera(), dx: 150}); n != 1 {
 		t.Errorf("the sun seen from above: %d pieces, want the sky alone: no way vanishes", n)
 	}

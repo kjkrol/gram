@@ -9,8 +9,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -34,9 +35,27 @@ func (l dressedLook) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 }
 
 // dressed is a renderer of brd's cells dressed by d, handing look each tile.
-func dressed(brd *board.Board, d *dresser, sun func() world.Sun, look lookFn) *board.Renderer {
-	return board.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, look}, d: d}, sun)
+func dressed(brd *board.Board, d *dresser, look lookFn) *board.Renderer {
+	return board.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, look}, d: d})
 }
+
+// testSky is an Atmosphere of a fixed sun and weather.
+type testSky struct {
+	sun sky.Sun
+	air air.Weather
+}
+
+func (s testSky) Sun() sky.Sun     { return s.sun }
+func (s testSky) Air() air.Weather { return s.air }
+
+// skyOf is a still, clear sky under sun s.
+func skyOf(s sky.Sun) testSky { return testSky{sun: s} }
+
+// movingSky is a still, clear sky under whatever sun the pointer holds now.
+type movingSky struct{ sun *sky.Sun }
+
+func (s *movingSky) Sun() sky.Sun   { return *s.sun }
+func (*movingSky) Air() air.Weather { return air.Weather{} }
 
 // testMap is a board.Map of a dresser and a Look, level where the dresser has no heights.
 type testMap struct {
@@ -46,6 +65,7 @@ type testMap struct {
 
 func (m testMap) Look() board.Look         { return m.look }
 func (m testMap) Dressing() board.Dressing { return m.d }
+func (m testMap) Heights() board.Heights   { return m.d.relief }
 func (m testMap) Top(c board.CellID) (corners [4]float32, level float32) {
 	t := m.d.topOf(c)
 	return t.z, t.alt
@@ -82,11 +102,11 @@ func styled(st map[board.Name]Style, k board.CellKind, s Style) board.CellKind {
 }
 
 // lightsOf composes brd from above in a world with heights under sun and gives each cell's light.
-func lightsOf(brd *board.Board, st map[board.Name]Style, sun world.Sun) map[board.CellID]render.Shade {
+func lightsOf(brd *board.Board, st map[board.Name]Style, sun sky.Sun) map[board.CellID]render.Shade {
 	out := map[board.CellID]render.Shade{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { out[t.ID] = t.Light() })
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return sun }, true, st)
-	r := dressed(brd, d, func() world.Sun { return sun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sun), true, st)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(256, 256, 0))
 	return out
 }
@@ -103,7 +123,7 @@ func TestTile_LightFollowsTheSlopeOfTheGround(t *testing.T) {
 		}
 		return 0
 	}))
-	sun := world.Sun{Dir: [3]float32{1, 0, 1}, Strength: 0.6, Ambient: 0.3} // from the east, 45° up
+	sun := sky.Sun{Dir: [3]float32{1, 0, 1}, Strength: 0.6, Ambient: 0.3} // from the east, 45° up
 	lights := lightsOf(brd, st, sun)
 	at := func(x, y uint32) render.Shade { c, _ := grid.CellIndex(x, y); return lights[c] }
 
@@ -131,8 +151,8 @@ func TestTile_AFlatWorldShadesItsSlopes(t *testing.T) {
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 16 - math.Abs(p.X-64)/2 }) // a ridge along x = 64
 	got := map[board.CellID]render.Shade{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = t.Light() })
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(128, 32, 0))
 	east, _ := grid.CellIndex(2, 0) // falls to the east, where the default sun stands
 	west, _ := grid.CellIndex(1, 0)
@@ -159,8 +179,8 @@ func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-15) })
 	flows, runs := map[board.CellID]Flow{}, map[board.CellID]bool{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { flows[t.ID], runs[t.ID] = t.Flow() })
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(30, 30, 0))
 
 	want := float32(10 * math.Sqrt(0.4))
@@ -185,8 +205,8 @@ func wayPiecesAt(t *testing.T, brd *board.Board, st map[board.Name]Style, w, h u
 	t.Helper()
 	got := map[board.CellID][]WayPiece{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]WayPiece(nil), t.Way()...) })
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	cam := icamera.NewFromSpace(w, h, 0)
 	cam.ZoomIn(zoom, float32(w)/2, float32(h)/2)
 	if z := cam.Zoom(); math.Abs(float64(z-zoom)) > 1e-4 {
@@ -362,8 +382,8 @@ func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	blends := func() map[board.CellID][]BlendPiece {
 		got := map[board.CellID][]BlendPiece{}
 		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]BlendPiece(nil), t.Blends()...) })
-		d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, true, st)
-		r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+		d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+		r := dressed(brd, d, look)
 		compose(r, icamera.NewFromSpace(30, 30, 0))
 		return got
 	}
@@ -414,8 +434,8 @@ func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
 		bases[t.ID], blends[t.ID] = t.Base(), append([]BlendPiece(nil), t.Blends()...)
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(30, 30, 0))
 
 	if bases[at(1, 1)] != sea.SpriteID || bases[at(2, 1)] != earth.SpriteID {
@@ -457,8 +477,8 @@ func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 			got = append(got[:0], t.Blends()...)
 		}
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	cam := icamera.NewFromSpace(60, 30, 0)
 	compose(r, cam)
 	baked := d.bakes[1*6+1].ver
@@ -499,8 +519,8 @@ func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 			shine, shore = s, t.Shore()
 		}
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, true, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	r := dressed(brd, d, look)
 	for _, c := range []struct {
 		zoom   float32
 		shine  float32
@@ -554,8 +574,8 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 				t.DrawSurface(f, t.X0, t.Y0, t.X1, t.Y1)
 			}
 		})
-		d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, true, st)
-		r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+		d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+		r := dressed(brd, d, look)
 		f.Reset(cam)
 		r.Compose(&f, cam)
 		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
@@ -575,14 +595,14 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 
 // wallInSun is a 6x3 board of level grass with a wall 10 tall at (3, 1), under a sun low in the
 // east: its shadow falls 50 to the west.
-func wallInSun(t *testing.T) (*board.Board, board.Grid, world.Sun) {
+func wallInSun(t *testing.T) (*board.Board, board.Grid, sky.Sun) {
 	t.Helper()
 	grid := board.DefaultGrids{}.Square(6, 3, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	wall, _ := grid.CellIndex(3, 1)
 	brd.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 10})
-	return brd, grid, world.Sun{Dir: [3]float32{1, 0, 0.2}, Strength: 0.6, Ambient: 0.3}
+	return brd, grid, sky.Sun{Dir: [3]float32{1, 0, 0.2}, Strength: 0.6, Ambient: 0.3}
 }
 
 func TestTile_TheTerrainCastsItsShadowAwayFromTheSun(t *testing.T) {
@@ -610,8 +630,8 @@ func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
 	var got map[board.CellID]render.Shade
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = t.Light() })
 	current := sun
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return current }, true, st)
-	r := dressed(brd, d, func() world.Sun { return current }, look)
+	d := newDresser(brd, reliefFor(brd), &movingSky{sun: &current}, true, st)
+	r := dressed(brd, d, look)
 	behind, _ := grid.CellIndex(2, 1)
 	frame := func() render.Shade {
 		got = map[board.CellID]render.Shade{}
@@ -621,7 +641,7 @@ func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
 	if frame()[1] != sun.Shaded(0, 0, 1, 0) {
 		t.Fatal("no shadow behind the wall to begin with")
 	}
-	noon := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
+	noon := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
 	current = noon
 	if l := frame()[1]; l != noon.Light(0, 0, 1) {
 		t.Errorf("under a sun overhead the grass behind the wall is lit %v, want %v: no shadow", l, noon.Light(0, 0, 1))
@@ -651,19 +671,19 @@ func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 		shine float32
 		lit   [4]float32
 	}
-	shines := func(sun world.Sun, quasi3D bool) map[board.CellID]shining {
+	shines := func(sun sky.Sun, heights bool) map[board.CellID]shining {
 		out := map[board.CellID]shining{}
 		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
 			if s, lit, ok := t.Shine(); ok {
 				out[t.ID] = shining{s, lit}
 			}
 		})
-		d := newDresser(brd, reliefFor(brd), func() world.Sun { return sun }, quasi3D, st)
-		r := dressed(brd, d, func() world.Sun { return sun }, look)
+		d := newDresser(brd, reliefFor(brd), skyOf(sun), heights, st)
+		r := dressed(brd, d, look)
 		compose(r, icamera.NewFromSpace(256, 256, 0))
 		return out
 	}
-	day := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
+	day := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
 	got := shines(day, true)
 	if got[sea] != (shining{0.8, [4]float32{1, 1, 1, 1}}) {
 		t.Errorf("the sea in the full sun shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
@@ -671,7 +691,7 @@ func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 	if _, ok := got[grass]; ok {
 		t.Errorf("grass shines %v, want nothing", got[grass])
 	}
-	if got := shines(world.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (shining{0.8, [4]float32{}}) {
+	if got := shines(sky.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (shining{0.8, [4]float32{}}) {
 		t.Errorf("at night the sea shines %v, want its shine and none of the sun: it reflects the night sky, foams", got[sea])
 	}
 	if got := shines(day, false); len(got) > 0 {
@@ -690,9 +710,9 @@ func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	}
 	shores := map[board.CellID]Shore{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { shores[t.ID] = t.Shore() })
-	sun := world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return sun }, true, st)
-	r := dressed(brd, d, func() world.Sun { return sun }, look)
+	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
+	d := newDresser(brd, reliefFor(brd), skyOf(sun), true, st)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(320, 128, 0))
 	at := func(x uint32) Shore { c, _ := grid.CellIndex(x, 1); return shores[c] }
 
@@ -726,15 +746,15 @@ func TestTile_TheCloudsShadowLiesOnceOverATopAndTheGroundsOnIt(t *testing.T) {
 		f.Sprite(render.Ground, 0, flatAtlas{}, t.Base(), render.Corners{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}, t.Light())
 		t.Tile.Dress(f, cam, t.X0, t.Y0, t.X1, t.Y1, 0)
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	var f render.Frame
 	cam := icamera.NewFromSpace(96, 96, 0)
 	f.Reset(cam)
-	f.Weather(render.Weather{Clouds: 1}) // an overcast sky: every top the clouds reach is shaded
+	d.sky = testSky{sun: sky.DefaultSun, air: air.Weather{Clouds: 1}} // an overcast sky: every top the clouds reach is shaded
 	r.Compose(&f, cam)
 
-	shadow := float32(2 + 2*render.CloudShadow())
+	shadow := float32(2 + 2*air.CloudShadow())
 	var top []ebiten.Vertex
 	shadows, grounds := 0, 0
 	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
@@ -784,8 +804,8 @@ func TestDresser_FromFarTilesAreDressedFromTheGroundSheet(t *testing.T) {
 		f.Sprite(render.Ground, 0, t.Atlas, t.Base(), render.Corners{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}, t.Light())
 		t.Tile.Dress(f, cam, t.X0, t.Y0, t.X1, t.Y1, 0)
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := board.NewRenderer(brd, atlas, testMap{look: dressedLook{d, look}, d: d}, func() world.Sun { return world.DefaultSun })
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := board.NewRenderer(brd, atlas, testMap{look: dressedLook{d, look}, d: d})
 
 	for _, c := range []struct {
 		zoom float32
@@ -868,9 +888,9 @@ func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 			pieces = append([]WayPiece(nil), t.Way()...)
 		}
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	d.kinds = kindsOf{sea, stream}
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	r := dressed(brd, d, look)
 	compose(r, icamera.NewFromSpace(30, 30, 0))
 	if len(pieces) == 0 {
 		t.Fatal("no pieces")
@@ -946,8 +966,8 @@ func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
 		ways[t.ID] = append([]WayPiece(nil), t.Way()...)
 		crossings[t.ID] = append([]WayPiece(nil), t.Crossing()...)
 	})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, false, st)
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	r := dressed(brd, d, look)
 	cam := icamera.NewFromSpace(30, 30, 0)
 	cam.ZoomIn(2, 15, 15)
 	cam.CenterOn(15, 15, 0)

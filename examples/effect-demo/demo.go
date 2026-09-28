@@ -28,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -127,7 +128,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.effects = s.world.Effects()
 	// A frozen boat holds its cell, so the planner goes round.
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land},
@@ -164,7 +165,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		effects.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }), // stuck fast: nobody shoves it
 	})
 	s.slip = s.effects.Define("slip", effects.Spec{
-		effects.Alter(func(st *world.Steering) { st.Brake = st.Accel / 8 }), // ice: brakes barely bite
+		effects.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }), // ice: brakes barely bite
 	})
 	frozen := s.frozenTag
 	if err := s.world.RegisterBehavior(world.Each[plugin.Tags[chill]](func(_ plugin.Tick, marks *plugin.Tags[chill], m world.Moving) {
@@ -281,8 +282,8 @@ func (s *mainStage) onGround(t plugin.Tick, m *board.Mover, st board.Standing) {
 // on land, the boat on water.
 func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return s.brd.CellCenter(u.start) })
-	profile := func(brake float64) world.Steering {
-		return world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
+	profile := func(brake float64) steering.Steering {
+		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
 	}
 	sel := comp.Tagged(s.selection.Tags().Selectable)
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })

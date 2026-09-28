@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 )
 
 // Player is whoever acts in the game and may look at a part of it: a camera and the View through
@@ -16,7 +17,7 @@ type Player struct {
 	ID     control.PlayerID
 	Name   string
 	Camera camera.Camera
-	View   *world.View
+	View   *view.View
 
 	world    *world.Plugin
 	own      bool      // looks through a camera of its own, saved with the game

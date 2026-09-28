@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -43,15 +43,15 @@ type bodyKeeping struct {
 	finder  *pathFinder
 	grid    board.Grid
 	terrain board.Terrain
-	space   *aabbworld.Space    // for the short way round and the world's edges; nil, flat and open
-	ground  func() world.Ground // the world's ground, for steps; nil or giving nil, level
+	space   *aabbworld.Space     // for the short way round and the world's edges; nil, flat and open
+	ground  func() board.Heights // the board's ground, for steps; nil or giving nil, level
 	index   bodyIndex
 }
 
 var _ keeping = (*bodyKeeping)(nil)
 
 // newBodyKeeping keeps units apart over finder's grid, in space, on ground.
-func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() world.Ground) *bodyKeeping {
+func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() board.Heights) *bodyKeeping {
 	return &bodyKeeping{finder: finder, grid: finder.grid, terrain: finder.terrain, space: space, ground: ground, index: bodyIndex{grid: finder.grid}}
 }
 
@@ -213,7 +213,7 @@ func (k *bodyKeeping) lost(m member, from board.CellID, o *MoveOrder, waited tim
 // steer asks st for dir at speed; while m steps round someone it struck, dir leans aside, never
 // back into them, and while m still faces into them it turns on the spot; with no ground aside
 // either way it waits.
-func (k *bodyKeeping) steer(m member, st *world.Steering, dir geom.Vec, speed float64) {
+func (k *bodyKeeping) steer(m member, st *steering.Steering, dir geom.Vec, speed float64) {
 	if o := m.order; o != nil && o.AsideFor > 0 {
 		if o.Aside == (geom.Vec{}) || m.facing.X*o.Struck.X+m.facing.Y*o.Struck.Y < -0.01 {
 			speed = 0

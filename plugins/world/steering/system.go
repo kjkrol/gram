@@ -1,4 +1,4 @@
-package world
+package steering
 
 import (
 	"math"
@@ -6,25 +6,28 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world/entity"
 )
 
-var _ goke.System = (*SteeringSystem)(nil)
+var _ goke.System = (*System)(nil)
 
-// SteeringSystem carries out Steering requests between the decision pass and movement: heading by
-// at most TurnRate a tick, and base speed rewritten each tick for an entity with a motion profile.
-type SteeringSystem struct {
+// System carries out Steering requests between the decision pass and movement: heading by at most
+// TurnRate a tick, and base speed rewritten each tick for an entity with a motion profile. The
+// world runs it in every step of its simulation, before movement.
+type System struct {
 	query *goke.Query
 	steer goke.Comp[Steering]
-	base  goke.Comp[Base]
+	base  goke.Comp[entity.Base]
 }
 
-func NewSteeringSystem() *SteeringSystem { return &SteeringSystem{} }
+// NewSystem is the steering system; the world registers it.
+func NewSystem() *System { return &System{} }
 
-func (s *SteeringSystem) Init(si *goke.SysInit) {
+func (s *System) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.steer, &s.base).Build()
 }
 
-func (s *SteeringSystem) Update(_ *goke.CmdBuf, d time.Duration) {
+func (s *System) Update(_ *goke.CmdBuf, d time.Duration) {
 	dt := d.Seconds()
 	s.query.All()
 	for s.query.Next() {

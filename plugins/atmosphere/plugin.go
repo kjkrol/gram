@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
@@ -50,13 +51,20 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	return &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
-		sky: sky.New(worldPlugin, cal, cfg.Sky, clim.Zone().Latitude)}
+		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
 }
+
+// Sun is the light of the day as it stands: what lights the world and casts its shadows.
+func (p *Plugin) Sun() sky.Sun { return p.sky.Sun() }
+
+// Air is the weather as the last step of the simulation left it: the wind, the clouds, what
+// falls, how far one sees.
+func (p *Plugin) Air() air.Weather { return p.climate.Air() }
 
 // WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it once
 // the kinds cfg names are in brd's dictionary, before Use. A Config the board cannot take panics.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
-	w, err := weathering.New(brd, p.worldPlugin, p.worldPlugin.Effects(), p.calendar, cfg)
+	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -102,15 +110,17 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
 // Renderer is the sky behind the world, a render.Source for a scene's Composer: the viewport in
 // the sky's colour under everything, wherever the ground does not cover it.
-func (p *Plugin) Renderer() render.Layer { return sky.NewBackdrop(p.worldPlugin) }
+func (p *Plugin) Renderer() render.Layer {
+	return NewBackdrop(p.worldPlugin.Res.Config.Space, p.Sun, p.Air)
+}
 
 // Precipitation is what falls — rain, snow — a render.Source for a scene's Composer, on render.Air.
-func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.worldPlugin) }
+func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
 
 // Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer: laid
 // over the whole screen, piece by piece, over the ground and what stands on it, under the
 // overlays. A world with heights has its terrain shadow itself, tile by tile.
-func (p *Plugin) Clouds() render.Layer { return &clouds{world: p.worldPlugin} }
+func (p *Plugin) Clouds() render.Layer { return &clouds{sun: p.Sun, air: p.Air} }
 
 // Reporter is the atmosphere's lines for a render.TelemetryRenderer: the time of day and the date,
 // the light, the weather.
@@ -196,11 +206,12 @@ func (m *module) LoadComps() []goke.CompToken { return m.comps }
 var _ render.Source = (*clouds)(nil)
 
 // clouds lays the clouds' shadows over the whole screen, the ground under it flat: a mesh of
-// pieces cloudPiece pixels across, the clouds' noise worked out at every corner (render.CloudAt)
+// pieces cloudPiece pixels across, the clouds' noise worked out at every corner (air.Weather.Cloud)
 // and shaded between them by the shader.
 type clouds struct {
-	world *world.Plugin
-	mesh  []cloudCorner // the corners of the mesh, row by row, kept between frames
+	sun  func() sky.Sun
+	air  func() air.Weather
+	mesh []cloudCorner // the corners of the mesh, row by row, kept between frames
 }
 
 // cloudCorner is one corner of the mesh: where it lies on the screen and in the world, and the
@@ -217,20 +228,20 @@ const (
 func (*clouds) Init(*goke.SysInit) {}
 
 func (c *clouds) Compose(f *render.Frame, cam camera.Camera) {
-	f.Weather(c.world.Weather().Frame())
-	f.Daylight(c.world.Sun().Daylight())
-	if f.Clouds() <= 0 {
+	sun, weather := c.sun(), c.air()
+	sun.Frame(f)
+	weather.Frame(f, sun)
+	if weather.Clouds <= 0 {
 		return
 	}
 	w, h := cam.Viewport()
-	drift := f.Drift()
 	nx, ny := int(math.Ceil(float64(w/cloudPiece))), int(math.Ceil(float64(h/cloudPiece)))
 	c.mesh = c.mesh[:0]
 	for j := 0; j <= ny; j++ {
 		for i := 0; i <= nx; i++ {
 			sx, sy := min(float32(i)*cloudPiece, w), min(float32(j)*cloudPiece, h)
 			x, y := cam.Unproject(sx, sy, 0)
-			c.mesh = append(c.mesh, cloudCorner{sx: sx, sy: sy, x: x, y: y, n: render.CloudAt(x, y, drift)})
+			c.mesh = append(c.mesh, cloudCorner{sx: sx, sy: sy, x: x, y: y, n: weather.Cloud(x, y)})
 		}
 	}
 	depth := float32(math.Inf(1))
@@ -243,7 +254,7 @@ func (c *clouds) Compose(f *render.Frame, cam camera.Camera) {
 				at := c.mesh[(j+d[1])*(nx+1)+i+d[0]]
 				dst[k], world[k], cloud[k] = [2]float32{at.sx, at.sy}, [2]float32{at.x, at.y}, at.n
 			}
-			f.OvercastQuad(cloudTier, depth, dst, world, cloud)
+			weather.OvercastQuad(f, cloudTier, depth, dst, world, cloud)
 		}
 	}
 }

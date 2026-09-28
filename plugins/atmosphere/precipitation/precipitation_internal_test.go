@@ -5,13 +5,16 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
 func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	p := New(w)
+	weather := air.Weather{}
+	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
 	count := func() (n int, tier render.Tier) {
 		var f render.Frame
 		f.Reset(w.Camera())
@@ -22,14 +25,14 @@ func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.
 	if n, _ := count(); n != 0 {
 		t.Errorf("a dry sky drew %d drops", n)
 	}
-	w.SetWeather(world.Weather{Rain: 0.5})
+	weather = air.Weather{Rain: 0.5}
 	half, tier := count()
-	w.SetWeather(world.Weather{Rain: 1})
+	weather = air.Weather{Rain: 1}
 	full, _ := count()
 	if half == 0 || tier != render.Air || full < 2*half-1 || full > 2*half+1 {
 		t.Errorf("half a rain drew %d drops on tier %v, a full one %d; want some in the air, twice as many", half, tier, full)
 	}
-	w.SetWeather(world.Weather{Snow: 1})
+	weather = air.Weather{Snow: 1}
 	if n, _ := count(); n == 0 {
 		t.Error("a snowfall drew no flakes")
 	}
@@ -53,8 +56,8 @@ func (flung) Project(x, y, _ float32) (float32, float32) {
 // draws points elsewhere, and never flatter than it falls: no streak runs across the screen.
 func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	p := New(w)
-	w.SetWeather(world.Weather{Rain: 1, Wind: [2]float32{10, 0}})
+	weather := air.Weather{Rain: 1, Wind: [2]float32{10, 0}}
+	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
 	cam := flung{w.Camera()}
 	var f render.Frame
 	f.Reset(cam)

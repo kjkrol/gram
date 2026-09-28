@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -40,7 +41,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // NewPlugin builds a navigation plugin over a board; hand it to the players plugin for its MoveTo
 // command and default bindings. Entities move as their Steering profile says.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
-	kind.Require[world.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
+	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
 	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
@@ -60,7 +61,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	var finder *pathFinder
 	if p.spacing == BodySpacing {
 		finder = newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
-		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.worldPlugin.Ground)
+		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)
 	} else {
 		finder = newPathFinder(brd, brd, p.boardPlugin, p.boardPlugin.Occupancy())
 		keep = newCellKeeping(finder)

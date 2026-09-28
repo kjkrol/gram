@@ -5,7 +5,7 @@
 // sizes, whether a fresh game begins isometric, the [Shaping] and the [Climbing] — and puts the
 // board in relief at once: it is the board's Map (board.Plugin.WithMap) — its Look, its Dressing,
 // its heights and its costs — the world's Ground, and the maker of the world's cameras. The world
-// must have heights (world.Config.Quasi3D) and may not wrap.
+// must have heights (world.Config.Heights) and may not wrap.
 //
 // # Relief
 //
@@ -41,12 +41,18 @@
 //
 // # Light and shadows
 //
-// A tile is lit by the world's sun per corner, from the slope of the ground there and at the
-// neighbours', so a slope runs on without a seam, and an upright face as much as the top's edge
-// over it: a map in relief, from above as isometrically. The terrain casts shadows: a corner the
-// ground or what stands on it hides from the sun, walked towards it up to 16 cells, gets the
-// ambient light alone. Shadows and light are worked out as cells come into sight and kept until the
-// terrain or the sun changes; [Plugin.WithShadows] turns the shadows off.
+// The relief stands under an [Atmosphere] — plugins/atmosphere's Plugin ([Plugin.WithAtmosphere]),
+// or, given none, sky.DefaultSun in still, clear air: its sun lights and shades it, its weather
+// leans what sways, lays the clouds' shadows and hazes the far off. A tile is lit by the sun per
+// corner, from the slope of the ground there and at the neighbours', so a slope runs on without a
+// seam, and an upright face as much as the top's edge over it: a map in relief, from above as
+// isometrically. The terrain casts shadows: a corner the ground or what stands on it hides from
+// the sun, walked towards it up to 16 cells, gets the ambient light alone. Shadows and light are
+// worked out as cells come into sight and kept until the terrain or the sun changes;
+// [Plugin.WithShadows] turns the shadows off. The world's entities are lit by the sun on level
+// ground, lean with the wind and cast their shadows on the relief away from the sun (sky.Sun.Shadow),
+// from above as in relief. The relief is the board's Heights ([Plugin.Heights]), which sight and
+// navigation read through the board.
 //
 // # Water
 //
@@ -186,7 +192,7 @@
 // ground between them would hide the unit and eases back as the way clears. [LookFrom] puts the
 // eye at a point of the world and [LookAt] has it look at one, in perspective, a camera in another
 // view going there first where the game reaches it. [Drive] (W, S, A and D riding; the arrows
-// following) steers the unit a camera is fastened to: the camera system keeps a world.Driven on it
+// following) steers the unit a camera is fastened to: the camera system keeps a steering.Driven on it
 // while fastened, writes the keys into it every tick and stops it when let go; navigation carries it out on the ground. [Raise],
 // [Lower] and [Level] shape the ground. Call [Plugin.RunPlan] after the world has moved and before
 // the players' RunPlan.

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -17,7 +16,7 @@ var defaults = Config{latitude: Latitude}
 
 // firstDay is the sun of a zero Config's first day — the middle of spring, the year's second — at
 // time t, as the sky sets it.
-func firstDay(t float32) world.Sun { return defaults.SunAt((1+t)/8, t) }
+func firstDay(t float32) Sun { return defaults.SunAt((1+t)/8, t) }
 
 func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	south := Config{NoonWay: South, latitude: Latitude}
@@ -53,18 +52,16 @@ func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
 	}
 }
 
-// rig is a sky over a new world on a clock the test moves on.
+// rig is a sky on a clock the test moves on.
 type rig struct {
-	w   *world.Plugin
 	clk *clock.Clock
 	sky *Sky
 }
 
 func skyOf(t *testing.T, cfg Config, cal calendar.Config) *rig {
 	t.Helper()
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 64, Height: 64}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}, Quasi3D: true})
 	clk := clock.New(clock.Config{})
-	return &rig{w: w, clk: clk, sky: New(w, calendar.New(clk, cal), cfg, Latitude)}
+	return &rig{clk: clk, sky: New(calendar.New(clk, cal), cfg, Latitude)}
 }
 
 // tick has the clock move on by d, then the sky set the sun.
@@ -76,16 +73,16 @@ func (r *rig) tick(d time.Duration) {
 func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
 	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
 	r.tick(time.Second / 60)
-	if r.w.Sun() != firstDay(0.5) {
-		t.Errorf("the world's sun %+v, want noon's", r.w.Sun())
+	if r.sky.Sun() != firstDay(0.5) {
+		t.Errorf("the sky's sun %+v, want noon's", r.sky.Sun())
 	}
 	r.tick(time.Second / 2) // half an hour of a 24-second day: still the noon step
-	if r.w.Sun() != firstDay(0.5) {
+	if r.sky.Sun() != firstDay(0.5) {
 		t.Error("the sun moved within a step")
 	}
 	r.tick(time.Second) // past one: the next step
-	if r.w.Sun() != firstDay(13.0/24) {
-		t.Errorf("an hour and a half on the sun is %+v, want the step at 13", r.w.Sun())
+	if r.sky.Sun() != firstDay(13.0/24) {
+		t.Errorf("an hour and a half on the sun is %+v, want the step at 13", r.sky.Sun())
 	}
 }
 
@@ -96,8 +93,8 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	r.sky.freeze.Add(0, Freeze{})
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
-	if !r.sky.Frozen() || r.sky.Hour() != 0.5 || r.w.Sun() != firstDay(0.5) {
-		t.Fatalf("frozen at noon the light is %+v at %v, want noon's still", r.w.Sun(), r.sky.Hour())
+	if !r.sky.Frozen() || r.sky.Hour() != 0.5 || r.sky.Sun() != firstDay(0.5) {
+		t.Fatalf("frozen at noon the light is %+v at %v, want noon's still", r.sky.Sun(), r.sky.Hour())
 	}
 	if m := r.sky.calendar.Now(); !near(m.Time, 0.75) {
 		t.Errorf("the calendar stands at %v, want 18:00: the day goes on under the frozen light", m.Time)
@@ -111,13 +108,13 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	}
 	r.sky.later.Add(0, Later{})
 	r.tick(0)
-	if r.w.Sun() != firstDay(13.0/24) { // the sun moves by the day's steps, hours here
-		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", r.w.Sun())
+	if r.sky.Sun() != firstDay(13.0/24) { // the sun moves by the day's steps, hours here
+		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", r.sky.Sun())
 	}
 	r.sky.freeze.Add(0, Freeze{})
 	r.tick(0)
-	if r.sky.Frozen() || r.w.Sun() != firstDay(0.75) {
-		t.Errorf("let go, the light is %+v, want the calendar's 18:00 at once", r.w.Sun())
+	if r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
+		t.Errorf("let go, the light is %+v, want the calendar's 18:00 at once", r.sky.Sun())
 	}
 }
 
@@ -138,8 +135,8 @@ func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
 func TestSky_BeginsFrozenAtTheConfigsHour(t *testing.T) {
 	r := skyOf(t, Config{Frozen: true, Hour: 18.0 / 24, Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
 	r.tick(0)
-	if !r.sky.Frozen() || r.w.Sun() != firstDay(0.75) {
-		t.Errorf("begun frozen at 18:00 the light is %+v, want the evening's", r.w.Sun())
+	if !r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
+		t.Errorf("begun frozen at 18:00 the light is %+v, want the evening's", r.sky.Sun())
 	}
 	if rep := (Config{Frozen: true}).withDefaults(); rep.Hour != 0.5 {
 		t.Errorf("a frozen light of no hour is at %v, want noon", rep.Hour)

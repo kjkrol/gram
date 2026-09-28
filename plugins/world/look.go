@@ -13,8 +13,8 @@ import (
 // look, seen from above; a view plugin puts its own in with Plugin.SetLook.
 type Look interface {
 	// Sprite hands f sprite id of atlas for an entity whose box stands as z says — at its Altitude,
-	// Height tall; the zero Z in a flat world — on the render.Objects tier, in light, swaying in the
-	// frame's wind as much as sway says (Appearance.Sway).
+	// Height tall; the zero Z in a flat world — on the render.Objects tier, in light, swaying as much
+	// as sway says (Appearance.Sway) for a Look that knows a wind.
 	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners
@@ -28,20 +28,14 @@ type Look interface {
 type Cameras func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera
 
 // flatLook is the world seen from above: a sprite over its box, in a piece per image where the
-// box crosses a wrap seam.
+// box crosses a wrap seam; it knows no wind, so nothing sways.
 type flatLook struct {
 	worldW, worldH float32
 	quads          []camera.Quad
 }
 
-func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, _ float32) {
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
-	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
-		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
-		lx, ly := render.Sway(f.Time(), f.Wind(), cx, cy, sway)
-		rise := max(sizeX, sizeY)
-		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
-	}
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
 		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
 		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)

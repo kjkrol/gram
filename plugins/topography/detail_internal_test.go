@@ -7,8 +7,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -20,7 +20,7 @@ func TestDresser_DetailGoesWithEachTilesDistanceThroughAPerspective(t *testing.T
 	grid := board.DefaultGrids{}.Square(100, 100, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	d := newDresser(brd, reliefFor(brd), func() world.Sun { return world.DefaultSun }, true, st)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
 	type seen struct {
 		px, detail float32
 		baked      bool
@@ -30,7 +30,7 @@ func TestDresser_DetailGoesWithEachTilesDistanceThroughAPerspective(t *testing.T
 		d.sheeted = true // as with an atlas to paint on
 		tiles[tl.ID] = seen{tl.px(), tl.Detail(), d.baked(tl)}
 	})
-	r := dressed(brd, d, func() world.Sun { return world.DefaultSun }, look)
+	r := dressed(brd, d, look)
 	cam := newCamera(testProjection, 3200, 3200, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
 	cam.enterInside([3]float32{3000, 3000, 40}, 0)
 	cam.Tilt(0.25)
@@ -75,8 +75,8 @@ func TestBlocks_TheTileTheEyeStandsInIsDrawnOnlyInFront(t *testing.T) {
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	relief := reliefFor(brd)
 	relief.SetHeights(func(p geom.Vec) float64 { return (640 - p.X) + (640 - p.Y) }) // rising to the north-west
-	d := newDresser(brd, relief, func() world.Sun { return world.DefaultSun }, true, st)
-	r := board.NewRenderer(brd, flatAtlas{}, testMap{look: blocks{d: d}, d: d}, func() world.Sun { return world.DefaultSun })
+	d := newDresser(brd, relief, skyOf(sky.DefaultSun), true, st)
+	r := board.NewRenderer(brd, flatAtlas{}, testMap{look: blocks{d: d}, d: d})
 	ground := func(x, y float32) float32 { return float32(relief.GroundAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) { low, high := relief.Extent(); return float32(low), float32(high) }
 	cam := newCamera(testProjection, 640, 640, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, ground, extent, 0)

@@ -70,10 +70,11 @@ and a few system libraries; Ebitengine uses cgo on most platforms).
 |:---|:---|:---|
 | **Stages and Scenes** | `game` | Named Stages with their own ECS and lifecycle (`Init`/`Restore`/`Spawn`/`Update`); Scenes with layered renderers and input; a live Composition of what is shown and which Scene is active |
 | **Plugins and behaviors** | `plugin` | The one extension contract; behaviors built by the hosting plugin (`Between`, `Each`, `Every`) and run in its own pass |
-| **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds |
+| **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds; `Heights` for a world with heights |
+| **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
 | **Kinds** | `plugins/world/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
 | **Collisions** | `plugins/collision` | A `CollisionSystem` over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, a `ShapeTest` to refine, `Meeting`/`Struck` for behaviors |
-| **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` behaviors per observer; drawn outlines; in a Quasi3D world the eye looks over walls, forests and hills by height |
+| **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` behaviors per observer; drawn outlines; in a world with heights the eye looks over walls, forests and hills by height |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain and occupancy; `MoveOrder` paths that re-route when terrain changes |
 | **Topography** | `plugins/topography` | A map in relief over the board: the ground's heights shaped by the player and pricing every slope, the sun's light on the relief and the terrain's shadows, grounds blending, round coasts, water glinting and running, rivers and roads drawn across the cells, the clouds' shadows, less detail far off; each kind styled by name; seen from above, isometrically or in perspective, Tab goes round |
 | **Selection** | `plugins/selection` | A `Select` command into a `Selected` tag, with default bindings (click, marquee, shift-add) and a highlight renderer |
@@ -349,6 +350,9 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `Pair`/`Each`/`Every` behind a plugin's typed constructors, `PairHost` and `EachHost` that run them |
 | [`plugins/world/kind`](plugins/world/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load`, `Define`, `Of`, `Registry` |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Attach`/`Detach`, the entity renderer |
+| [`plugins/world/entity`](plugins/world/entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
+| [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` requests and profiles carried out by the `System` each step; `Driven` for an entity steered by hand |
+| [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`plugins/collision`](plugins/collision/doc.go) | The `CollisionSystem` over the world's space; `Collider`, `Physics`, `ShapeTest`, `Meeting`, `Struck` |
 | [`plugins/collision/behavior`](plugins/collision/behavior/doc.go) | `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 func testSpace(t *testing.T) *aabbworld.Space {
@@ -68,7 +69,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -80,7 +81,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 		cell.Slice(&f.Cursor)[0] = board.Cell{ID: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(start, id, board.Land)
 
 		q = si.NewQueryBuilder(&cell, &order).Build()
@@ -88,7 +89,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	pusherHandle := ecs.RegSys(pusher)
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(pusherHandle, d)
 		ctx.Run(steerHandle, d)
@@ -138,7 +139,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -156,7 +157,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 		c1, c2, _ := grid.DiagonalNeighbors(previous, expected)
 		mt.Leg = Leg{From: previous, To: expected, C1: c1, C2: c2, Diagonal: true, Active: true}
 		order.Slice(&f.Cursor)[0] = mt
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
 			occupancy.Enter(c, id, board.Land)
 		}
@@ -165,7 +166,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 	}})
 
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)
 		ctx.Run(steeringHandle, d)
@@ -196,7 +197,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -209,14 +210,14 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		pos.Slice(&f.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 50}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(start, id, board.Land)
 
 		q = si.NewQueryBuilder(&cell, &pos).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)
 		ctx.Run(steeringHandle, d)
@@ -257,7 +258,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -269,14 +270,14 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 		cell.Slice(&f.Cursor)[0] = board.Cell{ID: target}
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(target, id, board.Land)
 
 		q = si.NewQueryBuilder(&pos).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)
 		ctx.Run(steeringHandle, d)
@@ -321,7 +322,7 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -333,14 +334,14 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 		cell.Slice(&f.Cursor)[0] = board.Cell{ID: target}
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(target, id, board.Land)
 
 		q = si.NewQueryBuilder(&pos).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	moveHandle := ecs.RegSys(world.NewMoveSystem(space))
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)
@@ -414,7 +415,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 
 	ecs := goke.New()
@@ -427,14 +428,14 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 		cell.Slice(&f.Cursor)[0] = board.Cell{ID: start}
 		pos.Slice(&f.Cursor)[0].Pos = startPos
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: speed}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: speed}
 		occupancy.Enter(start, id, board.Land)
 
 		q = si.NewQueryBuilder(&cell, &pos, &order).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := ecs.RegSys(steering.NewSystem())
 	moveHandle := ecs.RegSys(world.NewMoveSystem(space))
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(steerHandle, d)

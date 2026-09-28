@@ -3,6 +3,8 @@ package world
 import (
 	"fmt"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -47,7 +49,7 @@ type module struct {
 	exitRunnable     goke.Runnable
 
 	// views are refreshed each tick — see Plugin.NewView.
-	views        []*View
+	views        []*view.View
 	viewRunnable goke.Runnable
 
 	// the tactical clock and the effects, the world's own: the clock's system goes first in the
@@ -79,11 +81,11 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	for _, b := range w.behaviors {
 		w.behaviorRunnables = append(w.behaviorRunnables, ecs.RegSys(b))
 	}
-	w.steeringRunnable = ecs.RegSys(NewSteeringSystem())
+	w.steeringRunnable = ecs.RegSys(steering.NewSystem())
 	w.velocityRunnable = ecs.RegSys(NewVelocitySystem(w.movers))
 	w.moveRunnable = ecs.RegSys(NewMoveSystem(w.space))
 	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
-	w.viewRunnable = ecs.RegSys(NewViewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
+	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.clockRunnable = ecs.RegSys(w.clock.System())
 	w.effects.Module().RegSystems(ecs)
 }
@@ -123,11 +125,11 @@ func (w *module) LoadComps() []goke.CompToken {
 	tokens := append([]goke.CompToken{
 		goke.LoadComp[Base](),
 		goke.LoadComp[Appearance](),
-		goke.LoadComp[Steering](),
+		goke.LoadComp[steering.Steering](),
 		goke.LoadComp[Outside](),
 		goke.LoadComp[Layers](),
 		goke.LoadComp[Z](),
-		goke.LoadComp[Driven](),
+		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[clock.State](),
 		goke.LoadComp[plugin.Tags[clock.Phase]](),
 	}, w.effects.Module().LoadComps()...)

@@ -10,11 +10,14 @@
 //
 // In the plan ([Plugin.RunPlan], after the world's) the light runs at once, once a tick — it is a
 // look at the world, changing in the tactical pause too — and the weather in every step of the
-// simulation, standing in the pause and hurrying with the tempo. The world's light and weather
-// follow (world.SetSun, world.SetWeather): a world with heights shades its terrain by the sun and
-// lays the clouds' shadows tile by tile; a flat one is Sunlit from the first tick — its tiles and
-// sprites tinted by the hour, night dark, dawn warm — and takes the clouds' shadows from
-// [Plugin.Clouds], laid over the screen piece by piece.
+// simulation, standing in the pause and hurrying with the tempo. The sun and the weather are the
+// atmosphere's to give ([Plugin.Sun], [Plugin.Air]; the world knows nothing of them): a board in
+// relief takes them through topography.Plugin.WithAtmosphere and shades its terrain by the sun,
+// lays the clouds' shadows tile by tile and hazes the far off; a flat board and the world's sprites
+// take the sun's light on level ground through [Plugin.WithBoard] — tinted by the hour, night dark,
+// dawn warm, what sways leaning with the wind — and the clouds' shadows from [Plugin.Clouds], laid
+// over the screen piece by piece. The sun's maths and Kage are plugins/atmosphere/sky's, the
+// weather's plugins/atmosphere/air's; [Backdrop] is the sky behind the world, a render.Source.
 //
 // [Plugin.WithWeathering] lays the weather on a board (plugins/atmosphere/weathering): snow
 // lying, ice on the water, what sways swaying, as effects on the cells from the world's schedule,

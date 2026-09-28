@@ -3,7 +3,6 @@ package sky
 import (
 	"math"
 
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -78,18 +77,18 @@ func (c Config) path(ofYear, t float32) [3]float32 {
 // path, below the horizon at night; its strength rises and falls with it, and the colours of the
 // sky and of its light go through the day: blue by day, orange at sunrise and sunset, deep blue at
 // night (daylight).
-func (c Config) SunAt(ofYear, t float32) world.Sun {
+func (c Config) SunAt(ofYear, t float32) Sun {
 	c = c.withDefaults()
 	dir := c.path(ofYear, t)
 	sky, sun, ambient := daylightAt(dir[2])
-	return world.Sun{Dir: dir, Strength: sunStrength * smoothstep(0, 0.2, dir[2]), Ambient: ambient, Color: sun, Sky: sky}
+	return Sun{Dir: dir, Strength: sunStrength * smoothstep(0, 0.2, dir[2]), Ambient: ambient, Color: sun, Sky: sky}
 }
 
 // LightAt is what lights the world at ofYear and time of day t with the moon moon round from new:
 // the sun, and once it is well below the horizon the moon, going the sun's way as far behind it as
 // it is round — rising at sunset when full — as bright as it is full and stands high, in its paler
 // light, under the night sky.
-func (c Config) LightAt(ofYear, t, moon float32) world.Sun {
+func (c Config) LightAt(ofYear, t, moon float32) Sun {
 	c = c.withDefaults()
 	light := c.SunAt(ofYear, t)
 	sunUp := light.Dir[2]

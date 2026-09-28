@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -156,12 +157,12 @@ type navigationSystem struct {
 	query *goke.Query
 	cell  goke.Comp[board.Cell]
 	base  goke.Comp[world.Base]
-	steer goke.Comp[world.Steering]
+	steer goke.Comp[steering.Steering]
 	order goke.OptComp[MoveOrder]
 	mover goke.OptComp[board.Mover]
 	z     goke.OptComp[world.Z]
 	coll  goke.OptComp[collision.Collider]
-	hand  goke.OptComp[world.Driven]
+	hand  goke.OptComp[steering.Driven]
 	route []geom.Vec // the centres ahead, unwrapped, reused each entity
 
 	orderID goke.CompID
@@ -632,7 +633,7 @@ const maxAhead = 8
 
 // drive asks m's st, through the keeping, for the heading to the lookahead point on route and for
 // speed, the less the sharper the turn.
-func (s *navigationSystem) drive(m member, st *world.Steering, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
+func (s *navigationSystem) drive(m member, st *steering.Steering, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
 	at := lookahead(have, route, reach)
 	if at == have {
 		s.keep.steer(m, st, geom.Vec{}, speed)
@@ -643,7 +644,7 @@ func (s *navigationSystem) drive(m member, st *world.Steering, heading, have geo
 }
 
 // lookaheadReach is the turning radius at the current speed: how far ahead to look.
-func lookaheadReach(st *world.Steering, dt float64) float64 {
+func lookaheadReach(st *steering.Steering, dt float64) float64 {
 	if st.TurnRate <= 0 {
 		return 0
 	}
@@ -701,7 +702,7 @@ func passed(have, w, from geom.Vec, reach float64) bool {
 
 // approach is the speed that brings st to rest on the goal dist away, never below the speed
 // braking would leave it at the arrival radius within.
-func approach(st *world.Steering, dist, within float64) float64 {
+func approach(st *steering.Steering, dist, within float64) float64 {
 	brake := st.Braking()
 	if brake <= 0 {
 		return st.MaxSpeed

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -76,7 +77,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if domain == 0 {
 			domain = board.Land
 		}
-		profile := world.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}
+		profile := steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}
 		if wide {
 			profile.MaxSpeed, profile.TurnRate = 144, 0.1
 		}

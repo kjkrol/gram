@@ -61,7 +61,7 @@ func Stream(f *render.Frame, w render.World, shine, lit [4]float32, flow Flow) {
 // after the top's sprite.
 func (t *tile) Shine() (shine float32, lit [4]float32, ok bool) {
 	shine = t.baseTop().shine * t.Detail()
-	if shine <= 0 || !t.r.quasi3D {
+	if shine <= 0 || !t.r.heights {
 		return 0, lit, false
 	}
 	return shine, t.sunlit(), true

@@ -6,7 +6,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -19,6 +18,8 @@ import (
 type Map interface {
 	// Look is how the cells lie on the screen through a camera.
 	Look() Look
+	// Heights is the height of the ground at any point, for sight and navigation; nil on a flat map.
+	Heights() Heights
 	// Dressing lays over the tiles what lies on them beyond their sprites; nil for nothing.
 	Dressing() Dressing
 	// Top is the height of c's corners as drawn — top-left, top-right, bottom-left, bottom-right —
@@ -40,12 +41,13 @@ type simpleMap struct {
 	dressing simpleDressing
 }
 
-// newSimpleMap is the simple map over brd, its tiles in sun's light where sunlit says so.
-func newSimpleMap(brd *Board, sun func() world.Sun, sunlit func() bool) *simpleMap {
-	return &simpleMap{dressing: simpleDressing{board: brd, sun: sun, sunlit: sunlit}}
+// newSimpleMap is the simple map over brd.
+func newSimpleMap(brd *Board) *simpleMap {
+	return &simpleMap{dressing: simpleDressing{board: brd}}
 }
 
 func (m *simpleMap) Look() Look                                   { return m.look }
+func (*simpleMap) Heights() Heights                               { return nil }
 func (m *simpleMap) Dressing() Dressing                           { return &m.dressing }
 func (*simpleMap) Top(CellID) (corners [4]float32, level float32) { return corners, 0 }
 func (*simpleMap) Climb(CellID, CellID, Domain) float64           { return 1 }
@@ -57,13 +59,11 @@ const bandTier = render.Ground + 5
 
 // simpleDressing lays the ways and the crossings over the tiles as plain bands in their kinds'
 // Colors: from the cell's middle out to the edge towards each neighbour the way runs on to, as
-// wide as the way, faded as far as it has faded. The tiles are lit by the sun on level ground
-// where the world is sunlit, evenly otherwise.
+// wide as the way, faded as far as it has faded. The tiles are drawn as they are; a sky over the
+// board (plugins/atmosphere) lights them.
 type simpleDressing struct {
-	board  *Board
-	sun    func() world.Sun
-	sunlit func() bool
-	pts    [][2]float32
+	board *Board
+	pts   [][2]float32
 }
 
 var _ Dressing = (*simpleDressing)(nil)
@@ -74,12 +74,7 @@ func (*simpleDressing) Base(t *Tile) render.SpriteID                      { retu
 func (*simpleDressing) FaceLight(*Tile, int, int) render.Light            { return render.Light{1, 1, 1} }
 func (*simpleDressing) Covers(*Tile) bool                                 { return false }
 
-func (d *simpleDressing) Light(*Tile) render.Shade {
-	if d.sun != nil && d.sunlit != nil && d.sunlit() {
-		return render.Lit(d.sun().Light(0, 0, 1))
-	}
-	return render.Even(1)
-}
+func (*simpleDressing) Light(*Tile) render.Shade { return render.Even(1) }
 
 func (d *simpleDressing) Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32) {
 	if w := d.board.Way(t.ID); w.Runs() {

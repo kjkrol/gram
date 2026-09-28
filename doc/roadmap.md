@@ -48,8 +48,6 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 
 - **The surf follows the cells** — the line of breaking waves (`topography.Shore`) runs along the
   cells' edges, not the rounded coast.
-- **`render.Overcast` in render** — the sky greying under clouds on the CPU lives in render, its
-  shader twin (`overcastSky`) in the landscape: one place for both.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.

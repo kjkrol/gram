@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/effects"
 )
 
@@ -69,7 +69,7 @@ const (
 type Weathering struct {
 	cfg      Config
 	board    *board.Plugin
-	world    *world.Plugin
+	air      func() air.Weather
 	effects  *effects.Effects
 	calendar *calendar.Calendar
 
@@ -83,13 +83,13 @@ type Weathering struct {
 	laid            bool // the first second has laid what a winter begun lies under
 }
 
-// New is the weathering of cfg on brd under w's weather, in cal's seasons, its effects fx's. Call
-// it once the kinds cfg names are in brd's dictionary, before the game is set up; it defines the
-// effects at once.
-func New(brd *board.Plugin, w *world.Plugin, fx *effects.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
+// New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
+// effects fx's. Call it once the kinds cfg names are in brd's dictionary, before the game is set
+// up; it defines the effects at once.
+func New(brd *board.Plugin, weather func() air.Weather, fx *effects.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
 	kinds := brd.CellKindDict()
-	ww := &Weathering{cfg: cfg, board: brd, world: w, effects: fx, calendar: cal, dice: cfg.Seed,
+	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
 		snowy: map[board.Name]board.CellKind{}, water: board.Named(cfg.Water), swaying: map[board.Name]bool{}}
 	for name, under := range cfg.Snowy {
 		k, ok := kinds.Get(under)
@@ -132,7 +132,7 @@ func (w *Weathering) Schedule(s *effects.Schedule) { s.Every(time.Second, 0, w.s
 
 // second is a second of the weather on the board.
 func (w *Weathering) second(t plugin.Tick) {
-	air := w.world.Weather()
+	air := w.air()
 	if !w.laid {
 		w.laid = true
 		if w.calendar.Now().Season() == calendar.Winter {

@@ -11,11 +11,28 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
+
+// Atmosphere is the sky over the relief: the sun that lights it and casts its shadows, and the
+// weather — the wind what sways leans in, the clouds whose shadows drift over the ground, the air
+// that hazes the far off. plugins/atmosphere's Plugin is one; without one the relief stands under
+// sky.DefaultSun in still, clear air.
+type Atmosphere interface {
+	Sun() sky.Sun
+	Air() air.Weather
+}
+
+// stillSky is the sky of a relief given no atmosphere: the default sun in still, clear air.
+type stillSky struct{}
+
+func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
+func (stillSky) Air() air.Weather { return air.Weather{} }
 
 // Config is the topography: the isometric view — a Cell-sized square of the world is a TileW x
 // TileH diamond, a height lifts a point HeightUnit screen units per world unit, Headroom is how
@@ -51,6 +68,7 @@ type Plugin struct {
 	boardPlugin *board.Plugin
 	relief      *Relief
 	dresser     *dresser
+	sky         Atmosphere
 	styles      map[board.Name]Style
 	projection  projection
 	climbing    Climbing
@@ -79,16 +97,16 @@ var _ board.Map = (*Plugin)(nil)
 // drawn and priced by the topography, the world's ground is its heights, its cameras are the
 // topography's and its entities stand as billboards in the isometric view. Make it right after
 // the world and the board, before anything asks for a camera; the world must have heights
-// (world.Config.Quasi3D) and may not wrap.
+// (world.Config.Heights) and may not wrap.
 func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config) *Plugin {
-	if !worldPlugin.Quasi3D() {
-		panic("topography: a map in relief needs a world with heights; set world.Config.Quasi3D")
+	if !worldPlugin.HasHeights() {
+		panic("topography: a map in relief needs a world with heights; set world.Config.Heights")
 	}
 	if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
 	brd := boardPlugin.Res.Logic.Board
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, styles: map[board.Name]Style{},
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, styles: map[board.Name]Style{}, sky: stillSky{},
 		projection: projection{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom, MinPitch: cfg.MinPitch * math.Pi / 180, flat: !cfg.Isometric}.withDefaults(),
 		climbing:   cfg.Climbing}
 	if p.climbing == (Climbing{}) {
@@ -100,10 +118,9 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		p.shaping.cfg.Step = min(w, h) / 4
 	}
 	p.relief = NewRelief(brd)
-	p.dresser = newDresser(brd, p.relief, worldPlugin.Sun, true, p.styles)
+	p.dresser = newDresser(brd, p.relief, p.sky, true, p.styles)
 	p.dresser.kinds = boardPlugin.CellKindDict()
 	boardPlugin.WithMap(p)
-	worldPlugin.SetGround(p.relief)
 	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) {
 		low, high := p.relief.Extent()
@@ -112,7 +129,15 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	worldPlugin.SetCameras(func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
 		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent, float32(worldPlugin.Scale().Bend()))
 	})
-	worldPlugin.SetLook(worldLook{flat: worldPlugin.FlatLook()})
+	worldPlugin.SetLook(worldLook{flat: worldPlugin.FlatLook(), d: p.dresser})
+	return p
+}
+
+// WithAtmosphere puts the relief under a: its sun lights and shades the terrain and the units,
+// its weather leans what sways, lays the clouds' shadows and hazes the far off. Call it once the
+// atmosphere is made, before the first frame is drawn.
+func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
+	p.sky, p.dresser.sky = a, a
 	return p
 }
 
@@ -176,6 +201,9 @@ func (p *Plugin) Look() board.Look { return boardLook{d: p.dresser} }
 // Dressing is what lies over the tiles: the light on the relief and the terrain's shadows, the
 // grounds blending, coasts, water, the ways, the clouds' shadows.
 func (p *Plugin) Dressing() board.Dressing { return p.dresser }
+
+// Heights is the relief: the ground's height at any point, for sight and navigation.
+func (p *Plugin) Heights() board.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
 func (p *Plugin) Top(c board.CellID) (corners [4]float32, level float32) {

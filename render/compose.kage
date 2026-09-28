@@ -2,29 +2,21 @@
 
 package main
 
-// The frame's daylight: Sun is the way towards the sun, Toward the way towards the eye; Glint holds
-// the time in seconds, the sun's strength and how many world units a pixel spans; SunColor,
-// SkyColor and Ambience are the colours of the sun, of the sky and of the light every surface gets
-// from it.
-var Sun vec3
+// The composer's own uniforms: Toward is the way towards the eye, Clock the time in seconds,
+// Pixel how many world units a pixel spans, Fog the colour what lies far off in the air turns to.
+// Every other uniform is a material's, declared in its own source (render.RegisterMaterials) and
+// set by a source with render.Frame.Uniform.
 var Toward vec3
-var Glint vec4
-var SunColor vec3
-var SkyColor vec3
-var Ambience vec3
-
-// The frame's weather: Wind blows in world units a second, Drift is how far it has carried the
-// clouds; Weather holds how much of the sky the clouds cover, 0 to 1.
-var Wind vec2
-var Drift vec2
-var Weather vec4
+var Clock float
+var Pixel float
+var Fog vec3
 
 // Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
 // asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
 // out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
 // A blended sprite (the last custom over 50000, 100000 plus how soft; a fade's stays under 10000)
-// holds its weight in alpha: it shows
-// where the weight is over a half, glazed as far as 1 plus its opacity in the third custom says. An overlay (alpha over 1.5, 2 plus twice its material's number
+// holds its weight in alpha: it shows where the weight is over a half, glazed as far as 1 plus its
+// opacity in the third custom says. An overlay (alpha over 1.5, 2 plus twice its material's number
 // plus a fraction 0 to 1 it reads) is its material's to work out: where it lies in the world in
 // green and blue, what the material reads in red, the fraction and custom — see material.
 func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
@@ -47,15 +39,15 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	near := outlined * (1 - smoothstep(0, 1, clamp(-custom-1, 0, 1)))
 	edge := max(max(near.x, near.y), max(near.z, near.w))
 
-	// a plain sprite far off in the air (alpha 1 plus a hazeSpan of its haze) turns to the sky
-	haze := clamp((color.a-1)/hazeSpan, 0, 1)
+	// a plain sprite far off in the air (alpha 1 plus a fogSpan of its fog) turns to the Fog
+	fog := clamp((color.a-1)/fogSpan, 0, 1)
 	c := imageSrc0At(src) * vec4(color.rgb, min(color.a, 1)) * f
 	rgb := c.rgb * (1 - outlineDark*edge)
-	return vec4(mix(rgb, overcastSky()*c.a, haze), c.a)
+	return vec4(mix(rgb, Fog*c.a, fog), c.a)
 }
 
-// hazeSpan is how far over 1 a plain sprite's alpha goes for all the haze there is (Frame.Hazed).
-const hazeSpan = 0.49
+// fogSpan is how far over 1 a plain sprite's alpha goes for all the fog there is (Frame.Fog).
+const fogSpan = 0.49
 
 // faded is how much of a sprite shows by the fades its custom asks for: 1 where it asks none.
 func faded(custom vec4) float {
@@ -67,11 +59,6 @@ func faded(custom vec4) float {
 func blended(weight float, mark float) float {
 	soft := mark - 100000
 	return smoothstep(0.5-soft, 0.5+soft, weight)
-}
-
-// sunWay is the way towards the sun, of length 1.
-func sunWay() vec3 {
-	return Sun / max(length(Sun), 1e-6)
 }
 
 // noise is smooth value noise at p: 0 to 1, changing over a unit.
@@ -94,7 +81,7 @@ func hash(i vec2) float {
 // seen is how much of a pattern length world units long shows: all of it over a few pixels long,
 // none of it where it would flicker, finer than a pixel or two.
 func seen(length float) float {
-	return smoothstep(finest, 2*finest, length/max(Glint.z, 1e-3))
+	return smoothstep(finest, 2*finest, length/max(Pixel, 1e-3))
 }
 
 // outlineDark is how much an outline darkens what it is drawn on.
@@ -105,5 +92,3 @@ const finest = 2
 
 const pi = 3.14159265
 
-
-// The materials registered follow, and material, which hands an overlay to its own.

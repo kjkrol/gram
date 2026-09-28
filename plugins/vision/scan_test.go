@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -44,14 +45,14 @@ type spawn struct {
 	size    float64
 	tau     float64
 	layers  world.Layers
-	z       *world.Z      // heights, in a Quasi3D scene
+	z       *world.Z      // heights, in a scene with heights
 	sight   *vision.Sight // nil for something that is merely seen
 	outline bool
 }
 
-// relief is what a Quasi3D scene stands on: nil for flat ground at 0.
+// relief is what a scene with heights stands on: nil for flat ground at 0.
 type relief struct {
-	ground world.Ground
+	ground board.Heights
 	step   float64
 	scale  world.Scale
 }
@@ -71,20 +72,20 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 	return sceneIn(t, nil, spawns...)
 }
 
-// sceneIn is scene in a Quasi3D world standing on r (nil: a flat world).
+// sceneIn is scene in a world with heights standing on r (nil: a flat world).
 func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2000, Height: 2000},
 		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 1, MaxSize: 100},
-		Quasi3D:  r != nil,
+		Heights:  r != nil,
 		Scale:    scaleOf(r),
 	})
 	v := vision.NewPlugin(w)
 	if r != nil {
-		w.SetGround(r.ground)
-		v.WithGroundStep(r.step)
+		ground := r.ground
+		v.WithHeights(func() board.Heights { return ground }).WithGroundStep(r.step)
 	}
 
 	ctx := &installCtx{ecs: goke.New()}

@@ -79,7 +79,7 @@ func TestWeather_BeginsInItsStartLastsAndGoesOnAsItsWeightsSay(t *testing.T) {
 		t.Fatalf("a begun weather is %+v, want its Start at its own wind and clouds", w)
 	}
 	r.tick(time.Second / 2)
-	if air := r.w.Weather(); !near(float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))), 10, 0.01) {
+	if air := r.c.Air(); !near(float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))), 10, 0.01) {
 		t.Errorf("the world's wind is %v, want the weather's 10", air.Wind)
 	}
 	r.run(time.Second)
@@ -132,7 +132,7 @@ func TestWeather_IsColdInWinterWarmInSummerAndSnowsWhenCold(t *testing.T) {
 	if w := summer.now(); w.Temperature < 10 || w.Snow > 0.01 || w.Rain < 0.4 {
 		t.Errorf("in midsummer it is %v°, rain %v, snow %v; want warm and raining", w.Temperature, w.Rain, w.Snow)
 	}
-	if air := summer.w.Weather(); air.Temperature != summer.now().Temperature {
+	if air := summer.c.Air(); air.Temperature != summer.now().Temperature {
 		t.Errorf("the world's temperature is %v, want the weather's %v", air.Temperature, summer.now().Temperature)
 	}
 }
@@ -141,7 +141,7 @@ func TestWeather_TellsItsBehavioursEveryStep(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Winter)
 	r.tick(time.Millisecond)
 	r.tick(time.Millisecond)
-	if len(r.heard) != 2 || r.heard[1].Season != calendar.Winter || r.heard[1].Weather != r.w.Weather() {
+	if len(r.heard) != 2 || r.heard[1].Season != calendar.Winter || r.heard[1].Weather != r.c.Air() {
 		t.Errorf("the behaviour heard %+v, want the world's weather and the winter, every step", r.heard)
 	}
 }

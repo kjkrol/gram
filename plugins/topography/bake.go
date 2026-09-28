@@ -267,6 +267,6 @@ func (l *dresser) dressBaked(f *render.Frame, t *tile, corners render.Corners, d
 	src := [4]float32{float32(r.Min.X), float32(r.Min.Y), float32(r.Max.X), float32(r.Max.Y)}
 	f.SpritePart(render.Ground, depth, s, src, corners, t.Light())
 	z := l.topOf(t.ID).z
-	hazed(f, [4][3]float32{{t.X0, t.Y0, z[0]}, {t.X1, t.Y0, z[1]}, {t.X0, t.Y1, z[2]}, {t.X1, t.Y1, z[3]}})
+	hazed(f, l.camera, l.weather, [4][3]float32{{t.X0, t.Y0, z[0]}, {t.X1, t.Y0, z[1]}, {t.X0, t.Y1, z[2]}, {t.X1, t.Y1, z[3]}})
 	f.Fold(z)
 }

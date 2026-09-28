@@ -21,18 +21,13 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	// the cursor is captured while a camera rides in an entity: the pass it is caught or let go
 	// the cursor jumps, so no move is taken from it
 	settled := t.p.capture()
-	if t.p.ground == nil {
-		if g := t.p.worldPlugin.Ground(); g != nil {
-			t.p.ground = func(x, y float32) float32 { return float32(g.At(geom.NewVec(float64(x), float64(y)))) }
-		}
-	}
 	for _, pl := range t.p.Locals() {
 		under := covers(pl, ev.MousePos)
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
 		}
 		ctx := control.Context{Player: pl.ID, Camera: pl.Camera, Cursor: pl.in.cursor, Delta: ev.CursorDelta,
-			Wheel: ev.ScrollDelta, Screen: screenOf(pl), Mods: mods, FillsScreen: ev.WindowFillsScreen, Ground: t.p.ground}
+			Wheel: ev.ScrollDelta, Screen: screenOf(pl), Mods: mods, FillsScreen: ev.WindowFillsScreen}
 
 		for _, k := range ev.KeyEvents {
 			switch k.Action {

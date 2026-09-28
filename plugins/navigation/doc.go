@@ -11,11 +11,11 @@
 // centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
 // by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
 // [Leg] is the single step in flight. [CellEntered] is a one-tick tag added the tick an entity's
-// Cell changes. A navigated entity carries a world.Steering profile: navigation only asks it for
+// Cell changes. A navigated entity carries a steering.Steering profile: navigation only asks it for
 // a heading at the lookahead point and for its own top speed, braking from the profile before the
 // goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
-// Navigation requires of every unit a world.Steering, the profile it is steered by, through the
+// Navigation requires of every unit a steering.Steering, the profile it is steered by, through the
 // world's kind.Roster; a MoveOrder is put on by the MoveTo command, or by the game at spawn.
 //
 // # Spacing
@@ -67,7 +67,7 @@
 //
 // # Driven by hand
 //
-// An entity carrying a world.Driven — written every tick by whoever steers it, the isometric
+// An entity carrying a steering.Driven — written every tick by whoever steers it, the isometric
 // camera fastened to it — is carried out after the orders: it turns by hand (Turn, or towards Face:
 // where an eye riding in it looks), walks on the way it faces while the ground just ahead is a
 // cell its domain may stand on and nobody is in the way — the occupancy lets it into the cell, or,

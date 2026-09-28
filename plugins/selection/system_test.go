@@ -500,7 +500,7 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Camera:   camera.Config{ViewportWidth: 800, ViewportHeight: 600},
-		Quasi3D:  true,
+		Heights:  true,
 	}, func(w *world.Plugin) { w.SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)

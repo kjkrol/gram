@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/render"
 )
@@ -30,7 +31,7 @@ func (b blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	// what sways leans its top with the wind, as far as it stands high
 	var dx, dy float32
 	if amount, rise := t.Sway(); amount > 0 {
-		lx, ly := render.Sway(f.Time(), f.Wind(), (x0+x1)/2, (y0+y1)/2, amount)
+		lx, ly := b.d.weather.Sway(f.Time(), (x0+x1)/2, (y0+y1)/2, amount)
 		dx, dy = lx*rise, ly*rise
 	}
 	// a face turned towards the eye shows down to the top of the neighbour across it
@@ -39,24 +40,24 @@ func (b blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	case toward[0] > 0:
 		if n := b.d.beside(t, 1, 0); top[1] > n[0] || top[3] > n[2] {
 			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x1, y1, top[1], top[3], n[0], n[2], dx, dy), render.Lit(t.FaceLight(1, 0)))
-			hazed(f, [4][3]float32{{x1, y0, top[1]}, {x1, y1, top[3]}, {x1, y0, n[0]}, {x1, y1, n[2]}})
+			hazed(f, cam, b.d.weather, [4][3]float32{{x1, y0, top[1]}, {x1, y1, top[3]}, {x1, y0, n[0]}, {x1, y1, n[2]}})
 		}
 	case toward[0] < 0:
 		if n := b.d.beside(t, -1, 0); top[2] > n[3] || top[0] > n[1] {
 			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x0, y0, top[2], top[0], n[3], n[1], dx, dy), render.Lit(t.FaceLight(-1, 0)))
-			hazed(f, [4][3]float32{{x0, y1, top[2]}, {x0, y0, top[0]}, {x0, y1, n[3]}, {x0, y0, n[1]}})
+			hazed(f, cam, b.d.weather, [4][3]float32{{x0, y1, top[2]}, {x0, y0, top[0]}, {x0, y1, n[3]}, {x0, y0, n[1]}})
 		}
 	}
 	switch {
 	case toward[1] > 0:
 		if n := b.d.beside(t, 0, 1); top[2] > n[0] || top[3] > n[1] {
 			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x0, y1, x1, y1, top[2], top[3], n[0], n[1], dx, dy), render.Lit(t.FaceLight(0, 1)))
-			hazed(f, [4][3]float32{{x0, y1, top[2]}, {x1, y1, top[3]}, {x0, y1, n[0]}, {x1, y1, n[1]}})
+			hazed(f, cam, b.d.weather, [4][3]float32{{x0, y1, top[2]}, {x1, y1, top[3]}, {x0, y1, n[0]}, {x1, y1, n[1]}})
 		}
 	case toward[1] < 0:
 		if n := b.d.beside(t, 0, -1); top[1] > n[3] || top[0] > n[2] {
 			f.Sprite(render.Ground, depth, t.Atlas, sprite, face(cam, x1, y0, x0, y0, top[1], top[0], n[3], n[2], dx, dy), render.Lit(t.FaceLight(0, -1)))
-			hazed(f, [4][3]float32{{x1, y0, top[1]}, {x0, y0, top[0]}, {x1, y0, n[3]}, {x0, y0, n[2]}})
+			hazed(f, cam, b.d.weather, [4][3]float32{{x1, y0, top[1]}, {x0, y0, top[0]}, {x1, y0, n[3]}, {x0, y0, n[2]}})
 		}
 	}
 	corners := sloped(cam, x0+dx, y0+dy, x1+dx, y1+dy, top)
@@ -65,7 +66,7 @@ func (b blocks) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	} else {
 		f.Sprite(render.Ground, depth, t.Atlas, t.Base(), corners, t.Light())
 	}
-	hazed(f, [4][3]float32{{x0, y0, top[0]}, {x1, y0, top[1]}, {x0, y1, top[2]}, {x1, y1, top[3]}})
+	hazed(f, cam, b.d.weather, [4][3]float32{{x0, y0, top[0]}, {x1, y0, top[1]}, {x0, y1, top[2]}, {x1, y1, top[3]}})
 	f.Fold(top)
 	t.Dress(f, cam, x0, y0, x1, y1, depth)
 }
@@ -132,7 +133,7 @@ func (b blocks) near(f *render.Frame, cam camera.Camera, t *board.Tile, top [4]f
 	sx0, sy0, sx1, sy1 := t.Atlas.UV(t.Base())
 	light := t.Light()
 	var clouds [4]float32
-	if b.d.cover > 0 {
+	if b.d.weather.Clouds > 0 {
 		clouds = d.clouds()
 	}
 	for _, p := range pieces {
@@ -143,15 +144,15 @@ func (b blocks) near(f *render.Frame, cam camera.Camera, t *board.Tile, top [4]f
 		}
 		f.SpritePart(render.Ground, depth, t.Atlas, src, p.c, shade)
 		mark := f.Last()
-		hazed(f, [4][3]float32{{p.w[0][0], p.w[0][1], p.z[0]}, {p.w[1][0], p.w[1][1], p.z[1]}, {p.w[2][0], p.w[2][1], p.z[2]}, {p.w[3][0], p.w[3][1], p.z[3]}})
+		hazed(f, cam, b.d.weather, [4][3]float32{{p.w[0][0], p.w[0][1], p.z[0]}, {p.w[1][0], p.w[1][1], p.z[1]}, {p.w[2][0], p.w[2][1], p.z[2]}, {p.w[3][0], p.w[3][1], p.z[3]}})
 		f.Fold(p.z)
 		d.DrawSurface(f, p.w[0][0], p.w[0][1], p.w[3][0], p.w[3][1])
-		if b.d.cover > 0 {
+		if b.d.weather.Clouds > 0 {
 			var cloud [4]float32
 			for k, uv := range [4][2]float32{{p.u[0], p.v[0]}, {p.u[1], p.v[0]}, {p.u[0], p.v[1]}, {p.u[1], p.v[1]}} {
 				cloud[k] = mix4(clouds, uv[0], uv[1])
 			}
-			f.OvercastOn(mark, p.w, cloud)
+			b.d.weather.OvercastOn(f, mark, p.w, cloud)
 		}
 	}
 	d.DrawBlends(f, cam, depth)
@@ -169,16 +170,16 @@ type nearPiece struct {
 	dist float32
 }
 
-// hazed has the sprite just added turn to the sky as far off as its corners at pts lie
-// (render.Frame.Haze): through a perspective, in air that is not clear without end.
-func hazed(f *render.Frame, pts [4][3]float32) {
+// hazed has the sprite just added turn to the sky as far off as its corners at pts lie in the
+// weather's air (air.Weather.Haze): through a perspective, in air that is not clear without end.
+func hazed(f *render.Frame, cam camera.Camera, weather air.Weather, pts [4][3]float32) {
 	var h [4]float32
 	for k, p := range pts {
-		if h[k] = f.Haze(p[0], p[1], p[2]); h[k] == 0 && k == 0 {
+		if h[k] = weather.Haze(cam, p[0], p[1], p[2]); h[k] == 0 && k == 0 {
 			return // no eye, or no end to the air: nothing far off hazes
 		}
 	}
-	f.Hazed(h)
+	f.Fog(h)
 }
 
 // sloped projects the four corners of a world box, each at its own height.

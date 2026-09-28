@@ -34,8 +34,8 @@ type CellKind struct {
 	// Veils is whom the Veil dims, as world.Layers: a forest veiling Land is looked over from Air.
 	// Zero veils everyone.
 	Veils Domain
-	// Height is what stands on the cell (a wall, a forest) in a Quasi3D world; a flat world refuses
-	// it — see world.Config.Quasi3D. The ground under it is the topography's.
+	// Height is what stands on the cell (a wall, a forest) in a world with heights; a flat world refuses
+	// it — see world.Config.Heights. The ground under it is the topography's.
 	Height float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
@@ -93,19 +93,19 @@ type cellKindDict struct {
 	entries map[Name]CellKind
 	drawers map[Name]render.SpriteDrawer
 	next    render.SpriteID
-	quasi3D bool
+	heights bool
 }
 
-func newCellKindDict(quasi3D bool) *cellKindDict {
-	return &cellKindDict{entries: make(map[Name]CellKind), drawers: make(map[Name]render.SpriteDrawer), quasi3D: quasi3D}
+func newCellKindDict(heights bool) *cellKindDict {
+	return &cellKindDict{entries: make(map[Name]CellKind), drawers: make(map[Name]render.SpriteDrawer), heights: heights}
 }
 
 func (d *cellKindDict) Draw(name string, draw render.SpriteDrawer) { d.drawers[Named(name)] = draw }
 
 func (d *cellKindDict) Create(kinds ...CellKind) {
 	for _, k := range kinds {
-		if !d.quasi3D && k.Height != 0 {
-			panic(fmt.Sprintf("board: kind %q has a Height in a flat world; set world.Config.Quasi3D", k.Name.String()))
+		if !d.heights && k.Height != 0 {
+			panic(fmt.Sprintf("board: kind %q has a Height in a flat world; set world.Config.Heights", k.Name.String()))
 		}
 		k.SpriteID = d.next
 		d.next++

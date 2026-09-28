@@ -22,7 +22,7 @@ type placeRig struct {
 func newPlaceRig() *placeRig {
 	r := &placeRig{grid: board.DefaultGrids{}.Square(7, 5, 32), terrain: board.NewTerrainMap()}
 	r.terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() world.Ground {
+	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() board.Heights {
 		if r.heights == nil {
 			return nil
 		}
@@ -32,7 +32,7 @@ func newPlaceRig() *placeRig {
 	return r
 }
 
-// groundFunc is a world.Ground read off a function.
+// groundFunc is a board.Heights read off a function.
 type groundFunc func(p geom.Vec) float64
 
 func (g groundFunc) At(p geom.Vec) float64 { return g(p) }

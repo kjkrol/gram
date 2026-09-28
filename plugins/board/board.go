@@ -21,7 +21,7 @@ type Board struct {
 	seed     *TerrainMap
 	cells    *cellStore
 	version  uint64
-	quasi3D  bool        // the world has heights: cover spans the cells' bands
+	heights  bool        // the world has heights: cover spans the cells' bands
 	mapping  Map         // what the board is drawn and priced by; nil before the plugin set one
 	stamps   []uint64    // by ordinal: the count of changes when each cell last changed
 	changes  uint64      // how many cells have changed, one at a time
@@ -226,7 +226,7 @@ func (b *Board) Version() uint64 {
 // plugin runs.
 func (b *Board) Map() Map {
 	if b.mapping == nil {
-		b.mapping = newSimpleMap(b, nil, nil)
+		b.mapping = newSimpleMap(b)
 	}
 	return b.mapping
 }

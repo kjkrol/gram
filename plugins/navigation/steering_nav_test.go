@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -25,7 +26,7 @@ type profiledWorld struct {
 	q       *goke.Query
 }
 
-func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrder, profile world.Steering, withSteering bool) *profiledWorld {
+func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrder, profile steering.Steering, withSteering bool) *profiledWorld {
 	t.Helper()
 	pw := &profiledWorld{grid: board.DefaultGrids{}.Square(w, h, legCellSize)}
 	terrain := board.NewTerrainMap()
@@ -41,7 +42,7 @@ func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrde
 		var cell goke.Comp[board.Cell]
 		var pos goke.Comp[world.Base]
 		var order goke.Comp[MoveOrder]
-		var steer goke.Comp[world.Steering]
+		var steer goke.Comp[steering.Steering]
 		comps := []goke.Addable{&cell, &pos, &order}
 		if withSteering {
 			comps = append(comps, &steer)
@@ -61,7 +62,7 @@ func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrde
 	}})
 
 	navHandle := pw.ecs.RegSys(nav)
-	steeringHandle := pw.ecs.RegSys(world.NewSteeringSystem())
+	steeringHandle := pw.ecs.RegSys(steering.NewSystem())
 	moveHandle := pw.ecs.RegSys(world.NewMoveSystem(space))
 	pw.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(navHandle, d)
@@ -91,8 +92,8 @@ func (pw *profiledWorld) cellAt(x, y uint32) board.CellID {
 
 func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 	const turnRate = 0.1
-	pw := newProfiledWorld(t, 6, 6, board.CellID(0), MoveOrder{}, world.Steering{}, true)
-	pw = newProfiledWorld(t, 6, 6, pw.cellAt(0, 2), MoveOrder{Target: pw.cellAt(5, 4)}, world.Steering{MaxSpeed: 64, TurnRate: turnRate}, true)
+	pw := newProfiledWorld(t, 6, 6, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
+	pw = newProfiledWorld(t, 6, 6, pw.cellAt(0, 2), MoveOrder{Target: pw.cellAt(5, 4)}, steering.Steering{MaxSpeed: 64, TurnRate: turnRate}, true)
 
 	var prev float64
 	haveHeading := false
@@ -132,7 +133,7 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -149,7 +150,7 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 		mt.Path.Length = 2
 		mt.Leg = Leg{From: at(1), To: at(2), Active: true}
 		order.Slice(&f.Cursor)[0] = mt
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
 			occupancy.Enter(c, id, board.Land)
 		}
@@ -173,9 +174,9 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 }
 
 func TestNavigation_BrakesToRestOnTheGoal(t *testing.T) {
-	pw := newProfiledWorld(t, 6, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 6, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	target := pw.cellAt(5, 0)
-	pw = newProfiledWorld(t, 6, 1, pw.cellAt(0, 0), MoveOrder{Target: target}, world.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
+	pw = newProfiledWorld(t, 6, 1, pw.cellAt(0, 0), MoveOrder{Target: target}, steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
 
 	var speeds []float64
 	for range 60 * 20 {
@@ -206,9 +207,9 @@ func TestNavigation_BrakesToRestOnTheGoal(t *testing.T) {
 }
 
 func TestNavigation_LeavesAloneAnEntityWithoutSteering(t *testing.T) {
-	pw := newProfiledWorld(t, 5, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 5, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	start, target := pw.cellAt(0, 0), pw.cellAt(4, 0)
-	pw = newProfiledWorld(t, 5, 1, start, MoveOrder{Target: target}, world.Steering{}, false)
+	pw = newProfiledWorld(t, 5, 1, start, MoveOrder{Target: target}, steering.Steering{}, false)
 
 	before := pw.grid.CellCenter(start)
 	for range 30 {
@@ -253,11 +254,11 @@ func maxOf(xs []float64) float64 {
 }
 
 func TestNavigation_RunsThroughQueuedGoalsWithoutStopping(t *testing.T) {
-	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	mid, last := pw.cellAt(3, 0), pw.cellAt(6, 0)
 	mt := MoveOrder{Target: mid}
 	mt.Enqueue(Goal{Cell: last})
-	pw = newProfiledWorld(t, 8, 1, pw.cellAt(0, 0), mt, world.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
+	pw = newProfiledWorld(t, 8, 1, pw.cellAt(0, 0), mt, steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
 
 	passedMid := false
 	for range 60 * 30 {
@@ -292,7 +293,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -306,7 +307,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 		mt.Path.Steps[0], mt.Path.Length = at(2), 1
 		mt.Enqueue(Goal{Cell: at(5)})
 		order.Slice(&f.Cursor)[0] = mt
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
 			occupancy.Enter(c, id, board.Land)
 		}
@@ -339,9 +340,9 @@ func (pw *profiledWorld) heading(dir geom.Vec, speed float64) {
 }
 
 func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
-	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
+	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	// under way westwards at full speed, with the goal to the east: a U-turn before anything else
-	profile := world.Steering{MaxSpeed: 64, Accel: 400, V0: 64, TurnRate: 0.1, Speed: 64}
+	profile := steering.Steering{MaxSpeed: 64, Accel: 400, V0: 64, TurnRate: 0.1, Speed: 64}
 	pw = newProfiledWorld(t, 8, 1, pw.cellAt(2, 0), MoveOrder{Target: pw.cellAt(7, 0)}, profile, true)
 	pw.heading(geom.NewVec(-1, 0), 64)
 
@@ -408,7 +409,7 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[world.Steering]
+	var profile goke.Comp[steering.Steering]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -421,7 +422,7 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 		mt := MoveOrder{Target: at(0), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Steps[1], mt.Path.Length = at(1), at(0), 2 // the route back home
 		order.Slice(&f.Cursor)[0] = mt
-		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
+		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
 			occupancy.Enter(c, id, board.Land)
 		}

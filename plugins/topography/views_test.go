@@ -14,6 +14,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
@@ -32,7 +34,7 @@ func newWorld(edges aabbworld.Edges) *world.Plugin {
 		Space:    world.SpaceCfg{Width: 128, Height: 128, Edges: edges},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 		Camera:   camera.Config{ViewportWidth: 400, ViewportHeight: 300},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 }
 
@@ -94,7 +96,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 2048, Height: 2048},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 		Camera:   camera.Config{ViewportWidth: 400, ViewportHeight: 300},
-		Quasi3D:  true,
+		Heights:  true,
 	})
 	b := board.NewPlugin(board.DefaultGrids{}.Square(64, 64, 32), &board.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
@@ -153,6 +155,9 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
 	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
+		if tier == sky.ShadowTier {
+			return // its shadow on the ground, laid before it
+		}
 		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
 			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))
 		}
@@ -171,7 +176,10 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	// an entity 30 tall stands as a billboard 30 tall on its 10-wide box: as tall as its Z says
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6, Height: 30}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		if tier == sky.ShadowTier {
+			return
+		}
 		if v[2].DstY-v[0].DstY != 30 || v[1].DstX-v[0].DstX != 10 {
 			t.Errorf("an entity 30 tall is drawn %v wide and %v tall, want 10 by 30", v[1].DstX-v[0].DstX, v[2].DstY-v[0].DstY)
 		}
@@ -180,7 +188,10 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	topography.SwitchView(cam)
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		if tier == sky.ShadowTier {
+			return
+		}
 		if x0, y0 := cam.Project(40, 40, 0); v[0].DstX != x0 || v[0].DstY != y0 {
 			t.Errorf("from above the entity is drawn at (%v, %v), want over its box's corner (%v, %v)", v[0].DstX, v[0].DstY, x0, y0)
 		}
@@ -290,8 +301,17 @@ func TestBlocks_TurnedShowTheFacesTurnedTowardsTheViewer(t *testing.T) {
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
+// fixedSky is a topography.Atmosphere of a fixed sun and weather.
+type fixedSky struct {
+	sun sky.Sun
+	air air.Weather
+}
+
+func (s fixedSky) Sun() sky.Sun     { return s.sun }
+func (s fixedSky) Air() air.Weather { return s.air }
+
 func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
-	w, b, grid, _ := isometricIsland()
+	w, b, grid, p := isometricIsland()
 	b.WithRenderer(sheet{})
 	b.Res.Render.ShowGridLines = false
 	tree, _ := grid.CellIndex(1, 1)
@@ -316,7 +336,7 @@ func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	if !near(cx, tx) || !near(cy, ty) {
 		t.Fatalf("in the calm the tree's top is drawn at (%v, %v), want it upright at (%v, %v)", cx, cy, tx, ty)
 	}
-	w.SetWeather(world.Weather{Wind: [2]float32{40, 0}})
+	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
 	if wx, wy := top(); near(wx, cx) && near(wy, cy) {
 		t.Error("in a wind of 40 the tree's top stands where it did in the calm")
 	}
@@ -326,7 +346,6 @@ func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	edge := func(sway float32) float32 {
 		var f render.Frame
 		f.Reset(cam)
-		f.Weather(render.Weather{Wind: [2]float32{40, 0}})
 		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
 		var x float32
 		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX - v[2].DstX })

@@ -8,7 +8,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -28,6 +27,7 @@ func (lookMap) Dressing() Dressing                             { return nil }
 func (lookMap) Top(CellID) (corners [4]float32, level float32) { return corners, 0 }
 func (lookMap) Climb(CellID, CellID, Domain) float64           { return 1 }
 func (lookMap) Least(Domain) float64                           { return 1 }
+func (lookMap) Heights() Heights                               { return nil }
 func (lookMap) Slope(geom.Vec, geom.Vec, Domain) float64       { return 1 }
 
 // mapOf is a Map drawing by look.
@@ -35,7 +35,7 @@ func mapOf(look Look) func() Map { return func() Map { return lookMap{look} } }
 
 // flatRenderer is a renderer of brd with the flat look.
 func flatRenderer(brd *Board, state *RenderState) *Renderer {
-	return newRenderer(brd, flatAtlas{}, state, mapOf(flatLook{}), func() world.Sun { return world.DefaultSun })
+	return newRenderer(brd, flatAtlas{}, state, mapOf(flatLook{}))
 }
 
 // compose is what r hands a frame through cam, by tier.
@@ -109,7 +109,7 @@ func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
-	brd.quasi3D = true
+	brd.heights = true
 	wood, _ := grid.CellIndex(1, 1)
 	brd.Set(wood, CellKind{Cost: 1, Allows: Land, Height: 8, Sway: 1})
 	var seen int
@@ -120,7 +120,7 @@ func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 			amount, rise = t.Sway()
 		}
 	})
-	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(look), func() world.Sun { return world.DefaultSun })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(look))
 	compose(r, icamera.NewFromSpace(128, 128, 0))
 	if seen != 16 || amount != 1 || rise != 8 {
 		t.Errorf("look saw %d cells, the wood swaying %v and standing %v high; want 16, 1 and the kind's 8", seen, amount, rise)
@@ -138,67 +138,28 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
 	var got render.Shade
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got = t.Light() })
-	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(look), func() world.Sun { return world.DefaultSun })
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(look))
 	compose(r, icamera.NewFromSpace(64, 64, 0))
 	if got != render.Even(1) {
 		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
 	}
 }
 
-func TestFlatLook_SwaysWhatSways(t *testing.T) {
-	grid := DefaultGrids{}.Square(4, 4, 32)
-	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
-	brd.quasi3D = true
-	r := flatRenderer(brd, &RenderState{})
-	cam := icamera.NewFromSpace(128, 128, 0)
-	var air world.Weather
-	r.weather = func() world.Weather { return air }
-
-	tree, _ := grid.CellIndex(1, 1)
-	brd.Set(tree, CellKind{Cost: 1, Allows: Land, Height: 8, Sway: 1})
-	at := func() float32 { // where the tree's top is drawn
-		var f render.Frame
-		f.Reset(cam)
-		r.Compose(&f, cam)
-		x := float32(-1)
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
-			if x < 0 && v[0].DstY > 28 && v[0].DstY < 36 && v[0].DstX > 28 && v[0].DstX < 44 { // cell (1, 1)
-				x = v[0].DstX
-			}
-		})
-		return x
-	}
-	calm := at()
-	air.Wind = [2]float32{40, 0}
-	if blown := at(); blown <= calm {
-		t.Errorf("in an east wind the tree's top is drawn at x %v, in the calm at %v; want it leaning east", blown, calm)
-	}
-}
-
-// A flat board's tiles are drawn as they are until the world is sunlit; then the sun's light on
-// level ground tints them — the night dark and blue.
-func TestRenderer_Compose_FlatTilesTakeTheSunsLightOnceTheWorldIsSunlit(t *testing.T) {
+// A flat board's tiles are drawn as they are: a sky over the board (plugins/atmosphere) is what
+// lights them.
+func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	grid := DefaultGrids{}.Square(2, 2, 32)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(CellKind{Cost: 1, Allows: Land})
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 64, Height: 64}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(flatLook{}), w.Sun)
-	r.sunlit = w.Sunlit
-	first := func() (v ebiten.Vertex) {
-		var f render.Frame
-		cam := icamera.NewFromSpace(64, 64, 0)
-		f.Reset(cam)
-		r.Compose(&f, cam)
-		f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) { v = verts[0] })
-		return
-	}
-	if v := first(); v.ColorR != 1 || v.ColorG != 1 || v.ColorB != 1 {
+	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(flatLook{}))
+	var f render.Frame
+	cam := icamera.NewFromSpace(64, 64, 0)
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	var v ebiten.Vertex
+	f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) { v = verts[0] })
+	if v.ColorR != 1 || v.ColorG != 1 || v.ColorB != 1 {
 		t.Errorf("a flat world's tile is lit %v %v %v, want as it is", v.ColorR, v.ColorG, v.ColorB)
-	}
-	w.SetSun(world.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0, Ambient: 0.2, Sky: render.Light{0.1, 0.2, 0.6}})
-	if v := first(); v.ColorR > 0.05 || v.ColorB < 0.1 || v.ColorB <= v.ColorR {
-		t.Errorf("under a night sky the tile is lit %v %v %v, want it dark and blue", v.ColorR, v.ColorG, v.ColorB)
 	}
 }
 

@@ -1,4 +1,4 @@
-package sky
+package atmosphere
 
 import (
 	"image/color"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -18,12 +20,16 @@ var _ render.Source = (*Backdrop)(nil)
 // camera with vanishing points (camera.Vanisher) the sun stands in it, over the horizon, where the
 // way towards it vanishes.
 type Backdrop struct {
-	world *world.Plugin
+	space world.SpaceCfg
+	sun   func() sky.Sun
+	air   func() air.Weather
 	pts   [][2]float32
 }
 
-// NewBackdrop is the sky behind w.
-func NewBackdrop(w *world.Plugin) *Backdrop { return &Backdrop{world: w} }
+// NewBackdrop is the sky behind a world of space, under sun and the weather air give.
+func NewBackdrop(space world.SpaceCfg, sun func() sky.Sun, weather func() air.Weather) *Backdrop {
+	return &Backdrop{space: space, sun: sun, air: weather}
+}
 
 func (*Backdrop) Init(*goke.SysInit) {}
 
@@ -32,19 +38,19 @@ func (b *Backdrop) Compose(f *render.Frame, cam camera.Camera) {
 	if b.covered(cam, w, h) {
 		return
 	}
-	day := b.world.Sun().Daylight()
-	clouds := b.world.Weather().Clouds
-	sky := render.Overcast(day.Sky, clouds)
+	day := b.sun()
+	clouds := b.air().Clouds
+	sky := air.Overcast(day.SkyLight(), clouds)
 	c := color.RGBA{A: 255}
 	c.R, c.G, c.B = channel(sky[0]), channel(sky[1]), channel(sky[2])
 	f.Soft(render.Backdrop, float32(math.Inf(-1)), render.Corners{{0, 0}, {w, 0}, {0, h}, {w, h}}, c, render.Fade{})
-	b.sun(f, cam, w, h, day, clouds)
+	b.drawSun(f, cam, w, h, day, clouds)
 }
 
 // covered reports whether the ground covers the w x h viewport: a wrapping world seen through a
 // projection that wraps, or every corner of the screen over the world.
 func (b *Backdrop) covered(cam camera.Camera, w, h float32) bool {
-	space := b.world.Res.Config.Space
+	space := b.space
 	if space.Edges.WrapsX() && space.Edges.WrapsY() && cam.Projection().Wraps() {
 		return true
 	}
@@ -69,7 +75,7 @@ const (
 // sun draws the sun's disc and its glow where the way towards it vanishes on the screen — through
 // a camera with vanishing points (camera.Vanisher), a perspective's — over the horizon, dimmed by
 // the clouds; the world draws over it, so it sets behind the hills.
-func (b *Backdrop) sun(f *render.Frame, cam camera.Camera, w, h float32, day render.Daylight, clouds float32) {
+func (b *Backdrop) drawSun(f *render.Frame, cam camera.Camera, w, h float32, day sky.Sun, clouds float32) {
 	dir := day.Dir
 	v, ok := cam.(camera.Vanisher)
 	if !ok || dir[2] <= 0 || day.Strength <= 0 {
@@ -87,7 +93,11 @@ func (b *Backdrop) sun(f *render.Frame, cam camera.Camera, w, h float32, day ren
 	if clear <= 0 {
 		return
 	}
-	c := color.RGBA{R: channel(0.5 + 0.5*day.Sun[0]), G: channel(0.5 + 0.5*day.Sun[1]), B: channel(0.5 + 0.5*day.Sun[2]), A: channel(clear)}
+	light := day.Color
+	if light == (render.Light{}) {
+		light = render.Light{1, 1, 1}
+	}
+	c := color.RGBA{R: channel(0.5 + 0.5*light[0]), G: channel(0.5 + 0.5*light[1]), B: channel(0.5 + 0.5*light[2]), A: channel(clear)}
 	glow := c
 	glow.A = channel(0.25 * clear)
 	f.Fan(render.Backdrop, -math.MaxFloat32, b.disc(ax, ay, sunGlow*r), glow)

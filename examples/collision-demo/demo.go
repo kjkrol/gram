@@ -252,7 +252,7 @@ func (m *mainScene) Layers() []render.Layer {
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.world.Renderer()),
-		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount, &s.collisionStats.Counter),
+		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount).With(s.collisionStats.Reporter(&m.tps.Ticks)),
 	}
 }
 

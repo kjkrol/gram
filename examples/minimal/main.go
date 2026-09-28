@@ -136,7 +136,7 @@ func (v *view) Layers() []render.Layer {
 	return []render.Layer{
 		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
 		render.NewComposer(v.arena.world.Renderer()),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count, &v.arena.stats.Counter),
+		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
 	}
 }
 

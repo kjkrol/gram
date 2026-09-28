@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -58,7 +59,7 @@ var DefaultShadow = Shadow{Color: color.RGBA{R: 10, G: 10, B: 20, A: 110}, Fade:
 var _ render.Source = (*Renderer)(nil)
 
 // Renderer is the render.Source of the view of every entity carrying SightOutline, on the Overlays
-// tier: its outline in a ConeStyle and, in a Quasi3D world, the ground out of sight in a Shadow.
+// tier: its outline in a ConeStyle and, in a world with heights, the ground out of sight in a Shadow.
 type Renderer struct {
 	camera camera.Camera // the one of the frame being composed
 	frame  *render.Frame
@@ -71,8 +72,8 @@ type Renderer struct {
 
 	// groundOf finds the world's Ground when composing starts; a view is draped over it in pieces
 	// of step.
-	groundOf func() world.Ground
-	ground   world.Ground
+	groundOf func() board.Heights
+	ground   board.Heights
 	step     float32
 	grounded bool
 
@@ -96,7 +97,7 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 }
 
 // WithGround has the views follow the ground heights groundOf gives when composing starts.
-func (r *Renderer) WithGround(groundOf func() world.Ground) *Renderer {
+func (r *Renderer) WithGround(groundOf func() board.Heights) *Renderer {
 	r.groundOf = groundOf
 	return r
 }
