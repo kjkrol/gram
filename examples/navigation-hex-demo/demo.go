@@ -267,9 +267,7 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(hexSprite, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 
 	s.selection.WithRenderer(nil)
 

@@ -538,7 +538,12 @@ shows how much of it is boilerplate vs. real behavior.
   `GivingWay` order aside with `Linger`, then home). Never make a unit see the others ahead: the
   user asked for it to learn by striking. A `MoveTo{Cell, At, Append}` command orders
   every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
-  Shift appends. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
+  Shift appends. `WithRenderer` builds the `PathRenderer`: for every selected unit its goals as
+  the entity's outline where it will stand (`world.Look.Footprint` on the ground, `Marks` tier,
+  always) and, on `Routes{}` (Shift+P, `ShowRoutes`), its routes as thin lines over the ground
+  in pieces of the ground's step at the ground's depth (`Overlays`), straight through any camera
+  (sprites were interpolated affinely in perspective and wobbled); `RouteStyle` via
+  `WithRouteStyle`. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
 - **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity`, `Z`, `Layers`. A leaf: the world's sub-packages read the components
@@ -635,10 +640,10 @@ shows how much of it is boilerplate vs. real behavior.
   through `Steering.Request`. Ready-made ones live in the flat `vision/behavior`
   package (`behavior.DefineTags`, `Flee.Steer`, `Chase`); a file using both plugins'
   behaviors imports them as `cbehavior`/`vbehavior` — who flees or hunts
-  whom is the registration's to say. A `plugin.CommandHandler`: `Cones{}` (Shift+C) hides every
-  view drawn — cones and shadows — and shows them again (`Plugin.Hide`, `Hidden`; the renderer
-  composes nothing while hidden, the scan goes on); a look, not saved. Hand the plugin to
-  `players.NewPlugin` for the key. Depends on `world`.
+  whom is the registration's to say. A `plugin.CommandHandler`: the views start hidden and
+  `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
+  (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
+  look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
 

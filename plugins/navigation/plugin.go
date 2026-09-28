@@ -28,9 +28,11 @@ type Plugin struct {
 
 	moves  control.Queue[MoveTo]
 	looks  control.Queue[LookAt]
+	routes control.Queue[Routes]
 	finder *pathFinder
 
-	pathSprites  PathSprites
+	routeStyle   RouteStyle
+	routesShown  bool // the routes are drawn — see Routes
 	pathRenderer *PathRenderer
 	collision    *collision.Plugin
 	spacing      Spacing // as asked; Install decides AutoSpacing
@@ -89,9 +91,10 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan takes the orders at once and hands the driving to the simulation; call it after board's
-// RunPlan.
+// RunPlan carries out Routes, takes the orders at once and hands the driving to the simulation;
+// call it after board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.routes.Drain(func(control.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -116,11 +119,13 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	return p
 }
 
-// WithRenderer draws the remaining route of every selected entity; call SetPathSprites first.
-func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.pathRenderer = NewPathRenderer(p.board, atlas, p.pathSprites, p.selected).WithTops(p.boardPlugin.Top)
+// WithRenderer builds the PathRenderer: the goals of every selected entity, and its routes when
+// shown; atlas is unused, the routes are lines.
+func (p *Plugin) WithRenderer(render.AtlasSource) {
+	p.pathRenderer = NewPathRenderer(p.board, p.routeStyle, p.selected).WithHeights(p.boardPlugin.Heights).WithLook(p.worldPlugin.Look)
 	p.pathRenderer.BindSpace(p.worldPlugin.Space())
 	p.pathRenderer.finder = p.finder
+	p.pathRenderer.ShowRoutes(p.routesShown)
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -149,8 +154,21 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // navigation-specific
 // =================================================================
 
-// SetPathSprites sets the sprite set WithRenderer's PathRenderer draws — call before UsePlugin.
-func (p *Plugin) SetPathSprites(sprites PathSprites) *Plugin {
-	p.pathSprites = sprites
+// WithRouteStyle sets how routes and goals are drawn, in place of DefaultRouteStyle; call before
+// Use.
+func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
+	p.routeStyle = style
 	return p
 }
+
+// ShowRoutes has the selected units' routes drawn, or their goals alone — what the Routes command
+// toggles.
+func (p *Plugin) ShowRoutes(shown bool) {
+	p.routesShown = shown
+	if p.pathRenderer != nil {
+		p.pathRenderer.ShowRoutes(shown)
+	}
+}
+
+// RoutesShown reports whether the routes are drawn.
+func (p *Plugin) RoutesShown() bool { return p.routesShown }

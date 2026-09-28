@@ -1,9 +1,11 @@
 package navigation
 
 import (
+	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -11,9 +13,17 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// A route sprite lies on the tile as the board's Map draws it: its corners at the tops' heights,
-// its depth at the cell's level; without tops, on the ground at 0.
-func TestPathRenderer_LaysTheSpriteOnTheTilesCorners(t *testing.T) {
+// ends is where a Line's piece starts and ends on screen: the middles of its sides.
+func ends(v []ebiten.Vertex) (x0, y0, x1, y1 float32) {
+	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2, (v[1].DstY + v[3].DstY) / 2
+}
+
+func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
+
+// A route lies on the ground as the board's heights have it, in pieces of the ground's step, each
+// on the Overlays tier at the depth of the ground under its middle; without heights, one piece on
+// the ground at 0.
+func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
@@ -25,59 +35,85 @@ func TestPathRenderer_LaysTheSpriteOnTheTilesCorners(t *testing.T) {
 		return 0
 	}))
 	cam := isoCamera(128, 128, camera.Config{})
-	slope, _ := grid.CellIndex(1, 1) // its right corners meet the ridge
-	drawn := func(r *PathRenderer) (v []ebiten.Vertex, depth float32) {
+	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
+	drawn := func(r *PathRenderer) (pieces [][]ebiten.Vertex, depths []float32) {
 		var f render.Frame
 		f.Reset(cam)
-		r.frame, r.camera = &f, cam
-		r.appendCellSprite(slope, 0)
-		f.Each(func(_ render.Tier, d float32, verts []ebiten.Vertex) { v, depth = verts, d })
+		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
+		r.line(a, b)
+		f.Each(func(tier render.Tier, d float32, v []ebiten.Vertex) {
+			if tier != render.Overlays {
+				t.Errorf("a route piece on tier %d, want Overlays", tier)
+			}
+			pieces, depths = append(pieces, append([]ebiten.Vertex(nil), v...)), append(depths, d)
+		})
 		return
 	}
-	r := NewPathRenderer(brd, sheetOf{}, PathSprites{}, 0).WithTops(func(c board.CellID) ([4]float32, float32) { return relief.Top(c, 0) })
-	v, depth := drawn(r)
-	_, left := cam.Project(32, 32, 0)
-	_, right := cam.Project(64, 32, 5)
-	if len(v) != 4 || v[0].DstY != left || v[1].DstY != right {
-		t.Errorf("the sprite's top corners are drawn at y %v and %v, want %v and %v: the tile's corners, the right one 5 up", v[0].DstY, v[1].DstY, left, right)
+	r := NewPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() board.Heights { return relief })
+	pieces, depths := drawn(r)
+	want := int(math.Ceil(64 / relief.Step()))
+	if len(pieces) != want {
+		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), relief.Step(), want)
 	}
-	if depth != cam.Depth(48, 48, float32(relief.Altitude(slope))) {
-		t.Errorf("the sprite lies at depth %v, want the cell's at its level", depth)
+	sx, sy, _, _ := ends(pieces[0])
+	if ax, ay := cam.Project(48, 48, float32(relief.At(a))); !near32(sx, ax) || !near32(sy, ay) {
+		t.Errorf("the route starts at (%v, %v), want (%v, %v): on the ground at its start", sx, sy, ax, ay)
 	}
-	flat := NewPathRenderer(brd, sheetOf{}, PathSprites{}, 0)
-	_, level := cam.Project(64, 32, 0)
-	if v, _ := drawn(flat); len(v) != 4 || v[1].DstY != level {
-		t.Errorf("without tops the sprite's top-right corner is drawn at y %v, want %v: on the ground", v[1].DstY, level)
+	last := pieces[len(pieces)-1]
+	_, _, ex, ey := ends(last)
+	if bx, by := cam.Project(112, 48, float32(relief.At(b))); !near32(ex, bx) || !near32(ey, by) {
+		t.Errorf("the route ends at (%v, %v), want (%v, %v): on the ridge at its end", ex, ey, bx, by)
+	}
+	mid := geom.NewVec(112-32.0/2, 48)
+	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(relief.At(mid))) {
+		t.Errorf("the last piece lies at depth %v, want the ground's under its middle", d)
+	}
+	flat := NewPathRenderer(brd, RouteStyle{}, 0)
+	pieces, _ = drawn(flat)
+	_, _, ex, ey = ends(pieces[0])
+	if bx, by := cam.Project(112, 48, 0); len(pieces) != 1 || !near32(ex, bx) || !near32(ey, by) {
+		t.Errorf("without heights %d pieces ending at (%v, %v), want one on the ground at 0, (%v, %v)", len(pieces), ex, ey, bx, by)
 	}
 }
 
-// sheetOf is an AtlasSource of one sprite with no image behind it.
-type sheetOf struct{}
-
-func (sheetOf) Atlas() *ebiten.Image                            { return nil }
-func (sheetOf) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
-func (sheetOf) White() (u, v float32)                           { return 9, 9 }
-
-func TestPathRenderer_LaysARouteSpriteOnTheOverlaysTierAtItsCellsDepth(t *testing.T) {
+// A goal is the entity's outline where it will stand — its box round the spot, or the cell's
+// centre — on the Marks tier, over everything.
+func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	cam := isoCamera(128, 128, camera.Config{})
-	r := NewPathRenderer(brd, sheetOf{}, PathSprites{}, 0)
-	var f render.Frame
-	f.Reset(cam)
-	r.frame, r.camera = &f, cam
-
+	r := NewPathRenderer(grid, RouteStyle{}, 0)
 	c, _ := grid.CellIndex(2, 1)
-	r.appendCellSprite(c, 0)
-	centre := grid.CellCenter(c)
-	f.Each(func(tier render.Tier, depth float32, _ []ebiten.Vertex) {
-		if want := cam.Depth(float32(centre.X), float32(centre.Y), 0); tier != render.Overlays || depth != want {
-			t.Errorf("route sprite on tier %d at depth %v, want Overlays at the cell's %v", tier, depth, want)
+	for _, tc := range []struct {
+		spot   geom.Vec
+		centre geom.Vec
+	}{{geom.NewVec(70, 40), geom.NewVec(70, 40)}, {geom.Vec{}, grid.CellCenter(c)}} {
+		var f render.Frame
+		f.Reset(cam)
+		r.Compose(&f, cam)
+		r.goal(geom.NewVec(10, 10), c, tc.spot)
+		var starts [][2]float32
+		f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+			if tier != render.Marks {
+				t.Errorf("a goal's line on tier %d, want Marks", tier)
+			}
+			x, y, _, _ := ends(v)
+			starts = append(starts, [2]float32{x, y})
+		})
+		if len(starts) != 4 {
+			t.Fatalf("%d lines for a goal, want its outline's 4", len(starts))
 		}
-	})
-	if f.Len() != 1 {
-		t.Errorf("%d pieces for one route sprite", f.Len())
+		for _, corner := range [4][2]float64{{-5, -5}, {5, -5}, {5, 5}, {-5, 5}} {
+			wx, wy := cam.Project(float32(tc.centre.X+corner[0]), float32(tc.centre.Y+corner[1]), 0)
+			found := false
+			for _, s := range starts {
+				if near32(s[0], wx) && near32(s[1], wy) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("spot %v: no line starts at the box's corner (%v, %v); the lines start at %v", tc.spot, wx, wy, starts)
+			}
+		}
 	}
 }
 

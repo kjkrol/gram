@@ -57,8 +57,8 @@ func Style(t *topography.Plugin) *topography.Plugin {
 		Style("earth", topography.Style{Spread: 0.3}).
 		Style("sand", topography.Style{Spread: 0.35}).
 		Style("rock", topography.Style{Spread: 0.25}).
-		Style("brook", topography.Style{Shine: 0.9, Flow: 60, MixWith: "water"}).
-		Style("stream", topography.Style{Shine: 0.9, Flow: 60, MixWith: "water"}).
-		Style("river", topography.Style{Shine: 0.9, Flow: 45, MixWith: "water"}).
-		Style("ford", topography.Style{Shine: 0.9, Flow: 45, MixWith: "water"})
+		Style("brook", topography.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
+		Style("stream", topography.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
+		Style("river", topography.Style{Shine: 0.9, Flow: 22, MixWith: "water"}).
+		Style("ford", topography.Style{Shine: 0.9, Flow: 22, MixWith: "water"})
 }

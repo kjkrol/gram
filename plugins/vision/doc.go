@@ -65,9 +65,9 @@
 // ([DefaultShadow]; [Plugin.WithShadow] for another). A flat world keeps the reach cut where a
 // wall stands, and no shadows.
 //
-// The plugin is a plugin.CommandHandler, its one key the players carry: Shift+C ([Cones]) hides
-// every view drawn — the cones and the shadows — and shows them again; [Plugin.Hide] does the same
-// from code, [Plugin.Hidden] reports it. Hidden views are a look at the world, like the camera's
-// turn: they change at once, in the tactical pause too, and are not saved. The scan goes on
-// either way.
+// The views start hidden. The plugin is a plugin.CommandHandler, its one key the players carry:
+// Shift+C ([Cones]) shows every view drawn — the cones and the shadows — and hides them again;
+// [Plugin.Hide] does the same from code, [Plugin.Hidden] reports it. Hidden views are a look at
+// the world, like the camera's turn: they change at once, in the tactical pause too, and are not
+// saved. The scan goes on either way.
 package vision

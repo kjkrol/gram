@@ -1,6 +1,6 @@
 // Command navigation-vision-demo puts sight on navigated units in a world with heights: their cones stop
 // at the wall, fade in the forest and climb the hill; a hawk 40 up looks over all three. Shift+C
-// hides the cones.
+// shows the cones, Shift+P the routes.
 package main
 
 import (
@@ -335,9 +335,7 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)

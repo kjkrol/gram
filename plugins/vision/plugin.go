@@ -24,7 +24,7 @@ type Plugin struct {
 	groundStep  float64
 	heights     func() board.Heights // the ground sight follows; nil, flat
 	cover       func() board.Cover   // what holds sight back; nil, nothing
-	hidden      bool                 // the views drawn are hidden — see Cones
+	hidden      bool                 // the views drawn are hidden, as they start — see Cones
 	cones       control.Queue[Cones]
 
 	sightings host.PairHost[Sighting]
@@ -33,9 +33,10 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the vision plugin over worldPlugin's shared spatial index.
+// NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
+// start hidden — see Cones.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{worldPlugin: worldPlugin}
+	return &Plugin{worldPlugin: worldPlugin, hidden: true}
 }
 
 // =================================================================

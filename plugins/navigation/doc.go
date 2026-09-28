@@ -98,9 +98,13 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [PathRenderer], a render.Source laying the remaining route of
-// every selected entity, and the routes on to each queued goal, on the render.Overlays tier at the
-// depth of each cell, so a hill in front hides them —
-// from a [PathSprites] set — one arrow per [Direction] (every [DirectionStep] degrees round the compass, so square and hex steps land on one exactly) and a dot; [RegisterDefaultPathSprites]
-// bakes a default set.
+// [Plugin.WithRenderer] builds the [PathRenderer], a render.Source drawing, for every selected
+// entity, its goals — the entity's outline where it will stand, on the ground there, on the
+// render.Marks tier, always — and its routes when they are shown: the remaining route and the
+// routes on to each queued goal, a thin line over the ground on the render.Overlays tier in
+// pieces of the ground's step, each at the depth of the ground under it, so a hill in front
+// hides it and the line runs straight through any camera. [Routes] (Shift+P) shows the routes
+// and hides them again ([Plugin.ShowRoutes], [Plugin.RoutesShown]); [RouteStyle]
+// ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the line's colour and width and the goal's
+// colour.
 package navigation

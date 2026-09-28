@@ -1,6 +1,6 @@
 // Command vision-demo shows ten entities keeping out of each other's way by sight,
 // and one red hunter that lives off the ones who fail at it. Press A to switch the
-// avoidance off and watch the entity count fall; Shift+C hides the cones of sight.
+// avoidance off and watch the entity count fall; Shift+C shows the cones of sight.
 package main
 
 import (

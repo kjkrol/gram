@@ -6,7 +6,7 @@
 // and routed round them; seen isometrically, Transport Tycoon's way, from above or in perspective
 // — Tab goes round — the units giants, 9.4 m across and 20 m tall, billboards as tall as their
 // world.Z says, a hawk 300 m up
-// whose cone looks over everything a walker's stops at — Shift+C hides the cones; in perspective the ground far off sinks
+// whose cone looks over everything a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far off sinks
 // under the horizon and fades in the air. A
 // day goes by (plugins/atmosphere): long shadows morning and evening, dark nights; Space pauses
 // the game, ] and [ set its tempo — the clock bottom-left shows it, and when the engine holds it
@@ -339,9 +339,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(nil)               // the board's own atlas: every kind in its colour, the snowy ones and the ice too
 	s.board.Res.Render.ShowGridLines = true // B toggles it; the grid shows the relief best
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 

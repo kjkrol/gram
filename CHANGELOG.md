@@ -5,6 +5,17 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Routes drawn as lines, goals as outlines**
+- The navigation renderer draws every selected unit's goals as the entity's outline where it
+  will stand — on the ground at the spot, orange-yellow, the Marks tier, always — and its routes,
+  on Shift+P (`navigation.Routes`, `Plugin.ShowRoutes`), as a thin orange line over the ground in
+  pieces of the ground's step, straight through any camera; the arrow sprites, which wobbled in
+  perspective, are gone with `PathSprites`, `RegisterDefaultPathSprites`, `SetPathSprites`,
+  `Direction` and `WithTops`. `RouteStyle` (`Plugin.WithRouteStyle`) is the colours and width;
+  `WithRenderer` takes no atlas to use.
+- The vision cones start hidden; Shift+C shows them.
+- The island's water runs half as fast: `Flow` 30 on the brooks and streams, 22 on the rivers.
+
 **Cells kept reactively**
 - Under `CellSpacing` a unit routes over the ground alone, blind to where the others stand, as
   under `BodySpacing`: a step into a held cell is the collision — it waits, asks the one standing

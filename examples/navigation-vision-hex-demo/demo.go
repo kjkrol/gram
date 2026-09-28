@@ -1,6 +1,6 @@
 // Command navigation-vision-hex-demo puts sight on units navigating a hex board: their cones stop
 // at the wall and fade in the forest, read from the hex cells themselves; a hawk flies over
-// both and sees through the forest. Shift+C hides the cones.
+// both and sees through the forest. Shift+C shows the cones, Shift+P the routes.
 package main
 
 import (
@@ -344,9 +344,7 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(hexSprite, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)

@@ -511,42 +511,6 @@ func TestShortestAxisDelta(t *testing.T) {
 	}
 }
 
-func TestDirectionBetween(t *testing.T) {
-	center := geom.NewVec(50.0, 50.0)
-	cases := []struct {
-		name string
-		want geom.Vec
-		dir  Direction
-	}{
-		{"east", geom.NewVec(60.0, 50.0), DirectionAt(0)},
-		{"west", geom.NewVec(40.0, 50.0), DirectionAt(180)},
-		{"north", geom.NewVec(50.0, 40.0), DirectionAt(90)},
-		{"south", geom.NewVec(50.0, 60.0), DirectionAt(270)},
-		{"north-east", geom.NewVec(60.0, 40.0), DirectionAt(45)},
-		{"north-west", geom.NewVec(40.0, 40.0), DirectionAt(135)},
-		{"south-east", geom.NewVec(60.0, 60.0), DirectionAt(315)},
-		{"south-west", geom.NewVec(40.0, 60.0), DirectionAt(225)},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := directionBetween(center, c.want, 1000, 1000, 0); got != c.dir {
-				t.Errorf("directionBetween(%v, %v) = %v, want %v", center, c.want, got, c.dir)
-			}
-		})
-	}
-
-	t.Run("wraps through the seam instead of straight across the map", func(t *testing.T) {
-		have := geom.NewVec(95.0, 50.0)
-		want := geom.NewVec(5.0, 50.0)
-		if got := directionBetween(have, want, 100, 100, aabbworld.Torus); got != DirectionAt(0) {
-			t.Errorf("directionBetween(%v, %v, toroidal) = %v, want 0° (short hop east through the wrap)", have, want, got)
-		}
-		if got := directionBetween(have, want, 100, 100, 0); got != DirectionAt(180) {
-			t.Errorf("directionBetween(%v, %v, non-toroidal) = %v, want 180° (sanity: without wrap it's the long way west)", have, want, got)
-		}
-	})
-}
-
 func equalSteps(a, b []board.CellID) bool {
 	if len(a) != len(b) {
 		return false

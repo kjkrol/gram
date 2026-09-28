@@ -141,3 +141,36 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
 	}
 }
+
+// Shift+P issues Routes, which shows the routes drawn and hides them again; the goals are drawn
+// whatever it says.
+func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(5, 5, 10)
+	worldPlugin := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 50, Height: 50},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	pl := players.NewPlugin(worldPlugin, navPlugin)
+	if err := pl.Local("tester").Bind(navPlugin.DefaultBindings()...); err != nil {
+		t.Fatal(err)
+	}
+	events := &control.InputEvents{}
+	events.Modifiers.Shift = true
+	events.AddKeyEvent(ebiten.KeyP, control.ActionPress)
+	pl.EventHandler().HandleEvents(events)
+	n := 0
+	navPlugin.routes.Drain(func(control.Issued[Routes]) { n++ })
+	if n != 1 {
+		t.Errorf("Shift+P issued %d Routes, want one", n)
+	}
+	navPlugin.WithRenderer(nil)
+	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
+		t.Error("the routes start shown, want hidden until asked for")
+	}
+	navPlugin.ShowRoutes(true)
+	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+		t.Error("ShowRoutes(true) did not reach the renderer")
+	}
+}

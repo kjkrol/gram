@@ -279,6 +279,20 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Nineteenth round: routes as lines, goals as outlines.** The user: the route drawing is ugly,
+  in first person it wobbles on straight stretches, the goal should be the entity's outline at
+  the point it goes to, routes on Shift+P, goals always, cones hidden by default, rivers half as
+  fast. The wobble was the arrow sprites: a raster quad per cell rests on the tile's corners and
+  its texture is interpolated affinely, so in perspective a straight line in the raster bends
+  (the known limit of the tiles). Lines have no texture: the route is `Frame.Line` pieces between
+  ground points every `Heights.Step`, each at the ground's depth, so a hill hides them and every
+  camera draws them straight. The goal is `world.Look.Footprint` of the entity's box round its
+  spot, on the ground there (`Heights.At`), not on the tile's top as the sprites lay — a unit
+  stands on the ground inside a forest too. Gone: `PathSprites`, `Direction` and its atlas
+  baking; `WithRenderer` keeps its atlas parameter for the plugin contract and ignores it, as
+  vision does. Chosen alone: goals for the selected units only, as RTS markers go; a line 1.5 px
+  wide, the outline 2 px like the selection's; `Flow` halved in the island's styles, the engine
+  untouched, the speed being the game's.
 - **Eighteenth round: cells kept reactively.** The user: fitting in a cell and passing each
   other are orthogonal; cell-sized units should plan blind, correct only on collision and give
   way, like the bodies. Under cells a unit stops at its centre before it can touch anyone, so

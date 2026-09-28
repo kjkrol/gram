@@ -1,7 +1,7 @@
 // Command board-atlas is a small flat board drawn from the game's own atlas: a meadow with a pond,
 // a road and a wood, each kind a sprite the game draws — striped grass, rippled water, a cobbled
 // road, tree tops — rather than a plain colour, and a way of the road's kind laid as a band. Units
-// walk from corner to corner over the road; the same board could be drawn from the board's own
+// walk from corner to corner over the road, Shift+P shows their routes; the same board could be drawn from the board's own
 // atlas of the kinds' colours by giving WithRenderer nil. WASD, the wheel, a middle drag or the
 // cursor at an edge move the camera; Space pauses, ] and [ set the tempo; K lists every key.
 package main
@@ -284,9 +284,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(atlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
 	count := func() int { return s.world.Res.Telemetry.Count }

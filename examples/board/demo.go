@@ -1,7 +1,7 @@
 // Command board is the island on the simple map: a flat world whose board draws itself — every
 // kind in its colour from the board's own atlas, the streams, rivers, roads and bridges as plain
 // bands — and prices a step by its kind alone. Units walk from stop to stop over the roads, slower
-// off them, with sight cones (Shift+C hides them); a day goes by over the flat map (plugins/atmosphere): the tiles and
+// off them, with sight cones (Shift+C shows them) and routes (Shift+P); a day goes by over the flat map (plugins/atmosphere): the tiles and
 // the units tinted by the hour, dark at night and warm at dawn, the clouds' shadows drifting over
 // the whole screen, rain and snow falling, snow lying and the shores freezing in winter. Space
 // pauses the game, ] and [ set its tempo, P freezes the light, Shift+W changes the weather; WASD,
@@ -278,9 +278,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(nil) // the board's own atlas: every kind in its colour
 	s.board.Res.Render.ShowGridLines = false
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 

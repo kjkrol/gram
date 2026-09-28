@@ -43,28 +43,28 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	if len(queues) != 1 || queues[0].Accepts() != reflect.TypeFor[vision.Cones]() {
 		t.Fatalf("Queues = %v, want the one for Cones", queues)
 	}
+	if !v.Hidden() || !r.Hidden() {
+		t.Fatal("the views start shown, want hidden until asked for")
+	}
+	queues[0].Put(control.Nobody, vision.Cones{})
+	ctx.ecs.Tick(time.Second / 60)
 	if v.Hidden() || r.Hidden() {
-		t.Fatal("the views start hidden")
+		t.Errorf("after Cones the plugin hides %v and the renderer %v, want both shown", v.Hidden(), r.Hidden())
 	}
 	queues[0].Put(control.Nobody, vision.Cones{})
 	ctx.ecs.Tick(time.Second / 60)
 	if !v.Hidden() || !r.Hidden() {
-		t.Errorf("after Cones the plugin hides %v and the renderer %v, want both hidden", v.Hidden(), r.Hidden())
-	}
-	queues[0].Put(control.Nobody, vision.Cones{})
-	ctx.ecs.Tick(time.Second / 60)
-	if v.Hidden() || r.Hidden() {
-		t.Errorf("after a second Cones the plugin hides %v and the renderer %v, want both shown", v.Hidden(), r.Hidden())
+		t.Errorf("after a second Cones the plugin hides %v and the renderer %v, want both hidden", v.Hidden(), r.Hidden())
 	}
 }
 
 // Hide before WithRenderer reaches the renderer built later.
 func TestCones_HideReachesARendererBuiltLater(t *testing.T) {
 	v := vision.NewPlugin(testWorldPlugin())
-	v.Hide(true)
+	v.Hide(false)
 	v.WithRenderer(nil)
-	if !v.Renderer().(*vision.Renderer).Hidden() {
-		t.Error("a renderer built after Hide(true) is shown")
+	if v.Renderer().(*vision.Renderer).Hidden() {
+		t.Error("a renderer built after Hide(false) is hidden")
 	}
 }
 
