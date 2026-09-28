@@ -40,7 +40,7 @@ var _ goke.System = (*moveCommandSystem)(nil)
 // newMoveCommandSystem builds a moveCommandSystem draining moves and looks into orders, a cell each
 // through pathFinder.
 func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Queue[MoveTo], looks *control.Queue[LookAt], selected plugin.Tag[selection.Family]) *moveCommandSystem {
-	return &moveCommandSystem{keep: newCellKeeping(pathFinder), moves: moves, looks: looks, selected: selected, kind: pathFinder.terrain.Kind}
+	return &moveCommandSystem{keep: newCellKeeping(pathFinder, pathFinder.occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.terrain.Kind}
 }
 
 // withKeeping has the system give its orders as k says.

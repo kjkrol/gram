@@ -23,13 +23,21 @@
 // How units keep out of each other's way is the plugin's [Spacing] ([Plugin.WithSpacing]):
 //
 //   - [CellSpacing] gives a unit a cell to itself in each domain, as the board's Occupancy says. A
-//     Leg holds every cell its step touches until it reaches the next centre, a route goes round
-//     the cells held, a group sent to one cell spreads a unit to a free cell each, and every unit
-//     stands at its cell's centre. One that struck someone (a Struck behavior navigation registers
-//     on the board's collision plugin) stops, plans again from where it stands and keeps that route
-//     for a while whatever bumps follow — MoveOrder.Bumped and Cooldown. Occupancy is seeded from
-//     every entity's Cell and Mover when the Stage is set up, fresh or loaded. Board games and
-//     units a cell large.
+//     Leg holds every cell its step touches until it reaches the next centre, a group sent to one
+//     cell spreads a unit to a cell each, and every unit stands at its cell's centre. A unit routes
+//     over the ground alone, not knowing where the others stand, and learns of them only when a
+//     step is refused, the cell held: it waits, asks the one standing there off it, and after
+//     stallAfter of no headway notes the cell for its routes to go round and plans afresh; a
+//     corner of a slantwise step held is gone round square at once. One standing, asked off its
+//     cell, gives way where it can: to a free cell square off the way the other comes, else beside
+//     them, never ahead of them — a GivingWay order aside with Linger, then home — and nobody gives
+//     way to one giving way. Two coming at each other's cells: the one with the greater id goes
+//     round, the other waits. Someone standing on a unit's goal is waited targetWaitTimeout for,
+//     then the unit settles on the nearest free cell; someone passing over it is waited for. One
+//     that struck someone bodily (a Struck behavior navigation registers on the board's collision
+//     plugin) stops, plans again from where it stands and keeps that route for a while whatever
+//     bumps follow — MoveOrder.Bumped and Cooldown. Occupancy is seeded from every entity's Cell
+//     and Mover when the Stage is set up, fresh or loaded. Board games and units a cell large.
 //   - [BodySpacing] keeps units apart by their boxes, several standing in one cell, and does not
 //     ask the board's Occupancy. A unit routes over the ground alone, not knowing where the others
 //     stand, and goes from cell centre to cell centre; it learns of the others only by striking
@@ -68,10 +76,11 @@
 //
 // A [MoveTo] sends every Selected entity to a cell, or with Append queues the cell behind their
 // orders; the plugin is a plugin.CommandHandler ([Plugin.Queues] is the queue) and its command
-// system issues or extends the orders. [Plugin.DefaultBindings] make a right click one, Shift +
-// right click an appending one, and a right click with Shift and S held a [LookAt]: every
-// Selected entity stops and turns there, through [MoveOrder].Face, the point an entity turns
-// towards on arrival. Under CellSpacing a right click on the cell a Selected entity stands on turns
+// system issues or extends the orders. [Plugin.DefaultBindings] make a right click one — the
+// button up where it went down, within a few pixels — Shift + right click an appending one, and a
+// right drag a [LookAt] at every move of the cursor: every Selected entity stops and turns to
+// look where the cursor goes, through [MoveOrder].Face, the point an entity turns towards on
+// arrival, and the drag's release moves nothing. Under CellSpacing a right click on the cell a Selected entity stands on turns
 // it towards the point clicked (MoveTo.At) and a LookAt lets it finish its step; under BodySpacing
 // MoveTo.At is where the group stands round, a click in the entity's own cell moves it there, and a
 // LookAt stops it where its braking ends.

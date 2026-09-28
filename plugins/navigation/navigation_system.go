@@ -38,8 +38,9 @@ type MoveOrder struct {
 	// and Aside the way it steps round them for AsideFor more; Met holds the last Mets it struck
 	// standing, whose spots it keeps clear of when it stands elsewhere, and Avoid the first Avoids
 	// cells it found them in, which its routes go round. Stalled is how long it has come no nearer
-	// Toward, the cell it heads for, than Closest; Stalls how often it stalled since it last reached
-	// one. BodySpacing only.
+	// Toward, the cell it heads for, than Closest — under CellSpacing, how long its step into
+	// Toward has been refused, Held once for too long, Hit who holds it; Stalls how often it
+	// stalled since it last reached one.
 	Struck, Aside geom.Vec
 	Hit           uid.UID64
 	AsideFor      time.Duration
@@ -51,6 +52,7 @@ type MoveOrder struct {
 	Toward        board.CellID
 	Closest       float64
 	Stalls        uint8
+	Held          bool
 	// Linger is how long the entity stands on its Target before it goes on to the next queued goal;
 	// zero passes it. GivingWay marks an order to give way to one on the move — to linger aside,
 	// then go home — whom nobody gives way to in turn.
@@ -153,6 +155,11 @@ type navigationSystem struct {
 	pathFinder *pathFinder
 	keep       keeping
 	bodies     []body // every unit this tick, for the keeping; reused
+	// wanted is who came at each standing unit last tick, by a step into its cell refused, and
+	// wanting who does this tick: swapped at the end of the tick, so the standing are asked a
+	// tick later whatever order the chunks come in
+	wanted, wanting map[uid.UID64]press
+	presses         []press // reused
 
 	query *goke.Query
 	cell  goke.Comp[board.Cell]
@@ -193,7 +200,7 @@ const arrivalEpsilon = 2.0
 
 // newNavigationSystem builds a navigationSystem over grid; entities move at their Steering profile.
 func newNavigationSystem(pathFinder *pathFinder, grid board.Grid, terrain board.Terrain, occupancy board.Occupancy) *navigationSystem {
-	return &navigationSystem{grid: grid, terrain: terrain, occupancy: occupancy, pathFinder: pathFinder, keep: newCellKeeping(pathFinder)}
+	return &navigationSystem{grid: grid, terrain: terrain, occupancy: occupancy, pathFinder: pathFinder, keep: newCellKeeping(pathFinder, occupancy)}
 }
 
 // withKeeping has the system keep units apart as k says, holding steps in k's occupancy.
@@ -274,6 +281,9 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				m.lift = movers[i].Lift
 			}
 			m.brake = st.Braking()
+			if p, ok := s.wanted[id]; ok {
+				m.pressedBy, m.pressed = p.other, true
+			}
 
 			entered := false
 			moveTo := func(c board.CellID) {
@@ -389,10 +399,25 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 
 			if !leg.Active && waypoint != cells[i].ID {
-				reserved, ok := s.reserveLeg(cells[i].ID, waypoint, id, domain)
-				if !ok {
+				reserved, why := s.reserveLeg(cells[i].ID, waypoint, id, domain)
+				if !reserved.Active {
 					st.RequestSpeed(0)
-					p.Length = 0
+					switch {
+					case !why.held:
+						p.Length = 0 // the ground no longer takes the step: plan again
+					case why.corner:
+						// someone holds a corner of the slantwise step: round them square, not through
+						o.learn(why.cell)
+						p.Length = 0
+					default:
+						// someone holds the cell: wait, and ask them off it
+						if holder, asks := s.keep.blocked(m, o, why.cell, d); asks {
+							if s.wanting == nil {
+								s.wanting = map[uid.UID64]press{}
+							}
+							s.wanting[holder] = press{other: id, cell: cells[i].ID, way: s.wayBetween(cells[i].ID, why.cell), givingWay: o.GivingWay}
+						}
+					}
 					continue
 				}
 				*leg = reserved
@@ -416,6 +441,12 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					continue
 				}
 				st.RequestSpeed(0)
+				if leg.Active { // at rest on the goal: the step is done, its cells let go
+					s.releaseLeg(*leg, id)
+					s.occupancy.Enter(leg.To, id, domain)
+					moveTo(leg.To)
+					*leg = Leg{}
+				}
 				if o.Linger = max(o.Linger-d, 0); o.Linger > 0 {
 					continue
 				}
@@ -540,19 +571,45 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			buf.Commit(s.arrivedEditor)
 		}
 	}
+	s.wanted, s.wanting = s.wanting, s.wanted
+	clear(s.wanting)
 }
 
-// giveWay has every unit standing in cursor's chunk, no hand on it, that one on the move struck,
-// give way to it as the keeping says.
+// wayBetween is the way from cell a's centre to cell b's, a unit vector, the short way round.
+func (s *navigationSystem) wayBetween(a, b board.CellID) geom.Vec {
+	from := s.grid.CellCenter(a)
+	to := s.unwrap(from, s.grid.CellCenter(b))
+	d := geom.NewVec(to.X-from.X, to.Y-from.Y)
+	if l := math.Hypot(d.X, d.Y); l > 0 {
+		d = geom.NewVec(d.X/l, d.Y/l)
+	}
+	return d
+}
+
+// giveWay has every unit standing in cursor's chunk, no hand on it, that one on the move came at
+// — striking it, or refused a step into its cell — give way as the keeping says.
 func (s *navigationSystem) giveWay(cb *goke.CmdBuf, cursor *goke.Cursor) {
 	colls := s.coll.Slice(cursor)
-	if colls == nil {
+	if colls == nil && len(s.wanted) == 0 {
 		return
 	}
 	cells, bases, movers, zs, hands := s.cell.Slice(cursor), s.base.Slice(cursor), s.mover.Slice(cursor), s.z.Slice(cursor), s.hand.Slice(cursor)
+	if hands != nil {
+		return
+	}
 	for i, id := range cursor.IDs {
-		contacts := colls[i].Contacts()
-		if len(contacts) == 0 || hands != nil {
+		s.presses = s.presses[:0]
+		if colls != nil {
+			for _, c := range colls[i].Contacts() {
+				if !c.Terrain {
+					s.presses = append(s.presses, press{other: c.Other, way: c.Normal})
+				}
+			}
+		}
+		if p, ok := s.wanted[id]; ok {
+			s.presses = append(s.presses, p)
+		}
+		if len(s.presses) == 0 {
 			continue
 		}
 		m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: board.DomainAt(movers, i), pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir}
@@ -562,7 +619,7 @@ func (s *navigationSystem) giveWay(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if movers != nil {
 			m.lift = movers[i].Lift
 		}
-		if order, ok := s.keep.yield(m, contacts); ok {
+		if order, ok := s.keep.yield(m, s.presses); ok {
 			cb.AddOne(id, s.orderID, order)
 		}
 	}
@@ -711,21 +768,31 @@ func approach(st *steering.Steering, dist, within float64) float64 {
 	return min(v, st.MaxSpeed)
 }
 
-// reserveLeg claims every cell a step from→to can touch, or none of them and false.
-func (s *navigationSystem) reserveLeg(from, to board.CellID, id uid.UID64, domain board.Domain) (Leg, bool) {
+// refusal is why a step could not be reserved: the ground, or a cell someone holds — the step's
+// own cell, or a corner of a slantwise one.
+type refusal struct {
+	cell         board.CellID
+	held, corner bool
+}
+
+// reserveLeg claims every cell a step from→to can touch, or none of them: an inactive Leg and why.
+func (s *navigationSystem) reserveLeg(from, to board.CellID, id uid.UID64, domain board.Domain) (Leg, refusal) {
 	leg := Leg{From: from, To: to, Active: true}
 	if c1, c2, diag := s.grid.DiagonalNeighbors(from, to); diag {
 		leg.C1, leg.C2, leg.Diagonal = c1, c2, true
 	}
 	for _, c := range leg.cells()[1:] {
-		if !s.terrain.Kind(c).Admits(domain) || !s.occupancy.CanEnter(c, id, domain) {
-			return Leg{}, false
+		if !s.terrain.Kind(c).Admits(domain) {
+			return Leg{}, refusal{cell: c}
+		}
+		if !s.occupancy.CanEnter(c, id, domain) {
+			return Leg{}, refusal{cell: c, held: true, corner: c != to}
 		}
 	}
 	for _, c := range leg.cells() {
 		s.occupancy.Enter(c, id, domain)
 	}
-	return leg, true
+	return leg, refusal{}
 }
 
 // admitsAll reports whether every cell still admits domain.

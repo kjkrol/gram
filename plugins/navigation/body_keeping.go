@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -352,22 +351,24 @@ func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
 // yieldLinger is how long a unit that gave way stands aside before it goes back.
 const yieldLinger = time.Second
 
+// blocked is never called: the open occupancy refuses nobody.
+func (k *bodyKeeping) blocked(member, *MoveOrder, board.CellID, time.Duration) (uid.UID64, bool) {
+	return 0, false
+}
+
 // yield has m, standing, step off the way of the first one on the move that struck it — not one
 // giving way itself — square to the line between them, to the side m stands, as far as the two
 // boxes and a gap need; or to the other side when the ground there does not take m. It stands
 // there yieldLinger, then goes back to where it stood, facing as it did. Where the ground takes it
 // on neither side it holds.
-func (k *bodyKeeping) yield(m member, contacts []collision.Contact) (MoveOrder, bool) {
+func (k *bodyKeeping) yield(m member, presses []press) (MoveOrder, bool) {
 	here, h := m.centre(), half(m)
-	for _, c := range contacts {
-		if c.Terrain {
-			continue
-		}
-		b, ok := k.index.of(c.Other)
+	for _, c := range presses {
+		b, ok := k.index.of(c.other)
 		if !ok || !b.moving || b.yielding || b.domain&m.domain == 0 {
 			continue
 		}
-		way := c.Normal // the way m leaves it: the line it came along, struck head on
+		way := c.way // the way m leaves it: the line it came along, struck head on
 		if l := math.Hypot(way.X, way.Y); l > 1e-9 {
 			way = geom.NewVec(way.X/l, way.Y/l)
 		} else {

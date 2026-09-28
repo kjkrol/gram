@@ -84,7 +84,7 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	occupancy.Enter(at(0), mover, board.Land)
 	occupancy.Enter(at(4), other, board.Land)
 	terrain.Set(at(2), board.CellKind{Cost: 1, Solid: true})
-	taken := map[board.CellID]bool{at(5): true}
+	taken := func(c board.CellID) bool { return c == at(5) }
 
 	dest, _, ok := pf.nearestFree(mover, board.Land, at(6), at(4), taken)
 	if !ok || dest != at(6) {

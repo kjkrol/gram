@@ -57,14 +57,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
+	// routes are planned over the ground alone, blind to the others: the keeping holds what it
+	// holds and answers what a route runs into
+	finder := newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
 	var keep keeping
-	var finder *pathFinder
 	if p.spacing == BodySpacing {
-		finder = newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
 		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)
 	} else {
-		finder = newPathFinder(brd, brd, p.boardPlugin, p.boardPlugin.Occupancy())
-		keep = newCellKeeping(finder)
+		keep = newCellKeeping(finder, p.boardPlugin.Occupancy())
 	}
 	p.finder = finder
 	if p.pathRenderer != nil {

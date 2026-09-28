@@ -279,6 +279,31 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Eighteenth round: cells kept reactively.** The user: fitting in a cell and passing each
+  other are orthogonal; cell-sized units should plan blind, correct only on collision and give
+  way, like the bodies. Under cells a unit stops at its centre before it can touch anyone, so
+  the refused reservation plays the collision: `reserveLeg` says which cell and whether a corner,
+  `keeping.blocked` waits, names the holder (`Occupancy.Holder`; entity id 0 is a real unit, so
+  `member.pressed` is a flag, not a zero test) and matures a stall into `Bumped`+`Held`; the
+  standing are asked through `wanted`/`wanting` maps swapped each tick, one tick's latency
+  whatever order the chunks come in. Found on the way: a lingering yielder kept its step's cells
+  (the leg never released while `Linger` ran), so the one it gave way to could not pass; a held
+  corner of a slantwise step asked its holder off a cell the step never enters — now learnt and
+  gone round square; two units both re-routing round each other took the same side every time
+  and danced — the greater id goes round, the other waits; a goal someone passes over must not
+  be settled beside (the passer's leg holds it for a moment). Test worlds building
+  `newNavigationSystem` straight keep a finder with the real occupancy, so their routes stay
+  predictive; the plugin's are blind, and the road world (`bump_test`) and the new
+  `cell_spacing_test` go through the plugin. The turnaround sweep passed vacuously for a while
+  (blue gave up before the sweep began) — traced tick by tick, not trusted.
+- **Seventeenth round: a right drag turns the units.** The user: with the right button held,
+  moving the mouse turns the selected units to look that way. Chosen with them: each unit looks
+  at the ground under the cursor (the `LookAt` command, issued at every move of a `ButtonHeld`
+  past a slop of 4 px), a click moves as before and a drag moves nothing on its release — so
+  `MoveTo` went from `ButtonPress` to `Drag`, the button up within the slop, as Select is on the
+  left button. Not chosen: one heading for all from the press point to the cursor, and Company of
+  Heroes' way, the press point the goal and the drag the facing on arrival. The Shift+S right
+  click went, at the user's word: the drag does what it did.
 - **Sixteenth round: roads followed round their bends.** The user's screenshots: units cut the
   corners of roads, on the island in relief and on a flat meadow alike; "the road, even angular,
   should be cheaper than cutting across grass or rock". Two causes, measured on the demos'

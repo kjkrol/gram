@@ -507,15 +507,28 @@ shows how much of it is boilerplate vs. real behavior.
   heading (at a lookahead point, so turns start before the bend) and for its own top speed, braking
   from the profile before the goal; a waypoint is passed by projection, the goal by radius. A
   `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns
-  towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or S + right click
-  (`LookAt`: finish the step, stop, turn). A trigger may ask for a key held besides its modifiers
+  towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or a `LookAt` (finish
+  the step, stop, turn). The right button's bindings are a `Drag` (a click is the button up
+  within `clickSlop` of where it went down; further, nothing moves) and a `ButtonHeld` past the
+  slop into a `LookAt` at every move: a right drag turns the selected units to look at the
+  cursor. A trigger may ask for a key held besides its modifiers
   (`control.Mods{}.Holding(key)`). `Spacing` (`WithSpacing`; `AutoSpacing` by the largest box
   against a cell, a third or less keeping boxes) is how units keep apart, through the internal
   `keeping` seam (`cellKeeping`, `bodyKeeping`), one `navigationSystem.Update` loop for both.
-  `CellSpacing`: built `WithCollision(c)`, a unit that struck someone or the solid ground (a
-  `Struck` behavior navigation registers on `c`) stops, re-plans from where it stands and holds
-  that route for `bumpInterval`, so units pushing each other on a road step aside instead of
-  shoving for ever; occupancy is seeded from `Cell` + `Mover` at Setup (no spawn effect needed).
+  Both plan routes blind to the others (the `pathFinder` gets `openOccupancy`); the keeping
+  holds what it holds. `CellSpacing`: the board's occupancy gates each step (`reserveLeg`,
+  a `refusal` says which cell and whether a corner); a refused step goes to `keeping.blocked`,
+  which counts the stall (`MoveOrder.Stalled`, `Toward`), names the holder
+  (`board.SingleOccupancy.Holder`, the `holders` seam) and after `stallAfter` marks the order
+  `Bumped` and `Held` for `bump` to learn the cell (`Avoid`) and plan round it — `giveUp` after
+  `maxStalls`; a held corner is learnt at once and gone round square; a goal someone stands on is
+  waited `targetWaitTimeout` for, then settled beside (`nearestFree` with the real occupancy),
+  a passer-by waited for; head on, the greater id goes round (`member.pressedBy`). The system
+  keeps `wanted`/`wanting` maps (who came at whom, swapped each tick) and `giveWay` turns them,
+  and bodies' collision contacts, into `press`es for `keeping.yield`: `cellKeeping.yield` steps to
+  a free cell square off the way, else beside, never ahead, `GivingWay` with `Linger` then home.
+  Struck bodily (`bumped()`, a `Struck` behavior on `c`) a unit stops, re-plans and holds that
+  route for `bumpInterval`. Occupancy is seeded from `Cell` + `Mover` at Setup.
   `BodySpacing`: the occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the
   ground alone and reacts only to what it strikes (`struckBy`: step aside, note a standing one's
   cell, re-place when it stands on the spot, stalls, give up); a group gets its spots from

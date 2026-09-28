@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/uid"
 )
 
 func TestSingleOccupancy_IsOnePerDomainPerCell(t *testing.T) {
@@ -48,5 +49,28 @@ func TestMultipleOccupancy_LetsTokensStack(t *testing.T) {
 	o.Leave(cell, 2)
 	if !o.CanEnter(cell, 3, board.Air) {
 		t.Error("an empty square refuses")
+	}
+}
+
+// Holder tells who holds a cell in a domain, whom a step into it would meet.
+func TestOccupancy_HolderTellsWhoHoldsACell(t *testing.T) {
+	for name, occ := range map[string]interface {
+		board.Occupancy
+		Holder(board.CellID, board.Domain) (uid.UID64, bool)
+	}{"single": &board.SingleOccupancy{}, "multiple": &board.MultipleOccupancy{}} {
+		occ.Enter(3, 1, board.Land)
+		occ.Enter(3, 2, board.Air)
+		if who, ok := occ.Holder(3, board.Land); !ok || who != 1 {
+			t.Errorf("%s: the Land holder of cell 3 is %d %v, want 1", name, who, ok)
+		}
+		if who, ok := occ.Holder(3, board.Air); !ok || who != 2 {
+			t.Errorf("%s: the Air holder of cell 3 is %d %v, want 2", name, who, ok)
+		}
+		if _, ok := occ.Holder(3, board.Water); ok {
+			t.Errorf("%s: cell 3 has a Water holder", name)
+		}
+		if _, ok := occ.Holder(4, board.Land); ok {
+			t.Errorf("%s: cell 4 has a holder", name)
+		}
 	}
 }

@@ -51,6 +51,12 @@ func (o *SingleOccupancy) Leave(c CellID, entity uid.UID64) {
 	o.holders[c] = leave(o.holders[c], entity)
 }
 
+// Holder is the entity holding c in a domain domain shares — whom a step into c would meet — if
+// any.
+func (o *SingleOccupancy) Holder(c CellID, domain Domain) (uid.UID64, bool) {
+	return holderOf(o.holders[c], domain)
+}
+
 // MultipleOccupancy lets any number of entities share a cell — tokens on a board square. Such
 // entities carry no Physics: bodies cannot overlap. Zero-value ready — no constructor needed.
 type MultipleOccupancy struct {
@@ -76,6 +82,21 @@ func (o *MultipleOccupancy) Enter(c CellID, entity uid.UID64, domain Domain) {
 
 func (o *MultipleOccupancy) Leave(c CellID, entity uid.UID64) {
 	o.holders[c] = leave(o.holders[c], entity)
+}
+
+// Holder is the first entity holding c in a domain domain shares, if any.
+func (o *MultipleOccupancy) Holder(c CellID, domain Domain) (uid.UID64, bool) {
+	return holderOf(o.holders[c], domain)
+}
+
+// holderOf is the first of holders in a domain domain shares.
+func holderOf(holders []holder, domain Domain) (uid.UID64, bool) {
+	for _, h := range holders {
+		if h.domain&domain != 0 {
+			return h.entity, true
+		}
+	}
+	return 0, false
 }
 
 // leave drops entity from holders, keeping the order of the rest.

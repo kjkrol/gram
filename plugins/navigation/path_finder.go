@@ -121,12 +121,13 @@ func (p *pathFinder) enterable(c board.CellID, entity uid.UID64, domain board.Do
 // maxVisitedCells bounds how many cells nearestFree inspects around its target.
 const maxVisitedCells = 64
 
-// nearestFree returns the free cell nearest target that entity can reach, and the route to it.
-func (p *pathFinder) nearestFree(entity uid.UID64, domain board.Domain, from, target board.CellID, taken map[board.CellID]bool) (board.CellID, Path, bool) {
+// nearestFree returns the free cell nearest target that entity can reach — not one taken says —
+// and the route to it.
+func (p *pathFinder) nearestFree(entity uid.UID64, domain board.Domain, from, target board.CellID, taken func(board.CellID) bool) (board.CellID, Path, bool) {
 	var path Path
 	passable := func(c board.CellID) bool { return p.terrain.Kind(c).Admits(domain) }
 	reachableFree := func(c board.CellID) bool {
-		if taken[c] || !p.enterable(c, entity, domain) {
+		if taken != nil && taken(c) || !p.enterable(c, entity, domain) {
 			return false
 		}
 		if c == from {

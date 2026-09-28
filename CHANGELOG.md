@@ -5,6 +5,23 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Cells kept reactively**
+- Under `CellSpacing` a unit routes over the ground alone, blind to where the others stand, as
+  under `BodySpacing`: a step into a held cell is the collision — it waits, asks the one standing
+  there off the cell, and after a second of no headway notes the cell for its routes to go round;
+  one standing gives way to a free cell square off the way, else beside, and comes back; two
+  meeting head on, the greater id goes round; a goal someone stands on is settled beside after
+  half a second, a passer-by waited for; a corner of a slantwise step held is gone round square.
+  `board.SingleOccupancy.Holder` and `MultipleOccupancy.Holder` tell who holds a cell.
+  `MoveOrder.Held` is new (saves change shape). A unit lingering on a goal lets its step's cells
+  go, so a yielder no longer holds the cell it left.
+
+**Turning units with the mouse**
+- A right drag turns the selected units to look at the cursor as it moves (a `LookAt` at every
+  move past `clickSlop`, 4 px) and moves nothing when the button comes up. A right click — the
+  button up where it went down — moves as before, but on the release, not the press; Shift alike.
+  The Shift+S right click is gone: the drag looks there. The `LookAt` command stays.
+
 **Roads followed round their bends**
 - A slantwise step between two cells not linked by a way cuts the corner beside the way and is
   priced by the ground under the way at the destination (`board.Board.Bare`), not by the way: a
