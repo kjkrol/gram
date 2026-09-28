@@ -222,6 +222,14 @@ the frame's goroutine is culling the cells under the camera (`onScreen`, every c
 in perspective), painting the ground sheet when the board changed, warming the shores, and
 appending every worker's vertices to the frame once more (`render.Frame.Append`).
 
+The composer's own share of handing a frame to Ebitengine — `Benchmark_Composer_Render`, the
+draw stubbed: each run of quads copied into the call's buffer and indexed, plain colours given
+the sheet's white texel — is 0.35 ms for 18 thousand pieces and 1.7 ms for 72 thousand; the whole
+island from above is 15.7 thousand pieces (63 thousand vertices), the perspective through 1080p
+8.7 thousand, the isometric view through 1080p 1.5 thousand. The rest of a frame's cost past
+composing is Ebitengine's: it converts every vertex it is handed per call, so a frame is handed
+in runs, never whole.
+
 Before, every frame read every cell anew from the ECS, worked out every tile's light three times,
 and every blend's weights and every way's curve over again. Now the renderer keeps what it read of
 a cell while `Board.CellVersion` says the cell is as it was, a tile's blends and way while the

@@ -316,7 +316,18 @@ below says what was decided and why, or what needs an answer. Take them out as t
   observers: 0.54 → 0.26 ms, with outlines 1.31 → 0.49. (5) **Found on the way**: the bench
   harness never replayed the world's clock, so the vision benchmark had measured an empty tick
   (300 ns) since the clock came; `headless.start` replays it after the plan now. `trace` zeroed
-  the whole shadow buffer per observer; it clears the samples read.
+  the whole shadow buffer per observer; it clears the samples read. (6) **Stage 3, the handing,
+  measured and mostly left.** `Benchmark_Composer_Render` stubs the draw: the composer's own
+  share — copying each item's vertices into the call's buffer, indexing, the white texel of
+  plain colours — is 0.35 ms for 18k pieces (the whole island from above is 15.7k, 63k
+  vertices), 0.2 ms for the perspective through 1080p (8.7k), 0.03 ms isometric through 1080p
+  (1.5k). A frame handed over without copying would need `DrawTrianglesShader32` with the
+  frame's vertices whole per call — and Ebitengine converts every vertex it is handed into its
+  own buffer per call (`ensureTmpVertices`), so every sheet switch along the depth order would
+  pay for the whole frame again. The depth order scatters the sheets (tiles, then a unit's
+  sheet, then tiles) so calls cannot be one per sheet either. Kept: a run of quads appended at
+  once (9%). The 4.3 ms measured earlier in the demo as "handing" is Ebitengine's own per-vertex
+  work and the driver's, which only fewer vertices cut — the ground sheet's way.
 - **Twentieth round: one Eye for the cone and the rider.** The user, in first person: the cones
   are too short, their shadows fall wrong, the eye seemed too low and the width did not match the
   lens. Measured: the cone's eye stood at 18 m (`Sight.Eye`) and the camera's at 20 m (the top);

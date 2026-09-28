@@ -28,6 +28,13 @@ and the climate's entities are gone, the clock's is new.
   world's clock after the plan, as the engine does: `Benchmark_Vision_*` had measured an empty
   tick since the clock came; `Benchmark_Board_Island` and `Benchmark_Vision_*` measure on every
   CPU and (`serial`) on one goroutine.
+- The composer hands Ebitengine a run of quads in one append rather than quad by quad
+  (`Benchmark_Composer_Render`: 0.39 → 0.35 ms for 18 thousand pieces, 1.9 → 1.7 for 72
+  thousand). Handing the frame over without copying its vertices was measured and left: the
+  composer's own share is a tenth of composing the island — 0.3 ms of the whole island from
+  above, 0.2 in perspective through 1080p, 0.03 isometric — and Ebitengine copies and converts
+  every vertex it is handed per call whatever is passed, so a frame's vertices handed whole to
+  every call would cost more, not less.
 
 **The sky of the day, with the clouds on it**
 - Through a perspective the backdrop is a mesh of the sky from the horizon up: paler at the

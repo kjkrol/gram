@@ -185,6 +185,18 @@ func (c *Composer) render(screen *ebiten.Image) {
 			c.fan(screen, sheet, it)
 			continue
 		}
+		if len(c.verts)+int(it.count) > chunkVertices {
+			c.flush(screen, sheet)
+		}
+		// the whole run of quads at once where the call has room for it, else quad by quad
+		if int(it.count) <= chunkVertices {
+			base := uint16(len(c.verts))
+			c.append(f.verts[it.first:it.first+it.count], it.atlas == nil, sheet)
+			for k := int32(0); k < it.count; k += 4 {
+				c.indices = appendQuad(c.indices, base+uint16(k), it.shape)
+			}
+			continue
+		}
 		for k := it.first; k < it.first+it.count; k += 4 {
 			if len(c.verts)+4 > chunkVertices {
 				c.flush(screen, sheet)
