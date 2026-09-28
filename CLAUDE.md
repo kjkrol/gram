@@ -604,7 +604,10 @@ shows how much of it is boilerplate vs. real behavior.
   through `Steering.Request`. Ready-made ones live in the flat `vision/behavior`
   package (`behavior.DefineTags`, `Flee.Steer`, `Chase`); a file using both plugins'
   behaviors imports them as `cbehavior`/`vbehavior` — who flees or hunts
-  whom is the registration's to say. Depends on `world`.
+  whom is the registration's to say. A `plugin.CommandHandler`: `Cones{}` (Shift+C) hides every
+  view drawn — cones and shadows — and shows them again (`Plugin.Hide`, `Hidden`; the renderer
+  composes nothing while hidden, the scan goes on); a look, not saved. Hand the plugin to
+  `players.NewPlugin` for the key. Depends on `world`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
 

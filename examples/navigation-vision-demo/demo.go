@@ -1,5 +1,6 @@
 // Command navigation-vision-demo puts sight on navigated units in a world with heights: their cones stop
-// at the wall, fade in the forest and climb the hill; a hawk 40 up looks over all three.
+// at the wall, fade in the forest and climb the hill; a hawk 40 up looks over all three. Shift+C
+// hides the cones.
 package main
 
 import (
@@ -133,14 +134,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.topography)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
 	s.noticed = map[[2]uid.UID64]bool{}
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
@@ -148,6 +141,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		vision.Between(plugin.Any, plugin.Any, faceTravel),
 		vision.Between(s.unitTag, s.unitTag, s.noticedEachOther),
 	); err != nil {
+		return err
+	}
+
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.topography, s.vision)
+	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.players); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {

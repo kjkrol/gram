@@ -5,6 +5,12 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The cones of sight on and off**
+- `vision.Plugin` is a `plugin.CommandHandler`: `vision.Cones{}` hides every view drawn — the
+  cones and the ground out of sight — or shows them again, Shift+C by default; `Plugin.Hide(bool)`
+  and `Plugin.Hidden()` from code, `Renderer.Hide`/`Hidden` on the renderer. A look, not saved;
+  the scan goes on. Hand the plugin to `players.NewPlugin` for the key; the demos with sight do.
+
 **The world in sub-packages, `Heights` for `Quasi3D`**
 - `plugins/world/steering`: `steering.Steering`, `steering.Driven` and `steering.System`
   (`steering.NewSystem()`) were `world.Steering`, `world.Driven`, `world.SteeringSystem`

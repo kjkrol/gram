@@ -6,7 +6,7 @@
 // and routed round them; seen isometrically, Transport Tycoon's way, from above or in perspective
 // — Tab goes round — the units giants, 9.4 m across and 20 m tall, billboards as tall as their
 // world.Z says, a hawk 300 m up
-// whose cone looks over everything a walker's stops at; in perspective the ground far off sinks
+// whose cone looks over everything a walker's stops at — Shift+C hides the cones; in perspective the ground far off sinks
 // under the horizon and fades in the air. A
 // day goes by (plugins/atmosphere): long shadows morning and evening, dark nights; Space pauses
 // the game, ] and [ set its tempo — the clock bottom-left shows it, and when the engine holds it
@@ -190,7 +190,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.topography.WithAtmosphere(s.atmosphere) // the relief lit and shaded by the day, its weather over it
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.topography)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.topography, s.vision)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}

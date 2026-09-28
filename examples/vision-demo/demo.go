@@ -1,6 +1,6 @@
 // Command vision-demo shows ten entities keeping out of each other's way by sight,
 // and one red hunter that lives off the ones who fail at it. Press A to switch the
-// avoidance off and watch the entity count fall.
+// avoidance off and watch the entity count fall; Shift+C hides the cones of sight.
 package main
 
 import (
@@ -133,7 +133,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
-	s.players = players.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.vision)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}

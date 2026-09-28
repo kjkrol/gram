@@ -149,6 +149,46 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 	}
 }
 
+func TestRenderer_HiddenComposesNothing(t *testing.T) {
+	r := testRenderer(t, 4000, 4000, false, camera.AABB{
+		TopLeft:     geom.NewVec(0, 0),
+		BottomRight: geom.NewVec(1000, 1000),
+	})
+	drawn := 0
+	r.WithStyle(ConeStyleFn(func(*render.Frame, []ConePoint) { drawn++ }))
+
+	var pos goke.Comp[world.Base]
+	var sight goke.Comp[Sight]
+	var outline goke.Comp[SightOutline]
+	good := SightOutline{Count: 3}
+	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
+
+	ecs := goke.New()
+	ecs.Setup(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			f := si.NewFactory(&pos, &sight, &outline)
+			f.Create(1)
+			for f.Next() {
+				pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
+				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: 0.5, Radius: 100}
+				outline.Slice(&f.Cursor)[0] = good
+			}
+		}},
+		goke.SystemFn{OnInit: r.Init},
+	)
+
+	r.Hide(true)
+	composeWith(r)
+	if drawn != 0 {
+		t.Errorf("hidden, the renderer drew %d cones, want none", drawn)
+	}
+	r.Hide(false)
+	composeWith(r)
+	if drawn != 1 {
+		t.Errorf("shown again, the renderer drew %d cones, want 1", drawn)
+	}
+}
+
 // recordFans collects a copy of every ring the renderer hands to the style.
 func recordFans(r *Renderer) *[][]ConePoint {
 	var fans [][]ConePoint

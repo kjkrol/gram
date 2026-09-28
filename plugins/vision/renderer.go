@@ -69,6 +69,7 @@ type Renderer struct {
 
 	worldW, worldH float32
 	wraps          bool
+	hidden         bool // composes nothing — see Hide
 
 	// groundOf finds the world's Ground when composing starts; a view is draped over it in pieces
 	// of step.
@@ -105,6 +106,12 @@ func (r *Renderer) WithGround(groundOf func() board.Heights) *Renderer {
 // Style reports how cones are currently drawn.
 func (r *Renderer) Style() ConeStyle { return r.style }
 
+// Hide has the Renderer compose nothing until shown again.
+func (r *Renderer) Hide(hidden bool) { r.hidden = hidden }
+
+// Hidden reports whether the views are hidden.
+func (r *Renderer) Hidden() bool { return r.hidden }
+
 // WithStyle replaces how each cone is drawn.
 func (r *Renderer) WithStyle(style ConeStyle) *Renderer {
 	r.style = style
@@ -121,8 +128,11 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.sight, &r.out).Optional(&r.z).Build()
 }
 
-// Compose hands f every view in sight of cam.
+// Compose hands f every view in sight of cam; nothing while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
+	if r.hidden {
+		return
+	}
 	r.frame, r.camera = f, cam
 	if !r.grounded {
 		r.grounded = true

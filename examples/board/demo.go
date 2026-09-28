@@ -1,7 +1,7 @@
 // Command board is the island on the simple map: a flat world whose board draws itself — every
 // kind in its colour from the board's own atlas, the streams, rivers, roads and bridges as plain
 // bands — and prices a step by its kind alone. Units walk from stop to stop over the roads, slower
-// off them, with sight cones; a day goes by over the flat map (plugins/atmosphere): the tiles and
+// off them, with sight cones (Shift+C hides them); a day goes by over the flat map (plugins/atmosphere): the tiles and
 // the units tinted by the hour, dark at night and warm at dawn, the clouds' shadows drifting over
 // the whole screen, rain and snow falling, snow lying and the shores freezing in winter. Space
 // pauses the game, ] and [ set its tempo, P freezes the light, Shift+W changes the weather; WASD,
@@ -150,7 +150,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.vision)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}

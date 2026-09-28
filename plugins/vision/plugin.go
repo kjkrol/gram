@@ -24,11 +24,14 @@ type Plugin struct {
 	groundStep  float64
 	heights     func() board.Heights // the ground sight follows; nil, flat
 	cover       func() board.Cover   // what holds sight back; nil, nothing
+	hidden      bool                 // the views drawn are hidden — see Cones
+	cones       control.Queue[Cones]
 
 	sightings host.PairHost[Sighting]
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
@@ -52,8 +55,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan hands the scan to the simulation; call it after world's RunPlan.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+// RunPlan carries out the commands, then hands the scan to the simulation; call it after world's
+// RunPlan.
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.cones.Drain(func(control.Issued[Cones]) { p.Hide(!p.hidden) })
+	p.module.RunPlan(ctx, d)
+}
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
@@ -64,6 +71,7 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {
 	if p.shadow != nil {
 		p.renderer.WithShadow(*p.shadow)
 	}
+	p.renderer.Hide(p.hidden)
 }
 
 func (p *Plugin) Renderer() render.Layer {
@@ -73,7 +81,7 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// EventHandler is a no-op — vision reads no input.
+// EventHandler returns nil — a player's bindings (DefaultBindings) issue the Cones commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable returns nil: vision keeps no state beside its components.
@@ -92,6 +100,17 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // =================================================================
 // vision-specific
 // =================================================================
+
+// Hide hides every view drawn, or shows them again — what the Cones command toggles.
+func (p *Plugin) Hide(hidden bool) {
+	p.hidden = hidden
+	if p.renderer != nil {
+		p.renderer.Hide(hidden)
+	}
+}
+
+// Hidden reports whether the views drawn are hidden.
+func (p *Plugin) Hidden() bool { return p.hidden }
 
 // WithStyle sets how cones are drawn, in place of DefaultConeStyle; call before Use.
 func (p *Plugin) WithStyle(style ConeStyle) *Plugin {
