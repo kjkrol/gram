@@ -394,7 +394,10 @@ shows how much of it is boilerplate vs. real behavior.
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving behavior board
-  registers on the world (only entities carrying `Mover` are slowed); slopes
+  registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road, a
+  bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
+  to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
+  that ground, the kind under the way; slopes
   cost too, through the board's Map — `topography.Climbing{Up, Down, Ease, Steep, Free}`
   (`Config.Climbing`, `DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
@@ -496,7 +499,11 @@ shows how much of it is boilerplate vs. real behavior.
   `RegisterBehavior(collision.Between(a, b, fn), ...)`. `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
-  `board`. A navigated unit carries a `steering.Steering` profile: navigation only asks it for a
+  `board`. `pathFinder.price` is what a step costs: the destination's `CostFor` over the step's
+  length, times `Map.Climb` unless the kind is `Graded`; a slantwise step not `Along` a way is
+  priced by the destination's `Bare` ground (the corner is cut beside the road) and refused where
+  that ground does not admit the unit, so roads are followed round their bends and slantwise
+  roads taken along their links. A navigated unit carries a `steering.Steering` profile: navigation only asks it for a
   heading (at a lookahead point, so turns start before the bend) and for its own top speed, braking
   from the profile before the goal; a waypoint is passed by projection, the goal by radius. A
   `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns

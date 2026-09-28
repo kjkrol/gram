@@ -21,6 +21,7 @@ func (c Crossing) Over(under CellKind) CellKind {
 			under.Costs[i] = c.Kind.CostFor(d)
 		}
 	}
+	under.Graded = under.Graded || c.Kind.Graded
 	return under
 }
 

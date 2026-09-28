@@ -25,7 +25,8 @@
 // over run; a descent is quickest, by Down, at a fall of Ease and slows past it by Steep a unit;
 // a Free domain (Air by default) flies over. The slope multiplies the kind's cost, in the planner
 // ([Plugin.Climb], [Plugin.Least]) and on the move ([Plugin.Slope], through the board's Moving
-// behavior), on a road and off it. The ground changes as in Transport Tycoon: [Raise] and [Lower]
+// behavior), off a road and on one, unless its kind is Graded (board.CellKind.Graded): a road cut
+// into the slope costs its own price alone. The ground changes as in Transport Tycoon: [Raise] and [Lower]
 // move the corner nearest a point (a hex cell on a hex grid) by a [Shaping] Step, [Level] brings
 // an area to the height where it began, and the ground round about follows until no two corners
 // along a cell's edge differ by more than MaxStep — = and - under the cursor, a left drag with L

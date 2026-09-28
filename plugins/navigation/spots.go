@@ -237,7 +237,11 @@ func (k *bodyKeeping) tilesRound(target board.CellID, dom, costs board.Domain) [
 			if done[nb] || !kind.Admits(dom) {
 				continue
 			}
-			cost := r.cost + kind.CostFor(costs)*k.grid.NeighborCost(r.c, nb)*k.climb(r.c, nb, costs)
+			step, ok := k.finder.price(r.c, nb, kind, costs)
+			if !ok {
+				continue
+			}
+			cost := r.cost + step
 			if b, seen := best[nb]; !seen || cost < b {
 				best[nb] = cost
 				frontier = append(frontier, reach{nb, cost})
@@ -245,14 +249,6 @@ func (k *bodyKeeping) tilesRound(target board.CellID, dom, costs board.Domain) [
 		}
 	}
 	return out
-}
-
-// climb is how many times as long the step from a to b takes in d for its slope.
-func (k *bodyKeeping) climb(a, b board.CellID, d board.Domain) float64 {
-	if k.finder.slopes == nil {
-		return 1
-	}
-	return k.finder.slopes.Climb(a, b, d)
 }
 
 // fits reports whether u may stand at p: its box on cells its domain takes, all of them on the

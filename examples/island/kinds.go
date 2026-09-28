@@ -40,8 +40,8 @@ func Kinds(forest float64) []board.CellKind {
 		board.CellKind{Name: board.Named("stream"), Cost: 5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
 		{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air},
 		board.CellKind{Name: board.Named("ford"), Cost: 6.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
-		{Name: board.Named("bridge"), Cost: 1, Allows: board.Land | board.Air},
+		{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air, Graded: true},
+		{Name: board.Named("bridge"), Cost: 1, Allows: board.Land | board.Air, Graded: true},
 		trees,
 	}
 	for i := range kinds {

@@ -13,6 +13,7 @@ type pathFinder struct {
 	terrain   board.Terrain
 	occupancy board.Occupancy
 	slopes    slopes
+	ways      ways // the terrain, when it knows its ways; nil, none run
 	solver    *astar.Solver[board.CellID]
 	least     float64                 // the cheapest a step may be for the domain being planned, per unit of Distance
 	blocked   func(board.CellID) bool // cells the route being planned goes round; nil, none
@@ -24,11 +25,37 @@ type slopes interface {
 	Least(d board.Domain) float64
 }
 
+// ways is a terrain that knows what runs across its cells — the board: which steps go along a
+// way, and the ground bare of it.
+type ways interface {
+	Along(from, to board.CellID) bool
+	Bare(c board.CellID) board.CellKind
+}
+
 // newPathFinder builds a pathFinder over grid that respects terrain, its slopes and occupancy.
 func newPathFinder(grid board.Grid, terrain board.Terrain, slopes slopes, occupancy board.Occupancy) *pathFinder {
 	p := &pathFinder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
+	p.ways, _ = terrain.(ways)
 	p.solver = astar.New[board.CellID](func(a, b board.CellID) float64 { return p.least * grid.Distance(a, b) })
 	return p
+}
+
+// price is what the step from from to its neighbour to costs an entity moving in d, to's kind
+// being kind: the kind's cost over the step's length, times the slope unless the kind is Graded. A
+// slantwise step not along a way cuts the corner beside it, over the ground bare of the way: it
+// costs that ground, so a road is followed round its bend rather than cut across; false where
+// that ground does not admit d.
+func (p *pathFinder) price(from, to board.CellID, kind board.CellKind, d board.Domain) (float64, bool) {
+	if _, _, diagonal := p.grid.DiagonalNeighbors(from, to); diagonal && p.ways != nil && !p.ways.Along(from, to) {
+		if kind = p.ways.Bare(to); !kind.Admits(d) {
+			return 0, false
+		}
+	}
+	cost := kind.CostFor(d) * p.grid.NeighborCost(from, to)
+	if p.slopes != nil && !kind.Graded {
+		cost *= p.slopes.Climb(from, to, d)
+	}
+	return cost, true
 }
 
 // findPath computes a route from 'from' toward 'to' for entity moving in domain — ok=false if
@@ -76,9 +103,9 @@ func (p *pathFinder) transitionsFor(entity uid.UID64, domain board.Domain) astar
 					continue
 				}
 			}
-			cost := kind.CostFor(domain) * p.grid.NeighborCost(from, n)
-			if p.slopes != nil {
-				cost *= p.slopes.Climb(from, n, domain)
+			cost, ok := p.price(from, n, kind, domain)
+			if !ok {
+				continue
 			}
 			buf = append(buf, astar.Transition[board.CellID]{To: n, Cost: cost})
 		}

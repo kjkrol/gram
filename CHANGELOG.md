@@ -5,6 +5,18 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Roads followed round their bends**
+- A slantwise step between two cells not linked by a way cuts the corner beside the way and is
+  priced by the ground under the way at the destination (`board.Board.Bare`), not by the way: a
+  road is followed round its bend instead of cut across the grass (a step between two road cells
+  across the bend cost the road's √2 before, less than the two steps round), and no corner is cut
+  onto a bridge over water a walker may not enter. A road laid slantwise is taken along its
+  links (`board.Board.Along`) at its own price.
+- `board.CellKind.Graded`: ground built up and cut into the slope — the islands' roads and
+  bridges — is spared the slope, in the planner and on the move; `Way.Over` and `Crossing.Over`
+  carry it. On the island no route between two road cells 4 to 20 apart leaves the road now;
+  with the corner rule alone 1108 of 2841 still did, over steep road.
+
 **Cameras in relief kept over the map**
 - From above and isometrically the topography's camera keeps the whole screen over the world at
   sea level, as the top-down camera does: a pan (WASD, the cursor at an edge, a middle drag)

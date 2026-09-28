@@ -26,13 +26,26 @@ type Links uint8
 func (w Way) Runs() bool { return w.Width > 0 }
 
 // Over is ground as whoever crosses the cell meets it: who may and what it costs from the Way's
-// kind when one runs there, the rest from the ground.
+// kind when one runs there, graded as it is, the rest from the ground.
 func (w Way) Over(ground CellKind) CellKind {
 	if !w.Runs() {
 		return ground
 	}
-	ground.Allows, ground.Cost, ground.Costs = w.Kind.Allows, w.Kind.Cost, w.Kind.Costs
+	ground.Allows, ground.Cost, ground.Costs, ground.Graded = w.Kind.Allows, w.Kind.Cost, w.Kind.Costs, w.Kind.Graded
 	return ground
+}
+
+// Along reports whether a way runs from from to its neighbour to, so a step between them goes
+// along it rather than over the ground beside it: the way or the crossing across from links
+// towards to, or to's back towards from.
+func (b *Board) Along(from, to CellID) bool {
+	out, ok := Link(b.Grid, from, to)
+	if !ok {
+		return false
+	}
+	back, _ := Link(b.Grid, to, from)
+	return b.Way(from).Links&out != 0 || b.Way(to).Links&back != 0 ||
+		b.Crossing(from).Links&out != 0 || b.Crossing(to).Links&back != 0
 }
 
 // Link is the bit of Links a Way runs on from from to its neighbour to by; false when to is not

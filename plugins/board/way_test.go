@@ -20,6 +20,50 @@ func TestWay_OverTakesWhoMayCrossAndTheCostFromTheWay(t *testing.T) {
 	if got := (board.Way{Kind: river}).Over(earth); got != earth {
 		t.Errorf("a way of no width over earth is %+v, want the earth as it is", got)
 	}
+	road := board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land, Graded: true}
+	if got := (board.Way{Kind: road, Width: 4}).Over(earth); !got.Graded {
+		t.Error("a graded road over earth is not graded")
+	}
+	if got := (board.Crossing{Way: board.Way{Kind: road, Width: 4}}).Over(earth); !got.Graded {
+		t.Error("a graded bridge over earth is not graded")
+	}
+}
+
+// Bare is the ground under whatever runs across a cell.
+func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(3, 3, 10)
+	c, _ := grid.CellIndex(1, 1)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(earth)
+	brd.SetWay(c, board.Way{Kind: river, Width: 6})
+	if brd.Kind(c).Allows != river.Allows || brd.Bare(c) != earth {
+		t.Errorf("under the river the cell is %+v, bare %+v; want the river over the earth, the earth bare", brd.Kind(c), brd.Bare(c))
+	}
+}
+
+// A step goes along a way where the way, or a crossing, links the two cells either way round.
+func TestBoard_AlongFollowsTheLinksOfWaysAndCrossings(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(3, 3, 10)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(earth)
+	east, _ := board.Link(grid, at(1, 1), at(2, 1))
+	brd.SetWay(at(1, 1), board.Way{Kind: river, Width: 4, Links: east})
+	south, _ := board.Link(grid, at(1, 1), at(1, 2))
+	brd.SetCrossing(at(1, 1), board.Crossing{Way: board.Way{Kind: earth, Width: 4, Links: south}})
+	for _, c := range []struct {
+		from, to board.CellID
+		want     bool
+	}{
+		{at(1, 1), at(2, 1), true}, {at(2, 1), at(1, 1), true}, // the way, and back along it
+		{at(1, 1), at(1, 2), true}, {at(1, 2), at(1, 1), true}, // the crossing
+		{at(1, 1), at(0, 1), false}, {at(1, 1), at(2, 2), false}, // no link that way
+		{at(0, 0), at(2, 2), false}, // not neighbours
+	} {
+		if got := brd.Along(c.from, c.to); got != c.want {
+			t.Errorf("Along(%v, %v) = %v, want %v", c.from, c.to, got, c.want)
+		}
+	}
 }
 
 func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {

@@ -155,6 +155,19 @@ func (b *Board) Kind(c CellID) CellKind {
 	return b.crossingOf(i).Over(b.wayOf(i).Over(b.groundOf(i).Kind))
 }
 
+// Bare is c's kind bare of what runs across it: the ground a step beside the way crosses; off the
+// board, the zero kind.
+func (b *Board) Bare(c CellID) CellKind {
+	if b.cells == nil {
+		return b.seed.Kind(c)
+	}
+	i, ok := b.ordinal(c)
+	if !ok {
+		return CellKind{}
+	}
+	return b.groundOf(i).Kind
+}
+
 // Set assigns c's terrain kind, taking effect immediately.
 func (b *Board) Set(c CellID, kind CellKind) {
 	if b.set(c, kind) {

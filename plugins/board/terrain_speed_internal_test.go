@@ -4,10 +4,47 @@ import (
 	"github.com/kjkrol/gram/plugin/host"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 )
+
+// steepMap is a Map whose every slope takes twice as long.
+type steepMap struct{ Map }
+
+func (steepMap) Slope(geom.Vec, geom.Vec, Domain) float64 { return 2 }
+
+// The slope slows whoever moves over it, but not over a Graded kind.
+func TestTerrainSpeed_SparesAGradedKindTheSlope(t *testing.T) {
+	grid := DefaultGrids{}.Square(2, 1, 10)
+	terrain := NewTerrainMap()
+	at := func(x uint32) CellID { c, _ := grid.CellIndex(x, 0); return c }
+	terrain.Set(at(0), CellKind{Cost: 1, Allows: Land})
+	terrain.Set(at(1), CellKind{Cost: 1, Allows: Land, Graded: true})
+	brd := NewBoard(grid, terrain)
+	brd.mapping = steepMap{brd.Map()}
+
+	got := speeds(t, brd, func(si *goke.SysInit, base *goke.Comp[world.Base]) {
+		var mover goke.Comp[Mover]
+		f := si.NewFactory(base, &mover)
+		f.Create(2)
+		x := uint32(0)
+		for f.Next() {
+			for i := range f.Cursor.IDs {
+				base.Slice(&f.Cursor)[i] = world.Base{Pos: world.Position{AABB: CellAABB(grid, at(x), 4)}, Vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: 1}}
+				mover.Slice(&f.Cursor)[i] = Mover{Domain: Land}
+				x++
+			}
+		}
+	})
+	for x, want := range map[uint32]float64{0: 0.5, 1: 1} {
+		x0 := CellAABB(grid, at(x), 4).TopLeft.X
+		if got[x0] != want {
+			t.Errorf("cell %d: speed %v, want %v", x, got[x0], want)
+		}
+	}
+}
 
 // speeds runs terrainSpeed over entities placed by place, all at speed 1, and reports each one's
 // speed after, keyed by its box's left edge.

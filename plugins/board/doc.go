@@ -22,7 +22,9 @@
 // 1 slows and costs more to plan through — the ground off a road, the islands' at 2.5.
 // [CellKind.Costing] prices a kind differently for some domains — elves through a forest, a
 // witch over snow — and [CellKind.CostFor] is what an entity pays: the cheapest of its domains
-// the kind admits and prices, else Cost. [Terrain] is what a cell answers about itself.
+// the kind admits and prices, else Cost. A Graded kind — a road, a bridge, built up and cut into
+// the slope — is not slowed by the slope under it, nor priced by it in a route: its Cost is the
+// whole price. [Terrain] is what a cell answers about itself.
 //
 // # Ways
 //
@@ -33,7 +35,10 @@
 // with the cell and an effect may alter it — a stream freezing over. Its kind decides who may cross
 // the cell and what it costs there ([Way.Over]; [Board.Kind] is the ground as whoever crosses it
 // meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
-// [Board.SetWay] read and write it, [Layout.Ways] seeds it; the Map draws it as a band through the
+// [Board.SetWay] read and write it, [Layout.Ways] seeds it; [Board.Along] tells a step along a way
+// — the way links the two cells — from one over the ground beside it, and [Board.Bare] is that
+// ground, the cell's kind bare of the way, which is how a route follows a road round its bend
+// instead of cutting the corner; the Map draws it as a band through the
 // cell's middle — plain on the simple map, water and roads in relief on a topography's. [Board.CellVersion] counts the changes to each cell alone
 // — its kind, its way, its heights, an effect on it — and [Board.Changes] to them all, so whoever
 // keeps something worked out of a cell knows when it is stale.

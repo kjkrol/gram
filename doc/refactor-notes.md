@@ -279,6 +279,25 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Sixteenth round: roads followed round their bends.** The user's screenshots: units cut the
+  corners of roads, on the island in relief and on a flat meadow alike; "the road, even angular,
+  should be cheaper than cutting across grass or rock". Two causes, measured on the demos'
+  layouts. Flat: a road laid as ways in an L has two of its cells diagonal to each other across
+  the bend; the planner priced that step by the destination (road 1 × √2 = 1.41), less than the
+  two steps round (2), though the chord runs over the grass beside the band. Now a slantwise
+  step not along a way (`Board.Along`: the way or crossing links the cells either way round) is
+  priced by the ground under the way at the destination (`Board.Bare`), refused where that ground
+  does not admit the unit (the water beside a bridge); along a way it is the way's, so slantwise
+  roads stay cheap. Tried first and dropped: pricing such a step by the dearest of the two cells
+  flanking the corner — it made a slantwise band of cheap cells, snow to the frost-born, as dear
+  as the grass beside it, and the chord never enters the flanking cells anyway. In relief: a road step paid the full slope, and the
+  island's roads climb grades of 20 to 80% (factors up to 9), which buried the road's 2.5×
+  advantage under the slope's variance — a hop off the road onto a gentler cell won. Chosen:
+  `CellKind.Graded`, a road cut into the slope, spared the slope in the planner and on the move
+  (the island's road and bridge); the alternative, raising the ground's cost, is the demo's
+  tuning and no rule. Measured with a throwaway test over every pair of road cells 4 to 20
+  apart on the island (2841 routes): the corner rule alone left 1108 off the road, both rules 0.
+  The spot search of a group's places prices its steps the same way (`pathFinder.price`).
 - **Fifteenth round: the cameras in relief kept over the map.** The user, playing: the wheel does
   not zoom into the point under the cursor, zooming out shows the void beyond the map, WASD drive
   off the map. Diagnosis: `isoCamera.ZoomIn` held the anchor at sea level while the cursor points

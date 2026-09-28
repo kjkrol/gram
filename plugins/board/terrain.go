@@ -40,6 +40,9 @@ type CellKind struct {
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
 	Sway float64
+	// Graded ground is built up and cut into the slope — a road, a bridge — so the slope does not
+	// slow whoever goes over it, nor count in a route: the kind's Cost is the whole price.
+	Graded bool
 	// Color is how the kind looks on a map drawn without an atlas of the game's: its cells filled
 	// with it, its ways as bands of it. Zero is grey.
 	Color    color.RGBA
