@@ -32,6 +32,7 @@ type Plugin struct {
 	pathSprites  PathSprites
 	pathRenderer *PathRenderer
 	collision    *collision.Plugin
+	spacing      Spacing // as asked; Install decides AutoSpacing
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -53,18 +54,31 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	brd := p.boardPlugin.Res.Logic.Board
 	p.board = brd
 
-	occupancy := p.boardPlugin.Occupancy()
-	finder := newPathFinder(brd, brd, p.boardPlugin, occupancy)
+	w, h := brd.CellBounds()
+	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
+	var keep keeping
+	var finder *pathFinder
+	if p.spacing == BodySpacing {
+		finder = newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
+		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.worldPlugin.Ground)
+	} else {
+		finder = newPathFinder(brd, brd, p.boardPlugin, p.boardPlugin.Occupancy())
+		keep = newCellKeeping(finder)
+	}
 	p.finder = finder
 	if p.pathRenderer != nil {
 		p.pathRenderer.finder = finder
 	}
-	navSys := newNavigationSystem(finder, brd, brd, occupancy)
+	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
 
-	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected)
+	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	if p.collision != nil {
-		if err := p.collision.RegisterBehavior(bumped()); err != nil {
+		answer := bumped()
+		if p.spacing == BodySpacing {
+			answer = struckBy()
+		}
+		if err := p.collision.RegisterBehavior(answer); err != nil {
 			return err
 		}
 	}
@@ -79,6 +93,17 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
+
+// WithSpacing sets how units keep out of each other's way; AutoSpacing, the default, decides by
+// how large the world's boxes are against a cell. Call before Use.
+func (p *Plugin) WithSpacing(s Spacing) *Plugin {
+	p.spacing = s
+	return p
+}
+
+// Spacing is how units keep out of each other's way: as WithSpacing asked until Use, then as
+// decided.
+func (p *Plugin) Spacing() Spacing { return p.spacing }
 
 // WithCollision marks an entity under orders that strikes someone, or the solid ground, Bumped,
 // so it looks for a way round; call before Use.

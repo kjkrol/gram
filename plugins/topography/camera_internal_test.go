@@ -15,7 +15,7 @@ func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
 func testCamera(t *testing.T, edges aabbworld.Edges) contract.Camera {
 	t.Helper()
-	return newCamera(testProjection, 640, 640, edges, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil)
+	return newCamera(testProjection, 640, 640, edges, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
 }
 
 func TestCamera_RefusesAWrappingWorld(t *testing.T) {

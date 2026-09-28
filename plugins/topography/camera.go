@@ -32,6 +32,8 @@ type isoCamera struct {
 	minSX, maxSX, minSY, maxSY float32
 	// extent is the lowest and the highest ground, for what the screen may show; nil, level at 0
 	extent func() (low, high float32)
+	// ground is the top of the ground as it is drawn, for Pick; nil, level at 0
+	ground func(x, y float32) float32
 }
 
 var _ contract.Camera = (*isoCamera)(nil)
@@ -136,6 +138,19 @@ func (c *isoCamera) Project(x, y, z float32) (float32, float32) {
 
 func (c *isoCamera) Unproject(sx, sy, z float32) (float32, float32) {
 	return c.proj.Unproject((sx-float32(c.pan.X))/c.zoom, (sy-float32(c.pan.Y))/c.zoom, z)
+}
+
+// Pick is the first ground the screen point sees, down its line from over the highest top.
+func (c *isoCamera) Pick(sx, sy float32) (float32, float32, bool) {
+	if c.ground == nil {
+		x, y := c.Unproject(sx, sy, 0)
+		return x, y, true
+	}
+	low, high := c.layer()
+	x0, y0 := c.Unproject(sx, sy, high)
+	x1, y1 := c.Unproject(sx, sy, high-1)
+	s := sight{o: [3]float32{x0, y0, high}, d: [3]float32{x1 - x0, y1 - y0, -1}}
+	return s.pick(c.ground, high-low+1, c.proj.Cell/2, high)
 }
 
 func (c *isoCamera) Depth(x, y, z float32) float32 { return c.proj.Depth(x, y, z) }

@@ -171,7 +171,8 @@ runs up the screen — held through other selections, orders, pans and turns unt
 unit is gone), `Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `world.Driven` on
 V, writes the keys every tick, writes a stop and detaches it on letting go; navigation's
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
-admits the domain and the occupancy, stops dead otherwise, removes a MoveOrder a hand touches and
+admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
+just ahead under `BodySpacing` — stops dead otherwise, removes a MoveOrder a hand touches and
 keeps Cell, occupancy and CellEntered with the unit) and `Raise`/`Lower`/`Level` (=, -, L-drag).
 Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
 players; which camera is fastened to what is the camera system's state, cameras being no entities.
@@ -337,7 +338,10 @@ shows how much of it is boilerplate vs. real behavior.
   Height}`, the board sets the world's `Ground`, sight follows geometry (`Sight.Eye`) while
   collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
-  them (a `Z` in a flat world, `Blockers` in a Quasi3D one).
+  them (a `Z` in a flat world, `Blockers` in a Quasi3D one). `world.Config.Scale{Metres}` says what
+  a world unit is (one unit system: heights and lengths alike; games give metres through
+  `Scale.Units`); with it the ground sinks under an eye's level (`Scale.Drop`, curve and
+  refraction) in the perspective and in sight, and the air hazes far off (`Weather.Visibility`).
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
@@ -478,11 +482,21 @@ shows how much of it is boilerplate vs. real behavior.
   `MoveOrder` queues up to `MaxWaypoints` further goals; its `Face` is the point the unit turns
   towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or S + right click
   (`LookAt`: finish the step, stop, turn). A trigger may ask for a key held besides its modifiers
-  (`control.Mods{}.Holding(key)`). Built `WithCollision(c)`, a unit that struck someone or the
-  solid ground (a `Struck` behavior navigation registers on `c`) stops, re-plans from where it
-  stands and holds that route for `bumpInterval`, so units pushing each other on a road step
-  aside instead of shoving for ever. Occupancy is seeded from `Cell` + `Mover` at Setup (no spawn
-  effect needed). A `MoveTo{Cell, Append}` command orders
+  (`control.Mods{}.Holding(key)`). `Spacing` (`WithSpacing`; `AutoSpacing` by the largest box
+  against a cell, a third or less keeping boxes) is how units keep apart, through the internal
+  `keeping` seam (`cellKeeping`, `bodyKeeping`), one `navigationSystem.Update` loop for both.
+  `CellSpacing`: built `WithCollision(c)`, a unit that struck someone or the solid ground (a
+  `Struck` behavior navigation registers on `c`) stops, re-plans from where it stands and holds
+  that route for `bumpInterval`, so units pushing each other on a road step aside instead of
+  shoving for ever; occupancy is seeded from `Cell` + `Mover` at Setup (no spawn effect needed).
+  `BodySpacing`: the occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the
+  ground alone and reacts only to what it strikes (`struckBy`: step aside, note a standing one's
+  cell, re-place when it stands on the spot, stalls, give up); a group gets its spots from
+  `bodyKeeping.place` (lattice round `MoveTo.At`, a box's width apart, far rows first) and goes
+  cell centre to cell centre (lanes were tried and dropped at the user's word). One standing,
+  struck by one on the move, gives way (`bodyKeeping.yield`, `navigationSystem.giveWay`: a
+  `GivingWay` order aside with `Linger`, then home). Never make a unit see the others ahead: the
+  user asked for it to learn by striking. A `MoveTo{Cell, At, Append}` command orders
   every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
   Shift appends. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).

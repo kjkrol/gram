@@ -36,7 +36,10 @@
 // A camera may say more of itself through small interfaces: a [Rider] rides in an entity, which
 // [ModeOf] reads as [FirstPerson] — the Mode bindings hold in (control.Binding.In) — and a
 // [Vanisher] has vanishing points, where a direction is drawn: a perspective's, where the sky puts
-// the sun. A [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
+// the sun. An [Eyed] camera has an eye at a point, from which the air far off is hazed. A
+// [Picker] finds the ground under a screen point itself, walking the line of sight over the
+// heights it draws, which control.Context.World asks before anything else. A
+// [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
 // [ScaleAt] is the scale at a point through any camera — a Scaler's own, else the Zoom — which is
 // what sizes what is drawn where it lies: detail, the grid, soft edges, billboards.
 //

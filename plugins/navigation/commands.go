@@ -9,8 +9,8 @@ import (
 )
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
-// the orders they already have. At is the world point clicked: a Selected entity standing on Cell
-// turns towards it instead of going anywhere.
+// the orders they already have. At is the world point clicked: under BodySpacing where the group
+// stands round, under CellSpacing where one standing on Cell turns instead of going anywhere.
 type MoveTo struct {
 	Cell   board.CellID
 	At     geom.Vec

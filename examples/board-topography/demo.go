@@ -1,9 +1,13 @@
 // Command board-topography is the island in relief: a Quasi3D world whose board is drawn and
-// priced by a topography — a range of peaks up to 250 and a plateau 118 up, rock on the heights,
+// priced by a topography, a cell 100 m (world.Scale) — a range of peaks up to 2 km and a plateau
+// 0.9 km up, rock on the heights,
 // sand on the beaches, sea cliffs in the north, earth between, streams and rivers running down to
 // the sea and falling over the cliffs, roads from stop to stop over bridges, slower up the slopes
 // and routed round them; seen isometrically, Transport Tycoon's way, from above or in perspective
-// — Tab goes round — the units billboards, a hawk 40 up whose cone looks over everything a walker's stops at. A
+// — Tab goes round — the units giants, 9.4 m across and 20 m tall, billboards as tall as their
+// world.Z says, a hawk 300 m up
+// whose cone looks over everything a walker's stops at; in perspective the ground far off sinks
+// under the horizon and fades in the air. A
 // day goes by (plugins/atmosphere): long shadows morning and evening, dark nights; Space pauses
 // the game, ] and [ set its tempo — the clock bottom-left shows it, and when the engine holds it
 // back — P freezes the light, Shift+] and Shift+[ move the frozen light half an hour. The year is the Earth's, beginning in mid-spring; the weather goes by: clouds'
@@ -21,9 +25,7 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"os"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -58,15 +60,23 @@ const (
 	WorldHeight  = island.GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	EntitySize   = 22
-	UnitSpeed    = CellSize * 3
-	sightRadius  = 220
-	sightHalf    = math.Pi / 5
+	// EntitySize is a unit's box, world units a side: 3, about 9.4 m — a giant, as a game shows its
+	// units larger than life, that every system, drawing, sight and collision alike, reads the same;
+	// spritePx is how many pixels its sprite is painted in.
+	EntitySize  = 3
+	spritePx    = 22
+	UnitSpeed   = CellSize * 3
+	sightRadius = 220
+	sightHalf   = math.Pi / 5
 	// MaxEntCount is the units and the hawk, with room to spare.
 	MaxEntCount = 4 * island.Stops
 
 	saveBasePath = "board-topography"
 )
+
+// scale is the island measured against ours: a cell 100 m, so a world unit about 3 m; heights,
+// sizes and reaches are given in metres through it.
+var scale = world.Scale{Metres: 100.0 / CellSize}
 
 type State struct{ Saves int }
 
@@ -118,6 +128,7 @@ func (s *mainStage) Stack() game.Scenes { return s.stack }
 
 func (s *mainStage) Init(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
+		Scale:    scale,
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
@@ -133,11 +144,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
-	s.board.CellKindDict().Create(island.Kinds(true)...)
+	s.board.CellKindDict().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
 	// glinting under the land's blended grounds, the running water running
-	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Shaping: topography.Shaping{Step: 5, MaxStep: 20}}))
+	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
@@ -153,7 +164,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	// units a tenth of a cell: box beside box, what AutoSpacing would pick too
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}
@@ -171,12 +183,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// north-west, as it does by default: beyond the sea as the view looks at it, so the water throws
 	// it back towards the eye. The weather lies on the island as defineClimate says.
 	seed := uint64(time.Now().UnixNano())
-	if measure { // TEMP-MEASURE: the same weather in every run, GRAM_SEED or 7
-		seed = 7
-		if v, err := strconv.ParseUint(os.Getenv("GRAM_SEED"), 10, 64); err == nil {
-			seed = v
-		}
-	}
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Spring, Year: calendar.EarthYear}, Climate: climate.Config{Zone: climate.Temperate, Seed: seed}}).WithWeathering(s.board, weather)
 	if err := ctx.Use(s.atmosphere); err != nil {
 		return err
@@ -241,22 +247,22 @@ type unit struct{ start, target board.CellID }
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	// Every unit stands 8 tall with its eye at 6: from a slope's edge an eye sees the rim, not the
-	// valley below. The board writes where a unit stands in height.
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 8}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
+	// Every unit is a giant, about 9.4 m across and 20 m tall with its eye at 18 m: from a slope's
+	// edge an eye sees the rim, not the valley below. The board writes where a unit stands in height.
+	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	sight := func(eye float64) comp.Comp {
 		return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Eye: eye})
 	}
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		sight(6), comp.Const(vision.SightOutline{}),
+		sight(scale.Units(18)), comp.Const(vision.SightOutline{}),
 	)
-	// The hawk flies 40 above the ground on the Air plane: its eye looks over the ridges a walker's
-	// cone climbs and stops at, and it flies over them as over the flat.
-	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
+	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
+	// walker's cone climbs and stops at, and it flies over them as over the flat.
+	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300)}, world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
-		sight(1), comp.Const(vision.SightOutline{}),
+		sight(scale.Units(0.3)), comp.Const(vision.SightOutline{}),
 	)
 }
 
@@ -265,7 +271,8 @@ func (s *mainStage) defineKinds() {
 func (s *mainStage) Spawn() error {
 	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
 	s.board.Seed(layout)
-	s.topography.Seed(heights)
+	metres := scale.Units(island.Metres) // the island's heights in metres, in world units
+	s.topography.Seed(func(p geom.Vec) float64 { return heights(p) * metres })
 
 	entries := make([]kind.Entry, 0, len(stops)+1)
 	for i, from := range stops {
@@ -293,44 +300,7 @@ func (s *mainStage) drown(t plugin.Tick, m *board.Mover, st board.Standing) {
 	}
 }
 
-// TEMP-MEASURE: GRAM_FULLSCREEN=1 opens full screen at once, centred, the weather of GRAM_SEED
-// (7), at GRAM_ZOOM (1) and GRAM_TEMPO (1), and logs the FPS, the clock and the clouds once a
-// second; GRAM_NO_GRID=1 leaves the grid out.
-var (
-	measure   = os.Getenv("GRAM_FULLSCREEN") == "1"
-	measured  time.Time
-	fpsSum    float64
-	fpsFrames int
-)
-
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
-	if measure {
-		if measured.IsZero() {
-			ebiten.SetFullscreen(true)
-			measured = time.Now()
-			if os.Getenv("GRAM_NO_GRID") == "1" {
-				s.board.Res.Render.ShowGridLines = false
-			}
-			if z, err := strconv.ParseFloat(os.Getenv("GRAM_ZOOM"), 64); err == nil && z > 0 && z != 1 {
-				s.world.Camera().ZoomOut(float32(1/z), WorldWidth/2, WorldHeight/2)
-			}
-			s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
-			if t, err := strconv.ParseFloat(os.Getenv("GRAM_TEMPO"), 64); err == nil && t > 0 {
-				if err := s.world.Clock().SetTempo(float32(t)); err != nil {
-					log.Print(err)
-				}
-			}
-		}
-		if time.Since(measured) > time.Second {
-			fps := ebiten.ActualFPS()
-			if fps > 0 {
-				fpsSum, fpsFrames = fpsSum+fps, fpsFrames+1
-			}
-			w, h := ebiten.Monitor().Size()
-			log.Printf("MEASURE fps=%.1f tps=%.1f avg=%.1f screen=%dx%d zoom=%.2f clock=%q clouds=%.2f", fps, ebiten.ActualTPS(), fpsSum/float64(max(fpsFrames, 1)), w, h, s.world.Camera().Zoom(), s.world.Clock().Written(), s.world.Weather().Clouds)
-			measured = time.Now()
-		}
-	}
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -360,8 +330,8 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.unit.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
-	worldAtlas.RegisterAt(s.hawk.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
+	worldAtlas.RegisterAt(s.unit.SpriteID(), spritePx, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.RegisterAt(s.hawk.SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

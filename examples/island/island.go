@@ -344,6 +344,11 @@ var peaks = []struct{ x, y, h, r float64 }{
 	{11, -8, 125, 6}, // and to the north
 }
 
+// Metres is how many metres one of the island's heights stands for (Layout's heights, in its own
+// units, 0 at the sea up to about 250): its highest peak rises about 2 km, steep over an island of
+// 100 m cells. A game with a scale (world.Scale) seeds the heights times Scale.Units(Metres).
+const Metres = 8.0
+
 // The island's grid: GridWidth x GridHeight cells of CellSize world units, and how many Stops ring
 // the range.
 const (

@@ -252,8 +252,10 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 	}
 }
 
-// GroundAt is the ground height under p, 0 off the board: read between the cell's corners on a
-// square grid, the cell's level elsewhere.
+// GroundAt is the ground height under p, 0 off the board: on a square grid on the two flat
+// triangles the cell's top is drawn as — split along the diagonal whose corners stand nearer in
+// height, as render.Frame.Fold folds it — so whatever stands on the ground stands on the ground
+// drawn; the cell's level elsewhere.
 func (r *Relief) GroundAt(p geom.Vec) float64 {
 	if !r.square {
 		c, ok := r.grid.CellAt(p)
@@ -278,8 +280,24 @@ func (r *Relief) GroundAt(p geom.Vec) float64 {
 		v, _ := r.corner(cx+d[0], cy+d[1])
 		hs[k] = r.values[r.index(v)]
 	}
-	u, v := fx-x0, fy-y0
-	return (1-u)*(1-v)*float64(hs[0]) + u*(1-v)*float64(hs[1]) + (1-u)*v*float64(hs[2]) + u*v*float64(hs[3])
+	return drawnAt(float64(hs[0]), float64(hs[1]), float64(hs[2]), float64(hs[3]), fx-x0, fy-y0)
+}
+
+// drawnAt is the height at (u, v), 0 to 1 across and down, of a cell's top whose corners —
+// top-left, top-right, bottom-left, bottom-right — stand at h0 to h3, as it is drawn: two flat
+// triangles split along the diagonal whose corners stand nearer in height, as render.Frame.Fold
+// splits it; ties along 1–2, as a quad is drawn unfolded.
+func drawnAt(h0, h1, h2, h3, u, v float64) float64 {
+	if math.Abs(h0-h3) < math.Abs(h1-h2) { // split along 0–3
+		if u >= v {
+			return h0 + u*(h1-h0) + v*(h3-h1)
+		}
+		return h0 + v*(h2-h0) + u*(h3-h2)
+	}
+	if u+v <= 1 {
+		return h0 + u*(h1-h0) + v*(h2-h0)
+	}
+	return h3 + (1-u)*(h2-h3) + (1-v)*(h1-h3)
 }
 
 // foldAxis is a cell coordinate on an axis n cells long: wrapped where it wraps; false off it.

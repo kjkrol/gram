@@ -53,6 +53,7 @@ type spawn struct {
 type relief struct {
 	ground world.Ground
 	step   float64
+	scale  world.Scale
 }
 
 func at(d spawn) world.Position {
@@ -78,6 +79,7 @@ func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Si
 		Space:    world.SpaceCfg{Width: 2000, Height: 2000},
 		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 1, MaxSize: 100},
 		Quasi3D:  r != nil,
+		Scale:    scaleOf(r),
 	})
 	v := vision.NewPlugin(w)
 	if r != nil {
@@ -286,4 +288,12 @@ func TestScan_ClearsSightedWhenTheConeIsUnanswerable(t *testing.T) {
 	if seen[0].Count != 0 {
 		t.Errorf("a blind entity recorded %d sightings, want none", seen[0].Count)
 	}
+}
+
+// scaleOf is r's scale, none without a relief.
+func scaleOf(r *relief) world.Scale {
+	if r == nil {
+		return world.Scale{}
+	}
+	return r.scale
 }

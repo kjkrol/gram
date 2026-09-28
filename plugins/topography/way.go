@@ -366,6 +366,9 @@ func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier render.Tier, pieces []WayPiece) {
 	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
 	for _, p := range pieces {
+		if !t.r.inFront(cam, p.World, p.Z) {
+			continue // beside or behind the eye, where it would be thrown across the screen
+		}
 		var corners render.Corners
 		for k, at := range p.World {
 			corners[k][0], corners[k][1] = cam.Project(at[0], at[1], p.Z[k])

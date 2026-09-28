@@ -115,7 +115,8 @@
 // and the world's entities as the world draws them; in relief the cells stand as blocks — each top
 // sloped between its corners and raised by its kind's Height, its top leant with the wind if its
 // kind sways, the faces turned towards the viewer where it stands above its neighbour — and the
-// entities as billboards upright on their centres at their altitudes, at the depth of that centre,
+// entities as billboards upright on their centres at their altitudes, as wide as their boxes and as
+// tall as their world.Z says (as the box is long without a height), at the depth of that centre,
 // which a render.Composer sorts by; picking and the selection's outline follow, since they ask the
 // world's Look. The isometric camera turns by any angle — the world clockwise on the screen as the
 // heading grows, keeping the ground point in the middle of the screen — and tilts from
@@ -130,8 +131,13 @@
 // down at most), the eye where it is; Zoom comes in along the line to the ground under the cursor
 // down to the ceiling and narrows the field of view from there — less of the ground, larger — and
 // zooming out widens it back, then lifts the eye. [LookFrom] and [LookAt] put the eye and its
-// look where the game wants them. Riding in a unit ([LookOut], first person) the eye is the
-// unit's, a cell over its top: it goes with it, looking the way the unit faces; [Look] (the mouse,
+// look where the game wants them. On a world with a scale (world.Scale) the perspective shows the
+// Earth: the ground far off sinks under the eye's level (world.Scale.Drop), level ground past the
+// horizon out of sight, and fades to the sky's colour as far off as the air's Visibility says —
+// the tiles, their faces and the units, not what is laid over the tiles (render.Frame.Haze).
+// Riding in a unit ([LookOut], first person) the eye is the unit's, on its top — its world.Z,
+// Altitude plus Height, a unit 2 m tall looking from 2 m — with a near plane a thousandth of a
+// cell: it goes with it, looking the way the unit faces; [Look] (the mouse,
 // the cursor captured) turns the view at once and the unit to face it, and raises and lowers the
 // head into the sky and down to the feet; Zoom narrows the view, Pan and Turn do nothing; the
 // camera is then a camera.Rider in camera.FirstPerson, and the bindings holding in that mode — the
@@ -140,11 +146,23 @@
 // — Bounds, the world rectangle they walk, and Visible — holds the ground the screen may show at
 // any height from the relief's lowest ground to Headroom over its highest (Relief.Extent), not
 // only at sea level: high ground below the screen's lower edge at sea level is drawn on it, and
-// the ground about an eye riding low is in view. Its depth is how far ahead of it the middle of
-// a cell lies, so a cell's tile and what stands on it draw together as ever; the composer sorts
+// the ground about an eye riding low is in view. A tile some of whose corners lie beside or behind
+// the eye — the one the eye stands in, those round it — is drawn in pieces, those wholly in front
+// alone, the farthest first (a projection has no point for what lies behind the eye; drawn whole,
+// such a tile would cover the sky); what is laid over tiles is left out where it is not wholly in
+// front, and a tile's detail goes by its nearest corner in front. Its depth is how far ahead of it
+// the middle of a cell lies, so a cell's tile and what stands on it draw together as ever; the composer sorts
 // by cell, without a depth buffer, and a tile's texture is drawn affinely across its quad — the
 // limits of the first version, seen on tall relief looked at low and on big tiles near the eye. The sun
 // glints towards one direction for the whole screen, the eye's from the middle.
+//
+// The camera is a camera.Picker: the ground under a screen point is found walking the line of
+// sight — from the eye in perspective, the Earth's curve and all, isometrically from over the
+// highest top down — half a cell at a time over the top of the ground as it is drawn, a kind's
+// Height standing on its cell, to the first point it passes under, then halving down to a
+// thousandth of a unit. A click on a slope however steep, on the top of a raised kind, or, riding
+// in a unit, on a slope above the eye lands on the cell drawn there; the ground point in the middle
+// of the screen, which Turn goes round, is found the same way.
 //
 // # Commands
 //

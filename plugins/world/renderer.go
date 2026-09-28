@@ -107,15 +107,15 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !cam.Visible(box.AABB) {
 			return
 		}
-		alt := float32(0)
+		var stands Z
 		if z != nil {
-			alt = float32(z.Altitude)
+			stands = *z
 			if lit && s.ground != nil {
 				s.shadow(f, cam, box.AABB, *z, sun, ground)
 			}
 		}
 		for _, l := range s.layers[i] {
-			look.Sprite(f, cam, box, alt, s.atlas, l.SpriteID, light, l.Sway)
+			look.Sprite(f, cam, box, stands, s.atlas, l.SpriteID, light, l.Sway)
 		}
 	})
 }

@@ -3,13 +3,9 @@ package topography
 import (
 	_ "embed"
 	"math"
-	"os"
 
 	"github.com/kjkrol/gram/render"
 )
-
-// TEMP-MEASURE: GRAM_NO_WATER=1 leaves the water's materials out.
-var noWater = os.Getenv("GRAM_NO_WATER") == "1"
 
 //go:embed water.kage
 var waterKage []byte
@@ -40,9 +36,6 @@ type Flow [4][2]float32
 // it throws the sun back at the eye where it faces halfway between them and the sky the flatter the
 // eye looks; near a shore the waves turn to face it and break into foam.
 func Glint(f *render.Frame, w render.World, shine, lit [4]float32, shore Shore) {
-	if noWater {
-		return
-	}
 	o := render.Overlay{Material: seaGlint, World: w, Red: shine, Fraction: lit}
 	for k, c := range shore {
 		o.Custom[k] = [4]float32{c.X, c.Y, c.Dist, c.Near}
@@ -55,9 +48,6 @@ func Glint(f *render.Frame, w render.World, shine, lit [4]float32, shore Shore) 
 // ripples and flecks of foam carried down with the current, white where it runs fast — a rapid, a
 // waterfall; over a sprite drawn blended it shows only where the sprite does.
 func Stream(f *render.Frame, w render.World, shine, lit [4]float32, flow Flow) {
-	if noWater {
-		return
-	}
 	o := render.Overlay{Material: runningWater, World: w, Red: shine, Fraction: lit, Blended: true}
 	for k, v := range flow {
 		o.Custom[k] = [4]float32{v[0], v[1], 0, 0}

@@ -105,8 +105,8 @@ func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if f := r.sys.fastened(r.cam); f == nil || !f.inside || !r.cam.FirstPerson() || contract.ModeOf(r.cam) != contract.FirstPerson {
 		t.Fatalf("after LookOut: fastened %v, first person %v; want riding in the walker", f != nil, r.cam.FirstPerson())
 	}
-	if e := r.cam.persp.eye(); !near(e[0], 305) || !near(e[1], 305) || !near(e[2], 47) {
-		t.Errorf("the eye is at %v, want in the walker at (305, 305, 47): its centre, 5 up, 10 high and a cell over it", e)
+	if e := r.cam.persp.eye(); !near(e[0], 305) || !near(e[1], 305) || !near(e[2], 7) {
+		t.Errorf("the eye is at %v, want on the walker's top at (305, 305, 7): its centre, 5 up and 2 high (world.Z.Top)", e)
 	}
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(1, 0))) || !near(r.cam.Pitch(), 0) {
 		t.Errorf("the heading is %v and the pitch %v, want %v — east running up the screen — along the ground", h, r.cam.Pitch(), wrapAngle(behind(1, 0)))
@@ -114,8 +114,8 @@ func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	// the walker goes on and turns: the eye goes with it, looking the way it faces at once
 	r.walk(400, 300, 0, 1)
 	r.ecs.Tick(time.Second / 60)
-	if e := r.cam.persp.eye(); !near(e[0], 405) || !near(e[1], 305) || !near(e[2], 47) || !near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
-		t.Errorf("the walker gone east and turned south, the eye is at %v looking from %v, want (405, 305, 47) from %v", r.cam.persp.eye(), r.cam.Heading(), wrapAngle(behind(0, 1)))
+	if e := r.cam.persp.eye(); !near(e[0], 405) || !near(e[1], 305) || !near(e[2], 7) || !near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
+		t.Errorf("the walker gone east and turned south, the eye is at %v looking from %v, want (405, 305, 7) from %v", r.cam.persp.eye(), r.cam.Heading(), wrapAngle(behind(0, 1)))
 	}
 	// Q and E do nothing: the eye stays on the way the walker faces
 	r.turns.Add(control.Nobody, Turn{Camera: r.cam, Angle: 0.5})
@@ -232,5 +232,25 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r.ecs.Tick(time.Second / 60)
 	if r.cam.Heading() != h || r.cam.Pitch() != p {
 		t.Error("a Look for a camera riding in nothing moved it")
+	}
+}
+
+// An eye riding in a walker never goes under the top of the cell it stands in as it is drawn: on
+// a cell whose kind stands 20 tall it looks from over that top.
+func TestLookOut_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
+	r := newFollowRig(t)
+	r.ridged(1000, 1001)
+	raised := func(p geom.Vec) float64 { return 20 } // a kind 20 tall on every cell
+	r.sys.topAt = raised
+	r.walk(300, 300, 1, 0)
+	r.selectOnly(r.walkers[0])
+	r.pressShiftV()
+	if e := r.cam.persp.eye(); e[2] < 20 || e[2] > 21 {
+		t.Errorf("riding in a walker on cells 20 tall the eye stands %v up, want just over their top", e[2])
+	}
+	r.sys.topAt = func(geom.Vec) float64 { return 0 }
+	r.ecs.Tick(time.Second / 60)
+	if e := r.cam.persp.eye(); !near(e[2], 7) {
+		t.Errorf("on level cells the eye stands %v up, want on the walker's top, 7", e[2])
 	}
 }

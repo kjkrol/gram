@@ -151,7 +151,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 
 	var f render.Frame
 	f.Reset(cam)
-	look.Sprite(&f, cam, box, 6, sheet{}, 0, render.Light{1, 1, 1}, 0)
+	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
 	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
 		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
 			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))
@@ -160,7 +160,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 			t.Errorf("entity drawn at %v %v %v, want an upright 10-tall rectangle", v[0], v[1], v[2])
 		}
 	})
-	drawn := look.Drawn(cam, box.AABB, 6)
+	drawn := look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	bx, by := cam.Project(45, 45, 6)
 	if drawn[2][1] != by || (drawn[2][0]+drawn[3][0])/2 != bx {
 		t.Errorf("drawn at %v, want the billboard standing on (%v, %v)", drawn, bx, by)
@@ -168,10 +168,18 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
 		t.Errorf("footprint %v, want one diamond on the ground", fp)
 	}
+	// an entity 30 tall stands as a billboard 30 tall on its 10-wide box: as tall as its Z says
+	f.Reset(cam)
+	look.Sprite(&f, cam, box, world.Z{Altitude: 6, Height: 30}, sheet{}, 0, render.Light{1, 1, 1}, 0)
+	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		if v[2].DstY-v[0].DstY != 30 || v[1].DstX-v[0].DstX != 10 {
+			t.Errorf("an entity 30 tall is drawn %v wide and %v tall, want 10 by 30", v[1].DstX-v[0].DstX, v[2].DstY-v[0].DstY)
+		}
+	})
 	// from above the world's own flat look: the sprite over its box
 	topography.SwitchView(cam)
 	f.Reset(cam)
-	look.Sprite(&f, cam, box, 6, sheet{}, 0, render.Light{1, 1, 1}, 0)
+	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
 	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
 		if x0, y0 := cam.Project(40, 40, 0); v[0].DstX != x0 || v[0].DstY != y0 {
 			t.Errorf("from above the entity is drawn at (%v, %v), want over its box's corner (%v, %v)", v[0].DstX, v[0].DstY, x0, y0)
@@ -319,7 +327,7 @@ func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		f.Weather(render.Weather{Wind: [2]float32{40, 0}})
-		look.Sprite(&f, cam, box, 0, sheet{}, 0, render.Light{1, 1, 1}, sway)
+		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
 		var x float32
 		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX - v[2].DstX })
 		return x
@@ -406,5 +414,32 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 	}
 	if _, ok := keys["W (held)"]; ok {
 		t.Error("without the perspective the topography binds W")
+	}
+}
+
+// A click on the top of a kind standing on its cell lands on that cell, not on the ground behind
+// it, isometrically and in perspective: the camera picks the top as it is drawn.
+func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
+	for _, perspective := range []bool{false, true} {
+		w := newWorld(0)
+		b, grid := levelBoard(w)
+		topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: perspective})
+		wall, _ := grid.CellIndex(2, 1)
+		b.Res.Logic.Board.Set(wall, board.CellKind{Name: board.Named("wall"), Cost: 1, Height: 30})
+		cam := w.Camera()
+		picker, ok := cam.(camera.Picker)
+		if !ok {
+			t.Fatal("the topography's camera is no camera.Picker")
+		}
+		if perspective && !cam.(interface{ LookFrom(x, y, z float32) bool }).LookFrom(200, 200, 120) {
+			t.Fatal("the perspective view is not reached")
+		}
+		centre := grid.CellCenter(wall)
+		cam.CenterOn(centre.X, centre.Y, 30)
+		sx, sy := cam.Project(float32(centre.X), float32(centre.Y), 30)
+		x, y, ok := picker.Pick(sx, sy)
+		if c, in := grid.CellAt(geom.NewVec(float64(x), float64(y))); !ok || !in || c != wall {
+			t.Errorf("perspective %v: the top of the wall picked (%v, %v) %v, cell %v, want the wall's cell %v", perspective, x, y, ok, c, wall)
+		}
 	}
 }

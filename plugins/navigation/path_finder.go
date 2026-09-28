@@ -14,7 +14,8 @@ type pathFinder struct {
 	occupancy board.Occupancy
 	slopes    slopes
 	solver    *astar.Solver[board.CellID]
-	least     float64 // the cheapest a step may be for the domain being planned, per unit of Distance
+	least     float64                 // the cheapest a step may be for the domain being planned, per unit of Distance
+	blocked   func(board.CellID) bool // cells the route being planned goes round; nil, none
 }
 
 // slopes prices a step's climb: the board's Map; nil is level ground.
@@ -51,6 +52,13 @@ func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to bo
 	return path, true
 }
 
+// findPathAround is findPath going round every cell blocked reports.
+func (p *pathFinder) findPathAround(entity uid.UID64, domain board.Domain, from, to board.CellID, blocked func(board.CellID) bool) (Path, bool) {
+	p.blocked = blocked
+	defer func() { p.blocked = nil }()
+	return p.findPath(entity, domain, from, to)
+}
+
 // transitionsFor adapts the grid, terrain and occupancy into astar's Transitions for entity.
 func (p *pathFinder) transitionsFor(entity uid.UID64, domain board.Domain) astar.Transitions[board.CellID] {
 	return func(from, prev board.CellID, buf []astar.Transition[board.CellID]) []astar.Transition[board.CellID] {
@@ -60,11 +68,11 @@ func (p *pathFinder) transitionsFor(entity uid.UID64, domain board.Domain) astar
 				continue
 			}
 			kind := p.terrain.Kind(n)
-			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, entity, domain) {
+			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, entity, domain) || p.blocked != nil && p.blocked(n) {
 				continue
 			}
 			if c1, c2, ok := p.grid.DiagonalNeighbors(from, n); ok {
-				if !p.enterable(c1, entity, domain) || !p.enterable(c2, entity, domain) {
+				if !p.enterable(c1, entity, domain) || !p.enterable(c2, entity, domain) || p.blocked != nil && (p.blocked(c1) || p.blocked(c2)) {
 					continue
 				}
 			}

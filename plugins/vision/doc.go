@@ -30,8 +30,11 @@
 // is the world's Ground sampled every [Plugin.WithGroundStep] along a ray (default: the board's
 // cell). An entity is seen when the line from the eye to its top clears every nearer ground
 // sample and every nearer blocking band within the budget, so a hawk 40 up looks over the wall, the
-// forest and the hill a walker's cone stops at. Blockers are refused in a Quasi3D world, Eye in a
-// flat one. The scan costs about three times the flat one; a longer ground step is cheaper.
+// forest and the hill a walker's cone stops at. On a world with a scale (world.Scale) the ground,
+// the cover and the entities sink under the observer's level as far off as they lie
+// (world.Scale.Drop): what lies past the observer's horizon is out of sight, a hawk's horizon far
+// beyond a walker's. Blockers are refused in a Quasi3D world, Eye in a flat one. The scan costs
+// about three times the flat one; a longer ground step is cheaper.
 //
 // # Sighting
 //

@@ -77,6 +77,31 @@ and the climate's entities are gone, the clock's is new.
   scroll hold while it is free. `control.CursorMove` fires on a mouse move; while a local
   player's camera rides, the players plugin captures the window's cursor and the move reaches
   that player wherever the cursor is.
+- `world.Config.Scale` (`world.Scale{Metres}`): how many metres a world unit spans. With one the
+  world is a stretch of the Earth — `Scale.Drop`, the ground sinking (1 − 0.13)·d²/(2·6371 km)
+  under an eye's level, the air's refraction taken in; `Scale.Horizon`; `Scale.Visibility`, how
+  far one sees through the weather's air (40 km clear, far less in rain and snow), set into
+  `Weather.Visibility` by `SetWeather` — and a game gives heights and sizes in metres through
+  `Scale.Units`. The perspective sinks the ground far off (past the horizon out of sight), sight
+  sinks the ground, the cover and the entities under the observer's level (nothing past its
+  horizon is seen), and the air hazes the tiles and units far off to the sky's colour
+  (`render.Frame.Haze`/`Hazed`, `camera.Eyed`). Riding in a unit the eye is on its top
+  (`world.Z.Top`), never under the top of its cell as drawn, the near plane a thousandth of a
+  cell. The island demo is 100 m a cell: peaks to 2 km (`island.Metres`), units 2 m tall with
+  eyes at 1.7 m, the hawk 300 m up, snow from 480 m; `island.Kinds` takes the forest's height.
+- Riding low in perspective, the tile the eye stands in — and those round it, and those behind it
+  — had corners behind the eye, which a projection throws millions of pixels off: the tile covered
+  the sky, as if the head were under the ground, and one whose middle lay behind the eye took the
+  far detail, blurred. Such a tile is drawn in pieces now, those in front alone (16 a side near the
+  eye), a tile wholly behind not at all, the blends and ways laid over tiles left out where not
+  wholly in front, and a tile's detail taken at its nearest corner in front.
+- `world.Look.Sprite` and `Drawn` take the entity's `world.Z` rather than its altitude: billboards
+  stand as tall as the entity's Height. The island demo's units are giants, 3 world units (9.4 m)
+  across and 20 m tall, eyes at 18 m, their sprites painted at 22 px.
+- `topography.Relief.GroundAt` reads a square cell's ground on the two flat triangles its top is
+  drawn as, split as `render.Frame.Fold` splits it, not between its corners: what stands on the
+  ground stands on the ground drawn (a unit's eye 2 m up fell under the drawn slope on 759 of the
+  island's 6144 cells, by up to 267 m at a kilometre a cell).
 - Through a perspective each tile gets the detail of where it is drawn — water, smooth grounds and
   ways near the eye, the ground sheet on the horizon — rather than the whole frame the detail the
   middle of the screen has: looking far off, the river and the roads near the eye were drawn as
@@ -121,6 +146,16 @@ and the climate's entities are gone, the clock's is new.
   direction for the whole screen.
 - The flat `island-demo` is gone; `island-25-demo` and `island-isometric-demo` are the island in
   relief through the topography, from above and isometric (Tab switches either).
+- A click lands where it is drawn on any relief. `camera.Picker` (`Pick(sx, sy)`) is a camera
+  that finds the ground under a screen point itself; the topography's walks the line of sight —
+  from the eye in perspective, the Earth's curve and all, from over the highest top isometrically
+  — half a cell at a time over the top as drawn (a kind's `Height` standing on its cell), then
+  halves down to a thousandth of a unit. `control.Context.World` asks a Picker first; the rounds
+  of unprojecting at the height of the last answer are left for other cameras, since they settle
+  only on gentle slopes: on the island's 100 m cells and 2 km peaks a click fell on the wrong
+  cell, off the board or on the unit's own cell. The perspective's middle ground point, which
+  Turn goes round, is picked the same way, and the cameras read the drawn top, not the bare
+  ground.
 
 **Demos**
 - `examples/island` is the island the board demos share, a public package: `Layout(grid)` — the
@@ -256,6 +291,25 @@ and the climate's entities are gone, the clock's is new.
   `FollowSystem`); F again, or moving the camera by hand, stops it; zooming does not.
 - A unit that looks further ahead than half a cell (the hawk) keeps its leg until its centre enters
   the waypoint it passed, instead of re-planning its route every step.
+- How units keep out of each other's way is `navigation.Spacing`, set by
+  `Plugin.WithSpacing` and read by `Plugin.Spacing()`. `CellSpacing` is the model so far: a cell
+  each as the board's Occupancy says, legs, a free cell each for a group, the cell's centre.
+  `BodySpacing` keeps boxes apart, several to a cell: a unit routes over the ground alone, not
+  knowing where the others stand, and learns of them by striking them — it steps round whoever it
+  struck towards its goal and never onto ground its domain may not take, notes the cell of one
+  standing for its routes to go round, stands elsewhere round its point when that one stands on
+  its spot, and after a few stalls stands where it is. A group sent to a point gets its spots
+  round it, a box and a box's gap apart, the point's cell first and then the cheapest round it,
+  on no ground the unit may not take and no step (the top under a corner more than half the
+  unit's height off the top under its middle), the far rows to the units furthest on. One
+  standing, struck by one on the move, gives way: just off the line between them, a second aside,
+  then back where it stood, facing as it did. `AutoSpacing`, the
+  default, keeps boxes apart when the world's largest box is at most a third of a cell. The board
+  demos keep cells; `board-topography`, its units a tenth of a cell, keeps boxes.
+- `MoveOrder` has `Spot` and `At`, where in the Target the unit stops and the point it was sent
+  to; `Linger`, how long it stands on its Target before a queued goal, and `GivingWay`; and the
+  strike and stall fields `BodySpacing` keeps. `Waypoints` are `Goal`s (`Cell`, `Spot`, `At`) and
+  `Enqueue` takes one.
 
 **Isometric view**
 - `camera.Projection`: `TopDown` (the default, unchanged) and `Isometric` (Transport Tycoon's 2:1

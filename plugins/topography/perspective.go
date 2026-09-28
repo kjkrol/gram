@@ -13,10 +13,12 @@ var _ camera.Projection = perspective{}
 // is further off is smaller. right, up and forward are the eye's frame — right along the screen,
 // up up it, forward the way it looks — and the projected origin is where forward meets the screen.
 // A point nearer than near is drawn as if at near; a screen point looking past the ground is put
-// far along its line. cell is the world size of a cell, for Depth.
+// far along its line. cell is the world size of a cell, for Depth. bend is how far below the eye's
+// level a point d off along the ground is drawn, per d² — the Earth's curve with the air's
+// refraction; 0 flat.
 type perspective struct {
-	eye, right, up, forward [3]float32
-	focal, near, far, cell  float32
+	eye, right, up, forward      [3]float32
+	focal, near, far, cell, bend float32
 }
 
 // newPerspective is the perspective of an eye at eye looking at target, the screen turned by
@@ -41,9 +43,11 @@ func newPerspective(eye, target [3]float32, heading, focal, near, far, cell floa
 	return p
 }
 
-// view is the point (x, y, z) in the eye's frame: across, up and ahead of it.
+// view is the point (x, y, z) in the eye's frame: across, up and ahead of it, sunk by the curve
+// of the ground as far off as it lies.
 func (p perspective) view(x, y, z float32) (across, up, ahead float32) {
-	d := [3]float32{x - p.eye[0], y - p.eye[1], z - p.eye[2]}
+	dx, dy := x-p.eye[0], y-p.eye[1]
+	d := [3]float32{dx, dy, z - p.eye[2] - p.bend*(dx*dx+dy*dy)}
 	return dot(d, p.right), dot(d, p.up), dot(d, p.forward)
 }
 
@@ -68,15 +72,46 @@ func (p perspective) Unproject(sx, sy, z float32) (float32, float32) {
 // cast is the world point at height z seen at the screen point (sx, sy), and whether the line from
 // the eye through it meets that height ahead of the eye at all; where it does not — the sky, the
 // ground behind the eye — the point far along the line.
+// With a curve the line meets the height where eye + t·d[2] = z − bend·(t·h)², h the line's run
+// along the ground a unit of t: the nearer root ahead.
 func (p perspective) cast(sx, sy, z float32) (x, y float32, hit bool) {
 	d := p.ray(sx, sy)
-	t := (z - p.eye[2]) / d[2]
-	if d[2] == 0 || t <= 0 || t != t {
+	t := p.meet(d, z)
+	if t <= 0 || t != t {
 		t = p.far
 	} else {
 		hit = true
 	}
 	return p.eye[0] + d[0]*t, p.eye[1] + d[1]*t, hit
+}
+
+// meet is how far along d the line of sight meets the height z, the ground's curve and all: 0 or
+// less, or NaN, where it never does ahead of the eye.
+func (p perspective) meet(d [3]float32, z float32) float32 {
+	a, b, c := p.bend*(d[0]*d[0]+d[1]*d[1]), d[2], p.eye[2]-z
+	if a == 0 {
+		if b == 0 {
+			return 0
+		}
+		return -c / b
+	}
+	disc := float64(b)*float64(b) - 4*float64(a)*float64(c)
+	if disc < 0 {
+		return 0 // over the horizon
+	}
+	// the roots as q/a and c/q, q away from zero: neither loses its digits to a near cancellation
+	q := -0.5 * (float64(b) + math.Copysign(math.Sqrt(disc), float64(b)))
+	if q == 0 {
+		return 0
+	}
+	t0, t1 := q/float64(a), float64(c)/q
+	if t0 > t1 {
+		t0, t1 = t1, t0
+	}
+	if t0 > 0 {
+		return float32(t0)
+	}
+	return float32(t1)
 }
 
 // ray is the way from the eye through the screen point (sx, sy): forward, a focal length off, and

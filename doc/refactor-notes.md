@@ -183,7 +183,9 @@ below says what was decided and why, or what needs an answer. Take them out as t
   pieces) and shaded between them by the shader; pieces the clouds miss skip the pass. The
   shadow's inside is bilinear within a tile (32 wu, the finest octave was 52 wu), its edge still
   per pixel. CPU: the whole island composes in about the same time as before (see the benches).
-  Re-measure with the same `GRAM_FULLSCREEN=1` run before the `TEMP-MEASURE` switches go.
+  The `TEMP-MEASURE` switches (`GRAM_*` variables, the engine's per-second log, the CPU profile in
+  the demos' `main`) were taken out once the camera rounds were done; the user's CPU profile at
+  zoom 0.5 was never taken, so the composer's sort and the vertex building stay unmeasured.
 
 ### Relief hiding the view (2026-09-28)
 
@@ -277,6 +279,104 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twelfth round: no lanes, the standing give way.** The user chose both open points: units go
+  cell centre to cell centre, and one standing, struck by one on the move, gives way. It steps
+  just off the line of the strike, the two boxes' halves across it and a quarter gap (the circles
+  round the boxes stepped it into its neighbours), to the side it stands on or the other where
+  the ground does not take it, lingers a second (`MoveOrder.Linger`, stood out at a queued goal)
+  and goes home facing as it did; the whole order is `GivingWay`, and nobody gives way to one
+  giving way, or two would trade places for ever. The strike's normal gives the line, not the
+  mover's velocity: a mover stepping aside when it struck turned the line along a lane. Tried and
+  dropped: a mover waiting for the one giving way (worse for larger units). Ticks of contact over
+  the 48 crowd runs, per unit side:
+
+  | Side | Lanes, no giving way | No lanes, no giving way | No lanes, giving way |
+  |---|---|---|---|
+  | 3 | 3476 | 6740 | 6164 |
+  | 6 | 2510 | 4646 | 5140 |
+  | 10 | 2412 | 3166 | 3758 |
+
+  Without lanes the group funnels through the cells' centres and fans out at the end, where most
+  strikes are now, between two on the move; the giving way ends the pushing of those standing
+  (a handful of ticks left) but adds a little between the one aside and the one passing.
+- **Eleventh round: the click, and units smaller than a cell.** The user: a click on another cell
+  sometimes started no route and sometimes picked the wrong cell; and units smaller than a cell
+  should stop where clicked, a group round the point, the rest on the cheapest cells round it,
+  none where it would fall. The click: `Context.World` unprojected four times at the height of
+  the last answer, from sea level — a fixed point that settles only when the slope times the ray's
+  run is under 1; on 32-unit cells with 640-unit peaks it diverged, landing on a wrong cell, off
+  the board (no command) or on the unit's own cell (it only turned). Now `camera.Picker`: the
+  topography walks the line of sight half a cell at a time over the drawn top and halves to
+  1e-3; the perspective's middle point too. Units: the user kept the cell model for board games
+  and simple games and asked for a choice by the unit-to-cell ratio — `navigation.Spacing`,
+  `AutoSpacing` picking boxes at a third of a cell or less (the demos: 22/32 and 24/48 cells,
+  3/32 boxes). A first box version planned ahead: each unit saw the others' boxes and velocities
+  and steered round them, spots were swapped among the group on arrival, routes went round known
+  standing units; tuned from 16 000 ticks of contact over 48 crowd runs down to 98. The user
+  stopped it: a unit routes over the ground knowing nothing of the others and corrects when it
+  strikes someone; only the destination points of a group are planned. So now: routes over the
+  ground alone, lanes from the unit's own spot, and answers to `collision.Struck` — step aside
+  towards the goal (never back into them, never onto ground it may not take), note the cell of
+  one struck standing for the routes, stand elsewhere round the point when it stands on the spot,
+  a repeat strike on a known one or no headway for a second is a stall, five and it stands; by
+  its spot, a second one standing struck and it stands there. Group spots: a box's width apart,
+  so one of the group walks between two standing; far rows to the units furthest on.
+  Measured over the same 48 runs (4 to 25 units, four approaches, 30 s): all settle, nothing
+  overlaps once settled, the widest stands 3–4 spacings off the point; ticks of contact per side
+  3 / 6 / 10: 3476 / 2510 / 2412, worst 1568 / 696 / 830 (25 in a column from the west). The
+  model strikes by design; the remaining pushing is in big groups arriving. Two bugs found on the
+  way: a unit giving up kept its speed and drove to the world's edge; a contact whose normals
+  cancel read as a stall every tick.
+- **Tenth round: giants, the eye under the ground on slopes, blur.** The user: giants, so every
+  system reads the same sizes; riding, the view blurred at some angles, and on a steep slope the
+  head still went under the ground. Not a lag: the simulation (movement, altitude) all runs after
+  the interface part, the camera reads both from the same step. Measured with a throwaway test:
+  riding 0.64 up in the middle of a cell rising to the north-west, looking down it, three of the
+  cell's corners lie behind the eye and the projection throws them to about ±926 000 px — the
+  uphill one far over the top of the screen, so the cell's top is drawn over the whole sky. Nothing
+  clipped at the near plane. The fix stays in the topography (no clipping in the frame): a tile
+  with a corner not in front is drawn as 16×16 pieces (4×4 when the eye's plane only grazes it off
+  to a side), only pieces wholly in front and on the screen, farthest first, each with its water
+  and cloud shadow; a tile wholly behind is skipped (its top lies between its corners); blends and
+  way pieces not wholly in front are left out; faces of such a tile are left out. The blur was the
+  same cause: a tile's pixels were read at its middle, 0 behind the eye, so the tile under the eye
+  was drawn from the 16-px ground sheet; now at its nearest corner in front. Giants: `world.Look`
+  hands the entity's `Z`, billboards stand as tall as its Height; the demo's units are 3 units
+  (9.4 m; sizes are whole units) by 20 m, eyes at 18 m. Still at 300 m a second (`UnitSpeed`, three
+  cells a second), fast for a giant.
+- **Ninth round: the eye under the ground, 100 m a cell.** Riding low, the eye fell under the
+  drawn ground. Measured on the island: a unit's ground was read between its cell's corners
+  (bilinear) while the cell's top is drawn as two flat triangles folded along the diagonal whose
+  corners stand nearer in height; at a cell's middle the drawn top stood over 2 m above the unit's
+  ground on 759 of 6144 cells, up to 267 m. `Relief.GroundAt` now reads the triangles, with the
+  fold's own rule (ties split along 1–2, as a quad is drawn), so units, sight's ground, picking
+  and shadows stand on what is drawn; the riding eye is also kept over its cell's drawn top (a
+  kind's Height). I blamed a forest at first — the island plants none; wrong. The user chose
+  100 m a cell (not 10 m: the island would be under a kilometre across, no room for mountains,
+  no haze or curve to speak of); peaks to 2 km (`island.Metres` 8). Open: the units' sizes —
+  their box is a 69 m map symbol and they are 2 m tall.
+- **Eighth round: the Earth under the island.** The user asked whether, a cell being 1 km and a
+  unit small, sight's reach and "the bending of rays" should not differ in first person, then
+  said the eye belongs on the entity's height, which its component holds, a unit about 2 m
+  tall, peaks at most 3 km. One unit system stays: heights and lengths in world units alike, so
+  slopes, light, sight and the camera need no conversion; `world.Scale{Metres}` says what a unit
+  is and games give metres through `Scale.Units` (the demo: 31.25 m a unit; the island's own
+  heights times `island.Metres` 12). With a scale: the ground sinks `Scale.Drop` — the Earth's
+  curve with standard refraction k = 0.13 — in the perspective's `view` (its inverse, `cast`,
+  solves the quadratic in the stable form; `Bounds` widens the layer down by the drop at twice
+  far, conservatively) and in sight (the ground, the cover's bands at a stretch's middle, the
+  entities' bands at their centres, all against the observer). The air: `Weather.Visibility`
+  from `Scale.Visibility` (40 km clear; cloud to 0.65 of it; rain ÷9, snow ÷21 at their fullest)
+  unless the weather sets it; tiles, faces, baked pieces and billboards take `Frame.Haze` in their
+  alpha (1 + 0.49·haze, under the overlays' mark) and the shader turns them to the overcast sky;
+  blends, water and ways laid over tiles are not hazed — far tiles are baked and their water gone.
+  The riding eye is `world.Z.Top()`; `riderLift` is gone; the near plane riding a thousandth of a
+  cell (1 m in the demo). Consequences to know: slopes are true now, gentler than the island's own
+  units had them (peaks were ~7.8 km at 31 m a unit), so climbing costs and running water are
+  milder; the isometric view shows the relief as tall as it is; the units' billboards are still
+  map symbols (the box, 690 m) — riding low, another unit near looks a tower. Question for
+  review: draw billboards in perspective at their Z.Height? Benchmarks under a load of 6 on the
+  machine are not worth recording; the bench's island has no scale, so none of this runs there.
 - **Seventh round: white shadows, bare rivers, rain in bands.** From the user's screenshot of
   first person looking far off. (1) White patches: `Frame.Soft` writes 1 plus the distance to each
   edge in fades into the vertex, and the shaders took a last value over 5.5 for a blended sprite
@@ -346,6 +446,12 @@ below says what was decided and why, or what needs an answer. Take them out as t
   would do instead. goke logs once at start that the component "requires a dereference outside
   the archetype's chunk memory" — true, and harmless for one entity read once a tick; a
   fixed-size component would need one per cell instead.
+- **Big groups arriving still strike each other**, now mostly two on the move where the column
+  fans out to its spots (see the twelfth round). Lanes halved that for small units; they were
+  dropped at the user's word.
+- **No ticking test through the demo**: the engine steps by the wall clock and reads ebiten's
+  input, so the board-topography test only starts it; the shore and the steps are tested in
+  navigation instead.
 - **Screenshots of the island in relief were not compared** — I cannot take them unattended. The
   demos run headless for ten seconds without a panic; please eyeball island-isometric (Tab, Q/E,
   R/F, =/-) tomorrow.

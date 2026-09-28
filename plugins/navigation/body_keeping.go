@@ -1,0 +1,430 @@
+package navigation
+
+import (
+	"math"
+	"slices"
+	"time"
+
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/uid"
+)
+
+// stallAfter is how long a unit may come no nearer the cell it heads for before it counts as
+// stalled.
+const stallAfter = time.Second
+
+// maxStalls is how often a unit may stall without reaching the cell it heads for before it gives
+// its order up and stands where it is.
+const maxStalls = 5
+
+// asideTime is how long a unit steps round whoever it struck.
+const asideTime = 400 * time.Millisecond
+
+// asideGoal is how much of the way to its goal a unit keeps while it steps round someone.
+const asideGoal = 0.5
+
+// openOccupancy refuses nobody and holds nothing: under BodySpacing a step is only noted, and the
+// boxes meet as they meet.
+type openOccupancy struct{}
+
+func (openOccupancy) CanEnter(board.CellID, uid.UID64, board.Domain) bool { return true }
+func (openOccupancy) Enter(board.CellID, uid.UID64, board.Domain)         {}
+func (openOccupancy) Leave(board.CellID, uid.UID64)                       {}
+
+// bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
+// where the others stand, and goes; striking someone, it steps round them towards its goal, notes
+// the cell of one standing for its routes to go round, and stands elsewhere round its point when
+// the one struck stands on its spot. A group is given its spots round the point it is sent to.
+type bodyKeeping struct {
+	finder  *pathFinder
+	grid    board.Grid
+	terrain board.Terrain
+	space   *aabbworld.Space    // for the short way round and the world's edges; nil, flat and open
+	ground  func() world.Ground // the world's ground, for steps; nil or giving nil, level
+	index   bodyIndex
+}
+
+var _ keeping = (*bodyKeeping)(nil)
+
+// newBodyKeeping keeps units apart over finder's grid, in space, on ground.
+func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() world.Ground) *bodyKeeping {
+	return &bodyKeeping{finder: finder, grid: finder.grid, terrain: finder.terrain, space: space, ground: ground, index: bodyIndex{grid: finder.grid}}
+}
+
+func (k *bodyKeeping) occupancy() board.Occupancy { return k.finder.occupancy }
+
+func (k *bodyKeeping) begin(gather func([]body) []body) {
+	k.index.build(gather(k.index.bodies[:0]))
+}
+
+// delta is the way from a to b, the short way round on a wrapping axis.
+func (k *bodyKeeping) delta(a, b geom.Vec) geom.Vec {
+	if k.space == nil {
+		return geom.NewVec(b.X-a.X, b.Y-a.Y)
+	}
+	w, h, e := k.space.Bounds()
+	return geom.NewVec(shortestAxisDelta(a.X, b.X, w, e.WrapsX()), shortestAxisDelta(a.Y, b.Y, h, e.WrapsY()))
+}
+
+// fold is p inside the world on a wrapping axis.
+func (k *bodyKeeping) fold(p geom.Vec) geom.Vec {
+	if k.space == nil {
+		return p
+	}
+	w, h, e := k.space.Bounds()
+	if e.WrapsX() {
+		p = geom.NewVec(wrapAxis(p.X, float64(w)), p.Y)
+	}
+	if e.WrapsY() {
+		p = geom.NewVec(p.X, wrapAxis(p.Y, float64(h)))
+	}
+	return p
+}
+
+func wrapAxis(v, size float64) float64 {
+	v = math.Mod(v, size)
+	if v < 0 {
+		v += size
+	}
+	return v
+}
+
+// half is half m's box.
+func half(m member) geom.Vec { return geom.NewVec(m.pos.Size.X/2, m.pos.Size.Y/2) }
+
+// orders stands the members round cmd.At on cmd.Cell, or round its centre without a point, each
+// with a route to its spot; with Append one under an order queues the spot instead.
+func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, MoveOrder)) {
+	at := cmd.At
+	if at == (geom.Vec{}) {
+		at = k.grid.CellCenter(cmd.Cell)
+	}
+	var group []member
+	for _, m := range members {
+		if cmd.Append && m.order != nil || m.from == cmd.Cell || k.reaches(m, cmd.Cell) {
+			group = append(group, m)
+		}
+	}
+	spots, _ := k.place(group, at, cmd.Cell)
+	for i, p := range spots {
+		m := group[i]
+		if !p.ok {
+			continue
+		}
+		if cmd.Append && m.order != nil {
+			m.order.Enqueue(Goal{Cell: p.cell, Spot: p.spot, At: at})
+			continue
+		}
+		path, ok := Path{}, m.from == p.cell
+		if !ok {
+			path, ok = k.finder.findPath(m.id, m.domain, m.from, p.cell)
+		}
+		if ok {
+			issue(m, MoveOrder{Target: p.cell, Spot: p.spot, At: at, Path: path, Leg: m.leg})
+		}
+	}
+}
+
+// reaches reports whether any route over the ground takes m to c.
+func (k *bodyKeeping) reaches(m member, c board.CellID) bool {
+	_, ok := k.finder.findPath(m.id, m.domain, m.from, c)
+	return ok
+}
+
+// look stops m where its braking ends, or where it stands when the ground there does not take it,
+// and turns it.
+func (k *bodyKeeping) look(m member, at geom.Vec) MoveOrder {
+	here := m.centre()
+	stop := here
+	if v := math.Hypot(m.vel.X, m.vel.Y); v > 0 && m.brake > 0 {
+		d := v / (2 * m.brake)
+		stop = k.fold(geom.NewVec(here.X+m.vel.X*d, here.Y+m.vel.Y*d))
+	}
+	if !k.fits(m, stop, nil) {
+		stop = here
+	}
+	cell, ok := k.grid.CellAt(stop)
+	if !ok {
+		cell = m.cell
+	}
+	return MoveOrder{Target: cell, Spot: stop, At: stop, Face: at}
+}
+
+// ready places an order given without a spot — at spawn, or a queued goal given none — round its
+// point, or its Target's centre.
+func (k *bodyKeeping) ready(m member, o *MoveOrder) {
+	if o.Spot != (geom.Vec{}) {
+		return
+	}
+	k.placeAgain(m, o, nil)
+}
+
+// placeAgain stands m elsewhere round o's point, or its Target's centre, clear of struck.
+func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
+	at := o.At
+	if at == (geom.Vec{}) {
+		at = k.grid.CellCenter(o.Target)
+	}
+	spots, _ := k.placeClearOf([]member{m}, at, o.Target, struck)
+	p := spots[0]
+	if !p.ok {
+		p = placed{spot: k.grid.CellCenter(o.Target), cell: o.Target}
+	}
+	if p.cell != o.Target {
+		o.Path, o.Leg = Path{}, Leg{}
+	}
+	o.Target, o.Spot, o.At = p.cell, p.spot, at
+}
+
+// route is the way over the ground to o's Target, round the cells m found someone standing in.
+func (k *bodyKeeping) route(m member, from board.CellID, o *MoveOrder) (Path, bool) {
+	if o.Avoids > 0 {
+		known := o.Avoid[:o.Avoids]
+		blocked := func(c board.CellID) bool { return c != o.Target && slices.Contains(known, c) }
+		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
+			return p, true
+		}
+	}
+	return k.finder.findPath(m.id, m.domain, from, o.Target)
+}
+
+// lost waits targetWaitTimeout for the ground to change, then stands round the point on a cell a
+// route reaches, or gives up.
+func (k *bodyKeeping) lost(m member, from board.CellID, o *MoveOrder, waited time.Duration) (board.CellID, Path, bool, bool) {
+	if waited < targetWaitTimeout {
+		return 0, Path{}, true, false
+	}
+	for _, c := range k.tilesRound(o.Target, m.domain, m.domain) {
+		if c == from {
+			return c, Path{}, false, true
+		}
+		if p, ok := k.finder.findPath(m.id, m.domain, from, c); ok {
+			o.Spot = geom.Vec{} // placed round the point in the new cell next tick
+			return c, p, false, true
+		}
+	}
+	return 0, Path{}, false, false
+}
+
+// steer asks st for dir at speed; while m steps round someone it struck, dir leans aside, never
+// back into them, and while m still faces into them it turns on the spot; with no ground aside
+// either way it waits.
+func (k *bodyKeeping) steer(m member, st *world.Steering, dir geom.Vec, speed float64) {
+	if o := m.order; o != nil && o.AsideFor > 0 {
+		if o.Aside == (geom.Vec{}) || m.facing.X*o.Struck.X+m.facing.Y*o.Struck.Y < -0.01 {
+			speed = 0
+		}
+		d := o.Aside
+		if n := math.Hypot(dir.X, dir.Y); n > 0 {
+			d = geom.NewVec(d.X+dir.X/n*asideGoal, d.Y+dir.Y/n*asideGoal)
+		}
+		if into := -(d.X*o.Struck.X + d.Y*o.Struck.Y); into > 0 {
+			d = geom.NewVec(d.X+o.Struck.X*into, d.Y+o.Struck.Y*into)
+		}
+		if n := math.Hypot(d.X, d.Y); n > 1e-9 && k.takes(m, geom.NewVec(d.X/n, d.Y/n)) {
+			dir = geom.NewVec(d.X/n, d.Y/n)
+		}
+	}
+	if dir != (geom.Vec{}) {
+		st.Request(dir)
+	}
+	st.RequestSpeed(speed)
+}
+
+// watch ends a step round someone once its time is up, and marks o Bumped once m has come no
+// nearer toward's point want by a quarter of its size for stallAfter; heading for another cell
+// starts afresh, and reaching the one it headed for forgets the stalls.
+func (k *bodyKeeping) watch(m member, o *MoveOrder, toward board.CellID, want geom.Vec, d time.Duration) {
+	if o.AsideFor = max(o.AsideFor-d, 0); o.AsideFor == 0 {
+		o.Aside, o.Struck = geom.Vec{}, geom.Vec{}
+	}
+	c := m.centre()
+	dist := math.Hypot(want.X-c.X, want.Y-c.Y)
+	if m.cell == o.Toward && toward != o.Toward {
+		o.Stalls = 0
+	}
+	if toward != o.Toward || o.Closest == 0 && o.Stalled == 0 {
+		o.Toward, o.Closest, o.Stalled = toward, dist, 0
+		return
+	}
+	if dist < o.Closest-min(m.pos.Size.X, m.pos.Size.Y)/4 {
+		o.Closest, o.Stalled = dist, 0
+		return
+	}
+	if o.Stalled += d; o.Stalled >= stallAfter {
+		o.Bumped, o.Stalled, o.Struck, o.Hit, o.AsideFor = true, 0, geom.Vec{}, 0, 0
+	}
+}
+
+// bump answers a stall with a fresh route, and gives up after maxStalls; and it answers someone
+// struck — Struck the way off them, Hit who — by stepping round them towards m's goal: the side
+// the goal lies, and head on the one to the left of the way off, so two meeting head on pass. One
+// struck standing has its cell noted, the route planned afresh round it when it lies on the way,
+// and m placed again round its point when it stands on m's spot; m, within two spacings of its
+// spot, striking a second one standing stands where it is: it has come among its group. Striking
+// again one it knew stands there counts as a stall.
+func (k *bodyKeeping) bump(m member, o *MoveOrder) bumpAnswer {
+	n := o.Struck
+	if n == (geom.Vec{}) {
+		if o.Stalls++; o.Stalls > maxStalls {
+			return giveUp
+		}
+		o.Path, o.Leg, o.Closest = Path{}, Leg{}, math.Inf(1)
+		return carryOn
+	}
+	if other, ok := k.index.of(o.Hit); ok && !other.moving && other.domain&m.domain != 0 {
+		if slices.Contains(o.Met[:o.Mets], other.id) && o.AsideFor == 0 {
+			// struck again, one it knew stands there: no headway, as a stall
+			if o.Stalls++; o.Stalls > maxStalls {
+				return giveUp
+			}
+		}
+		o.meet(other.id)
+		spacing := 2 * max(half(m).X, half(m).Y) * (1 + spacingGap)
+		if d := k.delta(m.centre(), k.goalOf(o)); o.Queued == 0 && o.Mets >= 2 && math.Hypot(d.X, d.Y) < 2*spacing {
+			return giveUp // come to its spot among others standing: it stands where it is
+		}
+		if c, ok := k.grid.CellAt(other.at); ok && c != o.Target && c != m.cell {
+			o.learn(c)
+			if slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) || o.Leg.Active && o.Leg.To == c {
+				o.Path, o.Leg = Path{}, Leg{}
+			}
+		}
+		if o.Queued == 0 && o.Spot != (geom.Vec{}) && !apart(k.delta(o.Spot, other.at), half(m), other.half, gapFor(half(m))) {
+			k.placeAgain(m, o, k.met(o))
+		}
+	}
+	goal := k.delta(m.centre(), k.goalOf(o))
+	aside := geom.NewVec(-n.Y, n.X)
+	if l := math.Hypot(goal.X, goal.Y); l > 1e-9 && (aside.X*goal.X+aside.Y*goal.Y)/l < -0.2 {
+		aside = geom.NewVec(-aside.X, -aside.Y)
+	}
+	if !k.takes(m, aside) {
+		aside = geom.NewVec(-aside.X, -aside.Y)
+		if !k.takes(m, aside) {
+			aside = geom.Vec{} // no ground aside either way: only kept from backing into them
+		}
+	}
+	o.Aside, o.AsideFor = aside, asideTime
+	return carryOn
+}
+
+// takes reports whether the ground a step along dir from m, its box clear past its own edge,
+// takes m.
+func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
+	h := half(m)
+	reach := 2*max(h.X, h.Y) + gapFor(h)
+	c := m.centre()
+	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
+	ok := true
+	k.grid.CellsUnder(boxAt(at, h), func(cell board.CellID) { ok = ok && k.terrain.Kind(cell).Admits(m.domain) })
+	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
+		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
+			ok = false
+		}
+	}
+	return ok
+}
+
+// met is the ones o's unit struck standing, where they are now.
+func (k *bodyKeeping) met(o *MoveOrder) []body {
+	var out []body
+	for _, id := range o.Met[:o.Mets] {
+		if b, ok := k.index.of(id); ok {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// goalOf is where o ends: its Spot, or its Target's centre.
+func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
+	if o.Spot != (geom.Vec{}) {
+		return o.Spot
+	}
+	return k.grid.CellCenter(o.Target)
+}
+
+// yieldLinger is how long a unit that gave way stands aside before it goes back.
+const yieldLinger = time.Second
+
+// yield has m, standing, step off the way of the first one on the move that struck it — not one
+// giving way itself — square to the line between them, to the side m stands, as far as the two
+// boxes and a gap need; or to the other side when the ground there does not take m. It stands
+// there yieldLinger, then goes back to where it stood, facing as it did. Where the ground takes it
+// on neither side it holds.
+func (k *bodyKeeping) yield(m member, contacts []collision.Contact) (MoveOrder, bool) {
+	here, h := m.centre(), half(m)
+	for _, c := range contacts {
+		if c.Terrain {
+			continue
+		}
+		b, ok := k.index.of(c.Other)
+		if !ok || !b.moving || b.yielding || b.domain&m.domain == 0 {
+			continue
+		}
+		way := c.Normal // the way m leaves it: the line it came along, struck head on
+		if l := math.Hypot(way.X, way.Y); l > 1e-9 {
+			way = geom.NewVec(way.X/l, way.Y/l)
+		} else {
+			continue
+		}
+		across := geom.NewVec(-way.Y, way.X)
+		off := k.delta(b.at, here)
+		side := off.X*across.X + off.Y*across.Y
+		sign := 1.0
+		if side < 0 {
+			sign = -1
+		}
+		// the two boxes' halves across the line, and a quarter gap: just off the way it comes
+		reach := func(half geom.Vec) float64 { return half.X*math.Abs(across.X) + half.Y*math.Abs(across.Y) }
+		clear := reach(b.half) + reach(h) + gapFor(h)/4
+		for _, step := range [2]float64{sign * (clear - math.Abs(side)), -sign * (clear + math.Abs(side))} {
+			if math.Abs(step) < gapFor(h)/4 {
+				step = math.Copysign(gapFor(h)/4, step)
+			}
+			aside := k.fold(geom.NewVec(here.X+across.X*step, here.Y+across.Y*step))
+			cell, in := k.grid.CellAt(aside)
+			if !in || !k.fits(m, aside, nil) {
+				continue
+			}
+			home, _ := k.grid.CellAt(here)
+			o := MoveOrder{Target: cell, Spot: aside, At: aside, Linger: yieldLinger, GivingWay: true}
+			o.Enqueue(Goal{Cell: home, Spot: here, At: here})
+			if m.facing != (geom.Vec{}) {
+				o.Face = geom.NewVec(here.X+m.facing.X*16, here.Y+m.facing.Y*16)
+			}
+			return o, true
+		}
+		return MoveOrder{}, false
+	}
+	return MoveOrder{}, false
+}
+
+// within is a quarter of m's shorter side, at most arrivalEpsilon: arriving it is put on its spot.
+func (k *bodyKeeping) within(m member) float64 {
+	return min(arrivalEpsilon, min(m.pos.Size.X, m.pos.Size.Y)/4)
+}
+
+// mayStep lets m on unless it all but touches someone just ahead along heading: walked by hand, it
+// stops at whoever it walks into.
+func (k *bodyKeeping) mayStep(m member, _ board.CellID, heading geom.Vec) bool {
+	c, h := m.centre(), half(m)
+	feel := gapFor(h) / 4
+	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)
+	open := true
+	k.index.near(boxAt(ahead, geom.NewVec(h.X+k.index.largest, h.Y+k.index.largest)), func(b *body) {
+		if !open || b.id == m.id || b.domain&m.domain == 0 {
+			return
+		}
+		d := k.delta(c, b.at)
+		if d.X*heading.X+d.Y*heading.Y > 0 && !apart(k.delta(ahead, b.at), h, b.half, 0) {
+			open = false
+		}
+	})
+	return open
+}

@@ -117,7 +117,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
-	s.board.CellKindDict().Create(island.Kinds(false)...)
+	s.board.CellKindDict().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err

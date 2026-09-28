@@ -24,6 +24,7 @@ func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *h
 	m.sys.coverOf = coverOf
 	if heights != nil {
 		m.sys.quasi3D, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
+		m.sys.bend, m.sys.covering.bend = heights.bend, heights.bend
 	}
 	return m
 }
@@ -33,6 +34,7 @@ func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *h
 type heights struct {
 	groundOf func() world.Ground
 	step     float64
+	bend     float64 // how far the ground d off sinks under an eye's level, per d² (world.Scale.Bend)
 }
 
 // =================================================================

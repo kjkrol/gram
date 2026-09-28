@@ -91,11 +91,11 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 	}
 	cur := s.lookup.Cursor()
 	box := s.lookupBase.At(cur).Pos.AABB
-	alt := float32(0)
+	var stands world.Z
 	if z := s.lookupZ.At(cur); z != nil {
-		alt = float32(z.Altitude)
+		stands = *z
 	}
-	c := s.look().Drawn(cam, box.AABB, alt)
+	c := s.look().Drawn(cam, box.AABB, stands)
 	minX, minY, maxX, maxY := c[0][0], c[0][1], c[0][0], c[0][1]
 	for _, p := range c[1:] {
 		minX, maxX = min(minX, p[0]), max(maxX, p[0])

@@ -23,8 +23,9 @@
 // [Nobody] for none); [CommandQueue] is a Queue with the type erased, as a carrier sorts commands
 // into them. A [Binding] is a [Trigger] — [KeyPress], [KeyHeld], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
 // [CursorAtEdge], [CursorMove], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
-// player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera and,
-// over Ground, on the ground: a click on a hill lands on the hill)
+// player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera —
+// a camera.Picker's own pick of the ground, else, over Ground, on the ground: a click on a hill
+// lands on the hill)
 // and a label for a help screen. plugin.CommandHandler is what defines and carries out commands,
 // plugins/players what brings them.
 package control

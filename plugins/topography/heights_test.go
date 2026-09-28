@@ -1,6 +1,7 @@
 package topography_test
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -88,8 +89,11 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 		t.Errorf("the plateau's middle stands at %v, want the full 12", got)
 	}
 	corner, _ := grid.CellIndex(2, 2)
-	if got := r.GroundAt(grid.CellCenter(corner)); got != 6.75 {
-		t.Errorf("the plateau's corner cell stands at %v, want 6.75, the mean of its corners 3, 6, 6 and 12", got)
+	if got := r.GroundAt(grid.CellCenter(corner)); got != 6 {
+		t.Errorf("the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 and 12 are drawn split along the diagonal of the two 6s", got)
+	}
+	if got := r.Altitude(corner); got != 6.75 {
+		t.Errorf("the plateau's corner cell's level is %v, want 6.75, the mean of its corners", got)
 	}
 	last := -1.0
 	for x := 40.0; x <= 112; x += 8 { // walking east along row 3 up onto the plateau
@@ -323,4 +327,32 @@ func TestPlugin_RefusesAFlatWorld(t *testing.T) {
 	}()
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}})
 	topography.NewPlugin(w, board.NewPlugin(board.DefaultGrids{}.Square(4, 4, 32), &board.MultipleOccupancy{}, w), topography.Config{Cell: 32})
+}
+
+// The ground under a point is the ground drawn: the cell's top split into two flat triangles along
+// the diagonal whose corners stand nearer in height, as render.Frame.Fold draws it.
+func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(2, 2, 32)
+	r := topography.NewRelief(board.NewBoard(grid, board.NewTerrainMap()))
+	c, _ := grid.CellIndex(0, 0)
+	// corners 0, 20, 24 and 2: the 0 and the 2 stand nearer, so the top is split along 0–3
+	r.SetCorners(c, topography.Corners{0, 20, 24, 2})
+	for _, p := range []struct{ x, y, want float64 }{
+		{16, 16, 1},    // the middle, on the diagonal of the 0 and the 2
+		{24, 8, 10.5},  // on the triangle with the 20
+		{8, 24, 12.5},  // on the triangle with the 24
+		{28, 4, 15.25}, // near the 20
+	} {
+		if got := r.GroundAt(geom.NewVec(p.x, p.y)); math.Abs(got-p.want) > 1e-9 {
+			t.Errorf("the ground at (%v, %v) is %v, want %v on the triangles drawn", p.x, p.y, got, p.want)
+		}
+	}
+	// corners 10, 0, 0, 20: split along the two 0s, 1–2; the middle is 0, not the mean 7.5
+	r.SetCorners(c, topography.Corners{10, 0, 0, 20})
+	if got := r.GroundAt(geom.NewVec(16, 16)); got != 0 {
+		t.Errorf("the ground in the middle is %v, want 0 on the diagonal of the 0s", got)
+	}
+	if got := r.GroundAt(geom.NewVec(4, 4)); math.Abs(got-7.5) > 1e-9 {
+		t.Errorf("the ground near the 10 is %v, want 7.5", got)
+	}
 }

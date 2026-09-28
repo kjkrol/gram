@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"image/color"
-	"os"
 	"slices"
 	"time"
 
@@ -61,13 +60,10 @@ func (c *Composer) Init(si *goke.SysInit) {
 	}
 }
 
-// TEMP-MEASURE: GRAM_NO_DRAW=1 composes every frame and draws none of it.
-var noDraw = os.Getenv("GRAM_NO_DRAW") == "1"
-
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	c.compose(cam)
-	if screen != nil && !noDraw {
+	if screen != nil {
 		c.render(screen)
 	}
 }

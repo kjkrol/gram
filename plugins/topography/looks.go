@@ -36,19 +36,19 @@ var _ world.Look = worldLook{}
 // isometric view, the world's own flat sprites from above.
 type worldLook struct{ flat world.Look }
 
-func (l worldLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+func (l worldLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
 	if inRelief(cam) {
-		billboards{}.Sprite(f, cam, box, alt, atlas, id, light, sway)
+		billboards{}.Sprite(f, cam, box, z, atlas, id, light, sway)
 		return
 	}
-	l.flat.Sprite(f, cam, box, alt, atlas, id, light, sway)
+	l.flat.Sprite(f, cam, box, z, atlas, id, light, sway)
 }
 
-func (l worldLook) Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners {
+func (l worldLook) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {
 	if inRelief(cam) {
-		return billboards{}.Drawn(cam, box, alt)
+		return billboards{}.Drawn(cam, box, z)
 	}
-	return l.flat.Drawn(cam, box, alt)
+	return l.flat.Drawn(cam, box, z)
 }
 
 func (l worldLook) Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {

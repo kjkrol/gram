@@ -83,7 +83,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if in.Turn != 0 || in.Ahead != 0 || facing {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
-			if in.Ahead > 0 && s.open(id, cells[i].ID, base.Pos, heading, domain) {
+			if in.Ahead > 0 && s.open(member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}, heading) {
 				st.RequestSpeed(st.MaxSpeed)
 				continue
 			}
@@ -107,14 +107,14 @@ func (s *driveSystem) follow(cb *goke.CmdBuf, id uid.UID64, cell *board.Cell, po
 	cb.AddOne(id, s.enteredID, CellEntered{ID: actual})
 }
 
-// open reports whether the ground just ahead of the entity, the way it faces, takes it: a cell its
-// domain may stand on and, when it is another than its own, one the occupancy lets it into.
-func (s *driveSystem) open(id uid.UID64, own board.CellID, pos world.Position, heading geom.Vec, domain board.Domain) bool {
-	reach := max(pos.Size.X, pos.Size.Y)/2 + driveMargin
-	centre := board.Center(pos)
+// open reports whether the ground just ahead of m, the way it faces, takes it: a cell its domain
+// may stand on, and one the keeping lets it on into.
+func (s *driveSystem) open(m member, heading geom.Vec) bool {
+	reach := max(m.pos.Size.X, m.pos.Size.Y)/2 + driveMargin
+	centre := m.centre()
 	ahead, ok := s.nav.grid.CellAt(geom.NewVec(centre.X+heading.X*reach, centre.Y+heading.Y*reach))
-	if !ok || !s.nav.terrain.Kind(ahead).Admits(domain) {
+	if !ok || !s.nav.terrain.Kind(ahead).Admits(m.domain) {
 		return false
 	}
-	return ahead == own || s.nav.occupancy.CanEnter(ahead, id, domain)
+	return s.nav.keep.mayStep(m, ahead, heading)
 }

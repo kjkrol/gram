@@ -27,12 +27,10 @@ var Colors = map[string]color.RGBA{
 // — sand slow going, rock rough, a climb on top of either on a map in relief; running water laid
 // across the ground — a brook stepped over, a stream waded through, a river crossed only at a ford;
 // roads and the bridges carrying them over the water; and the forest, which nothing plants yet.
-// Only a world with heights (relief) takes what stands on a cell: the forest's Height.
-func Kinds(relief bool) []board.CellKind {
-	forest := board.CellKind{Name: board.Named("forest"), Cost: 7.5, Allows: board.Land | board.Air, Veil: 0.6}.Costing(board.Air, 1)
-	if relief {
-		forest.Height = 8
-	}
+// Only a world with heights takes what stands on a cell: forest is how tall the forest stands, in
+// world units, 0 on a flat map.
+func Kinds(forest float64) []board.CellKind {
+	trees := board.CellKind{Name: board.Named("forest"), Cost: 7.5, Allows: board.Land | board.Air, Veil: 0.6, Height: forest}.Costing(board.Air, 1)
 	kinds := []board.CellKind{
 		{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
 		board.CellKind{Name: board.Named("earth"), Cost: 2.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
@@ -44,7 +42,7 @@ func Kinds(relief bool) []board.CellKind {
 		board.CellKind{Name: board.Named("ford"), Cost: 6.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
 		{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
 		{Name: board.Named("bridge"), Cost: 1, Allows: board.Land | board.Air},
-		forest,
+		trees,
 	}
 	for i := range kinds {
 		kinds[i].Color = Colors[kinds[i].Name.String()]

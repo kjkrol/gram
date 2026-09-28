@@ -3,13 +3,15 @@ package main
 import (
 	"image/color"
 
+	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
 )
 
-// highSnow is how high the ground is that snow lies on first.
-const highSnow = 60
+// highSnow is how high the ground is, in metres, that snow lies on first: 60 of the island's
+// heights.
+const highSnow = 60 * island.Metres
 
 // snowyColors is how each kind snow may lie on looks under it; iceColor, water frozen.
 var (
@@ -39,5 +41,5 @@ func (s *mainStage) defineClimate() weathering.Config {
 	s.topography.Style("ice", topography.Style{Under: true, Shine: 0.3})
 	relief := s.topography.Relief()
 	return weathering.Config{Snowy: snowy, Ice: "ice", Sway: []string{"forest", "snowy forest"},
-		High: func(c board.CellID) bool { return relief.Altitude(c) >= highSnow }}
+		High: func(c board.CellID) bool { return relief.Altitude(c) >= scale.Units(highSnow) }}
 }

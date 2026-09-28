@@ -1,8 +1,12 @@
 package navigation
 
 import (
+	"math"
+
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/uid"
 )
 
 // bumped is the Struck behavior navigation registers on collision: an entity under orders that
@@ -12,5 +16,32 @@ func bumped() plugin.Behavior {
 		if len(s.Contacts) > 0 && o.Cooldown == 0 {
 			o.Bumped = true
 		}
+	})
+}
+
+// struckBy is the Struck behavior navigation registers on collision under BodySpacing: an entity
+// under orders that struck someone, or the solid ground, is marked Bumped, with the way off them
+// and whom it struck, every tick it touches them.
+func struckBy() plugin.Behavior {
+	return collision.Each[MoveOrder](func(_ plugin.Tick, o *MoveOrder, s collision.Struck) {
+		if len(s.Contacts) == 0 {
+			return
+		}
+		var n geom.Vec
+		var hit uid.UID64
+		for _, c := range s.Contacts {
+			n = geom.NewVec(n.X+c.Normal.X, n.Y+c.Normal.Y)
+			if hit == 0 && !c.Terrain {
+				hit = c.Other
+			}
+		}
+		if math.Hypot(n.X, n.Y) < 1e-9 {
+			n = s.Contacts[0].Normal // squeezed from both sides: off the first
+		}
+		l := math.Hypot(n.X, n.Y)
+		if l < 1e-9 {
+			return // no way off it told: nothing to answer
+		}
+		o.Bumped, o.Struck, o.Hit = true, geom.NewVec(n.X/l, n.Y/l), hit
 	})
 }

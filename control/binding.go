@@ -98,11 +98,16 @@ type Context struct {
 	Ground func(x, y float32) float32
 }
 
-// World is the ground point under screen position s: on flat ground the camera's FromScreen, over
-// Ground the point whose own height puts it under the cursor, found by a few rounds of unprojecting
-// at the height of the last answer.
+// World is the ground point under screen position s: a camera.Picker's own Pick; on flat ground
+// the camera's FromScreen; over Ground the point whose own height puts it under the cursor, found
+// by a few rounds of unprojecting at the height of the last answer, which gentle slopes only
+// settle.
 func (c Context) World(s geom.Vec) geom.Vec {
 	sx, sy := float32(s.X), float32(s.Y)
+	if p, ok := c.Camera.(camera.Picker); ok {
+		x, y, _ := p.Pick(sx, sy)
+		return geom.NewVec(float64(x), float64(y))
+	}
 	x, y := c.Camera.Unproject(sx, sy, 0)
 	if c.Ground != nil {
 		for range 4 {

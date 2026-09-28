@@ -100,7 +100,7 @@ func TestCommandSystem_Update_ShiftAppendsAWaypointToInFlightOrders(t *testing.T
 	if got == nil || got.Target != cw.oldTarget {
 		t.Fatalf("in-flight order = %+v, want its Target %v kept", got, cw.oldTarget)
 	}
-	if got.Queued != 1 || got.Waypoints[0] != next {
+	if got.Queued != 1 || got.Waypoints[0].Cell != next {
 		t.Errorf("queue = %v (%d), want [%v]", got.Waypoints[:got.Queued], got.Queued, next)
 	}
 	if got.Path.Length != 1 {
@@ -131,7 +131,7 @@ func TestCommandSystem_Update_AFullQueueIgnoresAnotherWaypoint(t *testing.T) {
 	if int(got.Queued) != MaxWaypoints {
 		t.Fatalf("Queued = %d, want the queue full at %d", got.Queued, MaxWaypoints)
 	}
-	if got.Waypoints[MaxWaypoints-1] != cw.cellAt(MaxWaypoints-1) {
+	if got.Waypoints[MaxWaypoints-1].Cell != cw.cellAt(MaxWaypoints-1) {
 		t.Errorf("last queued = %v, want the eighth goal kept and the ninth dropped", got.Waypoints[MaxWaypoints-1])
 	}
 }

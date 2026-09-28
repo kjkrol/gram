@@ -12,12 +12,12 @@ import (
 // drawing its entities, which the renderer, picking and outlines ask. The world starts with a flat
 // look, seen from above; a view plugin puts its own in with Plugin.SetLook.
 type Look interface {
-	// Sprite hands f sprite id of atlas for an entity whose box stands at altitude alt, on the
-	// render.Objects tier, in light, swaying in the frame's wind as much as sway says
-	// (Appearance.Sway).
-	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, alt float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32)
+	// Sprite hands f sprite id of atlas for an entity whose box stands as z says — at its Altitude,
+	// Height tall; the zero Z in a flat world — on the render.Objects tier, in light, swaying in the
+	// frame's wind as much as sway says (Appearance.Sway).
+	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32)
 	// Drawn is the screen quad that sprite covers, for picking.
-	Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners
+	Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners
 	// Footprint appends to dst the ground under box on screen, in pieces where it crosses a wrap
 	// seam, for outlines.
 	Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners
@@ -34,7 +34,7 @@ type flatLook struct {
 	quads          []camera.Quad
 }
 
-func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ float32, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
@@ -52,8 +52,8 @@ func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ fl
 	})
 }
 
-func (*flatLook) Drawn(cam camera.Camera, box geom.AABB, alt float32) render.Corners {
-	return render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), alt)
+func (*flatLook) Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners {
+	return render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), float32(z.Altitude))
 }
 
 func (l *flatLook) Footprint(cam camera.Camera, box geom.AABB, _ float32, dst []render.Corners) []render.Corners {

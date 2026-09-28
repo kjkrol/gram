@@ -152,8 +152,17 @@ func (p *Plugin) Sunlit() bool { return p.Res.Config.Quasi3D || p.sunlit }
 // Sun is the world's light: DefaultSun unless something set another.
 func (p *Plugin) Sun() Sun { return p.sun }
 
-// SetWeather has the air over the world be w from now on — a game's, or the weather going by.
-func (p *Plugin) SetWeather(w Weather) { p.weather = w }
+// SetWeather has the air over the world be w from now on — a game's, or the weather going by —
+// seen as far through as its Visibility says, or the world's Scale works out.
+func (p *Plugin) SetWeather(w Weather) {
+	if w.Visibility == 0 {
+		w.Visibility = p.Res.Config.Scale.Visibility(w)
+	}
+	p.weather = w
+}
+
+// Scale is how many metres a world unit spans, as the world was made with.
+func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
 
 // Weather is the air over the world: a calm, clear day unless something set another.
 func (p *Plugin) Weather() Weather { return p.weather }

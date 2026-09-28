@@ -29,11 +29,12 @@ type perspCamera struct {
 	headroom   float32
 	minZoomCfg float32
 	maxZoom    float32
-	ground     func(x, y float32) float32 // the ground's height; nil, sea level
+	ground     func(x, y float32) float32 // the top of the ground as it is drawn; nil, sea level
 	extent     func() (low, high float32) // the lowest and the highest ground; nil, sea level
 	zooms      uint32                     // how many times the player has zoomed
 	tilts      uint32                     // how many times the player has tilted
 	inside     bool                       // the eye is a unit's, looking out from it
+	bend       float32                    // how far the ground d off sinks under the eye's level, per d²
 
 	at         [3]float32 // the ground point in the middle of the screen; far along the way looked, at the sky
 	proj       perspective
@@ -72,6 +73,21 @@ func (c *perspCamera) focal() float32 {
 
 // far is how far along its line a screen point looking past the ground is put.
 func (c *perspCamera) far() float32 { return 4 * float32(max(c.world.X, c.world.Y)) }
+
+// near is how near the eye a point may lie and be drawn where it lies: a quarter cell flying, a
+// thousandth of one riding in a unit, whose eye may stand but a unit's height over the ground.
+func (c *perspCamera) near() float32 {
+	if c.inside {
+		return c.cell / 1024
+	}
+	return c.cell / 4
+}
+
+// Eye is where the eye stands.
+func (c *perspCamera) Eye() (float32, float32, float32, bool) {
+	e := c.proj.eye
+	return e[0], e[1], e[2], true
+}
 
 // ceiling is the lowest the eye flies: eyeOver cells over the highest ground.
 func (c *perspCamera) ceiling() float32 {
@@ -130,13 +146,15 @@ func (c *perspCamera) look() {
 	}
 	e := [3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}
 	ahead := add(e, scale(c.out(), -c.far())) // far along the way looked, for the frame's precision
-	c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.cell/4, c.far(), c.cell)
+	c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
+	c.proj.bend = c.bend
 	c.projection = c.proj
 	c.at = c.middle()
 	if c.maxZoom > 0 { // the top zoom caps the narrowing
 		if z := c.Zoom(); z > c.maxZoom && c.narrow > 1 {
 			c.narrow = max(1, c.narrow*c.maxZoom/z)
-			c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.cell/4, c.far(), c.cell)
+			c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
+			c.proj.bend = c.bend
 			c.projection = c.proj
 		}
 	}
@@ -145,17 +163,26 @@ func (c *perspCamera) look() {
 // middle is the ground point the middle of the screen looks at, read on the relief; far along the
 // way looked when it looks at the sky.
 func (c *perspCamera) middle() [3]float32 {
-	mx, my := float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2)
-	x, y, hit := c.cast(mx, my, 0)
-	var z float32
-	for i := 0; hit && c.ground != nil && i < 4; i++ {
-		z = c.ground(x, y)
-		x, y, hit = c.cast(mx, my, z)
-	}
+	x, y, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
 	if !hit {
 		return add(c.proj.eye, scale(c.proj.forward, c.far()))
 	}
+	var z float32
+	if c.ground != nil {
+		z = c.ground(x, y)
+	}
 	return [3]float32{x, y, z}
+}
+
+// Pick is the first ground the screen point sees, along its line from the eye, the ground's curve
+// and all: up a slope higher than the eye too.
+func (c *perspCamera) Pick(sx, sy float32) (float32, float32, bool) {
+	if c.ground == nil {
+		return c.cast(sx, sy, 0)
+	}
+	_, high := c.layer()
+	s := sight{o: c.proj.eye, d: c.proj.ray(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2)), bend: c.bend}
+	return s.pick(c.ground, c.far(), c.cell/2, high)
 }
 
 // anglesOf is the heading and the pitch of an eye at eye looking at target; heading stays as
@@ -350,6 +377,7 @@ func (c *perspCamera) Visible(box contract.AABB) bool {
 func (c *perspCamera) Bounds() contract.AABB {
 	low, high := c.layer()
 	e, far := c.proj.eye, c.proj.far
+	low -= c.bend * (2 * far) * (2 * far) // the ground's curve sinks what lies far off: bound it straight, lower
 	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
 	maxX, maxY := float32(math.Inf(-1)), float32(math.Inf(-1))
 	along := func(d [3]float32) { // the stretch of the line of sight d within the layer

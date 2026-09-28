@@ -161,7 +161,9 @@ func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) 
 	}
 	var goals [MaxWaypoints + 1]board.CellID
 	goals[0] = mt.Target
-	copy(goals[1:], mt.Waypoints[:mt.Queued])
+	for k, g := range mt.Waypoints[:mt.Queued] {
+		goals[k+1] = g.Cell
+	}
 	if pv := r.previews[id]; pv != nil && pv.queued == mt.Queued && pv.goals == goals {
 		return pv.routes
 	}

@@ -18,6 +18,9 @@ type Config struct {
 	// Clock is how the tactical clock goes: its tempos, and whether a tempo is one bigger step or
 	// as many steps; the zero Config is ½, 1, 2 and 4 in steps.
 	Clock clock.Config
+	// Scale is how many metres a world unit spans: with one the world is a stretch of the Earth,
+	// its ground sinking under the horizon far off and its air thickening; zero, a board.
+	Scale Scale
 }
 
 type SpaceCfg struct {

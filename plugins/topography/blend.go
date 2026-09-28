@@ -197,6 +197,9 @@ func contains(ids []render.SpriteID, id render.SpriteID) bool {
 // DrawBlends draws the neighbours' grounds running into the tile at depth.
 func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
 	for _, p := range t.Blends() {
+		if !t.r.inFront(cam, p.World, p.Z) {
+			continue // beside or behind the eye, where it would be thrown across the screen
+		}
 		var c render.Corners
 		for k, at := range p.World {
 			c[k][0], c[k][1] = cam.Project(at[0], at[1], p.Z[k])

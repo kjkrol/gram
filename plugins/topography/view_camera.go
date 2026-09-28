@@ -28,6 +28,24 @@ var _ contract.Camera = (*viewCamera)(nil)
 var _ contract.Rider = (*viewCamera)(nil)
 var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
+var _ contract.Eyed = (*viewCamera)(nil)
+var _ contract.Picker = (*viewCamera)(nil)
+
+// Pick is the first ground the screen point sees, in the view the camera is in.
+func (c *viewCamera) Pick(sx, sy float32) (float32, float32, bool) {
+	if c.inPersp {
+		return c.persp.Pick(sx, sy)
+	}
+	return c.iso.Pick(sx, sy)
+}
+
+// Eye is where the eye stands in perspective; the other views have none.
+func (c *viewCamera) Eye() (float32, float32, float32, bool) {
+	if !c.inPersp {
+		return 0, 0, 0, false
+	}
+	return c.persp.Eye()
+}
 
 // Vanish is where the direction (dx, dy, dz) vanishes on the screen: in perspective; the other
 // views have no vanishing points.
@@ -52,17 +70,22 @@ func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
 func (c *viewCamera) FirstPerson() bool { return c.insideUnit() }
 
 // newCamera is a camera over a width x height world drawn through proj, configured by cfg, over
-// ground between the heights extent gives (nil: level at sea level), its perspective view of fov
-// (radians) reached when reaches; it refuses a wrapping world.
-func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32)) *viewCamera {
+// ground — its top as it is drawn — between the heights extent gives (nil: level at sea level),
+// which Pick walks over, its perspective view of fov
+// (radians), the ground far off sinking bend per distance² under the eye's level, reached when
+// reaches; it refuses a wrapping world.
+func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) *viewCamera {
 	vp := geom.NewAABBAt(geom.NewVec(0, 0), float64(width), float64(height))
 	if cfg.ViewportWidth != 0 && cfg.ViewportHeight != 0 {
 		vp = geom.NewAABBAt(geom.NewVec(0, 0), float64(cfg.ViewportWidth), float64(cfg.ViewportHeight))
 	}
 	world := geom.NewVec(float64(width), float64(height))
 	iso := newIsoCamera(proj, world, vp, edges)
-	iso.extent = extent
-	c := &viewCamera{iso: iso, persp: newPerspCamera(iso.proj, fov, world, vp, ground, extent), reaches: reaches}
+	iso.extent, iso.ground = extent, ground
+	persp := newPerspCamera(iso.proj, fov, world, vp, ground, extent)
+	persp.bend = bend
+	persp.look()
+	c := &viewCamera{iso: iso, persp: persp, reaches: reaches}
 	c.cur = c.iso
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)

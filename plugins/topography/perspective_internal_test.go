@@ -120,3 +120,32 @@ func TestPerspective_VanishIsWhereEverythingFarAlongADirectionIsDrawn(t *testing
 }
 
 func norm32(v [3]float32) [3]float32 { return scale(v, 1/norm(v)) }
+
+// With the ground's curve a point is drawn as if sunk under the eye's level by bend·d², d how far
+// off it lies along the ground; the curved ground under a screen point is found back exactly; and
+// level ground, seen from an eye h up, lies least far under the eye's level at the horizon,
+// √(h/bend) off, sinking away beyond it.
+func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
+	flat := testPerspective(0)
+	curved := flat
+	curved.bend = 2e-4 // the horizon 700 off for the eye 100 up: every point here short of it
+	for _, q := range [][3]float32{{320, 320, 0}, {100, 250, 7}, {40, 40, 30}} {
+		dx, dy := q[0]-flat.eye[0], q[1]-flat.eye[1]
+		sx, sy := curved.Project(q[0], q[1], q[2])
+		wx, wy := flat.Project(q[0], q[1], q[2]-curved.bend*(dx*dx+dy*dy))
+		if !near(sx, wx) || !near(sy, wy) {
+			t.Errorf("point %v is drawn at (%v, %v), want (%v, %v): sunk by the curve", q, sx, sy, wx, wy)
+		}
+		// float32 through the projection and back: a hundred-thousandth of the way off
+		tol := 1e-5 * math.Hypot(float64(dx), float64(dy))
+		if x, y, hit := curved.cast(sx, sy, q[2]); !hit || math.Abs(float64(x-q[0])) > tol || math.Abs(float64(y-q[1])) > tol {
+			t.Errorf("point %v drawn at (%v, %v) is found back at (%v, %v) %v", q, sx, sy, x, y, hit)
+		}
+	}
+	h := curved.eye[2]
+	horizon := float32(math.Sqrt(float64(h / curved.bend)))
+	under := func(d float32) float32 { return (h + curved.bend*d*d) / d } // how far under level, per d
+	if under(horizon) >= under(horizon*0.8) || under(horizon) >= under(horizon*1.25) {
+		t.Errorf("level ground lies %v under the eye's level at the horizon %v off, %v nearer and %v further: want least at the horizon", under(horizon), horizon, under(horizon*0.8), under(horizon*1.25))
+	}
+}

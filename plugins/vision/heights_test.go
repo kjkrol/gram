@@ -115,3 +115,22 @@ func TestHeights_AFlatWorldDrawsNoShadows(t *testing.T) {
 		t.Errorf("reach straight ahead %v, want it cut at the wall", mid)
 	}
 }
+
+// On a world with a scale the ground sinks under an eye's level as far off as it lies: a walker
+// 240 off on level ground is out of sight past a walker's horizon — at 4 km a world unit, about 74
+// off for an eye 1.5 up — and in sight of a hawk 40 up, and of anyone on a flat world.
+func TestHeights_WhatLiesPastTheHorizonIsOutOfSight(t *testing.T) {
+	target := spawn{x: 240, y: 0, z: z(0, 2)}
+	walker := spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}
+	if _, seen, _ := sceneIn(t, &relief{}, walker, target); seen[0].Count != 1 {
+		t.Fatalf("on a flat world the walker saw %d, want the target", seen[0].Count)
+	}
+	earth := &relief{scale: world.Scale{Metres: 4000}}
+	if _, seen, _ := sceneIn(t, earth, walker, target); seen[0].Count != 0 {
+		t.Errorf("the walker saw %d past its horizon, want nothing", seen[0].Count)
+	}
+	hawk := spawn{x: 0, y: 0, z: z(40, 2), sight: eyed(1)}
+	if _, seen, _ := sceneIn(t, earth, hawk, target); seen[0].Count != 1 {
+		t.Errorf("the hawk 40 up saw %d, want the target within its horizon", seen[0].Count)
+	}
+}

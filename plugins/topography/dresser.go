@@ -26,9 +26,10 @@ type dresser struct {
 	camera  camera.Camera // the one of the frame being drawn
 	cellW   float64
 	cellH   float64
-	cellPx  float32 // how many pixels a cell spans in the frame being drawn, at its zoom (tile.px: where)
-	varies  bool    // the camera draws a world unit larger in some places than others: a perspective
-	tile    tile    // the tile being dressed
+	cellPx  float32     // how many pixels a cell spans in the frame being drawn, at its zoom (tile.px: where)
+	varies  bool        // the camera draws a world unit larger in some places than others: a perspective
+	pieces  []nearPiece // the pieces of a tile the eye stands among, kept between tiles
+	tile    tile        // the tile being dressed
 
 	ways   []WayPiece   // the pieces of the last tile's Way
 	blends []BlendPiece // the last tile's Blends
@@ -103,18 +104,37 @@ type tile struct {
 	pixelsRead bool
 }
 
-// px is how many pixels a cell spans where the tile is drawn: at its middle, as the camera draws a
-// world unit there — the same over the whole screen but through a perspective, where a tile near
-// the eye is drawn with all its detail and one far off with none.
+// px is how many pixels a cell spans where the tile is drawn nearest the eye: at the corner of its
+// top the camera draws largest, as it draws a world unit there — the same over the whole screen
+// but through a perspective, where a tile near the eye is drawn with all its detail, even one
+// whose middle lies behind the eye, and one far off with none.
 func (t *tile) px() float32 {
 	if !t.pixelsRead {
 		t.pixels, t.pixelsRead = t.r.cellPx, true
 		if cam := t.r.camera; cam != nil && t.r.varies {
-			alt := t.r.topOf(t.ID).alt
-			t.pixels = float32(min(t.r.cellW, t.r.cellH)) * camera.ScaleAt(cam, (t.X0+t.X1)/2, (t.Y0+t.Y1)/2, alt)
+			z := t.r.topOf(t.ID).z
+			scale := float32(0)
+			for k, p := range [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}} {
+				scale = max(scale, camera.ScaleAt(cam, p[0], p[1], z[k]))
+			}
+			t.pixels = float32(min(t.r.cellW, t.r.cellH)) * scale
 		}
 	}
 	return t.pixels
+}
+
+// inFront reports whether every one of the points (x, y) at heights z lies in front of the eye of
+// cam: always but through a perspective, whose eye has points beside and behind it.
+func (l *dresser) inFront(cam camera.Camera, w render.World, z [4]float32) bool {
+	if !l.varies {
+		return true
+	}
+	for k, p := range w {
+		if camera.ScaleAt(cam, p[0], p[1], z[k]) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // baked reports whether tile t is dressed from the ground sheet: the sheet is in use this frame

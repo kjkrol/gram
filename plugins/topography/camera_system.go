@@ -32,6 +32,9 @@ type cameraSystem struct {
 	lookOuts  *control.Queue[LookOut]
 	looks     *control.Queue[Look]
 	relief    *Relief // the ground between a fastened eye and its entity; nil, level
+	// topAt is the top of the cell under a point as it is drawn — the ground and its kind's
+	// Height — which an eye riding in an entity never goes under; nil, the ground
+	topAt     func(geom.Vec) float64
 	selected  plugin.Tag[selection.Family]
 	selecting bool // the selection was given: Follow has a unit to fasten to
 
@@ -69,10 +72,6 @@ const shoulder = 0.25
 // followEase is how long a fastened camera takes to turn most of the way behind its entity: about
 // two thirds of any turn in that time.
 const followEase = 250 * time.Millisecond
-
-// riderLift is how many cells over its entity's top an eye riding in it looks from: clear of the
-// ground the entity walks on.
-const riderLift = 1
 
 // clearStep is by how much a fastened eye in perspective looks down more steeply at a time, until
 // the ground no longer hides its entity.
@@ -310,9 +309,9 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 			base := s.base.Slice(cur)[i]
 			box := base.Pos.AABB
 			cx, cy := (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
-			alt := 0.0
+			alt, top := 0.0, 0.0
 			if zs := s.z.Slice(cur); zs != nil {
-				alt = zs[i].Altitude
+				alt, top = zs[i].Altitude, zs[i].Top()
 			}
 			dir := base.Vel.Dir
 			faces := dir.X != 0 || dir.Y != 0
@@ -339,8 +338,7 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 						f.cam.Turn(by)
 					}
 				}
-				top := alt + box.BottomRight.Y - box.TopLeft.Y
-				f.cam.CenterOn(cx, cy, top+riderLift*float64(f.cam.persp.cell))
+				f.cam.CenterOn(cx, cy, s.riding(cx, cy, top, f.cam.persp.cell)) // on the entity's top
 				return true
 			}
 			if faces {
@@ -437,14 +435,14 @@ func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera) {
 	if dir.X != 0 || dir.Y != 0 {
 		heading = behind(float32(dir.X), float32(dir.Y))
 	}
-	eye[2] += riderLift * cam.persp.cell
+	eye[2] = float32(s.riding(float64(eye[0]), float64(eye[1]), float64(eye[2]), cam.persp.cell))
 	if !cam.enterInside(eye, heading) {
 		return
 	}
 	s.fasten(cb, cam, id, true)
 }
 
-// eyeOf is the top of id — its centre, at its altitude and as high as it is — and the
+// eyeOf is the top of id — its centre, as high as its Z says it stands (world.Z.Top) — and the
 // way it faces, of length 1 or none; false when id is gone.
 func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, dir geom.Vec, ok bool) {
 	s.query.All()
@@ -456,11 +454,11 @@ func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, dir geom.Vec, ok boo
 			}
 			base := s.base.Slice(cur)[i]
 			box := base.Pos.AABB
-			alt := 0.0
+			top := 0.0
 			if zs := s.z.Slice(cur); zs != nil {
-				alt = zs[i].Altitude
+				top = zs[i].Top()
 			}
-			eye = [3]float32{float32((box.TopLeft.X + box.BottomRight.X) / 2), float32((box.TopLeft.Y + box.BottomRight.Y) / 2), float32(alt + box.BottomRight.Y - box.TopLeft.Y)}
+			eye = [3]float32{float32((box.TopLeft.X + box.BottomRight.X) / 2), float32((box.TopLeft.Y + box.BottomRight.Y) / 2), float32(top)}
 			if n := math.Hypot(base.Vel.Dir.X, base.Vel.Dir.Y); n > 0 {
 				dir = geom.NewVec(base.Vel.Dir.X/n, base.Vel.Dir.Y/n)
 			}
@@ -468,6 +466,16 @@ func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, dir geom.Vec, ok boo
 		}
 	}
 	return eye, dir, false
+}
+
+// riding is how high an eye riding in an entity at (x, y) stands: on the entity's top, but never
+// under the top of the cell there as it is drawn — raised by its kind's Height — nor within a hair
+// of it.
+func (s *cameraSystem) riding(x, y, top float64, cell float32) float64 {
+	if s.topAt == nil {
+		return top
+	}
+	return max(top, s.topAt(geom.NewVec(x, y))+float64(cell)/256)
 }
 
 // behind is the heading from which the way (dx, dy) runs up the screen: the eye behind it.

@@ -10,7 +10,7 @@ import (
 // testViews is the topography's camera over a 640 x 640 world drawn to 400 x 300, isometric to
 // begin with, reaching the perspective view when reaches.
 func testViews(reaches bool) *viewCamera {
-	return newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, reaches, nil, nil)
+	return newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, reaches, nil, nil, 0)
 }
 
 // middle is the ground point under the middle of the screen.

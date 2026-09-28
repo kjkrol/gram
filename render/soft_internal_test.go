@@ -2,9 +2,11 @@ package render
 
 import (
 	"image/color"
+	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/gram/camera"
 )
 
 // However large a softly faded piece — one thrown millions of pixels off by a perspective — its
@@ -52,3 +54,37 @@ type blendSheet struct{}
 func (blendSheet) Atlas() *ebiten.Image                     { return nil }
 func (blendSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (blendSheet) White() (u, v float32)                    { return 9, 9 }
+
+// eyed is a camera with an eye at the origin, 10 up.
+type eyed struct{ camera.Camera }
+
+func (eyed) Eye() (float32, float32, float32, bool) { return 0, 0, 10, true }
+
+// The air hides what lies far off as it thickens with distance, through a camera with an eye in
+// air that does not go on without end; a hazed plain sprite reads it in its alpha, over 1 and
+// under an overlay's mark.
+func TestHaze_GrowsWithDistanceAndTheSpriteReadsIt(t *testing.T) {
+	var f Frame
+	f.Reset(eyed{})
+	if h := f.Haze(100, 0, 10); h != 0 {
+		t.Fatalf("in air without end the haze is %v, want 0", h)
+	}
+	f.Weather(Weather{Visibility: 100})
+	near, far := f.Haze(10, 0, 10), f.Haze(300, 0, 10)
+	if near <= 0 || near >= far || far >= 1 || math.Abs(float64(f.Haze(100, 0, 10))-(1-math.Exp(-1))) > 1e-6 {
+		t.Errorf("the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the visibility", near, f.Haze(100, 0, 10), far)
+	}
+	f.Sprite(Ground, 0, blendSheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}, Even(1))
+	f.Hazed([4]float32{0, 0.5, 1, 2})
+	f.Each(func(_ Tier, _ float32, v []ebiten.Vertex) {
+		if v[0].ColorA != 1 || v[1].ColorA != 1+hazeSpan/2 || v[3].ColorA != 1+hazeSpan || v[3].ColorA >= overlayMark-0.5 {
+			t.Errorf("the hazed sprite's alphas are %v %v %v %v, want 1, 1 + half the span, 1 + all of it, under the overlays' 1.5", v[0].ColorA, v[1].ColorA, v[2].ColorA, v[3].ColorA)
+		}
+	})
+	var g Frame
+	g.Reset(nil)
+	g.Weather(Weather{Visibility: 100})
+	if h := g.Haze(1000, 0, 0); h != 0 {
+		t.Errorf("through a camera without an eye the haze is %v, want 0", h)
+	}
+}

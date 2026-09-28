@@ -53,7 +53,8 @@
 // # Occupancy
 //
 // [Occupancy] tracks who holds each cell and in which domains, gating and recording every step
-// navigation takes: [SingleOccupancy] lets one entity per domain into a cell (a walker and a
+// navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart by
+// their boxes leave it unasked): [SingleOccupancy] lets one entity per domain into a cell (a walker and a
 // hawk share one, two walkers do not), [MultipleOccupancy] any number — tokens on a square, which
 // carry no Physics, since bodies cannot overlap. A Solid cell stops only whoever its kind keeps
 // out, so a wall admitting Air lets a flyer over.

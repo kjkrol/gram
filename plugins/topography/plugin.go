@@ -104,16 +104,26 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	p.dresser.kinds = boardPlugin.CellKindDict()
 	boardPlugin.WithMap(p)
 	worldPlugin.SetGround(p.relief)
-	ground := func(x, y float32) float32 { return float32(p.relief.GroundAt(geom.NewVec(float64(x), float64(y)))) }
+	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) {
 		low, high := p.relief.Extent()
 		return float32(low), float32(high)
 	}
 	worldPlugin.SetCameras(func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
-		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent)
+		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent, float32(worldPlugin.Scale().Bend()))
 	})
 	worldPlugin.SetLook(worldLook{flat: worldPlugin.FlatLook()})
 	return p
+}
+
+// topAt is the top of the cell under at as it is drawn: the ground there and its kind's Height.
+func (p *Plugin) topAt(at geom.Vec) float64 {
+	top := p.relief.GroundAt(at)
+	brd := p.boardPlugin.Res.Logic.Board
+	if c, ok := brd.CellAt(at); ok {
+		top += brd.Kind(c).Height
+	}
+	return top
 }
 
 // Relief is the ground's heights, to read and shape from a game's code.
@@ -207,7 +217,7 @@ func (p *Plugin) Name() string { return "gram.topography" }
 // Install wires the heights' entity, the cameras, the shaping and the altitudes.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	cams := &cameraSystem{turns: &p.turns, tilts: &p.tilts, follows: &p.follows, drives: &p.drives, views: &p.views,
-		lookFroms: &p.lookFroms, lookAts: &p.lookAts, lookOuts: &p.lookOuts, looks: &p.looks, relief: p.relief}
+		lookFroms: &p.lookFroms, lookAts: &p.lookAts, lookOuts: &p.lookOuts, looks: &p.looks, relief: p.relief, topAt: p.topAt}
 	if p.selection != nil {
 		cams.selected, cams.selecting = p.selection.Tags().Selected, true
 	}

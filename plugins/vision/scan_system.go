@@ -34,6 +34,11 @@ type ScanSystem struct {
 	groundAt func(geom.Vec) float64
 	step     float64
 	grounded bool
+	// On a world with a Scale the ground and what stands on it sink under the observer's level
+	// bend·d², d how far off: sunk is the ground so, for the observer at ox, oy.
+	bend   float64
+	sunk   func(geom.Vec) float64
+	ox, oy float64
 
 	// coverOf resolves the world's Cover at first use; covering walks it for the observer in hand
 	// and holds its Blockers.
@@ -115,10 +120,17 @@ func (s *ScanSystem) elevation(id uid.UID64) (bottom, top float64) {
 		return 0, 0
 	}
 	s.lookupHot = false
-	if z := s.lookupZ.At(s.lookup.Cursor()); z != nil {
-		return z.Altitude, z.Top()
+	cur := s.lookup.Cursor()
+	sink := 0.0
+	if s.bend > 0 { // sunk under the observer's level as far off as it stands
+		c := s.lookupBase.At(cur).Pos.AABB
+		dx, dy := (c.TopLeft.X+c.BottomRight.X)/2-s.ox, (c.TopLeft.Y+c.BottomRight.Y)/2-s.oy
+		sink = s.bend * (dx*dx + dy*dy)
 	}
-	return 0, 0
+	if z := s.lookupZ.At(cur); z != nil {
+		return z.Altitude - sink, z.Top() - sink
+	}
+	return -sink, -sink
 }
 
 // ground binds the world's Ground once, when the board has had its say.
@@ -133,6 +145,20 @@ func (s *ScanSystem) ground() {
 			s.step = g.Step()
 		}
 	}
+	if s.bend > 0 {
+		s.sunk = s.sunkGround
+	}
+}
+
+// sunkGround is the ground at p as the observer in hand sees it: sunk under its level as far off
+// as p lies.
+func (s *ScanSystem) sunkGround(p geom.Vec) float64 {
+	g := 0.0
+	if s.groundAt != nil {
+		g = s.groundAt(p)
+	}
+	dx, dy := p.X-s.ox, p.Y-s.oy
+	return g - s.bend*(dx*dx+dy*dy)
 }
 
 func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
@@ -165,6 +191,9 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		for i, id := range cursor.IDs {
 			sight := &sights[i]
 			s.covering.blockers = sight.Blockers
+			box := bases[i].Pos.AABB
+			s.ox, s.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
+			s.covering.ox, s.covering.oy = s.ox, s.oy
 			altitude := 0.0
 			if zs != nil {
 				altitude = zs[i].Altitude
@@ -237,6 +266,9 @@ func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 		panic("vision: Sight.Blockers in a Quasi3D world; layers cut sight only in a flat one")
 	}
 	c.Eye, c.Elevation, c.Ground, c.GroundStep = altitude+sight.Eye, s.elev, s.groundAt, s.step
+	if s.sunk != nil {
+		c.Ground = s.sunk
+	}
 	return c
 }
 
@@ -244,10 +276,31 @@ func (s *ScanSystem) cone(sight *Sight, altitude float64) aabbworld.Cone {
 type covering struct {
 	cover    world.Cover
 	blockers world.Layers
+	// bend sinks the cover under the observer's level at ox, oy as far off as it stands: visit is
+	// the walk's own, sunk the step handed to the cover in its place
+	bend   float64
+	ox, oy float64
+	visit  func(near, far, bottom, top, tau float64) bool
+	sunk   func(near, far, bottom, top, tau float64) bool
 }
 
 func (c *covering) Walk(origin, dir geom.Vec, length float64, visit func(near, far, bottom, top, tau float64) bool) {
-	c.cover.Walk(origin, dir, length, c.blockers, visit)
+	if c.bend <= 0 {
+		c.cover.Walk(origin, dir, length, c.blockers, visit)
+		return
+	}
+	if c.sunk == nil {
+		c.sunk = c.sink
+	}
+	c.visit = visit
+	c.cover.Walk(origin, dir, length, c.blockers, c.sunk)
+}
+
+// sink hands the walk's visit a stretch of cover sunk as far off as its middle lies.
+func (c *covering) sink(near, far, bottom, top, tau float64) bool {
+	m := (near + far) / 2
+	d := c.bend * m * m
+	return c.visit(near, far, bottom-d, top-d, tau)
 }
 
 // record keeps the nearest MaxSeen entities of view.

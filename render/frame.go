@@ -97,10 +97,12 @@ func (f *Frame) Reset(cam camera.Camera) {
 }
 
 // Weather is the air over the world as a frame needs it: the wind, world units a second along x
-// and y, how far it has carried the clouds and how much of the sky they cover, 0 to 1.
+// and y, how far it has carried the clouds and how much of the sky they cover, 0 to 1, and how far
+// one sees through it, world units, 0 without end.
 type Weather struct {
 	Wind, Drift [2]float32
 	Clouds      float32
+	Visibility  float32
 }
 
 // Weather sets the frame's weather; the source that draws the ground says so, and a frame without
@@ -515,6 +517,47 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 	}
 	f.add(tier, depth, nil, fan, len(pts))
 }
+
+// Haze is how much of what lies at the world point (x, y, z) the air hides, 0 to 1: 1 − e^(−d/v),
+// d its distance from the eye of the frame's camera (camera.Eyed) and v the weather's Visibility;
+// 0 through a camera without an eye or in air without end.
+func (f *Frame) Haze(x, y, z float32) float32 {
+	v := f.weather.Visibility
+	if v <= 0 || f.cam == nil {
+		return 0
+	}
+	e, ok := f.cam.(camera.Eyed)
+	if !ok {
+		return 0
+	}
+	ex, ey, ez, ok := e.Eye()
+	if !ok {
+		return 0
+	}
+	d := math.Sqrt(float64((x-ex)*(x-ex) + (y-ey)*(y-ey) + (z-ez)*(z-ez)))
+	return float32(1 - math.Exp(-d/float64(v)))
+}
+
+// Hazed has the last plain Sprite, Tile or SpritePart added turn to the sky's colour as much as
+// haze says at each corner (Haze), as the air far off does; nothing where all of it is 0.
+func (f *Frame) Hazed(haze [4]float32) {
+	if haze == ([4]float32{}) || f.lastRect || len(f.verts) < f.lastFirst+4 {
+		return
+	}
+	v := f.verts[f.lastFirst : f.lastFirst+4]
+	for i := range v {
+		if v[i].ColorA != 1 {
+			return // not a plain sprite: a glaze, a blend, an overlay
+		}
+	}
+	for i := range v {
+		v[i].ColorA = 1 + hazeSpan*min(max(haze[i], 0), 1)
+	}
+}
+
+// hazeSpan is how far over 1 a plain sprite's alpha goes for all the haze there is: under an
+// overlay's mark (1.5), which the shader tells apart.
+const hazeSpan = 0.49
 
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it. However
 // large the quad, its fades never read as a blended sprite's mark (softCap under blendMark).

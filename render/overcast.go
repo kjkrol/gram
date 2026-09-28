@@ -3,7 +3,6 @@ package render
 import (
 	_ "embed"
 	"math"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -14,9 +13,6 @@ var overcastKage []byte
 // cloudShadow is the material of the clouds' shadows over the ground (overcast.kage), the first
 // registered: the water's materials call its functions.
 var cloudShadow = RegisterMaterials(overcastKage, "CloudShadow")[0]
-
-// TEMP-MEASURE: GRAM_NO_CLOUDS=1 leaves the clouds' shadows out.
-var noClouds = os.Getenv("GRAM_NO_CLOUDS") == "1"
 
 // CloudShadow is the material of the clouds' shadows, for a test telling its overlays apart.
 func CloudShadow() MaterialID { return cloudShadow }
@@ -130,7 +126,7 @@ func (f *Frame) OvercastQuad(tier Tier, depth float32, dst Corners, w World, clo
 
 // overcast reports whether a piece under clouds of noise cloud needs the shadows laid this frame.
 func (f *Frame) overcast(cloud [4]float32) bool {
-	return f.Clouds() > 0 && !noClouds && Shadowed(cloud, f.Clouds())
+	return f.Clouds() > 0 && Shadowed(cloud, f.Clouds())
 }
 
 // Material lays o on its own, over nothing: the screen quad dst for o's material to work out,

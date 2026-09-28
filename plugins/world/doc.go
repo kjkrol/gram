@@ -32,6 +32,17 @@
 // [Driven] marks an entity steered by hand — walk on or stop, turn, or turn to face a way — written every tick by whoever
 // steers it and carried out by the plugin that moves entities over the ground (navigation).
 //
+// # Scale
+//
+// [Config].Scale ([Scale]) says how many metres a world unit spans, across and up alike. Without
+// one the world is a board: flat as far as the eye goes, the air clear. With one it is a stretch
+// of the Earth's surface: a line of sight bends over it — the ground d off sinks [Scale.Drop],
+// (1 − [Refraction])·d²/(2·[EarthRadius]), under an eye's level, so level ground past
+// [Scale.Horizon] is out of sight — and the air thickens with distance: [Weather].Visibility,
+// worked out of the weather by [Plugin.SetWeather] when the weather leaves it 0 ([ClearAir] under
+// a clear sky, less in cloud, rain and snow). A game gives heights, sizes and reaches in metres
+// through [Scale.Units]; sight (plugins/vision) and the topography's perspective read the rest.
+//
 // # Kinds, Seed and Populate
 //
 // [Plugin.Kinds] is the registry kind.Define registers with; [Kinds] also issues atlas slots no
@@ -86,9 +97,9 @@
 // [Renderer] over an atlas, and the Each behaviors of a [Drawing] registered on the plugin settle
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
 // ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
-// entities in the camera's [View] and nothing else, each laid on the screen by the world's [Look]:
-// from above its box, unless a view plugin ([Plugin.SetLook], plugins/topography) stands it up as a
-// billboard. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
+// entities in the camera's [View] and nothing else, each laid on the screen by the world's [Look]
+// with its box and its [Z] — where it stands and how tall — from above its box, unless a view
+// plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
 // ([Plugin.SetCameras], [Cameras]).
 //
 // # Sun

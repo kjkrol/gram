@@ -185,12 +185,10 @@ func (e *Engine) Update() error {
 	}
 
 	steps := e.timeTracker.calculateSteps(e.step, maxStepsAFrame)
-	ticking := time.Now() // TEMP-MEASURE
 	for range steps {
 		e.current.host.ecs.Tick(e.step)
 		e.ticks++
 	}
-	measureTicks(time.Since(ticking), steps) // TEMP-MEASURE
 	if e.current.world != nil {
 		e.current.world.Clock().Behind(steps == maxStepsAFrame)
 	}
@@ -207,7 +205,6 @@ func (e *Engine) Update() error {
 const maxStepsAFrame = 5
 
 func (e *Engine) Draw(screen *ebiten.Image) {
-	defer measureDraw(time.Now()) // TEMP-MEASURE
 	if e.pendingSwitch != "" {
 		e.transitionOverlay.Draw(screen)
 		return

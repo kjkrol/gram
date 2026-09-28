@@ -256,7 +256,7 @@ func TestNavigation_RunsThroughQueuedGoalsWithoutStopping(t *testing.T) {
 	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, world.Steering{}, true)
 	mid, last := pw.cellAt(3, 0), pw.cellAt(6, 0)
 	mt := MoveOrder{Target: mid}
-	mt.Enqueue(last)
+	mt.Enqueue(Goal{Cell: last})
 	pw = newProfiledWorld(t, 8, 1, pw.cellAt(0, 0), mt, world.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
 
 	passedMid := false
@@ -304,7 +304,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(26, 8, 4)} // past cell 2's centre plane, off its centre
 		mt := MoveOrder{Target: at(2), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Length = at(2), 1
-		mt.Enqueue(at(5))
+		mt.Enqueue(Goal{Cell: at(5)})
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = world.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {

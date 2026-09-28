@@ -30,7 +30,10 @@
 // source hands its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: a sprite
 // ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft
 // sides ([Frame.Line]), a fan ([Frame.Fan]) or a quad fading towards chosen sides ([Frame.Soft]).
-// A sprite is drawn in a [Shade], a [Light] — red, green, blue — at each corner. Tiers are drawn in
+// A sprite is drawn in a [Shade], a [Light] — red, green, blue — at each corner; through a
+// camera with an eye (camera.Eyed), in air that does not go on without end
+// ([Weather].Visibility), [Frame.Haze] is how much of a point far off the air hides and
+// [Frame.Hazed] has the sprite just added turn to the sky's colour so. Tiers are drawn in
 // order — [Backdrop], [Ground], [Objects], [Overlays], [Marks], with room between for a
 // game's own — and when the camera's projection sorts, everything below Marks is drawn back to
 // front by depth, ties by tier, so a mountain hides the route and the cone behind it while the

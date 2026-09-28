@@ -47,9 +47,15 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	near := outlined * (1 - smoothstep(0, 1, clamp(-custom-1, 0, 1)))
 	edge := max(max(near.x, near.y), max(near.z, near.w))
 
-	c := imageSrc0At(src) * color * f
-	return vec4(c.rgb*(1-outlineDark*edge), c.a)
+	// a plain sprite far off in the air (alpha 1 plus a hazeSpan of its haze) turns to the sky
+	haze := clamp((color.a-1)/hazeSpan, 0, 1)
+	c := imageSrc0At(src) * vec4(color.rgb, min(color.a, 1)) * f
+	rgb := c.rgb * (1 - outlineDark*edge)
+	return vec4(mix(rgb, overcastSky()*c.a, haze), c.a)
 }
+
+// hazeSpan is how far over 1 a plain sprite's alpha goes for all the haze there is (Frame.Hazed).
+const hazeSpan = 0.49
 
 // faded is how much of a sprite shows by the fades its custom asks for: 1 where it asks none.
 func faded(custom vec4) float {

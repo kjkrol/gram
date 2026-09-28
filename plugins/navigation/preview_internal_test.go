@@ -15,8 +15,8 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	r := &PathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &board.SingleOccupancy{})}
 
 	mt := MoveOrder{Target: at(2)}
-	mt.Enqueue(at(5))
-	mt.Enqueue(at(7))
+	mt.Enqueue(Goal{Cell: at(5)})
+	mt.Enqueue(Goal{Cell: at(7)})
 	routes := r.queued(uid.UID64(1), board.Land, &mt)
 
 	if len(routes) != 2 {
@@ -38,7 +38,7 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	if &again[0][0] != &routes[0][0] {
 		t.Error("unchanged goals were planned again instead of reusing the kept routes")
 	}
-	mt.Enqueue(at(9))
+	mt.Enqueue(Goal{Cell: at(9)})
 	if fresh := r.queued(uid.UID64(1), board.Land, &mt); len(fresh) != 3 {
 		t.Errorf("after another goal got %d routes, want 3", len(fresh))
 	}

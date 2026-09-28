@@ -41,7 +41,7 @@ func (p *Plugin) Name() string { return "gram.vision" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
 	if p.worldPlugin.Quasi3D() {
-		h = &heights{groundOf: p.worldPlugin.Ground, step: p.groundStep}
+		h = &heights{groundOf: p.worldPlugin.Ground, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.worldPlugin.Cover)
 	p.module.clock = p.worldPlugin.Clock()
