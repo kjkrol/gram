@@ -17,10 +17,10 @@ type pathFinder struct {
 	least     float64 // the cheapest a step may be for the domain being planned, per unit of Distance
 }
 
-// slopes prices a step's climb: the board's; nil is level ground.
+// slopes prices a step's climb: the board's Map; nil is level ground.
 type slopes interface {
 	Climb(from, to board.CellID, d board.Domain) float64
-	Climbing() board.Climbing
+	Least(d board.Domain) float64
 }
 
 // newPathFinder builds a pathFinder over grid that respects terrain, its slopes and occupancy.
@@ -37,9 +37,7 @@ func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to bo
 	// a kind costs at least 1 (full speed), or the estimate would overshoot.
 	p.least = 1
 	if p.slopes != nil {
-		if c := p.slopes.Climbing(); c.Feels(domain) {
-			p.least = c.Least()
-		}
+		p.least = p.slopes.Least(domain)
 	}
 	full := p.solver.Solve(from, to, p.transitionsFor(entity, domain))
 	if len(full) < 2 {

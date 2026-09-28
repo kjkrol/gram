@@ -71,6 +71,7 @@ type mainStage struct {
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	shortcuts *players.Shortcuts
 	red, blue kind.Of[unit]
 	// under is the cell each unit stood on last tick — where H opens a trapdoor.
 	under map[uid.UID64]board.CellID
@@ -129,7 +130,27 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineKinds()
 
 	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
+	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
+	main.keys = players.SceneKeys{
+		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: ebiten.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
+			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
+			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
+		}},
+		{Key: ebiten.KeyH, Label: "Open the trapdoors", Do: func(game.Runtime, game.Composition) { s.openTrapdoors() }},
+		{Key: ebiten.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
+			s.state.Saves++
+			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
+				log.Printf("save: %v", err)
+				return
+			}
+			log.Printf("saved (save #%d)", s.state.Saves)
+		}},
+	}
+	s.shortcuts = s.players.Shortcuts(main.keys)
+	stack, err := game.NewStack(main, s.shortcuts)
 	if err != nil {
 		return err
 	}
@@ -239,7 +260,10 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	keys  players.SceneKeys
+}
 
 var _ game.Scene = (*mainScene)(nil)
 
@@ -282,33 +306,8 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	s := m.stage
-	s.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case ebiten.KeyEscape:
-			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyB:
-			s.board.Res.Render.ToggleShowGridLines()
-		case ebiten.KeyR:
-			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
-			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
-		case ebiten.KeyH:
-			s.openTrapdoors()
-		case ebiten.KeyF5:
-			s.state.Saves++
-			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {
-				log.Printf("save: %v", err)
-				continue
-			}
-			log.Printf("saved (save #%d)", s.state.Saves)
-		}
-	}
+	m.stage.players.EventHandler().HandleEvents(events)
+	m.keys.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

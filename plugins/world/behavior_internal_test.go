@@ -67,7 +67,7 @@ func tickWorld(t *testing.T, wm *module) []float64 {
 		query = si.NewQueryBuilder(&base).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(wm.RunPlan)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
 	ecs.Tick(time.Second / 10)
 
 	var xs []float64

@@ -173,7 +173,7 @@ func (e *Engine) Update() error {
 
 	e.controller.Capture(e.inputs)
 	for _, k := range e.inputs.KeyEvents {
-		if k.Key == ebiten.KeyF && k.Action == control.ActionPress && e.inputs.Modifiers.Shift {
+		if k.Key == ebiten.KeyF11 && k.Action == control.ActionPress {
 			e.ToggleFullscreen()
 		}
 	}
@@ -184,10 +184,15 @@ func (e *Engine) Update() error {
 		return nil
 	}
 
-	steps := e.timeTracker.calculateSteps(e.step, 5)
+	steps := e.timeTracker.calculateSteps(e.step, maxStepsAFrame)
+	ticking := time.Now() // TEMP-MEASURE
 	for range steps {
 		e.current.host.ecs.Tick(e.step)
 		e.ticks++
+	}
+	measureTicks(time.Since(ticking), steps) // TEMP-MEASURE
+	if e.current.world != nil {
+		e.current.world.Clock().Behind(steps == maxStepsAFrame)
 	}
 
 	if e.timeTracker.processStatsInterval() {
@@ -198,7 +203,11 @@ func (e *Engine) Update() error {
 	return nil
 }
 
+// maxStepsAFrame is how many ticks one frame catches up on at most; past it the engine is behind.
+const maxStepsAFrame = 5
+
 func (e *Engine) Draw(screen *ebiten.Image) {
+	defer measureDraw(time.Now()) // TEMP-MEASURE
 	if e.pendingSwitch != "" {
 		e.transitionOverlay.Draw(screen)
 		return

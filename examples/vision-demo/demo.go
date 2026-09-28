@@ -269,8 +269,6 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 		switch k.Key {
 		case ebiten.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
 		case ebiten.KeyA:
 			m.stage.avoiding = !m.stage.avoiding
 			m.stage.avoidance.SetEnabled(m.stage.avoiding)

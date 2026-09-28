@@ -3,8 +3,10 @@ package engine
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -51,7 +53,17 @@ func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 		}
 	}
 
-	host.ecs.SetPlan(stage.Update)
+	// the game's Update lays the tick out; the world's clock then replays what simulates as many
+	// times as its tempo says, none in the tactical pause
+	if ctx.world != nil {
+		clk := ctx.world.Clock()
+		host.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+			stage.Update(rc, d)
+			clk.Replay(rc, d)
+		})
+	} else {
+		host.ecs.SetPlan(stage.Update)
+	}
 
 	sceneLayers := make(map[string][]render.Layer)
 	for _, sc := range stage.Stack().All() {

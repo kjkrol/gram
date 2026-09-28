@@ -2,9 +2,9 @@ package board
 
 import (
 	"fmt"
+	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -31,11 +31,9 @@ type Plugin struct {
 
 	occupancy Occupancy
 	renderer  *Renderer
-	look      Look
-	dressing  Dressing
 	kinds     *cellKindDict
 	seeded    *Layout
-	shaping   shaping
+	mapping   Map
 
 	worldPlugin *world.Plugin
 	module      *module
@@ -44,9 +42,9 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
-var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds a board over grid with the given occupancy cap, slowing worldPlugin's entities.
+// It is drawn and priced by the simple map until WithMap sets another.
 func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugin {
 	terrain := NewTerrainMap()
 	kind.Require[Cell](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
@@ -56,14 +54,11 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 		worldPlugin: worldPlugin,
 		kinds:       newCellKindDict(worldPlugin.Quasi3D()),
 	}
-	w, h := grid.CellBounds()
-	p.shaping.cfg = Shaping{Step: min(w, h) / 4}
 	brd := NewBoard(grid, terrain)
 	p.Res.Logic.Board = brd
 	brd.quasi3D = worldPlugin.Quasi3D()
-	if brd.quasi3D {
-		worldPlugin.SetGround(brd)
-	}
+	p.mapping = newSimpleMap(brd, worldPlugin.Sun, worldPlugin.Sunlit)
+	brd.mapping = p.mapping
 	worldPlugin.SetCover(brd)
 	worldPlugin.SetField(brd)
 	if ws, ok := p.Res.Logic.Board.Grid.(wrapSetter); ok {
@@ -85,26 +80,50 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities and the standing report.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:    newCellSystem(p.Res.Logic.Board, &p.shaping),
+		cells:    newCellSystem(p.Res.Logic.Board),
 		standing: newStandingSystem(p.Res.Logic.Board, &p.standing),
-	}
-	if p.worldPlugin.Quasi3D() {
-		p.module.altitude = newAltitudeSystem(p.Res.Logic.Board)
+		clock:    p.worldPlugin.Clock(),
 	}
 	ctx.UseModule(p.module)
 	return nil
 }
 
-// RunPlan shapes the ground, notices what effects did to the cells and reports where everyone
+// RunPlan, in the simulation, notices what effects did to the cells and reports where everyone
 // stands; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas.
+// WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas — or,
+// given nil, from the board's own atlas of the kinds' Colors and drawn sprites (DefaultAtlas).
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
+	if atlas == nil {
+		atlas = p.DefaultAtlas()
+	}
 	p.Res.Render = &RenderState{ShowGridLines: true}
-	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Look, p.worldPlugin.Sun)
+	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map, p.worldPlugin.Sun)
+	p.renderer.sunlit = p.worldPlugin.Sunlit
 	p.renderer.weather = p.worldPlugin.Weather
-	p.renderer.dressed = func() Dressing { return p.dressing }
+}
+
+// DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
+// (CellKindDict.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
+// created.
+func (p *Plugin) DefaultAtlas() render.AtlasSource {
+	w, h := p.Res.Logic.Board.CellBounds()
+	size := int(math.Ceil(max(w, h)))
+	atlas := render.NewAtlas()
+	for _, k := range p.kinds.All() {
+		if draw, ok := p.kinds.drawers[k.Name]; ok {
+			atlas.RegisterAt(k.SpriteID, size, draw)
+			continue
+		}
+		c := k.Color
+		if c.A == 0 {
+			c.R, c.G, c.B, c.A = 128, 128, 128, 255
+		}
+		atlas.RegisterAt(k.SpriteID, size, render.Solid(c))
+	}
+	atlas.Close()
+	return atlas
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -121,8 +140,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior hosts an Each or Every of Standing, run every tick for every entity on the board;
-// register before Use.
+// RegisterBehavior hosts an Each or Every of Standing, run every step for every entity on the
+// board; register before Use.
 func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 	for _, b := range behaviors {
 		if err := p.standing.Add(b); err != nil {
@@ -136,64 +155,35 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 // board-specific
 // =================================================================
 
-// SetDressing has the board's tiles lit and dressed by d beyond their sprites: a landscape's
-// (plugins/landscape).
-func (p *Plugin) SetDressing(d Dressing) { p.dressing = d }
-
-// SetLook has the board's cells drawn by look: a view plugin's.
-func (p *Plugin) SetLook(look Look) { p.look = look }
-
-// Look is how the board's cells lie on the screen: flat, from above, unless a view plugin set one.
-func (p *Plugin) Look() Look {
-	if p.look == nil {
-		return flatLook{}
-	}
-	return p.look
+// WithMap has the board drawn and priced by m — a topography's — in place of the simple map.
+// Call before Use.
+func (p *Plugin) WithMap(m Map) *Plugin {
+	p.mapping = m
+	p.Res.Logic.Board.mapping = m
+	return p
 }
 
-// CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Relief] for as long as the
-// board lives, so an effect cast on it is an effect on the cell's terrain; false off the board or
-// before Setup.
+// Map is what the board is drawn and priced by: the simple map unless WithMap set another.
+func (p *Plugin) Map() Map { return p.mapping }
+
+// Top is the Map's: the height of c's corners as drawn and of its ground, for whoever lays
+// something on the tiles.
+func (p *Plugin) Top(c CellID) (corners [4]float32, level float32) { return p.mapping.Top(c) }
+
+// Climb is the Map's: how many times as long the step from one cell to its neighbour takes
+// whoever moves in d as on the flat.
+func (p *Plugin) Climb(from, to CellID, d Domain) float64 { return p.mapping.Climb(from, to, d) }
+
+// Least is the Map's: the smallest Climb for d.
+func (p *Plugin) Least(d Domain) float64 { return p.mapping.Least(d) }
+
+// Slope is the Map's: how many times as long moving at at towards dir takes whoever moves in d.
+func (p *Plugin) Slope(at, dir geom.Vec, d Domain) float64 { return p.mapping.Slope(at, dir, d) }
+
+// CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
+// long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
+// the board or before Setup.
 func (p *Plugin) CellEntity(c CellID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
-
-// WithShaping sets how the Raise, Lower and Level commands move the ground; by default a Step of
-// a quarter of a cell's shorter side and any slope. Call before Use.
-func (p *Plugin) WithShaping(s Shaping) *Plugin {
-	p.shaping.cfg = s
-	return p
-}
-
-// WithClimbing sets how slopes slow a climb and speed a descent, on the move and in the planner's
-// reckoning; DefaultClimbing unless set. Call before Use.
-func (p *Plugin) WithClimbing(c Climbing) *Plugin {
-	p.Res.Logic.Board.SetClimbing(c)
-	return p
-}
-
-// Queues are where Raise, Lower and Level land in a Quasi3D world; none in a flat one.
-func (p *Plugin) Queues() []control.CommandQueue {
-	if !p.worldPlugin.Quasi3D() {
-		return nil
-	}
-	return []control.CommandQueue{&p.shaping.raise, &p.shaping.lower, &p.shaping.level}
-}
-
-// DefaultBindings in a Quasi3D world: = raises and - lowers the ground under the cursor, a left
-// drag with L held levels it to where the drag began.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	if !p.worldPlugin.Quasi3D() {
-		return nil
-	}
-	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
-	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
-		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{}.Holding(ebiten.KeyL)}, "Level the ground",
-			func(c control.Context) (Level, bool) {
-				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
-			}),
-	}
-}
 
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() Occupancy { return p.occupancy }
@@ -204,8 +194,8 @@ func (p *Plugin) CellKindDict() CellKindDict { return p.kinds }
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 
-// Populate applies the seeded Layout, kinds and heights, changing nothing and erroring on an
-// unknown kind name.
+// Populate applies the seeded Layout, kinds, ways and crossings, changing nothing and erroring on
+// an unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
@@ -264,9 +254,6 @@ func (p *Plugin) Populate() error {
 	}
 	for i, e := range p.seeded.Crossings {
 		brd.SetCrossing(e.Cell, crossings[i])
-	}
-	if p.seeded.Heights != nil {
-		brd.SetHeights(p.seeded.Heights)
 	}
 	p.seeded = nil
 	return nil

@@ -34,9 +34,9 @@ make demo-navigation-hex                                           # the same on
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
-make demo-island                                                   # a map larger than the window under a moving camera
-make demo-island-25                                                # the island in Quasi3D from above: a map in relief, sight with heights
-make demo-island-isometric                                         # the island in Quasi3D through an isometric camera: relief, billboards
+make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
+make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
+make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -138,33 +138,47 @@ half of it.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite, where
 it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, handed as a
-`board.Tile` with its box, sprite and the heights of its top and its neighbours'), both flat from
-above by default. The isometric view is a plugin a game adds: `isometry.NewPlugin(world, Config{Cell,
-TileW, TileH, HeightUnit, Headroom})`, made right after the world, sets the world's camera factory
-(`world.SetCameras`; `camera.Config` has no projection) and its Look (billboards), and
-`WithBoard(board)` the board's (blocks with the faces turned towards the eye); it refuses a
-wrapping world. Its camera turns by any angle (heading saved with the camera): the projection turns
-the ground frame from the 2:1 view, Depth is how far down the screen the middle of the cell lies
-(every point of a cell ties with its tile), Toward follows the heading. The plugin is a
-CommandHandler with a RunPlan (after the world, before players): `Turn{Camera, Angle}` (Q/E held,
-`TurnStep` 2° a tick) and `Follow{Camera}` (V, bound only `WithSelection(sel)`, which hands it the
-Selected tag as navigation takes it: fastens the camera behind the one selected unit — centred,
-turned with an ease of `followEase` until its `Vel.Dir` runs up the screen — held through other
-selections, orders, pans and turns until V again or the unit is gone), `Tilt{Camera, Angle}`
-(PageUp/PageDown, 1° a tick; the projection's `Pitch` from 10° to 90°, the 2:1 view at
-asin(TileH/TileW), scaling the ground down the screen by sin and heights by cos; saved with the
-camera; a fastened camera pans its unit `shoulder`·cos(pitch) of the screen below the middle) and
-`Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `world.Driven` on V, writes the
-keys every tick, writes a stop and detaches it on letting go; navigation's `driveSystem`, after
-the orders, turns `driveTurn` a tick, walks on while the cell just ahead admits the domain and the
-occupancy, stops dead otherwise, removes a MoveOrder a hand touches and keeps Cell, occupancy and
-CellEntered with the unit). Commands carry
-`control.Context.Camera`, as `selection.Follow` does, so the plugin never knows players; which
-camera is fastened to what is the camera system's state, cameras being no entities. selection
-must not import isometry, even in tests (isometry imports selection). Everything that is
-the isometric view and nothing else — the projection, the camera, the billboard, the blocks and
+`board.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
+and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `Climb`, `Least`,
+`Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
+`CellKind.Color` or drawn sprite (`CellKindDict.Draw`; `WithRenderer(nil)` draws from
+`DefaultAtlas`), the ways and crossings as plain bands (`simpleDressing`), a step at its kind's
+cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
+Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
+the world and the board, sets the world's camera factory (`world.SetCameras`; `camera.Config` has no
+projection), its Look (`worldLook`: billboards isometrically, the world's `FlatLook` from above),
+the board's Map (`boardLook`: blocks with the faces turned towards the eye, or `board.FlatLook`)
+and the world's Ground (its `Relief`); it refuses a flat or a wrapping world. One camera, two
+views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
+sorting); `View{Camera}` (Tab) flips it keeping the ground point in the middle and a cell as wide
+(zoom × Cell/TileW); the view is saved with the camera. The isometric camera turns by any angle
+(heading saved with the camera): the projection turns the ground frame from the 2:1 view, Depth is
+how far down the screen the middle of the cell lies (every point of a cell ties with its tile),
+Toward follows the heading. The plugin is a CommandHandler with a RunPlan (after the world, before
+players; the cameras and the shaping at once, the altitudes in the simulation): `Turn{Camera,
+Angle}` (Q/E held, `TurnStep` 2° a tick), `Tilt{Camera, Angle}` (R/F held, 1° a tick; the
+projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scaling the ground down
+the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
+`shoulder`·cos(pitch) of the screen below the middle), `LookOut{Camera}` (V given `WithSelection`
+and `Config.Perspective`: rides in the selected unit, first person — the camera a `camera.Rider`,
+bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive`, the mouse `Look` (`control.CursorMove`,
+cursor captured by players; across turns the view and the unit via `world.Driven.Face`, up/down the
+head), V/Tab leave back to the view it was in; the eye `riderLift` a cell over the unit's top; Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
+without the perspective, bound only `WithSelection(sel)`, which hands it the Selected tag as
+navigation takes it: fastens the camera
+behind the one selected unit — centred, turned with an ease of `followEase` until its `Vel.Dir`
+runs up the screen — held through other selections, orders, pans and turns until V again or the
+unit is gone), `Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `world.Driven` on
+V, writes the keys every tick, writes a stop and detaches it on letting go; navigation's
+`driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
+admits the domain and the occupancy, stops dead otherwise, removes a MoveOrder a hand touches and
+keeps Cell, occupancy and CellEntered with the unit) and `Raise`/`Lower`/`Level` (=, -, L-drag).
+Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
+players; which camera is fastened to what is the camera system's state, cameras being no entities.
+selection must not import topography, even in tests (topography imports selection). Everything
+that is the view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
-the top-down camera. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
+the plain top-down camera of a world without a topography. `world.Z`, relief and `Quasi3D` are not the view but the world's heights: sight
 over walls and hills reads them in a top-down game too (navigation-vision-demo). A world with heights
 is lit by `world.Sun` (`DefaultSun`, `SetSun`; direction, strength, ambient, and the colours of
 the sun's light and of the sky — zero is white; `Sun.Light`/`Shaded` give a `render.Light`: Ambient
@@ -179,23 +193,28 @@ the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast 
 world renderer lays on the ground away from the sun (tier `Ground+20`), stretched by their height
 and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are,
 save that slopes of its ground are shaded against level (lighter towards the sun, darker away).
-The time of day is `plugins/sky`: a `sky.Day{Time, Pace}` on the sky's own entity (made at Setup,
-found after a load), moved on every tick; at every one of `Config.Steps` a day the world's sun is
-set to `Config.LightAt` the hour — the sun (with `NoonWay` `sky.South`: east at 6, south at noon,
-west at 18; the default `sky.NorthWest` turns the whole path so noon is beyond the isometric view's
-sea), and below −0.1 of height the moon (`Day.Moon`, the sun's path `moon` of a day behind and
-`moon` of a year on, `moonStrength` 0.25 × how full, `moonColor`) — below the horizon at night, the
-strength rising and falling, the sky's and the sun's colours and the ambient blended from the
-`daylight` table by the sun's height: blue by day, orange at sunrise and sunset, deep blue at
-night), so the terrain's shadows are worked out anew only per step. `sky.Plugin.Renderer()` is the
-backdrop, a `render.Source`: the viewport in the sky's colour on `render.Backdrop` (tier 0, depth
-−∞), drawn only when some corner of the screen is off the world's ground. A `plugin.CommandHandler`: `Pause` (P) stops the day or lets it go on (`Day.Stopped`, saved);
-`Forward` (]) and `Back` ([) double and halve the pace while it goes by, move it half an hour on or
-back while it stands. Both islands with heights use it.
-`CellKind.Shine` (0–1) makes a kind glint, per pixel in the landscape's material
-(`plugins/landscape/water.kage`; the composer's shader is `render/compose.kage` plus every material a
+The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
+(`plugins/world/clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
+every `Config.Day` of game time from the moment a fresh game begins at (`Start` of the day, the
+middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
+its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
+`Written`), `Daily`/`Yearly`/`Seasonal` give a schedule entry its period and offset.
+`atmosphere/sky` sets the world's sun once a tick, in the interface part, at every one of
+`Config.Steps` a day to `Config.LightAt` the hour — the sun (with `NoonWay` `sky.South`: east at 6,
+south at noon, west at 18; the default `sky.NorthWest` turns the whole path so noon is beyond the
+isometric view's sea; the path worked out for the climate's zone's latitude: declination 23.44° ×
+sin(2π·ofYear), the hour angle from noon — polar day and night past the circle), and below −0.1 of
+height the moon (`moonStrength` 0.25 × how full, `moonColor`) — the strength rising and falling,
+the sky's and the sun's colours and the ambient blended from the `daylight` table by the sun's
+height: blue by day, orange at sunrise and sunset, deep blue at night — so the terrain's shadows
+are worked out anew only per step. The light can be frozen (`Freeze` P, `Later`/`Earlier` Shift+]
+and Shift+[ move it half an hour): only the light, in memory, not saved; the calendar and the
+weather go on. `sky.Backdrop` is the viewport in the sky's colour on `render.Backdrop` (tier 0,
+depth −∞), drawn only when some corner of the screen is off the world's ground.
+`CellKind.Shine` (0–1) makes a kind glint, per pixel in the topography's material
+(`plugins/topography/water.kage`; the composer's shader is `render/compose.kage` plus every material a
 plugin registers with `render.RegisterMaterials`, compiled once): after the tile a look calls
-`t.DrawSurface` (`landscape.Overcast`, then `landscape.Glint(f, box, shine, lit, shore)` or `landscape.Stream`), a quad over the tile added to it (alpha 0)
+`t.DrawSurface` (`f.Overcast`, then `topography.Glint(f, box, shine, lit, shore)` or `topography.Stream`), a quad over the tile added to it (alpha 0)
 whose vertices carry the kind's shine in red, the world position in green and blue, 2 + the sun
 reaching the corner in alpha and the shore in Custom0..3 (the way to it, the distance, how near). The shader tilts the surface by seven waves moving with the composer's clock —
 within `shoreReach` (3) cells of the nearest cell that does not shine, by a swell whose crests
@@ -209,48 +228,45 @@ view). The board works the shore out per corner of a square grid (open water on 
 per terrain version. A shiny tile gets its glint at night too (no sun, the foam and the night sky
 reflected left). An effect altering `Ground` can make a cell shiny. The islands with heights
 give their water 0.9.
-The climate is `plugins/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
+The climate is `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
 `SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
 `Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
-`Day` 4, `Wet` per season by latitude band — and `climate.NewPlugin(world, sky, Config{Zone,
-Weathers, Start, Seed, Blend})` calls `sky.SetLatitude`. The kinds of weather are the subpackage
+`Day` 4, `Wet` per season by latitude band. The kinds of weather are the subpackage
 `climate/weather` (`weather.State`, `weather.Default`, `State.Likely`). The weather now, a
-`climate.Weather` on the plugin's own entity (made at Setup or
-found after a load, saved with its dice) begins on its first tick — the sky's day set by then — in
-`Config.Start` or a state thrown by `Often[season]`, already at its clouds, fall and temperature,
-and goes from one of `Config.Weathers` to the next (weights `Next` × `Likely(season)` × the zone's
-`Wet[season]` for one with `Falls`,
-`Lasts`), blending the wind (`Blow` towards `Target`, `Heading` wandering), the clouds, what falls
-and the `Temperature` into the state's (`Blend`; the temperature the zone's `Mean` ± `Year` through
-the year, ± `Day` through the day, and `State.Warmth`, the day read from `sky.Day` in the ECS, a
-summer afternoon without a sky), what falls coming down as snow below `snowsBelow` 1°C,
-integrating `Drift`, and sets `world.Weather` (`world.Plugin.SetWeather`) — all in the sky's time:
-each tick is `d × Day.Pace`, nothing while `Day.Stopped` (`passing`), and its behaviours get that
-as `Tick.Dt`. It hosts
-`climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`, run every tick with the weather
-and season): where a game casts its weather effects. Snow lying, ice and trees swaying are
-`plugins/effects` effects of the game, not the engine's: the islands (`climate.go`) define snowy
-kinds and ice, `effects.Alter[board.Ground]` for snow, ice and sway, and cast them once a second
-from a weather behaviour — snow settling in drifts (high ground, a noise's seeds, next to snow)
-while it snows in the frost, melting lonely and late cells first once warm, ice growing from the
-shore below −3°C, the forest swaying above a wind of 15 and stopping below 10; a winter begun has
-its drifts and shores laid at once. `Change` (W) and `Set{Name}`;
-`Renderer()` is the precipitation Source (screen-space streaks and flakes from a hash of their
-number and `Frame.Time`, tier `render.Air` 350, depth +∞); `Reporter()` the telemetry line. The
-board and the world renderers hand `Weather.Frame()` to `Frame.Weather`; looks call
-`landscape.Overcast(f, box)` (the landscape's `CloudShadow` material) after each tile (a quad only under clouds: alpha 4, green/blue the world
+`climate.Weather` on its own entity (made at Setup or found after a load, saved with its dice)
+begins in its first step in `Config.Start` or a state thrown by `Often[season]`, already at its
+clouds, fall and temperature, and goes from one of `Config.Weathers` to the next (weights `Next` ×
+`Likely(season)` × the zone's `Wet[season]` for one with `Falls`, `Lasts`), blending the wind
+(`Blow` towards `Target`, `Heading` wandering), the clouds, what falls and the `Temperature` into
+the state's (`Blend`; the temperature the zone's `Mean` ± `Year` through the year, ± `Day` through
+the day, and `State.Warmth`, the day the calendar's), what falls coming down as snow below
+`snowsBelow` 1°C, integrating `Drift`, and sets `world.Weather` (`world.Plugin.SetWeather`) — every
+step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
+tactical pause stops it. It hosts `climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`,
+run every step with the weather and season; `atmosphere.Plugin.RegisterBehavior`). `Change`
+(Shift+W) and `Set{Name}`. `atmosphere/precipitation` is what falls (screen-space streaks and
+flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, depth +∞);
+`atmosphere.Plugin.Precipitation()`. `atmosphere/weathering` is what the weather does to a board:
+`weathering.Config{Snowy, Ice, Water, Sway, Swaying, High, Seed}` names the game's own kinds — a
+kind's snowy twin, what water freezes into, what sways — and `New` defines three effects
+(`effects.Alter[board.Ground]`: snow swaps the kind for its snowy one, ice water for ice, sway sets
+`Sway`), laid on the world's schedule once a second of game time: snow settling in drifts (`High`
+ground, a noise's seeds, next to snow) while it snows in the frost, melting lonely and late cells
+first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
+stopping below 10; a winter begun has its drifts and shores laid at once
+(`atmosphere.Plugin.WithWeathering(board, cfg)`). The board and the world renderers hand
+`Weather.Frame()` to `Frame.Weather`; looks call `f.Overcast(box)` (render's `CloudShadow` material,
+`render/overcast.kage`) after each tile (a quad only under clouds: alpha 4, green/blue the world
 position; the shader's `clouds(p)` — value noise at `cloudSize` 420 minus `Drift`, spread by
 `cloudContrast`, the shadow straight under: cast off towards the sun it would jump with every step
 of the sun — dims the sun by `cloudDark`), glints die under clouds, waves turn with `Wind` and
 steepen with it (`calmSea`..`stormSea`), `render.Overcast` greys the sky (backdrop and reflection).
-`CellKind.Sway` and `world.Appearance.Sway` — set by an effect — lean tops with the wind on the CPU (`render.Sway` from
-`Frame.Wind` and `Frame.Time`; Kage cannot move vertices). `sky` keeps `Day.Date`, `Day.Calendar`
-(`GameYear` 8 days and a 4-day moon, the default; `EarthYear` 365 days, 12 months, `Day.Written`),
-`Day.Length` (the config's, written every tick), `Day.Season`, `Day.Moon`, `Config.Season` (a fresh
-Stage begins in its middle); the sun's path (`Config.path`) is worked out for the latitude
-(`Plugin.SetLatitude`, `sky.Latitude` 30° without a climate): declination 23.44° × sin(2π·ofYear),
-the hour angle from noon, then turned to `NoonWay` — polar day and night past the circle. The weather's time is how far the day moved since it last looked (`Weather.SeenDate/SeenTime`
-× `Day.Length`; the ticks' own without a sky), jumps of `]`/`[` included, going back ignored.
+A flat world takes the clouds' shadows once over the whole screen (`atmosphere.Plugin.Clouds()`,
+`Frame.OvercastQuad`, tier `Objects+50`). `CellKind.Sway` and `world.Appearance.Sway` — set by an
+effect — lean tops with the wind on the CPU (`render.Sway` from `Frame.Wind` and `Frame.Time`; Kage
+cannot move vertices). A flat world is `world.Plugin.Sunlit()` once something set its sun
+(`SetSun`): its tiles (`board.Tile.Light` without a dressing) and sprites take the sun's light on
+level ground, so the day tints a flat map too; before that they are drawn as they are.
 Units' shadows are `shadowVeil` × the light's strength over `shadowFull`.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
@@ -355,14 +371,15 @@ shows how much of it is boilerplate vs. real behavior.
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving behavior board
   registers on the world (only entities carrying `Mover` are slowed); slopes
-  cost too — `board.Climbing{Up, Down, Ease, Steep, Free}` (`WithClimbing`, `DefaultClimbing`: 1 in
-  10 up takes twice as long, 1 in 10 down is the quickest at 0.7, steeper down slows by 5 a unit,
-  Air free), multiplying the kind's cost (the islands: road and bridge 1, the rest 2.5 times what
-  it was) slows the Moving behavior along the heading and prices the planner's
-  steps through `Board.Climb` — both read a cell's slope off its own corners — so steep is the
-  relief, never a kind. A shiny kind with a `Flow` runs down its cell's slope
-  (`Tile.Flow` → `landscape.Stream`, a flow map: ripples and foam carried with the current, white where it
-  is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
+  cost too, through the board's Map — `topography.Climbing{Up, Down, Ease, Steep, Free}`
+  (`Config.Climbing`, `DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
+  quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
+  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving behavior along the
+  heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
+  takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
+  relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
+  runs down its cell's slope (`Tile.Flow` → `topography.Stream`, a flow map: ripples and foam
+  carried with the current, white where it is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
   down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`, over
@@ -371,36 +388,40 @@ shows how much of it is boilerplate vs. real behavior.
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
   tile's corners, side middles and middle by the share of the cells meeting there, shown where the
-  weight is over a half — one line across the tiles, not the cells' edges; a kind whose `landscape.Style` lies `Under`
+  weight is over a half — one line across the tiles, not the cells' edges; a kind whose `topography.Style` lies `Under`
   (water) is drawn as the tile's base (`Tile.Base`) under its neighbours, glint and all, the land
   laid over it the same way. Ways curve round the cell's middle; a way's `Fade` has it fade out
   (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`).
   `Board.CellVersion` counts each cell's changes; the renderer keeps a cell's read, its tile's
   blends and way (baked relative to the tile, lit per frame) and its light (by the sun stamp) until
-  stale; under 16 px a cell (square grids) the landscape paints blends and ways once onto a ground
+  stale; under 16 px a cell (square grids) the topography paints blends and ways once onto a ground
   sheet (the board's atlas + the cells, `board.Dressing.Sheet`, `render.Paint`) and a tile draws
   them as one `Frame.SpritePart`; the clouds' shadow goes once per tile after all on it
-  (`landscape.OvercastOn`); a unit's
+  (`render.Frame.OvercastOn`); a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a Quasi3D world, how high it
   flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
   `Cell` from the one point `at` reads off a row, `Layers` from the domain, in a Quasi3D world a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
-  cell and its `Relief`, the corner heights) and `Ground` (its kind, kept apart so an effect
-  ending restores the kind alone), made by the `cellSystem` at Setup or
-  found after a load; the `Board` reads and writes them, keeping only the cells' entity ids by
-  ordinal, and a seed (`TerrainMap`, heights) before Setup or on a board no ECS runs. `Version`
-  counts every change: writes through the board, and effects on cell entities, which the
-  `cellSystem` learns from `effects.Active.Altered` and `effects.Idle` on the cells. In a Quasi3D world a `CellKind` has a `Height` (what stands on it), the ground's heights
-  come from `Layout.Heights` and the shaping commands (`Raise`, `Lower`, `Level`, `Shaping`); the
-  `Board` is the world's `Ground`; the `altitudeSystem` writes every `Z.Altitude` each tick from
-  the ground under the entity plus its `Lift`. A flat world refuses what stands at a height at the
-  first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`, `Kinds.Register`), yet its ground
-  may have heights: slopes cost there too and the board shades them. The ground has no vertical
-  walls: neighbouring square cells share the corners where they meet (`SetRelief` moves the
-  neighbours' with a cell's; a `Plot` an effect rewrites is sealed to its neighbours' by the
-  `cellSystem`).
+  cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
+  `Crossing`, made by the `cellSystem` at Setup or found after a load; the `Board` reads and
+  writes them, keeping only the cells' entity ids by ordinal, and a seed (`TerrainMap`) before
+  Setup or on a board no ECS runs. `Version` and `CellVersion` count every change: writes through
+  the board, effects on cell entities, which the `cellSystem` learns from `effects.Active.Altered`
+  and `effects.Idle` on the cells, and `Board.Touch(c)` by whoever changes a cell beyond the board.
+  The board is flat: the ground's heights are the topography's `Relief` — on a square grid a
+  lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
+  on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
+  (`topography.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
+  `topography.Heights` (a `[]float32` with `MarshalBinary`), written every tick like the clock's
+  State, seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
+  (`Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the topography's
+  `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
+  `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
+  Quasi3D world a `CellKind` has a `Height` (what stands on it); a flat world refuses what stands
+  at a height at the first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`,
+  `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre and its kind) to
   `board.Each` behaviors registered on the board, naturally `board.Each[board.Mover]`;
@@ -465,15 +486,28 @@ shows how much of it is boilerplate vs. real behavior.
   every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
   Shift appends. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
-- **`effects`** — temporary changes to entities, cast from anywhere: `p.Define(name,
-  Spec{Lasts, Stacking, Grant(tags...), Alter(func(*T))})`, `p.Cast`/`CastFor`/`Dispel`/`Has` by
-  entity id, `Active` slots saved with the entity, originals of altered components kept by the
-  plugin and saved with the game. An entity whose last effect ended carries `effects.Idle`
-  for one tick, and `effects.Each` behaviors of an `effects.Idling` registered on the plugin
-  hear of it once. A cast before the plugin's pass lands the same tick.
+- **`world/clock`** — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
+  game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
+  clock's own entity, saved. Space is the tactical pause, ] and [ the tempo (`Config.Tempos`, ½ 1
+  2 4; sub-steps of one length, or one longer step with `Config.BiggerStep`); the players carry
+  the world's commands always. A plugin's `RunPlan` is the interface part of its tick, once a
+  tick; what simulates it hands to `clock.Simulate(c, ctx, d, block)` (at once with a nil clock),
+  and the engine's plan wrapper (`stage_runtime.go`) replays every block after the game's
+  `Update` as many times as the tempo says (`Clock.Replay`), moving game time on a step each.
+  `Clock.Behind` lowers a tempo above 1 after 30 slow frames. `clock.Phase` tags on the clock's
+  entity, `Clock.In(phase)`, `Clock.Entity()`; `Reporter()`, `HUD()`. `render.Frame.Time` is the
+  clock's through `render.Clocked` (the world's renderer).
+- **`world/effects`** — temporary changes to entities, cast from anywhere, made and installed by
+  the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking, Grant(tags...),
+  Alter(func(*T))})`, `e.Cast`/`CastFor`/`Dispel`/`Has` by entity id, `Active` slots saved with
+  the entity, originals of altered components kept and saved with the game; effects last in game
+  time. An entity whose last effect ended carries `effects.Idle` for one step, and `effects.Each`
+  behaviors of an `effects.Idling` registered on the world hear of it once. A cast before the
+  effects' pass lands the same step. `e.Schedule()` is what happens when: `At(moment)` and
+  `Every(period, offset)` entries laid in code, fired by clock time in the step their moment falls
+  in (never refired after a load); an entry casts effects or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
-  `Alter[board.Ground]` is a temporary change of terrain. `Idle` goes from entities without a
-  `Base` too. Depends on `world`.
+  `Alter[board.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`); a bit flip, seen
@@ -506,7 +540,8 @@ shows how much of it is boilerplate vs. real behavior.
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
   players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
   on a camera carry the player's (`selection.Select.Camera`, `Follow{Camera}`). `Player.Bind` refuses two on one
-  trigger, Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
+  trigger holding in one camera mode (`control.Binding.In`, `camera.ModeOf`; only bindings holding
+  in the camera's mode fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the
   queues. Depends on `world`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
@@ -538,7 +573,7 @@ Each package has a `doc.go` describing the gameplay capability it adds.
 A `game.Game` also supplies `Props()` (window/tick-rate config, read
 once at startup by `gram.Run(g)`; `Resizable` makes the screen the window — the engine's
 `Layout` follows it and hands the active world's camera `SetViewport`, whose zoom floor scales a
-world smaller than the window up to cover it; Shift+F toggles fullscreen in every game,
+world smaller than the window up to cover it; F11 toggles fullscreen in every game,
 `Runtime.ToggleFullscreen`; `TargetTPS` is the engine's own fixed
 step — Ebitengine runs one `Update` per frame (`SyncWithFPS`), and a frame that
 falls behind runs at most 5 steps and drops the rest, so the game slows down

@@ -271,8 +271,6 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 		switch k.Key {
 		case ebiten.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
 		case ebiten.KeyF5:
 			s.state.Saves++
 			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {

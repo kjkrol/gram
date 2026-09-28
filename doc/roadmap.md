@@ -16,8 +16,9 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   selected units only, computed when the route or the waypoints change and kept beside the `Path`,
   sharing the lookahead's code with navigation so what is drawn and what is driven cannot drift.
 - **Weather and seasons as effects over the whole board** — planned as effects on an entity
-  standing for the board. `plugins/climate` already does weather and seasons another way (the
-  weather on the plugin's own entity, snow as effects on cells): decide whether that settles it.
+  standing for the board. `plugins/atmosphere` does weather and seasons another way (the weather
+  on its own entity, snow and ice as the weathering's effects on cells, the seasons the
+  calendar's over the clock): decide whether that settles it.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
@@ -45,7 +46,7 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 
 ## Landscape and the islands
 
-- **The surf follows the cells** — the line of breaking waves (`landscape.Shore`) runs along the
+- **The surf follows the cells** — the line of breaking waves (`topography.Shore`) runs along the
   cells' edges, not the rounded coast.
 - **`render.Overcast` in render** — the sky greying under clouds on the CPU lives in render, its
   shader twin (`overcastSky`) in the landscape: one place for both.

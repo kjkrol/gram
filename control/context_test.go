@@ -7,7 +7,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -17,8 +18,10 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Camera:   cfg,
+		Quasi3D:  true,
 	})
-	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 2})
+	b := board.NewPlugin(board.DefaultGrids{}.Square(width/32, height/32, 32), &board.MultipleOccupancy{}, w)
+	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2, Isometric: true})
 	return w.Camera()
 }
 

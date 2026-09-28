@@ -42,12 +42,9 @@ type PathRenderer struct {
 	frame   *render.Frame // the one being composed
 	camera  camera.Camera // the one of the frame being composed
 	space   *aabbworld.Space
-	// heights is the grid's altitudes when it has them (a Board), for laying sprites on the ground;
-	// corners its corner heights on a sloped grid, so a sprite lies on the tile as it is drawn.
-	heights interface{ Altitude(board.CellID) float64 }
-	corners interface {
-		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
-	}
+	// tops is the height of a cell's corners and of its ground as the board's Map draws them, for
+	// laying sprites on the tiles as they are drawn; nil is level ground at 0.
+	tops func(board.CellID) (corners [4]float32, level float32)
 
 	// finder plans the routes between queued goals for the preview; nil draws the goals alone.
 	finder   *pathFinder
@@ -66,11 +63,12 @@ type PathRenderer struct {
 var _ render.Source = (*PathRenderer)(nil)
 
 func NewPathRenderer(grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
-	r := &PathRenderer{grid: grid, sprites: sprites, atlas: atlas, selected: selected}
-	r.heights, _ = grid.(interface{ Altitude(board.CellID) float64 })
-	r.corners, _ = grid.(interface {
-		Corners(board.CellID) ([4]float64, uint32, uint32, bool)
-	})
+	return &PathRenderer{grid: grid, sprites: sprites, atlas: atlas, selected: selected}
+}
+
+// WithTops has the routes laid on the tiles as the board's Map draws them: tops is board.Plugin.Top.
+func (r *PathRenderer) WithTops(tops func(board.CellID) (corners [4]float32, level float32)) *PathRenderer {
+	r.tops = tops
 	return r
 }
 
@@ -203,31 +201,16 @@ func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) 
 		r.frame.SpriteRect(render.Overlays, 0, r.atlas, sprite, x0, y0, x1, y1, render.Even(1))
 		return
 	}
-	z := r.spriteHeights(c)
+	var z [4]float32
+	var alt float32
+	if r.tops != nil {
+		z, alt = r.tops(c)
+	}
 	var dst render.Corners
 	for i, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
 		dst[i][0], dst[i][1] = r.camera.Project(p[0], p[1], z[i])
 	}
-	alt := float32(0)
-	if r.heights != nil {
-		alt = float32(r.heights.Altitude(c))
-	}
 	r.frame.Sprite(render.Overlays, r.camera.Depth(float32(center.X), float32(center.Y), alt), r.atlas, sprite, dst, render.Even(1))
-}
-
-// spriteHeights is the height of a cell sprite's four corners: the tile's own corners on a sloped
-// grid (the sprite covers a square cell), else the cell's altitude, else the ground at 0.
-func (r *PathRenderer) spriteHeights(c board.CellID) [4]float32 {
-	if r.corners != nil {
-		if hs, _, _, ok := r.corners.Corners(c); ok {
-			return [4]float32{float32(hs[0]), float32(hs[1]), float32(hs[2]), float32(hs[3])}
-		}
-	}
-	alt := float32(0)
-	if r.heights != nil {
-		alt = float32(r.heights.Altitude(c))
-	}
-	return [4]float32{alt, alt, alt, alt}
 }
 
 func hasPassedCenter(cellCenter, entityCenter, travel geom.Vec, width, height uint32, edges aabbworld.Edges) bool {

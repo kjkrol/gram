@@ -9,7 +9,9 @@
 // bindings ([Plugin.Defaults]). The plugins never know players; they know plugin.CommandHandler and
 // the vocabulary in package control. [Plugin.Issue] is how a command comes in — from a binding, an
 // AI, a network — and a type no handler defines is [ErrUnknownCommand]. Players' own commands are
-// [Pan] and [Zoom], carried out on the issuing player's camera; [CameraBindings] are their defaults.
+// [Pan] and [Zoom], carried out on the issuing player's camera; [CameraBindings] are their
+// defaults: the wheel zooms, a middle drag pans, W, A, S and D held and the cursor at an edge
+// scroll — on the screen, so in a turned isometric view along the screen too.
 //
 // # Viewports
 //
@@ -24,8 +26,15 @@
 // [Plugin.Local] adds a player at this keyboard, looking through the world's camera; [Plugin.Add]
 // one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
-// bindings on one trigger are refused at Bind; a binding whose command nobody defines is refused
-// when the Stage is set up. [Player.Bindings] is the list a help screen draws.
+// bindings on one trigger holding in one camera mode are refused at Bind; a binding whose command
+// nobody defines is refused when the Stage is set up. [Player.Bindings] is the list a help screen
+// draws. A binding may hold in some camera modes only (control.Binding.In, camera.ModeOf): the
+// camera's own WASD, middle drag and edge scroll hold while the camera is Free, and a camera riding
+// in an entity (camera.FirstPerson) leaves those keys to the plugin that steers the entity; only
+// the bindings holding in the camera's mode fire, and the shortcuts list only those. While a local
+// player's camera rides, the window's cursor is captured and control.CursorMove reaches that player
+// wherever the cursor is — looking round with the mouse; the pass it is caught or let go no move
+// is taken.
 //
 // # From input to commands
 //
@@ -51,6 +60,15 @@
 //
 // The active Scene hands the tick's input to [Plugin.EventHandler], which runs every local
 // player's bindings and fills the queues; the command handlers drain theirs in their RunPlan;
-// [Plugin.RunPlan], called last, carries out Pan and Zoom and empties whatever is left. Keys that
-// are not a move in the game — pause, quit, a debug toggle — stay in the Scene's HandleEvents.
+// [Plugin.RunPlan], called last, carries out Pan and Zoom and empties whatever is left.
+//
+// # Scene keys and the shortcuts
+//
+// Keys that are no command to a plugin — quit, save, a debug toggle — are the Scene's: [SceneKeys]
+// lists them with labels and what they do, and [SceneKeys.Handle] runs them from the Scene's
+// HandleEvents. [Plugin.Shortcuts] is a ready scene listing every key of the game — the local
+// players' bindings, grouped by the plugin whose command each issues, and the scene's keys under
+// "Game" — over the dimmed screen, the game held in the engine's pause while it is up; a game adds
+// it to its stack, opens it on K ([Shortcuts.Open]) and Esc or K closes it. [Written] is a trigger
+// as such a list writes it.
 package players

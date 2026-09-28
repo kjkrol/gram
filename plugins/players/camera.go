@@ -3,6 +3,7 @@ package players
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -28,13 +29,22 @@ const (
 )
 
 // CameraBindings is the default camera control: wheel zooms about the cursor, a middle drag pans
-// one to one with it, the cursor at an edge scrolls scrollSpeed pixels a tick (DefaultScrollSpeed).
+// one to one with it, W, A, S and D held and the cursor at an edge scroll scrollSpeed pixels a
+// tick (DefaultScrollSpeed) — up, left, down and right on the screen, however the view is turned.
+// All but the wheel hold while the camera is free (camera.Free), not while it rides in an entity.
 func CameraBindings(scrollSpeed ...int32) []control.Binding {
 	speed := float32(DefaultScrollSpeed)
 	if len(scrollSpeed) > 0 {
 		speed = float32(scrollSpeed[0])
 	}
+	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
+		return func(control.Context) (Pan, bool) { return Pan{Dx: dx * speed, Dy: dy * speed}, true }
+	}
 	return []control.Binding{
+		control.Command(control.KeyHeld{Key: ebiten.KeyW}, "Scroll up", scroll(0, -1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: ebiten.KeyS}, "Scroll down", scroll(0, 1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: ebiten.KeyA}, "Scroll left", scroll(-1, 0)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: ebiten.KeyD}, "Scroll right", scroll(1, 0)).In(camera.Free),
 		control.Command(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
 				return Zoom{Factor: ZoomStep, At: c.World(c.Cursor)}, true
@@ -43,7 +53,7 @@ func CameraBindings(scrollSpeed ...int32) []control.Binding {
 		}),
 		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
 			return Pan{Dx: float32(-c.Delta.X), Dy: float32(-c.Delta.Y)}, true
-		}),
+		}).In(camera.Free),
 		control.Command(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
 			side := edgeSides(c)
@@ -60,7 +70,7 @@ func CameraBindings(scrollSpeed ...int32) []control.Binding {
 				dy = speed
 			}
 			return Pan{Dx: dx, Dy: dy}, dx != 0 || dy != 0
-		}),
+		}).In(camera.Free),
 	}
 }
 

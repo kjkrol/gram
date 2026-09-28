@@ -3,15 +3,16 @@ package bench_test
 import (
 	"image/color"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/water"
-	"github.com/kjkrol/gram/plugins/isometry"
-	"github.com/kjkrol/gram/plugins/landscape"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -28,12 +29,17 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	})
 	grid := board.DefaultGrids{}.Square(side, side, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
 	if err := ctx.Use(p); err != nil {
+		b.Fatal(err)
+	}
+	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	brd.SetHeights(board.MeanOfCells(grid, func(c board.CellID) float64 {
+	relief := topo.Relief()
+	relief.SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -46,7 +52,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	for b.Loop() {
 		for i := range 64 {
 			d := float64(i) * size / 4
-			sum += brd.GroundAt(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
+			sum += relief.GroundAt(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
 	_ = sum
@@ -65,13 +71,16 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	})
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}) // the terrain's shadows are the topography's
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
-	landscape.NewPlugin(p, ctx.world) // the terrain's shadows are the landscape's
+	if err := ctx.Use(topo); err != nil {
+		b.Fatal(err)
+	}
 	brd := p.Res.Logic.Board
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	brd.SetHeights(board.MeanOfCells(grid, func(c board.CellID) float64 {
+	topo.Relief().SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
@@ -117,12 +126,15 @@ func Benchmark_Board_Shores(b *testing.B) {
 	})
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}).Style("sea", topography.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
+		b.Fatal(err)
+	}
+	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
 	sea := board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water}
-	landscape.NewPlugin(p, ctx.world).Style("sea", landscape.Style{Shine: 0.9})
 	brd.SetAll(sea)
 	land := board.CellKind{Cost: 1, Allows: board.Land}
 	for y := range uint32(h) {
@@ -164,9 +176,10 @@ func Benchmark_Board_Shores(b *testing.B) {
 
 // island seeds a 96x64 board of cells 32 wide with an island in a sea lying Under it: earth, sand
 // by the coast and rock on the heights, blending, with the streams and rivers water.Drain works
-// out of its heights laid across it as ways, running out to sea; seen from above, or isometric;
-// near, a cell 32 pixels across, or far, the whole island on a screen of 576 by 384.
-func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source) {
+// out of its heights laid across it as ways, running out to sea; seen from above, isometric or in
+// perspective (view "above", "iso" or "persp"); near, a cell 32 pixels across, or far, the whole
+// island on a screen of 576 by 384.
+func island(b *testing.B, view string, far bool) (*headless, *board.Board, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -178,12 +191,9 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384
 	}
 	ctx.UseWorld(cfg)
-	var view *isometry.Plugin
-	if iso {
-		view = isometry.NewPlugin(ctx.world, isometry.Config{Cell: size, HeightUnit: 1})
-	}
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
 	kinds := p.CellKindDict()
 	kinds.Create(
 		board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water},
@@ -193,20 +203,17 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water},
 		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water},
 	)
-	landscape.NewPlugin(p, ctx.world).
-		Style("sea", landscape.Style{Shine: 0.9, Under: true}).
-		Style("earth", landscape.Style{Spread: 0.3}).
-		Style("sand", landscape.Style{Spread: 0.35}).
-		Style("rock", landscape.Style{Spread: 0.25}).
-		Style("stream", landscape.Style{Shine: 0.9, Flow: 60}).
-		Style("estuary", landscape.Style{Shine: 0.9, Flow: 45})
+	topo.Style("sea", topography.Style{Shine: 0.9, Under: true}).
+		Style("earth", topography.Style{Spread: 0.3}).
+		Style("sand", topography.Style{Spread: 0.35}).
+		Style("rock", topography.Style{Spread: 0.25}).
+		Style("stream", topography.Style{Shine: 0.9, Flow: 60}).
+		Style("estuary", topography.Style{Shine: 0.9, Flow: 45})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
-	if iso {
-		if err := ctx.Use(view.WithBoard(p)); err != nil {
-			b.Fatal(err)
-		}
+	if err := ctx.Use(topo); err != nil {
+		b.Fatal(err)
 	}
 	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast, below it at sea
 		dx, dy := (x-w/2)/34, (y-h/2)/22
@@ -234,7 +241,8 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 	if err != nil {
 		b.Fatal(err)
 	}
-	layout := board.Layout{Default: "sea", Heights: rivers.Carved(heights)}
+	layout := board.Layout{Default: "sea"}
+	topo.Seed(rivers.Carved(heights))
 	grid.EachCell(func(c board.CellID) {
 		if land[c] {
 			at := grid.CellCenter(c)
@@ -257,7 +265,15 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 	}
 	atlas.Close()
 	p.WithRenderer(atlas)
-	ctx.start(b, func(goke.RunCtx, time.Duration) {})
+	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
+	if view == "persp" { // Tab once, from the isometric view
+		for _, q := range topo.Queues() {
+			if q.Accepts() == reflect.TypeFor[topography.View]() {
+				q.Put(control.Nobody, topography.View{Camera: ctx.world.Camera()})
+			}
+		}
+		ecs.Tick(step)
+	}
 	if far {
 		ctx.world.Camera().ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
 	}
@@ -265,20 +281,28 @@ func island(b *testing.B, iso, far bool) (*headless, *board.Board, render.Source
 }
 
 // Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
-// far: warm, and after a cell ashore has changed — what a frame pays for the ground blending, the
-// coast and the running water.
+// far, and the isometric and the perspective island through a 1080p screen, as a player sees it: warm, and
+// after a cell ashore has changed — what a frame pays for the ground blending, the coast and the
+// running water.
 func Benchmark_Board_Island(b *testing.B) {
-	for _, v := range []struct{ iso, far bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
-		ctx, brd, src := island(b, v.iso, v.far)
+	for _, v := range []struct {
+		view        string
+		far, screen bool
+	}{{"above", false, false}, {"iso", false, false}, {"iso", false, true}, {"persp", false, true}, {"above", true, false}, {"iso", true, false}} {
+		ctx, brd, src := island(b, v.view, v.far)
 		cam := ctx.world.Camera()
+		if v.screen {
+			cam.SetViewport(1920, 1080)
+			cam.CenterOn(96*32/2, 64*32/2, 0)
+		}
 		far, _ := brd.CellIndex(48, 32)
 		rock, _ := brd.CellIndex(48, 30)
-		view := "above"
-		if v.iso {
-			view = "iso"
-		}
+		view := v.view
 		if v.far {
 			view += ",far"
+		}
+		if v.screen {
+			view += ",screen"
 		}
 		var f render.Frame
 		for _, changed := range []bool{false, true} {

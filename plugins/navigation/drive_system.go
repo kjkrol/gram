@@ -13,7 +13,8 @@ import (
 
 var _ goke.System = (*driveSystem)(nil)
 
-// driveSystem carries out world.Driven: an entity steered by hand turns, and walks the way it
+// driveSystem carries out world.Driven: an entity steered by hand turns — by Turn, or towards Face —
+// and walks the way it
 // faces, never towards a cell its domain may not stand on or the occupancy keeps it out of; a hand
 // on it ends any order it had, and without one it brakes. Its Cell and its hold on the occupancy
 // follow it cell by cell, as navigationSystem keeps an ordered entity's.
@@ -53,8 +54,9 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		for i, id := range cur.IDs {
 			in, st, base := drivens[i], &steers[i], &bases[i]
 			domain := board.DomainAt(movers, i)
+			facing := in.Face.X != 0 || in.Face.Y != 0
 			if orders != nil {
-				if in.Ahead == 0 && in.Turn == 0 {
+				if in.Ahead == 0 && in.Turn == 0 && !facing {
 					continue // nobody at the wheel: the order goes on
 				}
 				if leg := orders[i].Leg; leg.Active {
@@ -69,12 +71,16 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if heading.X == 0 && heading.Y == 0 {
 				heading = geom.NewVec(0, 1)
 			}
-			if in.Turn != 0 {
+			switch {
+			case facing:
+				n := math.Hypot(in.Face.X, in.Face.Y)
+				heading = geom.NewVec(in.Face.X/n, in.Face.Y/n)
+			case in.Turn != 0:
 				a := float64(in.Turn) * driveTurn
 				sin, cos := math.Sincos(a)
 				heading = geom.NewVec(heading.X*cos-heading.Y*sin, heading.X*sin+heading.Y*cos)
 			}
-			if in.Turn != 0 || in.Ahead != 0 {
+			if in.Turn != 0 || in.Ahead != 0 || facing {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
 			if in.Ahead > 0 && s.open(id, cells[i].ID, base.Pos, heading, domain) {

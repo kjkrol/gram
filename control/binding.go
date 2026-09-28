@@ -67,6 +67,11 @@ type ButtonHeld struct{ Button ebiten.MouseButton }
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.
 type CursorAtEdge struct{}
 
+// CursorMove fires every pass the cursor moves, Context.Delta by how much: looking round with the
+// mouse. It reaches the player the cursor is over, and one whose camera rides in an entity wherever
+// the cursor is — the carrier captures it then, so it moves without end.
+type CursorMove struct{}
+
 func (KeyPress) trigger()     {}
 func (KeyHeld) trigger()      {}
 func (ButtonPress) trigger()  {}
@@ -74,6 +79,7 @@ func (Drag) trigger()         {}
 func (Wheel) trigger()        {}
 func (ButtonHeld) trigger()   {}
 func (CursorAtEdge) trigger() {}
+func (CursorMove) trigger()   {}
 
 // Context is what a binding builds its command from: the player, its camera and this tick's input
 // in screen pixels; World and WorldBox go through the camera.
@@ -130,13 +136,35 @@ func ScreenRect(a, b geom.Vec) geom.AABB {
 }
 
 // Binding is one thing a player can do: a Trigger, the command it issues and a label saying what
-// it does, for a help screen. Build one with Command.
+// it does, for a help screen; In has it hold in some of the camera's modes only. Build one with
+// Command.
 type Binding struct {
 	Trigger Trigger
 	Label   string
 
 	command reflect.Type
 	build   func(Context) (any, bool)
+	modes   camera.Mode // zero: every mode
+}
+
+// In is b holding only while the player's camera is in one of modes (camera.ModeOf): one key may
+// do one thing in the free camera and another riding in an entity. A binding never given modes
+// holds in every one.
+func (b Binding) In(modes ...camera.Mode) Binding {
+	b.modes = 0
+	for _, m := range modes {
+		b.modes |= m
+	}
+	return b
+}
+
+// Holds reports whether b holds while the camera is in mode.
+func (b Binding) Holds(mode camera.Mode) bool { return b.modes == 0 || b.modes&mode != 0 }
+
+// Overlaps reports whether b and o hold in some mode both: two such bindings on one Trigger would
+// both fire.
+func (b Binding) Overlaps(o Binding) bool {
+	return b.modes == 0 || o.modes == 0 || b.modes&o.modes != 0
 }
 
 // Command is a Binding issuing a C built from the Context when trigger fires; build may decline.

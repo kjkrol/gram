@@ -7,6 +7,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
 	"github.com/kjkrol/uid"
@@ -43,17 +46,25 @@ type module struct {
 	moveRunnable     goke.Runnable
 	exitRunnable     goke.Runnable
 
-	// views are refreshed after movement each tick — see Plugin.NewView.
+	// views are refreshed each tick — see Plugin.NewView.
 	views        []*View
 	viewRunnable goke.Runnable
+
+	// the tactical clock and the effects, the world's own: the clock's system goes first in the
+	// tick, the effects last in every step of the simulation
+	clock         *clock.Clock
+	effects       *effects.Effects
+	clockRunnable goke.Runnable
 }
 
 var _ goke.Module = (*module)(nil)
 
-// newModule builds the world's topology and spatial index from cfg.
+// newModule builds the world's topology and spatial index from cfg, its clock and its effects.
 func newModule(cfg Config) *module {
+	clk := clock.New(cfg.Clock)
 	return &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
-		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{}}
+		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
+		clock: clk, effects: effects.New(clk)}
 }
 
 // =================================================================
@@ -73,24 +84,35 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.moveRunnable = ecs.RegSys(NewMoveSystem(w.space))
 	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
 	w.viewRunnable = ecs.RegSys(NewViewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
+	w.clockRunnable = ecs.RegSys(w.clock.System())
+	w.effects.Module().RegSystems(ecs)
 }
 
-// RunPlan runs world's tick: decisions, steering, the Moving behaviors, movement, then the leavers
-// and the views.
-// The sync after movement lands the Outside marks, so a leaver is dealt with the tick it left.
+// RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
+// move in the tactical pause too. In the simulation, every step: the decisions, steering, the
+// Moving behaviors, movement, then the leavers, then the effects. The sync after movement lands
+// the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clear(w.despawned)
-	for _, b := range w.behaviorRunnables {
-		ctx.Run(b, d)
-		ctx.Sync()
-	}
-	ctx.Run(w.steeringRunnable, d)
-	ctx.Run(w.velocityRunnable, d)
-	ctx.Run(w.moveRunnable, d)
-	ctx.Sync()
-	ctx.Run(w.exitRunnable, d)
+	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
+	w.clock.Simulate(ctx, w.simulate)
+}
+
+// simulate is one step of the world's simulation.
+func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	clear(w.despawned)
+	for _, b := range w.behaviorRunnables {
+		ctx.Run(b, step)
+		ctx.Sync()
+	}
+	ctx.Run(w.steeringRunnable, step)
+	ctx.Run(w.velocityRunnable, step)
+	ctx.Run(w.moveRunnable, step)
+	ctx.Sync()
+	ctx.Run(w.exitRunnable, step)
+	ctx.Sync()
+	w.effects.Module().RunPlan(ctx, step)
 }
 
 // SetupSystems runs every queued Populate call, in call order.
@@ -98,7 +120,7 @@ func (w *module) SetupSystems() []goke.System { return w.seeds }
 
 // LoadComps lists the component types world owns — see [goke.CompProvider].
 func (w *module) LoadComps() []goke.CompToken {
-	return append([]goke.CompToken{
+	tokens := append([]goke.CompToken{
 		goke.LoadComp[Base](),
 		goke.LoadComp[Appearance](),
 		goke.LoadComp[Steering](),
@@ -106,7 +128,10 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Layers](),
 		goke.LoadComp[Z](),
 		goke.LoadComp[Driven](),
-	}, w.declared...)
+		goke.LoadComp[clock.State](),
+		goke.LoadComp[plugin.Tags[clock.Phase]](),
+	}, w.effects.Module().LoadComps()...)
+	return append(tokens, w.declared...)
 }
 
 // =================================================================

@@ -50,7 +50,7 @@
 // it; [Plugin.WithStyle] or [ConeStyleFn] for another). The ring is draped over the world's Ground
 // when it has one ([Renderer.WithGround]) — the apex at the observer's altitude, the rest on the
 // ground, the cone's edges in steps of the ground — and each point carries the depth of the ground
-// under it, so in a view with depth (plugins/isometry) a cone climbs a hill and a hill in front
+// under it, so in a view with depth (plugins/topography) a cone climbs a hill and a hill in front
 // hides it.
 //
 // In a Quasi3D world the reach of sight is not the reach of the ground: past a cliff the plain is

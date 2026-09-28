@@ -1,22 +1,20 @@
 package board
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 )
 
 // Look is how the board's cells lie on the screen through a camera: the board's way of drawing its
-// ground. The board starts with a flat look, seen from above; a view plugin puts its own in with
-// Plugin.SetLook.
+// ground, its Map's — the simple map's flat look, seen from above, or a topography's.
 type Look interface {
 	// Cell hands f the visible cell t.
 	Cell(f *render.Frame, cam camera.Camera, t *Tile)
 }
 
-// Dressing is what a plugin lays over the board's tiles beyond their sprites (plugins/landscape):
-// the light on them and whatever lies on them, given its turn by the board's renderer and its
-// Look. A board without one draws its sprites in even light and nothing over them.
+// Dressing is what a Map lays over the board's tiles beyond their sprites: the light on them and
+// whatever lies on them, given its turn by the board's renderer and its Look. The simple map's
+// lays the ways as plain bands; a topography's the light on the relief, water, blends and more.
 type Dressing interface {
 	// Begin readies the dressing for a frame through cam, before any tile.
 	Begin(f *render.Frame, cam camera.Camera)
@@ -59,28 +57,17 @@ func (t *Tile) Base() render.SpriteID {
 	return t.Sprite()
 }
 
-// Top is the height of the tile's corners — top-left, top-right, bottom-left, bottom-right — with
-// its kind standing on them, and its ground level.
-func (t *Tile) Top() (corners [4]float32, level float32) {
-	c := t.r.topOf(t.ID)
-	return c.z, c.alt
-}
+// Kind is the cell's kind as whoever crosses it meets it.
+func (t *Tile) Kind() CellKind { return t.r.board.Kind(t.ID) }
 
-// Beside is the Top corners of the cell dx, dy cells away; sea level 0 off the board.
-func (t *Tile) Beside(dx, dy int) [4]float32 {
-	w, h := t.X1-t.X0, t.Y1-t.Y0
-	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
-	c, ok := t.r.board.CellAt(geom.NewVec(float64(x), float64(y)))
-	if !ok {
-		return [4]float32{}
-	}
-	return t.r.topOf(c).z
-}
-
-// Light is the light on the tile's top at its corners: the Dressing's, even without one.
+// Light is the light on the tile's top at its corners: the Dressing's; without one the sun's on
+// level ground where the world is sunlit, even otherwise.
 func (t *Tile) Light() render.Shade {
 	if d := t.r.dressing(); d != nil {
 		return d.Light(t)
+	}
+	if t.r.sunlit != nil && t.r.sunlit() {
+		return render.Lit(t.r.sun().Light(0, 0, 1))
 	}
 	return render.Even(1)
 }
@@ -112,18 +99,24 @@ func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1, depth f
 }
 
 // Sway is how much what stands on the cell bends in the wind — its kind's Sway — and how high it
-// stands over the ground, which is how far its top leans; nothing in a flat world.
+// stands over the ground (its kind's Height), which is how far its top leans; nothing in a flat
+// world, where nothing stands at a height.
 func (t *Tile) Sway() (amount, rise float32) {
 	c := t.r.topOf(t.ID)
 	if c.sway <= 0 || !t.r.board.quasi3D {
 		return 0, 0
 	}
-	return c.sway, c.z[0] - c.ground[0]
+	return c.sway, c.height
 }
 
 // flatLook is the board seen from above: each cell's sprite over its box, split at a wrap seam, in
 // the Dressing's light and dressed by it.
 type flatLook struct{}
+
+// FlatLook is the board seen from above, the simple map's Look: each cell's sprite over its box,
+// in the Dressing's light and dressed by it — for another Map to lay its cells so where it looks
+// from above.
+func FlatLook() Look { return flatLook{} }
 
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1

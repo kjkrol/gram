@@ -40,7 +40,7 @@ func (p *Plugin) Name() string { return "gram.collision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p.worldPlugin.Space(), ctx.ECS(), &p.pairs, &p.entities)
-	p.module.shapes, p.module.fieldOf = p.shapes, p.worldPlugin.Field
+	p.module.shapes, p.module.fieldOf, p.module.clock = p.shapes, p.worldPlugin.Field, p.worldPlugin.Clock()
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -51,7 +51,7 @@ func (p *Plugin) WithShapeTest(test ShapeTest) *Plugin {
 	return p
 }
 
-// RunPlan runs the collision engine for this tick — call from your own Game.Loop closure.
+// RunPlan hands the collision engine to the simulation; call it after world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer is a no-op — collision has no render.Renderer of its own.

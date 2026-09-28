@@ -144,6 +144,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 		bw.brd.RunPlan(rc, d)
 		v.RunPlan(rc, d)
 		rc.Sync()
+		bw.w.Clock().Replay(rc, d)
 	})
 	bw.ecs = ctx.ecs
 	return bw

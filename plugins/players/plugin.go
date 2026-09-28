@@ -26,12 +26,17 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	ground      func(x, y float32) float32 // the world's Ground for command contexts, bound at first use
 	handlers    []plugin.CommandHandler
+	owners      map[reflect.Type]plugin.CommandHandler // the handler of each command type
 	players     []*Player
 	queues      map[reflect.Type]control.CommandQueue
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
 	module      *module
 	layout      Layout
+	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
+	// lets go of the window's cursor
+	captured   bool
+	setCapture func(on bool)
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -39,16 +44,17 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
-// share, carrying the commands of handlers; two handlers of one command type panic.
+// share, carrying the commands of handlers — the world's own, its clock's, among them; two
+// handlers of one command type panic.
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin, queues: map[reflect.Type]control.CommandQueue{}}
-	p.handlers = append([]plugin.CommandHandler{p}, handlers...)
+	p := &Plugin{worldPlugin: worldPlugin, queues: map[reflect.Type]control.CommandQueue{}, owners: map[reflect.Type]plugin.CommandHandler{}}
+	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	for _, c := range p.handlers {
 		for _, box := range c.Queues() {
 			if other, taken := p.queues[box.Accepts()]; taken && other != box {
 				panic(fmt.Sprintf("players: %v is defined twice", box.Accepts()))
 			}
-			p.queues[box.Accepts()] = box
+			p.queues[box.Accepts()], p.owners[box.Accepts()] = box, c
 		}
 	}
 	return p

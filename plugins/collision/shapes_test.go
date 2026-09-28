@@ -62,6 +62,7 @@ func shapesRun(t *testing.T, test collision.ShapeTest) (meetings []collision.Mee
 		w.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 

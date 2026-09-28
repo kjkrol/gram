@@ -35,7 +35,7 @@ func steerTicks(t *testing.T, st Steering, start geom.Vec, n int) []geom.Vec {
 		query = si.NewQueryBuilder(&base).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(wm.RunPlan)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
 
 	var out []geom.Vec
 	for range n {
@@ -172,7 +172,7 @@ func TestSteering_LastingStimulusStillTurnsTheEntity(t *testing.T) {
 		query = si.NewQueryBuilder(&base).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(wm.RunPlan)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
 	for range 30 {
 		ecs.Tick(time.Second / 60)
 	}
@@ -223,7 +223,7 @@ func speedTicks(t *testing.T, st Steering, vel Velocity, moving []plugin.Behavio
 		query = si.NewQueryBuilder(&base, &steer).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(wm.RunPlan)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
 
 	for range n {
 		ecs.Tick(time.Second / 60)

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -25,6 +26,7 @@ type module struct {
 	system  goke.Runnable
 	shapes  ShapeTest
 	fieldOf func() world.Field
+	clock   *clock.Clock // the world's; nil, run at once
 	built   bool
 }
 
@@ -48,9 +50,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	}
 }
 
+// RunPlan hands the collisions to the simulation: every step, the pairs meet and are pushed apart.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.system, d)
-	ctx.Sync()
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.system, step)
+		ctx.Sync()
+	})
 }
 
 // SetupSystems is empty — the collision engine has no one-time seeding of its own.

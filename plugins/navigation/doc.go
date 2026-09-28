@@ -28,14 +28,15 @@
 // orders; the plugin is a plugin.CommandHandler ([Plugin.Queues] is the queue) and its command
 // system issues or extends the orders. [Plugin.DefaultBindings] make a right click one, Shift +
 // right click an appending one. A right click on the cell a Selected entity stands on turns it
-// towards the point clicked (MoveTo.At), and a right click with S held is a [LookAt]: every
+// towards the point clicked (MoveTo.At), and a right click with Shift and S held is a [LookAt]: every
 // Selected entity finishes its step, stops and turns there — both through [MoveOrder].Face, the
 // point an entity turns towards on arrival.
 //
 // # Driven by hand
 //
 // An entity carrying a world.Driven — written every tick by whoever steers it, the isometric
-// camera fastened behind it — is carried out after the orders: it turns by hand, walks on the way
+// camera fastened to it — is carried out after the orders: it turns by hand (Turn, or towards Face:
+// where an eye riding in it looks), walks on the way
 // it faces while the ground just ahead is a cell its domain may stand on and the occupancy lets it
 // into, and stops dead otherwise, so it never walks into the sea; with no hand on it, it brakes.
 // A hand ends any order it had, giving up the cells of the step in progress; with none, the order

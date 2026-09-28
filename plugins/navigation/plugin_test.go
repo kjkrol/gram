@@ -68,12 +68,14 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		t.Errorf("a Shift right click issued %v, want one MoveTo that appends", got)
 	}
 
-	// S held: a right click looks there instead of going; another key held does not get in the way.
+	// Shift and S held: a right click looks there instead of going; another key held does not get in
+	// the way.
 	for _, tc := range []struct {
 		held       ebiten.Key
 		look, move int
 	}{{ebiten.KeyS, 1, 0}, {ebiten.KeyQ, 0, 1}} {
 		events = &control.InputEvents{}
+		events.Modifiers.Shift = tc.held == ebiten.KeyS
 		events.AddKeyEvent(tc.held, control.ActionPress)
 		events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
 		pl.EventHandler().HandleEvents(events)

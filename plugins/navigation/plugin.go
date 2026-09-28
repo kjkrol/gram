@@ -54,7 +54,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.board = brd
 
 	occupancy := p.boardPlugin.Occupancy()
-	finder := newPathFinder(brd, brd, brd, occupancy)
+	finder := newPathFinder(brd, brd, p.boardPlugin, occupancy)
 	p.finder = finder
 	if p.pathRenderer != nil {
 		p.pathRenderer.finder = finder
@@ -69,12 +69,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, driveSystem: &driveSystem{nav: navSys}}
+	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, driveSystem: &driveSystem{nav: navSys}, clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
 	return nil
 }
 
-// RunPlan runs navigation and the move commands for this tick; call before world's RunPlan.
+// RunPlan takes the orders at once and hands the driving to the simulation; call it after board's
+// RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
@@ -91,7 +92,7 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 
 // WithRenderer draws the remaining route of every selected entity; call SetPathSprites first.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.pathRenderer = NewPathRenderer(p.board, atlas, p.pathSprites, p.selected)
+	p.pathRenderer = NewPathRenderer(p.board, atlas, p.pathSprites, p.selected).WithTops(p.boardPlugin.Top)
 	p.pathRenderer.BindSpace(p.worldPlugin.Space())
 	p.pathRenderer.finder = p.finder
 }

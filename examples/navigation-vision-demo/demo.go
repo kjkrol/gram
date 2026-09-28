@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -70,18 +71,20 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type units struct{}
 
 type mainStage struct {
-	world     *world.Plugin
-	board     *board.Plugin
-	nav       *navigation.Plugin
-	collision *collision.Plugin
-	selection *selection.Plugin
-	players   *players.Plugin
-	vision    *vision.Plugin
-	unitTag   plugin.Tag[units]
-	kinds     []kind.Of[unit]
-	hawk      kind.Of[unit]
-	noticed   map[[2]uid.UID64]bool
-	stack     game.Scenes
+	world      *world.Plugin
+	board      *board.Plugin
+	topography *topography.Plugin
+	nav        *navigation.Plugin
+	collision  *collision.Plugin
+	selection  *selection.Plugin
+	players    *players.Plugin
+	shortcuts  *players.Shortcuts
+	vision     *vision.Plugin
+	unitTag    plugin.Tag[units]
+	kinds      []kind.Of[unit]
+	hawk       kind.Of[unit]
+	noticed    map[[2]uid.UID64]bool
+	stack      game.Scenes
 }
 
 var _ game.Stage = (*mainStage)(nil)
@@ -104,6 +107,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
+	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize}) // the hills in relief, seen from above
 	s.board.CellKindDict().Create(
 		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Veil: 1, Height: 10},
@@ -112,6 +116,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
 	)
 	if err := ctx.Use(s.board); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.topography); err != nil {
 		return err
 	}
 
@@ -125,7 +132,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.topography)
 	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
@@ -149,7 +156,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineKinds()
 
 	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
+	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
+	main.keys = players.SceneKeys{
+		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+	}
+	s.shortcuts = s.players.Shortcuts(main.keys)
+	stack, err := game.NewStack(main, s.shortcuts)
 	if err != nil {
 		return err
 	}
@@ -232,13 +246,14 @@ func (s *mainStage) Spawn() error {
 	for _, e := range cells {
 		hills[e.Cell] = e.Kind == "hill"
 	}
-	heights := board.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
+	heights := topography.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
 		if hills[c] {
 			return hillHeight
 		}
 		return 0
 	})
-	s.board.Seed(board.Layout{Default: "grass", Cells: cells, Heights: heights})
+	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	s.topography.Seed(heights)
 
 	s.world.Seed(
 		s.kinds[0].Entry(unit{start: cell(2, 4), target: cell(GridWidth-3, 4)}),
@@ -257,6 +272,7 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.nav.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.topography.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -282,7 +298,10 @@ func (s *mainStage) noticedEachOther(_ plugin.Tick, sighting vision.Sighting) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	keys  players.SceneKeys
+}
 
 var _ game.Scene = (*mainScene)(nil)
 
@@ -329,22 +348,9 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	s := m.stage
-	s.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case ebiten.KeyEscape:
-			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyB:
-			s.board.Res.Render.ToggleShowGridLines()
-		}
-	}
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
+	m.keys.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

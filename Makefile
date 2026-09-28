@@ -6,7 +6,7 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-minimal demo-collision demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-island demo-island-25 demo-island-isometric demo-effect demo-split-screen demo-scenes demo-vision deps tidy test bench bench-save clean
+.PHONY: all demo-minimal demo-collision demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-board demo-board-topography demo-board-atlas demo-effect demo-split-screen demo-scenes demo-vision deps tidy test bench bench-save clean
 
 all: demo-collision
 
@@ -23,11 +23,11 @@ demo-navigation-vision: run-navigation-vision
 
 demo-navigation-vision-hex: run-navigation-vision-hex
 
-demo-island: run-island
+demo-board: run-board
 
-demo-island-25: run-island-25
+demo-board-topography: run-board-topography
 
-demo-island-isometric: run-island-isometric
+demo-board-atlas: run-board-atlas
 
 demo-effect: run-effect
 
@@ -56,17 +56,14 @@ run-navigation-vision: deps
 run-navigation-vision-hex: deps
 	$(GO) run ./examples/navigation-vision-hex-demo
 
-run-island: deps
-	$(GO) run ./examples/island-demo
+run-board: deps
+	$(GO) run ./examples/board
 
-run-island-25: deps
-	$(GO) run ./examples/island-25-demo
+run-board-topography: deps
+	$(GO) run ./examples/board-topography
 
-run-island-isometric: deps
-	$(GO) run ./examples/island-isometric-demo
-
-run-island-isometric: tidy
-	$(GO) run ./examples/island-isometric-demo
+run-board-atlas: deps
+	$(GO) run ./examples/board-atlas
 
 run-effect: deps
 	$(GO) run ./examples/effect-demo

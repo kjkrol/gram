@@ -72,6 +72,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		rc.Sync()
 		w.RunPlan(rc, d)
 		c.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
 	})
 
 	collidable := func() int {

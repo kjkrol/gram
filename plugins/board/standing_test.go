@@ -50,6 +50,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 		w.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	return ctx.ecs
 }

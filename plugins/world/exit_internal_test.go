@@ -39,6 +39,7 @@ func leaving(t *testing.T, edges aabbworld.Edges, behaviors ...plugin.Behavior) 
 	wm.RegSystems(ecs)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		wm.RunPlan(ctx, d)
+		wm.clock.Replay(ctx, d)
 		ctx.Sync()
 	})
 	return p, ecs, query, outside

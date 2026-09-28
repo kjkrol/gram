@@ -59,6 +59,7 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		w.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 

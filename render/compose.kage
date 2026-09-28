@@ -22,7 +22,8 @@ var Weather vec4
 // Fragment is the sheet's texel times the vertex colour, faded or outlined at the edges an item
 // asks for. Per edge, custom holds 1 plus the distance to it in units of its fade (the piece fades
 // out there), minus 1 minus the distance in pixels (the piece is outlined there), or 0 (nothing).
-// A blended sprite (the last custom over 5.5, 10 plus how soft) holds its weight in alpha: it shows
+// A blended sprite (the last custom over 50000, 100000 plus how soft; a fade's stays under 10000)
+// holds its weight in alpha: it shows
 // where the weight is over a half, glazed as far as 1 plus its opacity in the third custom says. An overlay (alpha over 1.5, 2 plus twice its material's number
 // plus a fraction 0 to 1 it reads) is its material's to work out: where it lies in the world in
 // green and blue, what the material reads in red, the fraction and custom — see material.
@@ -31,7 +32,7 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 		k := floor((color.a - 2) / 2)
 		return material(k, color.gb, color.r, color.a-2-2*k, custom)
 	}
-	if custom.w > 5.5 {
+	if custom.w > 50000 {
 		// a blended sprite: shown where its weight is over a half, fading in round it, as far as
 		// its opacity (1 plus it in the third custom) where it glazes
 		a := blended(color.a, custom.w)
@@ -56,9 +57,9 @@ func faded(custom vec4) float {
 	return f.x * f.y * f.z * f.w
 }
 
-// blended is how much of a blended sprite shows at weight, its mark 10 plus how soft it is.
+// blended is how much of a blended sprite shows at weight, its mark 100000 plus how soft it is.
 func blended(weight float, mark float) float {
-	soft := mark - 10
+	soft := mark - 100000
 	return smoothstep(0.5-soft, 0.5+soft, weight)
 }
 

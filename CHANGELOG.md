@@ -2,7 +2,195 @@
 
 ## Unreleased
 
-Saves written by v0.2.0 do not load: `Base` and the marker components changed shape.
+Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
+and the climate's entities are gone, the clock's is new.
+
+**Time**
+- `plugins/world/clock`: the tactical clock. Game time is the sum of the simulation's steps, kept
+  as `clock.State{Time, Tempo, Paused}` on the clock's own entity and saved with the game. Space
+  is the tactical pause — the simulation stands while the player selects, orders, plans routes and
+  shapes terrain — ] and [ set the tempo (½, 1, 2, 4 by default, `Config.Tempos`), as sub-steps of
+  one length so every tempo runs the same simulation (`Config.BiggerStep` runs one longer step
+  instead). The engine pause (`Runtime.Pause`) stays the menus'. When a frame hits its cap of
+  ticks for a while the tempo comes down a notch and the report says "held back".
+- `RunPlan` is the interface part of a plugin's tick, run once a tick at every tempo and in the
+  pause; what simulates is handed to `clock.Simulate` inside it and replayed by the engine after
+  the game's `Update` as many times as the tempo says. Every built-in plugin is split so:
+  movement, collision, navigation's driving, vision, the board's cells and standing, the
+  atmosphere's weather and the effects simulate; views, commands, selection, shaping and the
+  cameras run at once. `clock.Simulate(c, ctx, step, block)` runs the block at once with a nil
+  clock, for a module run without a world. Behaviours run where their host does: every host runs
+  in the simulation.
+- `world.Plugin.Clock()`, `Queues`/`DefaultBindings` (the players carry the world's commands
+  always), `Clock.Reporter` ("00:00 (paused)", "(x2)", "(x2, held back)") and `Clock.HUD`, a
+  screen layer with the game time and the tempo. `render.Frame.Time` is the world's clock's
+  (`render.Clocked`), so water, sway and rain stand in the pause and hurry with the tempo.
+- `plugins/effects` moved to `plugins/world/effects`, made and installed by the world
+  (`world.Plugin.Effects()`); effects last in game time. `effects.Schedule` (`Effects.Schedule()`):
+  entries in code — `At(moment)`, `Every(period, offset)` — fired by clock time in the step their
+  moment falls in, so a loaded game does not refire what came before the save. `clock.Phase` is
+  the family of the clock's tags: an effect the schedule casts grants one to the clock's entity
+  (`Clock.Entity()`) and a behaviour asks `Clock.In(phase)` to run only while it holds. `Idling`
+  lost its `Base`.
+
+**Boards and topography**
+- `board.Map` is what a board is drawn and priced by beyond its cells: `Look`, `Dressing`, `Top`
+  (a cell's corners and level as drawn), `Climb`, `Least` and `Slope` (what a step and the speed
+  cost beyond the kind's). `board.Plugin.WithMap` sets one, `Map()`, `Top`, `Climb`, `Least` and
+  `Slope` delegate; `SetLook` and `SetDressing` are gone. The board's own map is the simple map: a
+  flat world from above, the ways and crossings as plain bands in their kinds' colours, a step at
+  its kind's cost times the distance. `CellKind.Color` is how a kind looks without an atlas of the
+  game's, `CellKindDict.Draw(name, drawer)` a drawn look; `WithRenderer(nil)` draws from the
+  board's own atlas of them (`DefaultAtlas`). `board.FlatLook()` is the flat look for another
+  map to fall back on.
+- The board is flat: its heights, shaping, climbing and the units' altitudes are `plugins/topography`'s.
+  `Plot` is the cell alone; `Relief`, `SetRelief`, `SetHeights`, `GroundAt`, `Altitude`,
+  `Corners`, `Climb`, `Climbing`, `Lift`, `Flatten`, `MeanOfCells`, `Layout.Heights`, `Shaping`,
+  `Raise`/`Lower`/`Level`, `WithShaping` and `WithClimbing` left it; `Board.Touch(c)` counts a
+  change made beyond the board. The board is no longer a `plugin.CommandHandler`.
+- `plugins/topography` is `plugins/landscape`, `plugins/isometry` and the heights in one: a map
+  in relief. `topography.NewPlugin(world, board, Config{Cell, TileW, TileH, HeightUnit, Headroom,
+  Isometric, Shaping, Climbing})` is the board's Map, the world's Ground and the maker of its
+  cameras; `Style`, `StyleOf`, `WithShadows`, `WithSelection`, `Seed(heights)`, `Relief()`. The
+  ground's heights are a `topography.Relief`: on a square grid a lattice of corners the cells
+  share — no vertical walls by construction — on any other a level per cell; `Corners`,
+  `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`, `Lift`, `Flatten`, `Climb`; they live on the
+  topography's own entity (`topography.Heights`), saved with the game. `topography.Climbing`,
+  `DefaultClimbing`, `Shaping`, `Raise`, `Lower`, `Level`, `MeanOfCells` as they were in board.
+- Two views, switched at play: `topography.View` (Tab) has a camera look isometrically or from
+  above, keeping the ground point in the middle of the screen and a cell as wide as it was; the
+  view is saved with the camera and a game begins from above unless `Config.Isometric`. From
+  above the tiles lie flat and the entities as the world draws them (`world.Plugin.FlatLook`);
+  isometrically blocks and billboards. `Turn` (Q, E) and `Tilt` (R and F now, PageUp/PageDown
+  were) work isometrically; `Follow` (V) and `Drive` (the arrows) in both views.
+- Navigation prices slopes through the board's map (`board.Plugin.Climb`, `Least`) and lays its
+  route sprites on the tiles as the map draws them (`PathRenderer.WithTops`).
+- The isometric view tilts no flatter than `topography.Config.MinPitch` (30° by default, the 2:1
+  view's; 10° was): flatter, the near relief hides what lies behind it. In a view with depth the
+  board's renderer draws only the cells on the screen, not every cell under the rectangle round
+  it.
+- Bindings may hold in some camera modes only: `control.Binding.In(camera.Free)` or
+  `.In(camera.FirstPerson)`; `camera.ModeOf` is FirstPerson for a `camera.Rider` riding in an
+  entity. The players plugin fires only the bindings holding in the camera's mode, accepts two
+  bindings on one trigger in modes apart (`Binding.Overlaps`), and the shortcuts (K) list only
+  what holds now, titled "first person" while riding. The camera's WASD, middle drag and edge
+  scroll hold while it is free. `control.CursorMove` fires on a mouse move; while a local
+  player's camera rides, the players plugin captures the window's cursor and the move reaches
+  that player wherever the cursor is.
+- Through a perspective each tile gets the detail of where it is drawn — water, smooth grounds and
+  ways near the eye, the ground sheet on the horizon — rather than the whole frame the detail the
+  middle of the screen has: looking far off, the river and the roads near the eye were drawn as
+  bare cells. `camera.Scaler` / `camera.ScaleAt` (a world unit's size at a point, 0 behind the
+  eye) size it, and the grid per cell, the units' soft shadows, the sight's shadows and the
+  billboards too.
+- `render.Frame.Soft`: a piece taller than 4.5 of its fades read as a blended sprite and was
+  drawn white (the sight's shadows through a perspective); the blended sprites' mark is now far
+  over what any fade can read (`softCap`). The sight's shadow pieces not in front of the eye are
+  left out, not thrown across the screen.
+- Rain slants with the wind where the middle of the screen looks, and never flatter than it falls:
+  through a perspective the world's origin could lie behind the eye and the streaks ran across the
+  screen as bands.
+- In relief the cameras' `Bounds` and `Visible` hold the ground the screen may show at any height
+  from the relief's lowest ground to `Headroom` over its highest (`topography.Relief.Extent`), not
+  only at sea level: the isometric view no longer loses a strip of high ground at the bottom of
+  the screen, and the perspective and first person no longer lose the ground about the eye (the
+  sky showed under the hills) or everything when looking up. The sun is drawn where its direction
+  vanishes (`camera.Vanisher`), not from two far points: it no longer vanishes as the eye turns a
+  little or shows where it is not.
+- A third view, in perspective, where the game reaches it (`topography.Config.Perspective`; Tab
+  goes round from above, isometric, in perspective): an eye flying over the world, never lower
+  than two cells over its highest ground, seeing `Config.FieldOfView` degrees top to bottom (45).
+  WASD move it along the ground, Q and E go round the ground point in the middle of the screen,
+  R raises the head and F bows it (the eye where it is; in the isometric view too, the other way
+  round from before), the wheel comes in down to the ceiling and narrows the field of view from
+  there, and widens it back and lifts the eye the other way. `LookFrom` and `LookAt` put the eye
+  and its look where the game wants them. Follow (V) in perspective looks down more steeply where
+  the ground would hide the unit and eases back as the way clears. `LookOut` (V, given the
+  perspective) rides in the selected unit, first person: the eye a cell over the unit's top,
+  going with it and pinned to the way it faces; W walks it on, S stops it, A and D turn it, the
+  mouse looks round (`topography.Look`, the cursor captured): across turns the view at once and
+  the unit to face it (`world.Driven.Face`), up and down raise and lower the head; the wheel
+  narrows the view, Q, E, R and F do nothing, V or Tab leave it, back to the view the camera was
+  in. Without the perspective V is Follow as before, the arrows driving. Through a
+  perspective the sky's backdrop (`sky.Backdrop`) draws the sun's disc and glow where the way
+  towards it vanishes, over the horizon, dimmed by the clouds; the hills draw over it. The view
+  from above and the isometric view are as they were; the three share the ground point in the
+  middle, the heading, the pitch and the scale there as Tab goes round, and the view is saved
+  (the eye inside a unit is not: a load comes out). First-version limits: the composer sorts by
+  cell as before, textures interpolate affinely across a tile, the sun glints towards one
+  direction for the whole screen.
+- The flat `island-demo` is gone; `island-25-demo` and `island-isometric-demo` are the island in
+  relief through the topography, from above and isometric (Tab switches either).
+
+**Demos**
+- `examples/island` is the island the board demos share, a public package: `Layout(grid)` — the
+  board's layout, the heights for a topography and the stops — `Kinds(relief)` in their `Colors`,
+  `Style(topography)`; its tests moved with it. `island-demo`, `island-25-demo` and
+  `island-isometric-demo` are gone; in their place `board` (the island on the simple map, from
+  the board's own atlas, a flat day over it), `board-topography` (the island in relief, isometric
+  or from above on Tab, the weather on the ground) and `board-atlas` (a small flat board drawn
+  from the game's own atlas of drawn sprites). The navigation-vision demos take the topography
+  for their hills. Every demo with players has the shortcuts scene on K. Old demo binaries at the
+  repo root were removed.
+
+**Keys and the shortcuts scene**
+- One key table for every game with players: W, A, S and D scroll the camera (on the screen, so
+  along a turned isometric view too); Q and E turn it and R and F tilt it (PageUp and PageDown
+  were); Tab switches the view from above and isometric; C has the camera follow the selected
+  unit (F was); V fastens it behind the unit and the arrows drive it; Space is the tactical pause,
+  ] and [ the tempo, P freezes the light, Shift+] and Shift+[ move the frozen light; Shift+W
+  changes the weather (W was); a right click with Shift and S held looks there (S alone was);
+  = and - raise and lower the ground, an L-drag levels it.
+- `players.SceneKeys`: a scene's own keys — quit, save, the grid, full screen — with labels and
+  what they do, run from the scene's HandleEvents (`Handle`). `players.Plugin.Shortcuts(keys)` is
+  a ready scene listing every key of the game by plugin and the scene's under "Game"
+  (`players.Written` writes a trigger); a game adds it to its stack, opens it on K
+  (`Shortcuts.Open`, the engine paused meanwhile) and Esc or K closes it. The demos with players
+  use it: K the list, Shift+Esc quits (Esc did), F5 saves, B the grid. The engine's full-screen
+  key is F11 (Shift+F was: it shared F with the tilt held).
+
+**Atmosphere**
+- `plugins/sky` and `plugins/climate` are `plugins/atmosphere`: one plugin over the world on the
+  world's clock, `atmosphere.NewPlugin(world, Config{Calendar, Sky, Climate})`, with
+  `Calendar()`, `Sky()`, `Climate()`, `Renderer()` (the backdrop), `Precipitation()`, `Clouds()`,
+  `Reporter()`, `HUD()`; the players carry its keys. Its RunPlan runs the light at once and the
+  weather in the simulation.
+- `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.Day` of game time from
+  the moment a fresh game begins at — so the date is saved with the clock and never jumps.
+  `calendar.Year` (`GameYear`, `EarthYear`), `Season`, `Moment{Date, Time, Year}` with `OfYear`,
+  `Season`, `Moon`, `Hour`, `Written`, `MoonName`; `Calendar.Now`/`At`; `Daily(hour)`,
+  `Yearly(ofYear)` and `Seasonal(season)` give a schedule entry its period and offset;
+  `Reporter`, `HUD`.
+- `atmosphere/sky`: the sun and the moon of the calendar's hour (`Config.LightAt`), set into the
+  world in `Config.Steps` a day, at the climate's zone's latitude. The light can be frozen: P
+  freezes it at the hour it stands or lets it go, Shift+] and Shift+[ move a frozen light half an
+  hour on or back; only the light freezes — the calendar, the weather and the schedule go on — it
+  changes at once, in the tactical pause too, and is not saved. `Config.Frozen`/`Hour` begin a
+  game with a frozen light. `sky.Backdrop` is the sky behind the world. The day's pace and its
+  own pause are gone: the clock's tempo and pause are the day's.
+- `atmosphere/climate`: the zones and the weather as they were, on the calendar's day and the
+  simulation's steps (`climate.New(world, calendar, cfg)`, `Climate.System`); `Weather` lost
+  `SeenDate`/`SeenTime`; `climate.Every` hears every step; Shift+W changes the weather (W was).
+- `atmosphere/precipitation`: the rain and the snow, `precipitation.New(world)`.
+- `atmosphere/weathering`: what the weather does to the board, once the game's own — snow lying,
+  ice on the water, what sways swaying — as effects on the cells from the world's schedule, once a
+  second of game time (`atmosphere.Plugin.WithWeathering(board, weathering.Config{Snowy, Ice,
+  Water, Sway, Swaying, High, Seed})`); the game makes the snowy kinds and the ice, the weathering
+  looks them up by name.
+- The clouds' shadows are `render`'s: the `CloudShadow` material of `render/overcast.kage`,
+  `Frame.Overcast`, `Frame.OvercastOn` (the landscape's were) and `Frame.OvercastQuad`, laid on
+  its own over a screen quad (`Frame.Material` for any material on its own; `render.Screen` gives
+  a viewport's corners and the world under them). The clouds' noise is worked out on the CPU at a
+  piece's corners (`render.CloudAt`, `Frame.Drift`) and shaded between them by the shader
+  (`render.CloudCover`), where every pixel worked out four octaves of noise before; a piece the
+  clouds miss gets no shadow pass at all (`render.Shadowed`). The water takes the shadow off its
+  light the same way, once. A flat map's `atmosphere.Plugin.Clouds()` lays a mesh of pieces over
+  the screen. Full-screen on an integrated GPU this is what the frame was paying for.
+- A flat world is lit too: `world.Plugin.Sunlit()` is true in a world with heights and, in a flat
+  one, once something set the sun (`SetSun`) — the sky of a day going by tints the tiles and the
+  sprites by the hour, night dark, dawn warm — and `atmosphere.Plugin.Clouds()` lays the clouds'
+  shadows once over the screen. `board.Tile.Light` without a dressing is the sun's light on level
+  ground where the world is sunlit.
 
 **Movement costs**
 - A kind's Cost 1 is full speed and the cheapest step: on the islands a road and a bridge; the

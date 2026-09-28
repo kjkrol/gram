@@ -44,11 +44,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		h = &heights{groundOf: p.worldPlugin.Ground, step: p.groundStep}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.worldPlugin.Cover)
+	p.module.clock = p.worldPlugin.Clock()
 	ctx.UseModule(p.module)
 	return nil
 }
 
-// RunPlan runs the scan for this tick — call from your own Game.Loop closure.
+// RunPlan hands the scan to the simulation; call it after world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.

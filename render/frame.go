@@ -110,6 +110,9 @@ func (f *Frame) Weather(w Weather) { f.weather = w }
 // Wind is the frame's wind, for what sways in it.
 func (f *Frame) Wind() [2]float32 { return f.weather.Wind }
 
+// Drift is how far the frame's wind has carried the clouds, for their noise (CloudAt).
+func (f *Frame) Drift() [2]float32 { return f.weather.Drift }
+
 // Clouds is how much of the frame's sky the clouds cover, 0 to 1: under a clear one nothing need
 // be laid for their shadows.
 func (f *Frame) Clouds() float32 { return f.weather.Clouds }
@@ -183,7 +186,7 @@ func Even(v float32) Shade { return Lit(Light{v, v, v}) }
 // Lit is a Shade of l at every corner.
 func Lit(l Light) Shade { return Shade{l, l, l, l} }
 
-// lit is the vertex colour for brightness v.
+// lit is the vertex colour for the light l.
 func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 
 // Sprite draws sprite id of atlas over the screen corners dst, as bright as shade says.
@@ -260,9 +263,13 @@ func (f *Frame) GlazeBlend(tier Tier, depth float32, atlas AtlasSource, id Sprit
 	}
 }
 
-// blendMark is what a blended sprite's last custom starts from, over any fade's, how soft its
-// edge is above it.
-const blendMark = 10
+// blendMark is what a blended sprite's last custom starts from, how soft its edge is above it:
+// far over any fade's, which softCap holds under it, so no piece faded however large passes for a
+// blended sprite. The shaders tell them apart at half the mark.
+const (
+	blendMark = 100000
+	softCap   = 10000
+)
 
 // Tile is Sprite outlined along its four edges, half a pixel inside each: tiles side by side show a
 // grid a pixel wide at no cost of its own.
@@ -413,7 +420,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 			if o.Under {
 				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
 			}
-			if o.Blended && s.Custom3 > blendMark-4.5 {
+			if o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
 			f.verts = append(f.verts, vx)
@@ -430,7 +437,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 			if o.Under {
 				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
 			}
-			if o.Blended && s.Custom3 > blendMark-4.5 {
+			if o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
 			f.verts = append(f.verts, vx)
@@ -509,7 +516,8 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 	f.add(tier, depth, nil, fan, len(pts))
 }
 
-// Soft fills the quad dst in c, fading towards each side over the pixels fade gives it.
+// Soft fills the quad dst in c, fading towards each side over the pixels fade gives it. However
+// large the quad, its fades never read as a blended sprite's mark (softCap under blendMark).
 func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade Fade) {
 	col := premultiplied(c)
 	customs := fadeCustoms(dst, fade)
@@ -537,7 +545,7 @@ func fadeCustoms(dst Corners, fade Fade) [4][4]float32 {
 		case near:
 			return 1
 		}
-		return 1 + dist/w
+		return min(1+dist/w, softCap) // past a few fades it shows whole anyway
 	}
 	var out [4][4]float32
 	for i := range dst {

@@ -1,10 +1,12 @@
 package players
 
 import (
+	"slices"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"slices"
 )
 
 // eventHandler is players' layer from input to commands: it matches this pass's device events
@@ -16,6 +18,9 @@ var _ control.EventHandler = eventHandler{}
 
 func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	mods := control.Mods{Shift: ev.Modifiers.Shift, Ctrl: ev.Modifiers.Ctrl, Alt: ev.Modifiers.Alt}
+	// the cursor is captured while a camera rides in an entity: the pass it is caught or let go
+	// the cursor jumps, so no move is taken from it
+	settled := t.p.capture()
 	if t.p.ground == nil {
 		if g := t.p.worldPlugin.Ground(); g != nil {
 			t.p.ground = func(x, y float32) float32 { return float32(g.At(geom.NewVec(float64(x), float64(y)))) }
@@ -43,6 +48,10 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		pl.in.last = ctx
 		mods := pl.in.withHeld(mods)
 		ctx.Mods = mods
+		moved := ev.CursorDelta.X != 0 || ev.CursorDelta.Y != 0
+		if moved && settled && (under || camera.ModeOf(pl.Camera) == camera.FirstPerson) {
+			t.fire(pl, control.CursorMove{}, ctx)
+		}
 		for _, c := range ev.ClickQueue {
 			at := ctx
 			switch c.Action {
@@ -89,10 +98,12 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-// fire issues the command of every binding of pl on trigger that builds one.
+// fire issues the command of every binding of pl on trigger that holds in the mode of pl's camera
+// and builds one.
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
+	mode := camera.ModeOf(pl.Camera)
 	for _, b := range pl.bindings {
-		if b.Trigger != trigger {
+		if b.Trigger != trigger || !b.Holds(mode) {
 			continue
 		}
 		if cmd, ok := b.Build(ctx); ok {

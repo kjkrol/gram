@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"image/color"
+	"os"
 	"slices"
 	"time"
 
@@ -60,10 +61,13 @@ func (c *Composer) Init(si *goke.SysInit) {
 	}
 }
 
+// TEMP-MEASURE: GRAM_NO_DRAW=1 composes every frame and draws none of it.
+var noDraw = os.Getenv("GRAM_NO_DRAW") == "1"
+
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
 	c.compose(cam)
-	if screen != nil {
+	if screen != nil && !noDraw {
 		c.render(screen)
 	}
 }
@@ -73,11 +77,29 @@ func (c *Composer) Composed() int { return c.frame.Len() }
 
 func (c *Composer) compose(cam camera.Camera) {
 	c.frame.Reset(cam)
-	c.frame.time = float32(time.Since(c.start).Seconds())
+	c.frame.time = float32(c.clock().Seconds())
 	for _, s := range c.sources {
 		s.Compose(&c.frame, cam)
 	}
 	c.sort()
+}
+
+// Clocked is a Source that keeps a game time — the world's, going by its tactical clock — for the
+// frame's animations to go by instead of the composer's own clock; false while it has none.
+type Clocked interface {
+	Clock() (time.Duration, bool)
+}
+
+// clock is the time the frame's animations go by: the first Clocked source's, else the composer's.
+func (c *Composer) clock() time.Duration {
+	for _, s := range c.sources {
+		if k, ok := s.(Clocked); ok {
+			if t, has := k.Clock(); has {
+				return t
+			}
+		}
+	}
+	return time.Since(c.start)
 }
 
 // sort orders the frame: through a projection that sorts the items below Marks back to front by

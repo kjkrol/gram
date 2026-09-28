@@ -14,6 +14,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
 	"github.com/kjkrol/gram/render"
@@ -49,6 +51,7 @@ type Plugin struct {
 	cameras  Cameras
 	look     Look
 	sun      Sun
+	sunlit   bool // something set the sun: a flat world is lit by it too
 	weather  Weather
 }
 
@@ -56,6 +59,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Builtin = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Builtin marks Plugin as installed by the engine itself — see ctx.UseWorld.
 func (*Plugin) Builtin() {}
@@ -78,6 +82,14 @@ func NewPlugin(cfg Config) *Plugin {
 // Roster is what this world's plugins ask of the kinds a game defines; build a unit's Spec through
 // Roster().Unit.Spec.
 func (p *Plugin) Roster() *kind.Roster { return p.roster }
+
+// Clock is the world's tactical clock: the game time everything that simulates goes by, its
+// tactical pause and its tempo. A plugin hands it what simulates (clock.Clock.Simulate).
+func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
+
+// Effects are the world's effects and their schedule: temporary changes to entities, counted down
+// in the clock's time.
+func (p *Plugin) Effects() *effects.Effects { return p.module.effects }
 
 // Quasi3D reports whether this world has heights — see Config.Quasi3D.
 func (p *Plugin) Quasi3D() bool { return p.Res.Config.Quasi3D }
@@ -127,8 +139,15 @@ func (p *Plugin) SetCameras(make Cameras) {
 	p.view = p.NewView(p.Res.Camera.Bounds)
 }
 
-// SetSun lights the world with sun from now on — a game's, or the sky of a day going by.
-func (p *Plugin) SetSun(sun Sun) { p.sun = sun }
+// SetSun lights the world with sun from now on — a game's, or the sky of a day going by. From
+// then on a flat world is Sunlit too.
+func (p *Plugin) SetSun(sun Sun) { p.sun, p.sunlit = sun, true }
+
+// Sunlit reports whether the Sun lights what is drawn: always in a world with heights, whose
+// ground it shades; in a flat one once something set it (SetSun) — the sky of a day going by
+// tinting the tiles and the sprites, night dark, dawn warm — and never before, its sprites drawn
+// as they are.
+func (p *Plugin) Sunlit() bool { return p.Res.Config.Quasi3D || p.sunlit }
 
 // Sun is the world's light: DefaultSun unless something set another.
 func (p *Plugin) Sun() Sun { return p.sun }
@@ -144,6 +163,12 @@ func (p *Plugin) SetLook(look Look) { p.look = look }
 
 // Look is how the world's entities lie on the screen.
 func (p *Plugin) Look() Look { return p.look }
+
+// FlatLook is the world seen from above, its own Look before any view set another: each entity's
+// sprite over its box, split at a wrap seam.
+func (p *Plugin) FlatLook() Look {
+	return &flatLook{worldW: float32(p.Res.Config.Space.Width), worldH: float32(p.Res.Config.Space.Height)}
+}
 
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
 // camera, one made at the first call for any other.
@@ -188,22 +213,32 @@ func (p *Plugin) Name() string { return "gram.world" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.ecs = ctx.ECS()
 	ctx.UseModule(p.module)
+	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
 	return nil
 }
 
-// RunPlan runs world's movement pipeline for this tick — call from your own Game.RunPlan.
+// RunPlan runs world's tick — call it first from your own Stage.Update: the clock's commands and
+// the views at once, and movement, the leavers and the effects in every step of the simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
+// Queues are the clock's — for the players plugin, which carries the world's commands itself.
+func (p *Plugin) Queues() []control.CommandQueue { return p.module.clock.Queues() }
+
+// DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
+func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.DefaultBindings() }
+
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
+	p.renderer.sun, p.renderer.sunlit = p.Sun, p.Sunlit
 	if p.Quasi3D() {
-		p.renderer.sun, p.renderer.ground = p.Sun, p.Ground
+		p.renderer.ground = p.Ground
 	}
 	p.renderer.weather = p.Weather
+	p.renderer.clock = p.module.clock.Time
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -222,7 +257,8 @@ func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // RegisterBehavior adds world.Behaviors to the decision pass run before movement, in order, and
 // hosts Each and Every of a Moving (every entity, before it moves), a Leaving (every tick an
-// entity is Outside an open edge) and a Drawing (every entity about to be drawn). Call before Use.
+// entity is Outside an open edge), a Drawing (every entity about to be drawn) and an
+// effects.Idling (an entity whose last effect ended). Call before Use.
 func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 	for _, b := range behaviors {
 		if system, ok := b.(Behavior); ok {
@@ -230,13 +266,14 @@ func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 			continue
 		}
 		var err error
-		for _, host := range []interface{ Add(plugin.Behavior) error }{p.module.movers, p.module.leavers, p.module.drawers} {
-			if err = host.Add(b); err == nil || !errors.Is(err, plugin.ErrUnhostedBehavior) {
+		hosts := []func(plugin.Behavior) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
+		for _, add := range hosts {
+			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhostedBehavior) {
 				break
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a world.Behavior or Each/Every for Moving, Leaving or Drawing", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a world.Behavior or Each/Every for Moving, Leaving, Drawing or Idling", err, p.Name())
 		}
 	}
 	return nil

@@ -4,20 +4,19 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/effects"
+	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/effects"
 )
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, every tick, the cells — shaping, and what effects changed — then the altitudes and
-// the standing report.
+// module runs, in the simulation, the cells — what effects changed — and the standing report.
 type module struct {
 	cells    *cellSystem
-	altitude *altitudeSystem // Quasi3D only
 	standing *standingSystem
+	clock    *clock.Clock // the world's; nil, run at once
 
 	cellsRunnable    goke.Runnable
-	altitudeRunnable goke.Runnable
 	standingRunnable goke.Runnable
 }
 
@@ -26,20 +25,17 @@ type module struct {
 // =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
-	m.cellsRunnable = ecs.RegSys(m.cells)
-	if m.altitude != nil {
-		m.altitudeRunnable = ecs.RegSys(m.altitude)
-	}
+	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
 	m.standingRunnable = ecs.RegSys(m.standing)
 }
 
+// RunPlan hands the board's work to the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.cellsRunnable, d)
-	if m.altitude != nil {
-		ctx.Run(m.altitudeRunnable, d)
-	}
-	ctx.Run(m.standingRunnable, d)
-	ctx.Sync()
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.cellsRunnable, step)
+		ctx.Run(m.standingRunnable, step)
+		ctx.Sync()
+	})
 }
 
 // SetupSystems is empty — the cells build themselves in their own Init.

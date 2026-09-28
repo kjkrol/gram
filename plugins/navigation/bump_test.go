@@ -16,7 +16,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// A road one cell wide through a field, SingleOccupancy and collision as island-demo has them: the
+// A road one cell wide through a field, SingleOccupancy and collision as the board demos have them: the
 // scene of the reported deadlock, where units pushed each other for ever.
 type roadUnit struct {
 	start, target board.CellID
@@ -122,6 +122,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		brd.RunPlan(rc, d)
 		rw.nav.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	rw.ecs = ctx.ecs
 	for rw.q.All(); rw.q.Next(); {

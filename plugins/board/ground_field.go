@@ -31,7 +31,7 @@ func (b *Board) covers(c CellID, blockers world.Layers) (bottom, top, tau float6
 	}
 	bottom, top = math.Inf(-1), math.Inf(1)
 	if b.quasi3D {
-		bottom = b.Altitude(c)
+		bottom = b.altitude(c)
 		top = bottom + k.Height
 	}
 	return bottom, top, 1 - min(k.Veil, 1), true

@@ -165,8 +165,8 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got := len(r.p.Defaults()); got != len(players.CameraBindings()) {
-		t.Errorf("Defaults has %d bindings, want the camera's %d (the general suggests none)", got, len(players.CameraBindings()))
+	if got, want := len(r.p.Defaults()), len(players.CameraBindings())+len(r.w.DefaultBindings()); got != want {
+		t.Errorf("Defaults has %d bindings, want the camera's and the world's clock's %d (the general suggests none)", got, want)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)
@@ -363,5 +363,76 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 	if err := r.p.RegisterBehavior(struct{}{}); !errors.Is(err, plugin.ErrUnhostedBehavior) {
 		t.Errorf("RegisterBehavior = %v, want ErrUnhostedBehavior", err)
+	}
+}
+
+// riding is the rig's camera, riding in an entity while on.
+type riding struct {
+	camera.Camera
+	on bool
+}
+
+func (r *riding) FirstPerson() bool { return r.on }
+
+// One key may do one thing while the camera is free and another while it rides in an entity: only
+// the binding holding in the camera's mode fires, and two holding in one mode are refused.
+func TestBind_OneKeyDoesWhatTheCamerasModeSays(t *testing.T) {
+	r := newRig(t)
+	players.CaptureWith(r.p, func(bool) {})
+	cam := &riding{Camera: r.local.Camera}
+	r.local.Camera = cam
+	r.bind(
+		control.Command(control.KeyPress{Key: ebiten.KeyA}, "scroll", orderOf(1)).In(camera.Free),
+		control.Command(control.KeyPress{Key: ebiten.KeyA}, "turn", orderOf(2)).In(camera.FirstPerson),
+	)
+	if err := r.local.Bind(control.Command(control.KeyPress{Key: ebiten.KeyA}, "both", orderOf(3))); err == nil {
+		t.Error("a binding on A in every mode beside ones in each was accepted")
+	}
+	press := func() []control.Issued[order] {
+		ev := &control.InputEvents{}
+		ev.AddKeyEvent(ebiten.KeyA, control.ActionPress)
+		ev.AddKeyEvent(ebiten.KeyA, control.ActionRelease)
+		r.handle(ev)
+		return r.drained()
+	}
+	if got := press(); len(got) != 1 || got[0].Command.Cell != 1 {
+		t.Errorf("A with the camera free issued %v, want order 1 alone", got)
+	}
+	cam.on = true
+	if got := press(); len(got) != 1 || got[0].Command.Cell != 2 {
+		t.Errorf("A with the camera riding issued %v, want order 2 alone", got)
+	}
+}
+
+// While the camera rides, the cursor is captured and a mouse move reaches the player as
+// CursorMove wherever the cursor is, but for the pass it was caught in; free, the cursor is let go
+// and a move reaches only the player it is over.
+func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
+	r := newRig(t)
+	var caught []bool
+	players.CaptureWith(r.p, func(on bool) { caught = append(caught, on) })
+	cam := &riding{Camera: r.local.Camera}
+	r.local.Camera = cam
+	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
+		return order{int(c.Delta.X)}, true
+	}).In(camera.FirstPerson))
+	move := func(x, y int) []control.Issued[order] {
+		ev := &control.InputEvents{MousePos: geom.NewVec(float64(x), float64(y)), CursorDelta: geom.NewVec(7, 0)}
+		r.handle(ev)
+		return r.drained()
+	}
+	if got := move(10, 10); len(got) != 0 || len(caught) != 0 {
+		t.Errorf("free, a move issued %v and caught the cursor %v, want nothing", got, caught)
+	}
+	cam.on = true
+	if got := move(10, 10); len(got) != 0 || len(caught) != 1 || !caught[0] {
+		t.Errorf("riding, the first pass issued %v and caught %v, want the cursor caught and no move taken", got, caught)
+	}
+	if got := move(-5000, 9000); len(got) != 1 || got[0].Command.Cell != 7 {
+		t.Errorf("riding, a move far off the screen issued %v, want a look by 7", got)
+	}
+	cam.on = false
+	if got := move(10, 10); len(got) != 0 || len(caught) != 2 || caught[1] {
+		t.Errorf("free again, a move issued %v and caught %v, want the cursor let go and nothing issued", got, caught)
 	}
 }

@@ -21,11 +21,11 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/effects"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
 	"github.com/kjkrol/gram/render"
@@ -94,8 +94,9 @@ type mainStage struct {
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	shortcuts *players.Shortcuts
 	brd       *board.Board
-	effects   *effects.Plugin
+	effects   *effects.Effects
 	snow, ice board.CellKind
 
 	frost, frozen, slip effects.ID
@@ -124,7 +125,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.effects = effects.NewPlugin(s.world)
+	s.effects = s.world.Effects()
 	// A frozen boat holds its cell, so the planner goes round.
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world)
 	s.brd = s.board.Res.Logic.Board
@@ -173,9 +174,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	})); err != nil {
 		return err
 	}
-	if err := ctx.Use(s.effects); err != nil {
-		return err
-	}
 
 	s.selection = selection.NewPlugin(s.world)
 	if err := ctx.Use(s.selection); err != nil {
@@ -197,7 +195,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineKinds()
 
 	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
+	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
+	main.keys = players.SceneKeys{
+		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+	}
+	s.shortcuts = s.players.Shortcuts(main.keys)
+	stack, err := game.NewStack(main, s.shortcuts)
 	if err != nil {
 		return err
 	}
@@ -311,7 +316,6 @@ func (s *mainStage) Spawn() error {
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
-	s.effects.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
@@ -321,7 +325,10 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	keys  players.SceneKeys
+}
 
 var _ game.Scene = (*mainScene)(nil)
 
@@ -366,22 +373,9 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	s := m.stage
-	s.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case ebiten.KeyEscape:
-			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyB:
-			s.board.Res.Render.ToggleShowGridLines()
-		}
-	}
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
+	m.keys.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

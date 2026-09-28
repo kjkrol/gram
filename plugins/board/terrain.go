@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"image/color"
 
 	"github.com/kjkrol/gram/render"
 )
@@ -11,10 +12,11 @@ type Terrain interface {
 	Kind(c CellID) CellKind
 }
 
-// CellKind is a named terrain kind: whom it admits, what it does to movement and sight, and the
-// sprite drawn for it; how it looks beyond its sprite is a landscape's (plugins/landscape). A wall
-// is Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has
-// a Veil.
+// CellKind is a named terrain kind: whom it admits, what it does to movement and sight, and how
+// it looks — its Color, or a sprite drawn for it (CellKindDict.Draw) or given by the game's atlas
+// (Plugin.WithRenderer); how it looks in relief is a topography's (plugins/topography). A wall is
+// Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has a
+// Veil.
 type CellKind struct {
 	Name Name // Named("grass")
 	// Cost 1 is full speed and the cheapest step the planner counts on — a road; above 1 the cell
@@ -33,11 +35,14 @@ type CellKind struct {
 	// Zero veils everyone.
 	Veils Domain
 	// Height is what stands on the cell (a wall, a forest) in a Quasi3D world; a flat world refuses
-	// it — see world.Config.Quasi3D. The ground under it is the cell's Relief.
+	// it — see world.Config.Quasi3D. The ground under it is the topography's.
 	Height float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
-	Sway     float64
+	Sway float64
+	// Color is how the kind looks on a map drawn without an atlas of the game's: its cells filled
+	// with it, its ways as bands of it. Zero is grey.
+	Color    color.RGBA
 	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
 	// set; see Costing and CostFor.
@@ -79,17 +84,23 @@ type CellKindDict interface {
 	Get(name string) (CellKind, bool)
 	// All returns every registered CellKind.
 	All() []CellKind
+	// Draw has the kind named name drawn by draw on a map drawn without an atlas of the game's,
+	// in place of its Color.
+	Draw(name string, draw render.SpriteDrawer)
 }
 
 type cellKindDict struct {
 	entries map[Name]CellKind
+	drawers map[Name]render.SpriteDrawer
 	next    render.SpriteID
 	quasi3D bool
 }
 
 func newCellKindDict(quasi3D bool) *cellKindDict {
-	return &cellKindDict{entries: make(map[Name]CellKind), quasi3D: quasi3D}
+	return &cellKindDict{entries: make(map[Name]CellKind), drawers: make(map[Name]render.SpriteDrawer), quasi3D: quasi3D}
 }
+
+func (d *cellKindDict) Draw(name string, draw render.SpriteDrawer) { d.drawers[Named(name)] = draw }
 
 func (d *cellKindDict) Create(kinds ...CellKind) {
 	for _, k := range kinds {

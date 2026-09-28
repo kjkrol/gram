@@ -12,7 +12,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugins/isometry"
+	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -349,7 +350,41 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Camera:   cfg,
+		Quasi3D:  true,
 	})
-	isometry.NewPlugin(w, isometry.Config{Cell: 32, HeightUnit: 1})
+	b := board.NewPlugin(board.DefaultGrids{}.Square(width/32, height/32, 32), &board.MultipleOccupancy{}, w)
+	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	return w.Camera()
+}
+
+// behindUnder is a camera with nothing in front of its eye short of x 146: as a perspective riding
+// low has the ground under and behind it.
+type behindUnder struct{ camera.Camera }
+
+func (behindUnder) ScaleAt(x, _, _ float32) float32 {
+	if x < 146 {
+		return 0
+	}
+	return 2
+}
+
+// A piece of shadow not wholly in front of the eye is left out — it lies under or behind it,
+// where it would be thrown across the screen — and the rest is drawn.
+func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
+	r := isoRenderer(t)
+	r.camera = behindUnder{r.camera}
+	f := new(render.Frame)
+	f.Reset(r.camera)
+	r.frame = f
+	sight := Sight{Facing: geom.NewVec(1, 0), HalfAngle: 0.2, Radius: 100}
+	o := SightOutline{Count: 5}
+	for i := 1; i <= 3; i++ {
+		o.Shadows[i][0] = Band{From: 40, To: 60} // two steps of ground at each of three angles
+	}
+	r.shade(100, 100, &sight, &o)
+	n := 0
+	f.Each(func(render.Tier, float32, []ebiten.Vertex) { n++ })
+	if n != 3 {
+		t.Errorf("%d shadow pieces, want the three farther ones: the nearer reach back short of x 146", n)
+	}
 }

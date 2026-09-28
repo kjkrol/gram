@@ -66,6 +66,7 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 		w.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)

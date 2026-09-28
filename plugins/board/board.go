@@ -2,7 +2,6 @@ package board
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -12,20 +11,18 @@ import (
 )
 
 // Board is a Grid and its terrain. Once the ECS is set up every cell is an entity carrying a
-// [Plot] and a [Ground], and the board reads and writes them; before that, and for
-// good on a board no ECS runs, it keeps a seed: a TerrainMap and the corner heights. It is also
-// the world's Ground: on a square grid the ground runs between a cell's corners, on a hex grid a
-// cell is level. Not safe for concurrent use.
+// [Plot], a [Ground], a [Way] and a [Crossing], and the board reads and writes them; before that,
+// and for good on a board no ECS runs, it keeps a seed: a TerrainMap. The board is flat: its
+// heights, when it has any, are its Map's (plugins/topography). Not safe for concurrent use.
 type Board struct {
 	Grid
 
-	square   *squareGrid // the grid when it is square, for the ground's fast path; nil otherwise
+	square   *squareGrid // the grid when it is square, for the fast paths; nil otherwise
 	seed     *TerrainMap
-	relief   []Relief // the seed's relief by ordinal; nil is level at 0
 	cells    *cellStore
 	version  uint64
-	quasi3D  bool // the world has heights: cover spans the cells' bands
-	climbing Climbing
+	quasi3D  bool        // the world has heights: cover spans the cells' bands
+	mapping  Map         // what the board is drawn and priced by; nil before the plugin set one
 	stamps   []uint64    // by ordinal: the count of changes when each cell last changed
 	changes  uint64      // how many cells have changed, one at a time
 	everyone uint64      // the count when every cell last changed at once
@@ -46,13 +43,12 @@ type cellStore struct {
 	crossing  goke.Comp[Crossing]
 }
 
-var _ world.Ground = (*Board)(nil)
 var _ Terrain = (*Board)(nil)
 
 // NewBoard is a board over grid seeded with terrain.
 func NewBoard(grid Grid, terrain *TerrainMap) *Board {
 	sq, _ := grid.(*squareGrid)
-	return &Board{Grid: grid, square: sq, seed: terrain, climbing: DefaultClimbing, stamps: make([]uint64, grid.CellCount())}
+	return &Board{Grid: grid, square: sq, seed: terrain, stamps: make([]uint64, grid.CellCount())}
 }
 
 // CellVersion counts the changes to c — its kind, its way, its heights, through the board or by an
@@ -87,6 +83,13 @@ func (b *Board) Square() (SquareShape, bool) {
 	return SquareShape{Cols: sq.Width, Rows: sq.Height, Cell: float64(sq.CellSize), WrapX: sq.WrapX, WrapY: sq.WrapY}, true
 }
 
+// Touch counts a change to c made beyond the board — its heights shaped by a topography — so
+// whoever keeps something worked out of the cell reads it anew (CellVersion, Version).
+func (b *Board) Touch(c CellID) {
+	b.touch(c)
+	b.version++
+}
+
 // touch counts a change to c.
 func (b *Board) touch(c CellID) {
 	if i, ok := b.ordinal(c); ok && i < len(b.stamps) {
@@ -104,7 +107,7 @@ func (b *Board) touchAll() {
 // bind hands the terrain over to the cell entities in st.
 func (b *Board) bind(st *cellStore) {
 	b.version += b.seed.Version()
-	b.cells, b.seed, b.relief = st, nil, nil
+	b.cells, b.seed = st, nil
 	b.touchAll()
 }
 
@@ -127,15 +130,6 @@ func (b *Board) groundOf(i int) *Ground {
 		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
 	}
 	return st.ground.At(st.kinds.Cursor())
-}
-
-// plotOf is the i-th cell's Plot, in place.
-func (b *Board) plotOf(i int) *Plot {
-	st := b.cells
-	if !st.plots.SeekH(st.ids[i]) && !st.plots.Seek(st.ids[i]) {
-		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
-	}
-	return st.plot.At(st.plots.Cursor())
 }
 
 // CellEntity is the entity of cell c; false off the board or before the ECS is set up.
@@ -219,8 +213,8 @@ func (b *Board) SetAll(kind CellKind) {
 	b.version++
 }
 
-// Version counts the changes to the terrain — kinds and heights, made through the board or by an
-// effect on a cell's entity; it starts over with a load.
+// Version counts the changes to the terrain — kinds, ways, heights — made through the board, by an
+// effect on a cell's entity or by a topography (Touch); it starts over with a load.
 func (b *Board) Version() uint64 {
 	if b.cells == nil {
 		return b.version + b.seed.Version()
@@ -228,171 +222,19 @@ func (b *Board) Version() uint64 {
 	return b.version
 }
 
-// Relief is the ground height at c's corners; zero off the board.
-func (b *Board) Relief(c CellID) Relief {
-	i, ok := b.ordinal(c)
-	if !ok {
-		return Relief{}
+// Map is what the board is drawn and priced by: the plugin's, or the simple map on a board no
+// plugin runs.
+func (b *Board) Map() Map {
+	if b.mapping == nil {
+		b.mapping = newSimpleMap(b, nil, nil)
 	}
-	return b.reliefAt(i)
+	return b.mapping
 }
 
-func (b *Board) reliefAt(i int) Relief {
-	if b.cells == nil {
-		if b.relief == nil {
-			return Relief{}
-		}
-		return b.relief[i]
-	}
-	return b.plotOf(i).Relief
-}
-
-// SetRelief puts c's corners at r's heights. On a square grid the neighbours meeting at a corner
-// go with it: the ground has no vertical walls. A hex cell is level, at r's first corner.
-func (b *Board) SetRelief(c CellID, r Relief) {
-	if !b.sloped() {
-		r = Relief{Corners: [4]float32{r.Corners[0], r.Corners[0], r.Corners[0], r.Corners[0]}}
-		if b.setRelief(c, r) {
-			b.version++
-		}
-		return
-	}
-	if b.setCorners(c, r) {
-		b.version++
-	}
-}
-
-// setCorners puts c's corners at r's heights and the neighbours' corners meeting them with them.
-func (b *Board) setCorners(c CellID, r Relief) bool {
-	x, y, ok := b.Coords(c)
-	if !ok {
-		return false
-	}
-	changed := false
-	for k, d := range [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-		if v, ok := b.foldVertex(int64(x)+d[0], int64(y)+d[1]); ok {
-			changed = b.setHeightAt(v, float64(r.Corners[k])) || changed
-		}
-	}
-	return changed
-}
-
-// seal brings the neighbours' corners to c's where they meet, so a relief written into c's Plot
-// alone, by an effect, leaves no vertical wall; false where they met already.
-func (b *Board) seal(c CellID) bool { return b.sloped() && b.setCorners(c, b.Relief(c)) }
-
-func (b *Board) setRelief(c CellID, r Relief) bool {
-	i, ok := b.ordinal(c)
-	if !ok {
-		return false
-	}
-	if b.cells == nil {
-		if b.relief == nil {
-			if r == (Relief{}) {
-				return false
-			}
-			b.relief = make([]Relief, b.CellCount())
-		}
-		if b.relief[i] == r {
-			return false
-		}
-		b.relief[i] = r
-		b.touch(c)
-		return true
-	}
-	p := b.plotOf(i)
-	if p.Relief == r {
-		return false
-	}
-	p.Relief = r
-	b.touch(c)
-	return true
-}
-
-// SetHeights raises every cell's ground to heights: sampled at its corners on a square grid, at
-// its centre on a hex one.
-func (b *Board) SetHeights(heights func(p geom.Vec) float64) {
-	changed := false
-	b.EachCell(func(c CellID) {
-		changed = b.setRelief(c, b.sample(c, heights)) || changed
-	})
-	if changed {
-		b.version++
-	}
-}
-
-// sample is c's relief read off heights.
-func (b *Board) sample(c CellID, heights func(p geom.Vec) float64) Relief {
-	if !b.sloped() {
-		h := float32(heights(b.CellCenter(c)))
-		return Relief{Corners: [4]float32{h, h, h, h}}
-	}
-	w, h := b.CellBounds()
-	o := b.CellCenter(c).Sub(geom.NewVec(w/2, h/2))
-	var r Relief
-	for k, d := range [4][2]float64{{0, 0}, {w, 0}, {0, h}, {w, h}} {
-		r.Corners[k] = float32(heights(geom.NewVec(o.X+d[0], o.Y+d[1])))
-	}
-	return r
-}
-
-// sloped reports whether the ground runs between a cell's corners: a square grid's.
-func (b *Board) sloped() bool { return b.square != nil }
-
-// GroundAt is the ground height under p, 0 off the board: read between the cell's corners on a
-// square grid, the cell's level elsewhere.
-func (b *Board) GroundAt(p geom.Vec) float64 {
-	sq := b.square
-	if sq == nil {
-		c, ok := b.CellAt(p)
-		if !ok {
-			return 0
-		}
-		return float64(b.Relief(c).Corners[0])
-	}
-	if sq.CellSize == 0 {
-		return 0
-	}
-	size := float64(sq.CellSize)
-	fx, fy := p.X/size, p.Y/size
-	x0, y0 := math.Floor(fx), math.Floor(fy)
-	x, okX := foldAxis(int64(x0), int64(sq.Width), sq.WrapX)
-	y, okY := foldAxis(int64(y0), int64(sq.Height), sq.WrapY)
-	if !okX || !okY {
-		return 0
-	}
-	hs := b.reliefAt(int(y)*int(sq.Width) + int(x)).Corners
-	u, v := fx-x0, fy-y0
-	return (1-u)*(1-v)*float64(hs[0]) + u*(1-v)*float64(hs[1]) + (1-u)*v*float64(hs[2]) + u*v*float64(hs[3])
-}
-
-// Altitude is c's ground level, the mean of its corners.
-func (b *Board) Altitude(c CellID) float64 { return b.Relief(c).Level() }
-
-// Corners is the ground height at c's four corners — top-left, top-right, bottom-left,
-// bottom-right — with c's column and row; false on a grid whose cells are level.
-func (b *Board) Corners(c CellID) (hs [4]float64, x, y uint32, ok bool) {
-	if !b.sloped() {
-		return hs, 0, 0, false
-	}
-	x, y, ok = b.Coords(c)
-	if !ok {
-		return hs, 0, 0, false
-	}
-	r := b.Relief(c)
-	for k := range hs {
-		hs[k] = float64(r.Corners[k])
-	}
-	return hs, x, y, true
-}
-
-// At is GroundAt — the world.Ground contract.
-func (b *Board) At(p geom.Vec) float64 { return b.GroundAt(p) }
-
-// Step is how far apart sight samples the ground: the shorter side of a cell.
-func (b *Board) Step() float64 {
-	w, h := b.CellBounds()
-	return min(w, h)
+// altitude is c's ground level as the Map has it.
+func (b *Board) altitude(c CellID) float64 {
+	_, level := b.Map().Top(c)
+	return float64(level)
 }
 
 // Cell is an entity's current position on the board.

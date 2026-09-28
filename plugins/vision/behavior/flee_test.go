@@ -99,7 +99,7 @@ func fleeRunWith(t *testing.T, tune func(*behavior.Flee), runner fleeBody, facin
 	}})
 	ctx.ecs.Setup(systems...)
 
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { v.RunPlan(rc, d); w.RunPlan(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { v.RunPlan(rc, d); w.RunPlan(rc, d); w.Clock().Replay(rc, d) })
 	ctx.ecs.Tick(time.Second / 60)
 
 	var out geom.Vec

@@ -82,7 +82,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(stage.Update)
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); stage.world.Clock().Replay(rc, d) })
 
 	var systems []goke.System
 	for _, produce := range ctx.pending {

@@ -5,19 +5,17 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/effects"
+	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*cellSystem)(nil)
 
 // cellSystem gives every cell an entity at Setup, or finds the ones a save brought back, and hands
-// them to the board. Every tick it carries out the shaping commands and counts a change wherever
-// an effect rewrote a cell (effects.Active.Altered) or has just ended on one (effects.Idle),
-// sealing its corners to its neighbours'.
+// them to the board. Every step it counts a change wherever an effect rewrote a cell
+// (effects.Active.Altered) or has just ended on one (effects.Idle).
 type cellSystem struct {
-	brd   *Board
-	shape *shaping
+	brd *Board
 
 	active      *goke.Query // cells under an effect
 	idle        *goke.Query // cells whose last effect has just ended
@@ -30,9 +28,7 @@ type cellSystem struct {
 	spawnCross  goke.Comp[Crossing]
 }
 
-func newCellSystem(brd *Board, shape *shaping) *cellSystem {
-	return &cellSystem{brd: brd, shape: shape}
-}
+func newCellSystem(brd *Board) *cellSystem { return &cellSystem{brd: brd} }
 
 func (s *cellSystem) Init(si *goke.SysInit) {
 	st := &cellStore{ids: make([]uid.UID64, s.brd.CellCount())}
@@ -80,7 +76,7 @@ func (s *cellSystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		crossings := s.spawnCross.Slice(&factory.Cursor)
 		for i, id := range factory.IDs {
 			c := cells[o]
-			plots[i] = Plot{Cell: c, Relief: s.brd.Relief(c)}
+			plots[i] = Plot{Cell: c}
 			grounds[i] = Ground{Kind: s.brd.seed.Kind(c)}
 			ways[i] = s.brd.Way(c)
 			crossings[i] = s.brd.Crossing(c)
@@ -91,7 +87,6 @@ func (s *cellSystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 }
 
 func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
-	s.shape.run(s.brd)
 	changed := false
 	for s.active.All(); s.active.Next(); {
 		cur := s.active.Cursor()
@@ -99,7 +94,6 @@ func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
 		for i, a := range s.activeComp.Slice(cur) {
 			if a.Altered {
 				s.brd.touch(plots[i].Cell)
-				s.brd.seal(plots[i].Cell)
 				changed = true
 			}
 		}
@@ -107,7 +101,6 @@ func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
 	for s.idle.All(); s.idle.Next(); {
 		for _, p := range s.idlePlot.Slice(s.idle.Cursor()) {
 			s.brd.touch(p.Cell)
-			s.brd.seal(p.Cell)
 			changed = true
 		}
 	}

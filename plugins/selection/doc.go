@@ -14,7 +14,7 @@
 //
 // # Followed and FollowSystem
 //
-// The third tag, Followed, is the unit a camera follows. A [Follow] command (F by default) tags
+// The third tag, Followed, is the unit a camera follows. A [Follow] command (C by default) tags
 // the one Selected unit — none with several selected — or, when one is followed already, untags
 // it; its Camera is the one of the player who asked. Every tick the [FollowSystem] centres that
 // camera on the followed unit at its

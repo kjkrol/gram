@@ -4,16 +4,23 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/uid"
 )
 
-// hill is level ground with a few cells raised, priced by DefaultClimbing over steps of 10.
+// hill is level ground with a few cells raised, priced by the topography's DefaultClimbing over
+// steps of 10: what a Map's Climb and Least say.
 type hill map[board.CellID]float64
 
-func (h hill) Climbing() board.Climbing { return board.DefaultClimbing }
+func (h hill) Least(d board.Domain) float64 {
+	if !topography.DefaultClimbing.Feels(d) {
+		return 1
+	}
+	return topography.DefaultClimbing.Least()
+}
 
 func (h hill) Climb(from, to board.CellID, d board.Domain) float64 {
-	c := board.DefaultClimbing
+	c := topography.DefaultClimbing
 	if !c.Feels(d) {
 		return 1
 	}

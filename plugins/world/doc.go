@@ -29,7 +29,7 @@
 // A host hands Base to whatever it hosts instead of anyone binding it twice. No entity moves
 // further in a tick than [StepReach] of its own shorter side ([Position.MaxStep],
 // [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest.
-// [Driven] marks an entity steered by hand — walk on or stop, turn — written every tick by whoever
+// [Driven] marks an entity steered by hand — walk on or stop, turn, or turn to face a way — written every tick by whoever
 // steers it and carried out by the plugin that moves entities over the ground (navigation).
 //
 // # Kinds, Seed and Populate
@@ -61,9 +61,16 @@
 // logic that has a plugin.Tick and no component id; [Plugin.Despawn] removes an entity at the end
 // of the tick. [Plugin.Declare] tells saves about a type only ever attached; call it in Init.
 //
-// # Systems
+// # Clock, Systems and Effects
 //
-// [Plugin.RunPlan] runs the tick: every registered [Behavior] (a decision system, see
+// The world keeps the tactical clock (plugins/world/clock, [Plugin.Clock]): game time is the sum
+// of the simulation's steps, Space is the tactical pause and ] and [ the tempo — the players carry
+// its commands ([Plugin.Queues], [Plugin.DefaultBindings]) — and the effects (plugins/world/effects,
+// [Plugin.Effects]), which last in game time and keep the schedule of what happens when.
+//
+// [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
+// the simulation the clock replays as many times as the tempo says and not at all in the pause,
+// every registered [Behavior] (a decision system, see
 // [Plugin.RegisterBehavior]), then [SteeringSystem] carries out [Steering] requests (heading, and base
 // speed for an entity with a motion profile), [VelocitySystem] runs the [Each] and [Every]
 // behaviors of a [Moving] over every entity so they may scale that speed, then [MoveSystem] moves every box under the
@@ -71,7 +78,7 @@
 // no state of its own between ticks: Populate and PostLoad rebuild it too, so it is whole before
 // the first tick, and a despawned entity is gone from it on the next. Anything reading the space
 // in its own pass sees the boxes as they stand after the last rebuild — and, after a collision
-// tick, as the engine pushed them.
+// tick, as the engine pushed them. The leavers and the effects close every step.
 //
 // # Appearance and Renderer
 //
@@ -80,7 +87,7 @@
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
 // ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's [View] and nothing else, each laid on the screen by the world's [Look]:
-// from above its box, unless a view plugin ([Plugin.SetLook], plugins/isometry) stands it up as a
+// from above its box, unless a view plugin ([Plugin.SetLook], plugins/topography) stands it up as a
 // billboard. Picking and outlines ask the same Look. A view plugin also makes the world's cameras
 // ([Plugin.SetCameras], [Cameras]).
 //
@@ -91,7 +98,8 @@
 // sky (white when zero); [Sun.Light] is the light — a render.Light — it casts on a surface of a
 // given normal, [Sun.Shaded] the same with only part of the sun reaching it — the rest in shadow —
 // and [Sun.Daylight] what a render.Frame needs of it for glints and reflections. Entities are drawn
-// in its light on level ground.
+// in its light on level ground — in a flat world too once something set the sun ([Plugin.Sunlit]);
+// a flat world nothing lit is drawn as its sprites are.
 // Under it every entity with a [Z] casts a shadow: the Renderer lays a soft patch on the ground away
 // from the sun, as wide as the entity, stretched by its Height and pushed off by how far above the
 // ground it stands — a hawk's falls where it flies over — over the ground and under what stands. [DefaultSun] stands high over the south-east; [Plugin.SetSun] puts another in — a
@@ -101,11 +109,11 @@
 //
 // The air over the world is its [Weather] ([Plugin.Weather], [Plugin.SetWeather]): the wind, the
 // clouds and how far the wind has carried them, rain, snow falling and lying — a calm clear day
-// unless something sets another, plugins/climate or a game. The renderers hand it to their frames:
+// unless something sets another, plugins/atmosphere or a game. The renderers hand it to their frames:
 // the board lays the clouds' shadows over the ground, and whatever sways — an entity whose
 // [Appearance] has a Sway, a board cell whose kind has one — leans with the wind. Snow lying, ice,
-// trees swaying only in a wind are a game's effects (plugins/effects), cast by its behaviours as
-// the weather says: the Temperature, what falls, the wind.
+// trees swaying only in a wind are effects on the board's cells (plugins/atmosphere/weathering),
+// cast as the weather says: the Temperature, what falls, the wind.
 //
 // # View and EntitySet
 //

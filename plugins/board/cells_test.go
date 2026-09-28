@@ -4,24 +4,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/effects"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/effects"
 	"github.com/kjkrol/uid"
 )
 
 // cellWorld is world + effects + board over a 4x4 grass board, with frost defined, casting from a
-// hook at the start of each tick; boardFirst runs the board's pass before the effects'. With
-// quasi3D the world has heights and the board shapes the ground by shape.
+// hook at the start of each tick; boardFirst runs the board's pass before the effects'.
 type cellWorld struct {
 	ecs     *goke.ECS
 	brd     *board.Plugin
-	fx      *effects.Plugin
+	fx      *effects.Effects
 	frost   effects.ID
-	mound   effects.ID
 	target  board.CellID
 	grass   board.CellKind
 	snow    board.CellKind
@@ -35,35 +31,25 @@ type cellWorld struct {
 const cellTick = time.Second / 10
 
 func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
-	return newShapedWorld(t, boardFirst, false, nil, board.Shaping{})
-}
-
-func newShapedWorld(t *testing.T, boardFirst, quasi3D bool, grid board.Grid, shape board.Shaping) *cellWorld {
 	t.Helper()
 	cw := &cellWorld{}
-	if grid == nil {
-		grid = board.DefaultGrids{}.Square(4, 4, cellSize)
-	}
+	grid := board.DefaultGrids{}.Square(4, 4, cellSize)
 	cw.target, _ = grid.CellIndex(2, 2)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * cellSize, Height: 4 * cellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: unitSize, MaxSize: unitSize},
-		Quasi3D:  quasi3D,
 	})
-	cw.fx = effects.NewPlugin(w)
-	cw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, w).WithShaping(shape)
+	cw.fx = w.Effects()
+	cw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
 	cw.grass = board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land}
 	cw.snow = board.CellKind{Name: board.Named("snow"), Cost: 3, Allows: board.Land}
 	cw.brd.Res.Logic.Board.SetAll(cw.grass)
 	snow := cw.snow
 	cw.frost = cw.fx.Define("frost", effects.Spec{effects.Lasts(2 * cellTick), effects.Alter(func(g *board.Ground) { g.Kind = snow })})
-	cw.mound = cw.fx.Define("mound", effects.Spec{effects.Lasts(2 * cellTick), effects.Alter(func(p *board.Plot) {
-		p.Relief = board.Relief{Corners: [4]float32{6, 6, 6, 6}}
-	})})
 
 	ctx := &installCtx{ecs: goke.New()}
 	for _, install := range []func() error{
-		func() error { return w.Install(ctx) }, func() error { return cw.fx.Install(ctx) }, func() error { return cw.brd.Install(ctx) },
+		func() error { return w.Install(ctx) }, func() error { return cw.brd.Install(ctx) },
 	} {
 		if err := install(); err != nil {
 			t.Fatal(err)
@@ -86,14 +72,9 @@ func newShapedWorld(t *testing.T, boardFirst, quasi3D bool, grid board.Grid, sha
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		rc.Run(caster, d)
 		rc.Sync()
-		w.RunPlan(rc, d)
-		if boardFirst {
-			cw.brd.RunPlan(rc, d)
-			cw.fx.RunPlan(rc, d)
-		} else {
-			cw.fx.RunPlan(rc, d)
-			cw.brd.RunPlan(rc, d)
-		}
+		w.RunPlan(rc, d) // the effects run with the world, the board after them
+		cw.brd.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
 		rc.Sync()
 	})
 	cw.ecs = ctx.ecs
@@ -198,138 +179,6 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 	}
 }
 
-// The kind and the heights are apart: a frost ending puts back the grass and leaves the ground
-// raised while it lay.
-func TestCells_AnEffectEndingKeepsTheGroundShapedMeanwhile(t *testing.T) {
-	cw := newShapedWorld(t, false, true, nil, board.Shaping{Step: 5})
-	cw.castFrost()
-	cw.ecs.Tick(cellTick)
-	cw.ecs.Tick(cellTick)
-	if got := cw.kind(); got != cw.snow {
-		t.Fatalf("terrain is %q with the effect on, want snow", got.Name)
-	}
-	raised := board.Relief{Corners: [4]float32{3, 3, 3, 3}}
-	cw.board().SetRelief(cw.target, raised)
-	for range 4 {
-		cw.ecs.Tick(cellTick)
-	}
-	if got := cw.kind(); got != cw.grass {
-		t.Errorf("terrain is %q after the effect, want grass back", got.Name)
-	}
-	if got := cw.board().Relief(cw.target); got != raised {
-		t.Errorf("the cell's corners after the effect = %v, want %v as raised under the frost", got, raised)
-	}
-}
-
-// heights reads the target cell's corners.
-func (cw *cellWorld) heights() [4]float32 { return cw.board().Relief(cw.target).Corners }
-
-func TestShaping_RaiseLiftsTheNearestCornerAndTheSlopeFollows(t *testing.T) {
-	cw := newShapedWorld(t, false, true, nil, board.Shaping{Step: 5, MaxStep: 5})
-	b := cw.board()
-	corner := b.CellCenter(cw.target).Sub(geom.NewVec(cellSize/2, cellSize/2)) // the target's top-left
-	v := b.Version()
-	for range 3 {
-		cw.brd.Queues()[0].Put(control.Nobody, board.Raise{At: corner.Add(geom.NewVec(2, 3))})
-	}
-	cw.ecs.Tick(cellTick)
-	if got := cw.heights(); got[0] != 15 {
-		t.Errorf("the target's corners = %v, want its top-left raised three times to 15", got)
-	}
-	if b.Version() == v {
-		t.Error("shaping left the Version as it was")
-	}
-	up, _ := b.CellIndex(2, 1) // the corner is this cell's bottom-left: one height, however many cells
-	if got := b.Relief(up).Corners[2]; got != 15 {
-		t.Errorf("the cell above shares the corner at %v, want 15", got)
-	}
-	// Every corner an edge away is within MaxStep of the next: 15, 10, 5 going out.
-	if got := cw.heights(); got[1] != 10 || got[2] != 10 || got[3] != 5 {
-		t.Errorf("the target's corners = %v, want the slope 15, 10, 10, 5", got)
-	}
-	far, _ := b.CellIndex(0, 0)
-	if got := b.Relief(far).Corners; got != [4]float32{0, 0, 0, 5} {
-		t.Errorf("a far cell's corners = %v, want only its bottom-right 3 edges out at 5", got)
-	}
-
-	cw.brd.Queues()[1].Put(control.Nobody, board.Lower{At: corner})
-	cw.ecs.Tick(cellTick)
-	if got := cw.heights()[0]; got != 10 {
-		t.Errorf("after a Lower the corner stands at %v, want 10", got)
-	}
-}
-
-func TestShaping_LevelBringsAnAreaToTheHeightWhereItBegan(t *testing.T) {
-	cw := newShapedWorld(t, false, true, nil, board.Shaping{Step: 5})
-	b := cw.board()
-	b.SetHeights(func(p geom.Vec) float64 { return p.X / 4 }) // a ramp rising east
-	from, to := b.CellCenter(cw.target), geom.NewVec(0, 0)
-	cw.brd.Queues()[2].Put(control.Nobody, board.Level{From: from, To: to})
-	cw.ecs.Tick(cellTick)
-	want := float32(b.CellCenter(cw.target).X+cellSize/2) / 4 // the corner nearest where it began: the target's bottom-right
-	for _, c := range []board.CellID{cw.target, 0} {
-		for k, h := range b.Relief(c).Corners { // both cells lie wholly between the two corners
-			if h != want {
-				t.Errorf("cell %d corner %d at %v, want %v", c, k, h, want)
-			}
-		}
-	}
-}
-
-func TestShaping_OnAHexGridACellIsItsOwnLevel(t *testing.T) {
-	grid := board.DefaultGrids{}.Hex(4, 4, cellSize/2)
-	cw := newShapedWorld(t, false, true, grid, board.Shaping{Step: 4, MaxStep: 2})
-	b := cw.board()
-	cw.brd.Queues()[0].Put(control.Nobody, board.Raise{At: b.CellCenter(cw.target)})
-	cw.ecs.Tick(cellTick)
-	if got := cw.heights(); got != [4]float32{4, 4, 4, 4} {
-		t.Errorf("the raised hex = %v, want level at 4", got)
-	}
-	for _, n := range b.Neighbors(cw.target) {
-		if got := b.Altitude(n); got != 2 {
-			t.Errorf("neighbour %d stands at %v, want 2, MaxStep below", n, got)
-		}
-	}
-}
-
-func TestShaping_AFlatWorldHasNoShapingCommands(t *testing.T) {
-	cw := newCellWorld(t, false)
-	if len(cw.brd.Queues()) != 0 || len(cw.brd.DefaultBindings()) != 0 {
-		t.Error("a flat world's board offers shaping commands")
-	}
-}
-
-// An effect raising one cell's Plot alone raises its neighbours' corners where they meet it, and
-// lowers them again when it ends: the ground has no vertical walls.
-func TestCells_AnEffectOnOneCellsReliefCarriesItsNeighboursCorners(t *testing.T) {
-	cw := newCellWorld(t, false)
-	id, _ := cw.brd.CellEntity(cw.target)
-	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(cb, id, cw.mound) }
-	cw.ecs.Tick(cellTick)
-	cw.ecs.Tick(cellTick)
-	corner := func() float32 { return cw.board().Relief(neighbour(t, cw)).Corners[3] }
-	if got := corner(); got != 6 {
-		t.Fatalf("the neighbour's corner at the raised cell stands at %v, want 6", got)
-	}
-	for range 4 {
-		cw.ecs.Tick(cellTick)
-	}
-	if got, own := corner(), cw.heights(); got != 0 || own != [4]float32{} {
-		t.Errorf("after the effect the cell's corners %v, the neighbour's %v; want all back at 0", own, got)
-	}
-}
-
-// neighbour is the cell up and left of the target, meeting it at its top-left corner.
-func neighbour(t *testing.T, cw *cellWorld) board.CellID {
-	t.Helper()
-	x, y, _ := cw.board().Coords(cw.target)
-	c, ok := cw.board().CellIndex(x-1, y-1)
-	if !ok {
-		t.Fatal("no cell up and left of the target")
-	}
-	return c
-}
-
 // A cell's version grows with every change to it — its kind, its way, its heights, an effect on it
 // — and a change to another cell leaves it be.
 func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
@@ -348,7 +197,7 @@ func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 	}
 	step("kind", func() { brd.Set(cw.target, cw.snow) })
 	step("way", func() { brd.SetWay(cw.target, board.Way{Kind: cw.grass, Width: 3, Links: 1}) })
-	step("heights", func() { brd.SetRelief(cw.target, board.Relief{Corners: [4]float32{1, 1, 1, 1}}) })
+	step("heights, shaped beyond the board", func() { brd.Touch(cw.target) })
 	brd.Set(cw.target, cw.grass)
 	v = brd.CellVersion(cw.target)
 	step("effect", func() {

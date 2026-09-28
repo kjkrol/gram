@@ -19,7 +19,7 @@
 //
 // A [Projection] is the arithmetic a Camera draws through; this package has [TopDown] (screen x and
 // y are world x and y, height is not drawn), and a view plugin brings its own with its cameras —
-// plugins/isometry keeps the isometric projection and camera private to itself. Every Camera
+// plugins/topography keeps the isometric projection and camera private to itself. Every Camera
 // exposes Project (a world point at a height), Unproject and Depth (further back is smaller), and
 // ToScreen and FromScreen are the two at height 0; Viewport is the screen it draws to, in pixels.
 // Sorts says whether what is drawn through it must go back to front, which a render.Composer asks;
@@ -30,6 +30,15 @@
 //
 // [State] is the persistable part — the viewport and zoom — which the Camera hands to saves
 // through Persisted and takes back through Restore. Config is construction-time only.
+//
+// # Modes and vanishing points
+//
+// A camera may say more of itself through small interfaces: a [Rider] rides in an entity, which
+// [ModeOf] reads as [FirstPerson] — the Mode bindings hold in (control.Binding.In) — and a
+// [Vanisher] has vanishing points, where a direction is drawn: a perspective's, where the sky puts
+// the sun. A [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
+// [ScaleAt] is the scale at a point through any camera — a Scaler's own, else the Zoom — which is
+// what sizes what is drawn where it lies: detail, the grid, soft edges, billboards.
 //
 // # FromScreenRect
 //

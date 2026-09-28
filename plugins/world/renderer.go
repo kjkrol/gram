@@ -32,11 +32,15 @@ type Renderer struct {
 	look        func() Look
 	views       func(camera.Camera) *View
 	view        *View // the one being drawn
-	// sun and ground lay the shadows of what stands in a world with heights; nil sun, none
+	// sun lights the sprites while sunlit says so; with ground it lays the shadows of what stands
+	// in a world with heights. nil sun, neither
 	sun    func() Sun
+	sunlit func() bool
 	ground func() Ground
 	// weather is the air what sways bends in, handed to the frame; nil, a calm
 	weather func() Weather
+	// clock is the game time the frame's animations go by; nil, the composer's own
+	clock func() time.Duration
 
 	ids   []uid.UID64
 	bases []Base
@@ -69,9 +73,18 @@ func (s *Renderer) Init(si *goke.SysInit) {
 	s.renderQuery = qb.Build()
 }
 
-// Compose hands f every drawn entity in sight of cam, as the world's Look lays it, and in a world
-// with heights its shadow on the ground and the sun's light on it, as on level ground; a flat
-// world's are drawn as they are.
+// Compose hands f every drawn entity in sight of cam, as the world's Look lays it, in the sun's
+// light as on level ground where the world is sunlit, and in a world with heights its shadow on
+// the ground; a flat world's without a sun are drawn as they are.
+// Clock is the game time the frame's animations go by: the world's tactical clock's, so what sways
+// and flows stands in the tactical pause and hurries with the tempo.
+func (s *Renderer) Clock() (time.Duration, bool) {
+	if s.clock == nil {
+		return 0, false
+	}
+	return s.clock(), true
+}
+
 func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := s.look()
 	s.view = s.views(cam)
@@ -81,9 +94,13 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if s.weather != nil {
 		f.Weather(s.weather().Frame())
 	}
-	if s.sun != nil {
-		sun, ground = s.sun(), s.ground()
+	lit := s.sun != nil && (s.sunlit == nil || s.sunlit())
+	if lit {
+		sun = s.sun()
 		light = sun.Light(0, 0, 1)
+	}
+	if s.ground != nil {
+		ground = s.ground()
 	}
 	s.each(func(i int, z *Z) {
 		box := s.bases[i].Pos.AABB
@@ -93,7 +110,7 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		alt := float32(0)
 		if z != nil {
 			alt = float32(z.Altitude)
-			if s.sun != nil {
+			if lit && s.ground != nil {
 				s.shadow(f, cam, box.AABB, *z, sun, ground)
 			}
 		}
@@ -139,7 +156,11 @@ func (s *Renderer) shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z Z
 		dst[k][0], dst[k][1] = cam.Project(x, y, g)
 		depth = max(depth, cam.Depth(x, y, g))
 	}
-	fade := half / 2 * cam.Zoom() // a solid core, soft for the outer half of each side
+	scale := camera.ScaleAt(cam, cx, cy, groundAt(cx, cy))
+	if scale == 0 {
+		return // not in front of the eye
+	}
+	fade := half / 2 * scale // a solid core, soft for the outer half of each side
 	veil := color.RGBA{A: uint8(shadowVeil * min(sun.Strength/shadowFull, 1))}
 	f.Soft(shadowTier, depth, dst, veil, render.Fade{Left: fade, Right: fade, Top: fade, Bottom: fade})
 }

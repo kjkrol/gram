@@ -39,14 +39,15 @@ func (p *Player) OwnCamera() *Player {
 // before.
 func (p *Player) Area() geom.AABB { return p.area }
 
-// Bind adds bindings to the player; two on one Trigger are an error, never a silent last-one-wins.
+// Bind adds bindings to the player; two on one Trigger holding in one camera mode are an error,
+// never a silent last-one-wins.
 func (p *Player) Bind(bindings ...control.Binding) error {
 	for _, b := range bindings {
 		if b.Command() == nil {
 			return fmt.Errorf("players: %q is not a Binding built with control.Command", b.Label)
 		}
 		for _, have := range p.bindings {
-			if have.Trigger == b.Trigger {
+			if have.Trigger == b.Trigger && have.Overlaps(b) {
 				return fmt.Errorf("players: %q and %q are both bound to %v for %s", have.Label, b.Label, b.Trigger, p.Name)
 			}
 		}

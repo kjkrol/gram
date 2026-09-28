@@ -112,6 +112,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		}
 		tw.nav.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	tw.ecs = ctx.ecs
 	for tw.q.All(); tw.q.Next(); {

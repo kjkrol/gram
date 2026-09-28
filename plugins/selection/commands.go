@@ -54,7 +54,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
-		control.Command(control.KeyPress{Key: ebiten.KeyF}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
+		control.Command(control.KeyPress{Key: ebiten.KeyC}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
 			return Follow{Camera: c.Camera}, true
 		}),
 	}

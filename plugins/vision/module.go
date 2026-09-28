@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -15,6 +16,7 @@ var _ goke.Module = (*module)(nil)
 type module struct {
 	sys      *ScanSystem
 	runnable goke.Runnable
+	clock    *clock.Clock // the world's; nil, run at once
 }
 
 func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() world.Cover) *module {
@@ -45,10 +47,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.runnable = ecs.RegSys(m.sys)
 }
 
-// RunPlan runs the scan for this tick — call from your own Game.Loop closure.
+// RunPlan hands the scan to the simulation: every step, every observer looks.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.runnable, d)
-	ctx.Sync()
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.runnable, step)
+		ctx.Sync()
+	})
 }
 
 // SetupSystems is empty — vision has no one-time seeding of its own.

@@ -56,6 +56,7 @@ func newBodyRig(t *testing.T, maxCount int) *bodyRig {
 		rc.Run(spawner, d)
 		rc.Sync()
 		r.w.RunPlan(rc, d)
+		r.w.Clock().Replay(rc, d)
 	})
 	r.ecs = ctx.ecs
 	return r
@@ -116,6 +117,7 @@ func TestBodies_RemoveFreesTheBudgetSpawnOverItPanics(t *testing.T) {
 		rc.Run(remover, d)
 		rc.Sync()
 		r.w.RunPlan(rc, d)
+		r.w.Clock().Replay(rc, d)
 	})
 	r.tick()
 	if left, _, _ := r.entities(); len(left) != 1 {

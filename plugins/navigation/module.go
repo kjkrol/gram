@@ -5,14 +5,16 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
-// module registers and runs navigationSystem (always) and moveCommandSystem
-// (only when WithCommands enabled it) as one goke.Module, and driveSystem after them.
+// module registers and runs the move commands at once, and navigation and the driving in the
+// simulation, as one goke.Module.
 type module struct {
 	navigationSystem  *navigationSystem
 	moveCommandSystem *moveCommandSystem
 	driveSystem       *driveSystem
+	clock             *clock.Clock // the world's; nil, run at once
 
 	navSysRunnable     goke.Runnable
 	moveCmdSysRunnable goke.Runnable
@@ -33,16 +35,18 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 
 }
 
-// RunPlan runs navigation, and commands if enabled, for this tick.
+// RunPlan takes the orders at once — a player orders in the tactical pause too, and the routes are
+// planned and shown — and hands the driving to the simulation: every step, each unit under orders
+// is steered along its route, then a hand on an entity overrides whatever its order asked.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.navSysRunnable, d)
-	ctx.Sync()
 	ctx.Run(m.moveCmdSysRunnable, d)
 	ctx.Sync()
-	// a hand on an entity overrides whatever its order asked of it this tick
-	ctx.Run(m.driveSysRunnable, d)
-	ctx.Sync()
-
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.navSysRunnable, step)
+		ctx.Sync()
+		ctx.Run(m.driveSysRunnable, step)
+		ctx.Sync()
+	})
 }
 
 // SetupSystems seeds board.Occupancy from every entity's Cell, Mover and in-progress Leg — after

@@ -22,6 +22,6 @@ type Runtime interface {
 	// Camera returns the active Stage's world camera, or nil if the Stage has no world.
 	Camera() camera.Camera
 
-	// ToggleFullscreen switches the window to fullscreen and back; Shift+F does it in every game.
+	// ToggleFullscreen switches the window to fullscreen and back; F11 does it in every game.
 	ToggleFullscreen()
 }

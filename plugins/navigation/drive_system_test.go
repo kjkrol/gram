@@ -189,3 +189,32 @@ func TestDrive_AHandGivesUpTheCellsTheOrdersStepHeld(t *testing.T) {
 		t.Error("the cell the walker stands on is no longer held")
 	}
 }
+
+// Face turns the walker to face a way — where an eye riding in it looks — whatever Turn says, a
+// hand that ends an order as any other.
+func TestDrive_FaceTurnsItToFaceAWay(t *testing.T) {
+	r := newDriveRig(t, nil)
+	r.drive(world.Driven{Face: geom.NewVec(0, -3), Turn: 1})
+	if st := r.steering(); st.Want != geom.NewVec(0, -1) || st.WantSpeed != 0 {
+		t.Errorf("driven to face north: asks %v at %v, want north, standing", st.WantSpeed, st.Want)
+	}
+	r.drive(world.Driven{Face: geom.NewVec(1, 1), Ahead: 1})
+	if st := r.steering(); math.Abs(st.Want.X-math.Sqrt2/2) > 1e-9 || math.Abs(st.Want.Y-math.Sqrt2/2) > 1e-9 || st.WantSpeed != 20 {
+		t.Errorf("driven on to face south-east: asks %v at %v, want its top speed south-east", st.WantSpeed, st.Want)
+	}
+	o := r2order(t)
+	o.drive(world.Driven{Face: geom.NewVec(0, 1)})
+	gone := true
+	o.with(func(_ *board.Cell, _ *world.Base, _ *world.Steering, _ *world.Driven, ord *MoveOrder, _ bool) {
+		gone = ord == nil
+	})
+	if !gone {
+		t.Error("a Face left the walker's order on")
+	}
+}
+
+// r2order is the drive rig with the walker on an order to the far end of the row.
+func r2order(t *testing.T) *driveRig {
+	far, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
+	return newDriveRig(t, &MoveOrder{Target: far})
+}

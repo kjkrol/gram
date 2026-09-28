@@ -229,9 +229,9 @@ func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) 
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false)
-	h.press(ebiten.KeyF)
+	h.press(ebiten.KeyC)
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
-		t.Fatalf("after F: followed %v, centred %v; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
+		t.Fatalf("after C: followed %v, centred %v; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
 	}
 	h.moveTo(*unit, 500, 420)
 	h.ecs.Tick(time.Second)
@@ -243,7 +243,7 @@ func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) 
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 500, 420) {
 		t.Error("zooming ended the following")
 	}
-	h.press(ebiten.KeyF)
+	h.press(ebiten.KeyC)
 	if h.has(*unit, h.tags.Followed) {
 		t.Error("a second F did not stop the following")
 	}
@@ -257,9 +257,9 @@ func TestFollow_MovesTheCameraOfThePlayerWhoAsked(t *testing.T) {
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false) // picked through the player's own camera, which starts where the world's does
-	h.press(ebiten.KeyF)
+	h.press(ebiten.KeyC)
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
-		t.Fatalf("after F: followed %v, centred %v in the player's own camera; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
+		t.Fatalf("after C: followed %v, centred %v in the player's own camera; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
 	}
 	if shared.Bounds() != before {
 		t.Error("following moved the world's camera, not the one of the player who asked")
@@ -271,7 +271,7 @@ func TestFollow_MovingTheCameraByHandEndsIt(t *testing.T) {
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false)
-	h.press(ebiten.KeyF)
+	h.press(ebiten.KeyC)
 	h.local.Camera.Pan(40, 0)
 	h.ecs.Tick(time.Second)
 	if h.has(*unit, h.tags.Followed) {
@@ -288,7 +288,7 @@ func TestFollow_SeveralSelectedFollowsNone(t *testing.T) {
 	if !h.isSelected(*a) || !h.isSelected(*b) {
 		t.Fatal("sanity check failed: expected both selected")
 	}
-	h.press(ebiten.KeyF)
+	h.press(ebiten.KeyC)
 	if h.has(*a, h.tags.Followed) || h.has(*b, h.tags.Followed) {
 		t.Error("F followed one of several selected units, want none")
 	}

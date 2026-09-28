@@ -134,6 +134,7 @@ func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Si
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 

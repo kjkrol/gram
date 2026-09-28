@@ -12,8 +12,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ConePoint is a point of a view's outline on screen, with the depth of the world point under it.
-type ConePoint struct{ X, Y, Depth float32 }
+// ConePoint is a point of a view's outline on screen, with the depth of the world point under it
+// and how many screen units a world unit spans there (camera.ScaleAt; 0 not in front of the eye).
+type ConePoint struct{ X, Y, Depth, Scale float32 }
 
 // ConeStyle composes one entity's view from its outline: a closed ring starting at the observer,
 // out along one edge of the cone, round its boundary and back along the other edge, draped over
@@ -218,7 +219,6 @@ func (r *Renderer) shade(ox, oy float32, s *Sight, o *SightOutline) {
 	}
 	facing := math.Atan2(s.Facing.Y, s.Facing.X)
 	step := 2 * s.HalfAngle / float64(n-1)
-	fade := r.shadow.Fade * r.camera.Zoom()
 	for i := range n {
 		for _, b := range o.Shadows[i] {
 			if b == (Band{}) {
@@ -234,6 +234,11 @@ func (r *Renderer) shade(ox, oy float32, s *Sight, o *SightOutline) {
 				d1 := min(d0+piece, b.To)
 				p0, p1 := r.onGround(ox, oy, lo, d0), r.onGround(ox, oy, hi, d0)
 				p2, p3 := r.onGround(ox, oy, lo, d1), r.onGround(ox, oy, hi, d1)
+				if p0.Scale == 0 || p1.Scale == 0 || p2.Scale == 0 || p3.Scale == 0 {
+					continue // under the eye, or behind it: nothing of it is seen
+				}
+				// soft over the pixels the fade spans where the piece is drawn
+				fade := r.shadow.Fade * (p0.Scale + p1.Scale + p2.Scale + p3.Scale) / 4
 				var edges render.Fade
 				if d0 == b.From {
 					edges.Top = fade
@@ -276,7 +281,7 @@ func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
 		z = float32(r.ground.At(geom.NewVec(float64(x), float64(y))))
 	}
 	sx, sy := r.camera.Project(x, y, z)
-	return ConePoint{X: sx, Y: sy, Depth: r.camera.Depth(x, y, z)}
+	return ConePoint{X: sx, Y: sy, Depth: r.camera.Depth(x, y, z), Scale: camera.ScaleAt(r.camera, x, y, z)}
 }
 
 // fan rebuilds the ring round an already-projected anchor from the stored reaches, for the images

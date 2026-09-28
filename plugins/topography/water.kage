@@ -1,0 +1,178 @@
+// Water on the board, a material of the composer's shader (render.RegisterMaterial): the sea's
+// waves, swell and surf, and water running down its slope. It reads the weather's clouds for the
+// sky it reflects; the clouds' shadow on it is in lit already.
+
+// SeaGlint is a glint over a tile: water rippled by small waves the wind runs across it, at p,
+// shine in red, lit of the sun reaching it — the clouds' shadow taken off — as the fraction and its
+// shore in custom — the sky it reflects and the surf's foam laid over the tile, the sun it throws
+// back added.
+func SeaGlint(p vec2, shine float, lit float, shore vec4) vec4 {
+	return water(shine, lit, sea(p, shore))
+}
+
+// RunningWater is water running over what it lies on at p: shine in red, lit of the sun reaching it
+// as the fraction, how fast it runs in custom's x and y and, over a blended sprite, its weight and
+// mark in z and w, so it shows only where the sprite does.
+func RunningWater(p vec2, shine float, lit float, custom vec4) vec4 {
+	c := water(shine, lit, stream(p, custom.xy))
+	if custom.w > 50000 {
+		c *= blended(custom.z, custom.w)
+	}
+	return c
+}
+
+// water is what a glint lays over its tile: the sky reflected, the foam as bright as the tile in
+// the light, the sun thrown back — of s, the sun, foam and sky a surface gives back, shine as much
+// as it shines and lit of the sun reaching it.
+func water(shine float, lit float, s vec3) vec4 {
+	mirror, foam := shine*s.z, s.y
+	light := Ambience + SunColor*(Glint.y*lit*max(sunWay().z, 0))
+	rgb := overcastSky()*mirror*(1-foam) + light*foam + SunColor*(shine*lit*s.x)
+	return vec4(rgb, 1-(1-mirror)*(1-foam))
+}
+
+// stream is, for water at p running at v, what sea is for still water. Its ripples and flecks are
+// noise in the world carried down the current — a flow map: sampled twice, each time the current
+// has carried it a fraction of flowPeriod on, the two half a period apart and crossfaded, so the
+// pattern flows on for ever without stretching, and runs on without a seam from one piece of a
+// river to the next. The faster it runs the rougher it is, flecked with foam and at last white.
+func stream(p vec2, v vec2) vec3 {
+	t := Glint.x
+	speed := length(v)
+	a := fract(t / flowPeriod)
+	b := fract(t/flowPeriod + 0.5)
+	wa := 1 - abs(2*a-1) // a's weight: none as it starts over, all halfway
+	pa := p - v*(a*flowPeriod)
+	pb := p - v*(b*flowPeriod) + vec2(31.7, 17.3)
+	ha, ga := ripples(pa)
+	hb, gb := ripples(pb)
+	rough := clamp(streamCalm+speed/fastWater, streamCalm, streamRough)
+	slope := (ga*wa + gb*(1-wa)) * rough
+	n := ha*wa + hb*(1-wa)
+	white := smoothstep(whiteFrom, whiteFull, speed)
+	fleck := smoothstep(0.6, 0.85, n) * smoothstep(fleckFrom, fleckFull, speed) * fleckCover
+	foam := max(white*(0.55+0.45*n), fleck)
+	nrm := normalize(vec3(-slope.x, -slope.y, 1))
+	h := normalize(sunWay() + Toward)
+	fresnel := streamMirror + (1-streamMirror)*pow(1-max(dot(nrm, Toward), 0), 3)
+	return vec3(Glint.y*pow(max(dot(nrm, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
+}
+
+// ripples is the height, 0 to 1, of running water's ripples at p and its slope: two sizes of noise,
+// the finer fading out where it would flicker.
+func ripples(p vec2) (float, vec2) {
+	e := float(rippleSize) / 4
+	c := rippleHeight(p)
+	dx := rippleHeight(p+vec2(e, 0)) - rippleHeight(p-vec2(e, 0))
+	dy := rippleHeight(p+vec2(0, e)) - rippleHeight(p-vec2(0, e))
+	return c / 1.5, vec2(dx, dy) * (rippleSlope * seen(rippleSize) / (2 * e))
+}
+
+// rippleHeight is the ripples' height at p, 0 to 1.5.
+func rippleHeight(p vec2) float {
+	return noise(p/rippleSize) + 0.5*seen(rippleSize/2)*noise(p*2/rippleSize+7)
+}
+
+// sea is, for water at p, the sun thrown back at the eye, how much foam covers it and how much of
+// the sky it reflects. Waves run across it as time goes by; near a shore (the way to it, how far
+// and how near) a swell comes in facing it and breaks into foam the last stretch before it,
+// whatever the sun. The flatter the eye looks at a wave, the more of the sky it reflects.
+func sea(p vec2, shore vec4) vec3 {
+	t := Glint.x
+	// the waves run with the wind, the steeper the harder it blows
+	blow := length(Wind)
+	rough := clamp(calmSea+blow/fullWind, calmSea, stormSea)
+	way := vec2(1, 0)
+	if blow > 0.01 {
+		way = Wind / blow
+	}
+	q := vec2(way.x*p.x+way.y*p.y, way.x*p.y-way.y*p.x) // p along the wind and across it
+	slope := wave(q, vec2(1, 0.1), 53, 10, t)
+	slope += wave(q, vec2(0.3, 1), 41, 9, t)
+	slope += wave(q, vec2(-0.8, 0.6), 31, 8, t)
+	slope += wave(q, vec2(-0.6, -0.8), 23, 7, t)
+	slope += wave(q, vec2(0.7, -0.7), 17, 6, t)
+	slope += wave(q, vec2(1, 0.8), 13, 5, t)
+	slope += wave(q, vec2(-0.2, 1), 9, 4, t)
+	slope = rough * vec2(way.x*slope.x-way.y*slope.y, way.y*slope.x+way.x*slope.y)
+	foam := 0.0
+	if way := length(shore.xy); way > 0.01 {
+		// the crests follow the shore: their phase is the distance to it, falling as they come in,
+		// shifted slowly along the coast so they do not reach it everywhere at once
+		d := shore.xy / way
+		drift := 2 * pi * (sin(p.x/173+p.y/241) + 0.5*sin(p.y/97-p.x/131))
+		phase := 2*pi/swellLength*(shore.z+swellSpeed*t) + drift
+		swell := d * (rough * swellSlope * cos(phase) * seen(swellLength))
+		swell += d * (rough * swellSlope * 0.5 * cos(2.2*phase+1) * seen(swellLength/2.2))
+		near := smoothstep(0, 1, clamp(shore.w, 0, 1))
+		slope = mix(slope, swell+slope*0.3, near)
+		// a crest breaks the last surfWidth before the shore, torn into patches
+		crest := smoothstep(0.2, 1, sin(phase))
+		breaking := 1 - smoothstep(0, surfWidth, shore.z)
+		torn := 0.6 + 0.4*sin(p.x*0.37+p.y*0.23+t)*sin(p.y*0.41-p.x*0.19-t*0.7)
+		foam = foamCover * crest * breaking * torn * clamp(rough, 0.3, 1.2)
+	}
+	n := normalize(vec3(-slope.x, -slope.y, 1))
+	h := normalize(sunWay() + Toward)
+	// the sky seen in the water follows only the swell of the waves, not every ripple: fine waves
+	// flattened far off would stripe it
+	calm := normalize(vec3(-slope.x*mirrorSwell, -slope.y*mirrorSwell, 1))
+	fresnel := mirrorHead + (1-mirrorHead)*pow(1-max(dot(calm, Toward), 0), 5)
+	return vec3(Glint.y*pow(max(dot(n, h), 0), glintSharpness), clamp(foam, 0, 1), fresnel)
+}
+
+// wave is the slope at p of a wave running along way, length world units from crest to crest, at
+// speed world units a second.
+func wave(p vec2, way vec2, length float, speed float, t float) vec2 {
+	d := normalize(way)
+	k := 2 * pi / length
+	return d * (waveSlope * cos(k*(dot(p, d)-speed*t)) * seen(length))
+}
+
+// waveSlope is how steep a wave's side gets; glintSharpness how narrowly a glint gathers round the
+// perfect reflection.
+const waveSlope = 0.12
+const glintSharpness = 400
+
+// The swell coming ashore: how steep, how long from crest to crest and how fast, in world units.
+const swellSlope = 0.3
+const swellLength = 40
+const swellSpeed = 12
+
+// surfWidth is how far from the shore, in world units, a crest breaks; foamCover how much of the
+// water its foam covers at most.
+const surfWidth = 32
+const foamCover = 0.9
+
+// mirrorHead is how much of the sky water reflects looked at straight down; flatter it reflects
+// more, all of it along the surface.
+const mirrorHead = 0.02
+
+// mirrorSwell is how much of the waves' slope tilts the sky water reflects.
+const mirrorSwell = 0.3
+
+// How rough the sea is: calm with no wind, as the waves were made at fullWind (world units a
+// second), and at most stormSea times that.
+const calmSea = 0.35
+const fullWind = 40
+const stormSea = 1.8
+
+// Running water: how rough it is still and at most, the speed (world units a second) it gets as
+// rough as fastWater says, and the speeds it begins to foam at and is white from.
+const streamCalm = 0.4
+const streamRough = 1.6
+const fastWater = 40
+const whiteFrom = 30
+const whiteFull = 55
+
+// Running water's ripples: how wide the coarser are and how steep, in world units; how long the
+// current carries a pattern before it starts over, in seconds; how much of the water flecks of
+// foam cover at most, and the speeds they begin to show at and show fully from; how much of the
+// sky it reflects looked at straight down.
+const rippleSize = 7.0
+const rippleSlope = 6.0
+const flowPeriod = 1.2
+const fleckCover = 0.35
+const fleckFrom = 3
+const fleckFull = 15
+const streamMirror = 0.08

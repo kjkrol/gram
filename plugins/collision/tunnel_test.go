@@ -75,6 +75,7 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		c.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
 	})
 
 	where := func() (smallX, bigX float64) {

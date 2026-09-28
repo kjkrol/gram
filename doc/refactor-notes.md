@@ -1,0 +1,351 @@
+# Refactor notes — decisions taken alone, and questions for review
+
+Written while carrying out [refactor.md](refactor.md) unattended, on 2026-09-28. All five stages
+are done and uncommitted: `go vet ./...` and `go test ./...` are clean, every demo runs headless
+for ten seconds without a panic (`board`, `board-topography`, `board-atlas`, the navigation and
+navigation-vision demos, effect, split-screen, collision, vision, scenes, minimal). Each item
+below says what was decided and why, or what needs an answer. Take them out as they are settled.
+
+## Decisions taken alone
+
+### Time (stage 1)
+
+- **`clock.Simulate` is a method on the clock**, which a plugin takes from `world.Plugin.Clock()`
+  and keeps: `m.clock.Simulate(ctx, block)`. A package-level `clock.Simulate(c, ctx, step, block)`
+  runs the block at once when `c` is nil, so a module built without a world — in a unit test — still
+  works.
+- **The world's effects are made and installed by the world** (`world.Plugin.Effects()`); the
+  `effects` package no longer imports `world`, and `Idling` lost its `Base` pointer (nothing used
+  it). Effects' `Each`/`Every` behaviours go through `world.RegisterBehavior`.
+- **The clock's State lives on the clock's own entity** (like sky's `Day` did), so it saves; a
+  loaded game resumes its time, tempo and pause. The `Phase` tag family sits on the same entity.
+- **The schedule's entries are code, not data**: laid at Init, fired by clock time alone (an entry
+  in `(last, now]` of a step), so a loaded game does not refire what came before the save. There is
+  no saved schedule state. Entries: `At(moment)` and `Every(period, offset)`.
+- **"Behaviour on only while a phase holds" is a check, not a wrapper**: a behaviour asks
+  `clock.In(phase)` itself. Hosts are generic and closed; wrapping them generically was not worth
+  it.
+- **The cameras' views refresh in the interface part**, before the simulation, so they lag a tick
+  behind the positions. Accepted in the plan; it does not show.
+- **Navigation's order changed**: orders are taken before the driving (they used to be taken
+  after). An order given this tick is acted on this tick. All navigation tests pass.
+- **The players plugin always carries the world's commands** (the clock's): `players.NewPlugin`
+  adds the world as a handler itself, so every game with players gets Space, ] and [.
+- **Falling behind**: the engine tells the clock when a frame hit its cap of five ticks; after 30
+  such frames in a row a tempo above 1 comes down one notch and the report says "held back". It
+  never comes down below 1.
+- **`Frame.Time` from the clock**: the composer takes the frame's time from the first source that
+  is `render.Clocked` — the world's renderer — so animations stand in the pause and hurry with the
+  tempo; the composer's own wall clock stays as the fallback for composers without a world.
+- **`world.Config` is no longer comparable** (`Clock.Tempos` is a slice); one test compared configs
+  by `!=` and now compares fields.
+- **`sky`'s default bindings were dropped** at once (they collided with the clock's `]`, `[` and
+  `P`) since `atmosphere` replaces the sky in stage 2.
+
+### Atmosphere (stage 2)
+
+- **The calendar keeps no state**: it is the clock at a fixed scale, so a loaded game's clock
+  brings its date back and there is nothing to save; `calendar.Config{Day, Start, Year, Season}`
+  says where the scale begins. The sky's `Day` entity is gone.
+- **The frozen light lives in memory** (`sky.Sky.frozen`, `hour`), not on an entity: it is a look
+  at the world, like the camera's turn, and a loaded game's light is the hour's. `Config.Frozen`
+  and `Config.Hour` start a game with a frozen light. Only the hour is frozen: the date — the
+  season's sun height and the moon — is still the calendar's, so a light frozen for days drifts
+  with the season, which did not seem worth freezing the date over.
+- **Shift+] / Shift+[ do nothing while the light is not frozen** (the old `]`/`[` changed the
+  day's pace then; the pace is the clock's tempo now). Freeze first with P.
+- **The sun's latitude is always the climate's zone's**: `sky.New` takes it as an argument and the
+  atmosphere hands it `Config.Climate.Zone.Latitude`; there is no sky without a climate in an
+  atmosphere. `sky.Latitude` (30°) stays for a sky made alone.
+- **The weather's time is the simulation's step**: `Weather.SeenDate/SeenTime` and `passed` are
+  gone; every step moves it by the step, the tempo and the pause come from the clock. A behaviour's
+  `Tick.Dt` is the step.
+- **Weathering is a schedule entry, not a weather behaviour**: `Every(time.Second, 0, …)` on the
+  world's schedule, reading `world.Weather()` and `calendar.Now().Season()`. The game makes its
+  snowy kinds and its ice itself (their looks are the game's) and names them in
+  `weathering.Config`; the weathering only looks them up. Snow's "high ground" is a function
+  (`Config.High`), so it does not need the board's heights, which move to topography in stage 3.
+  The weathering throws its own dice (`Config.Seed`) rather than `math/rand`, so it is
+  deterministic like the weather.
+- **The cloud-shadow material moved to `render`** (`render/overcast.kage`, `Frame.Overcast`,
+  `OvercastOn`, `OvercastQuad`, `Frame.Material`) because the landscape's water calls its shader
+  functions and the flat map needs it without the landscape. The landscape's `Overcast` and
+  `OvercastOn` functions are gone.
+- **`Sunlit` is a flag set by `SetSun`**: a flat world is lit by the sun once anything set one,
+  never before — so a flat game without an atmosphere is drawn exactly as it was. The board's
+  `Tile.Light` without a dressing and the world's sprites take the sun's light on level ground
+  then; the world's renderer still lays shadows only with a ground (a world with heights).
+- **`atmosphere.Plugin.Reporter()` is one reporter** joining the calendar's, the sky's and the
+  climate's lines, so a scene adds one; `HUD()` is the calendar's layer. A separate clock HUD
+  (`clock.HUD`) shows the game time and the tempo.
+- **The two island demos moved to `atmosphere`** for now (their `climate.go` shrank to the snowy
+  kinds, the ice and `weathering.Config`); they go away in stage 5.
+
+### Boards and topography (stage 3)
+
+- **The grid stays `board.NewPlugin`'s argument**, not the Map's: the plan listed the grid among
+  what a Map gives, but the grid is the board's topology (occupancy, cells, neighbours) and every
+  Map draws whatever grid the board has. `board.Map` gives the Look, the Dressing, the tops
+  (`Top`), and the costs beyond the kinds' (`Climb`, `Least`, `Slope`). `board.Plugin.WithMap`
+  sets one; `SetLook`/`SetDressing` are gone.
+- **A kind's look is `CellKind.Color`**, a gob-friendly field, plus `CellKindDict.Draw(name,
+  drawer)` for a drawn sprite; `board.Plugin.WithRenderer(nil)` builds the default atlas from
+  them (`DefaultAtlas`). A kind of no colour is grey.
+- **The simple map's bands are straight**: from the cell's middle to the edge towards each linked
+  neighbour, an octagon hub, the kind's Color, faded by `Way.Fade`; crossings the same over them.
+  No curves, no water, no light — the topography has those.
+- **The heights are a lattice on one entity, not a per-cell component.** `topography.Relief` keeps
+  one height per corner of a square grid (per cell on any other), so neighbouring cells share their
+  corners by construction and the old "sealing" is gone; `Plot` lost its `Relief`. The values ride
+  on the topography's own entity as `topography.Heights` (a `[]float32` with
+  `MarshalBinary`/`UnmarshalBinary`, since goke refuses slices otherwise), written every tick like
+  the clock's State. An effect can no longer alter one cell's heights (nothing did).
+- **`Board.Touch(c)`** is how the topography tells the board a cell's heights changed, so the
+  board's `CellVersion`/`Version` keep meaning "anything about the cell changed" and every cache
+  (the board renderer's, the dresser's, navigation's) stays right.
+- **The board keeps a `Map` reference for the cover's bands**: `Board.Walk` needs a cell's level
+  for a veil's band in a Quasi3D world and asks `Map.Top`. The board also keeps `quasi3D`.
+- **Navigation takes the slopes from the board plugin** (`board.Plugin.Climb/Least`, which
+  delegate to the Map) and the route sprites' heights from `board.Plugin.Top`
+  (`PathRenderer.WithTops`); the old type assertions on the grid are gone.
+- **`topography.Plugin` is `landscape` + `isometry` + the heights in one**: `NewPlugin(world,
+  board, Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`,
+  `Style`, `WithShadows`, `WithSelection`, `Seed(heights)`, `Relief()`. It requires Quasi3D and a
+  world that does not wrap (panics otherwise), sets the world's cameras, ground and look, and the
+  board's map at once in `NewPlugin`. The shaping commands and bindings moved here from the board.
+- **One camera, two views**: the topography's camera holds a `flat` flag; `View` (Tab) flips it,
+  keeping the ground point in the middle of the screen and a cell as wide on the screen as it was
+  (zoom × Cell/TileW). From above the board's tiles lie flat (`board.FlatLook()`) and the world's
+  entities as the world's own flat look draws them (`world.Plugin.FlatLook()`); isometrically
+  blocks and billboards. Turn and Tilt do nothing from above; Follow centres without turning. The
+  view is saved with the camera. A game begins from above unless `Config.Isometric`.
+- **Tilt moved to R and F** (from PageUp/PageDown) as the plan's key table says; the rest of the
+  key table is stage 4.
+- **The flat `island-demo` is gone already** (stage 5 planned it): it dressed a flat world with the
+  landscape, which the topography no longer does (it needs Quasi3D). The navigation-vision demos
+  took the topography for their hills (seen from above), so they compile; their hex board under
+  Tab would show hex cells as square blocks — stage 5's move should keep them from above or give
+  hex blocks a look.
+- **The landscape tests kept their dresser-level rig** (`newDresser(brd, relief, sun, quasi3D,
+  styles)` with `quasi3D false` for a "flat world with heights"): the dresser still has that
+  mode, though no plugin makes it any more.
+
+### Keys and the shortcuts scene (stage 4)
+
+- **WASD are `KeyHeld` bindings of the players' own `Pan`**, at the edge-scroll speed, so they
+  work in every view and follow an isometric turn for free (Pan is a screen delta). The arrows
+  stay the followed unit's.
+- **Scene keys are `players.SceneKeys`**, a list of `{Key, Shift, Label, Do}` the scene runs from
+  its HandleEvents; the shortcuts scene lists them under "Game". They are not `control.Binding`s
+  because they issue no command and need the runtime and the composition (quit, save, open a
+  scene), which bindings never see.
+- **The shortcuts scene is `players.Shortcuts`**: bindings grouped by the handler that owns each
+  command type (the players plugin keeps `owners`), the handler's heading its plugin name without
+  `gram.`; drawn with ebitenutil's debug text over a dimmed screen, in columns when the list is
+  long. It pauses the engine on Open and resumes on Close unless the game was paused before.
+- **Full screen is F11, the engine's** (Shift+F was the engine's already, `Runtime.ToggleFullscreen`;
+  the demos' own Shift+F scene key toggled it a second time in the same tick, so nothing happened,
+  and F is the tilt held). The shortcuts scene lists F11 under Game as the engine's key.
+- **The demos without players** (collision, vision, minimal, scenes) keep Esc to quit as they were.
+
+### Demos and housekeeping (stage 5)
+
+- **`examples/island` is a package, not `internal`**, as agreed; it exports `Layout`, `Kinds`,
+  `Colors`, `Style` and the grid constants (`GridWidth`, `GridHeight`, `CellSize`, `Stops`). The
+  snowy kinds and the ice stay in each demo's `climate.go`, since they are the demo's weathering.
+- **`board-topography` begins isometric** (`Config.Isometric: true`); Tab shows it from above. The
+  flat `board` demo has no hawk — a flat world refuses a Lift — and its units' sight cones are
+  flat; its weathering has no "high ground" for the snow to lie on first.
+- **`board-atlas` draws its sprites with `ebiten/vector`** (stripes, ripples, cobbles, tree tops):
+  procedural, so the demo needs no image files. Its road is laid as a way of the road's kind over
+  the grass, so the simple map's bands show.
+- **README, CLAUDE.md, Makefile and the plugin/demo tables** name the new packages; the full
+  CLAUDE.md architecture text on the board and the topography is refreshed where it was wrong, not
+  rewritten. BENCHMARKS.md was not re-run (the numbers there are the landscape's; the code moved,
+  the work is the same) — worth a `make bench-save` when convenient.
+- **The old binaries in the repo root were deleted** (untracked, ignored by .gitignore).
+
+### After the first manual tests (2026-09-28)
+
+- **Full screen is F11**: see the key note above.
+- **Full-screen frame rate.** Measured on the laptop at 1920×1080 with the temporary
+  `GRAM_FULLSCREEN=1` log (board-topography, avg FPS): as it was 54.3; without the clouds'
+  shadows 57.2; without the water's materials 48.9 (noise: another weather); without both 56.6;
+  without the grid 52.4. On the external monitor at twice the resolution the same demo ran at
+  30–40 and the flat `board` demo under 50, with the whole island in view in both cases — so the
+  cost is per pixel (the fragment shader), not per tile: rendering is at the window's native size
+  (`Engine.Layout`), and every pixel of every tile ran the clouds' noise (4 octaves of `sin`
+  hashes) under any weather (clear is 0.1 cover), the water's pixels twice. `tps == fps` in the
+  log says nothing: ebiten's clock rounds the ticks a frame to the nearest, so at 54–57 FPS it is
+  one tick a frame whichever side is slow.
+- **The fix**: the clouds' noise is worked out on the CPU at each piece's corners
+  (`render.CloudAt`, the dresser's per-frame lattice of corners, the flat map's mesh of 64-px
+  pieces) and shaded between them by the shader; pieces the clouds miss skip the pass. The
+  shadow's inside is bilinear within a tile (32 wu, the finest octave was 52 wu), its edge still
+  per pixel. CPU: the whole island composes in about the same time as before (see the benches).
+  Re-measure with the same `GRAM_FULLSCREEN=1` run before the `TEMP-MEASURE` switches go.
+
+### Relief hiding the view (2026-09-28)
+
+- **Not a bug**: at a low pitch the near relief hides what lies behind it, in any projection.
+  `topography.Config.MinPitch` (30° by default, a game may lower it) keeps the eye from looking
+  that flat. A see-through — first the tiles round a selected unit, then the crests and slopes
+  turned away from the eye drawn at 0.35 opacity — was tried and withdrawn at the user's word:
+  it looked bad. A perspective camera placed at a point of the world is the next thing to talk
+  through.
+- **Culling**: in a view with depth the board renderer tested every cell under the rectangle round
+  the screen's diamond, twice the cells on it; now each cell's screen box (from sea level to its
+  top) must meet the viewport. The `Board_Island/iso,screen` benchmark (a 1080p screen) went from
+  5.05 to 2.75 ms.
+
+### Perspective camera (2026-09-28)
+
+- **Asked for** once the see-through was withdrawn: a camera with an eye at a point of the world,
+  the old cameras kept. Done as a third view of one camera: `viewCamera` switches between the
+  untouched `isoCamera` (from above, isometric) and the new `perspCamera`, and Tab reaches the
+  perspective only with `Config.Perspective` set; the board-topography demo sets it.
+- **Decisions.** The perspective's state is orbital — the ground point in the middle, heading,
+  pitch, distance — so Turn, Tilt, Follow and CenterOn work unchanged. `Depth` is how far ahead of
+  the eye the middle of the cell lies on the ground, so a tile and what stands on it still tie.
+  `Toward` is one direction for the whole screen, the shader takes one. A screen point over the
+  horizon unprojects far along its line, so `Bounds` becomes the whole world and the board's
+  `onScreen` culling does the rest. A point behind the eye projects far off the screen (not to the
+  middle). The eye never goes under the ground: lifted, so steeper and further. `LookFrom`,
+  `LookAt` and `LookOut` put the eye exactly where asked, below MinPitch too — the floor is for the
+  player's tilting, not for placing; the next Tilt holds it again. Switching keeps the ground point
+  in the middle and the screen scale there (screen units a world unit spans across); from the
+  perspective back to the view from above goes through the isometric view, so a full round of Tab
+  returns to the zoom it began at. `Zoom()` in perspective is the scale in the middle; billboards
+  take `ScaleAt` their own point.
+- **Follow in perspective** clears the eye before the shoulder pan, looking at the unit itself: the
+  ground sampled every half cell from a cell off the unit along the line to the eye, a quarter
+  cell of headroom; the eye comes in at once and eases back out (`followEase`); the player's zoom
+  (counted in `perspCamera.zooms`) resets how far out. Clearing after the pan fed back on itself —
+  the pan's reach depends on the distance — hence before.
+- **Known limits**: the painter's sort by cell gives the same artefacts as the isometric view on
+  tall relief looked at low; a tile's texture is interpolated affinely (seen on big tiles near the
+  eye; splitting them, or 1/w in a vertex attribute, would fix it); the vision cones and the world
+  renderer's fades scale by `Zoom()`, the middle's, not their own point's; `Bounds` over the
+  horizon is the whole world, so `CellsUnder` walks every cell and `onScreen` rejects most —
+  measured in `Board_Island/persp,screen`.
+- **Second round, the same day.** The user's screenshot of the perspective low over the ground
+  showed the near relief filling the screen as the isometric view does: "the camera is too close,
+  it drives into the terrain — move it back". Moving the eye back along the same line of sight
+  uncovers nothing over that line (the line is the same), it only shrinks what the near relief
+  takes of the screen; what uncovers is the eye going up. So the free eye is lifted straight up
+  until the line from the point to it clears the ground — sampled every half cell from a cell off
+  the point, a quarter cell over the ground, a whole cell under the eye itself — in the projection
+  only: the player's pitch and distance stay and the eye comes down as the way clears. Zooming and
+  Follow's clearance keep the eye four cells off at least; a placing (`LookFrom`, coming out of a
+  unit) may stand nearer. A zoom while lifted commits the lift into the state, so the anchor stays
+  put. A fastened camera does not lift (`perspCamera.lifts`): behind a unit the eye comes in.
+- **Inside a unit** (`LookOut`, Shift+V, the user's "FPP"): the eye is the anchor and goes with
+  the unit; Turn, Tilt and Pan look round without the pitch floor (Pan turns by pixels over the
+  focal length), Zoom narrows the field of view up to eight times. The view turns with the unit
+  while the arrows turn it (`Driven.Turn`), free otherwise — the user's choice. Not saved: a load
+  comes out, as Follow is not saved either. Coming out puts the point looked at on the ground the
+  middle of the screen sees, or `distance` ahead in the air when it looks at the sky.
+- **The sun** is drawn by the sky's backdrop through any projection with a vanishing point — a
+  point far along the way to the sun drawn where one twice as far is, which only the perspective
+  does — over the horizon, dimmed by the clouds, the hills over it. No moon yet: the sky has no
+  direction for it.
+- **Third round, the same day — the controls, by the user's word.** The orbit-and-lift camera
+  was thrown out: the free eye flies at a fixed height, two cells over the relief's highest point
+  (`Relief.Highest`, cached by version), and never lower — so it is never in the mountains. WASD
+  move it along the ground, Q/E go round the ground point in the middle of the screen (read on
+  the relief), R raises the head and F bows it with the eye standing (they were the other way
+  round; the swap holds for the isometric view too), the wheel comes in down to the ceiling and
+  narrows the field of view from there (`narrow`, 1 to 8), and the other way widens it back and
+  lifts the eye — so the whole map can still be seen. Follow behind a unit steepens the pitch (5°
+  steps to straight down) where the ground hides the unit, instead of pulling the eye in. Inside a
+  unit (Shift+V) Pan no longer looks round: it steers the unit (A/D turn, W on, S stop — the
+  cursor at an edge steers too, being a Pan), Q/E do nothing, R/F move the head without a floor.
+  A save keeps the eye's place and height, heading, pitch and narrowing; `distance` is gone.
+- **Fourth round: V is first person, keys by mode.** The user: V switches one way only, into
+  first person; the unit steers with WASD, the camera pinned to the axis of the unit's sight
+  cone, raised and lowered — they wrote E and D, but D steers, so R and F, as their previous
+  message had it for raising and bowing the head; K must list the first-person keys then. Done
+  with binding modes: `camera.Mode` (Free, FirstPerson), `camera.Rider` for a camera that rides,
+  `control.Binding.In`; players fire and list only what holds in the camera's mode and accept one
+  trigger in modes apart. The free camera's WASD, middle drag and edge scroll are `In(Free)`; the
+  topography binds W/S/A/D to `Drive` `In(FirstPerson)`, R/F with first-person labels, V and Tab
+  in both modes. Without `Config.Perspective`, V is Follow and the arrows drive, as before; with
+  it, Shift+V, the arrows and V-follow are gone. The eye is pinned to `Vel.Dir`, not
+  `vision.Sight.Facing`: the topography cannot import vision (vision's internal renderer test
+  imports the topography, a cycle), and the demo's `faceTravel` turns the sight with `Vel.Dir`,
+  so they are one there. Leaving goes back to the view the camera was in, over the unit (the
+  isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
+  drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
+  of the billboard? It needs the sight, so the same cycle.
+- **Seventh round: white shadows, bare rivers, rain in bands.** From the user's screenshot of
+  first person looking far off. (1) White patches: `Frame.Soft` writes 1 plus the distance to each
+  edge in fades into the vertex, and the shaders took a last value over 5.5 for a blended sprite
+  (mark 10) — any soft piece taller than 4.5 fades was drawn as one. Through a perspective the
+  sight's shadow fade came from `Zoom()` in the middle of the screen (tiny looking far) while the
+  near pieces are huge. `blendMark` is 100000 now (the shaders test over 50000), fades are capped
+  at 10000; the fade is taken where the piece lies, and pieces not in front of the eye are left
+  out. (2) Bare river and roads: the dresser picked its detail once a frame from `Zoom()`, so
+  looking far off every tile, the near ones too, was drawn from the 16-px ground sheet with no
+  water. Now each tile's own pixels (`tile.px`, `camera.ScaleAt` at its middle) choose its
+  detail, shore, ways and whether it is baked; the sheet is kept while any tile may be small (the
+  top of the screen tells). The same for the grid per cell and the units' soft shadows. (3) Rain:
+  the wind's slant came from projecting the world's origin, behind the eye at times; now from the
+  ground in the middle of the screen, capped at 45°. Rain and snow were screen overlays already;
+  nothing else needed changing. Measured under a load of about 1.5 on the machine (the island
+  through 1080p): isometric 3.25–3.61 ms, perspective 8.3–8.8 ms, against 2.8–3.0 and 7.1 earlier
+  in the day; a profile shows none of the new paths among the costly ones, and per-tile scale is
+  skipped when the camera's scale does not vary — to be measured again on a quiet machine. Also
+  found by the new test: the perspective's `Bounds` from the screen's corners missed the ground a
+  screen side crossing the horizon sees out to far; the line of sight leaving the layer just at
+  far bounds it now.
+- **Sixth round: the ground vanished, and the sun.** The user: in first person the sky showed
+  under the hills, "a similar effect in the map view, in perspective and without"; the sun,
+  riding, seemed to turn with the head when low, and vanished on a small turn when high. Measured
+  with a throwaway test: both cameras' `Bounds` — the rectangle the board renderer walks and the
+  world's View draws the units of — came from the screen's corners cast on sea level. Isometric:
+  high ground drawn up over the screen's lower edge lay outside it. Perspective: the ground
+  between the eye and where the lower corners met the sea lay outside it, and looking over the
+  horizon it turned inside out, `(0,0)–(40,−460)`. Now both span the layer from
+  `Relief.Extent`'s low to its high plus `Headroom`: the isometric corners cast at both heights,
+  the perspective's corner rays clipped to the layer (the eye included when it is in it), clamped
+  and never inside out; `Visible` uses the same layer. `Board_Island/iso,screen` 2.86 → 2.94 ms,
+  `persp,screen` 7.12 → 7.14 ms. The sun came from projecting two finite points behind the ground
+  in the middle of the screen and taking them for the vanishing point when a pixel apart — 12 km
+  off when looking level, so only near the middle; worked through the code's numbers, it vanished
+  off the middle and showed where the sun was not. It is `camera.Vanisher` now: the direction's
+  own vanishing point. The "turns with the head" symptom did not come out of the numbers; to be
+  checked again in the demo.
+- **Fifth round: mouse look, the eye higher.** The user: in first person, the mouse instead of
+  R/F, and the eye a little higher — it scraped the ground. The eye rides `riderLift` (a cell) over
+  the unit's top. `control.CursorMove` is a new trigger; the players plugin captures the window's
+  cursor while a local camera rides (`ebiten.SetCursorMode`, skipping the pass it is caught or let
+  go, when the cursor jumps) and fires it for the riding player wherever the cursor is. The
+  topography's `Look` turns the view at once and has the unit turn to face it through a new
+  `world.Driven.Face`, which navigation's drive system turns towards (at the unit's `TurnRate`),
+  held until the unit faces it; the camera stays pinned to the unit's facing otherwise, and A/D
+  take over from the mouse. Looking across therefore ends an order the unit walked, like any hand
+  on it. Mouse up and down raise and lower the head, without a floor. R/F and Q/E are unbound
+  riding. Mouse right turns right; not inverted vertically; `LookStep` 0.0025 rad a pixel.
+
+## Questions for review
+
+- **Determinism across tempos** holds for the simulation; the interface part (orders, selection)
+  runs once a tick, so a player acting at ×4 acts every four steps rather than every step. That is
+  what the plan asks for, but a replay of recorded commands must record the tick, not the step.
+- **Should the frozen light freeze the date too?** Now only the hour freezes (see above). If a
+  frozen light should be one fixed sun, the sky should keep the moment it froze at.
+- **The frozen light is not saved.** The plan called it a look, like the camera; if it should come
+  back after a load, it needs a component (the clock's entity would do).
+- **Weathering on a hex board** picks cells from a list of all of them (`EachCell` once); on a
+  square board the old code picked by column and row. Same effect, a slice of cell ids in memory.
+- **Should heights on a hex board stay per cell (level cells)?** They do, as before; the lattice is
+  the square grid's. A hex board's blocks in the isometric view are drawn as square tops, as they
+  always were.
+- **The topography's `Heights` entity writes every tick** (a slice header, no copy) like the
+  clock's State. If saves turn out to need the component only at save time, a `Persisted` hook
+  would do instead. goke logs once at start that the component "requires a dereference outside
+  the archetype's chunk memory" — true, and harmless for one entity read once a tick; a
+  fixed-size component would need one per cell instead.
+- **Screenshots of the island in relief were not compared** — I cannot take them unattended. The
+  demos run headless for ten seconds without a panic; please eyeball island-isometric (Tab, Q/E,
+  R/F, =/-) tomorrow.
