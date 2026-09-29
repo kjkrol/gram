@@ -51,11 +51,14 @@ type Sky interface {
 	Air() air.Weather
 }
 
-// Config is how the ground is traced: whether it casts its shadows (Shadows), and the world's
-// Scale, for how far one sees through the air.
+// Config is how the ground is traced: whether it casts its shadows (Shadows), the world's Scale,
+// for how far one sees through the air, and Downscale, how many times smaller than the viewport
+// the picture is traced and then scaled up — 2 unless set, a quarter of the pixels; 1 every
+// pixel.
 type Config struct {
-	Shadows bool
-	Scale   world.Scale
+	Shadows   bool
+	Scale     world.Scale
+	Downscale int
 }
 
 // Renderer draws the ground from its heightmap: a render.Direct source at the Ground tier.
@@ -77,6 +80,8 @@ type Renderer struct {
 	verts    []ebiten.Vertex
 	indices  []uint16
 	hidden   bool
+	off      *ebiten.Image // the picture traced smaller than the viewport, scaled up onto it
+	scaling  ebiten.DrawImageOptions
 }
 
 var _ render.Direct = (*Renderer)(nil)
@@ -84,10 +89,14 @@ var _ render.Direct = (*Renderer)(nil)
 // New is a renderer of ground coloured by colours under sky, as cfg says; it draws nothing while
 // Hidden.
 func New(ground Ground, colours Colours, sky Sky, cfg Config) *Renderer {
+	if cfg.Downscale <= 0 {
+		cfg.Downscale = 2
+	}
 	r := &Renderer{ground: ground, colours: colours, sky: sky, cfg: cfg, uniforms: map[string][]float32{}}
 	r.opts.Uniforms = map[string]any{}
 	r.indices = []uint16{0, 1, 2, 1, 2, 3}
 	r.verts = make([]ebiten.Vertex, 4)
+	r.scaling.Filter = ebiten.FilterLinear
 	return r
 }
 
@@ -128,11 +137,30 @@ func (r *Renderer) Draw(screen *ebiten.Image, cam camera.Camera) {
 	}
 	r.setUniforms(field, cam)
 	w, h := cam.Viewport()
-	for i, p := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
-		r.verts[i] = ebiten.Vertex{DstX: p[0], DstY: p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1, Custom0: p[0], Custom1: p[1]}
-	}
 	r.opts.Images[0], r.opts.Images[1] = r.heights, r.albedo
-	screen.DrawTrianglesShader(r.verts, r.indices, r.shader, &r.opts)
+	// traced over the viewport itself, or over a smaller picture whose pixels look along the
+	// viewport's lines of sight, scaled up onto it
+	dst, k := screen, float32(r.cfg.Downscale)
+	if k > 1 {
+		ow, oh := max(int(w/k), 1), max(int(h/k), 1)
+		if r.off == nil || r.off.Bounds().Dx() != ow || r.off.Bounds().Dy() != oh {
+			r.off = ebiten.NewImage(ow, oh)
+		}
+		r.off.Clear()
+		dst, k = r.off, w/float32(ow)
+	} else {
+		k = 1
+	}
+	dw, dh := float32(dst.Bounds().Dx()), float32(dst.Bounds().Dy())
+	for i, p := range [4][2]float32{{0, 0}, {dw, 0}, {0, dh}, {dw, dh}} {
+		r.verts[i] = ebiten.Vertex{DstX: p[0], DstY: p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1, Custom0: p[0] * k, Custom1: p[1] * k}
+	}
+	dst.DrawTrianglesShader(r.verts, r.indices, r.shader, &r.opts)
+	if dst != screen {
+		r.scaling.GeoM.Reset()
+		r.scaling.GeoM.Scale(float64(w/dw), float64(h/dh))
+		screen.DrawImage(r.off, &r.scaling)
+	}
 }
 
 // refresh brings the heightmap and the colours up to date with the ground and the board; false

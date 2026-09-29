@@ -7,30 +7,88 @@ var Wind vec2
 var Drift vec2
 var Cover float
 
-// CloudShadow is the clouds' shadow over a sprite: the clouds' noise at the pixel in frac, shaded
-// between the corners, how faint the sprite under it is in red and how it fades or blends in
+// The sky's lines of sight, for the clouds drawn on it (Weather.CloudQuad): the eye, and the way
+// the screen pixel (x, y) looks, LookDir + LookDX·x + LookDY·y (camera.RayField); CloudHeight is
+// how high the cloud layer lies, Visibility how far one sees through the air, 0 without end.
+var EyeAt vec3
+var LookDir vec3
+var LookDX vec3
+var LookDY vec3
+var CloudHeight float
+var Visibility float
+
+// CloudShadow is the clouds' shadow over a sprite: the clouds' noise worked out at the pixel's
+// point of the world, how faint the sprite under it is in red and how it fades or blends in
 // custom; it darkens the sprite as much as the clouds over it take of the sun.
 func CloudShadow(p vec2, red float, frac float, custom vec4) vec4 {
 	weight := red * faded(custom)
 	if custom.w > 50000 {
 		weight = blended(red, custom.w)
 	}
-	return vec4(0, 0, 0, cloudDark*cloudCover(frac)*clamp(SunStrength*1.4, 0, 1)*weight)
+	return vec4(0, 0, 0, cloudDark*cloudCover(cloudField(p))*clamp(SunStrength*1.4, 0, 1)*weight)
 }
 
-// Clouds is the clouds on the sky: as thick over the point of the cloud layer the pixel looks at
-// as its noise in frac says (cloudCover, the shadows' rule), lit from above by the sun and grey
-// underneath the more of the sky they cover, turning to the Fog as far as custom.x says the point
-// lies in the air.
+// Clouds is the clouds on the sky, at the pixel whose screen position custom holds: it looks along
+// its own line of sight up to the cloud layer and takes the clouds' noise there (cloudCover, the
+// shadows' rule), lit from above by the sun and grey underneath the more of the sky they cover,
+// turning to the Fog as far off as the layer lies in the air; nothing looking under the layer.
 func Clouds(p vec2, red float, frac float, custom vec4) vec4 {
-	cover := cloudCover(frac)
+	d := LookDir + LookDX*custom.x + LookDY*custom.y
+	if d.z <= skyLift {
+		return vec4(0)
+	}
+	t := (CloudHeight - EyeAt.z) / d.z
+	if t <= 0 {
+		return vec4(0)
+	}
+	cover := cloudCover(cloudField(EyeAt.xy + d.xy*t))
+	haze := 0.0
+	if Visibility > 0 {
+		haze = 1 - exp(-t*length(d)/Visibility)
+	}
 	lit := clamp(SunStrength*1.4, 0, 1)
 	sunlit := mix(vec3(0.62), vec3(1), lit) * mix(vec3(1), SunColor, 0.6)
 	under := mix(1.0, 0.72, clamp(Cover, 0, 1)) // the undersides greyer under a heavier sky
-	rgb := mix(sunlit*under, Fog, clamp(custom.x, 0, 1))
-	a := cover * (1 - clamp(custom.x, 0, 1)*0.85)
+	rgb := mix(sunlit*under, Fog, haze)
+	a := cover * (1 - haze*0.85)
 	return vec4(rgb*a, a)
 }
+
+// skyLift is how far up a line of sight must look to reach the cloud layer at all: along the
+// horizon the air alone shows.
+const skyLift = 0.02
+
+// cloudField is the clouds' noise over the world point p, carried by the Drift: four octaves of
+// value noise over cloudSize, 0 to 1 — air.Weather.Cloud, the same.
+func cloudField(p vec2) float {
+	q := (p - Drift) / cloudSize
+	n := cloudNoise(q) + 0.5*cloudNoise(q*2.03+17) + 0.25*cloudNoise(q*4.01+31) + 0.125*cloudNoise(q*8.07+53)
+	return n / 1.875
+}
+
+// cloudNoise is smooth value noise at p: 0 to 1, changing over a unit.
+func cloudNoise(p vec2) float {
+	i := floor(p)
+	f := p - i
+	f = f * f * (3 - 2*f)
+	a := cloudHash(i)
+	b := cloudHash(i + vec2(1, 0))
+	c := cloudHash(i + vec2(0, 1))
+	d := cloudHash(i + vec2(1, 1))
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y)
+}
+
+// cloudHash is a number 0 to 1 fixed for the lattice point i: a permutation polynomial mod 289 in
+// whole numbers under 2²⁴, exact in floats, so the CPU (air.cloudHash) works out the very same.
+func cloudHash(i vec2) float {
+	x := mod(i.x+17, 289.0)
+	y := mod(i.y+53, 289.0)
+	p := mod((34*x+1)*x, 289.0)
+	return mod((34*(p+y)+1)*(p+y), 289.0) / 289.0
+}
+
+// cloudSize is how wide a cloud is, in world units — air's, the same.
+const cloudSize = 420.0
 
 // overcastSky is the sky's colour under the clouds covering it, as air.Overcast has it.
 func overcastSky() vec3 {

@@ -29,7 +29,20 @@ func (raying) Ray(sx, sy float32) (float32, float32, float32, bool) {
 	return d[0] / n, d[1] / n, d[2] / n, true
 }
 
+// Rays is every line of sight of raying at once, as Ray has them: from the eye, the way of the
+// screen point affine in it.
+func (r raying) Rays() (camera.RayField, bool) {
+	f := camera.RayField{Origin: [3]float32{50, 150, r.height}}
+	for k := range 3 {
+		f.Dir[k] = eyedF[k] - eyedR[k]*0.5 + eyedU[k]*0.5
+		f.DDX[k] = eyedR[k] / 100
+		f.DDY[k] = -eyedU[k] / 100
+	}
+	return f, true
+}
+
 var _ camera.Rayer = raying{}
+var _ camera.Rays = raying{}
 var _ camera.Eyed = raying{}
 
 // Through a camera that says which way each screen point looks the sky is a mesh from the horizon
@@ -70,8 +83,8 @@ func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 		t.Errorf("the top of the screen is %v %v %v and the bottom %v %v %v, want the sky deeper overhead than at the horizon", top.ColorR, top.ColorG, top.ColorB, bottom.ColorR, bottom.ColorG, bottom.ColorB)
 	}
 	weather = air.Weather{Clouds: 1}
-	if quads, clouds, _, _ := compose(raying{height: 30}); quads != 4 || clouds != 2 {
-		t.Errorf("under full cloud from 30 up: %d quads and %d cloud pieces, want 4 and the 2 pieces looking up at the layer", quads, clouds)
+	if quads, clouds, _, _ := compose(raying{height: 30}); quads != 4 || clouds < 2 || clouds > 4 {
+		t.Errorf("under full cloud from 30 up: %d quads and %d cloud pieces, want 4 and the pieces with a corner looking up at the layer, 2 to 4", quads, clouds)
 	}
 	if quads, clouds, _, _ := compose(raying{height: air.Base(world.Scale{}) + 1}); quads != 4 || clouds != 0 {
 		t.Errorf("from above the cloud layer: %d quads and %d cloud pieces, want 4 and none", quads, clouds)

@@ -30,9 +30,9 @@ func Overhead(sky render.Light, clouds float32) render.Light {
 	return Overcast(deep, clouds)
 }
 
-// CloudBase is how high the clouds hang, in metres: over the highest ground of an island and the
-// eye flying over it, so they are seen from below.
-const CloudBase = 3000.0
+// CloudBase is how high the clouds hang, in metres: well over the highest ground of an island and
+// the eye flying over it, so they are seen from below and look far.
+const CloudBase = 6000.0
 
 // Base is the height of the cloud layer on a world of scale, in world units.
 func Base(scale world.Scale) float32 { return float32(scale.Units(CloudBase)) }
@@ -47,9 +47,10 @@ const (
 )
 
 // Cloud is the clouds' noise over the world point (x, y) with w's wind having carried them as far
-// as its Drift says: 0 to 1, smooth over about a cloud's width, the clouds where it is high. What
-// lays their shadows takes it at a piece's corners and the shader shades between them, so no pixel
-// works the noise out itself; Shade is how much shadow a value gives under w's cover.
+// as its Drift says: 0 to 1, smooth over about a cloud's width, the clouds where it is high — the
+// very noise the shader works out per pixel (weather.kage's cloudField), so what is read here of
+// a piece's corners, to tell a clear piece from a clouded one, is what the pixels get. Shade is
+// how much shadow a value gives under w's cover.
 func (w Weather) Cloud(x, y float32) float32 {
 	qx, qy := float64(x-w.Drift[0])/cloudSize, float64(y-w.Drift[1])/cloudSize
 	n := cloudNoise(qx, qy) + 0.5*cloudNoise(qx*2.03+17, qy*2.03+17) + 0.25*cloudNoise(qx*4.01+31, qy*4.01+31) + 0.125*cloudNoise(qx*8.07+53, qy*8.07+53)
@@ -86,20 +87,22 @@ func cloudNoise(x, y float64) float64 {
 	x0, y0 := math.Floor(x), math.Floor(y)
 	u, v := x-x0, y-y0
 	u, v = u*u*(3-2*u), v*v*(3-2*v)
-	ix, iy := int64(x0), int64(y0)
-	a, b := cloudHash(ix, iy), cloudHash(ix+1, iy)
-	c, d := cloudHash(ix, iy+1), cloudHash(ix+1, iy+1)
+	a, b := cloudHash(x0, y0), cloudHash(x0+1, y0)
+	c, d := cloudHash(x0, y0+1), cloudHash(x0+1, y0+1)
 	return (a*(1-u)+b*u)*(1-v) + (c*(1-u)+d*u)*v
 }
 
-// cloudHash is a number 0 to 1 fixed for the lattice point (x, y).
-func cloudHash(x, y int64) float64 {
-	h := uint64(x)*0x9E3779B97F4A7C15 ^ uint64(y)*0xC2B2AE3D27D4EB4F ^ 0x2545F4914F6CDD1D
-	h ^= h >> 31
-	h *= 0xBF58476D1CE4E5B9
-	h ^= h >> 29
-	return float64(h>>11) / (1 << 53)
+// cloudHash is a number 0 to 1 fixed for the lattice point (x, y): a permutation polynomial mod
+// 289 in whole numbers under 2²⁴, which floats hold exactly, so the shader (weather.kage) works
+// out the very same; the lattice is shifted off the origin, where the polynomial is small.
+func cloudHash(x, y float64) float64 {
+	x, y = mod289(x+17), mod289(y+53)
+	p := mod289((34*x + 1) * x)
+	return mod289((34*(p+y)+1)*(p+y)) / 289
 }
+
+// mod289 is v mod 289, never negative, as the shader's mod has it.
+func mod289(v float64) float64 { return v - 289*math.Floor(v/289) }
 
 // Overcast lays over the last sprite added to f, whose corners lie at wo in the world under clouds
 // of noise cloud (Cloud at each corner), the shadows of w's clouds — as faint as the sprite and
@@ -130,17 +133,15 @@ func (w Weather) OvercastQuad(f *render.Frame, tier render.Tier, depth float32, 
 	f.Material(tier, depth, dst, &o)
 }
 
-// CloudQuad draws the clouds themselves on the screen quad dst, a piece of the sky whose corners
-// look at the points wo of the cloud layer under clouds of noise cloud (Cloud at each corner) —
-// the same noise that lays their shadows straight under them — hazed as far as haze says each
-// corner lies in the air; nothing over a piece the clouds miss.
-func (w Weather) CloudQuad(f *render.Frame, tier render.Tier, depth float32, dst render.Corners, wo render.World, cloud, haze [4]float32) {
-	if !w.Shadowed(cloud) {
-		return
-	}
-	o := render.Overlay{Material: cloudsOverhead, World: wo, Red: [4]float32{1, 1, 1, 1}, Fraction: cloud}
-	for k := range haze {
-		o.Custom[k][0] = haze[k]
+// CloudQuad draws the clouds on the screen quad dst, a piece of the sky: every pixel of it looks
+// along its own line of sight — the frame's EyeAt, LookDir, LookDX and LookDY uniforms, a
+// camera.RayField — up to the cloud layer CloudHeight high, and takes the clouds' noise there,
+// the same noise that lays their shadows straight under them, hazed as far off as the layer lies
+// over Visibility; a pixel looking under the layer shows nothing.
+func (w Weather) CloudQuad(f *render.Frame, tier render.Tier, depth float32, dst render.Corners) {
+	o := render.Overlay{Material: cloudsOverhead, Red: [4]float32{1, 1, 1, 1}}
+	for k, c := range dst {
+		o.Custom[k][0], o.Custom[k][1] = c[0], c[1]
 	}
 	f.Material(tier, depth, dst, &o)
 }

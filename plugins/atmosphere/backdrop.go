@@ -16,12 +16,13 @@ var _ render.Source = (*Backdrop)(nil)
 
 // Backdrop is the sky behind the world, behind everything, whenever the ground does not cover all
 // of the viewport — beyond the world's edge, above a low view; a view the ground covers draws
-// none. Through a camera that says which way each screen point looks (camera.Rayer, a
-// perspective's) it is the sky of the day: paler at the horizon, deeper overhead, greyed as much
-// as the clouds cover it, the sun standing in it where the way towards it vanishes, and the
-// clouds themselves drawn on a layer air.Base high — the same clouds, by the same noise, that lay
-// their shadows straight under them on the ground — hazed away towards the horizon. Any other
-// camera gets the viewport filled in the sky's colour.
+// none. Through a camera with an eye that says every line of sight at once (camera.Eyed and
+// camera.Rays, a perspective's) it is the sky of the day: paler at the horizon, deeper overhead,
+// greyed as much as the clouds cover it, the sun standing in it where the way towards it
+// vanishes, and the clouds themselves drawn on a layer air.Base high — every pixel looking along
+// its own line of sight up to the layer, at the same clouds, by the same noise, that lay their
+// shadows straight under them on the ground — hazed away towards the horizon. Any other camera
+// gets the viewport filled in the sky's colour.
 type Backdrop struct {
 	space world.SpaceCfg
 	scale world.Scale
@@ -31,19 +32,16 @@ type Backdrop struct {
 	mesh  []skyCorner // the corners of the sky's mesh, row by row, kept between frames
 }
 
-// skyCorner is one corner of the sky's mesh: where it lies on the screen, which way it looks
-// (a unit vector, its rise dz), and, where it looks at the cloud layer, the point of it and the
-// clouds' noise and haze there.
+// skyCorner is one corner of the sky's mesh: where it lies on the screen and how far up it looks,
+// the rise of its line of sight as a unit vector.
 type skyCorner struct {
-	sx, sy     float32
-	dx, dy, dz float32
-	x, y       float32
-	n, haze    float32
-	clouded    bool
+	sx, sy float32
+	dz     float32
 }
 
-// skyPiece is how many pixels a piece of the sky's mesh spans; skyLift is how far up a ray must
-// look to reach the cloud layer at all, so the pieces along the horizon show haze alone.
+// skyPiece is how many pixels a piece of the sky's mesh spans; skyLift is how far up a line of
+// sight must look to reach the cloud layer at all (the shader's, the same), so the pieces along
+// the horizon show haze alone.
 const (
 	skyPiece = 64
 	skyLift  = 0.02
@@ -64,19 +62,14 @@ func (b *Backdrop) Compose(f *render.Frame, cam camera.Camera) {
 	day := b.sun()
 	weather := b.air()
 	horizon := air.Overcast(day.SkyLight(), weather.Clouds)
-	rayer, rays := cam.(camera.Rayer)
-	if rays {
-		if _, _, _, ok := rayer.Ray(w/2, h/2); !ok {
-			rays = false
-		}
-	}
-	if !rays {
+	field, ex, ey, ez, eyed := lines(cam)
+	if !eyed {
 		f.Soft(render.Backdrop, float32(math.Inf(-1)), render.Corners{{0, 0}, {w, 0}, {0, h}, {w, h}}, rgba(horizon), render.Fade{})
 		b.drawSun(f, cam, w, h, day, weather.Clouds)
 		return
 	}
 	overhead := air.Overhead(day.SkyLight(), weather.Clouds)
-	nx, ny := b.meshOf(cam, rayer, w, h, weather)
+	nx, ny := b.meshOf(field, w, h)
 	for j := 0; j < ny; j++ {
 		for i := 0; i < nx; i++ {
 			var dst render.Corners
@@ -90,32 +83,45 @@ func (b *Backdrop) Compose(f *render.Frame, cam camera.Camera) {
 		}
 	}
 	b.drawSun(f, cam, w, h, day, weather.Clouds)
-	b.drawClouds(f, nx, ny, weather)
+	base := air.Base(b.scale)
+	if weather.Clouds > 0 && ez < base {
+		f.Uniform("EyeAt", ex, ey, ez)
+		f.Uniform("LookDir", field.Dir[0], field.Dir[1], field.Dir[2])
+		f.Uniform("LookDX", field.DDX[0], field.DDX[1], field.DDX[2])
+		f.Uniform("LookDY", field.DDY[0], field.DDY[1], field.DDY[2])
+		f.Uniform("CloudHeight", base)
+		f.Uniform("Visibility", float32(air.Visibility(b.scale, weather)))
+		b.drawClouds(f, nx, ny, weather)
+	}
 }
 
-// meshOf lays the sky's mesh over the w x h screen: a corner every skyPiece pixels, each with the
-// way it looks and, for an eye under the cloud layer, the point of the layer it looks at and the
-// clouds there; it reports the mesh's pieces across and down.
-func (b *Backdrop) meshOf(cam camera.Camera, rayer camera.Rayer, w, h float32, weather air.Weather) (nx, ny int) {
-	nx, ny = int(math.Ceil(float64(w/skyPiece))), int(math.Ceil(float64(h/skyPiece)))
-	base := air.Base(b.scale)
-	var ex, ey, ez float32
-	under := false
-	if e, ok := cam.(camera.Eyed); ok {
-		var has bool
-		ex, ey, ez, has = e.Eye()
-		under = has && ez < base
+// lines is cam's lines of sight from its eye — a perspective's, whose rays all start at the eye —
+// and the eye; false for any other camera.
+func lines(cam camera.Camera) (field camera.RayField, ex, ey, ez float32, ok bool) {
+	e, eyed := cam.(camera.Eyed)
+	r, rays := cam.(camera.Rays)
+	if !eyed || !rays {
+		return field, 0, 0, 0, false
 	}
+	ex, ey, ez, ok = e.Eye()
+	if !ok {
+		return field, 0, 0, 0, false
+	}
+	field, ok = r.Rays()
+	return field, ex, ey, ez, ok && field.DX == [3]float32{} && field.DY == [3]float32{}
+}
+
+// meshOf lays the sky's mesh over the w x h screen: a corner every skyPiece pixels, each with how
+// far up it looks; it reports the mesh's pieces across and down.
+func (b *Backdrop) meshOf(field camera.RayField, w, h float32) (nx, ny int) {
+	nx, ny = int(math.Ceil(float64(w/skyPiece))), int(math.Ceil(float64(h/skyPiece)))
 	b.mesh = b.mesh[:0]
 	for j := 0; j <= ny; j++ {
 		for i := 0; i <= nx; i++ {
 			c := skyCorner{sx: min(float32(i)*skyPiece, w), sy: min(float32(j)*skyPiece, h)}
-			c.dx, c.dy, c.dz, _ = rayer.Ray(c.sx, c.sy)
-			if under && c.dz > skyLift {
-				t := (base - ez) / c.dz
-				c.x, c.y, c.clouded = ex+c.dx*t, ey+c.dy*t, true
-				c.n = weather.Cloud(c.x, c.y)
-				c.haze = weather.Haze(cam, c.x, c.y, base)
+			_, d := field.At(c.sx, c.sy)
+			if n := float32(math.Sqrt(float64(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]))); n > 0 {
+				c.dz = d[2] / n
 			}
 			b.mesh = append(b.mesh, c)
 		}
@@ -123,25 +129,21 @@ func (b *Backdrop) meshOf(cam camera.Camera, rayer camera.Rayer, w, h float32, w
 	return nx, ny
 }
 
-// drawClouds lays the clouds on every piece of the mesh whose corners all look at the cloud layer,
-// over the sun and under everything else.
+// drawClouds lays the clouds on every piece of the mesh with a corner looking up at the cloud
+// layer — the shader draws them pixel by pixel, nothing on a pixel looking under it — over the
+// sun and under everything else.
 func (b *Backdrop) drawClouds(f *render.Frame, nx, ny int, weather air.Weather) {
-	if weather.Clouds <= 0 {
-		return
-	}
 	for j := 0; j < ny; j++ {
 		for i := 0; i < nx; i++ {
 			var dst render.Corners
-			var wo render.World
-			var cloud, haze [4]float32
-			all := true
+			up := false
 			for k, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 				at := &b.mesh[(j+d[1])*(nx+1)+i+d[0]]
-				all = all && at.clouded
-				dst[k], wo[k], cloud[k], haze[k] = [2]float32{at.sx, at.sy}, [2]float32{at.x, at.y}, at.n, at.haze
+				up = up || at.dz > skyLift
+				dst[k] = [2]float32{at.sx, at.sy}
 			}
-			if all {
-				weather.CloudQuad(f, render.Backdrop, -math.MaxFloat32/2, dst, wo, cloud, haze)
+			if up {
+				weather.CloudQuad(f, render.Backdrop, -math.MaxFloat32/2, dst)
 			}
 		}
 	}

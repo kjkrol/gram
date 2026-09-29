@@ -324,7 +324,25 @@ below says what was decided and why, or what needs an answer. Take them out as t
   `imageSrc1Origin()`, which reads outside the region and gives transparent. The heights were
   read outside the image (all at Low: a plane), then the colours (black). The colours' image is
   the heightmap's size now. Under XWayland the harness's window sometimes never gets its
-  VisibilityNotify and GLFW spins; a watchdog kills it after a minute.
+  VisibilityNotify and GLFW spins; a watchdog kills it after a minute. **The user then**: the
+  GPU ground "was to be fast and is slow, under 40 FPS", and the clouds "too low" and "as if
+  generated" as the head turns. (1) The march was full-resolution, 160 steps of a quarter cell
+  at the finest, 4 texture reads a step, 16 for the normal, 24 shadow steps: on a UHD 620 that
+  is the 30 FPS the tiles' perspective also gets. Now half-resolution into an offscreen image
+  scaled up linearly (`Downscale`), the normal from the cell's own four corners (bilinear
+  gradient, smooth within the cell), 16 shadow steps of ¾ cell, a march no finer than half a
+  cell with six bisections after: roughly eight times less work; to be measured by the user's
+  FPS counter. (2) The clouds swam because the sky mesh read the noise at 64-pixel corners and
+  the shader blended it across each piece: turn the head and the corners land elsewhere on the
+  layer, so every piece's blend changes shape. Now the shader looks along each pixel's own line
+  of sight to the layer — the camera's RayField as uniforms, the pixel's screen position in the
+  overlay's custom — and evaluates the noise there; the ground's cloud shadows evaluate it per
+  pixel too. That needed one noise on both sides: the CPU's 64-bit hash cannot be written in
+  Kage, so both use value noise over a permutation polynomial mod 289 (`permute(permute(x)+y)`),
+  whole numbers under 2²⁴ that floats hold exactly, the lattice shifted off the origin where the
+  polynomial is small. The CPU still reads a piece's corners to skip pieces the clouds miss.
+  (3) The layer at 3 km looked low from an eye a kilometre up, cloud features 1.3 km wide
+  subtending tens of degrees; 6 km now.
 - **Twenty-first round: the tiles and the cones on every CPU.** The user asked what of the
   topography's drawing could go to the GPU, or failing that be spread over the CPUs, and ordered
   the whole plan in stages. Ebitengine's Kage is fragment shaders only, so the tiles stay on the

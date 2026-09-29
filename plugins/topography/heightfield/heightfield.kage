@@ -33,10 +33,10 @@ var Fog vec3
 var Visibility float
 
 // How many steps a ray takes at most, how many bisections settle where it met the ground, and how
-// many steps a ray towards the sun takes.
-const steps = 160
+// many steps of three quarters of a cell a ray towards the sun takes.
+const steps = 128
 const refine = 6
-const shadowSteps = 24
+const shadowSteps = 16
 
 // height is the ground's height at the world point p as a tile is drawn: two flat triangles split
 // along the diagonal whose corners stand nearer in height (topography.Relief.GroundAt).
@@ -76,12 +76,19 @@ func ground(p vec3) float {
 	return height(p.xy) - Bend*dot(d, d)
 }
 
-// normal is the way the ground faces at p, from its rise a quarter cell either side.
+// normal is the way the ground faces at p: the rise of the ground blended between the cell's
+// corners, smooth across the cell, from the four corners alone.
 func normal(p vec2) vec3 {
-	e := Cell / 4
-	dx := height(p+vec2(e, 0)) - height(p-vec2(e, 0))
-	dy := height(p+vec2(0, e)) - height(p-vec2(0, e))
-	return normalize(vec3(-dx, -dy, 2*e))
+	g := clamp(p/Cell, vec2(0), Corners-1.0001)
+	i := floor(g)
+	f := g - i
+	h0 := corner(i)
+	h1 := corner(i + vec2(1, 0))
+	h2 := corner(i + vec2(0, 1))
+	h3 := corner(i + vec2(1, 1))
+	dx := mix(h1-h0, h3-h2, f.y)
+	dy := mix(h2-h0, h3-h1, f.x)
+	return normalize(vec3(-dx, -dy, Cell))
 }
 
 // sunlit is how much of the sun reaches p: none where the ground towards the sun rises over the
@@ -90,7 +97,7 @@ func sunlit(p vec3) float {
 	if Shadows < 0.5 || Sun.z <= 0 {
 		return 1
 	}
-	step := Cell / 2
+	step := Cell * 0.75
 	top := Low + Span
 	for k := 1; k <= shadowSteps; k++ {
 		q := p + Sun*(step*float(k))
@@ -154,7 +161,7 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 			break
 		}
 		last = t
-		t += max(Cell*0.25, (p.z-h)*0.6)
+		t += max(Cell*0.5, (p.z-h)*0.6)
 		if t > tmax {
 			break
 		}

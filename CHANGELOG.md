@@ -5,6 +5,21 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The clouds drawn pixel by pixel, higher; the heightfield traced at half size**
+- The clouds on the sky are worked out per pixel: each looks along its own line of sight (the
+  frame's `EyeAt`, `LookDir`, `LookDX` and `LookDY` uniforms, the camera's `camera.RayField`) up
+  to the cloud layer and takes the clouds' noise there, so they stand still as the head turns;
+  before, the noise was read at the corners of 64-pixel pieces and blended between them, and
+  swam about. The ground's cloud shadows are worked out per pixel the same way. One noise on the
+  CPU and the GPU (`air.Weather.Cloud`, weather.kage's `cloudField`): value noise on a
+  permutation-polynomial hash mod 289, exact in floats on both. The layer hangs 6 km up
+  (`air.CloudBase`; 3 before), so the clouds look far. `Weather.CloudQuad` takes the piece alone.
+- The heightfield is traced at half the viewport's size and scaled up (`heightfield.Config`
+  `Downscale`, 2 unless set; 1 every pixel), its normal from the cell's four corners alone, its
+  shadows in 16 steps of three quarters of a cell, its march no finer than half a cell: a quarter
+  of the pixels and a third of the texture reads a pixel. On the island's Intel UHD 620 the
+  tiles' perspective ran at 30 frames a second, the heightfield traced whole at 30 to 40.
+
 **The ground traced on the GPU from its heightmap**
 - `topography/heightfield` is the topography's other way of drawing the ground: one shader
   traces every pixel's line of sight over the relief (heightfield.kage) — the heights a lattice
