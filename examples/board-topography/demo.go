@@ -1,24 +1,24 @@
 // Command board-topography is the island in relief: a world with heights whose board is drawn and
 // priced by a topography, a cell 100 m (world.Scale) — a range of peaks up to 2 km and a plateau
-// 0.9 km up, rock on the heights,
-// sand on the beaches, sea cliffs in the north, earth between, streams and rivers running down to
-// the sea and falling over the cliffs, roads from stop to stop over bridges, slower up the slopes
-// and routed round them; seen isometrically, Transport Tycoon's way, from above or in perspective
-// — Tab goes round — the units giants, 9.4 m across and 20 m tall, billboards as tall as their
-// world.Z says, a hawk 300 m up
-// whose cone looks over everything a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far off sinks
-// under the horizon and fades in the air. A
-// day goes by (plugins/atmosphere): long shadows morning and evening, dark nights; Space pauses
-// the game, ] and [ set its tempo — the clock bottom-left shows it, and when the engine holds it
-// back — P freezes the light, Shift+] and Shift+[ move the frozen light half an hour. The year is the Earth's, beginning in mid-spring; the weather goes by: clouds'
-// shadows drift over the island, rain falls — snow in winter, lying until spring, ice along the
-// shores — the sea roughens with the wind; Shift+W changes it. WASD, the wheel, a middle drag or
-// the cursor at an edge move the camera; Q and E turn it, R raises its head and F bows it; V rides
-// in the selected unit, first person — W walks, S stops, A and D turn, the mouse looks round, up at
-// the sun and down at the feet, V or Tab leave, K lists these keys while riding; = and -
-// shape the ground under the cursor, an
-// L-drag levels it. K lists every key. The kinds are drawn from the board's own atlas of their
-// colours.
+// 0.9 km up, rock on the heights, sand on the beaches, sea cliffs in the north, earth between,
+// streams and rivers running down to the sea and falling over the cliffs, roads from stop to stop
+// over bridges, slower up the slopes and routed round them; seen isometrically, Transport Tycoon's
+// way, from above or in perspective — Tab goes round — the units giants, 9.4 m across and 20 m
+// tall, billboards as tall as their world.Z says, a hawk 300 m up whose cone looks over everything
+// a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far
+// off sinks under the horizon and fades in the air. A day goes by (plugins/atmosphere): long
+// shadows morning and evening, dark nights; Space pauses the game, ] and [ set its tempo — the
+// clock bottom-left shows it, and when the engine holds it back — P freezes the light, Shift+] and
+// Shift+[ move the frozen light half an hour. The year is the Earth's, beginning in mid-spring;
+// the weather goes by: clouds' shadows drift over the island, rain falls — snow in winter, lying
+// until spring, ice along the shores — the sea roughens with the wind; Shift+W changes it. WASD,
+// the wheel, a middle drag or the cursor at an edge move the camera; Q and E turn it, R raises its
+// head and F bows it; V rides in the selected unit, first person — W walks, with Shift four times
+// as fast, S brakes and then backs away, A and D turn, the mouse looks round, up at the sun and
+// down at the feet; the hawk ridden holds its height over the sea and climbs and dives the way the
+// eye looks, from its own height over the ground to just under the clouds; V or Tab leave, K lists these keys while riding; = and - shape the ground
+// under the cursor, an L-drag levels it. K lists every key. The kinds are drawn from the board's
+// own atlas of their colours.
 package main
 
 import (
@@ -38,6 +38,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
@@ -66,7 +67,11 @@ const (
 	// spritePx is how many pixels its sprite is painted in.
 	EntitySize = 3
 	spritePx   = 22
-	UnitSpeed  = CellSize * 3
+	// UnitSpeed is how fast a unit walks: three quarters of a cell a second, the hawk half as fast
+	// again; everything else of the gait goes with it. Sprint is how many times as fast a unit
+	// ridden goes with Shift held, as far as the world lets a body move a tick.
+	UnitSpeed = CellSize * 3 / 4
+	Sprint    = 4
 	// sightRadius is how far a unit sees, 3 km; eyeAngle how wide, 72° across, the field its
 	// eye and the camera riding in it share.
 	sightRadius = 960
@@ -259,13 +264,15 @@ func (s *mainStage) defineKinds() {
 	// the cone of sight and the camera riding in the unit read the one Eye: at the top, 72° across
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
 		sight, eye, comp.Const(vision.SightOutline{}),
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
-	// walker's cone climbs and stops at, and it flies over them as over the flat.
-	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
+	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
+	// its height over the sea and climbs and dives the way the rider looks, never nearer the
+	// ground than its own height nor higher than 100 m under the clouds.
+	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
 		sight, eye, comp.Const(vision.SightOutline{}),
 	)

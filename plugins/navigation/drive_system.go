@@ -15,8 +15,10 @@ import (
 var _ goke.System = (*driveSystem)(nil)
 
 // driveSystem carries out steering.Driven: an entity steered by hand turns — by Turn, or towards Face —
-// and walks the way it
-// faces, never towards a cell its domain may not stand on or the occupancy keeps it out of; a hand
+// and walks the way it faces, sprinting where urged, or brakes to a stop and backs away facing as
+// it does, never towards a cell its domain may not stand on or the occupancy keeps it out of; one
+// that flies, flown by hand, goes along the ground only the run of the way it is steered along,
+// the topography climbing it by the rise. A hand
 // on it ends any order it had, and without one it brakes. Its Cell and its hold on the occupancy
 // follow it cell by cell, as navigationSystem keeps an ordered entity's.
 type driveSystem struct {
@@ -84,16 +86,41 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if in.Turn != 0 || in.Ahead != 0 || facing {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
-			if in.Ahead > 0 && s.open(member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}, heading) {
-				st.RequestSpeed(st.MaxSpeed)
-				continue
+			level := 1.0 // a flyer steered up or down goes the less along the ground, the more steeply
+			if domain&board.Air != 0 {
+				_, level = in.Slope()
 			}
-			st.RequestSpeed(0)
-			if in.Ahead != 0 {
+			m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}
+			switch {
+			case in.Ahead > 0 && s.open(m, heading) && in.Sprint:
+				st.RequestSprint()
+				st.WantSpeed *= level
+			case in.Ahead > 0 && s.open(m, heading):
+				st.RequestSpeed(st.MaxSpeed * level)
+			case in.Ahead > 0:
+				st.RequestSpeed(0)
 				st.Speed = 0 // stopped on the spot, at the water's edge as when asked to
+			case in.Ahead < 0 && st.Speed > 0:
+				st.RequestSpeed(0) // braking before it backs away
+			case in.Ahead < 0 && s.open(m, geom.NewVec(-heading.X, -heading.Y)):
+				st.RequestBack(backing(st))
+			case in.Ahead < 0:
+				st.RequestSpeed(0)
+				st.Speed = 0 // stopped at the edge behind it
+			default:
+				st.RequestSpeed(0)
 			}
 		}
 	}
+}
+
+// backing is how fast a driven entity backs away: at the speed it sets off at, a quarter of its
+// top speed without one.
+func backing(st *steering.Steering) float64 {
+	if st.V0 > 0 {
+		return st.V0
+	}
+	return st.MaxSpeed / 4
 }
 
 // follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre.

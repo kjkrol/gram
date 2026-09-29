@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -104,6 +105,18 @@ func TestWeather_ChangeAndSetGoOnAtOnce(t *testing.T) {
 	r.tick(time.Millisecond)
 	if r.now().State != 0 {
 		t.Errorf("after Set clear (and an unknown fog) the state is %d, want clear", r.now().State)
+	}
+}
+
+// Shift+W changes the weather with the camera free only: riding in a unit, W with Shift sprints.
+func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
+	r := weatherOf(t, twoStates(), calendar.Summer)
+	bds := r.c.DefaultBindings()
+	if len(bds) != 1 {
+		t.Fatalf("%d bindings, want the one to change the weather", len(bds))
+	}
+	if !bds[0].Holds(camera.Free) || bds[0].Holds(camera.FirstPerson) {
+		t.Errorf("Shift+W holds free %v, riding %v; want free only", bds[0].Holds(camera.Free), bds[0].Holds(camera.FirstPerson))
 	}
 }
 

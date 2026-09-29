@@ -705,7 +705,7 @@ func lookaheadReach(st *steering.Steering, dt float64) float64 {
 	if st.TurnRate <= 0 {
 		return 0
 	}
-	return st.Speed * dt / st.TurnRate
+	return math.Abs(st.Speed) * dt / st.TurnRate
 }
 
 // turnCrawl is the share of speed kept through the sharpest turn.

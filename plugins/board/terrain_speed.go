@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
@@ -23,7 +24,11 @@ func terrainSpeed(brd *Board) plugin.Behavior {
 		if kind.Graded {
 			return
 		}
-		if slope := brd.Map().Slope(at, mv.Base.Vel.Dir, m.Domain); slope > 0 && slope != 1 {
+		dir := mv.Base.Vel.Dir
+		if mv.Base.Vel.Value < 0 { // backing away: up or down the way it goes, not the way it faces
+			dir = geom.NewVec(-dir.X, -dir.Y)
+		}
+		if slope := brd.Map().Slope(at, dir, m.Domain); slope > 0 && slope != 1 {
 			mv.Base.Vel.Value /= slope
 		}
 	})

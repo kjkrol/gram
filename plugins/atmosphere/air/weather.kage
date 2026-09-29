@@ -25,7 +25,13 @@ func CloudShadow(p vec2, red float, frac float, custom vec4) vec4 {
 	if custom.w > 50000 {
 		weight = blended(red, custom.w)
 	}
-	return vec4(0, 0, 0, cloudDark*cloudCover(cloudField(p))*clamp(SunStrength*1.4, 0, 1)*weight)
+	return vec4(0, 0, 0, cloudShade(cloudCover(cloudField(p)))*weight)
+}
+
+// cloudShade is how much the clouds darken the ground under a cover of cover: as much as they take
+// of the sun, more under a strong one.
+func cloudShade(cover float) float {
+	return cloudDark * cover * clamp(SunStrength*1.4, 0, 1)
 }
 
 // Clouds is the clouds on the sky, at the pixel whose screen position custom holds: it looks along

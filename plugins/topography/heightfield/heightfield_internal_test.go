@@ -10,15 +10,8 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/render"
 )
-
-// The shader compiles.
-func TestShader_Compiles(t *testing.T) {
-	if _, err := ebiten.NewShader(kage); err != nil {
-		t.Fatal(err)
-	}
-}
 
 // Heights encoded in 16 bits come back within a sixty-thousandth of their span.
 func TestEncode_HoldsTheHeightsWithinTheSpan(t *testing.T) {
@@ -64,16 +57,79 @@ func (hill) At(p geom.Vec) float64 {
 
 func (h hill) Version() uint64 { return h.version }
 
-// flat colours every cell grey.
-type flat struct{}
+// flat is a surface of 16 by 16 cells painted grey, a pixel each, with its coast; its version is
+// bumped by hand.
+type flat struct {
+	img    *ebiten.Image
+	shores []Shore
+	coast  uint64
+	grid   float32
+}
 
-func (flat) Size() (int, int)           { return 16, 16 }
-func (flat) Colour(int, int) color.RGBA { return color.RGBA{128, 128, 128, 255} }
-func (flat) Version() uint64            { return 1 }
+func (f *flat) Surface() Painted {
+	if f.img == nil {
+		f.img = ebiten.NewImage(16, 16)
+		f.img.Fill(color.RGBA{128, 128, 128, 255})
+	}
+	return Painted{Albedo: f.img, Px: 1, Shores: f.shores, Reach: 96, Coast: f.coast, Grid: f.grid}
+}
+
+// none is a surface of nothing: plain grey, no water, open water everywhere.
+type none struct{}
+
+func (none) Surface() Painted { return Painted{} }
+
+// A cell's top stands at its highest corner, never under it after encoding, and never under what
+// its corners decode to; the last row and column hold no cell.
+func TestCellTops_StandAtEachCellsHighestCorner(t *testing.T) {
+	cols, rows, _, heights, _ := hill{}.Lattice()
+	low, span, enc := encode(heights, nil)
+	buf := cellTops(cols, rows, heights, low, span, nil)
+	for y := range rows - 1 {
+		for x := range cols - 1 {
+			i := y*cols + x
+			want := max(heights[i], heights[i+1], heights[i+cols], heights[i+cols+1])
+			top := decode(buf[4*i], buf[4*i+1], low, span)
+			if top < want || top > want+span/65535 {
+				t.Fatalf("cell (%d, %d) tops out at %v, want %v rounded up", x, y, top, want)
+			}
+			for _, j := range []int{i, i + 1, i + cols, i + cols + 1} {
+				if c := decode(enc[4*j], enc[4*j+1], low, span); c > top {
+					t.Fatalf("cell (%d, %d): a corner decodes to %v, over its top %v", x, y, c, top)
+				}
+			}
+		}
+	}
+}
+
+// Every corner's normal faces up on the level, leans away from the ridge on its sides, and is
+// worked out one-sided at the lattice's edge; every pixel of it is opaque.
+func TestNormals_LeanAwayFromTheRidge(t *testing.T) {
+	cols, rows, cell, heights, _ := hill{}.Lattice()
+	buf := normals(cols, rows, cell, heights, nil)
+	if len(buf) != 4*cols*rows {
+		t.Fatalf("%d bytes for %d corners, want four each", len(buf), cols*rows)
+	}
+	at := func(x, y int) [3]float32 { i := 4 * (y*cols + x); return decodeNormal(buf[i], buf[i+1], buf[i+2]) }
+	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 0.02 }
+	if n := at(8, 5); !near(n[0], 0) || !near(n[1], 0) || !near(n[2], 1) {
+		t.Errorf("the ridge's crest faces %v, want straight up", n)
+	}
+	if w, e := at(7, 5), at(9, 5); w[0] >= -0.3 || e[0] <= 0.3 || !near(w[0], -e[0]) || !near(w[1], 0) {
+		t.Errorf("the ridge's west side faces %v and its east %v, want leaning apart, alike", w, e)
+	}
+	if n := at(0, 5); !near(n[2], 1) {
+		t.Errorf("the lattice's edge faces %v, want up, from the one cell beside it", n)
+	}
+	for i := 3; i < len(buf); i += 4 {
+		if buf[i] != 255 {
+			t.Fatalf("corner %d is not opaque", i/4)
+		}
+	}
+}
 
 type stillSky struct{}
 
-func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
 func (stillSky) Air() air.Weather { return air.Weather{} }
 
 // eye is a camera looking from a point of the world: a perspective for the rays, the top-down
@@ -97,7 +153,7 @@ func (e eye) Project(x, y, z float32) (float32, float32) {
 // The ground hides from an eye west of the ridge what stands low east of it, not what stands on
 // the near side nor a hawk over the ridge; nothing while the tiles are drawn.
 func TestRenderer_HidesWhatTheGroundHidesFromTheEye(t *testing.T) {
-	r := New(hill{}, flat{}, stillSky{}, Config{})
+	r := New(hill{}, &flat{}, stillSky{}, Config{})
 	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
 	if !r.Hides(cam, 400, 256, 2) {
 		t.Error("a walker 2 high beyond the ridge is not hidden")
@@ -114,24 +170,85 @@ func TestRenderer_HidesWhatTheGroundHidesFromTheEye(t *testing.T) {
 	}
 }
 
-// The heightmap and the colours are written once a version of the ground and of the board.
-func TestRenderer_RefreshesTheImagesWhenTheGroundChanges(t *testing.T) {
+// The lattice's quadrants are written once a version of the ground, the shores once a version of
+// the coast; without an albedo the ground is drawn plain.
+func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T) {
 	g := &hill{}
-	r := New(g, flat{}, stillSky{}, Config{})
-	if !r.refresh() || r.heights == nil || r.heights.Bounds().Dx() != 17 || r.albedo.Bounds().Dx() != 17 {
-		t.Fatal("no images of the lattice and the cells after the first refresh")
+	f := &flat{}
+	r := New(g, f, stillSky{}, Config{})
+	if !r.refresh() || r.lattice == nil || r.lattice.Bounds().Dx() != 34 || r.lattice.Bounds().Dy() != 34 {
+		t.Fatal("no lattice of four 17 by 17 quadrants after the first refresh")
 	}
 	if r.low != 0 || r.span != 30 {
 		t.Errorf("low %v, span %v, want 0 and 30", r.low, r.span)
 	}
-	at := r.heightsAt
+	heights, coast := r.heightsAt, r.coastAt
 	r.refresh()
-	if r.heightsAt != at {
-		t.Error("the heightmap was written again with the ground as it was")
+	if r.heightsAt != heights || r.coastAt != coast {
+		t.Error("the lattice was written again with the ground and the coast as they were")
 	}
 	g.version++
+	f.coast++
 	r.refresh()
-	if r.heightsAt == at {
-		t.Error("the heightmap was not written anew after the ground changed")
+	if r.heightsAt == heights || r.coastAt == coast {
+		t.Error("the lattice was not written anew after the ground and the coast changed")
+	}
+}
+
+// The way to the shore is held within a 255th: its way, how far it is, and open water where a
+// corner has none — which decodes to no way at all.
+func TestShores_HoldTheWayAndHowFar(t *testing.T) {
+	reach := float32(96)
+	from := []Shore{{X: 0.6, Y: -0.8, Dist: 30, Near: 1 - 30/reach}, {}, {X: -1, Y: 0, Dist: 0, Near: 1}}
+	buf := shores(2, 2, from, reach, nil)
+	decode := func(i int) (x, y, d float32) {
+		return float32(buf[4*i])/255*2 - 1, float32(buf[4*i+1])/255*2 - 1, float32(buf[4*i+2]) / 255 * reach
+	}
+	near := func(a, b, tol float32) bool { return math.Abs(float64(a-b)) <= float64(tol) }
+	if x, y, d := decode(0); !near(x, 0.6, 1.0/127) || !near(y, -0.8, 1.0/127) || !near(d, 30, reach/255) {
+		t.Errorf("a shore 30 off to the south-east decodes to (%v, %v) %v off", x, y, d)
+	}
+	if x, y, d := decode(3); math.Hypot(float64(x), float64(y)) > 0.01 || !near(d, reach, reach/255) {
+		t.Errorf("a corner with no shore given decodes to (%v, %v) %v off, want no way, open water", x, y, d)
+	}
+	if x, _, d := decode(2); !near(x, -1, 1.0/127) || d != 0 {
+		t.Errorf("a corner on the shore decodes to x %v, %v off; want west, on it", x, d)
+	}
+	for i := 3; i < len(buf); i += 4 {
+		if buf[i] != 255 {
+			t.Fatalf("corner %d is not opaque", i/4)
+		}
+	}
+}
+
+// A draw's uniforms are the frame's with the renderer's own over them, the grid from the
+// surface; the frame's own are left as they were.
+func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
+	f := &flat{grid: 6}
+	r := New(hill{}, f, stillSky{}, Config{})
+	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
+	frame := map[string]any{"Pixel": []float32{0.5}, "Sun": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
+	u := render.UniformsOf(frame)
+	if !r.prepare(cam, u) {
+		t.Fatal("nothing to draw")
+	}
+	get := func(name string) []float32 { v, _ := r.opts.Uniforms[name].([]float32); return v }
+	if v := get("Pixel"); len(v) != 1 || v[0] != 0.5 {
+		t.Errorf("Pixel %v, want the frame's 0.5: the waves as fine as on the tiles", v)
+	}
+	if v := get("Trace"); len(v) != 1 || v[0] != 2 {
+		t.Errorf("Trace %v, want the 2 screen pixels a traced one spans", v)
+	}
+	if v := get("Sun"); len(v) != 3 || v[2] != 3 {
+		t.Errorf("Sun %v, want the frame's", v)
+	}
+	if v := get("Cell"); len(v) != 1 || v[0] != 32 {
+		t.Errorf("Cell %v, want the renderer's own 32 over the frame's", v)
+	}
+	if v := get("GridFrom"); len(v) != 1 || v[0] != 6 {
+		t.Errorf("GridFrom %v, want the surface's 6", v)
+	}
+	if v := frame["Pixel"].([]float32); v[0] != 0.5 {
+		t.Errorf("the frame's own Pixel became %v: the renderer wrote into the composer's", v[0])
 	}
 }

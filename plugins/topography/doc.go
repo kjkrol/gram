@@ -187,9 +187,11 @@
 //
 // The ground has another way of being drawn: traced on the GPU from its heightmap, every pixel's
 // line of sight marched over the relief in a shader of its own (topography/heightfield) — the
-// same ground, split into the two triangles a tile is, in the sun's light with its shadows, the
-// cells in their kinds' colours, hazed far off — in place of the tiles, which lay nothing then
-// (board.Nothing). Config.Heightfield reaches it, [Heightfield] (G) switches between the two,
+// same ground, split into the two triangles a tile is, lit as the tiles are with its shadows,
+// coloured from the board painted flat (the cells' bases, the grounds running in, the ways and
+// the crossings, as the ground sheet paints them), its water glinting, its waves breaking on the
+// shore and running down the rivers, the clouds' shadows and the grid over it, hazed far off —
+// in place of the tiles, which lay nothing then (board.Nothing). Config.Heightfield reaches it, [Heightfield] (G) switches between the two,
 // [Plugin.ShowHeightfield] from a game's code; [Plugin.Renderer] is its renderer, a render.Direct
 // for the scene's composer beside the board's and the world's. What stands on the ground is drawn
 // as before, a billboard the ground hides from the eye left out. The tiles stay the default.
@@ -204,10 +206,13 @@
 // navigation does) and the perspective (Config.Perspective), is V: it rides in the one selected
 // unit, first person — the eye in the unit, kept there as it goes, pinned to the way it faces,
 // world.Base's Vel.Dir, which is the axis of its sight where the game turns the sight with it (the
-// island's demo does). Riding, W walks the unit on, S stops it, A and D turn it, the view turning
-// with it, the mouse looks round — across turning the unit to face where the eye looks — Q, E, R
-// and F do nothing, and V or Tab leave it — back to the view
-// the camera was in, over the unit; K lists those keys then. [Follow] (V without the perspective)
+// island's demo does). Riding, W walks the unit on — with Shift held it sprints, to its
+// steering's Sprint — S brakes it and then backs it away facing on, A and D turn it, the view
+// turning with it, the mouse looks round — across turning the unit to face where the eye looks; one
+// that flies, flown from inside, holds its height over sea level, climbing and diving only along
+// the look, at least its Mover's Clearance over the ground and under its Ceiling — Q, E, R and F
+// do nothing, and V or Tab leave it — back to the view the camera
+// was in, over the unit; K lists those keys then. [Follow] (V without the perspective)
 // fastens the camera behind the one selected unit: every tick the camera is centred on it at its
 // altitude and turned, eased, until the way it walks runs up the screen. It holds whatever else is
 // done — other units selected and ordered, the camera panned or turned — until V again lets it go,
@@ -216,8 +221,10 @@
 // ground between them would hide the unit and eases back as the way clears. [LookFrom] puts the
 // eye at a point of the world and [LookAt] has it look at one, in perspective, a camera in another
 // view going there first where the game reaches it. [Drive] (W, S, A and D riding; the arrows
-// following) steers the unit a camera is fastened to: the camera system keeps a steering.Driven on it
-// while fastened, writes the keys into it every tick and stops it when let go; navigation carries it out on the ground. [Raise],
+// following; W and the up arrow with Shift sprint) steers the unit a camera is fastened to: the
+// camera system keeps a steering.Driven on it while fastened, writes the keys into it every tick —
+// riding, Flown and the look's rise too — and leaves it braking when let go; navigation carries it
+// out along the ground, the topography's altitude system up and down. [Raise],
 // [Lower] and [Level] shape the ground; [Heightfield] (G, with Config.Heightfield) draws the ground
 // from its heightmap or as tiles again. Call [Plugin.RunPlan] after the world has moved and before
 // the players' RunPlan.

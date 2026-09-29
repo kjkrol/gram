@@ -58,9 +58,11 @@ type dresser struct {
 	cloudStamp []uint32
 	cloudFrame uint32
 	// sheeted has the tiles too small on screen dressed from sheet this frame (baked), on a
-	// square grid; newest, unpainted, canvas and the scratch tile are what painting it works with
+	// square grid; albedo is the whole board painted flat for the ground traced on the GPU;
+	// newest, unpainted, canvas and the scratch tile are what painting either works with
 	sheeted   bool
 	sheet     *groundSheet
+	albedo    *groundSheet
 	newest    []uint64
 	unpainted []int
 	canvas    render.Frame
@@ -70,6 +72,8 @@ type dresser struct {
 	// frozen: it reads the tops as Ready read them
 	workers []*dresser
 	frozen  bool
+	// coast is the way to the shore from every corner for the ground traced on the GPU (Coast)
+	coast coast
 }
 
 var _ board.Dressing = (*dresser)(nil)
@@ -170,9 +174,7 @@ func (l *dresser) Begin(f *render.Frame, cam camera.Camera) {
 	l.lamp = l.lighted.Lamp()
 	l.lighted.Frame(f)
 	l.weather.Frame(f, l.lighted)
-	if n := l.board.CellCount(); len(l.tops) != n {
-		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
-	}
+	l.tables()
 	l.nextSunlit()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
 	// the sheet is needed where any tile may span too few pixels: all of them from far, the far
@@ -185,6 +187,13 @@ func (l *dresser) Begin(f *render.Frame, cam camera.Camera) {
 	l.sheeted = l.square && min(l.cellPx, float32(min(l.cellW, l.cellH))*far) < bakeCell
 	l.nextShores()
 	l.nextClouds()
+}
+
+// tables sizes what is kept of every cell to the board.
+func (l *dresser) tables() {
+	if n := l.board.CellCount(); len(l.tops) != n {
+		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
+	}
 }
 
 // nextClouds starts a frame's clouds: every corner's noise to be worked out anew as it comes into

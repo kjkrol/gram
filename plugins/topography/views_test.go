@@ -388,6 +388,9 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 			t.Errorf("free, %s is the topography's too: the camera's WASD would be taken", key)
 		}
 	}
+	if cmd, _ := riding["W (held)"].Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
+		t.Errorf("riding, W with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
+	}
 	for _, key := range []string{"Q (held)", "E (held)", "R (held)", "F (held)"} {
 		if _, ok := riding[key]; ok {
 			t.Errorf("riding, %s is bound, want nothing: the mouse looks round", key)
@@ -429,8 +432,10 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 	if cmd, _ := keys["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Follow]() {
 		t.Errorf("without the perspective V issues %T, want Follow", cmd)
 	}
-	if _, ok := keys["Up (held)"]; !ok {
+	if bd, ok := keys["Up (held)"]; !ok {
 		t.Error("without the perspective the arrows do not drive the followed unit")
+	} else if cmd, _ := bd.Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
+		t.Errorf("without the perspective the up arrow with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
 	}
 	if _, ok := keys["W (held)"]; ok {
 		t.Error("without the perspective the topography binds W")

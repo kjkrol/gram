@@ -279,6 +279,129 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twenty-seventh round: the hawk flown holds its height over the sea.** The user: the hawk's
+  height hangs on the ground under it, so in first person it jumps up over a rising range and
+  drops where the ground falls, though the rider neither climbed nor dived; ridden, the two should
+  come apart, with a least distance kept from the ground. The drive system climbed `Lift`, a
+  height over the ground, so a flyer went with every rise and fall of it. Now `Driven.Flown`
+  (written with `Climb` while riding) makes `Z.Altitude` the independent state: the altitude
+  system — the one that knows the ground, and now the one writer of heights — takes last step's
+  altitude, adds the rise over the run the flyer made (its `Speed`, capped at the world's
+  `MaxStep`, times rise/run), holds it at least `Mover.Clearance` over the ground and under
+  `Ceiling`, and writes `Lift` = altitude − ground back. Out of `Flown` the old rule stands; `Lift`
+  written back makes entering and leaving continuous, so let go the flyer follows the ground at
+  the height it had. The drive system only slows the run along the ground (`Driven.Slope`, the
+  80° cap moved to `steering.Steepest`). The ground is read under the centre, as for every
+  altitude; a flyer racing into a cliff is pushed up at once by the clearance, not before it.
+  A headless probe through the demo: flown level, the eye stayed at 256.4 while the ground under
+  it went 142 to 249, rose to 341 only where a ridge came up to the clearance and held 341 after
+  it; flown down, it came to 20 m over the sea and stayed; let go, its lift stayed 20 m.
+- **Twenty-sixth round: Shift sprints, the hawk flies along the look.** The user: in first
+  person every unit gets a ×4 speed on Shift; the hawk's altitude follows the look, up and down,
+  naturally. Chose to keep the world's step cap (half a body a tick, 90 units a second for the
+  3-unit giants: a walker reaches about 3.75 times, the hawk about 2.5 times its speed) and a
+  hawk from the ground to just under the clouds. (1) **Shift without a binding.** A `KeyHeld`
+  context carries the modifiers as the player last held them, so W builds `Drive{Sprint:
+  c.Mods.Shift}`; a second, Shift-only binding would clash with W's. The climate's Shift+W
+  (`KeyPress`, any mode) would have changed the weather on every sprint, so it holds
+  `In(camera.Free)`. (2) **Sprint in the profile.** `Steering.Sprint` says how many times the top
+  speed a hand may urge a kind to; `RequestSpeed` keeps its clamp to MaxSpeed for every other
+  caller, `RequestSprint` asks past it, and `advance` speeds up past the top at `Accel·Sprint`, so
+  the dash comes as quickly as setting off does. (3) **Climbing along the look.** The camera
+  writes `Driven.Climb` = −sin(pitch) while riding; the drive system, for a mover with `Air`,
+  asks `top·cos` along the ground and changes `Lift` by the run it makes this tick times `tan` —
+  the run capped by the world's `MaxStep`, so the flight goes along the look even at the cap.
+  The lift floors at 0 there. (4) **The ceiling where the ground is known.** `Mover.Ceiling` is
+  over sea level; only the topography knows the ground under the flyer, so its altitude system
+  holds `Lift` under `Ceiling − ground` and writes it back. A headless probe through the demo
+  (a Drive every tick, as a held key fires) measured 24 → 85–90 units a second for a walker on
+  flat earth, 36 → 88–90 for the hawk, and its lift 96 → 310 looking up, down to 0 looking down;
+  on the rocky slopes the terrain's slope slows a walker to a fraction whatever it asks.
+- **Twenty-fifth round: water, waves, clouds and grid on the GPU ground.** The user asked what of
+  the grid and the water's and the sea's effects on the GPU; chose half-resolution tracing (grid
+  ~2 px and soft). (1) **One library, two shaders.** The water is Kage functions of the
+  composer's one shader; the heightfield's own shader could not call them. compose.kage is split
+  into library.kage (header, the composer's uniforms, helpers) and the composer's Fragment;
+  `render.ShaderSourceWith(fragment)` puts a caller's fragment after the library and every
+  material, so the heightfield calls `SeaGlint`, `RunningWater`, `cloudCover`, `cloudField`,
+  `sunWay`, `outlineDark` as they are. Its own Sun/Fog/Visibility went (name clashes); it reads
+  the frame's, which `Direct.Draw` now hands it (the composer's boxed uniforms, no allocation);
+  it sets its own over them. `Pixel` stays the frame's: scaled by the traced pixel, the rivers'
+  ripples and flecks vanished outright rather than blur; so they are drawn as fine as on the
+  tiles and the half-size tracing blurs them. (6) **From above nothing showed**: a line straight
+  down never meets a column's or a row's boundary, which the walk marks with a boundary
+  "never" — `1.0e30` in Kage, which did not come out of the shader's compiling as that number
+  (the boundaries read as 0 on the Intel driver, every line ended before its first cell); a
+  number past the farthest a line runs (2e9) does. `ShaderSourceWith` seals the
+  materials: a late one would be missing from the heightfield silently. The heightfield's compile
+  test moved to topography, where the water is registered. (2) **Coverage in a colour, not in
+  alpha.** On the tiles what is drawn later covers the water: the coast's grounds over the sea's
+  glint, a road and a bridge over a river. Painted with source-over, a black cover at alpha a
+  would raise alpha, not lower a coverage; so each layer holds its coverage W in a colour
+  channel and every value premultiplied by it (`v' = v·a + dst·(1−a)` for all channels), and the
+  shader decodes value/W and multiplies its overlay by W — foam does not scale with shine, so
+  scaling the shine alone would not do. Three layers in quadrants of one image: flow (vx, vy,
+  Wrun), shine (run shine·Wrun, sea shine·Wsea, Wsea), mouth glint (glint·W, W); painted from a
+  white sheet with the data in the vertices' colours, `SpriteBlend` where a piece fades, in the
+  albedo's own passes. (3) **The pixel's footprint analytically.** `fwidth` after the early
+  return for missed pixels is undefined and wrong at silhouettes; the lines of sight are known
+  (`camera.RayField`), so how far the hit moves per screen pixel is worked out on the plane of
+  its normal — how many pixels a cell spans (the tiles' Detail, shore and way thresholds) and
+  how far to a cell's edge in pixels (the grid). (4) **The coast by shine.** The shore depends
+  only on which cells shine; keying it on the board and relief version would rebuild it every
+  frame while the ground is shaped. (5) Still apart from the tiles: the grid is drawn over the
+  ways (the tiles hide it under ways near); `Toward` and `Pixel` are one per frame, as on the
+  tiles.
+- **Twenty-fourth round: S brakes, then backs away.** The user: in first person S should brake
+  the unit first and then back it away at V0; and the units should walk four times slower. S
+  wrote `Driven.Ahead -1`, which the drive system took for "stop at once" (`Speed = 0`). Backing
+  away with the view still ahead needs a velocity against the facing, so `Velocity.Value` under
+  zero is backing, `Dir` the facing, and `Delta` goes the right way by itself. The steering keeps
+  `RequestSpeed`'s clamp to zero for every caller that relies on it (the keepings compute speeds
+  that may dip) and gains `RequestBack`; `advance` brakes to a stop before changing way. Two
+  readers of the velocity took `Dir` for the way of going: the terrain's slope (now the way it
+  goes) and the collision's bounce through `SetDelta` (a backing entity stays backing, so it does
+  not turn round). The camera's let-go wrote `Ahead -1` for a stop and then dropped the Driven
+  the next tick: under the new rule a standing unit would have been asked back once and backed
+  away for ever, nobody asking again; it writes no hand now, and the unit brakes. The speed is
+  the demo's (`UnitSpeed`, 3/4 of a cell a second); the gait's Accel, Brake and V0 go with it.
+- **Twenty-third round: the GPU ground "a total failure".** The user: no rivers, a faceted
+  terrain, and from first person the mountains above the eye vanish. Three causes. (1) The
+  colour was one per cell from `Kind.Color`; rivers, roads, bridges and blends are `WayPiece`
+  and `BlendPiece` bakes the tiles draw or, from far, paint once on the ground sheet — which
+  holds no bases and, under `board.Nothing`, is never repainted. So the dresser paints a second
+  sheet, the *albedo*: `groundSheet` with `based`, `newSheet(atlas, based)`, the painter
+  (`paint`, `paintAll`, `paintCell`, `lay`, `markWays`) taking the sheet instead of reading
+  `l.sheet`, and `layBase` laying `base(c)`'s sprite over the whole cell first, so the sea lies
+  under a coast as `dresser.Base` has it. `paint` already repaints only the changed cells by
+  the neighbourhood's versions, so shaping costs a few 16-px cells a tick. The atlas reaches
+  the topography through `board.Plugin.Atlas` (nobody in the engine calls a plugin's
+  `WithRenderer`; games call the board's). The shader blends the albedo between pixels; one
+  continuous painting, so a way runs on across cells. (2) The normal was the cell's bilinear
+  gradient, discontinuous at cell edges; the tiles light a corner from the slope between the
+  neighbours' corners. Now per-corner normals are worked out on the CPU with the same central
+  differences (one-sided at the edge) into a third image and blended across the cell: four
+  reads a pixel, not sixteen. Shadows keep the smallest clearance over the ground against the
+  distance along the ray (`shadowSoft`, a cone of 4.6°) — a penumbra that does not darken
+  level ground under a low sun, which a fixed clearance would. (3) The box clip took every
+  meeting with the top plane for an entry; an upward ray from under the top got entry = exit
+  and marched nothing — the riding eye sits a hair over the ground and every ray to a peak
+  goes up. Kage reads every source image in the first one's texture space, so the albedo, a
+  different size, is read at `imageSrc0Origin() + pixel` too; images of different sizes are
+  allowed in pixel units. (4) **Flat summits.** The shots after (1)–(3) showed the highest peak
+  cut flat, 60 px lower than the tiles draw it, and the silhouettes stepped. Not step
+  starvation: a CPU port of the march over the demo's own relief, looking at the summit, missed
+  179 of 4760 pixels a march of a hundredth of a cell hits — it stepped at least half a cell,
+  or six tenths of the height over the ground below, and jumped over tips a few units wide on
+  slopes of 5 and more. A walk cell by cell (a grid walk) meeting each cell's two triangles
+  exactly missed 1. The shader walks so now, up to 320 cells, passing over a cell whose highest
+  corner (a fourth image, rounded up so nothing stands over it) the line stays above with one
+  read; four reads where it does not. The shadows still march in steps of three quarters of a
+  cell, soft, so a thin tip may cast too little. (5) The harness's first-person shot rides in
+  one walker, selected at the start: LookOut takes exactly one selected, and LookFrom lifts the
+  eye over the ceiling, so it could not show a low eye. Still missing on the GPU ground: the
+  water's materials (rivers are flat bands), kinds' Height (a forest lies flat), grid lines;
+  drawn sprites shrink to 16 px.
 - **Twenty-second round: the ground traced on the GPU.** Stage 4 of the same order: a
   switchable renderer of the relief on the GPU, in its own package. Ebitengine has fragment
   shaders only, no depth buffer and no retained vertex buffers, so a "GPU terrain" cannot be a

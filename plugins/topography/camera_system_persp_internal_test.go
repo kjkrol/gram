@@ -201,6 +201,17 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	if !ok || math.Abs(d.Face.X-want.X) > 1e-4 || math.Abs(d.Face.Y-want.Y) > 1e-4 || d.Ahead != 0 || d.Turn != 0 {
 		t.Errorf("the walker is driven %+v, want to face %v", d, want)
 	}
+	if !d.Flown {
+		t.Error("ridden, the walker is not flown from inside")
+	}
+	if rise := math.Sin(100 * LookStep); math.Abs(d.Climb-rise) > 1e-4 {
+		t.Errorf("the head raised, the walker is steered at a rise of %v, want the look's %v", d.Climb, rise)
+	}
+	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1, Sprint: true})
+	r.ecs.Tick(time.Second / 60)
+	if d, _ := r.drivenOf(r.walkers[0]); d.Ahead != 1 || !d.Sprint {
+		t.Errorf("W with Shift drives the walker %+v, want on, sprinting", d)
+	}
 	// the walker still faces east: the view stays where the eye looks, the walker turning to it
 	r.ecs.Tick(time.Second / 60)
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(float32(want.X), float32(want.Y)))) {

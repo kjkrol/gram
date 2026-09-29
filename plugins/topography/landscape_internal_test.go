@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/topography/heightfield"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -987,5 +988,136 @@ func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
 	last := road0[len(road0)-1]
 	if w := math.Abs(float64(last.World[3][1] - last.World[1][1])); math.Abs(w-5) > 0.01 {
 		t.Errorf("the road meets the bridge %v wide, want 5", w)
+	}
+}
+
+// The board's albedo is every cell's base painted over its whole cell — the sea under the coast's
+// land — with the grounds running in and the ways over it, painted anew for the cells that change
+// and left alone while nothing does.
+func TestDresser_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	land := styled(st, board.CellKind{Name: board.Named("k44"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3})
+	sea := styled(st, board.CellKind{Name: board.Named("k45"), Allows: board.Water, SpriteID: 2}, Style{Under: true})
+	road := styled(st, board.CellKind{Name: board.Named("k46"), Allows: board.Land, SpriteID: 0}, Style{})
+	brd.SetAll(land)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(0, 0), sea)
+	brd.SetWay(at(2, 2), board.Way{Kind: road, Width: 8, Links: board.Links(1<<0 | 1<<1)})
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
+	img, _, px, _ := d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	if img == nil || px != 16 || img.Bounds().Dx() != 64 || img.Bounds().Dy() != 64 {
+		t.Fatalf("the albedo is %v pixels a cell, want 16 on a 64 by 64 sheet", px)
+	}
+	bases, blends, ways := 0, 0, 0
+	seaUnderCoast := false
+	d.canvas.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		switch {
+		case v[0].Custom3 > 50000:
+			blends++
+		case v[0].ColorA == 1 && v[3].DstX-v[0].DstX == 16 && v[3].DstY-v[0].DstY == 16 && float32(int(v[0].DstX))/16 == v[0].DstX/16:
+			bases++
+			if v[0].DstX == 16 && v[0].DstY == 0 && v[0].SrcX >= 16 { // the coast east of the sea, in the sea's sprite
+				seaUnderCoast = true
+			}
+		default:
+			ways++
+		}
+	})
+	if bases != 16 || !seaUnderCoast || blends == 0 || ways == 0 {
+		t.Errorf("painted %d bases (the sea under the coast: %v), %d grounds running in and %d pieces of the way; want 16 bases, the sea under, some of each", bases, seaUnderCoast, blends, ways)
+	}
+	seen := d.albedo.seen
+	d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	if d.albedo.seen != seen {
+		t.Error("the albedo was painted again with the board as it was")
+	}
+	brd.Set(at(3, 3), sea)
+	d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	if d.albedo.seen == seen || d.canvas.Len() == 0 || d.canvas.Len() > 9*16 {
+		t.Errorf("after a cell changed the albedo painted %d pieces at version %d (was %d); want the changed cells alone, anew", d.canvas.Len(), d.albedo.seen, seen)
+	}
+}
+
+// Beside the albedo the water is painted in its layers: the sea's shine over the sea and under the
+// coast, the coast's grounds covering it, a river's flow down its slope and its shine where it runs.
+func TestDresser_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	land := styled(st, board.CellKind{Name: board.Named("k47"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3})
+	sea := styled(st, board.CellKind{Name: board.Named("k48"), Allows: board.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
+	river := styled(st, board.CellKind{Name: board.Named("k49"), Allows: board.Land | board.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
+	brd.SetAll(land)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(0, 0), sea)
+	for y := uint32(1); y < 4; y++ {
+		brd.SetWay(at(2, y), board.Way{Kind: river, Width: 8, Links: board.Links(1<<0 | 1<<1)})
+	}
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling to the south
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	_, water, _, wpx := d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	if water == nil || wpx != 16 || water.Bounds().Dx() != 128 || water.Bounds().Dy() != 128 {
+		t.Fatalf("the water is %v pixels a cell, want 16 in quadrants of the board's 64 by 64", wpx)
+	}
+	sea00, seaCoast, covered, riverShine := false, false, 0, 0
+	d.albedo.wcanvas[shineLayer].Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		switch {
+		case v[0].Custom3 > 50000 && v[0].ColorR == 0 && v[0].ColorG == 0 && v[0].ColorB == 0:
+			covered++
+		case v[0].ColorB == 1 && near(v[0].ColorG, 0.9) && v[0].DstX == 64 && v[0].DstY == 0:
+			sea00 = true
+		case v[0].ColorB == 1 && near(v[0].ColorG, 0.9) && v[0].DstX == 80 && v[0].DstY == 0:
+			seaCoast = true
+		case near(v[0].ColorR, 0.9) && v[0].ColorG == 0:
+			riverShine++
+		}
+	})
+	flows := 0
+	d.albedo.wcanvas[flowLayer].Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		if v[0].ColorB == 1 && v[0].ColorG > 0.5 && near(v[0].ColorR, 0.5) {
+			flows++ // running south, down the slope
+		}
+	})
+	if !sea00 || !seaCoast || covered == 0 || riverShine == 0 || flows == 0 {
+		t.Errorf("the sea's shine over the sea %v and under the coast %v, %d grounds covering it, %d pieces of the river shining and %d running south; want all", sea00, seaCoast, covered, riverShine, flows)
+	}
+}
+
+// The coast is the way to the shore from every corner, as shoreAt works it out; the ground raised
+// leaves it be, a cell turned to water moves it.
+func TestDresser_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(10, 8, 32)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	land := styled(st, board.CellKind{Name: board.Named("k50"), Allows: board.Land, SpriteID: 1}, Style{})
+	sea := styled(st, board.CellKind{Name: board.Named("k51"), Allows: board.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
+	brd.SetAll(sea)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(4, 4), land)
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	check := func(when string) uint64 {
+		shores, reach, v := d.Coast()
+		if len(shores) != 11*9 || reach != 96 {
+			t.Fatalf("%s: %d shores reaching %v, want one a corner of 11 by 9, 3 cells", when, len(shores), reach)
+		}
+		for gy := range 9 {
+			for gx := range 11 {
+				if want := heightfield.Shore(d.workShore(int64(gx), int64(gy), 32)); shores[gy*11+gx] != want {
+					t.Fatalf("%s: corner (%d, %d) has %+v, want %+v", when, gx, gy, shores[gy*11+gx], want)
+				}
+			}
+		}
+		return v
+	}
+	v := check("at first")
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return p.X / 8 })
+	if check("the ground raised") != v {
+		t.Error("the ground raised moved the coast")
+	}
+	brd.Set(at(8, 1), land)
+	if check("a cell turned to land") == v {
+		t.Error("a cell turned to land left the coast as it was")
 	}
 }

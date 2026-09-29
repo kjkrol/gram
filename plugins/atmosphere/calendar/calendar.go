@@ -107,7 +107,7 @@ var (
 
 // Config is the calendar: how long a Day is in game time, the time of day a fresh game begins at
 // (Start, 0 to 1), the Year, and the Season a fresh game begins in the middle of. Zero fields are
-// 4 minutes, 8 in the morning, a GameYear and spring.
+// DefaultDay, 8 in the morning, a GameYear and spring.
 type Config struct {
 	Day    time.Duration
 	Start  float32
@@ -115,9 +115,13 @@ type Config struct {
 	Season Season
 }
 
+// DefaultDay is how long a day is unless the Config says otherwise: 16 minutes of game time, a day
+// going by slowly enough to watch the light turn.
+const DefaultDay = 16 * time.Minute
+
 func (c Config) withDefaults() Config {
 	if c.Day <= 0 {
-		c.Day = 4 * time.Minute
+		c.Day = DefaultDay
 	}
 	if c.Start == 0 {
 		c.Start = 8.0 / 24

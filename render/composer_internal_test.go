@@ -546,12 +546,16 @@ type direct struct {
 	tier  Tier
 	after *int
 	drawn []int
+	sun   []float32 // the uniform Seen as the composer handed it
 }
 
-func (*direct) Init(*goke.SysInit)                  {}
-func (*direct) Compose(*Frame, camera.Camera)       {}
-func (d *direct) Tier() Tier                        { return d.tier }
-func (d *direct) Draw(*ebiten.Image, camera.Camera) { d.drawn = append(d.drawn, *d.after) }
+func (*direct) Init(*goke.SysInit)            {}
+func (*direct) Compose(*Frame, camera.Camera) {}
+func (d *direct) Tier() Tier                  { return d.tier }
+func (d *direct) Draw(_ *ebiten.Image, _ camera.Camera, u Uniforms) {
+	d.drawn = append(d.drawn, *d.after)
+	d.sun = u.Get("Seen")
+}
 
 // A Direct source draws after every piece the frame orders before its tier and before the rest,
 // whatever order the sources came in; a nil layer is left out.
@@ -564,6 +568,7 @@ func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 		f.Sprite(Backdrop, 0, a, 0, unit, Even(1)) // the sky, drawn first
 		f.Sprite(Ground, 0, a, 0, unit, Even(1))   // a tile
 		f.Sprite(Overlays, 0, a, 0, unit, Even(1)) // a route
+		f.Uniform("Seen", 7)
 	}), nil, ground)
 	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) { calls++ }
 	c.compose(topDown())
@@ -577,4 +582,33 @@ func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 	if got := marks.drawn; len(got) != 1 || got[0] != 2 || calls != 2 {
 		t.Errorf("the marks' direct drew after %v calls of %d, want once after the tile's and the route's run", got, calls)
 	}
+	if len(ground.sun) != 1 || ground.sun[0] != 7 {
+		t.Errorf("the direct was handed the uniform Seen as %v, want the 7 a source set", ground.sun)
+	}
+}
+
+// A shader built on the composer's library with a fragment of its own compiles, holds every
+// material registered, and seals them: none may come after.
+func TestShaderSourceWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
+	src := ShaderSourceWith([]byte(`var Shade float
+
+func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
+	return TestTint(vec2(0), Shade, noise(src), vec4(Clock))
+}
+`))
+	if _, err := ebiten.NewShader(src); err != nil {
+		t.Fatalf("a fragment on the library does not compile: %v", err)
+	}
+	if !strings.Contains(string(src), "return TestTint(p, red, fraction, custom)") {
+		t.Error("the library holds no material registered")
+	}
+	if !strings.HasPrefix(string(ShaderSource()), string(libraryKage)) {
+		t.Error("the composer's shader is not built on the library")
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("a material registered after a shader was built on them did not panic")
+		}
+	}()
+	RegisterMaterials([]byte("func Late(p vec2, red float, fraction float, custom vec4) vec4 { return vec4(0) }"), "Late")
 }

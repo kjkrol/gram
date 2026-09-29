@@ -62,8 +62,8 @@ type cellTop struct {
 	seen   uint64     // the board's count of changes when last found as it was
 }
 
-// minGridCell is how many pixels a cell must span on screen for the grid to be drawn over it.
-const minGridCell = 6
+// MinGridCell is how many pixels a cell must span on screen for the grid to be drawn over it.
+const MinGridCell = 6
 
 func abs32(v float32) float32 {
 	if v < 0 {
@@ -205,7 +205,7 @@ func (l *Renderer) gridShown(c CellID, center geom.Vec) bool {
 	if l.scaleVaries {
 		scale = camera.ScaleAt(l.camera, float32(center.X), float32(center.Y), l.topOf(c).alt)
 	}
-	return float32(min(l.cellW, l.cellH))*scale >= minGridCell
+	return float32(min(l.cellW, l.cellH))*scale >= MinGridCell
 }
 
 // outlineLines draws c's outline on the ground at its level, leaving out an edge that straddles a

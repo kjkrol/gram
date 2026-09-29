@@ -8,8 +8,11 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 )
 
@@ -36,7 +39,27 @@ func (s *shooter) cmd(c any) {
 				q.Put(control.Nobody, v)
 			case topography.Heightfield:
 				q.Put(control.Nobody, v)
+			case topography.LookOut:
+				v.Camera = cam
+				q.Put(control.Nobody, v)
+			case topography.Look:
+				v.Camera = cam
+				q.Put(control.Nobody, v)
 			}
+		}
+	}
+}
+
+// selectOne selects the one walker standing at the second stop, before anyone has moved: riding
+// in a unit (LookOut) takes exactly one selected.
+func (s *shooter) selectOne() {
+	brd := s.d.stage.board.Res.Logic.Board
+	_, _, stops := island.Layout(brd)
+	at := brd.CellCenter(stops[1])
+	box := geom.NewAABB(geom.NewVec(at.X-CellSize/4, at.Y-CellSize/4), geom.NewVec(at.X+CellSize/4, at.Y+CellSize/4))
+	for _, q := range s.d.stage.selection.Queues() {
+		if q.Accepts() == reflect.TypeFor[selection.Select]() {
+			q.Put(control.Nobody, selection.Select{Box: box})
 		}
 	}
 }
@@ -46,6 +69,14 @@ func (s *shooter) Update() error {
 	cam := s.d.stage.world.Camera()
 	s.shot = ""
 	switch s.frame {
+	case 2:
+		s.selectOne()
+	case 60:
+		s.cmd(topography.Heightfield{})
+	case 85:
+		s.shot = "0-start-G" // the start, the sea and the rivers, traced
+	case 86:
+		s.cmd(topography.Heightfield{})
 	case 90:
 		s.shot = "1-start"
 	case 91:
@@ -76,7 +107,17 @@ func (s *shooter) Update() error {
 		s.cmd(topography.View{})
 	case 480:
 		s.shot = "8-tab4-G"
-	case 500:
+	case 481:
+		s.cmd(topography.LookOut{}) // first person, in the selected unit
+	case 482:
+		s.cmd(topography.Look{Dy: -80}) // the head raised: most lines of sight go up
+	case 540:
+		s.shot = "9-first-person-G"
+	case 541:
+		s.cmd(topography.Heightfield{})
+	case 600:
+		s.shot = "10-first-person-tiles"
+	case 620:
 		return ebiten.Termination
 	}
 	return s.e.Update()

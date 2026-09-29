@@ -188,7 +188,7 @@ func (c *Composer) render(screen *ebiten.Image) {
 		it := &f.items[i]
 		for direct < len(c.directs) && c.directs[direct].Tier() <= it.tier {
 			c.flush(screen, sheet)
-			c.directs[direct].Draw(screen, f.cam)
+			c.directs[direct].Draw(screen, f.cam, Uniforms{c.opts.Uniforms})
 			direct++
 		}
 		switch {
@@ -225,7 +225,7 @@ func (c *Composer) render(screen *ebiten.Image) {
 	}
 	c.flush(screen, sheet)
 	for ; direct < len(c.directs); direct++ {
-		c.directs[direct].Draw(screen, f.cam)
+		c.directs[direct].Draw(screen, f.cam, Uniforms{c.opts.Uniforms})
 	}
 }
 

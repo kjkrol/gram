@@ -16,11 +16,12 @@ type Steering struct {
 	Delay    uint8    // ticks still to wait
 
 	MaxSpeed  float64 // top base speed, world units a second; zero means no profile
+	Sprint    float64 // how many times MaxSpeed a hand may urge it to (RequestSprint); 0 or 1 none
 	Accel     float64 // units a second² to speed up; zero changes speed at once
 	Brake     float64 // units a second² to slow down; zero brakes at Accel
 	V0        float64 // the speed the entity has the instant it sets off from standing
-	Speed     float64 // current base speed, written to Velocity.Value each tick
-	WantSpeed float64 // the speed asked for
+	Speed     float64 // current base speed, written to Velocity.Value each tick; under zero it backs away
+	WantSpeed float64 // the speed asked for; under zero backing away (RequestBack)
 }
 
 // Request asks the entity to head towards dir, any length; false while an earlier one is pending.
@@ -48,6 +49,24 @@ func (s *Steering) RequestSpeed(v float64) {
 	s.WantSpeed = min(max(v, 0), s.MaxSpeed)
 }
 
+// RequestSprint asks for Sprint times the top speed — a hand urging the entity on — the top
+// speed itself without a Sprint; nothing without a profile.
+func (s *Steering) RequestSprint() {
+	if s.MaxSpeed <= 0 {
+		return
+	}
+	s.WantSpeed = s.MaxSpeed * max(s.Sprint, 1)
+}
+
+// RequestBack asks the entity to back away at speed v, held within zero and MaxSpeed, facing the
+// way it faces: moving on, it brakes to a stop first; nothing without a profile.
+func (s *Steering) RequestBack(v float64) {
+	if s.MaxSpeed <= 0 {
+		return
+	}
+	s.WantSpeed = -min(max(v, 0), s.MaxSpeed)
+}
+
 // Braking is the rate the entity slows at: Brake, or Accel without one.
 func (s *Steering) Braking() float64 {
 	if s.Brake > 0 {
@@ -56,17 +75,34 @@ func (s *Steering) Braking() float64 {
 	return s.Accel
 }
 
-// advance moves Speed towards WantSpeed as the profile allows, over dt seconds.
+// advance moves Speed towards WantSpeed as the profile allows, over dt seconds: setting off at
+// V0, speeding up at Accel — Sprint times faster sprinting over the top speed — slowing at
+// Braking; from moving one way to the other it brakes to a stop first.
 func (s *Steering) advance(dt float64) {
-	want := min(max(s.WantSpeed, 0), s.MaxSpeed)
+	sprint := max(s.Sprint, 1)
+	want := min(max(s.WantSpeed, -s.MaxSpeed), s.MaxSpeed*sprint)
+	accel := s.Accel
+	if want > s.MaxSpeed {
+		accel *= sprint
+	}
 	switch {
 	case s.Accel <= 0:
 		s.Speed = want
-	case s.Speed == 0 && want > 0 && s.V0 > 0:
-		s.Speed = min(s.V0, want)
-	case want > s.Speed:
-		s.Speed = min(s.Speed+s.Accel*dt, want)
-	case want < s.Speed:
-		s.Speed = max(s.Speed-s.Braking()*dt, want)
+	case s.Speed == 0 && want != 0 && s.V0 > 0:
+		s.Speed = math.Copysign(min(s.V0, math.Abs(want)), want)
+	case s.Speed*want < 0:
+		s.Speed = towards(s.Speed, 0, s.Braking()*dt)
+	case math.Abs(want) > math.Abs(s.Speed):
+		s.Speed = towards(s.Speed, want, accel*dt)
+	default:
+		s.Speed = towards(s.Speed, want, s.Braking()*dt)
 	}
+}
+
+// towards is v moved by at most by towards to, not past it.
+func towards(v, to, by float64) float64 {
+	if v < to {
+		return min(v+by, to)
+	}
+	return max(v-by, to)
 }

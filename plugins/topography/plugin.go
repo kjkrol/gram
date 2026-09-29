@@ -2,7 +2,6 @@ package topography
 
 import (
 	"fmt"
-	"image/color"
 	"math"
 	"time"
 
@@ -141,35 +140,30 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent, float32(worldPlugin.Scale().Bend()))
 	})
 	if cfg.Heightfield {
-		p.field = heightfield.New(p.relief, kindColours{brd}, liveSky{p}, heightfield.Config{Shadows: true, Scale: worldPlugin.Scale()})
+		p.field = heightfield.New(p.relief, boardSurface{p}, liveSky{p}, heightfield.Config{Shadows: true, Scale: worldPlugin.Scale()})
 		p.field.Hide(true)
 	}
 	worldPlugin.SetLook(worldLook{flat: worldPlugin.FlatLook(), d: p.dresser, field: p.field})
 	return p
 }
 
-// kindColours colours the heightfield's cells: each in its kind's Color, grey for a kind of none
-// — the heightfield.Colours contract.
-type kindColours struct{ b *board.Board }
+// boardSurface is the ground's look as the dresser paints it out of the board's atlas — the board
+// painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from
+// every corner, and the grid while the board's is on: the heightfield.Surface contract.
+type boardSurface struct{ p *Plugin }
 
-func (k kindColours) Size() (cols, rows int) {
-	sq, _ := k.b.Square()
-	return int(sq.Cols), int(sq.Rows)
-}
-
-func (k kindColours) Colour(x, y int) color.RGBA {
-	c, ok := k.b.CellIndex(uint32(x), uint32(y))
-	if !ok {
-		return color.RGBA{}
+func (s boardSurface) Surface() heightfield.Painted {
+	var out heightfield.Painted
+	d := s.p.dresser
+	if atlas := s.p.boardPlugin.Atlas(); atlas != nil {
+		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
 	}
-	col := k.b.Kind(c).Color
-	if col.A == 0 {
-		return color.RGBA{R: 128, G: 128, B: 128, A: 255}
+	out.Shores, out.Reach, out.Coast = d.Coast()
+	if rs := s.p.boardPlugin.Res.Render; rs != nil && rs.ShowGridLines {
+		out.Grid = board.MinGridCell
 	}
-	return col
+	return out
 }
-
-func (k kindColours) Version() uint64 { return k.b.Changes() }
 
 // liveSky is the plugin's atmosphere as it stands, whenever it is set — the heightfield.Sky
 // contract.
@@ -334,7 +328,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 }
 
 // WithRenderer is a no-op: the topography draws through the board's and the world's renderers,
-// and the heightfield's needs no atlas.
+// and the heightfield paints the ground from the board's atlas, reached through its plugin.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
 // Renderer is the heightfield's renderer, drawing the ground from its heightmap on the GPU while

@@ -235,8 +235,8 @@ func TestDrive_SteersTheFastenedUnitOnlyAndStopsItWhenLetGo(t *testing.T) {
 		t.Errorf("with no key held the walker is driven %+v, want nothing asked", d)
 	}
 	r.pressV()
-	if d, ok := r.drivenOf(r.walkers[0]); !ok || d.Ahead != -1 {
-		t.Errorf("let go the walker is driven %+v (%v), want stopped once", d, ok)
+	if d, ok := r.drivenOf(r.walkers[0]); !ok || d != (steering.Driven{}) {
+		t.Errorf("let go the walker is driven %+v (%v), want no hand on it once: braking, not backing away", d, ok)
 	}
 	r.ecs.Tick(time.Second / 60)
 	if _, ok := r.drivenOf(r.walkers[0]); ok {

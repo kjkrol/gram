@@ -184,14 +184,21 @@ projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scali
 the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
 `shoulder`·cos(pitch) of the screen below the middle), `LookOut{Camera}` (V given `WithSelection`
 and `Config.Perspective`: rides in the selected unit, first person — the camera a `camera.Rider`,
-bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive`, the mouse `Look` (`control.CursorMove`,
-cursor captured by players; across turns the view and the unit via `steering.Driven.Face`, up/down the
-head), V/Tab leave back to the view it was in; the eye where the unit's `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle` (`perspCamera.across`; the camera's own field without one); Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
+bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive` (W with Shift `Drive.Sprint`, read from the
+`KeyHeld` context's `Mods.Shift`: `steering.Steering.RequestSprint` to `Sprint`·MaxSpeed, the
+world's step cap still holding; the climate's Shift+W holds `In(camera.Free)` only), the mouse
+`Look` (`control.CursorMove`, cursor captured by players; across turns the view and the unit via
+`steering.Driven.Face`, up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
+−sin(pitch): the drive system asks a flyer for the run (`Driven.Slope`) along the ground, and the
+altitude system, the one writer of heights, holds a flown flyer's `Z.Altitude` over sea level,
+adds the rise over the run it made this step, keeps it `Mover.Clearance` over the ground and under
+`Mover.Ceiling`, and writes `Lift` back so that let go it keeps its height over the ground), V/Tab
+leave back to the view it was in; the eye where the unit's `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle` (`perspCamera.across`; the camera's own field without one); Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
 without the perspective, bound only `WithSelection(sel)`, which hands it the Selected tag as
 navigation takes it: fastens the camera
 behind the one selected unit — centred, turned with an ease of `followEase` until its `Vel.Dir`
 runs up the screen — held through other selections, orders, pans and turns until V again or the
-unit is gone), `Drive{Camera, Ahead, Turn}` (arrows: the camera system attaches `steering.Driven` on
+unit is gone), `Drive{Camera, Ahead, Turn, Sprint}` (arrows: the camera system attaches `steering.Driven` on
 V, writes the keys every tick, writes a stop and detaches it on letting go; navigation's
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
 admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
@@ -440,7 +447,8 @@ shows how much of it is boilerplate vs. real behavior.
   them as one `Frame.SpritePart`; the clouds' shadow goes once per tile after all on it
   (`render.Frame.OvercastOn`); a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a world with heights, how high it
-  flies (`Lift`). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
+  flies (`Lift`), the least it keeps over the ground (`Clearance`) and how high over sea level it
+  may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
   `Cell` from the one point `at` reads off a row, `Layers` from the domain, in a world with heights a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the

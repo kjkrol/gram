@@ -157,6 +157,7 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if f := &s.following[k]; f.cam == i.Command.Camera {
 				f.drive.Ahead = max(min(f.drive.Ahead+i.Command.Ahead, 1), -1)
 				f.drive.Turn = max(min(f.drive.Turn+i.Command.Turn, 1), -1)
+				f.drive.Sprint = f.drive.Sprint || i.Command.Sprint
 			}
 		}
 	})
@@ -207,12 +208,12 @@ func (s *cameraSystem) fasten(cb *goke.CmdBuf, cam *viewCamera, id uid.UID64, in
 	s.keep(&s.following[len(s.following)-1], 0)
 }
 
-// letGo unfastens cam and reports whether it was fastened; its entity is stopped now and no longer
-// driven from the next tick, and an eye inside it comes out.
+// letGo unfastens cam and reports whether it was fastened; its entity, no hand on it, brakes to a
+// stop and is no longer driven from the next tick, and an eye inside it comes out.
 func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
-			s.write(f.target, steering.Driven{Ahead: -1})
+			s.write(f.target, steering.Driven{})
 			s.released = append(s.released, f.target)
 			s.following = append(s.following[:i], s.following[i+1:]...)
 			if f.inside {
@@ -330,6 +331,9 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 						f.aiming = false // it faces the way the eye looks: pinned to it again
 					}
 				}
+			}
+			if f.inside { // flown from inside: the way it is steered rises as the rider looks up
+				f.drive.Flown, f.drive.Climb = true, -math.Sin(float64(f.cam.Pitch()))
 			}
 			if drivens := s.driven.Slice(cur); drivens != nil {
 				drivens[i] = f.drive

@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -259,6 +261,121 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	}
 	if qw.brd.Heights() != qw.topo.Relief() {
 		t.Error("the board's heights are not the topography's relief")
+	}
+}
+
+// flown hands fn the one entity steered by hand, between two ticks.
+func (qw *quasiWorld) flown(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering)) {
+	var base goke.Comp[world.Base]
+	var z goke.Comp[world.Z]
+	var mover goke.Comp[board.Mover]
+	var driven goke.Comp[steering.Driven]
+	var steer goke.Comp[steering.Steering]
+	var q *goke.Query
+	qw.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z, &mover, &driven, &steer).Build() }})
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		for i := range cur.IDs {
+			fn(&base.Slice(cur)[i], &z.Slice(cur)[i], &mover.Slice(cur)[i], &driven.Slice(cur)[i], &steer.Slice(cur)[i])
+		}
+	}
+}
+
+// A flyer flown by hand holds its height over sea level as the ground rises and falls under it,
+// climbs along the way it is steered as far as it went, keeps its Clearance over the ground and
+// stays under its Ceiling; let go, it keeps its height over the ground again.
+func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
+	qw := newQuasiWorld(t, false, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
+		hawk := units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
+		onGrass, _ := grid.CellIndex(0, 3)
+		return []kind.Entry{hawk.Entry(recruit{start: onGrass})}
+	})
+	onHill, _ := qw.grid.CellIndex(2, 1)
+	onGrass, _ := qw.grid.CellIndex(0, 3)
+	put := func(c board.CellID) func(*world.Base) {
+		return func(b *world.Base) {
+			at := qw.grid.CellCenter(c)
+			b.Pos.AABB = plane.NewAABB(geom.NewVec(at.X-10, at.Y-10), 20, 20)
+		}
+	}
+	step := func(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering)) (alt, lift float64) {
+		qw.flown(fn)
+		qw.ecs.Tick(time.Second / 60)
+		qw.flown(func(_ *world.Base, z *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+			alt, lift = z.Altitude, m.Lift
+		})
+		return alt, lift
+	}
+	hill := qw.topo.Relief().GroundAt(qw.grid.CellCenter(onHill))
+	if alt, _ := step(func(*world.Base, *world.Z, *board.Mover, *steering.Driven, *steering.Steering) {}); alt != 40 {
+		t.Fatalf("steered from nowhere it flies at %v, want its lift 40 over the grass", alt)
+	}
+	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, _ *steering.Steering) {
+		*d = steering.Driven{Flown: true}
+		put(onHill)(b)
+	}); alt != 40 || lift != 40-hill {
+		t.Errorf("flown over the hill %v high: at %v, lift %v; want at 40, lift %v", hill, alt, lift, 40-hill)
+	}
+	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+		put(onGrass)(b)
+	}); alt != 40 {
+		t.Errorf("flown back over the grass: at %v, want at 40, not falling with the ground", alt)
+	}
+	alt, _ := step(func(_ *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, st *steering.Steering) {
+		d.Climb, st.Speed, st.WantSpeed = 0.6, 10, 10
+	})
+	if want := 40 + 10*0.75/60; math.Abs(alt-want) > 1e-6 {
+		t.Errorf("flown at 10 a second at a rise of 0.6: at %v after a tick, want %v", alt, want)
+	}
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering) {
+		d.Climb, st.Speed, st.WantSpeed, m.Clearance = 0, 0, 0, 39
+		put(onHill)(b)
+	}); alt != hill+39 {
+		t.Errorf("flown over the hill with a clearance of 39: at %v, want %v, the clearance over the ground", alt, hill+39)
+	}
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+		m.Clearance, m.Ceiling = 0, 41
+		put(onGrass)(b)
+	}); alt != 41 {
+		t.Errorf("flown under a ceiling of 41: at %v, want held down to it", alt)
+	}
+	if alt, lift := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, _ *steering.Steering) {
+		*d, m.Ceiling = steering.Driven{}, 0
+		put(onHill)(b)
+	}); alt != hill+41 || lift != 41 {
+		t.Errorf("let go over the hill: at %v, lift %v; want its lift 41 over the ground again", alt, lift)
+	}
+}
+
+// A flyer climbs no higher than its Ceiling over sea level: over high ground its lift is held down
+// so it does not, down to the ground where the ground stands higher still.
+func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
+	var hawk, low kind.Of[recruit]
+	qw := newQuasiWorld(t, false, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
+		hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40, Ceiling: 41}, steering.Steering{MaxSpeed: 10})
+		low = units.Define("low", board.Mover{Domain: board.Air, Lift: 40, Ceiling: 1}, steering.Steering{MaxSpeed: 10})
+		onHill, _ := grid.CellIndex(2, 1)
+		onGrass, _ := grid.CellIndex(0, 3)
+		return []kind.Entry{hawk.Entry(recruit{start: onHill}), hawk.Entry(recruit{start: onGrass}), low.Entry(recruit{start: onHill})}
+	})
+	qw.ecs.Tick(time.Second / 60)
+	onHill, _ := qw.grid.CellIndex(2, 1)
+	hill := qw.topo.Relief().GroundAt(qw.grid.CellCenter(onHill))
+	if hill <= 1 || hill+40 <= 41 {
+		t.Fatalf("the hill stands %v high: too low to test the ceiling on", hill)
+	}
+	zs := qw.zs()
+	alts := map[float64]bool{}
+	for _, z := range zs[hawk.ID()] {
+		alts[z.Altitude] = true
+	}
+	if len(alts) != 2 || !alts[40] || !alts[41] {
+		t.Errorf("hawks fly at %v, want one at its lift 40 over the grass and one held to the ceiling 41 over the hill", alts)
+	}
+	for _, z := range zs[low.ID()] {
+		if z.Altitude != hill {
+			t.Errorf("a flyer whose ceiling lies under the hill flies at %v, want on the hill %v", z.Altitude, hill)
+		}
 	}
 }
 

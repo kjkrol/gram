@@ -42,7 +42,8 @@
 // blended between its corners is over a half: one ground running into another along a line, not
 // along the edges of a quad. A [Direct] source draws a part of the picture itself, with a shader
 // of its own — a heightfield traced per pixel — before the first piece of its tier or over and
-// after all before it; a nil layer handed to the composer is left out. [Frame.Branch] and
+// after all before it, handed the frame's [Uniforms]; [ShaderSourceWith] builds such a shader on
+// the composer's library and materials. A nil layer handed to the composer is left out. [Frame.Branch] and
 // [Frame.Append] let a source gather pieces on several goroutines and take them back in order.
 //
 // What is worked out per pixel beyond that — water, the clouds' shadows — is a material a plugin

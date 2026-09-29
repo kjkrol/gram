@@ -15,6 +15,38 @@ type steepMap struct{ Map }
 
 func (steepMap) Slope(geom.Vec, geom.Vec, Domain) float64 { return 2 }
 
+// uphillMap climbs to the east: twice as long that way, half as long the other.
+type uphillMap struct{ Map }
+
+func (uphillMap) Slope(_ geom.Vec, dir geom.Vec, _ Domain) float64 {
+	if dir.X > 0 {
+		return 2
+	}
+	return 0.5
+}
+
+// Backing away, facing up the slope, an entity goes down it: the slope is taken the way it goes.
+func TestTerrainSpeed_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
+	grid := DefaultGrids{}.Square(1, 1, 10)
+	terrain := NewTerrainMap()
+	c, _ := grid.CellIndex(0, 0)
+	terrain.Set(c, CellKind{Cost: 1, Allows: Land})
+	brd := NewBoard(grid, terrain)
+	brd.mapping = uphillMap{brd.Map()}
+	got := speeds(t, brd, func(si *goke.SysInit, base *goke.Comp[world.Base]) {
+		var mover goke.Comp[Mover]
+		f := si.NewFactory(base, &mover)
+		f.Create(1)
+		for f.Next() {
+			base.Slice(&f.Cursor)[0] = world.Base{Pos: world.Position{AABB: CellAABB(grid, c, 4)}, Vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: -1}}
+			mover.Slice(&f.Cursor)[0] = Mover{Domain: Land}
+		}
+	})
+	if v := got[CellAABB(grid, c, 4).TopLeft.X]; v != -2 {
+		t.Errorf("backing down the slope at 1: speed %v, want -2, quicker down", v)
+	}
+}
+
 // The slope slows whoever moves over it, but not over a Graded kind.
 func TestTerrainSpeed_SparesAGradedKindTheSlope(t *testing.T) {
 	grid := DefaultGrids{}.Square(2, 1, 10)

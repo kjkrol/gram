@@ -29,10 +29,11 @@ type driveRig struct {
 	driven  goke.Comp[steering.Driven]
 	order   goke.OptComp[MoveOrder]
 	entered goke.OptComp[CellEntered]
+	mover   goke.OptComp[board.Mover]
 	q       *goke.Query
 }
 
-func newDriveRig(t *testing.T, order *MoveOrder) *driveRig {
+func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig {
 	t.Helper()
 	r := &driveRig{t: t, ecs: goke.New(), grid: board.DefaultGrids{}.Square(10, 1, 10), occupancy: &board.SingleOccupancy{}}
 	terrain := board.NewTerrainMap()
@@ -47,11 +48,15 @@ func newDriveRig(t *testing.T, order *MoveOrder) *driveRig {
 	var steer goke.Comp[steering.Steering]
 	var driven goke.Comp[steering.Driven]
 	var ord goke.Comp[MoveOrder]
+	var mov goke.Comp[board.Mover]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.driven).Optional(&r.order).Optional(&r.entered).Build()
+		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.driven).Optional(&r.order).Optional(&r.entered).Optional(&r.mover).Build()
 		comps := []goke.Addable{&cell, &base, &steer, &driven}
 		if order != nil {
 			comps = append(comps, &ord)
+		}
+		if len(mover) > 0 {
+			comps = append(comps, &mov)
 		}
 		f := si.NewFactory(comps...)
 		f.Create(1)
@@ -66,6 +71,9 @@ func newDriveRig(t *testing.T, order *MoveOrder) *driveRig {
 			r.occupancy.Enter(start, r.walker, board.Land)
 			if order != nil {
 				ord.Slice(&f.Cursor)[0] = *order
+			}
+			if len(mover) > 0 {
+				mov.Slice(&f.Cursor)[0] = mover[0]
 			}
 		}
 	}})
@@ -222,4 +230,91 @@ func TestDrive_FaceTurnsItToFaceAWay(t *testing.T) {
 func r2order(t *testing.T) *driveRig {
 	far, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
 	return newDriveRig(t, &MoveOrder{Target: far})
+}
+
+// S held while walking brakes the walker to a stop, never at once, then backs it away at its V0,
+// facing as it does — and stops it at the edge behind it.
+func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
+	r := newDriveRig(t, nil)
+	r.with(func(_ *board.Cell, _ *world.Base, st *steering.Steering, _ *steering.Driven, _ *MoveOrder, _ bool) {
+		st.Accel, st.Brake, st.V0, st.Speed = 40, 80, 5, 20
+	})
+	r.place(45)
+	r.drive(steering.Driven{Ahead: -1})
+	if st := r.steering(); st.WantSpeed != 0 || st.Speed != 20 {
+		t.Fatalf("S held walking at 20: asks %v, speed %v; want braking, not stopped at once", st.WantSpeed, st.Speed)
+	}
+	r.with(func(_ *board.Cell, _ *world.Base, st *steering.Steering, _ *steering.Driven, _ *MoveOrder, _ bool) {
+		st.Speed = 0 // braked to a stop
+	})
+	r.drive(steering.Driven{Ahead: -1})
+	if st := r.steering(); st.WantSpeed != -5 || st.Want != geom.NewVec(1, 0) {
+		t.Errorf("S held standing: asks %v facing %v, want backing at V0 5, still facing east", st.WantSpeed, st.Want)
+	}
+	r.place(3) // at the board's west edge: nothing behind
+	r.drive(steering.Driven{Ahead: -1})
+	if st := r.steering(); st.WantSpeed != 0 || st.Speed != 0 {
+		t.Errorf("S held with the edge behind: asks %v, speed %v; want stopped", st.WantSpeed, st.Speed)
+	}
+}
+
+// lift is the walker's Lift, 0 without a Mover.
+func (r *driveRig) lift() float64 {
+	var lift float64
+	r.q.All()
+	for r.q.Next() {
+		if movers := r.mover.Slice(r.q.Cursor()); movers != nil {
+			lift = movers[0].Lift
+		}
+	}
+	return lift
+}
+
+// W with Shift urges the walker to its Sprint; without one to its top speed alone.
+func TestDrive_SprintsWhereUrged(t *testing.T) {
+	r := newDriveRig(t, nil)
+	r.with(func(_ *board.Cell, _ *world.Base, st *steering.Steering, _ *steering.Driven, _ *MoveOrder, _ bool) {
+		st.Sprint = 4
+	})
+	r.place(35)
+	r.drive(steering.Driven{Ahead: 1, Sprint: true})
+	if st := r.steering(); st.WantSpeed != 80 {
+		t.Errorf("urged on: asks %v, want 4 times its top speed 20", st.WantSpeed)
+	}
+	r.drive(steering.Driven{Ahead: 1})
+	if st := r.steering(); st.WantSpeed != 20 {
+		t.Errorf("walked on: asks %v, want its top speed", st.WantSpeed)
+	}
+}
+
+// A flyer flown by hand and steered up goes the less along the ground, the more steeply, sprinting
+// or not; its height is the topography's to change, so the drive leaves its Lift be. Neither a
+// flyer steered from behind nor a walker slows for the look.
+func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
+	r := newDriveRig(t, nil, board.Mover{Domain: board.Land | board.Air, Lift: 10}) // over the rig's land
+	r.with(func(_ *board.Cell, _ *world.Base, st *steering.Steering, _ *steering.Driven, _ *MoveOrder, _ bool) {
+		st.Sprint, st.Speed = 4, 20
+	})
+	r.place(35)
+	r.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
+	if st := r.steering(); math.Abs(st.WantSpeed-16) > 1e-9 {
+		t.Errorf("flown up at a rise of 0.6: asks %v along the ground, want 20 times 0.8", st.WantSpeed)
+	}
+	r.drive(steering.Driven{Ahead: 1, Sprint: true, Flown: true, Climb: -0.6})
+	if st := r.steering(); math.Abs(st.WantSpeed-64) > 1e-9 {
+		t.Errorf("flown down at a rise of -0.6, sprinting: asks %v along the ground, want 80 times 0.8", st.WantSpeed)
+	}
+	if lift := r.lift(); lift != 10 {
+		t.Errorf("the drive changed the lift to %v, want it left at 10", lift)
+	}
+	r.drive(steering.Driven{Ahead: 1, Climb: 0.6})
+	if st := r.steering(); st.WantSpeed != 20 {
+		t.Errorf("steered from behind: asks %v, want its top speed", st.WantSpeed)
+	}
+	w := newDriveRig(t, nil, board.Mover{Domain: board.Land})
+	w.place(35)
+	w.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
+	if st := w.steering(); st.WantSpeed != 20 {
+		t.Errorf("a walker ridden looking up asks %v, want its top speed", st.WantSpeed)
+	}
 }

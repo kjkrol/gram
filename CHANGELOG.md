@@ -5,6 +5,82 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Shift sprints in first person; the hawk flies where the rider looks**
+- Riding in a unit, W with Shift held drives it at its profile's `Sprint` times its top speed
+  (`steering.Steering.Sprint`, `RequestSprint`; `steering.Driven.Sprint`, `topography.Drive.Sprint`),
+  speeding up past the top `Sprint` times as quickly; following without the perspective, the up
+  arrow with Shift does the same. The world still moves a body at most half its size a tick, so
+  the island's walkers go about 3.75 times, the hawk about 2.5 times as fast. The weather's
+  Shift+W holds with the camera free only.
+- An entity that flies, ridden, holds its height over sea level whatever the ground under it
+  does, and climbs and dives only along the way the eye looks: the camera writes
+  `steering.Driven.Flown` and the look's rise (`Driven.Climb`, the sine of the pitch), the drive
+  system goes as much less along the ground (`Driven.Slope`, 80° at the steepest), and the
+  topography's altitude system climbs it by the rise over the run it made in the step. It keeps
+  `board.Mover.Clearance` over the ground, pushed up where the ground rises to it, and stays under
+  `board.Mover.Ceiling` over sea level; its `Lift` follows, so let go it keeps its height over the
+  ground again. The island's hawk keeps its own height, 20 m, over the ground and stops 100 m
+  under the clouds.
+- The island demo's `Sprint` is 4.
+
+**A day four times as long**
+- A day is 16 minutes of game time unless the calendar says otherwise (`calendar.DefaultDay`;
+  4 before): the sun, the light and the weather go by four times as slowly in real time.
+
+**The ground traced on the GPU with its water, waves, clouds' shadows and grid**
+- The traced ground (G) draws what the tiles lay over the ground: the sea's glint, its waves
+  turning to the shore and breaking into foam on it, the water running down the rivers and over
+  flowing cells, the glint where a river turns into the sea, the clouds' shadows, and the grid
+  (B) where a cell spans six pixels or more — with the topography's own materials
+  (`SeaGlint`, `RunningWater`), per pixel. It is traced at half the window's size, so its grid is
+  about two pixels wide and soft.
+- The dresser paints the board's water beside its albedo, in the same passes and repainted for
+  the cells that change: running water's flow, the running and the still water's shine, the
+  glint at a mouth, each with its coverage in a colour of its own, so what the tiles lay over the
+  water — the coast's grounds, a road, a bridge — covers it here too (`heightfield.WaterLayers`,
+  `FlowSpan`). The way to the shore from every corner is worked out anew only round the cells
+  that begin or cease to shine (`dresser.Coast`), not as the ground is shaped.
+- `heightfield.Surface` (`Painted`: albedo, water, shores, the grid) takes the place of
+  `heightfield.Albedo`; the lattice is one image of four quadrants: heights, normals, the cells'
+  tops, the shores.
+- `render.ShaderSourceWith` builds a shader on the composer's library — its uniforms, helpers and
+  every material registered (render/library.kage, split from compose.kage) — for a source drawing
+  itself; no material may be registered after. `render.Direct.Draw` is handed the frame's
+  uniforms (`render.Uniforms`, `UniformsOf`), so such a shader reads the sun, the air and the
+  clock the frame set. `board.MinGridCell` is exported; `weather.kage` has `cloudShade`.
+
+**S brakes, then backs away; the island's units four times slower**
+- A driven entity asked back (`steering.Driven.Ahead` -1: S riding, Down following) brakes to a
+  stop at its Brake, no longer at once, and then backs away at its V0 — a quarter of its top
+  speed without one — facing as it does, as long as it is held, stopping at an edge behind it.
+  `steering.Steering.RequestBack` asks for it: a `Speed` under zero backs away along the facing,
+  and from one way to the other the steering brakes to a stop first. A backing entity's velocity
+  (`world.Velocity.Value` under zero) keeps its facing through a bounce (`SetDelta`), and the
+  board's slope slows it the way it goes, not the way it faces. A camera letting go of its unit
+  leaves it braking, no hand on it, where it stopped it at once.
+- The island in relief walks its units at three quarters of a cell a second, a quarter of what
+  it did.
+
+**The heightfield coloured from the board painted flat, lit smoothly, whole from a low eye**
+- The ground traced on the GPU is coloured from the board's albedo: the whole board painted
+  flat, 16 pixels a cell — every cell's base (the sea under a coast), the grounds running in,
+  the ways and the crossings, as the tiles' ground sheet paints them (`dresser.Albedo`,
+  `heightfield.Albedo`; `board.Plugin.Atlas` is the atlas it paints from) — blended between its
+  pixels, so rivers, roads, bridges and coasts show on it; the kinds' flat colours are gone. It
+  is painted anew for the cells that change, as the ground sheet is.
+- The way the ground faces is worked out per lattice corner on the CPU as the tiles' light is,
+  from the rise between the corners either side, and blended across a cell in the shader, so
+  the light runs on smoothly from cell to cell; the terrain's shadows fade in over a penumbra
+  instead of stepping.
+- A line of sight going up from under the top of the relief — the eye riding in a unit looking
+  at a peak — was clipped away before it marched; the range shows from a low eye now.
+- The shader walks a line of sight cell by cell over the lattice and meets the two triangles of
+  a cell exactly, passing over a cell whose highest corner it stays above with one read (a
+  fourth image, the cells' tops); it stepped half a cell or more before and jumped over the
+  steep peaks' tips, cutting them flat and the silhouettes into steps.
+- The island demo's `TestShots` adds first person in one selected walker, the head raised,
+  traced and as tiles.
+
 **The clouds drawn pixel by pixel, higher; the heightfield traced at half size**
 - The clouds on the sky are worked out per pixel: each looks along its own line of sight (the
   frame's `EyeAt`, `LookDir`, `LookDX` and `LookDY` uniforms, the camera's `camera.RayField`) up

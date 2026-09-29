@@ -112,6 +112,15 @@ func (p *Plugin) WithWorkers(n int) *Plugin {
 	return p
 }
 
+// Atlas is the sprite sheet the board's renderer draws the cells from, WithRenderer's; nil before
+// it.
+func (p *Plugin) Atlas() render.AtlasSource {
+	if p.renderer == nil {
+		return nil
+	}
+	return p.renderer.atlas
+}
+
 // DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
 // (CellKindDict.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
 // created.

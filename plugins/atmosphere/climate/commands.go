@@ -2,6 +2,7 @@ package climate
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -14,9 +15,10 @@ type Set struct{ Name string }
 // Queues are where Change and Set land.
 func (c *Climate) Queues() []control.CommandQueue { return []control.CommandQueue{&c.change, &c.set} }
 
-// DefaultBindings change the weather on Shift+W.
+// DefaultBindings change the weather on Shift+W, with the camera free: riding in a unit, W with
+// Shift sprints.
 func (c *Climate) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyW, Mods: control.Mods{Shift: true}}, "Change the weather", func(control.Context) (Change, bool) { return Change{}, true }),
+		control.Command(control.KeyPress{Key: ebiten.KeyW, Mods: control.Mods{Shift: true}}, "Change the weather", func(control.Context) (Change, bool) { return Change{}, true }).In(camera.Free),
 	}
 }

@@ -2,6 +2,8 @@ package topography
 
 import (
 	"math"
+
+	"github.com/kjkrol/gram/plugins/topography/heightfield"
 )
 
 // Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
@@ -129,4 +131,68 @@ func (l *dresser) workShore(gx, gy int64, size float32) ShoreCorner {
 		corner.X, corner.Y = bx/n, by/n
 	}
 	return corner
+}
+
+// coast is the way to the shore from every corner of a square grid, row by row, for the ground
+// traced on the GPU: worked out anew only round the cells whose shine has changed.
+type coast struct {
+	shining []bool // by ordinal, whether the cell's own kind shines
+	shores  []heightfield.Shore
+	seen    uint64 // one more than the board's count of changes when last brought up to date
+	version uint64 // counts the changes to shores
+}
+
+// Coast is the way to the shore from every corner of the square grid, row by row, how far off a
+// shore is seen, and a count of the changes: brought up to date with the board, round the cells
+// that began or ceased to shine alone — not with the relief, which moves no shore; nil off a
+// square grid.
+func (l *dresser) Coast() ([]heightfield.Shore, float32, uint64) {
+	if !l.square {
+		return nil, 0, 0
+	}
+	c := &l.coast
+	size := float32(l.sq.Cell)
+	reach := shoreReach * size
+	if c.seen == l.board.Changes()+1 {
+		return c.shores, reach, c.version
+	}
+	c.seen = l.board.Changes() + 1
+	l.tables()
+	cols, rows := int(l.sq.Cols), int(l.sq.Rows)
+	full := len(c.shining) != cols*rows || len(c.shores) != (cols+1)*(rows+1)
+	if full {
+		c.shining, c.shores = make([]bool, cols*rows), make([]heightfield.Shore, (cols+1)*(rows+1))
+	}
+	work := func(gx, gy int) {
+		c.shores[gy*(cols+1)+gx] = heightfield.Shore(l.workShore(int64(gx), int64(gy), size))
+	}
+	changed := full
+	for i := range cols * rows {
+		cell, _ := l.cellAt(int64(i%cols), int64(i/cols))
+		now := l.topOf(cell).shine > 0
+		if !full && now == c.shining[i] {
+			continue
+		}
+		c.shining[i], changed = now, true
+		if full {
+			continue
+		}
+		x, y := i%cols, i/cols // the corners whose shore the cell may be
+		for gy := max(0, y-shoreReach-1); gy <= min(rows, y+shoreReach+2); gy++ {
+			for gx := max(0, x-shoreReach-1); gx <= min(cols, x+shoreReach+2); gx++ {
+				work(gx, gy)
+			}
+		}
+	}
+	if full {
+		for gy := 0; gy <= rows; gy++ {
+			for gx := 0; gx <= cols; gx++ {
+				work(gx, gy)
+			}
+		}
+	}
+	if changed {
+		c.version++
+	}
+	return c.shores, reach, c.version
 }

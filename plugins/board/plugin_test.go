@@ -91,3 +91,19 @@ func TestPlugin_Populate_UnknownKindChangesNothing(t *testing.T) {
 		t.Errorf("Kind(cell) = %q, want untouched terrain", got)
 	}
 }
+
+// The board's atlas is the renderer's sheet, none before the renderer.
+func TestPlugin_AtlasIsTheRenderersSheet(t *testing.T) {
+	worldPlugin := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(DefaultGrids{}.Square(5, 5, 10), &SingleOccupancy{}, worldPlugin)
+	if p.Atlas() != nil {
+		t.Fatal("an atlas before the renderer")
+	}
+	p.WithRenderer(nil)
+	if p.Atlas() == nil || p.Atlas() != p.renderer.atlas {
+		t.Error("the atlas is not the renderer's sheet")
+	}
+}

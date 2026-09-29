@@ -54,7 +54,7 @@ func (l *dresser) Worker(k int) board.Dressing {
 	*w = *l
 	w.tile, w.pieces, w.ways, w.blends = tile{}, pieces, ways, blends
 	w.clouds, w.cloudStamp = clouds, stamps
-	w.workers, w.canvas, w.scratch, w.bakeTile, w.newest, w.unpainted = nil, render.Frame{}, board.Tile{}, tile{}, nil, nil
+	w.workers, w.canvas, w.scratch, w.bakeTile, w.newest, w.unpainted, w.albedo = nil, render.Frame{}, board.Tile{}, tile{}, nil, nil, nil
 	w.frozen = true
 	return w
 }
