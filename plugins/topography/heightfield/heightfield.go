@@ -150,22 +150,25 @@ func (r *Renderer) refresh() bool {
 		r.low, r.span, r.buf = encode(heights, r.buf[:0])
 		r.heights.WritePixels(r.buf)
 	}
-	if v := r.colours.Version() + 1; r.coloursAt != v || r.albedo == nil {
+	// the colours' image is the heightmap's size, a cell's colour at its top-left corner: the
+	// shader reads every image at a position in the first one's texture, within its region
+	if v := r.colours.Version() + 1; r.coloursAt != v || r.albedo == nil || r.albedo.Bounds().Dx() != cols || r.albedo.Bounds().Dy() != rows {
 		r.coloursAt = v
-		cw, ch := r.colours.Size()
-		if r.albedo == nil || r.albedo.Bounds().Dx() != cw || r.albedo.Bounds().Dy() != ch {
-			r.albedo = ebiten.NewImage(max(cw, 1), max(ch, 1))
+		if r.albedo == nil || r.albedo.Bounds().Dx() != cols || r.albedo.Bounds().Dy() != rows {
+			r.albedo = ebiten.NewImage(cols, rows)
 		}
+		cw, ch := r.colours.Size()
 		r.buf = r.buf[:0]
-		for y := range ch {
-			for x := range cw {
-				c := r.colours.Colour(x, y)
+		for y := range rows {
+			for x := range cols {
+				var c color.RGBA
+				if x < cw && y < ch {
+					c = r.colours.Colour(x, y)
+				}
 				r.buf = append(r.buf, c.R, c.G, c.B, c.A)
 			}
 		}
-		if len(r.buf) > 0 {
-			r.albedo.WritePixels(r.buf)
-		}
+		r.albedo.WritePixels(r.buf)
 	}
 	return true
 }

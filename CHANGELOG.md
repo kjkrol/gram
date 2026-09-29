@@ -20,6 +20,11 @@ and the climate's entities are gone, the clock's is new.
   first cut, the kinds' colours only.
 - `render.Direct` is a Source that draws a part of the picture itself, with a shader of its own,
   where its tier comes among the frame's pieces; the composer leaves a nil layer out.
+- The island demo's `TestShots`, run with `GRAM_SHOTS` naming a directory on a display, draws
+  the demo's views into PNGs — the isometric start, zoomed out, the perspective, the view from
+  above, and the three with the ground traced on the GPU — for a look at what the GPU makes of
+  a frame. It found the heightfield reading its images outside their texture regions (a flat
+  black plane); fixed.
 
 **The tiles dressed and the cones scanned on every CPU**
 - The board's renderer dresses the tiles on several goroutines at once when the Map's Dressing

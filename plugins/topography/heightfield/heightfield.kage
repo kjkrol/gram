@@ -60,9 +60,12 @@ func height(p vec2) float {
 	return h3 + (1-f.x)*(h2-h3) + (1-f.y)*(h1-h3)
 }
 
-// corner is the height at the lattice corner i, decoded from 16 bits of the heightmap.
+// corner is the height at the lattice corner i, decoded from 16 bits of the heightmap: the image
+// lies at its origin in the texture, so a pixel of it is the origin and the pixel. Every source
+// image is read at a position in the first one's texture (Ebitengine's imageSrcNAt), so the
+// colours are read at the first image's origin too.
 func corner(i vec2) float {
-	c := imageSrc0At(i + 0.5)
+	c := imageSrc0At(imageSrc0Origin() + i + 0.5)
 	return Low + (c.r*255*256+c.g*255)/65535*Span
 }
 
@@ -174,7 +177,7 @@ func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
 	direct := max(dot(n, Sun), 0) * sunlit(vec3(p.xy, height(p.xy))) * SunStrength
 	light := Ambience + SunColor*direct
 	cell := clamp(floor(p.xy/Cell), vec2(0), Corners-2)
-	albedo := imageSrc1At(cell + 0.5).rgb
+	albedo := imageSrc1At(imageSrc0Origin() + cell + 0.5).rgb
 	rgb := albedo * light
 	if Visibility > 0 {
 		rgb = mix(rgb, Fog, 1-exp(-t/Visibility))

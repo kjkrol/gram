@@ -314,7 +314,17 @@ below says what was decided and why, or what needs an answer. Take them out as t
   takes; a half-resolution offscreen image upscaled would quarter it. Compiles and traces right
   by its tests (the shader compiles, the heights round-trip, the occlusion hides what a ridge
   hides and not a hawk, the rays pass through what the screen points unproject to); to be
-  looked at in the demo.
+  looked at in the demo. **Looked at, the morning after**: the user's screenshot of G was a grey
+  nothing in the rain. A screenshot harness (`examples/board-topography`, `TestShots`, run with
+  `GRAM_SHOTS=dir` on a display) draws the demo's views into PNGs, and showed the tiles, the
+  sky and the clouds right and the heightfield a flat black plane, fogged grey in rain. Two
+  Kage rules the tests could not catch: `imageSrcNAt` takes a position in the *texture*, so a
+  pixel of an image is `imageSrc0Origin()` plus the pixel, and every source image is read at a
+  position in the *first* image's texture — `imageSrc1At(imageSrc0Origin() + p)`, never
+  `imageSrc1Origin()`, which reads outside the region and gives transparent. The heights were
+  read outside the image (all at Low: a plane), then the colours (black). The colours' image is
+  the heightmap's size now. Under XWayland the harness's window sometimes never gets its
+  VisibilityNotify and GLFW spins; a watchdog kills it after a minute.
 - **Twenty-first round: the tiles and the cones on every CPU.** The user asked what of the
   topography's drawing could go to the GPU, or failing that be spread over the CPUs, and ordered
   the whole plan in stages. Ebitengine's Kage is fragment shaders only, so the tiles stay on the

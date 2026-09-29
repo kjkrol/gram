@@ -118,7 +118,7 @@ func TestRenderer_HidesWhatTheGroundHidesFromTheEye(t *testing.T) {
 func TestRenderer_RefreshesTheImagesWhenTheGroundChanges(t *testing.T) {
 	g := &hill{}
 	r := New(g, flat{}, stillSky{}, Config{})
-	if !r.refresh() || r.heights == nil || r.heights.Bounds().Dx() != 17 || r.albedo.Bounds().Dx() != 16 {
+	if !r.refresh() || r.heights == nil || r.heights.Bounds().Dx() != 17 || r.albedo.Bounds().Dx() != 17 {
 		t.Fatal("no images of the lattice and the cells after the first refresh")
 	}
 	if r.low != 0 || r.span != 30 {
