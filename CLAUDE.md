@@ -602,7 +602,9 @@ shows how much of it is boilerplate vs. real behavior.
   `Update` as many times as the tempo says (`Clock.Replay`), moving game time on a step each.
   `Clock.Behind` lowers a tempo above 1 after 30 slow frames. `clock.Phase` tags on the clock's
   entity, `Clock.In(phase)`, `Clock.Entity()`; `Reporter()`, `HUD()`. `render.Frame.Time` is the
-  clock's through `render.Clocked` (the world's renderer).
+  clock's `Shown` through `render.Clocked` (the world's renderer): game time past the last tick by
+  the real time the engine holds toward the next (`Clock.Pending`, every frame) at the tempo, so
+  animations move every frame, not in the ticks' steps.
 - **`world/effects`** — temporary changes to entities, cast from anywhere, made and installed by
   the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking, Grant(tags...),
   Alter(func(*T))})`, `e.Cast`/`CastFor`/`Dispel`/`Has` by entity id, `Active` slots saved with

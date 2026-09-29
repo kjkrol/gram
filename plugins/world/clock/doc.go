@@ -10,6 +10,8 @@
 // twice as many steps a second at 2, a step every other tick at ½, none in the pause. A
 // [Config.BiggerStep] clock replays once over a longer step instead: cheaper, less exact. When
 // the engine cannot keep up with a tempo for a while, the clock brings it down a notch and says so.
+// What is drawn goes by [Clock.Shown]: game time run on past the last tick by the real time the
+// engine holds toward the next ([Clock.Pending]), so animations move every frame, not in steps.
 //
 // # Interface and simulation
 //

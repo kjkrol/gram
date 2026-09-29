@@ -175,6 +175,54 @@ func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T
 	}
 }
 
+// The skirt runs out from every corner of the lattice's edge, each once, through its rings of as
+// many vertices counted past the lattice's corners; its triangles use no other.
+func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
+	cols, rows := 4, 3
+	n := 2*(cols-1) + 2*(rows-1)
+	seen := map[[2]int]bool{}
+	for j := range n {
+		x, y := rim(cols, rows, j)
+		if x != 0 && y != 0 && x != cols-1 && y != rows-1 {
+			t.Errorf("rim corner %d is (%d, %d), inside the lattice", j, x, y)
+		}
+		seen[[2]int{x, y}] = true
+	}
+	if len(seen) != n {
+		t.Errorf("the rim goes round %d corners of the %d on the edge", len(seen), n)
+	}
+	tris := skirt(cols, rows, nil)
+	if len(tris) != 6*n*skirtRings {
+		t.Fatalf("%d indices, want two triangles for each of %d corners in %d rings", len(tris), n, skirtRings)
+	}
+	last := uint32(cols*rows + skirtRings*n)
+	for _, i := range tris {
+		if i >= last {
+			t.Fatalf("index %d past the skirt's last vertex %d", i, last-1)
+		}
+		if int(i) < cols*rows && !seen[[2]int{int(i) % cols, int(i) / cols}] {
+			t.Fatalf("the skirt runs from lattice corner %d, not on the edge", i)
+		}
+	}
+}
+
+// The cells' wet flags lie at each cell's top-left corner, the last row and column of corners dry;
+// all of them wet where the surface knows none.
+func TestWetCells_FlagTheCellsWaterMayLieOn(t *testing.T) {
+	buf := wetCells(3, 3, []bool{true, false, false, true}, false, nil)
+	for i, want := range []byte{255, 0, 0, 0, 255, 0, 0, 0, 0} {
+		if buf[4*i] != want {
+			t.Errorf("corner %d holds %d, want %d", i, buf[4*i], want)
+		}
+	}
+	all := wetCells(3, 3, nil, true, nil)
+	for i := range 9 {
+		if all[4*i] != 255 {
+			t.Fatalf("with no flags known corner %d holds %d, want wet", i, all[4*i])
+		}
+	}
+}
+
 // The way to the shore is held within a 255th: its way, how far it is, and open water where a
 // corner has none — which decodes to no way at all.
 func TestShores_HoldTheWayAndHowFar(t *testing.T) {

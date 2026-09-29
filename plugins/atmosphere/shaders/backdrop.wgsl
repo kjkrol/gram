@@ -26,11 +26,14 @@ fn fs_main(s: Sky) -> @location(0) vec4<f32> {
     let up = clamp(d.z / max(length(d), 1e-6), 0.0, 1.0);
     var rgb = mix(U.SkyHorizon, U.SkyOverhead, sqrt(up));
     if U.SunRadius > 0.0 {
-        let r = distance(s.px, U.SunAt);
-        let glow = 1.0 - smoothstep(U.SunRadius * sunGlow - 1.0, U.SunRadius * sunGlow, r);
-        let disc = 1.0 - smoothstep(U.SunRadius - 1.0, U.SunRadius, r);
-        rgb = U.SunDisc.rgb * glow + rgb * (1.0 - 0.25 * U.SunDisc.a * glow);
-        rgb = U.SunDisc.rgb * disc + rgb * (1.0 - U.SunDisc.a * disc);
+        // out from the disc's edge, in its radii: the light scattered round it in the sun's colour,
+        // a bright halo close and a faint one wide, then the disc itself, white hot
+        let d = distance(s.px, U.SunAt);
+        let out = max(d / U.SunRadius - 1.0, 0.0);
+        let halo = sunHalo * exp(-out * sunHaloFall) + sunGlare * exp(-out * sunGlareFall);
+        rgb += U.SunDisc.rgb * halo * U.SunDisc.a;
+        let disc = 1.0 - smoothstep(U.SunRadius - 1.5, U.SunRadius, d);
+        rgb = mix(rgb, vec3<f32>(1.0), disc * U.SunDisc.a);
     }
     if U.CloudsOn > 0.5 {
         let c = Clouds(vec2<f32>(0.0), 1.0, 0.0, vec4<f32>(s.px, 0.0, 0.0));
@@ -39,5 +42,9 @@ fn fs_main(s: Sky) -> @location(0) vec4<f32> {
     return vec4<f32>(rgb, 1.0);
 }
 
-// sunGlow is how many times wider than the disc the sun's glow is (atmosphere.sunGlow).
-const sunGlow: f32 = 3.0;
+// The sun's halo: how bright close by and how fast it falls off, out in radii of the disc; its glare
+// over the sky round it, the same.
+const sunHalo: f32 = 0.55;
+const sunHaloFall: f32 = 1.4;
+const sunGlare: f32 = 0.16;
+const sunGlareFall: f32 = 0.22;

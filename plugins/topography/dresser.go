@@ -52,6 +52,9 @@ type dresser struct {
 	shores     []cornerShore
 	shoreStamp uint32
 	shoreFor   uint64
+	// wet holds by cell whether water may lie on it, for the board's count of changes wetAt
+	wet   []bool
+	wetAt uint64
 	// the frame's clouds: clouds holds by corner of a square grid, row by row, their noise over
 	// it, good while its stamp is cloudFrame: this frame
 	clouds     []float32

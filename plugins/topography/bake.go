@@ -94,6 +94,43 @@ func (l *dresser) Surface(atlas render.AtlasSource) (albedo, water *render.Image
 	return l.albedo.img, l.albedo.water, l.albedo.px, l.albedo.wpx
 }
 
+// Wet is, by cell of a square grid, row by row, whether water may lie on it — its own base shines,
+// or its or a neighbour's ways or crossings run with water or glint where they turn into it — and
+// the board's count of changes it holds for, 1 more: for the ground drawn on the GPU to leave the
+// water out of the dry. Call it after Surface.
+func (l *dresser) Wet() ([]bool, uint64) {
+	at := l.board.Changes() + 1
+	if !l.square || l.wetAt == at && len(l.wet) == l.board.CellCount() {
+		return l.wet, l.wetAt
+	}
+	n := l.board.CellCount()
+	own := make([]bool, n)
+	cols := int(l.sq.Cols)
+	for i := range n {
+		c, ok := l.cellAt(int64(i%cols), int64(i/cols))
+		if !ok {
+			continue
+		}
+		own[i] = l.base(c).shine > 0 || wets(l.bakes[i].ways) || wets(l.bakes[i].crossings)
+	}
+	l.wet = make([]bool, n)
+	for i := range n {
+		l.around8(i, func(j int) { l.wet[i] = l.wet[i] || own[j] })
+	}
+	l.wetAt = at
+	return l.wet, l.wetAt
+}
+
+// wets reports whether any of ways runs with water or glints where it turns into it.
+func wets(ways []WayPiece) bool {
+	for _, p := range ways {
+		if p.Shine > 0 || p.MixShine > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // newSheet is a ground sheet for the board over atlas — the tiles', or based, the board's albedo —
 // or nil where a cell would span too few pixels or the atlas has no sheet.
 func (l *dresser) newSheet(atlas render.AtlasSource, based bool) *groundSheet {

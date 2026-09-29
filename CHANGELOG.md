@@ -5,6 +5,11 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**Animations move every frame**
+- What is drawn goes by `clock.Clock.Shown`: game time run on past the last tick by the real time
+  the engine holds toward the next (`Clock.Pending`), at the tempo. The sea, the rain and what
+  sways no longer stand and jump when the frames outnumber the ticks (100 Hz against 60).
+
 **The heights in runs of a fixed size**
 - `topography.Heights` is a run of `HeightsRun` (1024) heights, `First` and `Count` saying which,
   on as many of the topography's entities as the relief takes, in place of one entity holding a

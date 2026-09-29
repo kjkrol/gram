@@ -41,7 +41,12 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1}, {Name: "CloudPx", Size: 1}, {Name: "CloudFrom", Size: 1},
+		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 	})
+
+// skirtRings is how many rings the skirt round the world is laid in: enough for the world's curve
+// to bend it under the horizon smoothly.
+const skirtRings = 12
 
 // shadows lays the shadows of what stands on the ground (shaders/shadow.wgsl): the lattice's heights
 // and the ground's transform, a patch an instance.
@@ -97,7 +102,9 @@ type Surface interface {
 // the still water's shine and coverage top-right, the glint where a way turns into water
 // bottom-left — see WaterLayers; nil, none); the way to the shore from every lattice corner
 // (Shores, row by row; Reach the farthest a shore is seen from; Coast counts their changes); and
-// the grid, drawn where a cell spans Grid screen pixels or more, 0 for none.
+// the grid, drawn where a cell spans Grid screen pixels or more, 0 for none; and whether water may
+// lie on each cell, row by row (Wet; Wetness counts its changes, 0 for none known: water may lie
+// anywhere).
 type Painted struct {
 	Albedo, Water *render.Image
 	Px, WaterPx   int
@@ -105,6 +112,8 @@ type Painted struct {
 	Reach         float32
 	Coast         uint64
 	Grid          float32
+	Wet           []bool
+	Wetness       uint64
 }
 
 // Shore is the way from a lattice corner to the nearest shore, of length 1 or none, how far it is
@@ -139,10 +148,12 @@ type Renderer struct {
 	sky     Sky
 	cfg     Config
 
-	// lattice holds by lattice corner, in quadrants: heights, normals, nothing, shores
+	// lattice holds by lattice corner, in quadrants: heights, normals, by cell whether water may
+	// lie there, shores
 	lattice   *render.Image
 	heightsAt uint64 // one more than the ground's version the heights hold; 0 none
 	coastAt   uint64 // one more than the coast's version the shores hold; 0 none
+	wetAt     uint64 // one more than the wetness the cells' flags hold; 0 none
 	low, span float32
 	buf       []byte
 	mesh      *render.Indices // two triangles a cell, as the heights split them
@@ -227,12 +238,8 @@ func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Unif
 	}
 	rays, _ := cam.(camera.Rays)
 	f, _ := rays.Rays()
-	look, persp := f.Dir, float32(0)
-	if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
-		persp = 1
-	}
-	r.casting.Uniforms["Look"] = []float32{look[0], look[1], look[2]}
-	r.casting.Uniforms["Perspective"] = []float32{persp}
+	r.casting.Uniforms["Look"] = []float32{f.Dir[0], f.Dir[1], f.Dir[2]}
+	r.casting.Uniforms["Perspective"] = []float32{flag(perspective(f))}
 	r.casting.Depth, r.casting.Images = t.Depth, [4]*render.Image{r.lattice, nil, nil, nil}
 	r.casting.Vertices, r.casting.Instances = shadowPieces, r.patches
 	t.Screen.DrawMesh(nil, shadows, &r.casting)
@@ -321,7 +328,21 @@ func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {
 	}
 	u.Into(r.opts.Uniforms)
 	r.setUniforms(t, cam)
+	r.set("Perspective", flag(perspective(field)))
 	return true
+}
+
+// perspective is whether the rays f spread from an eye rather than run side by side.
+func perspective(f camera.RayField) bool {
+	return f.DDX != ([3]float32{}) || f.DDY != ([3]float32{})
+}
+
+// flag is b as the shaders read it: 1 for true.
+func flag(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // refresh brings the lattice and the mesh up to date with the ground and the surface's shores,
@@ -333,13 +354,13 @@ func (r *Renderer) refresh() bool {
 	}
 	if r.lattice == nil || r.lattice.Bounds().Dx() != 2*cols || r.lattice.Bounds().Dy() != 2*rows {
 		r.lattice = render.NewImage(2*cols, 2*rows)
-		r.heightsAt, r.coastAt = 0, 0
+		r.heightsAt, r.coastAt, r.wetAt = 0, 0, 0
 	}
 	if v := r.ground.Version() + 1; r.heightsAt != v {
 		r.heightsAt = v
 		r.low, r.span, r.buf = encode(heights, r.buf[:0])
 		r.write(0, 0, cols, rows)
-		r.tris = triangles(cols, rows, r.buf, r.tris[:0])
+		r.tris = skirt(cols, rows, triangles(cols, rows, r.buf, r.tris[:0]))
 		if r.mesh != nil {
 			r.mesh.Release()
 		}
@@ -353,7 +374,64 @@ func (r *Renderer) refresh() bool {
 		r.buf = shores(cols, rows, r.painted.Shores, r.painted.Reach, r.buf[:0])
 		r.write(cols, rows, cols, rows)
 	}
+	if v := r.painted.Wetness + 1; r.wetAt != v {
+		r.wetAt = v
+		r.buf = wetCells(cols, rows, r.painted.Wet, r.painted.Wetness == 0, r.buf[:0])
+		r.write(0, rows, cols, rows)
+	}
 	return true
+}
+
+// wetCells is by cell, at its top-left corner of a lattice-sized image, whether water may lie on
+// it — every one where all are — in red; appended to dst.
+func wetCells(cols, rows int, wet []bool, all bool, dst []byte) []byte {
+	for y := range rows {
+		for x := range cols {
+			v := byte(0)
+			if i := y*(cols-1) + x; all || x < cols-1 && y < rows-1 && i < len(wet) && wet[i] {
+				v = 255
+			}
+			dst = append(dst, v, 0, 0, 255)
+		}
+	}
+	return dst
+}
+
+// skirt is the triangles of the skirt round a lattice cols by rows corners, appended to dst: from
+// the edge's corners out through skirtRings rings of as many vertices, counted past the lattice's
+// corners ring after ring, each round the edge as rim goes (mesh.wgsl's vs_main).
+func skirt(cols, rows int, dst []uint32) []uint32 {
+	n := 2*(cols-1) + 2*(rows-1)
+	at := func(ring, j int) uint32 {
+		j %= n
+		if ring == 0 {
+			x, y := rim(cols, rows, j)
+			return uint32(y*cols + x)
+		}
+		return uint32(cols*rows + (ring-1)*n + j)
+	}
+	for ring := range skirtRings {
+		for j := range n {
+			a, b, c, d := at(ring, j), at(ring, j+1), at(ring+1, j), at(ring+1, j+1)
+			dst = append(dst, a, b, c, b, d, c)
+		}
+	}
+	return dst
+}
+
+// rim is the j-th lattice corner round the edge of a lattice cols by rows corners, clockwise from
+// the top-left: along the top, down the right, back along the bottom and up the left.
+func rim(cols, rows, j int) (x, y int) {
+	a, b := cols-1, rows-1
+	switch {
+	case j < a:
+		return j, 0
+	case j < a+b:
+		return a, j - a
+	case j < 2*a+b:
+		return a - (j - a - b), b
+	}
+	return 0, b - (j - 2*a - b)
 }
 
 // triangles is the mesh of a lattice cols by rows corners, counted row by row: two triangles a
@@ -497,12 +575,9 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	}
 	r.set("WaterPx", wpx)
 	r.set("FlowSpan", FlowSpan)
-	shadows := float32(0)
-	if r.cfg.Shadows {
-		shadows = 1
-	}
-	r.set("Shadows", shadows)
+	r.set("Shadows", flag(r.cfg.Shadows))
 	r.set("GridFrom", r.painted.Grid)
+	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
 	ks, kc := bakedScale(cols, rows)
 	r.set("ShadePx", float32(ks))
 	r.set("CloudPx", float32(kc))
@@ -512,6 +587,18 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 		visibility = float32(air.Visibility(r.cfg.Scale, r.sky.Air()))
 	}
 	r.set("Visibility", visibility)
+}
+
+// skirtReach is how many times farther from the world's middle than its edge the skirt round it
+// reaches: to the horizon seen from under the clouds, at least twenty times the world's width, at
+// most two hundred, the world cols by rows corners a cell apart under scale.
+func skirtReach(cols, rows int, cell float32, scale world.Scale) float32 {
+	diag := math.Hypot(float64(cols-1), float64(rows-1)) * float64(cell)
+	reach := 20 * diag
+	if h := scale.Horizon(scale.Units(air.CloudBase)); !math.IsInf(h, 0) && h > reach {
+		reach = min(h, 200*diag)
+	}
+	return float32(reach / (diag / 2))
 }
 
 // set hands the shader the uniform name as v, in a slice kept between frames and boxed once, over

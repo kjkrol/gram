@@ -53,9 +53,11 @@ const goalWidth = 2
 
 // PathRenderer draws, for every selected entity, its goals — the entity's outline where it will
 // stand, on the render.Marks tier, always — and, when the routes are shown (Routes, Shift+P), the
-// remaining route and the routes on to each queued goal: a line over the ground on the
-// render.Overlays tier in pieces of the ground's step, each at the depth of the ground under it,
-// so a hill in front hides it and the line runs straight through any camera.
+// remaining route and the routes on to each queued goal. In a world with heights, through a
+// camera with Rays, a route is a render.Direct drawing on the GPU on RouteTier: laid on the ground
+// the frame drew, read from its depth, so it follows every rise and a hill in front hides it.
+// Otherwise it is a line over the ground on the render.Overlays tier in pieces of the ground's
+// step, each at the depth of the ground under it, so the line runs straight through any camera.
 type PathRenderer struct {
 	grid   board.Grid
 	style  RouteStyle
@@ -85,16 +87,29 @@ type PathRenderer struct {
 	mover goke.OptComp[board.Mover]
 
 	footprint []render.Corners // reused
+
+	gpu   *routes // the routes drawn on the GPU
+	onGPU bool    // this frame's
 }
 
-var _ render.Source = (*PathRenderer)(nil)
+var _ render.Direct = (*PathRenderer)(nil)
 
 // NewPathRenderer draws the routes and goals of the entities carrying selected, as style says.
 func NewPathRenderer(grid board.Grid, style RouteStyle, selected plugin.Tag[selection.Family]) *PathRenderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}
-	return &PathRenderer{grid: grid, style: style, selected: selected}
+	return &PathRenderer{grid: grid, style: style, selected: selected, gpu: newRoutes()}
+}
+
+// Tier is where the routes drawn on the GPU come: RouteTier.
+func (r *PathRenderer) Tier() render.Tier { return RouteTier }
+
+// Draw lays the routes Compose gathered on the ground, on the GPU; nothing where it composed them.
+func (r *PathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
+	if r.onGPU {
+		r.gpu.draw(t, cam, r.style.Line, r.style.Width)
+	}
 }
 
 // WithHeights has the routes and goals laid on the ground heights gives when composing starts:
@@ -133,6 +148,8 @@ func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			r.step = r.ground.Step()
 		}
 	}
+	_, rays := cam.(camera.Rays)
+	r.onGPU = rays && r.ground != nil && r.space != nil && r.space.Edges == 0
 	if r.space == nil {
 		return
 	}
@@ -220,6 +237,10 @@ func (r *PathRenderer) line(a, b geom.Vec) {
 		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
 		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
 		r.frame.Line(render.Overlays, 0, x0, y0, x1, y1, r.style.Width, r.style.Line)
+		return
+	}
+	if r.onGPU {
+		r.gpu.add(r.camera, a, b, r.groundAt, r.step, r.style.Width)
 		return
 	}
 	length := math.Hypot(b.X-a.X, b.Y-a.Y)

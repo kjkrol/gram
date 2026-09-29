@@ -186,11 +186,11 @@ func (b *Backdrop) covered(cam camera.Camera, w, h float32) bool {
 	return true
 }
 
-// The sun's disc as a part of the screen's height, and how many times wider its glow is (the
-// shader's sunGlow, the same).
+// The sun's disc as a part of the screen's height, and how many times wider than it its halo and
+// glare are worth drawing, out of sight beyond the screen.
 const (
 	sunRadius = 1.0 / 40
-	sunGlow   = 3
+	sunGlow   = 16
 )
 
 // sunOn is where the sun's disc stands on the screen — where the way towards it vanishes, through
@@ -219,7 +219,7 @@ func (b *Backdrop) sunOn(cam camera.Camera, w, h float32, day sky.Sun, clouds fl
 	if light == (render.Light{}) {
 		light = render.Light{1, 1, 1}
 	}
-	return [2]float32{ax, ay}, r, [4]float32{0.5 + 0.5*light[0], 0.5 + 0.5*light[1], 0.5 + 0.5*light[2], clear}
+	return [2]float32{ax, ay}, r, [4]float32{light[0], light[1], light[2], clear}
 }
 
 func channel(v float32) uint8 { return uint8(min(max(v, 0), 1)*255 + 0.5) }

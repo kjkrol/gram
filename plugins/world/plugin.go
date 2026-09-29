@@ -194,7 +194,7 @@ func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.Def
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
-	p.renderer.clock = p.module.clock.Time
+	p.renderer.clock = p.module.clock.Shown
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.

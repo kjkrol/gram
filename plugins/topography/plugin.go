@@ -147,7 +147,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 
 // boardSurface is the ground's look as the dresser paints it out of the board's atlas — the board
 // painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from
-// every corner, and the grid while the board's is on: the terrain.Surface contract.
+// every corner, the grid while the board's is on, and where water may lie: the terrain.Surface
+// contract.
 type boardSurface struct{ p *Plugin }
 
 func (s boardSurface) Surface() terrain.Painted {
@@ -155,6 +156,9 @@ func (s boardSurface) Surface() terrain.Painted {
 	d := s.p.dresser
 	if atlas := s.p.boardPlugin.Atlas(); atlas != nil {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
+		if out.Albedo != nil {
+			out.Wet, out.Wetness = d.Wet()
+		}
 	}
 	out.Shores, out.Reach, out.Coast = d.Coast()
 	if rs := s.p.boardPlugin.Res.Render; rs != nil && rs.ShowGridLines {

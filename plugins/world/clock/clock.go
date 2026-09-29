@@ -51,8 +51,10 @@ type Clock struct {
 	entity  uid.UID64 // the clock's entity, once the system found or made it
 	blocks  []Block
 	carry   float32 // the part of a step the tempo did not fill this tick
-	behind  int     // ticks in a row the engine fell behind
-	slowed  bool    // the tempo was lowered for that
+	step    time.Duration
+	pending time.Duration // the real time the engine holds toward the next tick
+	behind  int           // ticks in a row the engine fell behind
+	slowed  bool          // the tempo was lowered for that
 	pause   control.Queue[Pause]
 	faster  control.Queue[Faster]
 	slower  control.Queue[Slower]
@@ -126,6 +128,7 @@ func (c *Clock) Simulate(_ goke.RunCtx, block Block) { c.blocks = append(c.block
 // calls it after the game's Update. A BiggerStep clock runs them once, over step times the tempo.
 func (c *Clock) Replay(ctx goke.RunCtx, step time.Duration) {
 	defer func() { c.blocks = c.blocks[:0] }()
+	c.step = step
 	if c.state.Paused {
 		c.carry = 0
 		return
@@ -163,6 +166,22 @@ func (c *Clock) Behind(behind bool) {
 		c.state.Tempo, c.slowed = c.cfg.Tempos[i-1], true
 		c.tell()
 	}
+}
+
+// Pending tells the clock how much real time the engine holds toward its next tick, each frame.
+func (c *Clock) Pending(d time.Duration) { c.pending = d }
+
+// Shown is the game time what is drawn goes by: Time, and past it the part of a step the tempo
+// has filled and the real time held toward the next tick at the tempo, so it moves every frame.
+func (c *Clock) Shown() time.Duration {
+	if c.state.Paused {
+		return c.state.Time
+	}
+	ahead := float64(c.pending) * float64(c.state.Tempo)
+	if !c.cfg.BiggerStep || c.state.Tempo <= 1 {
+		ahead += float64(c.carry) * float64(c.step)
+	}
+	return c.state.Time + time.Duration(ahead)
 }
 
 // behindFor is how many frames in a row the engine must fall behind before the tempo comes down.

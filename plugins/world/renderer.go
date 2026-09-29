@@ -51,8 +51,9 @@ func (s *Renderer) Init(si *goke.SysInit) {
 	s.renderQuery = qb.Build()
 }
 
-// Clock is the game time the frame's animations go by: the world's tactical clock's, so what sways
-// and flows stands in the tactical pause and hurries with the tempo.
+// Clock is the game time the frame's animations go by: the world's tactical clock's as shown
+// (clock.Clock.Shown), so what sways and flows moves every frame, stands in the tactical pause and
+// hurries with the tempo.
 func (s *Renderer) Clock() (time.Duration, bool) {
 	if s.clock == nil {
 		return 0, false

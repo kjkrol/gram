@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -22,7 +23,7 @@ import (
 // shooter runs the demo without a window, a frame every 60th of a second on a GPU of its own, and
 // saves what it draws, a view at a time: the isometric
 // start, zoomed out, the perspective (Tab), zoomed out, the view from above, the views after them
-// and first person, the views of sight shown (Shift+C) — into the directory GRAM_SHOTS names, for a look
+// and first person, the views of sight and the routes shown (Shift+C, Shift+P) — into the directory GRAM_SHOTS names, for a look
 // at what the GPU makes of a frame; the test is skipped without it.
 type shooter struct {
 	dir   string
@@ -66,11 +67,16 @@ func (s *shooter) selectOne() {
 	}
 }
 
-// showViews shows every view of sight (Shift+C), drawn over the ground.
+// showViews shows every view of sight (Shift+C) and the routes (Shift+P), drawn over the ground.
 func (s *shooter) showViews() {
 	for _, q := range s.d.stage.vision.Queues() {
 		if q.Accepts() == reflect.TypeFor[vision.Cones]() {
 			q.Put(control.Nobody, vision.Cones{})
+		}
+	}
+	for _, q := range s.d.stage.nav.Queues() {
+		if q.Accepts() == reflect.TypeFor[navigation.Routes]() {
+			q.Put(control.Nobody, navigation.Routes{})
 		}
 	}
 }

@@ -98,12 +98,15 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [PathRenderer], a render.Source drawing, for every selected
-// entity, its goals — the entity's outline where it will stand, on the ground there, on the
-// render.Marks tier, always — and its routes when they are shown: the remaining route and the
-// routes on to each queued goal, a thin line over the ground on the render.Overlays tier in
-// pieces of the ground's step, each at the depth of the ground under it, so a hill in front
-// hides it and the line runs straight through any camera. [Routes] (Shift+P) shows the routes
+// [Plugin.WithRenderer] builds the [PathRenderer], drawing, for every selected entity, its goals
+// — the entity's outline where it will stand, on the ground there, on the render.Marks tier,
+// always — and its routes when they are shown: the remaining route and the routes on to each
+// queued goal, a thin line over the ground. In a world with heights, through a camera with Rays,
+// the PathRenderer is a render.Direct laying the routes on the GPU on [RouteTier]: every pixel near
+// a stretch finds the ground point drawn there from the frame's depth (shaders/route.wgsl), so the
+// line follows every rise and a hill in front hides it. Otherwise it hands the frame the line in
+// pieces of the ground's step on the render.Overlays tier, each at the depth of the ground under
+// it, so the line runs straight through any camera. [Routes] (Shift+P) shows the routes
 // and hides them again ([Plugin.ShowRoutes], [Plugin.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the line's colour and width and the goal's
 // colour.

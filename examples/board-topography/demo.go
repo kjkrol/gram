@@ -155,7 +155,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
 	// glinting under the land's blended grounds, the running water running
-	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
+	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{
+		Cell:        CellSize,
+		HeightUnit:  1,
+		Isometric:   true,
+		Perspective: true,
+		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err

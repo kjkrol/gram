@@ -1084,6 +1084,43 @@ func TestDresser_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	}
 }
 
+// Water may lie on the sea, on the cells a river runs across and on every cell beside either; the
+// rest is dry, and a cell turned to water wets it and the cells round it.
+func TestDresser_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
+	st := map[board.Name]Style{}
+	grid := board.DefaultGrids{}.Square(8, 6, 32)
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	land := styled(st, board.CellKind{Name: board.Named("k60"), Allows: board.Land, SpriteID: 1}, Style{})
+	sea := styled(st, board.CellKind{Name: board.Named("k61"), Allows: board.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
+	river := styled(st, board.CellKind{Name: board.Named("k62"), Allows: board.Land | board.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
+	brd.SetAll(land)
+	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd.Set(at(0, 0), sea)
+	for y := uint32(2); y < 5; y++ {
+		brd.SetWay(at(6, y), board.Way{Kind: river, Width: 8, Links: board.Links(1<<0 | 1<<1)})
+	}
+	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d.Surface(sheetAtlas{render.NewImage(24, 8)})
+	wet, v := d.Wet()
+	if len(wet) != 8*6 || v == 0 {
+		t.Fatalf("%d cells' flags at %d, want one a cell of 8 by 6", len(wet), v)
+	}
+	for _, c := range []struct {
+		x, y int
+		wet  bool
+	}{{0, 0, true}, {1, 1, true}, {2, 2, false}, {6, 3, true}, {5, 3, true}, {7, 5, true}, {3, 4, false}} {
+		if got := wet[c.y*8+c.x]; got != c.wet {
+			t.Errorf("cell (%d, %d) wet %v, want %v", c.x, c.y, got, c.wet)
+		}
+	}
+	brd.Set(at(3, 4), sea)
+	d.Surface(sheetAtlas{render.NewImage(24, 8)})
+	wet, w := d.Wet()
+	if w == v || !wet[4*8+3] || !wet[3*8+2] {
+		t.Errorf("after the sea came to (3, 4): flags at %d, it %v, its neighbour (2, 3) %v; want both wet anew", w, wet[4*8+3], wet[3*8+2])
+	}
+}
+
 // The coast is the way to the shore from every corner, as shoreAt works it out; the ground raised
 // leaves it be, a cell turned to water moves it.
 func TestDresser_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {

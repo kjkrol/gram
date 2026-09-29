@@ -44,18 +44,14 @@ struct Ripple {
     slope: vec2<f32>,
 }
 
-// ripples is the ripples at p: two sizes of noise, the finer fading out where it would flicker.
+// ripples is the ripples at p: two sizes of noise, the finer fading out where it would flicker,
+// their slope the noise's own gradient.
 fn ripples(p: vec2<f32>) -> Ripple {
-    let e = rippleSize / 4.0;
-    let c = rippleHeight(p);
-    let dx = rippleHeight(p + vec2<f32>(e, 0.0)) - rippleHeight(p - vec2<f32>(e, 0.0));
-    let dy = rippleHeight(p + vec2<f32>(0.0, e)) - rippleHeight(p - vec2<f32>(0.0, e));
-    return Ripple(c / 1.5, vec2<f32>(dx, dy) * (rippleSlope * seen(rippleSize) / (2.0 * e)));
-}
-
-// rippleHeight is the ripples' height at p, 0 to 1.5.
-fn rippleHeight(p: vec2<f32>) -> f32 {
-    return noise(p / rippleSize) + 0.5 * seen(rippleSize / 2.0) * noise(p * 2.0 / rippleSize + 7.0);
+    let fine = 0.5 * seen(rippleSize / 2.0);
+    let coarse = noised(p / rippleSize);
+    let finer = noised(p * 2.0 / rippleSize + 7.0);
+    let slope = (coarse.yz + fine * 2.0 * finer.yz) / rippleSize;
+    return Ripple((coarse.x + fine * finer.x) / 1.5, slope * (rippleSlope * seen(rippleSize)));
 }
 
 // Running water: how rough it is still and at most, the speed (world units a second) it gets as

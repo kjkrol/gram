@@ -70,6 +70,38 @@ func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 	}
 }
 
+// The time shown runs on between the ticks with the real time the engine holds toward the next,
+// at the tempo, and meets game time at each tick: at ½ the half step the tempo filled counts; in
+// the tactical pause it is game time.
+func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
+	r := newRig(t, clock.Config{})
+	r.ticks(1)
+	r.c.Pending(step / 2)
+	if got, want := r.c.Shown(), r.c.Time()+step/2; got != want {
+		t.Errorf("at tempo 1, half a step on: shown %v, want %v", got, want)
+	}
+	if err := r.c.SetTempo(0.5); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 4 {
+		r.ticks(1)
+		r.c.Pending(0)
+		after := r.c.Shown()
+		r.c.Pending(step)
+		before := r.c.Shown() // a step on: where the next tick lands
+		r.ticks(1)
+		r.c.Pending(0)
+		if r.c.Shown() != before || before-after != step/2 {
+			t.Errorf("at ½, tick %d: shown %v a tick after, %v then, %v held toward the next; want half a step apart and meeting", i, after, r.c.Shown(), before)
+		}
+	}
+	r.c.SetPaused(true)
+	r.c.Pending(step / 2)
+	if r.c.Shown() != r.c.Time() {
+		t.Errorf("paused: shown %v, want game time %v", r.c.Shown(), r.c.Time())
+	}
+}
+
 // A BiggerStep clock replays once, over a step as long as the tempo says.
 func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 	r := newRig(t, clock.Config{BiggerStep: true})

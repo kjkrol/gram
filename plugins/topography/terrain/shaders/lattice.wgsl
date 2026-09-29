@@ -2,7 +2,8 @@
 // (render.NewMeshShaderWith): the lattice of the ground's heights. The lattice, U.Corners.x by
 // U.Corners.y corners a U.Cell apart, lies in the first image's quadrants of that size: the
 // heights top-left, U.Low up to U.Low+U.Span in red and green as 16 bits; the way the ground faces
-// top-right as (n+1)/2; the way to the shore bottom-right.
+// top-right as (n+1)/2; by cell whether water may lie on it bottom-left; the way to the shore
+// bottom-right.
 
 // height is the ground's height at the world point p as a tile is drawn: two flat triangles split
 // along the diagonal whose corners stand nearer in height (topography.Relief.GroundAt).

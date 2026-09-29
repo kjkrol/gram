@@ -1,22 +1,53 @@
-// The ground's mesh: every lattice corner a vertex, two triangles a cell (terrain.Renderer builds
-// them), drawn through U.ViewProj (camera.Transform) with the ground d off U.Eye sunk by U.Bend·d².
+// The ground's mesh: every lattice corner a vertex, two triangles a cell, and round the world a
+// skirt of U.Skirt.y rings reaching U.Skirt.x times as far from its middle as its edge, the edge's
+// ground running on out to the horizon (terrain.Renderer builds them); drawn through U.ViewProj
+// (camera.Transform) with the ground d off U.Eye sunk by U.Bend·d², so the skirt sinks under the
+// horizon as the world's curve would have it.
 
 struct Ground {
     @builtin(position) @invariant clip: vec4<f32>,
     @location(0) world: vec3<f32>,
 }
 
-// vs_main stands the lattice corner vid, counted row by row, at its height.
+// vs_main stands the lattice corner vid, counted row by row, at its height; past the lattice's
+// corners, the skirt's: ring after ring, each round the edge clockwise from the top-left, pushed
+// out from the middle, at the height of the edge's corner it runs out from.
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     let cols = u32(U.Corners.x);
-    let i = vec2<f32>(f32(vid % cols), f32(vid / cols));
-    let p = vec3<f32>(i * U.Cell, corner(i));
+    let lattice = cols * u32(U.Corners.y);
+    var i = vec2<f32>(f32(vid % cols), f32(vid / cols));
+    var xy = i * U.Cell;
+    if vid >= lattice {
+        let k = vid - lattice;
+        let rim = 2u * (cols - 1u) + 2u * (u32(U.Corners.y) - 1u);
+        i = rimCorner(k % rim);
+        let mid = (U.Corners - 1.0) * U.Cell * 0.5;
+        xy = mid + (i * U.Cell - mid) * pow(U.Skirt.x, f32(k / rim + 1u) / U.Skirt.y);
+    }
+    let p = vec3<f32>(xy, corner(i));
     let off = p.xy - U.Eye.xy;
     var g: Ground;
     g.clip = U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0);
     g.world = p;
     return g;
+}
+
+// rimCorner is the j-th lattice corner round the world's edge, clockwise from the top-left
+// (terrain.rim, the same).
+fn rimCorner(j: u32) -> vec2<f32> {
+    let a = u32(U.Corners.x) - 1u;
+    let b = u32(U.Corners.y) - 1u;
+    if j < a {
+        return vec2<f32>(f32(j), 0.0);
+    }
+    if j < a + b {
+        return vec2<f32>(f32(a), f32(j - a));
+    }
+    if j < 2u * a + b {
+        return vec2<f32>(f32(a - (j - a - b)), f32(b));
+    }
+    return vec2<f32>(0.0, f32(b - (j - 2u * a - b)));
 }
 
 // fs_prime lays the ground's depth alone, before fs_main shades only what is seen of it.
@@ -34,42 +65,55 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let moveX = dpdx(p);
     let moveY = dpdy(p);
     let span = U.Cell / max(min(length(moveX.xy), length(moveY.xy)), 1e-6);
-    let n = normal(p.xy);
+    let pixel = max(length(moveX.xy), length(moveY.xy)); // world units a pixel spans here, at most
+    var toward = U.Toward; // the way to the eye: from p in a perspective
+    if U.Perspective > 0.5 {
+        toward = normalize(U.Eye - p);
+    }
+    // the world, or the skirt round it: level, in full sun, gridless
+    let size = (U.Corners - 1.0) * U.Cell;
+    let inside = p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
+    var n = vec3<f32>(0.0, 0.0, 1.0);
+    if inside {
+        n = normal(p.xy);
+    }
     let sun = sunWay();
     var lit = 0.0;
     if sun.z > 0.0 {
         lit = 1.0;
-        if U.Shadows > 0.5 {
+        if U.Shadows > 0.5 && inside {
             lit = baked(p.xy, 0.0, U.ShadePx).r;
         }
     }
     var rgb = albedo(p.xy) * (U.Ambience + U.SunColor * max(dot(n, sun), 0.0) * lit * U.SunStrength);
     var cover = 0.0;
-    if U.Cover > 0.0 {
+    if U.Cover > 0.0 && inside {
         cover = baked(p.xy, U.CloudFrom, U.CloudPx).r;
+    } else if U.Cover > 0.0 {
+        cover = cloudCover(cloudField(p.xy));
     }
     let wet = lit * (1.0 - cover); // the sun on the water, the clouds' shadow taken off
     let detail = clamp((span - 6.0) / 6.0, 0.0, 1.0);
     var run = vec3<f32>(0.0);
     var still = vec3<f32>(0.0);
     var mouth = vec3<f32>(0.0);
-    if U.WaterPx > 0.0 {
+    if U.WaterPx > 0.0 && wetAt(p.xy) {
         run = waterAt(p.xy, vec2<f32>(0.0, 0.0));
         still = waterAt(p.xy, vec2<f32>(1.0, 0.0));
         mouth = waterAt(p.xy, vec2<f32>(0.0, 1.0));
     }
     // the sea's glint, the waves turning to the shore and breaking on it near enough
-    if still.b > 0.004 && detail > 0.0 {
+    if still.b > 0.004 {
         var shore = vec4<f32>(0.0);
         if span >= 16.0 {
             shore = shoreAt(p.xy);
         }
-        rgb = over(SeaGlint(p.xy, still.g / still.b * detail, wet, shore) * still.b, rgb);
+        rgb = over(SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward) * still.b, rgb);
     }
     if cover > 0.0 {
         rgb *= 1.0 - cloudShade(cover);
     }
-    if U.GridFrom > 0.0 && span >= U.GridFrom {
+    if U.GridFrom > 0.0 && span >= U.GridFrom && inside {
         rgb *= 1.0 - outlineDark * edge(p.xy, moveX, moveY);
     }
     // the water running down the ways and the cells it runs over, and where a way turns into water
@@ -78,7 +122,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = over(RunningWater(p.xy, still.r / run.b * clamp((span - 16.0) / 8.0, 0.0, 1.0), wet, vec4<f32>(v, 0.0, 0.0)) * run.b, rgb);
     }
     if mouth.g > 0.004 && detail > 0.0 {
-        rgb = over(SeaGlint(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0)) * mouth.g, rgb);
+        rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-distance(U.Eye, p) / U.Visibility));

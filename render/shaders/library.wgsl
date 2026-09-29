@@ -20,7 +20,13 @@ fn blended(weight: f32, mark: f32) -> f32 {
 // seen is how much of a pattern span world units long shows: all of it over a few pixels long,
 // none of it where it would flicker, finer than a pixel or two.
 fn seen(span: f32) -> f32 {
-    return smoothstep(finest, 2.0 * finest, span / max(U.Pixel, 1e-3));
+    return seenAt(span, U.Pixel);
+}
+
+// seenAt is seen where a pixel spans pixel world units: for what knows it pixel by pixel, as a
+// perspective draws the far off in larger ones.
+fn seenAt(span: f32, pixel: f32) -> f32 {
+    return smoothstep(finest, 2.0 * finest, span / max(pixel, 1e-3));
 }
 
 // outlineDark is how much an outline darkens what it is drawn on.

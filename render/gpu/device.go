@@ -201,8 +201,11 @@ func (d *device) trySubmit() error {
 	}
 	d.endPass()
 	up, st, err := d.upload()
-	if err != nil {
-		return err
+	if err != nil { // no staging buffer to be had: written the slow way, the GPU waited for
+		st, up = nil, nil
+		if err := d.writeGathered(); err != nil {
+			return err
+		}
 	}
 	enc := d.enc
 	d.enc = nil
