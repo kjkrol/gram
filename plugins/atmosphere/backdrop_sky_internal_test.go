@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -45,48 +44,29 @@ var _ camera.Rayer = raying{}
 var _ camera.Rays = raying{}
 var _ camera.Eyed = raying{}
 
-// Through a camera that says which way each screen point looks the sky is a mesh from the horizon
-// up, deeper overhead, and under a cloud layer the clouds are drawn on the pieces looking up at
-// it; from above the layer, none.
+// Through a camera that says which way each screen point looks the sky runs from the horizon's
+// colour up to a deeper one overhead, along the camera's lines of sight, and under a cloud layer
+// the clouds are drawn on it; from above the layer, none.
 func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	weather := air.Weather{}
 	b := NewBackdrop(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
-	compose := func(cam camera.Camera) (quads, clouds int, top, bottom ebiten.Vertex) {
-		var f render.Frame
-		f.Reset(cam)
-		b.Compose(&f, cam)
-		f.Each(func(tier render.Tier, _ float32, verts []ebiten.Vertex) {
-			if tier != render.Backdrop || len(verts) != 4 {
-				return
-			}
-			if verts[0].ColorA > 1.5 {
-				clouds++
-				return
-			}
-			quads++
-			if verts[0].DstX == 0 && verts[0].DstY == 0 {
-				top = verts[0]
-			}
-			if verts[2].DstX == 0 && verts[2].DstY == 100 {
-				bottom = verts[2]
-			}
-		})
-		return
+	p := b.plan(raying{height: 30})
+	if p.None || p.Flat || p.Clouds {
+		t.Fatalf("under a clear sky through a perspective: %+v, want the sky along the lines of sight and no clouds", p)
 	}
-	quads, clouds, top, bottom := compose(raying{height: 30})
-	if quads != 4 || clouds != 0 {
-		t.Fatalf("under a clear sky: %d quads and %d cloud pieces, want the mesh's 4 and none", quads, clouds)
+	if o, h := p.Overhead, p.Horizon; !(o[0] < h[0] && o[1] < h[1]) || o[2] < h[2]-0.1 {
+		t.Errorf("overhead %v, at the horizon %v: want the sky deeper overhead", o, h)
 	}
-	if !(top.ColorR < bottom.ColorR && top.ColorG < bottom.ColorG) || top.ColorB < bottom.ColorB-0.1 {
-		t.Errorf("the top of the screen is %v %v %v and the bottom %v %v %v, want the sky deeper overhead than at the horizon", top.ColorR, top.ColorG, top.ColorB, bottom.ColorR, bottom.ColorG, bottom.ColorB)
+	if f, _ := (raying{height: 30}).Rays(); p.Field != f || p.Eye != [3]float32{50, 150, 30} || p.View != [2]float32{100, 100} {
+		t.Errorf("the sky looks along %+v from %v over %v, want the camera's lines of sight from its eye over its viewport", p.Field, p.Eye, p.View)
 	}
 	weather = air.Weather{Clouds: 1}
-	if quads, clouds, _, _ := compose(raying{height: 30}); quads != 4 || clouds < 2 || clouds > 4 {
-		t.Errorf("under full cloud from 30 up: %d quads and %d cloud pieces, want 4 and the pieces with a corner looking up at the layer, 2 to 4", quads, clouds)
+	if p := b.plan(raying{height: 30}); !p.Clouds || p.CloudHeight != air.Base(world.Scale{}) {
+		t.Errorf("under full cloud from 30 up: clouds %v %v up, want them on the layer %v up", p.Clouds, p.CloudHeight, air.Base(world.Scale{}))
 	}
-	if quads, clouds, _, _ := compose(raying{height: air.Base(world.Scale{}) + 1}); quads != 4 || clouds != 0 {
-		t.Errorf("from above the cloud layer: %d quads and %d cloud pieces, want 4 and none", quads, clouds)
+	if p := b.plan(raying{height: air.Base(world.Scale{}) + 1}); p.Clouds {
+		t.Error("from above the cloud layer the clouds are drawn on the sky")
 	}
 }

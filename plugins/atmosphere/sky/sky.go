@@ -3,7 +3,6 @@ package sky
 import (
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -122,8 +121,8 @@ func (s *Sky) Queues() []control.CommandQueue {
 func (s *Sky) DefaultBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyP}, "Freeze the light of the day", func(control.Context) (Freeze, bool) { return Freeze{}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyBracketRight, Mods: shift}, "Frozen light half an hour later", func(control.Context) (Later, bool) { return Later{}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyBracketLeft, Mods: shift}, "Frozen light half an hour earlier", func(control.Context) (Earlier, bool) { return Earlier{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyP}, "Freeze the light of the day", func(control.Context) (Freeze, bool) { return Freeze{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyBracketRight, Mods: shift}, "Frozen light half an hour later", func(control.Context) (Later, bool) { return Later{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyBracketLeft, Mods: shift}, "Frozen light half an hour earlier", func(control.Context) (Earlier, bool) { return Earlier{}, true }),
 	}
 }

@@ -1,7 +1,6 @@
 package players
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -41,17 +40,17 @@ func CameraBindings(scrollSpeed ...int32) []control.Binding {
 		return func(control.Context) (Pan, bool) { return Pan{Dx: dx * speed, Dy: dy * speed}, true }
 	}
 	return []control.Binding{
-		control.Command(control.KeyHeld{Key: ebiten.KeyW}, "Scroll up", scroll(0, -1)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyS}, "Scroll down", scroll(0, 1)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyA}, "Scroll left", scroll(-1, 0)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyD}, "Scroll right", scroll(1, 0)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyW}, "Scroll up", scroll(0, -1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyS}, "Scroll down", scroll(0, 1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyA}, "Scroll left", scroll(-1, 0)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyD}, "Scroll right", scroll(1, 0)).In(camera.Free),
 		control.Command(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
 				return Zoom{Factor: ZoomStep, At: c.World(c.Cursor)}, true
 			}
 			return Zoom{Factor: 1 / ZoomStep, At: c.World(c.Cursor)}, true
 		}),
-		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
+		control.Command(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
 			return Pan{Dx: float32(-c.Delta.X), Dy: float32(-c.Delta.Y)}, true
 		}).In(camera.Free),
 		control.Command(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {

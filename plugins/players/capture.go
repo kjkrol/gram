@@ -1,8 +1,8 @@
 package players
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 )
 
 // capture catches the window's cursor while a local player's camera rides in an entity
@@ -19,17 +19,8 @@ func (p *Plugin) capture() bool {
 	p.captured = riding
 	set := p.setCapture
 	if set == nil {
-		set = captureCursor
+		set = control.CaptureCursor
 	}
 	set(riding)
 	return false
-}
-
-// captureCursor catches the window's cursor, or shows it again.
-func captureCursor(on bool) {
-	if on {
-		ebiten.SetCursorMode(ebiten.CursorModeCaptured)
-		return
-	}
-	ebiten.SetCursorMode(ebiten.CursorModeVisible)
 }

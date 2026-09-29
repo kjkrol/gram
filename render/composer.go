@@ -2,13 +2,12 @@ package render
 
 import (
 	"fmt"
-	"image/color"
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 // Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
@@ -21,16 +20,18 @@ type Composer struct {
 	frame   Frame
 	white   whiteSheet
 
-	verts   []ebiten.Vertex
+	verts   []Vertex
 	indices []uint16
-	opts    *ebiten.DrawTrianglesShaderOptions
 	// the shader's uniforms, kept and written over so a frame allocates none: the composer's own —
 	// the way towards the eye, the clock, the world units a pixel spans — and every one a source
-	// set (Frame.Uniform), zeroed in a frame that did not
+	// set (Frame.Uniform), zeroed in a frame that did not; boxed, by name, for a Direct source
 	uniforms map[string][]float32
+	boxed    map[string]any
+	packed   []byte // the uniforms laid out for this frame's draws
+	depth    *Depth // the frame's meshes', handed to the Direct sources
 	start    time.Time
 	// draw issues one call; tests count them instead.
-	draw func(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image)
+	draw func(screen *Image, verts []Vertex, indices []uint16, sheet *Image)
 }
 
 var _ WorldRenderer = (*Composer)(nil)
@@ -38,8 +39,7 @@ var _ WorldRenderer = (*Composer)(nil)
 // NewComposer takes the layers to compose, which must all be Sources; a nil layer — a plugin with
 // no renderer — is left out.
 func NewComposer(layers ...Layer) *Composer {
-	c := &Composer{opts: &ebiten.DrawTrianglesShaderOptions{}, start: time.Now(), uniforms: map[string][]float32{}}
-	c.opts.Uniforms = map[string]any{}
+	c := &Composer{start: time.Now(), uniforms: map[string][]float32{}, boxed: map[string]any{}, depth: NewDepth()}
 	c.uniform("Toward", 3)
 	c.uniform("Clock", 1)
 	c.uniform("Pixel", 1)
@@ -69,7 +69,7 @@ func (c *Composer) Init(si *goke.SysInit) {
 
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes and settles
 // the shader's uniforms (Uniforms), for a test.
-func (c *Composer) DrawWorld(screen *ebiten.Image, cam camera.Camera) {
+func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {
 	c.compose(cam)
 	if screen == nil {
 		c.setUniforms()
@@ -150,7 +150,7 @@ func (c *Composer) uniform(name string, n int) []float32 {
 	if !ok || len(u) != n {
 		u = make([]float32, n)
 		c.uniforms[name] = u
-		c.opts.Uniforms[name] = u
+		c.boxed[name] = u
 	}
 	return u
 }
@@ -178,17 +178,22 @@ func (c *Composer) setUniforms() {
 // render draws the ordered items, one call per run sharing a sheet; a plain colour joins the run
 // it falls in and samples that sheet's white texel. A Direct source draws before the first item
 // of its tier or over, after all before it.
-func (c *Composer) render(screen *ebiten.Image) {
+func (c *Composer) render(screen *Image) {
 	f := &c.frame
 	c.setUniforms()
+	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
+	if screen != nil {
+		screen.ClearDepth(c.depth)
+	}
+	target := Target{Screen: screen, Depth: c.depth}
 	direct := 0
 	for _, i := range f.order {
 		it := &f.items[i]
 		for direct < len(c.directs) && c.directs[direct].Tier() <= it.tier {
 			c.flush(screen, sheet)
-			c.directs[direct].Draw(screen, f.cam, Uniforms{c.opts.Uniforms})
+			c.directs[direct].Draw(target, f.cam, Uniforms{c.boxed})
 			direct++
 		}
 		switch {
@@ -225,12 +230,12 @@ func (c *Composer) render(screen *ebiten.Image) {
 	}
 	c.flush(screen, sheet)
 	for ; direct < len(c.directs); direct++ {
-		c.directs[direct].Draw(screen, f.cam, Uniforms{c.opts.Uniforms})
+		c.directs[direct].Draw(target, f.cam, Uniforms{c.boxed})
 	}
 }
 
 // fan adds a fan item, whole, to the call being gathered.
-func (c *Composer) fan(screen *ebiten.Image, sheet AtlasSource, it *item) {
+func (c *Composer) fan(screen *Image, sheet AtlasSource, it *item) {
 	if len(c.verts)+int(it.count) > chunkVertices {
 		c.flush(screen, sheet)
 	}
@@ -242,7 +247,7 @@ func (c *Composer) fan(screen *ebiten.Image, sheet AtlasSource, it *item) {
 }
 
 // append copies verts into the call being gathered; a plain colour samples sheet's white texel.
-func (c *Composer) append(verts []ebiten.Vertex, plain bool, sheet AtlasSource) {
+func (c *Composer) append(verts []Vertex, plain bool, sheet AtlasSource) {
 	c.verts = append(c.verts, verts...)
 	if !plain {
 		return
@@ -253,31 +258,34 @@ func (c *Composer) append(verts []ebiten.Vertex, plain bool, sheet AtlasSource) 
 	}
 }
 
-func (c *Composer) flush(screen *ebiten.Image, sheet AtlasSource) {
+func (c *Composer) flush(screen *Image, sheet AtlasSource) {
 	if len(c.verts) > 0 && sheet != nil {
 		c.draw(screen, c.verts, c.indices, sheet.Atlas())
 	}
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
 }
 
-func (c *Composer) drawTriangles(screen *ebiten.Image, verts []ebiten.Vertex, indices []uint16, sheet *ebiten.Image) {
-	c.opts.Images[0] = sheet
-	screen.DrawTrianglesShader(verts, indices, shader(), c.opts)
+func (c *Composer) drawTriangles(screen *Image, verts []Vertex, indices []uint16, sheet *Image) {
+	gpu.Triangles(&gpu.Draw{Target: screen.gpu(), Program: composer.program(), Images: [4]gpu.Image{sheet.gpu()}, Uniforms: c.packed, Blend: gpu.SourceOver}, verts, indices)
 }
 
 // chunkVertices is how many vertices one call may index: a multiple of four under 65536.
 const chunkVertices = 65532
 
 // whiteSheet is a sheet of nothing but white, for colours drawn before any sprite.
-type whiteSheet struct{ img *ebiten.Image }
+type whiteSheet struct{ img *Image }
 
-func (w *whiteSheet) Atlas() *ebiten.Image {
+func (w *whiteSheet) Atlas() *Image {
 	if w.img == nil {
-		w.img = ebiten.NewImage(3, 3)
-		w.img.Fill(color.White)
+		w.img = NewImage(3, 3)
+		w.img.WritePixels(white9)
 	}
 	return w.img
 }
+
+// white9 is nine white pixels.
+var white9 = []byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
+
 func (w *whiteSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (w *whiteSheet) White() (u, v float32)                    { return 1.5, 1.5 }
 

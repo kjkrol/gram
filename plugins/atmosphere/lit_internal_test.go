@@ -3,7 +3,6 @@ package atmosphere
 import (
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -15,7 +14,7 @@ import (
 // litSheet is an AtlasSource of one sprite with no image behind it.
 type litSheet struct{}
 
-func (litSheet) Atlas() *ebiten.Image                            { return nil }
+func (litSheet) Atlas() *render.Image                            { return nil }
 func (litSheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (litSheet) White() (u, v float32)                           { return 9, 9 }
 
@@ -33,20 +32,20 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	b.WithRenderer(litSheet{})
 	b.Res.Render.ShowGridLines = false
 	cam := w.Camera()
-	tile := func() ebiten.Vertex {
+	tile := func() render.Vertex {
 		var f render.Frame
 		f.Reset(cam)
 		b.Renderer().(render.Source).Compose(&f, cam)
-		var v ebiten.Vertex
-		f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) { v = verts[0] })
+		var v render.Vertex
+		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
 		return v
 	}
-	sprite := func() ebiten.Vertex {
+	sprite := func() render.Vertex {
 		var f render.Frame
 		f.Reset(cam)
 		w.Look().Sprite(&f, cam, plane.NewAABB(geom.NewVec(40, 40), 10, 10), world.Z{}, litSheet{}, 0, render.Light{1, 1, 1}, 0)
-		var v ebiten.Vertex
-		f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) { v = verts[0] })
+		var v render.Vertex
+		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
 		return v
 	}
 	if v := tile(); v.ColorR != 1 || v.ColorB != 1 {

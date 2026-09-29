@@ -3,14 +3,18 @@ package vision
 import (
 	"image/color"
 	"math"
+	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // ConePoint is a point of a view's outline on screen, with the depth of the world point under it
@@ -56,10 +60,14 @@ type Shadow struct {
 // DefaultShadow is a dark veil fading in over a few units.
 var DefaultShadow = Shadow{Color: color.RGBA{R: 10, G: 10, B: 20, A: 110}, Fade: 6}
 
-var _ render.Source = (*Renderer)(nil)
+var _ render.Direct = (*Renderer)(nil)
 
-// Renderer is the render.Source of the view of every entity carrying SightOutline, on the Overlays
-// tier: its outline in a ConeStyle and, in a world with heights, the ground out of sight in a Shadow.
+// Renderer draws the views. In a world with heights, through a camera with Rays and in the default
+// style, it is a render.Direct drawing on the GPU, on ViewTier, the view of every observer — Sight
+// and world.Eye — over the ground: its sight baked each frame over the ground and its cover, the
+// ground out of sight veiled in a Shadow, the cone stroked; SightOutline is not needed. Otherwise
+// it is the render.Source, on the Overlays tier, of the view of every entity carrying SightOutline:
+// its outline in a ConeStyle and, in a world with heights, the ground out of sight in a Shadow.
 type Renderer struct {
 	camera camera.Camera // the one of the frame being composed
 	frame  *render.Frame
@@ -78,17 +86,31 @@ type Renderer struct {
 	step     float32
 	grounded bool
 
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	sight goke.Comp[Sight]
-	eye   goke.Comp[world.Eye]
-	out   goke.Comp[SightOutline]
-	z     goke.OptComp[world.Z]
+	// the observers, their outlines where they carry one, and which views are drawn
+	query   *goke.Query
+	base    goke.Comp[world.Base]
+	sight   goke.Comp[Sight]
+	eye     goke.Comp[world.Eye]
+	out     goke.OptComp[SightOutline]
+	z       goke.OptComp[world.Z]
+	viewing *host.EachHost[Viewing] // nil: every view drawn
+	shown   []bool                  // the chunk's, as its Viewing behaviors say
+	ids     []uid.UID64
+	bases   []world.Base
 	// groundStep is how far apart the views are draped over the ground, world units; 0, the
 	// ground's own step
 	groundStep float32
 
 	pts []ConePoint // rebuilt per entity, kept to stay off the heap
+
+	// the views drawn on the GPU (views) and what they read: the cover, how far the ground sinks
+	// per d², whether a ConeStyle of one's own asks for the views composed instead
+	gpu     *views
+	onGPU   bool // this frame's
+	coverOf func() board.Cover
+	cover   board.Cover
+	bend    float64
+	custom  bool
 }
 
 // NewRenderer builds a Renderer with DefaultConeStyle and DefaultShadow, wrapping cones at the
@@ -97,8 +119,20 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
 		space: space, style: DefaultConeStyle(), shadow: DefaultShadow,
-		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0,
+		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, gpu: newViews(),
 	}
+}
+
+// WithCover has the views drawn on the GPU dimmed by the cover coverOf gives when composing starts.
+func (r *Renderer) WithCover(coverOf func() board.Cover) *Renderer {
+	r.coverOf = coverOf
+	return r
+}
+
+// WithScale sinks the ground under an eye's level as far off as it lies, as scale's sight does.
+func (r *Renderer) WithScale(scale world.Scale) *Renderer {
+	r.bend = scale.Bend()
+	return r
 }
 
 // WithGround has the views follow the ground heights groundOf gives when composing starts.
@@ -116,9 +150,10 @@ func (r *Renderer) Hide(hidden bool) { r.hidden = hidden }
 // Hidden reports whether the views are hidden.
 func (r *Renderer) Hidden() bool { return r.hidden }
 
-// WithStyle replaces how each cone is drawn.
+// WithStyle replaces how each cone is drawn: composed, from the SightOutline of each entity, in
+// every world.
 func (r *Renderer) WithStyle(style ConeStyle) *Renderer {
-	r.style = style
+	r.style, r.custom = style, true
 	return r
 }
 
@@ -135,12 +170,59 @@ func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	return r
 }
 
-func (r *Renderer) Init(si *goke.SysInit) {
-	r.query = si.NewQueryBuilder(&r.base, &r.sight, &r.eye, &r.out).Optional(&r.z).Build()
+// WithViewing has only the views the Viewing behaviors of h show drawn, where it holds any.
+func (r *Renderer) WithViewing(h *host.EachHost[Viewing]) *Renderer {
+	r.viewing = h
+	return r
 }
 
-// Compose hands f every view in sight of cam; nothing while hidden.
+func (r *Renderer) Init(si *goke.SysInit) {
+	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).Optional(&r.out).Optional(&r.z)
+	if r.viewing != nil {
+		r.viewing.Bind(qb)
+	}
+	r.query = qb.Build()
+}
+
+// Tier is where the views drawn on the GPU come: ViewTier.
+func (r *Renderer) Tier() render.Tier { return ViewTier }
+
+// ViewTier puts the views drawn on the GPU over the ground and under what stands on it, read from
+// the depth the ground alone left.
+const ViewTier = render.Ground + 50
+
+// Draw draws the views the frame's Compose noted on the GPU; nothing where it composed them.
+func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
+	if r.hidden || !r.onGPU {
+		return
+	}
+	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.bend, r.shadow)
+}
+
+// settle has the Viewing behaviors say which views of the chunk under cursor are drawn: every one
+// without any behavior.
+func (r *Renderer) settle(cursor *goke.Cursor, bases []world.Base) {
+	n := len(cursor.IDs)
+	r.shown = r.shown[:0]
+	for range n {
+		r.shown = append(r.shown, r.viewing == nil || r.viewing.Empty())
+	}
+	if r.viewing == nil || r.viewing.Empty() {
+		return
+	}
+	r.ids, r.bases = cursor.IDs, bases
+	r.viewing.Run(plugin.Tick{Now: time.Now()}, cursor, r.viewingAt)
+}
+
+// viewingAt describes the i-th observer of the chunk being settled.
+func (r *Renderer) viewingAt(i int) Viewing {
+	return Viewing{ID: r.ids[i], Base: &r.bases[i], shown: &r.shown[i]}
+}
+
+// Compose hands f every view in sight of cam — or notes them for Draw to draw on the GPU; nothing
+// while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
+	r.onGPU = false
 	if r.hidden {
 		return
 	}
@@ -150,6 +232,9 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if r.groundOf != nil {
 			r.ground = r.groundOf()
 		}
+		if r.coverOf != nil {
+			r.cover = r.coverOf()
+		}
 		if r.ground != nil {
 			r.step = float32(r.ground.Step())
 			if r.groundStep > 0 {
@@ -157,6 +242,8 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 	}
+	_, rays := cam.(camera.Rays)
+	r.onGPU = rays && r.ground != nil && !r.wraps && !r.custom
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
@@ -165,16 +252,26 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		eyes := r.eye.Slice(cursor)
 		outlines := r.out.Slice(cursor)
 		zs := r.z.Slice(cursor)
-
+		r.settle(cursor, bases)
 		for i := range cursor.IDs {
-			if outlines[i].Count < 2 || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
+			if !r.shown[i] {
 				continue
 			}
-			alt := float32(0)
+			var z world.Z
 			if zs != nil {
-				alt = float32(zs[i].Altitude)
+				z = zs[i]
 			}
-			r.cone(&bases[i].Pos, alt, eyes[i].Angle/2, &sights[i], &outlines[i])
+			if r.onGPU {
+				ox, oy := centreOf(&bases[i].Pos)
+				f := sights[i].Facing
+				r.gpu.look(cam, observer{X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)), Reach: float32(sights[i].Radius),
+					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2)})
+				continue
+			}
+			if outlines == nil || outlines[i].Count < 2 || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
+				continue
+			}
+			r.cone(&bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &sights[i], &outlines[i])
 		}
 	}
 }

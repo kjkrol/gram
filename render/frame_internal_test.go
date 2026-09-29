@@ -4,14 +4,13 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	icamera "github.com/kjkrol/gram/internal/camera"
 )
 
 // pieces is every piece of f in order: its tier, depth and first vertex's place.
 func pieces(f *Frame) [][3]float32 {
 	var out [][3]float32
-	f.Each(func(tier Tier, depth float32, v []ebiten.Vertex) {
+	f.Each(func(tier Tier, depth float32, v []Vertex) {
 		out = append(out, [3]float32{float32(tier), depth, v[0].DstX})
 	})
 	return out

@@ -8,7 +8,6 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -147,7 +146,7 @@ func (v *view) Viewports(screen geom.AABB) []render.Viewport {
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyEscape {
+		if k.Action == control.ActionPress && k.Key == control.KeyEscape {
 			runtime.Quit()
 		}
 	}

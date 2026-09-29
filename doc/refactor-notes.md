@@ -279,6 +279,28 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Twenty-eighth round: the WebGPU try (step 0 of the backend plan).** The user asked for
+  WebGPU beside Ebitengine, the abstraction in gram, gogpu first, with a gate after a try on the
+  UHD 620. `examples/webgpu-island` draws the island as a mesh raised in the vertex shader from
+  an R32F texture of the lattice, a Depth32 buffer with the depth reversed and no far plane, a
+  2048 shadow map with nine-tap PCF, a sea plane, 400 instanced boxes. Measured (1024x768,
+  Vulkan, Mesa): the CPU 0.22 ms a frame; ~95 FPS, which is the external monitor's 100 Hz — the
+  compositor paces presentation even with VSync off (an empty frame gave 97); drawing the scene
+  4, 8, 16 times a frame puts it at ~3 ms of the GPU. Findings: (1) **Linking.** goffi's
+  dynamic-import trampolines do not survive external linking, which any cgo package forces, and
+  Ebitengine on Linux pulls `purego/internal/cgo`; a binary holding both builds only with
+  `CGO_ENABLED=0 -tags nofakecgo` (goffi then uses purego's fakecgo). Ebitengine runs so —
+  `TestShots` passed without cgo, 11 shots — but such a binary has no race detector. The try is
+  behind the `webgpu` tag so the default build is untouched. (2) **gogpu bugs worked round.**
+  wgpu v0.34.2's Vulkan faulted ending a depth-only pass (fixed in v0.34.5, taken); its Vulkan
+  binds a group through the current pipeline's layout, so `SetBindGroup` before `SetPipeline`
+  dereferences nil (the pipeline goes first); v0.34.5 refuses a bind group holding a 32-bit
+  float texture beside any filtering sampler, even an unrelated one (the heights have a group of
+  their own). (3) **The Rust backend** (`-tags rust`, wgpu-native v29.0.0.0 and v29.0.1.1)
+  aborts at start inside wgpu-native ("invalid callback"); only the pure Go backend works today.
+  (4) gogpu renders on demand unless `WithContinuousRender(true)`; its render thread re-panics
+  without the stack, so the try prints it. Not compared like for like with Ebitengine: the
+  demo's traced ground draws far more (dressing, clouds, HUD) at 47–61 FPS.
 - **Twenty-seventh round: the hawk flown holds its height over the sea.** The user: the hawk's
   height hangs on the ground under it, so in first person it jumps up over a rising range and
   drops where the ground falls, though the rider neither climbed nor dived; ridden, the two should
@@ -819,11 +841,12 @@ below says what was decided and why, or what needs an answer. Take them out as t
 - **Should heights on a hex board stay per cell (level cells)?** They do, as before; the lattice is
   the square grid's. A hex board's blocks in the isometric view are drawn as square tops, as they
   always were.
-- **The topography's `Heights` entity writes every tick** (a slice header, no copy) like the
-  clock's State. If saves turn out to need the component only at save time, a `Persisted` hook
-  would do instead. goke logs once at start that the component "requires a dereference outside
-  the archetype's chunk memory" — true, and harmless for one entity read once a tick; a
-  fixed-size component would need one per cell instead.
+- **The topography's `Heights`** (settled, round twenty-nine): the one entity's `[]float32` made
+  goke log at start that it "requires a dereference outside the archetype's chunk memory". The
+  heights are runs of a fixed size now (`Heights{First, Count, Values [1024]float32}`), as many
+  entities as the relief takes — the island's 97×65 corners on seven — which goke keeps in its
+  chunks and gob saves without a codec; `heightsSystem` writes them when `Relief.Version` moves,
+  no longer every tick, and a loaded game's are taken back only when they cover the relief.
 - **Big groups arriving still strike each other**, now mostly two on the move where the column
   fans out to its spots (see the twelfth round). Lanes halved that for small units; they were
   dropped at the user's word.

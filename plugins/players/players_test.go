@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -104,12 +103,12 @@ func orderOf(n int) func(control.Context) (order, bool) {
 
 func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: ebiten.KeyA}, "one", orderOf(1)))
-	err := r.local.Bind(control.Command(control.KeyPress{Key: ebiten.KeyA}, "two", orderOf(2)))
+	r.bind(control.Command(control.KeyPress{Key: control.KeyA}, "one", orderOf(1)))
+	err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "two", orderOf(2)))
 	if err == nil {
 		t.Fatal("two bindings on KeyPress A were accepted")
 	}
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: ebiten.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
+	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
 		t.Errorf("Shift+A beside A: %v, want accepted as a different trigger", err)
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
@@ -175,7 +174,7 @@ func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 
 func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: ebiten.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
+	r.bind(control.Command(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
 	ctx := &installCtx{ecs: goke.New()}
 	if err := r.p.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -195,16 +194,16 @@ func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	r := newRig(t)
 	r.bind(
-		control.Command(control.KeyPress{Key: ebiten.KeyA}, "a", orderOf(1)),
-		control.Command(control.KeyPress{Key: ebiten.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
-		control.Command(control.ButtonPress{Button: ebiten.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
+		control.Command(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
+		control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
+		control.Command(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
 			return order{int(c.Cursor.X)}, true
 		}),
 	)
 	ev := &control.InputEvents{}
-	ev.AddKeyEvent(ebiten.KeyA, control.ActionPress)
-	ev.AddKeyEvent(ebiten.KeyA, control.ActionRelease)
-	ev.AddClickEvent(40, 5, ebiten.MouseButtonRight, control.ActionPress)
+	ev.AddKeyEvent(control.KeyA, control.ActionPress)
+	ev.AddKeyEvent(control.KeyA, control.ActionRelease)
+	ev.AddClickEvent(40, 5, control.MouseButtonRight, control.ActionPress)
 	r.handle(ev)
 	got := r.drained()
 	if len(got) != 2 || got[0].Command.Cell != 1 || got[1].Command.Cell != 40 || got[0].Player != r.local.ID {
@@ -213,7 +212,7 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 
 	ev = &control.InputEvents{}
 	ev.Modifiers.Shift = true
-	ev.AddKeyEvent(ebiten.KeyA, control.ActionPress)
+	ev.AddKeyEvent(control.KeyA, control.ActionPress)
 	r.handle(ev)
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 2 {
 		t.Errorf("Shift+A issued %v, want order 2 alone", got)
@@ -222,14 +221,14 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.Drag{Button: ebiten.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
+	r.bind(control.Command(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
 		return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
-	}), control.Command(control.ButtonHeld{Button: ebiten.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
+	}), control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
 		return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
 	}))
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
-	press.AddClickEvent(10, 10, ebiten.MouseButtonLeft, control.ActionPress)
+	press.AddClickEvent(10, 10, control.MouseButtonLeft, control.ActionPress)
 	r.handle(press)
 	if got := r.drained(); len(got) != 0 {
 		t.Fatalf("a press alone issued %v", got)
@@ -241,7 +240,7 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	}
 
 	release := &control.InputEvents{MousePos: geom.NewVec(60, 60)}
-	release.AddClickEvent(60, 60, ebiten.MouseButtonLeft, control.ActionRelease)
+	release.AddClickEvent(60, 60, control.MouseButtonLeft, control.ActionRelease)
 	r.handle(release)
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 10*1000+60 {
 		t.Errorf("the release issued %v, want one order from 10 to 60", got)
@@ -382,16 +381,16 @@ func TestBind_OneKeyDoesWhatTheCamerasModeSays(t *testing.T) {
 	cam := &riding{Camera: r.local.Camera}
 	r.local.Camera = cam
 	r.bind(
-		control.Command(control.KeyPress{Key: ebiten.KeyA}, "scroll", orderOf(1)).In(camera.Free),
-		control.Command(control.KeyPress{Key: ebiten.KeyA}, "turn", orderOf(2)).In(camera.FirstPerson),
+		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Free),
+		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.FirstPerson),
 	)
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: ebiten.KeyA}, "both", orderOf(3))); err == nil {
+	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
 		t.Error("a binding on A in every mode beside ones in each was accepted")
 	}
 	press := func() []control.Issued[order] {
 		ev := &control.InputEvents{}
-		ev.AddKeyEvent(ebiten.KeyA, control.ActionPress)
-		ev.AddKeyEvent(ebiten.KeyA, control.ActionRelease)
+		ev.AddKeyEvent(control.KeyA, control.ActionPress)
+		ev.AddKeyEvent(control.KeyA, control.ActionRelease)
 		r.handle(ev)
 		return r.drained()
 	}

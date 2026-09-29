@@ -1,7 +1,6 @@
 package vision
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -15,6 +14,6 @@ func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue
 // DefaultBindings show and hide the cones of sight on Shift+C.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyC, Mods: control.Mods{Shift: true}}, "Show or hide the cones of sight", func(control.Context) (Cones, bool) { return Cones{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyC, Mods: control.Mods{Shift: true}}, "Show or hide the cones of sight", func(control.Context) (Cones, bool) { return Cones{}, true }),
 	}
 }

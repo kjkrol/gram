@@ -5,7 +5,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 )
 
@@ -65,7 +64,7 @@ type item struct {
 type Frame struct {
 	cam   camera.Camera
 	items []item
-	verts []ebiten.Vertex
+	verts []Vertex
 	order []int32
 	quads []camera.Quad
 	count int // pieces: quads and fans
@@ -126,7 +125,7 @@ func (f *Frame) Time() float32 { return f.time }
 
 // Each calls fn with every piece in the order it came, its tier, depth and vertices — for tests
 // and tools; the vertices are the frame's own.
-func (f *Frame) Each(fn func(tier Tier, depth float32, verts []ebiten.Vertex)) {
+func (f *Frame) Each(fn func(tier Tier, depth float32, verts []Vertex)) {
 	for _, it := range f.items {
 		if it.shape == fan {
 			fn(it.tier, it.depth, f.verts[it.first:it.first+it.count])
@@ -153,8 +152,8 @@ func (f *Frame) add(tier Tier, depth float32, atlas AtlasSource, s shape, count 
 }
 
 // vertex is a point of an item with no fade, coloured c (premultiplied).
-func vertex(x, y, sx, sy float32, c [4]float32) ebiten.Vertex {
-	return ebiten.Vertex{DstX: x, DstY: y, SrcX: sx, SrcY: sy, ColorR: c[0], ColorG: c[1], ColorB: c[2], ColorA: c[3]}
+func vertex(x, y, sx, sy float32, c [4]float32) Vertex {
+	return Vertex{DstX: x, DstY: y, SrcX: sx, SrcY: sy, ColorR: c[0], ColorG: c[1], ColorB: c[2], ColorA: c[3]}
 }
 
 // premultiplied is c as a vertex takes it; color.RGBA is premultiplied already.
@@ -403,7 +402,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 	piece := func(first int, u0, v0, u1, v1 float32) {
 		for k, uv := range [4][2]float32{{u0, v0}, {u1, v0}, {u0, v1}, {u1, v1}} {
 			u, v := uv[0], uv[1]
-			vx := ebiten.Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
+			vx := Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
 				ColorR: blend(o.Red, u, v), ColorG: blend(xs, u, v), ColorB: blend(ys, u, v), ColorA: blend(mark, u, v),
 				Custom0: custom(0, u, v), Custom1: custom(1, u, v), Custom2: custom(2, u, v), Custom3: custom(3, u, v)}
 			s := f.verts[first+k]
@@ -422,7 +421,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 		for k := range 4 {
 			s := f.verts[m.first+k]
 			c := o.Custom[k]
-			vx := ebiten.Vertex{DstX: s.DstX, DstY: s.DstY, SrcX: wu, SrcY: wv, ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
+			vx := Vertex{DstX: s.DstX, DstY: s.DstY, SrcX: wu, SrcY: wv, ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
 				ColorA: mark[k], Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]}
 			if o.Under {
 				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
@@ -534,7 +533,7 @@ func (f *Frame) Material(tier Tier, depth float32, dst Corners, o *Overlay) {
 	w := o.World
 	for k, p := range dst {
 		c := o.Custom[k]
-		f.verts = append(f.verts, ebiten.Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
+		f.verts = append(f.verts, Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
 			ColorA: overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1), Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]})
 	}
 	f.add(tier, depth, nil, quad, 4)

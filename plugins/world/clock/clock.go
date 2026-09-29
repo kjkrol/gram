@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -190,9 +189,9 @@ func (c *Clock) Queues() []control.CommandQueue {
 // DefaultBindings: Space pauses, ] goes faster, [ slower.
 func (c *Clock) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
+		control.Command(control.KeyPress{Key: control.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
+		control.Command(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
 	}
 }
 

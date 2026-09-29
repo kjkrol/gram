@@ -3,7 +3,7 @@ package topography
 import (
 	"math"
 
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
+	"github.com/kjkrol/gram/plugins/topography/terrain"
 )
 
 // Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
@@ -134,10 +134,10 @@ func (l *dresser) workShore(gx, gy int64, size float32) ShoreCorner {
 }
 
 // coast is the way to the shore from every corner of a square grid, row by row, for the ground
-// traced on the GPU: worked out anew only round the cells whose shine has changed.
+// drawn on the GPU: worked out anew only round the cells whose shine has changed.
 type coast struct {
 	shining []bool // by ordinal, whether the cell's own kind shines
-	shores  []heightfield.Shore
+	shores  []terrain.Shore
 	seen    uint64 // one more than the board's count of changes when last brought up to date
 	version uint64 // counts the changes to shores
 }
@@ -146,7 +146,7 @@ type coast struct {
 // shore is seen, and a count of the changes: brought up to date with the board, round the cells
 // that began or ceased to shine alone — not with the relief, which moves no shore; nil off a
 // square grid.
-func (l *dresser) Coast() ([]heightfield.Shore, float32, uint64) {
+func (l *dresser) Coast() ([]terrain.Shore, float32, uint64) {
 	if !l.square {
 		return nil, 0, 0
 	}
@@ -161,10 +161,10 @@ func (l *dresser) Coast() ([]heightfield.Shore, float32, uint64) {
 	cols, rows := int(l.sq.Cols), int(l.sq.Rows)
 	full := len(c.shining) != cols*rows || len(c.shores) != (cols+1)*(rows+1)
 	if full {
-		c.shining, c.shores = make([]bool, cols*rows), make([]heightfield.Shore, (cols+1)*(rows+1))
+		c.shining, c.shores = make([]bool, cols*rows), make([]terrain.Shore, (cols+1)*(rows+1))
 	}
 	work := func(gx, gy int) {
-		c.shores[gy*(cols+1)+gx] = heightfield.Shore(l.workShore(int64(gx), int64(gy), size))
+		c.shores[gy*(cols+1)+gx] = terrain.Shore(l.workShore(int64(gx), int64(gy), size))
 	}
 	changed := full
 	for i := range cols * rows {

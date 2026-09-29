@@ -5,20 +5,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
+	"github.com/kjkrol/gram/plugins/topography/terrain"
 	"github.com/kjkrol/gram/render"
 )
 
 type flatAtlas struct{}
 
-func (flatAtlas) Atlas() *ebiten.Image                            { return nil }
+func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
@@ -579,7 +578,7 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 		r := dressed(brd, d, look)
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 			if v[0].ColorA > 1.5 { // an overlay
 				marks[running] = v[0].ColorA
 			}
@@ -756,9 +755,9 @@ func TestTile_TheCloudsShadowLiesOnceOverATopAndTheGroundsOnIt(t *testing.T) {
 	r.Compose(&f, cam)
 
 	shadow := float32(2 + 2*air.CloudShadow())
-	var top []ebiten.Vertex
+	var top []render.Vertex
 	shadows, grounds := 0, 0
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 		switch {
 		case v[0].ColorA >= shadow && v[0].ColorA <= shadow+1:
 			shadows++
@@ -780,9 +779,9 @@ func TestTile_TheCloudsShadowLiesOnceOverATopAndTheGroundsOnIt(t *testing.T) {
 }
 
 // sheetAtlas is an atlas on a sheet of its own, 8 pixels a sprite.
-type sheetAtlas struct{ img *ebiten.Image }
+type sheetAtlas struct{ img *render.Image }
 
-func (a sheetAtlas) Atlas() *ebiten.Image { return a.img }
+func (a sheetAtlas) Atlas() *render.Image { return a.img }
 func (sheetAtlas) UV(id render.SpriteID) (sx0, sy0, sx1, sy1 float32) {
 	return float32(id) * 8, 0, float32(id)*8 + 8, 8
 }
@@ -798,7 +797,7 @@ func TestDresser_FromFarTilesAreDressedFromTheGroundSheet(t *testing.T) {
 	brd.SetAll(styled(st, board.CellKind{Name: board.Named("k42"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3}))
 	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
 	brd.Set(at(0, 0), styled(st, board.CellKind{Name: board.Named("k43"), Allows: board.Water, SpriteID: 2}, Style{Under: true}))
-	atlas := sheetAtlas{ebiten.NewImage(24, 8)}
+	atlas := sheetAtlas{render.NewImage(24, 8)}
 	sheets := map[board.CellID]render.AtlasSource{}
 	look := lookFn(func(f *render.Frame, cam camera.Camera, t *tile) {
 		sheets[t.ID] = t.Atlas
@@ -820,7 +819,7 @@ func TestDresser_FromFarTilesAreDressedFromTheGroundSheet(t *testing.T) {
 		clear(sheets)
 		r.Compose(&f, cam)
 		fromSheet, blends := 0, 0
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 			switch {
 			case v[0].Custom3 > 5.5:
 				blends++
@@ -1006,13 +1005,13 @@ func TestDresser_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 	brd.Set(at(0, 0), sea)
 	brd.SetWay(at(2, 2), board.Way{Kind: road, Width: 8, Links: board.Links(1<<0 | 1<<1)})
 	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	img, _, px, _ := d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	img, _, px, _ := d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	if img == nil || px != 16 || img.Bounds().Dx() != 64 || img.Bounds().Dy() != 64 {
 		t.Fatalf("the albedo is %v pixels a cell, want 16 on a 64 by 64 sheet", px)
 	}
 	bases, blends, ways := 0, 0, 0
 	seaUnderCoast := false
-	d.canvas.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	d.canvas.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 		switch {
 		case v[0].Custom3 > 50000:
 			blends++
@@ -1029,12 +1028,12 @@ func TestDresser_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 		t.Errorf("painted %d bases (the sea under the coast: %v), %d grounds running in and %d pieces of the way; want 16 bases, the sea under, some of each", bases, seaUnderCoast, blends, ways)
 	}
 	seen := d.albedo.seen
-	d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	if d.albedo.seen != seen {
 		t.Error("the albedo was painted again with the board as it was")
 	}
 	brd.Set(at(3, 3), sea)
-	d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	if d.albedo.seen == seen || d.canvas.Len() == 0 || d.canvas.Len() > 9*16 {
 		t.Errorf("after a cell changed the albedo painted %d pieces at version %d (was %d); want the changed cells alone, anew", d.canvas.Len(), d.albedo.seen, seen)
 	}
@@ -1057,12 +1056,12 @@ func TestDresser_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	}
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling to the south
 	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-	_, water, _, wpx := d.Surface(sheetAtlas{ebiten.NewImage(24, 8)})
+	_, water, _, wpx := d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	if water == nil || wpx != 16 || water.Bounds().Dx() != 128 || water.Bounds().Dy() != 128 {
 		t.Fatalf("the water is %v pixels a cell, want 16 in quadrants of the board's 64 by 64", wpx)
 	}
 	sea00, seaCoast, covered, riverShine := false, false, 0, 0
-	d.albedo.wcanvas[shineLayer].Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	d.albedo.wcanvas[shineLayer].Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 		switch {
 		case v[0].Custom3 > 50000 && v[0].ColorR == 0 && v[0].ColorG == 0 && v[0].ColorB == 0:
 			covered++
@@ -1075,7 +1074,7 @@ func TestDresser_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 		}
 	})
 	flows := 0
-	d.albedo.wcanvas[flowLayer].Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	d.albedo.wcanvas[flowLayer].Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 		if v[0].ColorB == 1 && v[0].ColorG > 0.5 && near(v[0].ColorR, 0.5) {
 			flows++ // running south, down the slope
 		}
@@ -1104,7 +1103,7 @@ func TestDresser_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
 		}
 		for gy := range 9 {
 			for gx := range 11 {
-				if want := heightfield.Shore(d.workShore(int64(gx), int64(gy), 32)); shores[gy*11+gx] != want {
+				if want := terrain.Shore(d.workShore(int64(gx), int64(gy), 32)); shores[gy*11+gx] != want {
 					t.Fatalf("%s: corner (%d, %d) has %+v, want %+v", when, gx, gy, shores[gy*11+gx], want)
 				}
 			}

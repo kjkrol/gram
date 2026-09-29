@@ -1,12 +1,10 @@
-package heightfield
+package terrain
 
 import (
 	"image/color"
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -48,19 +46,12 @@ func (hill) Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
 	return 17, 17, 32, heights, true
 }
 
-func (hill) At(p geom.Vec) float64 {
-	if d := math.Abs(p.X/32 - 8); d < 1 {
-		return 30 * (1 - d)
-	}
-	return 0
-}
-
 func (h hill) Version() uint64 { return h.version }
 
 // flat is a surface of 16 by 16 cells painted grey, a pixel each, with its coast; its version is
 // bumped by hand.
 type flat struct {
-	img    *ebiten.Image
+	img    *render.Image
 	shores []Shore
 	coast  uint64
 	grid   float32
@@ -68,7 +59,7 @@ type flat struct {
 
 func (f *flat) Surface() Painted {
 	if f.img == nil {
-		f.img = ebiten.NewImage(16, 16)
+		f.img = render.NewImage(16, 16)
 		f.img.Fill(color.RGBA{128, 128, 128, 255})
 	}
 	return Painted{Albedo: f.img, Px: 1, Shores: f.shores, Reach: 96, Coast: f.coast, Grid: f.grid}
@@ -79,25 +70,34 @@ type none struct{}
 
 func (none) Surface() Painted { return Painted{} }
 
-// A cell's top stands at its highest corner, never under it after encoding, and never under what
-// its corners decode to; the last row and column hold no cell.
-func TestCellTops_StandAtEachCellsHighestCorner(t *testing.T) {
-	cols, rows, _, heights, _ := hill{}.Lattice()
-	low, span, enc := encode(heights, nil)
-	buf := cellTops(cols, rows, heights, low, span, nil)
-	for y := range rows - 1 {
-		for x := range cols - 1 {
-			i := y*cols + x
-			want := max(heights[i], heights[i+1], heights[i+cols], heights[i+cols+1])
-			top := decode(buf[4*i], buf[4*i+1], low, span)
-			if top < want || top > want+span/65535 {
-				t.Fatalf("cell (%d, %d) tops out at %v, want %v rounded up", x, y, top, want)
-			}
-			for _, j := range []int{i, i + 1, i + cols, i + cols + 1} {
-				if c := decode(enc[4*j], enc[4*j+1], low, span); c > top {
-					t.Fatalf("cell (%d, %d): a corner decodes to %v, over its top %v", x, y, c, top)
-				}
-			}
+// Every cell is split in two along the diagonal whose corners stand nearer, as the shader's drawn
+// splits it, and the triangles cover the lattice's cells once each.
+func TestTriangles_SplitEachCellAlongItsNearerDiagonal(t *testing.T) {
+	// a 3 by 2 lattice: the left cell's top-left and bottom-right corners stand level, the right
+	// cell's top-right and bottom-left stand nearer than its others
+	heights := []float32{0, 0, 10, 5, 0, 20}
+	_, _, enc := encode(heights, nil)
+	got := triangles(3, 2, enc, nil)
+	if len(got) != 12 {
+		t.Fatalf("%d indices for two cells, want 12", len(got))
+	}
+	cells := [][4]uint32{{0, 1, 3, 4}, {1, 2, 4, 5}}
+	for c, k := range cells {
+		tri := got[6*c : 6*c+6]
+		h := func(i uint32) float32 { return heights[i] }
+		nearer03 := math.Abs(float64(h(k[0])-h(k[3]))) < math.Abs(float64(h(k[1])-h(k[2])))
+		shared := map[uint32]int{}
+		for _, i := range tri {
+			shared[i]++
+		}
+		if len(shared) != 4 {
+			t.Fatalf("cell %d: triangles %v do not span its four corners %v", c, tri, k)
+		}
+		if nearer03 && (shared[k[0]] != 2 || shared[k[3]] != 2) {
+			t.Errorf("cell %d: triangles %v, want them split along %d-%d", c, tri, k[0], k[3])
+		}
+		if !nearer03 && (shared[k[1]] != 2 || shared[k[2]] != 2) {
+			t.Errorf("cell %d: triangles %v, want them split along %d-%d", c, tri, k[1], k[2])
 		}
 	}
 }
@@ -148,26 +148,6 @@ func (e eye) Rays() (camera.RayField, bool) {
 func (e eye) Project(x, y, z float32) (float32, float32) {
 	dx, dy, dz := x-e.at[0], y-e.at[1], z-e.at[2]
 	return 200 + 400*dy/dx, 150 - 400*dz/dx
-}
-
-// The ground hides from an eye west of the ridge what stands low east of it, not what stands on
-// the near side nor a hawk over the ridge; nothing while the tiles are drawn.
-func TestRenderer_HidesWhatTheGroundHidesFromTheEye(t *testing.T) {
-	r := New(hill{}, &flat{}, stillSky{}, Config{})
-	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
-	if !r.Hides(cam, 400, 256, 2) {
-		t.Error("a walker 2 high beyond the ridge is not hidden")
-	}
-	if r.Hides(cam, 200, 256, 2) {
-		t.Error("a walker on the near side of the ridge is hidden")
-	}
-	if r.Hides(cam, 400, 256, 60) {
-		t.Error("a hawk 60 up beyond the ridge is hidden")
-	}
-	r.Hide(true)
-	if r.Hides(cam, 400, 256, 2) {
-		t.Error("the tiles drawn, the renderer still hides")
-	}
 }
 
 // The lattice's quadrants are written once a version of the ground, the shores once a version of
@@ -236,8 +216,11 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	if v := get("Pixel"); len(v) != 1 || v[0] != 0.5 {
 		t.Errorf("Pixel %v, want the frame's 0.5: the waves as fine as on the tiles", v)
 	}
-	if v := get("Trace"); len(v) != 1 || v[0] != 2 {
-		t.Errorf("Trace %v, want the 2 screen pixels a traced one spans", v)
+	if v := get("Eye"); len(v) != 3 || v[0] != 100 || v[2] != 4 {
+		t.Errorf("Eye %v, want the camera's (100, 256, 4)", v)
+	}
+	if v := get("ViewProj"); len(v) != 16 {
+		t.Errorf("ViewProj %v, want the camera's transform", v)
 	}
 	if v := get("Sun"); len(v) != 3 || v[2] != 3 {
 		t.Errorf("Sun %v, want the frame's", v)

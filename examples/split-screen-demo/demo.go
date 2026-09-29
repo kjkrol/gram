@@ -8,8 +8,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -134,10 +132,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.players = players.NewPlugin(s.world, s)
 	s.redPlayer = s.players.Local("red").OwnCamera()
 	s.bluePlayer = s.players.Local("blue").OwnCamera()
-	if err := s.redPlayer.Bind(driveKeys(ebiten.KeyW, ebiten.KeyS, ebiten.KeyA, ebiten.KeyD)...); err != nil {
+	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
 		return err
 	}
-	if err := s.bluePlayer.Bind(driveKeys(ebiten.KeyArrowUp, ebiten.KeyArrowDown, ebiten.KeyArrowLeft, ebiten.KeyArrowRight)...); err != nil {
+	if err := s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -162,7 +160,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 }
 
 // driveKeys binds up, down, left and right to Drive while held.
-func driveKeys(up, down, left, right ebiten.Key) []control.Binding {
+func driveKeys(up, down, left, right control.Key) []control.Binding {
 	way := func(dx, dy float64) func(control.Context) (Drive, bool) {
 		return func(control.Context) (Drive, bool) { return Drive{Dir: geom.NewVec(dx, dy)}, true }
 	}
@@ -358,9 +356,9 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
+		case control.KeySpace:
 			runtime.TogglePause()
 		}
 	}
@@ -372,9 +370,9 @@ type divider struct{ right *geom.AABB }
 
 func (divider) Init(*goke.SysInit) {}
 
-func (d divider) Draw(screen *ebiten.Image) {
+func (d divider) Draw(screen *render.Image) {
 	if x := float32(d.right.TopLeft.X); x > 0 {
-		vector.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, colorDivider, false)
+		render.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, colorDivider)
 	}
 }
 
@@ -419,8 +417,8 @@ type frame struct{ m *minimapScene }
 
 func (frame) Init(*goke.SysInit) {}
 
-func (f frame) Draw(screen *ebiten.Image) {
+func (f frame) Draw(screen *render.Image) {
 	a := f.m.area
 	size := a.BottomRight.Sub(a.TopLeft)
-	vector.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, colorDivider, false)
+	render.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, colorDivider)
 }

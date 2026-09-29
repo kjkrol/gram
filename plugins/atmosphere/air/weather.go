@@ -1,20 +1,28 @@
 package air
 
 import (
-	_ "embed"
+	"embed"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-//go:embed weather.kage
-var weatherKage []byte
+//go:embed shaders/*.wgsl
+var shaders embed.FS
 
-// The materials of weather.kage, with the air's uniforms, registered as the package is set up:
+// The air's materials (shaders/), with its uniforms, registered as the package is set up:
 // cloudShadow the clouds' shadows over the ground, cloudsOverhead the clouds on the sky; a
-// material of water calls their functions.
-var weatherMaterials = render.RegisterMaterials(weatherKage, "CloudShadow", "Clouds")
+// material of water calls their functions. Wind blows in world units a second, Drift is how far
+// it has carried the clouds, Cover how much of the sky they cover (Weather.Frame sets them); the
+// sky's lines of sight for the clouds drawn on it (Weather.CloudQuad): the eye, the way the screen
+// pixel (x, y) looks, LookDir + LookDX·x + LookDY·y; CloudHeight how high the layer lies,
+// Visibility how far one sees through the air, 0 without end.
+var weatherMaterials = render.RegisterMaterials(render.Files(shaders, "shaders/cloud_noise.wgsl", "shaders/cloud_shadow.wgsl", "shaders/clouds.wgsl"), []render.Uniform{
+	{Name: "Wind", Size: 2}, {Name: "Drift", Size: 2}, {Name: "Cover", Size: 1},
+	{Name: "EyeAt", Size: 3}, {Name: "LookDir", Size: 3}, {Name: "LookDX", Size: 3}, {Name: "LookDY", Size: 3},
+	{Name: "CloudHeight", Size: 1}, {Name: "Visibility", Size: 1},
+}, "CloudShadow", "Clouds")
 
 var cloudShadow, cloudsOverhead = weatherMaterials[0], weatherMaterials[1]
 

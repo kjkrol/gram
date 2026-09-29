@@ -37,12 +37,17 @@ make demo-effect                                                   # an ice witc
 make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
+make demo-webgpu                                                   # the WebGPU try: the island as a GPU mesh with a depth buffer and shadow map (gogpu)
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
 make bench                                                        # every benchmark once, with allocations
 make bench-save                                                   # 5 repeats into bench_results/ (ignored by git)
 ```
+
+`examples/webgpu-island` is behind the `webgpu` build tag: gogpu's FFI (goffi) does not link
+beside cgo, so a binary holding both it and Ebitengine builds with `CGO_ENABLED=0 -tags
+"webgpu nofakecgo"` (goffi then uses purego's fakecgo); the default build skips it.
 
 The `examples/*` programs are real Ebitengine GUI apps (open a window)
 — `go test` alone can't exercise them. To sanity-check one still runs after
@@ -463,8 +468,9 @@ shows how much of it is boilerplate vs. real behavior.
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
   (`topography.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
-  `topography.Heights` (a `[]float32` with `MarshalBinary`), written every tick like the clock's
-  State, seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
+  `topography.Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
+  the relief takes, so the ECS keeps them in its own memory — written when the relief's version
+  changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
   (`Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the topography's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a

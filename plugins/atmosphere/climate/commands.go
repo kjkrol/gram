@@ -1,7 +1,6 @@
 package climate
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
@@ -19,6 +18,6 @@ func (c *Climate) Queues() []control.CommandQueue { return []control.CommandQueu
 // Shift sprints.
 func (c *Climate) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyW, Mods: control.Mods{Shift: true}}, "Change the weather", func(control.Context) (Change, bool) { return Change{}, true }).In(camera.Free),
+		control.Command(control.KeyPress{Key: control.KeyW, Mods: control.Mods{Shift: true}}, "Change the weather", func(control.Context) (Change, bool) { return Change{}, true }).In(camera.Free),
 	}
 }

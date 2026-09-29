@@ -3,21 +3,7 @@ package engine
 import (
 	"testing"
 	"time"
-
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/kjkrol/gram/game"
 )
-
-func TestInit_MakesTheEnginesStepTheOnlyClock(t *testing.T) {
-	ebiten.SetTPS(60)
-	eng := newTestEngine(func(game.Initializer) error { return nil })
-	if err := eng.Init(); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if got := ebiten.TPS(); got != ebiten.SyncWithFPS {
-		t.Errorf("Ebitengine TPS = %d after Init, want SyncWithFPS: one Update per frame, the ticks paced by the engine", got)
-	}
-}
 
 func TestTracker_AFrameFarBehindRunsAtMostMaxStepsAndDropsTheRest(t *testing.T) {
 	const step = time.Second / 120

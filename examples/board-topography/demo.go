@@ -30,7 +30,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -156,7 +155,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
 	// glinting under the land's blended grounds, the running water running
-	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Heightfield: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
+	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize, HeightUnit: 1, Isometric: true, Perspective: true, Shaping: topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
@@ -180,7 +179,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
-	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel)); err != nil {
+	// the views drawn are the selected units' — the one ridden in first person among them
+	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -213,10 +213,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	main := &mainScene{stage: s, tps: ctx.TPS()}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
-		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
-		{Key: ebiten.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
 			s.state.Saves++
 			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
 				log.Printf("save: %v", err)
@@ -266,7 +266,7 @@ func (s *mainStage) defineKinds() {
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		sight, eye, comp.Const(vision.SightOutline{}),
+		sight, eye,
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
 	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
@@ -274,7 +274,7 @@ func (s *mainStage) defineKinds() {
 	// ground than its own height nor higher than 100 m under the clouds.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable),
-		sight, eye, comp.Const(vision.SightOutline{}),
+		sight, eye,
 	)
 }
 

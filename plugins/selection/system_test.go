@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -160,8 +159,8 @@ func (h *harness) start() {
 func (h *harness) click(x, y int, shift bool) {
 	events := &control.InputEvents{}
 	events.Modifiers.Shift = shift
-	events.AddClickEvent(x, y, ebiten.MouseButtonLeft, control.ActionPress)
-	events.AddClickEvent(x, y, ebiten.MouseButtonLeft, control.ActionRelease)
+	events.AddClickEvent(x, y, control.MouseButtonLeft, control.ActionPress)
+	events.AddClickEvent(x, y, control.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(events)
 	h.ecs.Tick(time.Second)
 }
@@ -169,13 +168,13 @@ func (h *harness) click(x, y int, shift bool) {
 func (h *harness) drag(x0, y0, x1, y1 int, shift bool) {
 	events := &control.InputEvents{}
 	events.Modifiers.Shift = shift
-	events.AddClickEvent(x0, y0, ebiten.MouseButtonLeft, control.ActionPress)
-	events.AddClickEvent(x1, y1, ebiten.MouseButtonLeft, control.ActionRelease)
+	events.AddClickEvent(x0, y0, control.MouseButtonLeft, control.ActionPress)
+	events.AddClickEvent(x1, y1, control.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(events)
 	h.ecs.Tick(time.Second)
 }
 
-func (h *harness) press(key ebiten.Key) {
+func (h *harness) press(key control.Key) {
 	events := &control.InputEvents{}
 	events.AddKeyEvent(key, control.ActionPress)
 	h.handler.HandleEvents(events)
@@ -229,7 +228,7 @@ func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) 
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false)
-	h.press(ebiten.KeyC)
+	h.press(control.KeyC)
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
 		t.Fatalf("after C: followed %v, centred %v; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
 	}
@@ -243,7 +242,7 @@ func TestFollow_FTheOneSelectedUnitAndTheCameraKeepsItInTheMiddle(t *testing.T) 
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 500, 420) {
 		t.Error("zooming ended the following")
 	}
-	h.press(ebiten.KeyC)
+	h.press(control.KeyC)
 	if h.has(*unit, h.tags.Followed) {
 		t.Error("a second F did not stop the following")
 	}
@@ -257,7 +256,7 @@ func TestFollow_MovesTheCameraOfThePlayerWhoAsked(t *testing.T) {
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false) // picked through the player's own camera, which starts where the world's does
-	h.press(ebiten.KeyC)
+	h.press(control.KeyC)
 	if !h.has(*unit, h.tags.Followed) || !centred(h, 150, 150) {
 		t.Fatalf("after C: followed %v, centred %v in the player's own camera; want both", h.has(*unit, h.tags.Followed), centred(h, 150, 150))
 	}
@@ -271,7 +270,7 @@ func TestFollow_MovingTheCameraByHandEndsIt(t *testing.T) {
 	unit := h.seed(150, 150, 10)
 	h.start()
 	h.click(155, 155, false)
-	h.press(ebiten.KeyC)
+	h.press(control.KeyC)
 	h.local.Camera.Pan(40, 0)
 	h.ecs.Tick(time.Second)
 	if h.has(*unit, h.tags.Followed) {
@@ -288,7 +287,7 @@ func TestFollow_SeveralSelectedFollowsNone(t *testing.T) {
 	if !h.isSelected(*a) || !h.isSelected(*b) {
 		t.Fatal("sanity check failed: expected both selected")
 	}
-	h.press(ebiten.KeyC)
+	h.press(control.KeyC)
 	if h.has(*a, h.tags.Followed) || h.has(*b, h.tags.Followed) {
 		t.Error("F followed one of several selected units, want none")
 	}
@@ -394,7 +393,7 @@ func TestSystem_Update_DragAcrossMultipleTicks(t *testing.T) {
 	h.start()
 
 	press := &control.InputEvents{}
-	press.AddClickEvent(40, 40, ebiten.MouseButtonLeft, control.ActionPress)
+	press.AddClickEvent(40, 40, control.MouseButtonLeft, control.ActionPress)
 	h.handler.HandleEvents(press)
 	h.ecs.Tick(time.Second)
 
@@ -403,7 +402,7 @@ func TestSystem_Update_DragAcrossMultipleTicks(t *testing.T) {
 	}
 
 	release := &control.InputEvents{}
-	release.AddClickEvent(60, 60, ebiten.MouseButtonLeft, control.ActionRelease)
+	release.AddClickEvent(60, 60, control.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(release)
 	h.ecs.Tick(time.Second)
 
@@ -440,7 +439,7 @@ func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.local.Camera]; return b, ok }
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
-	press.AddClickEvent(10, 10, ebiten.MouseButtonLeft, control.ActionPress)
+	press.AddClickEvent(10, 10, control.MouseButtonLeft, control.ActionPress)
 	h.handler.HandleEvents(press)
 	h.ecs.Tick(time.Second)
 	if _, ok := box(); ok {
@@ -454,7 +453,7 @@ func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 	}
 
 	release := &control.InputEvents{MousePos: geom.NewVec(40, 60)}
-	release.AddClickEvent(40, 60, ebiten.MouseButtonLeft, control.ActionRelease)
+	release.AddClickEvent(40, 60, control.MouseButtonLeft, control.ActionRelease)
 	h.handler.HandleEvents(release)
 	h.ecs.Tick(time.Second)
 	if _, ok := box(); ok {

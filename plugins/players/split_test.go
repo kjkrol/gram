@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -20,14 +19,14 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 	t.Helper()
 	r := newRig(t)
 	left, right := r.local.OwnCamera(), r.p.Local("right").OwnCamera()
-	if err := left.Bind(control.Command(control.KeyHeld{Key: ebiten.KeyW}, "Up", orderOf(1)),
-		control.Command(control.ButtonPress{Button: ebiten.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
+	if err := left.Bind(control.Command(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
+		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 100 + int(c.Cursor.X)}, true
 		})); err != nil {
 		t.Fatal(err)
 	}
-	if err := right.Bind(control.Command(control.KeyHeld{Key: ebiten.KeyArrowUp}, "Up", orderOf(2)),
-		control.Command(control.ButtonPress{Button: ebiten.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
+	if err := right.Bind(control.Command(control.KeyHeld{Key: control.KeyArrowUp}, "Up", orderOf(2)),
+		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 200 + int(c.Cursor.X)}, true
 		})); err != nil {
 		t.Fatal(err)
@@ -52,8 +51,8 @@ func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresEveryTickWhileDown(t *te
 		t.Fatalf("areas %v and %v, want the left and the right half", left.Area(), right.Area())
 	}
 	ev := &control.InputEvents{}
-	ev.AddKeyEvent(ebiten.KeyW, control.ActionPress)
-	ev.AddKeyEvent(ebiten.KeyArrowUp, control.ActionPress)
+	ev.AddKeyEvent(control.KeyW, control.ActionPress)
+	ev.AddKeyEvent(control.KeyArrowUp, control.ActionPress)
 	r.handle(ev)
 	ecs.Tick(time.Second / 60) // the keys went down: their commands are issued for the next tick
 	got := cells(r)
@@ -67,7 +66,7 @@ func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresEveryTickWhileDown(t *te
 		}
 	}
 	ev = &control.InputEvents{}
-	ev.AddKeyEvent(ebiten.KeyW, control.ActionRelease)
+	ev.AddKeyEvent(control.KeyW, control.ActionRelease)
 	r.handle(ev)
 	ecs.Tick(time.Second / 60)
 	if got := cells(r); len(got[left.ID]) != 0 || len(got[right.ID]) != 1 {
@@ -78,7 +77,7 @@ func TestSplitScreen_KeysReachEveryPlayerAndKeyHeldFiresEveryTickWhileDown(t *te
 func TestSplitScreen_TheMouseReachesThePlayerUnderItInItsOwnPixels(t *testing.T) {
 	r, left, right, _ := splitRig(t)
 	ev := &control.InputEvents{MousePos: geom.NewVec(650, 300)}
-	ev.AddClickEvent(650, 300, ebiten.MouseButtonLeft, control.ActionPress)
+	ev.AddClickEvent(650, 300, control.MouseButtonLeft, control.ActionPress)
 	r.handle(ev)
 	got := cells(r)
 	if len(got[left.ID]) != 0 || len(got[right.ID]) != 1 || got[right.ID][0] != 450 {

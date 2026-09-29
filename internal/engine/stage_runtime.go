@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/world"
@@ -20,7 +19,7 @@ type stageRuntime struct {
 	stage       game.Stage
 	world       *world.Plugin
 	sceneLayers map[string][]render.Layer
-	views       map[viewKey]*ebiten.Image
+	views       map[viewKey]*render.Image
 	passes      []pass // reused frame to frame
 }
 
@@ -80,7 +79,7 @@ func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 	host.flushPendingSetup()
 
 	return &stageRuntime{host: host, stage: stage, world: ctx.world, sceneLayers: sceneLayers,
-		views: map[viewKey]*ebiten.Image{}}, nil
+		views: map[viewKey]*render.Image{}}, nil
 }
 
 // checkLayers refuses a layer that is neither a Renderer nor a WorldRenderer, or both, and world
@@ -109,7 +108,7 @@ func checkLayers(sc game.Scene, layers []render.Layer) error {
 
 // drawScene draws sc's layers bottom to top: a Renderer on the screen, a run of WorldRenderers
 // through each of the scene's viewports.
-func (r *stageRuntime) drawScene(screen *ebiten.Image, sc game.Scene) {
+func (r *stageRuntime) drawScene(screen *render.Image, sc game.Scene) {
 	var viewports []render.Viewport
 	r.passes = passes(r.passes[:0], r.sceneLayers[sc.Name()], func() []render.Viewport {
 		if viewports == nil {
@@ -161,7 +160,7 @@ func passes(dst []pass, layers []render.Layer, viewports func() []render.Viewpor
 
 // drawViewport draws the world layers through vp's camera: straight onto a screen it covers,
 // otherwise onto an image of its area laid over the screen there.
-func (r *stageRuntime) drawViewport(screen *ebiten.Image, key viewKey, vp render.Viewport, layers []render.Layer) {
+func (r *stageRuntime) drawViewport(screen *render.Image, key viewKey, vp render.Viewport, layers []render.Layer) {
 	w, h := pixels(vp.Area)
 	if w <= 0 || h <= 0 {
 		return
@@ -178,14 +177,14 @@ func (r *stageRuntime) drawViewport(screen *ebiten.Image, key viewKey, vp render
 		if img != nil {
 			img.Deallocate()
 		}
-		img = ebiten.NewImage(w, h)
+		img = render.NewImage(w, h)
 		r.views[key] = img
 	}
 	img.Clear()
 	for _, l := range layers {
 		l.(render.WorldRenderer).DrawWorld(img, vp.Camera)
 	}
-	op := &ebiten.DrawImageOptions{}
+	op := &render.DrawImageOptions{}
 	op.GeoM.Translate(math.Round(vp.Area.TopLeft.X), math.Round(vp.Area.TopLeft.Y))
 	screen.DrawImage(img, op)
 }

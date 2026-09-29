@@ -3,7 +3,6 @@ package control_test
 import (
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
@@ -11,7 +10,7 @@ import (
 // A binding holds in every camera mode unless In says which, and two bindings overlap where they
 // hold in one mode both.
 func TestBinding_InHoldsInItsModesOnly(t *testing.T) {
-	b := control.Command(control.KeyHeld{Key: ebiten.KeyW}, "w", func(control.Context) (int, bool) { return 1, true })
+	b := control.Command(control.KeyHeld{Key: control.KeyW}, "w", func(control.Context) (int, bool) { return 1, true })
 	if !b.Holds(camera.Free) || !b.Holds(camera.FirstPerson) {
 		t.Error("a binding given no modes does not hold in every one")
 	}

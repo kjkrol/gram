@@ -359,3 +359,17 @@ func (c *basicCamera) Restore() {
 	h := c.effective.BottomRight.Y - c.effective.TopLeft.Y
 	c.effective = plane.NewAABB(c.effective.TopLeft, w, h)
 }
+
+// Rays are the camera's lines of sight: straight down onto the ground from over the window's
+// top-left corner, a screen pixel 1/zoom world units — for drawing on the GPU (camera.TransformOf).
+func (c *basicCamera) Rays() (contract.RayField, bool) {
+	k := 1 / c.zoom
+	return contract.RayField{
+		Origin: [3]float32{float32(c.effective.TopLeft.X), float32(c.effective.TopLeft.Y), basicEye},
+		DX:     [3]float32{k, 0, 0}, DY: [3]float32{0, k, 0}, Dir: [3]float32{0, 0, -1},
+	}, true
+}
+
+// basicEye is how high over the ground a top-down camera's rays start: over anything a flat world
+// holds.
+const basicEye = 1 << 16

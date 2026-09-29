@@ -3,8 +3,6 @@ package render
 import (
 	"strings"
 	"testing"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // panicOf runs f and returns what it panicked with, failing the test if it did not.
@@ -33,8 +31,8 @@ func TestAtlas_RegisterAt_BindsEachDrawerToItsOwnSlot(t *testing.T) {
 
 	atlas := NewAtlas()
 	var drawnFor []SpriteID
-	atlas.RegisterAt(second, 4, func(*ebiten.Image, int) { drawnFor = append(drawnFor, second) })
-	atlas.RegisterAt(first, 4, func(*ebiten.Image, int) { drawnFor = append(drawnFor, first) })
+	atlas.RegisterAt(second, 4, func(*Canvas, int) { drawnFor = append(drawnFor, second) })
+	atlas.RegisterAt(first, 4, func(*Canvas, int) { drawnFor = append(drawnFor, first) })
 	atlas.Close()
 
 	if len(drawnFor) != 2 {
@@ -49,7 +47,7 @@ func TestAtlas_RegisterAt_BindsEachDrawerToItsOwnSlot(t *testing.T) {
 func TestAtlas_BakesOnlyAtClose_EachSpriteOnceAtItsOwnSize(t *testing.T) {
 	atlas := NewAtlas()
 	drawn := map[int]int{}
-	drawer := func(_ *ebiten.Image, size int) { drawn[size]++ }
+	drawer := func(_ *Canvas, size int) { drawn[size]++ }
 
 	atlas.RegisterAt(0, 16, drawer)
 	late := atlas.Register(100, drawer)
@@ -85,7 +83,7 @@ func TestAtlas_Close_WrapsIntoRowsRatherThanOutgrowATexture(t *testing.T) {
 
 	atlas := NewAtlas()
 	for range count {
-		atlas.Register(size, func(*ebiten.Image, int) {})
+		atlas.Register(size, func(*Canvas, int) {})
 	}
 	atlas.Close()
 
@@ -106,7 +104,7 @@ func TestAtlas_Close_WrapsIntoRowsRatherThanOutgrowATexture(t *testing.T) {
 }
 
 func TestAtlas_RefusesWhatCannotWork(t *testing.T) {
-	nothing := func(*ebiten.Image, int) {}
+	nothing := func(*Canvas, int) {}
 	for name, tc := range map[string]struct {
 		do   func(a *Atlas)
 		want string
@@ -139,8 +137,8 @@ func TestAtlas_Close_WithNothingRegistered_StillYieldsASheet(t *testing.T) {
 
 func TestAtlas_KeepsAWhitePatchClearOfTheSprites(t *testing.T) {
 	atlas := NewAtlas()
-	a := atlas.Register(8, func(*ebiten.Image, int) {})
-	b := atlas.Register(16, func(*ebiten.Image, int) {})
+	a := atlas.Register(8, func(*Canvas, int) {})
+	b := atlas.Register(16, func(*Canvas, int) {})
 	atlas.Close()
 	u, v := atlas.White()
 	for _, id := range []SpriteID{a, b} {

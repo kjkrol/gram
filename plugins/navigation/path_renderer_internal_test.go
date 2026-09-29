@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
@@ -14,7 +13,7 @@ import (
 )
 
 // ends is where a Line's piece starts and ends on screen: the middles of its sides.
-func ends(v []ebiten.Vertex) (x0, y0, x1, y1 float32) {
+func ends(v []render.Vertex) (x0, y0, x1, y1 float32) {
 	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2, (v[1].DstY + v[3].DstY) / 2
 }
 
@@ -36,16 +35,16 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	}))
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
-	drawn := func(r *PathRenderer) (pieces [][]ebiten.Vertex, depths []float32) {
+	drawn := func(r *PathRenderer) (pieces [][]render.Vertex, depths []float32) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
 		r.line(a, b)
-		f.Each(func(tier render.Tier, d float32, v []ebiten.Vertex) {
+		f.Each(func(tier render.Tier, d float32, v []render.Vertex) {
 			if tier != render.Overlays {
 				t.Errorf("a route piece on tier %d, want Overlays", tier)
 			}
-			pieces, depths = append(pieces, append([]ebiten.Vertex(nil), v...)), append(depths, d)
+			pieces, depths = append(pieces, append([]render.Vertex(nil), v...)), append(depths, d)
 		})
 		return
 	}
@@ -92,7 +91,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		r.Compose(&f, cam)
 		r.goal(geom.NewVec(10, 10), c, tc.spot)
 		var starts [][2]float32
-		f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+		f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 			if tier != render.Marks {
 				t.Errorf("a goal's line on tier %d, want Marks", tier)
 			}

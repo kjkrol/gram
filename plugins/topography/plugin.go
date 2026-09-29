@@ -15,7 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
+	"github.com/kjkrol/gram/plugins/topography/terrain"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -44,9 +44,7 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and LookOut,
 // seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how Raise,
 // Lower and Level shape the ground (Shaping; zero: a quarter of a cell a step, any slope), what
-// slopes do to whoever goes over them (Climbing; zero: DefaultClimbing), and whether G reaches
-// the ground drawn on the GPU from its heightmap in place of the tiles (Heightfield; see
-// topography/heightfield).
+// slopes do to whoever goes over them (Climbing; zero: DefaultClimbing).
 type Config struct {
 	Cell, TileW, TileH float32
 	HeightUnit         float32
@@ -57,7 +55,6 @@ type Config struct {
 	FieldOfView        float32
 	Shaping            Shaping
 	Climbing           Climbing
-	Heightfield        bool
 }
 
 // Plugin is a map in relief over a board: the ground's heights, shaped by the player and pricing
@@ -79,11 +76,9 @@ type Plugin struct {
 	shaping     shaping
 	seeded      func(p geom.Vec) float64
 
-	// field draws the ground from its heightmap while fieldOn, in place of the tiles; nil unless
-	// Config.Heightfield
-	field   *heightfield.Renderer
-	fieldOn bool
-	fields  control.Queue[Heightfield]
+	// ground draws the ground on the GPU as a mesh of its heights, in place of the tiles; nil off
+	// a square grid
+	ground *terrain.Renderer
 
 	turns     control.Queue[Turn]
 	tilts     control.Queue[Tilt]
@@ -139,21 +134,24 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	worldPlugin.SetCameras(func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
 		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent, float32(worldPlugin.Scale().Bend()))
 	})
-	if cfg.Heightfield {
-		p.field = heightfield.New(p.relief, boardSurface{p}, liveSky{p}, heightfield.Config{Shadows: true, Scale: worldPlugin.Scale()})
-		p.field.Hide(true)
+	if _, _, _, _, square := p.relief.Lattice(); square {
+		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	}
-	worldPlugin.SetLook(worldLook{flat: worldPlugin.FlatLook(), d: p.dresser, field: p.field})
+	look := worldLook{flat: worldPlugin.FlatLook(), d: p.dresser}
+	if p.ground != nil {
+		look.gpu = newSprites(p.dresser, p.ground)
+	}
+	worldPlugin.SetLook(look)
 	return p
 }
 
 // boardSurface is the ground's look as the dresser paints it out of the board's atlas — the board
 // painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from
-// every corner, and the grid while the board's is on: the heightfield.Surface contract.
+// every corner, and the grid while the board's is on: the terrain.Surface contract.
 type boardSurface struct{ p *Plugin }
 
-func (s boardSurface) Surface() heightfield.Painted {
-	var out heightfield.Painted
+func (s boardSurface) Surface() terrain.Painted {
+	var out terrain.Painted
 	d := s.p.dresser
 	if atlas := s.p.boardPlugin.Atlas(); atlas != nil {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
@@ -165,26 +163,12 @@ func (s boardSurface) Surface() heightfield.Painted {
 	return out
 }
 
-// liveSky is the plugin's atmosphere as it stands, whenever it is set — the heightfield.Sky
+// liveSky is the plugin's atmosphere as it stands, whenever it is set — the terrain.Sky
 // contract.
 type liveSky struct{ p *Plugin }
 
 func (s liveSky) Sun() sky.Sun     { return s.p.sky.Sun() }
 func (s liveSky) Air() air.Weather { return s.p.sky.Air() }
-
-// ShowHeightfield draws the ground from its heightmap on the GPU (topography/heightfield) in place
-// of the tiles, or the tiles again — what the Heightfield command toggles; nothing without
-// Config.Heightfield.
-func (p *Plugin) ShowHeightfield(on bool) {
-	if p.field == nil {
-		return
-	}
-	p.fieldOn = on
-	p.field.Hide(!on)
-}
-
-// HeightfieldShown reports whether the ground is drawn from its heightmap rather than as tiles.
-func (p *Plugin) HeightfieldShown() bool { return p.fieldOn }
 
 // WithAtmosphere puts the relief under a: its sun lights and shades the terrain and the units,
 // its weather leans what sways, lays the clouds' shadows and hazes the far off. Call it once the
@@ -247,10 +231,11 @@ func (p *Plugin) Populate() error {
 // board.Map contract
 // =================================================================
 
-// Look is how the board's cells lie on the screen: blocks in the isometric view, flat tiles from
-// above; no tiles at all while the ground is drawn from its heightmap (board.Nothing).
+// Look is how the board's cells lie on the screen: no tiles at all over a square grid, whose
+// ground is drawn on the GPU (board.Nothing); blocks in the isometric view, flat tiles from above
+// over any other.
 func (p *Plugin) Look() board.Look {
-	if p.fieldOn {
+	if p.ground != nil {
 		return board.Nothing
 	}
 	return boardLook{d: p.dresser}
@@ -323,22 +308,21 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // simulation; call it after the world has moved, before the world is drawn and before the players'
 // RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.fields.Drain(func(control.Issued[Heightfield]) { p.ShowHeightfield(!p.fieldOn) })
 	p.module.RunPlan(ctx, d)
 }
 
 // WithRenderer is a no-op: the topography draws through the board's and the world's renderers,
-// and the heightfield paints the ground from the board's atlas, reached through its plugin.
+// and its ground is painted from the board's atlas, reached through its plugin.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is the heightfield's renderer, drawing the ground from its heightmap on the GPU while
-// ShowHeightfield says so (topography/heightfield) — for the scene's composer, beside the board's
-// and the world's; nil without Config.Heightfield.
+// Renderer is the ground's renderer, drawing it on the GPU as a mesh of its heights
+// (topography/terrain) — for the scene's composer, beside the board's and the world's; nil off a
+// square grid.
 func (p *Plugin) Renderer() render.Layer {
-	if p.field == nil {
+	if p.ground == nil {
 		return nil
 	}
-	return p.field
+	return p.ground
 }
 
 // EventHandler is nil: the topography takes commands, not input.

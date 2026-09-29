@@ -1,6 +1,8 @@
 package topography_test
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"strings"
 	"testing"
@@ -412,28 +414,80 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	}
 }
 
-// The heights ride on the topography's entity: what a save carries, and what a loaded game's
-// relief takes over.
-func TestHeights_LiveOnTheTopographysEntity(t *testing.T) {
+// runsOf lists the runs of heights the topography's entities carry.
+func (qw *quasiWorld) runsOf() []topography.Heights {
+	var comp goke.Comp[topography.Heights]
+	var q *goke.Query
+	qw.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&comp).Build() }})
+	var out []topography.Heights
+	for q.All(); q.Next(); {
+		out = append(out, comp.Slice(q.Cursor())...)
+	}
+	return out
+}
+
+// The heights ride on the topography's entities, a run of them each — what a save carries — and
+// the runs follow the ground as it is shaped.
+func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	qw := newQuasiWorld(t, false, func(units *board.Units[recruit], grid board.Grid) []kind.Entry {
 		k := units.Define("walker", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: 10})
 		start, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(recruit{start: start})}
 	})
 	qw.ecs.Tick(time.Second / 60)
-	var comp goke.Comp[topography.Heights]
-	var q *goke.Query
-	qw.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&comp).Build() }})
-	n := 0
-	for q.All(); q.Next(); {
-		cur := q.Cursor()
-		n += len(cur.IDs)
-		if got := comp.Slice(cur)[0]; len(got.Values) != 25 {
-			t.Errorf("the entity carries %d heights, want 25: a 4x4 grid's 5x5 corners", len(got.Values))
-		}
+	runs := qw.runsOf()
+	if len(runs) != 1 || runs[0].First != 0 || runs[0].Count != 25 {
+		t.Fatalf("runs %d, the first from %d of %d; want one of 25: a 4x4 grid's 5x5 corners", len(runs), runs[0].First, runs[0].Count)
 	}
-	if n != 1 {
-		t.Errorf("%d entities carry heights, want one", n)
+	c, _ := qw.grid.CellIndex(0, 0)
+	qw.topo.Relief().SetCorners(c, topography.Corners{7, 7, 7, 7})
+	qw.ecs.Tick(time.Second / 60)
+	if got := qw.runsOf()[0].Values[0]; got != 7 {
+		t.Errorf("after the ground was shaped the run holds %v at the first corner, want 7", got)
+	}
+}
+
+// A run of heights goes through a save as it is, its size fixed.
+func TestHeights_ARunGoesThroughASave(t *testing.T) {
+	in := topography.Heights{First: 1024, Count: 3}
+	in.Values[0], in.Values[2] = -4.5, 900
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(in); err != nil {
+		t.Fatal(err)
+	}
+	var out topography.Heights
+	if err := gob.NewDecoder(&buf).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out != in {
+		t.Errorf("a run came back as from %d, %d of them, %v...; want it as it went", out.First, out.Count, out.Values[:3])
+	}
+}
+
+// Heights over more corners than a run holds go over several, from one another's end, all of
+// them; the ground takes them back only when they are all there.
+func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(40, 40, 32)
+	r := topography.NewRelief(board.NewBoard(grid, board.NewTerrainMap()))
+	c, _ := grid.CellIndex(39, 39)
+	r.SetCorners(c, topography.Corners{1, 2, 3, 4})
+	runs := make([]topography.Heights, r.Runs())
+	for i := range runs {
+		runs[i].First = uint32(i * topography.HeightsRun)
+		topography.FillRun(r, &runs[i])
+	}
+	if len(runs) != 2 || runs[0].Count != topography.HeightsRun || runs[1].Count != 41*41-topography.HeightsRun {
+		t.Fatalf("%d runs of %d and %d, want two: 1024 and the other %d of 1681 corners", len(runs), runs[0].Count, runs[1].Count, 41*41-topography.HeightsRun)
+	}
+	back := topography.NewRelief(board.NewBoard(grid, board.NewTerrainMap()))
+	if topography.AdoptRuns(back, runs[:1]) {
+		t.Error("the ground took back one run of two")
+	}
+	if !topography.AdoptRuns(back, runs) {
+		t.Fatal("the ground did not take back both runs")
+	}
+	if got := back.Corners(c); got != (topography.Corners{1, 2, 3, 4}) {
+		t.Errorf("the last cell's corners came back as %v, want 1 to 4", got)
 	}
 }
 

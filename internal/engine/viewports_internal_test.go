@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -17,9 +16,9 @@ import (
 type screenLayer struct{ inits *int }
 
 func (l screenLayer) Init(*goke.SysInit)                   { *l.inits++ }
-func (screenLayer) Draw(*ebiten.Image)                     {}
+func (screenLayer) Draw(*render.Image)                     {}
 func (l *worldLayer) Init(*goke.SysInit)                   { l.inits++ }
-func (*worldLayer) DrawWorld(*ebiten.Image, camera.Camera) {}
+func (*worldLayer) DrawWorld(*render.Image, camera.Camera) {}
 
 type worldLayer struct {
 	name  string
@@ -29,7 +28,7 @@ type worldLayer struct {
 // both is a layer that is a Renderer and a WorldRenderer at once.
 type both struct{ worldLayer }
 
-func (both) Draw(*ebiten.Image) {}
+func (both) Draw(*render.Image) {}
 
 // neither is a layer that draws nothing at all.
 type neither struct{}

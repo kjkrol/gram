@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -25,22 +24,14 @@ func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *te
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.5, Sky: render.Light{0.5, 0.7, 1}}
 	b := NewBackdrop(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
-	pieces := func(dx float32) (n int, tier render.Tier, depth float32, v ebiten.Vertex) {
-		cam := shifted{Camera: w.Camera(), dx: dx}
-		var f render.Frame
-		f.Reset(cam)
-		b.Compose(&f, cam)
-		f.Each(func(t render.Tier, d float32, verts []ebiten.Vertex) { n, tier, depth, v = n+1, t, d, verts[3] })
-		return
+	if b.Tier() != render.Backdrop {
+		t.Errorf("the sky comes on tier %v, want the Backdrop, before everything", b.Tier())
 	}
-	if n, _, _, _ := pieces(50); n != 0 {
-		t.Errorf("over the middle of the world the backdrop drew %d pieces, want none: the ground covers the screen", n)
+	if p := b.plan(shifted{Camera: w.Camera(), dx: 50}); !p.None {
+		t.Errorf("over the middle of the world the backdrop draws %+v, want nothing: the ground covers the screen", p)
 	}
-	n, tier, depth, v := pieces(150)
-	if n != 1 || tier != render.Backdrop || !math.IsInf(float64(depth), -1) {
-		t.Fatalf("over the world's edge the backdrop drew %d pieces on tier %v at depth %v, want one behind everything", n, tier, depth)
-	}
-	if v.DstX != 100 || v.DstY != 100 || math.Abs(float64(v.ColorR-0.5)) > 0.01 || math.Abs(float64(v.ColorB-1)) > 0.01 {
-		t.Errorf("the backdrop reaches (%v, %v) in %v %v %v, want the whole screen in the sky's colour", v.DstX, v.DstY, v.ColorR, v.ColorG, v.ColorB)
+	p := b.plan(shifted{Camera: w.Camera(), dx: 150})
+	if p.None || !p.Flat || math.Abs(float64(p.Horizon[0]-0.5)) > 0.01 || math.Abs(float64(p.Horizon[2]-1)) > 0.01 {
+		t.Errorf("over the world's edge the backdrop draws %+v, want the whole screen flat in the sky's colour", p)
 	}
 }

@@ -56,22 +56,26 @@
 //
 // # SightOutline and Renderer
 //
-// An entity also carrying [SightOutline] has its view's shape computed: a reach per evenly spaced
-// angle across the cone. The [Renderer], a render.Source, hands it to a scene's render.Composer on
-// the render.Overlays tier as a ring of [ConePoint]s in a [ConeStyle] ([DefaultConeStyle] strokes
-// it; [Plugin.WithStyle] or [ConeStyleFn] for another). The ring is draped over the world's Ground
-// when it has one ([Renderer.WithGround]) — the apex at the observer's altitude, the rest on the
-// ground, the cone's edges in steps of the ground — and each point carries the depth of the ground
-// under it, so in a view with depth (plugins/topography) a cone climbs a hill and a hill in front
-// hides it.
+// The [Renderer] draws the views. In a world with heights, seen through a camera with Rays (a
+// view in relief, plugins/topography) and in the default style, it draws on the GPU the view of
+// every observer — Sight and world.Eye, no SightOutline needed — on [ViewTier], after the ground
+// and before what stands on it: the ground and its cover are copied into images every ground step
+// as they change, each observer's sight is baked every frame over them (shaders/sighted.wgsl) —
+// hidden where the ground rises over the line from the eye, dimmed through cover as the scan dims
+// it, sunk as far off as it lies — and laid over the ground the frame drew, read from its depth
+// (shaders/views.wgsl): the ground out of sight veiled in a [Shadow] ([DefaultShadow];
+// [Plugin.WithShadow] for another), the cone's edge stroked. The views drawn follow the ground
+// where the scan samples it; what the scan found (Sight.Seen) stays the truth of who sees whom.
 //
-// In a world with heights the reach of sight is not the reach of the ground: past a cliff the plain is
-// out of sight, a hawk above it or a higher hill beyond is not. There the outline reaches the full
-// Radius at every angle and keeps, per angle, up to [MaxShadowsPerSample] [Band]s of ground out of
-// sight (aabbworld's View.Shadows); the Renderer veils them over the ground as holes in the view,
-// in pieces of the ground's step, each fading in where it meets ground in sight — a [Shadow]
-// ([DefaultShadow]; [Plugin.WithShadow] for another). A flat world keeps the reach cut where a
-// wall stands, and no shadows.
+// Otherwise — a flat world, where walls that are entities cut the cone, or a [ConeStyle] of one's
+// own ([Plugin.WithStyle], [ConeStyleFn]) — an entity also carrying [SightOutline] has its view's
+// shape computed: a reach per evenly spaced angle across the cone, and in a world with heights up
+// to [MaxShadowsPerSample] [Band]s of ground out of sight per angle (aabbworld's View.Shadows).
+// The Renderer, a render.Source then, hands it to a scene's render.Composer on the
+// render.Overlays tier as a ring of [ConePoint]s in a ConeStyle ([DefaultConeStyle] strokes it),
+// draped over the world's Ground when it has one ([Renderer.WithGround]), the shadows veiled over
+// it in pieces of the ground's step. A game that wants the shape on the CPU keeps SightOutline on
+// its observers; it costs a scan that much more.
 //
 // The views start hidden. The plugin is a plugin.CommandHandler, its one key the players carry:
 // Shift+C ([Cones]) shows every view drawn — the cones and the shadows — and hides them again;

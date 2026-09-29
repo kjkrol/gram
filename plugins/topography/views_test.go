@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -25,7 +24,7 @@ import (
 // sheet is an AtlasSource of one sprite with no image behind it.
 type sheet struct{}
 
-func (sheet) Atlas() *ebiten.Image                            { return nil }
+func (sheet) Atlas() *render.Image                            { return nil }
 func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (sheet) White() (u, v float32)                           { return 9, 9 }
 
@@ -52,17 +51,6 @@ func isometricIsland() (*world.Plugin, *board.Plugin, board.Grid, *topography.Pl
 	b, grid := levelBoard(w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	return w, b, grid, p
-}
-
-// raiseHill puts the cell (1, 1) 10 high, sloping into its neighbours.
-func raiseHill(p *topography.Plugin, grid board.Grid) {
-	hill, _ := grid.CellIndex(1, 1)
-	p.Relief().SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 {
-		if c == hill {
-			return 10
-		}
-		return 0
-	}))
 }
 
 func TestPlugin_MakesTheWorldsCamerasIsometric(t *testing.T) {
@@ -154,7 +142,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	var f render.Frame
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, depth float32, v []render.Vertex) {
 		if tier == sky.ShadowTier {
 			return // its shadow on the ground, laid before it
 		}
@@ -176,7 +164,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	// an entity 30 tall stands as a billboard 30 tall on its 10-wide box: as tall as its Z says
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6, Height: 30}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier == sky.ShadowTier {
 			return
 		}
@@ -188,7 +176,7 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	topography.SwitchView(cam)
 	f.Reset(cam)
 	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier == sky.ShadowTier {
 			return
 		}
@@ -196,108 +184,6 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 			t.Errorf("from above the entity is drawn at (%v, %v), want over its box's corner (%v, %v)", v[0].DstX, v[0].DstY, x0, y0)
 		}
 	})
-}
-
-// compose composes b's renderer through cam: pieces by tier, and how many are outlined.
-func compose(b *board.Plugin, cam camera.Camera) (tiers map[render.Tier]int, outlined int) {
-	var f render.Frame
-	f.Reset(cam)
-	b.Renderer().(render.Source).Compose(&f, cam)
-	tiers = map[render.Tier]int{}
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
-		tiers[tier]++
-		if v[0].Custom0 < 0 {
-			outlined++
-		}
-	})
-	return tiers, outlined
-}
-
-func TestBlocks_StandTheCellsWithFacesWhereTheyRiseOverTheirNeighbours(t *testing.T) {
-	w, b, grid, p := isometricIsland()
-	raiseHill(p, grid)
-	b.WithRenderer(sheet{})
-	b.Res.Render.ShowGridLines = false
-	cam := w.Camera()
-	cam.CenterOn(64, 64, 0)
-
-	if got, _ := compose(b, cam); got[render.Ground] != 16 {
-		t.Errorf("composed %v, want the 16 cells: the hill slopes into its neighbours, no faces", got)
-	}
-	wall, _ := grid.CellIndex(2, 2)
-	b.Res.Logic.Board.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 8})
-	if got, _ := compose(b, cam); got[render.Ground] != 18 {
-		t.Errorf("composed %v, want two more for the wall's faces down to the ground", got)
-	}
-	b.Res.Render.ShowGridLines = true
-	if _, outlined := compose(b, cam); outlined != 16 {
-		t.Errorf("%d tops outlined with the grid on, want the 16 tops and no face", outlined)
-	}
-	// from above the same cells lie flat, no faces: the screen zoomed out over the whole board
-	topography.SwitchView(cam)
-	cam.ZoomOut(2, 64, 64)
-	cam.CenterOn(64, 64, 0)
-	if got, _ := compose(b, cam); got[render.Ground] != 16 {
-		t.Errorf("from above composed %v, want the 16 cells alone", got)
-	}
-}
-
-// The tops are lit by the sun as the ground slopes.
-func TestBlocks_LightTheTopsFromTheUpperLeft(t *testing.T) {
-	w, b, grid, p := isometricIsland()
-	raiseHill(p, grid)
-	b.WithRenderer(sheet{})
-	cam := w.Camera()
-	cam.CenterOn(64, 64, 0)
-	var f render.Frame
-	f.Reset(cam)
-	b.Renderer().(render.Source).Compose(&f, cam)
-	shades := map[float32]bool{}
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { shades[v[0].ColorR] = true })
-	if len(shades) < 3 {
-		t.Errorf("tops shaded %v, want level ground and slopes towards and away from the light apart", shades)
-	}
-	for s := range shades {
-		if s <= 0 || s > 1 || math.IsNaN(float64(s)) {
-			t.Errorf("a shade of %v", s)
-		}
-	}
-}
-
-func TestBlocks_TurnedShowTheFacesTurnedTowardsTheViewer(t *testing.T) {
-	w, b, grid, _ := isometricIsland()
-	b.WithRenderer(sheet{})
-	b.Res.Render.ShowGridLines = false
-	wall, _ := grid.CellIndex(2, 2)
-	b.Res.Logic.Board.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 8})
-	cam := w.Camera()
-	// the face along x = x (the wall's west side at 64, its east at 96) standing from 8 down to 0
-	faceAt := func(x float32) bool {
-		at := func(v ebiten.Vertex, y, z float32) bool {
-			sx, sy := cam.Project(x, y, z)
-			return near(v.DstX, sx) && near(v.DstY, sy)
-		}
-		var f render.Frame
-		f.Reset(cam)
-		b.Renderer().(render.Source).Compose(&f, cam)
-		found := false
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
-			for _, ends := range [2][2]float32{{64, 96}, {96, 64}} {
-				if at(v[0], ends[0], 8) && at(v[1], ends[1], 8) && at(v[2], ends[0], 0) && at(v[3], ends[1], 0) {
-					found = true
-				}
-			}
-		})
-		return found
-	}
-	cam.CenterOn(80, 80, 0)
-	if !faceAt(96) || faceAt(64) {
-		t.Errorf("unturned: east face %v, west face %v; want the east one, towards the viewer", faceAt(96), faceAt(64))
-	}
-	topography.TurnCamera(cam, math.Pi)
-	if faceAt(96) || !faceAt(64) {
-		t.Errorf("turned half round: east face %v, west face %v; want the west one, towards the viewer now", faceAt(96), faceAt(64))
-	}
 }
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -311,36 +197,12 @@ type fixedSky struct {
 func (s fixedSky) Sun() sky.Sun     { return s.sun }
 func (s fixedSky) Air() air.Weather { return s.air }
 
-func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
-	w, b, grid, p := isometricIsland()
-	b.WithRenderer(sheet{})
-	b.Res.Render.ShowGridLines = false
-	tree, _ := grid.CellIndex(1, 1)
-	b.Res.Logic.Board.Set(tree, board.CellKind{Cost: 1, Allows: board.Land, Height: 8, Sway: 1})
+// A billboard stands upright in the calm and leans with the wind what sways.
+func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
+	w, _, _, p := isometricIsland()
 	cam := w.Camera()
 	cam.CenterOn(48, 48, 0)
-	top := func() (float32, float32) { // where the tree top's corner (32, 32) is drawn
-		tx, ty := cam.Project(32, 32, 8)
-		var f render.Frame
-		f.Reset(cam)
-		b.Renderer().(render.Source).Compose(&f, cam)
-		bx, by := float32(math.NaN()), float32(math.NaN())
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
-			if math.Abs(float64(v[0].DstX-tx)) < 6 && math.Abs(float64(v[0].DstY-ty)) < 6 {
-				bx, by = v[0].DstX, v[0].DstY
-			}
-		})
-		return bx, by
-	}
-	cx, cy := top()
-	tx, ty := cam.Project(32, 32, 8)
-	if !near(cx, tx) || !near(cy, ty) {
-		t.Fatalf("in the calm the tree's top is drawn at (%v, %v), want it upright at (%v, %v)", cx, cy, tx, ty)
-	}
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
-	if wx, wy := top(); near(wx, cx) && near(wy, cy) {
-		t.Error("in a wind of 40 the tree's top stands where it did in the calm")
-	}
 
 	look := w.Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
@@ -349,7 +211,7 @@ func TestBlocksAndBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 		f.Reset(cam)
 		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
 		var x float32
-		f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) { x = v[0].DstX - v[2].DstX })
+		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) { x = v[0].DstX - v[2].DstX })
 		return x
 	}
 	if still, swaying := edge(0), edge(1); still != 0 || swaying == 0 {

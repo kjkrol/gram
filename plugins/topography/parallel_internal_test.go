@@ -3,7 +3,6 @@ package topography
 import (
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
@@ -17,7 +16,7 @@ import (
 type piece struct {
 	tier  render.Tier
 	depth float32
-	verts []ebiten.Vertex
+	verts []render.Vertex
 }
 
 // piecesOf composes r through cam and gives every piece of the frame in order.
@@ -25,8 +24,8 @@ func piecesOf(r *board.Renderer, cam camera.Camera) (pieces []piece, n int) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	f.Each(func(tier render.Tier, depth float32, v []ebiten.Vertex) {
-		pieces = append(pieces, piece{tier, depth, append([]ebiten.Vertex(nil), v...)})
+	f.Each(func(tier render.Tier, depth float32, v []render.Vertex) {
+		pieces = append(pieces, piece{tier, depth, append([]render.Vertex(nil), v...)})
 	})
 	return pieces, f.Len()
 }

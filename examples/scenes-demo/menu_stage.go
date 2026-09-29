@@ -5,8 +5,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -68,11 +66,11 @@ func (m *menuScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEnter:
+		case control.KeyEnter:
 			if err := runtime.SwitchStage(m.gameplayName); err != nil {
 				log.Printf("switch stage: %v", err)
 			}
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
 		}
 	}
@@ -84,7 +82,7 @@ type menuRenderer struct{}
 
 func (r *menuRenderer) Init(*goke.SysInit) {}
 
-func (r *menuRenderer) Draw(screen *ebiten.Image) {
+func (r *menuRenderer) Draw(screen *render.Image) {
 	screen.Fill(color.RGBA{R: 20, G: 20, B: 30, A: 255})
-	ebitenutil.DebugPrintAt(screen, "gram Stage/Scene demo\n\nPress ENTER to start", 20, 20)
+	render.DebugPrintAt(screen, "gram Stage/Scene demo\n\nPress ENTER to start", 20, 20)
 }

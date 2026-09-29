@@ -1,25 +1,29 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"log"
 	"math"
+	"os"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 const (
 	defaultTargetTPS = 60
 )
 
-// Engine drives a game.Game through the Ebitengine loop, one active Stage and its ECS at a time.
+// Engine drives a game.Game through its window's loop (gogpu), one active Stage and its ECS at a
+// time.
 // Stage names are always resolved against game.Stages().
 type Engine struct {
 	game    game.Game
@@ -32,6 +36,12 @@ type Engine struct {
 	inputs      *control.InputEvents
 	tps         *game.TPS
 	controller  *DefaultController
+	adapter     *DesktopAdapter
+	app         *gogpu.App    // the window, once Run opened it
+	window      *render.Image // what a frame is drawn into, then presented on the window
+	frames      int
+	counted     time.Time
+	spent       spent
 
 	// pendingSwitch names the Stage to enter at the top of the next Update.
 	pendingSwitch     string
@@ -42,8 +52,10 @@ type Engine struct {
 	width, height int
 }
 
-var _ ebiten.Game = (*Engine)(nil)
 var _ game.Runtime = (*Engine)(nil)
+
+// Termination is what Update returns once the game has quit.
+var Termination = errors.New("gram: the game quit")
 
 // NewEngine builds an Engine driving g, configured by g.Props().
 func NewEngine(g game.Game) *Engine {
@@ -55,8 +67,10 @@ func NewEngine(g game.Game) *Engine {
 	if props.TargetTPS != 0 {
 		targetTPS = props.TargetTPS
 	}
-	controller := NewDefaultController(&DesktopAdapter{}, inputs)
+	adapter := &DesktopAdapter{}
+	controller := NewDefaultController(adapter, inputs)
 	e := &Engine{
+		adapter:           adapter,
 		game:              g,
 		props:             props,
 		inputs:            inputs,
@@ -98,11 +112,15 @@ func (e *Engine) Camera() camera.Camera {
 	return e.current.world.Camera()
 }
 
-// Quit ends the Ebitengine loop after this tick.
+// Quit ends the loop after this tick.
 func (e *Engine) Quit() { e.quit = true }
 
 // ToggleFullscreen switches the window to fullscreen and back.
-func (e *Engine) ToggleFullscreen() { ebiten.SetFullscreen(!ebiten.IsFullscreen()) }
+func (e *Engine) ToggleFullscreen() {
+	if e.app != nil {
+		e.app.ToggleFullscreen()
+	}
+}
 
 // SwitchStage requests a transition to the Stage called name, made at the start of the next Update.
 func (e *Engine) SwitchStage(name string) error {
@@ -116,7 +134,6 @@ func (e *Engine) SwitchStage(name string) error {
 
 // Init enters the initial Stage and makes the engine's step the only clock, loop not yet started.
 func (e *Engine) Init() error {
-	ebiten.SetTPS(ebiten.SyncWithFPS)
 	stages, initial := e.game.Stages()
 	stage, ok := stages[initial]
 	if !ok {
@@ -131,29 +148,100 @@ func (e *Engine) Init() error {
 	return nil
 }
 
-// Run calls Init, then starts the Ebitengine loop.
+// Run calls Init, then opens the window and runs the game in it, a tick and a picture a frame,
+// until it quits.
 func (e *Engine) Run() {
 	if err := e.Init(); err != nil {
 		log.Fatal(err)
 	}
-
-	ebiten.SetWindowSize(e.props.ScreenWidth, e.props.ScreenHeight)
-	ebiten.SetWindowTitle(e.props.Title)
-	if e.props.Resizable {
-		ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	gpu.Windowed()
+	// paced by the swapchain alone: on Wayland gogpu otherwise waits for the compositor's word
+	// after every frame, drawing each only once the last is on the screen
+	if _, set := os.LookupEnv("GOGPU_WAYLAND_FRAME_CALLBACK"); !set {
+		os.Setenv("GOGPU_WAYLAND_FRAME_CALLBACK", "0")
 	}
-	if err := ebiten.RunGame(e); err != nil {
+	cfg := gogpu.DefaultConfig().WithTitle(e.props.Title).WithSize(e.props.ScreenWidth, e.props.ScreenHeight).
+		WithResizable(e.props.Resizable).WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
+	if os.Getenv("GRAM_FULLSCREEN") != "" { // for measuring: the game starts fullscreen
+		cfg = cfg.WithFullscreen()
+	}
+	e.app = gogpu.NewApp(cfg)
+	e.adapter.app = e.app
+	control.SetCursorCapture(e.adapter.capture)
+	e.app.OnUpdate(func(float64) { e.adapter.Collect() })
+	e.app.OnDraw(e.frame)
+	if err := e.app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
+// frame runs a tick of the game and draws its picture on the window.
+func (e *Engine) frame(dc *gogpu.Context) {
+	p := e.app.DeviceProvider()
+	view := dc.SurfaceView()
+	if p == nil || view == nil {
+		return
+	}
+	if err := gpu.Use(p.Device()); err != nil {
+		log.Fatal(err)
+	}
+	began := time.Now()
+	if err := e.Update(); err != nil {
+		if errors.Is(err, Termination) {
+			e.app.Quit()
+			return
+		}
+		log.Fatal(err)
+	}
+	updated := time.Now()
+	w, h := e.Layout(dc.Size())
+	if e.window == nil || e.window.Bounds().Dx() != w || e.window.Bounds().Dy() != h {
+		if e.window != nil {
+			e.window.Deallocate()
+		}
+		e.window = render.NewImage(w, h)
+	}
+	e.window.Clear()
+	e.Draw(e.window)
+	drawn := time.Now()
+	fw, fh := dc.FramebufferSize()
+	if enc := dc.CommandEncoder(); enc != nil {
+		if err := gpu.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window.Texture()); err != nil {
+			log.Printf("gram: a frame not shown: %v", err)
+		}
+	}
+	e.frames++
+	e.spent.update += updated.Sub(began)
+	e.spent.draw += drawn.Sub(updated)
+	e.spent.present += time.Since(drawn)
+	if since := time.Since(e.counted); since >= time.Second {
+		rate := float64(e.frames) / since.Seconds()
+		render.SetRates(rate, rate)
+		if logRates {
+			n := time.Duration(e.frames)
+			log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v, drawing %v, presenting %v", rate, fw, fh,
+				(e.spent.update / n).Round(10*time.Microsecond), (e.spent.draw / n).Round(10*time.Microsecond), (e.spent.present / n).Round(10*time.Microsecond))
+		}
+		e.frames, e.counted, e.spent = 0, time.Now(), spent{}
+	}
+}
+
+// logRates has the engine log its frame rate and where a frame's time goes, every second
+// (GRAM_FPS_LOG set).
+var logRates = os.Getenv("GRAM_FPS_LOG") != ""
+
+// spent is the time a second's frames took, by step.
+type spent struct{ update, draw, present time.Duration }
+
 // =================================================================
-// ebiten.Game contract implementation
+// the loop's steps: Update a tick, Draw a picture, Layout the screen
 // =================================================================
 
+// Update runs a tick: the input captured, a switch of stage made, the world stepped as many times
+// as the time gone says; Termination once the game has quit.
 func (e *Engine) Update() error {
 	if e.quit {
-		return ebiten.Termination
+		return Termination
 	}
 
 	if e.pendingSwitch != "" {
@@ -173,7 +261,7 @@ func (e *Engine) Update() error {
 
 	e.controller.Capture(e.inputs)
 	for _, k := range e.inputs.KeyEvents {
-		if k.Key == ebiten.KeyF11 && k.Action == control.ActionPress {
+		if k.Key == control.KeyF11 && k.Action == control.ActionPress {
 			e.ToggleFullscreen()
 		}
 	}
@@ -204,7 +292,8 @@ func (e *Engine) Update() error {
 // maxStepsAFrame is how many ticks one frame catches up on at most; past it the engine is behind.
 const maxStepsAFrame = 5
 
-func (e *Engine) Draw(screen *ebiten.Image) {
+// Draw draws the active stage's scenes, bottom to top, onto screen.
+func (e *Engine) Draw(screen *render.Image) {
 	if e.pendingSwitch != "" {
 		e.transitionOverlay.Draw(screen)
 		return
@@ -290,7 +379,7 @@ func pixels(r geom.AABB) (w, h int) {
 }
 
 // screenBox is the screen image's rectangle.
-func screenBox(screen *ebiten.Image) geom.AABB {
+func screenBox(screen *render.Image) geom.AABB {
 	b := screen.Bounds()
 	return geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 }

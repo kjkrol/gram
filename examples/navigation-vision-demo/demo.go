@@ -9,7 +9,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -140,6 +139,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := s.vision.RegisterBehavior(
 		vision.Between(plugin.Any, plugin.Any, faceTravel),
 		vision.Between(s.unitTag, s.unitTag, s.noticedEachOther),
+		vision.ShowViewOf(s.selection.Tags().Selected), // the views drawn are the selected units'
 	); err != nil {
 		return err
 	}
@@ -160,9 +160,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
-		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
 	stack, err := game.NewStack(main, s.shortcuts)
@@ -200,14 +200,14 @@ func (s *mainStage) defineKinds() {
 	for _, name := range []string{"red", "blue", "yellow"} {
 		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: board.Land}, scout, order,
 			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-			sight, eye(1.5), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag)))
+			sight, eye(1.5), comp.Tagged(s.unitTag)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, flyer, order,
 		comp.Tagged(s.selection.Tags().Selectable),
-		sight, eye(1), comp.Const(vision.SightOutline{}), comp.Tagged(s.unitTag))
+		sight, eye(1), comp.Tagged(s.unitTag))
 }
 
 // Spawn says who is there when the game starts fresh.

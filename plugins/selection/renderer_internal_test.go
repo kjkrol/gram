@@ -3,7 +3,6 @@ package selection
 import (
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/render"
@@ -54,7 +53,7 @@ func TestDefaultHighlightStyle_OutlinesEveryPieceOfTheFootprintOnTheMarksTier(t 
 	if f.Len() != 8 {
 		t.Errorf("%d pieces, want the four sides of each of two pieces", f.Len())
 	}
-	f.Each(func(tier render.Tier, _ float32, _ []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, _ []render.Vertex) {
 		if tier != render.Marks {
 			t.Errorf("an outline side on tier %d, want Marks", tier)
 		}

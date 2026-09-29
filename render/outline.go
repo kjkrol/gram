@@ -1,15 +1,11 @@
 package render
 
 import (
-	_ "embed"
 	"math"
 )
 
-//go:embed outline.kage
-var outlineKage []byte
-
-// outlineMaterial draws a tile's outline over all laid on it (outline.kage).
-var outlineMaterial = RegisterMaterials(outlineKage, "Outline")[0]
+// outlineMaterial draws a tile's outline over all laid on it (shaders/outline.wgsl).
+var outlineMaterial = RegisterMaterials(Files(shaderFiles, "shaders/outline.wgsl"), nil, "Outline")[0]
 
 // OutlineOn outlines the sprite m along its own edges, over all drawn on it since: a Tile's
 // outline that what lies on the tile does not cover. m is a Sprite, or a SpriteRect's pieces

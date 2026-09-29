@@ -13,12 +13,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-var _ render.Source = (*Renderer)(nil)
+var _ render.Direct = (*Renderer)(nil)
 
 // Renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
 // camera — what it sees this tick — each laid on the screen by the world's Look, running the Each
 // behaviors of a Drawing over each chunk to settle their layers. A Stage that has not ticked yet
-// sees everything.
+// sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
+// sprites it was handed.
 type Renderer struct {
 	renderQuery *goke.Query
 	base        goke.Comp[Base]
@@ -64,6 +65,9 @@ func (s *Renderer) Clock() (time.Duration, bool) {
 // light and the wind; the world knows its entities.
 func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := s.look()
+	if d, ok := look.(DirectLook); ok {
+		d.Begin(cam)
+	}
 	s.view = s.views(cam)
 	s.each(func(i int, z *Z) {
 		box := s.bases[i].Pos.AABB
@@ -78,6 +82,16 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			look.Sprite(f, cam, box, stands, s.atlas, l.SpriteID, render.Light{1, 1, 1}, l.Sway)
 		}
 	})
+}
+
+// Tier is where a DirectLook's sprites come in the picture: render.Objects.
+func (s *Renderer) Tier() render.Tier { return render.Objects }
+
+// Draw has a DirectLook draw the sprites Compose handed it; any other Look laid them on the frame.
+func (s *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
+	if d, ok := s.look().(DirectLook); ok {
+		d.DrawSprites(t, cam, u)
+	}
 }
 
 // each walks the drawn entities of the View, their Drawing behaviors run, calling visit once per

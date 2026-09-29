@@ -4,9 +4,8 @@ import (
 	"image"
 	"slices"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
+	"github.com/kjkrol/gram/plugins/topography/terrain"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -14,18 +13,18 @@ import (
 // (0, top) of img: the tiles' sheet — the board's atlas with, below it, what lies over the tiles,
 // the grounds running in and the ways, which from far a tile draws as one piece over its top
 // drawn from the same sheet — or, based, the board's albedo: every cell's base under all that,
-// for the ground traced on the GPU (topography/heightfield), with the board's water beside it.
+// for the ground drawn on the GPU (topography/terrain), with the board's water beside it.
 type groundSheet struct {
-	img   *ebiten.Image
+	img   *render.Image
 	atlas render.AtlasSource // the board's, at the top-left of the tiles' sheet
 	top   int                // where the cells begin, below the atlas
 	px    int                // how many pixels a cell spans
 	based bool               // every cell's base is painted under what lies over it
-	// water is a based sheet's water, wpx pixels a cell in the layers heightfield.WaterLayers
+	// water is a based sheet's water, wpx pixels a cell in the layers terrain.WaterLayers
 	// names, each a quadrant; wcanvas gathers a layer's pieces; nil where the water would not fit
-	water   *ebiten.Image
+	water   *render.Image
 	wpx     int
-	wcanvas [heightfield.WaterLayers]render.Frame
+	wcanvas [terrain.WaterLayers]render.Frame
 	// by ordinal: the bake a cell was painted from, its and its neighbours' newest; whether
 	// anything lies painted over it
 	painted []uint64
@@ -35,7 +34,7 @@ type groundSheet struct {
 
 var _ render.AtlasSource = (*groundSheet)(nil)
 
-func (s *groundSheet) Atlas() *ebiten.Image                           { return s.img }
+func (s *groundSheet) Atlas() *render.Image                           { return s.img }
 func (s *groundSheet) UV(id render.SpriteID) (x0, y0, x1, y1 float32) { return s.atlas.UV(id) }
 func (s *groundSheet) White() (u, v float32)                          { return s.atlas.White() }
 
@@ -77,10 +76,10 @@ func (l *dresser) Sheet(atlas render.AtlasSource) render.AtlasSource {
 
 // Surface is the whole board painted flat out of atlas, px pixels a cell — every cell's base with
 // the grounds running in, the ways and the crossings over it — and its water, wpx pixels a cell
-// (heightfield.WaterLayers), brought up to date with the board, for the ground traced on the GPU;
+// (terrain.WaterLayers), brought up to date with the board, for the ground drawn on the GPU;
 // nil off a square grid, where a cell would span too few pixels or the atlas has no sheet; no
 // water where it would not fit.
-func (l *dresser) Surface(atlas render.AtlasSource) (albedo, water *ebiten.Image, px, wpx int) {
+func (l *dresser) Surface(atlas render.AtlasSource) (albedo, water *render.Image, px, wpx int) {
 	if !l.square {
 		return nil, nil, 0, 0
 	}
@@ -112,12 +111,12 @@ func (l *dresser) newSheet(atlas render.AtlasSource, based bool) *groundSheet {
 	}
 	s := &groundSheet{atlas: atlas, top: a.Y, px: px, based: based,
 		painted: make([]uint64, l.board.CellCount()), dressed: make([]bool, l.board.CellCount())}
-	s.img = ebiten.NewImage(max(a.X, cols*px), a.Y+rows*px)
+	s.img = render.NewImage(max(a.X, cols*px), a.Y+rows*px)
 	if !based {
 		s.img.DrawImage(atlas.Atlas(), nil)
 	}
 	if wpx := min(px, maxSheet/(2*cols), maxSheet/(2*rows)); based && wpx >= minBakePx {
-		s.water, s.wpx = ebiten.NewImage(2*cols*wpx, 2*rows*wpx), wpx
+		s.water, s.wpx = render.NewImage(2*cols*wpx, 2*rows*wpx), wpx
 	}
 	return s
 }
@@ -182,7 +181,7 @@ func (l *dresser) cellTile(c board.CellID) *tile {
 // paintAll paints the whole board anew on s: every cell's base where s is based, every cell's
 // grounds, then every way over them, then every crossing over those.
 func (l *dresser) paintAll(s *groundSheet) {
-	cells := s.img.SubImage(image.Rect(0, s.top, int(l.sq.Cols)*s.px, s.top+int(l.sq.Rows)*s.px)).(*ebiten.Image)
+	cells := s.img.SubImage(image.Rect(0, s.top, int(l.sq.Cols)*s.px, s.top+int(l.sq.Rows)*s.px))
 	cells.Clear()
 	l.canvas.Reset(nil)
 	clear(s.dressed)
@@ -217,7 +216,7 @@ func (l *dresser) paintAll(s *groundSheet) {
 			l.layWater(s, i, nil, l.bakes[i].crossings)
 		}
 		for q := range s.wcanvas {
-			render.Paint(s.water.SubImage(s.waterLayer(q)).(*ebiten.Image), &s.wcanvas[q])
+			render.Paint(s.water.SubImage(s.waterLayer(q)), &s.wcanvas[q])
 		}
 	}
 }
@@ -226,7 +225,7 @@ func (l *dresser) paintAll(s *groundSheet) {
 // crossings of it and its neighbours reaching over it.
 func (l *dresser) paintCell(s *groundSheet, i int) {
 	cols := int(l.sq.Cols)
-	part := s.img.SubImage(s.cell(uint32(i%cols), uint32(i/cols))).(*ebiten.Image)
+	part := s.img.SubImage(s.cell(uint32(i%cols), uint32(i/cols)))
 	part.Clear()
 	l.canvas.Reset(nil)
 	b := &l.bakes[i]
@@ -250,7 +249,7 @@ func (l *dresser) paintCell(s *groundSheet, i int) {
 		l.around8(i, func(j int) { l.layWater(s, j, nil, l.bakes[j].ways) })
 		l.around8(i, func(j int) { l.layWater(s, j, nil, l.bakes[j].crossings) })
 		for q := range s.wcanvas {
-			part := s.water.SubImage(s.waterCell(q, i%cols, i/cols)).(*ebiten.Image)
+			part := s.water.SubImage(s.waterCell(q, i%cols, i/cols))
 			part.Clear()
 			render.Paint(part, &s.wcanvas[q])
 		}

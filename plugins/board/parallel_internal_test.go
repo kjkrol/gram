@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
@@ -53,12 +52,12 @@ type stripedMap struct {
 func (m stripedMap) Dressing() Dressing { return m.d }
 
 // piecesOf composes r through cam and gives every piece of the frame in order.
-func piecesOf(r *Renderer, cam camera.Camera) (out [][]ebiten.Vertex, n int) {
+func piecesOf(r *Renderer, cam camera.Camera) (out [][]render.Vertex, n int) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
-		out = append(out, append([]ebiten.Vertex(nil), v...))
+	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+		out = append(out, append([]render.Vertex(nil), v...))
 	})
 	return out, f.Len()
 }

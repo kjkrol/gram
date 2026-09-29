@@ -16,8 +16,9 @@
 // lays the clouds' shadows tile by tile and hazes the far off; a flat board and the world's sprites
 // take the sun's light on level ground through [Plugin.WithBoard] — tinted by the hour, night dark,
 // dawn warm, what sways leaning with the wind — and the clouds' shadows from [Plugin.Clouds], laid
-// over the screen piece by piece. The sun's maths and Kage are plugins/atmosphere/sky's, the
-// weather's plugins/atmosphere/air's; [Backdrop] is the sky behind the world, a render.Source.
+// over the screen piece by piece. The sun's maths and shaders are plugins/atmosphere/sky's, the
+// weather's plugins/atmosphere/air's; [Backdrop] is the sky behind the world, a render.Direct
+// drawn on the GPU (shaders/backdrop.wgsl), and plugins/atmosphere/precipitation what falls.
 //
 // [Plugin.WithWeathering] lays the weather on a board (plugins/atmosphere/weathering): snow
 // lying, ice on the water, what sways swaying, as effects on the cells from the world's schedule,

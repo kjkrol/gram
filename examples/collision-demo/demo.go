@@ -12,7 +12,6 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -269,9 +268,9 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeyF5:
+		case control.KeyF5:
 			s.state.Saves++
 			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {
 				log.Printf("save: %v", err)

@@ -1,8 +1,6 @@
 package topography
 
 import (
-	"encoding/binary"
-	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -18,35 +16,17 @@ func (c Corners) Level() float64 {
 	return (float64(c[0]) + float64(c[1]) + float64(c[2]) + float64(c[3])) / 4
 }
 
-// Heights is the ground's heights as the topography's own entity carries them, saved with the
-// game: on a square grid one per corner of the lattice, row by row — a column more than the grid
-// has, a row more, save along an axis that wraps — on any other grid one per cell, by ordinal.
-type Heights struct{ Values []float32 }
+// HeightsRun is how many of the ground's heights one of the topography's entities carries.
+const HeightsRun = 1024
 
-// MarshalBinary is the heights as a save writes them: their count, then each, little-endian.
-func (h Heights) MarshalBinary() ([]byte, error) {
-	out := make([]byte, 4+4*len(h.Values))
-	binary.LittleEndian.PutUint32(out, uint32(len(h.Values)))
-	for i, v := range h.Values {
-		binary.LittleEndian.PutUint32(out[4+4*i:], math.Float32bits(v))
-	}
-	return out, nil
-}
-
-// UnmarshalBinary reads the heights a save wrote.
-func (h *Heights) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return fmt.Errorf("topography: heights of %d bytes", len(data))
-	}
-	n := int(binary.LittleEndian.Uint32(data))
-	if len(data) != 4+4*n {
-		return fmt.Errorf("topography: %d heights in %d bytes", n, len(data))
-	}
-	h.Values = make([]float32, n)
-	for i := range h.Values {
-		h.Values[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[4+4*i:]))
-	}
-	return nil
+// Heights is a run of the ground's heights as the topography's entities carry them, saved with the
+// game: Count of them from the First on, in the order the relief keeps them — on a square grid one
+// per corner of the lattice, row by row, a column more than the grid has and a row more, save
+// along an axis that wraps; on any other grid one per cell, by ordinal. Its size is fixed, so the
+// ECS keeps it in its own memory.
+type Heights struct {
+	First, Count uint32
+	Values       [HeightsRun]float32
 }
 
 // Relief is the ground's height over a board's grid. On a square grid it is a lattice of corners
@@ -99,7 +79,7 @@ func NewRelief(grid board.Grid) *Relief {
 
 // Lattice is the ground's heights over a square grid as a lattice: cols by rows corners a cell
 // apart, row by row, the relief's own values to read and not to keep — for whoever draws them all
-// at once (topography/heightfield); false off a square grid.
+// at once (topography/terrain); false off a square grid.
 func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
 	if !r.square {
 		return 0, 0, 0, nil, false
@@ -132,15 +112,33 @@ func (r *Relief) Highest() float64 {
 	return high
 }
 
-// Heights is the ground as its entity carries it: the same values, not a copy.
-func (r *Relief) Heights() Heights { return Heights{Values: r.values} }
+// Runs is how many runs of HeightsRun the relief's heights take.
+func (r *Relief) Runs() int { return (len(r.values) + HeightsRun - 1) / HeightsRun }
 
-// adopt takes h's values as the ground — a loaded game's — when they are as many as the grid has.
-func (r *Relief) adopt(h Heights) bool {
-	if len(h.Values) != len(r.values) {
+// fill writes into h the run of the relief's heights from h.First on.
+func (r *Relief) fill(h *Heights) {
+	first := min(int(h.First), len(r.values))
+	n := copy(h.Values[:], r.values[first:])
+	h.Count = uint32(n)
+	clear(h.Values[n:])
+}
+
+// adopt takes the runs' heights as the ground — a loaded game's — when together they are exactly
+// as many as the grid has, each run where its First says.
+func (r *Relief) adopt(runs []Heights) bool {
+	total := 0
+	for _, h := range runs {
+		if int(h.First)+int(h.Count) > len(r.values) || h.Count > HeightsRun {
+			return false
+		}
+		total += int(h.Count)
+	}
+	if total != len(r.values) {
 		return false
 	}
-	r.values = h.Values
+	for _, h := range runs {
+		copy(r.values[h.First:], h.Values[:h.Count])
+	}
 	r.version++
 	return true
 }

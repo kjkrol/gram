@@ -11,7 +11,6 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -269,9 +268,9 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeyA:
+		case control.KeyA:
 			m.stage.avoiding = !m.stage.avoiding
 			m.stage.avoidance.SetEnabled(m.stage.avoiding)
 		}

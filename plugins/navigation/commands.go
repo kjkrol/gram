@@ -3,7 +3,6 @@ package navigation
 import (
 	"math"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -63,9 +62,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	}
 	turn := func(c control.Context) (LookAt, bool) { return LookAt{At: c.World(c.Cursor)}, dragged(c) }
 	return []control.Binding{
-		control.Command(control.Drag{Button: ebiten.MouseButtonRight}, "Move selected units here", to(false)),
-		control.Command(control.Drag{Button: ebiten.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
-		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
-		control.Command(control.KeyPress{Key: ebiten.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
+		control.Command(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
+		control.Command(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
+		control.Command(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
+		control.Command(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
 	}
 }

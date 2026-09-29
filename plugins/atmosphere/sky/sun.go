@@ -1,7 +1,7 @@
 package sky
 
 import (
-	_ "embed"
+	"embed"
 	"image/color"
 	"math"
 
@@ -11,12 +11,14 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-//go:embed sun.kage
-var sunKage []byte
+//go:embed shaders/*.wgsl
+var shaders embed.FS
 
-// The sun's uniforms in the composer's shader (sun.kage), registered as the package is set up: a
-// material may read them, and Sun.Frame sets them.
-var _ = render.RegisterMaterials(sunKage)
+// The sun's uniforms in the composer's shader (shaders/sun.wgsl), registered as the package is set
+// up: a material may read them, and Sun.Frame sets them.
+var _ = render.RegisterMaterials(render.Files(shaders, "shaders/sun.wgsl"), []render.Uniform{
+	{Name: "Sun", Size: 3}, {Name: "SunStrength", Size: 1}, {Name: "SunColor", Size: 3}, {Name: "SkyColor", Size: 3}, {Name: "Ambience", Size: 3},
+})
 
 // Sun is the light over the world: Dir points from the ground towards the sun (x and y along the
 // world, z up), Strength is how much it lights a surface facing it square on, Ambient how much of
@@ -110,22 +112,26 @@ const (
 	shadowFull = 0.6
 )
 
-// Shadow lays on f the shadow of an entity standing in box as z says, on the ground groundAt
-// gives (nil: level at 0), away from the sun: a soft patch as wide as the box, stretched by its
-// height and pushed off by how far above the ground it stands, at the depth of its nearest
-// corner; none with the sun down or too faint.
-func (s Sun) Shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z world.Z, groundAt func(x, y float32) float32) {
+// Patch is where a shadow lies on the ground, world units: its middle (X, Y), the way away from
+// the sun (UX, UY), how far it reaches from the middle along that way (Along) and across it
+// (Wide), how far in from each side it fades out (Fade) and how dark it is inside (Veil, 0 to 1).
+type Patch struct{ X, Y, UX, UY, Along, Wide, Fade, Veil float32 }
+
+// ShadowOf is the shadow of an entity standing in box as z says, on the ground groundAt gives
+// (nil: level at 0), away from the sun: a soft patch as wide as the box, stretched by its height
+// and pushed off by how far above the ground it stands, solid in its middle and soft for the
+// outer half of each side; false with the sun down or too faint.
+func (s Sun) ShadowOf(box geom.AABB, z world.Z, groundAt func(x, y float32) float32) (Patch, bool) {
 	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
-	if sz <= 0 || s.Strength <= 0 {
-		return
+	veil := float32(uint8(shadowVeil*min(s.Strength/shadowFull, 1))) / 255
+	if sz <= 0 || s.Strength <= 0 || veil <= 0 {
+		return Patch{}, false
 	}
-	ground := func(x, y float32) float32 {
-		if groundAt == nil {
-			return 0
-		}
-		return groundAt(x, y)
-	}
+	ground := float32(0)
 	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
+	if groundAt != nil {
+		ground = groundAt(cx, cy)
+	}
 	half := float32(max(box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)) / 2
 	// away from the sun, and how far a unit of height casts its shadow that way
 	ux, uy := float32(1), float32(0)
@@ -134,24 +140,39 @@ func (s Sun) Shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z world.Z
 		ux, uy = -sx/across, -sy/across
 	}
 	reach := min(across/sz, maxShadowReach)
-	above := max(float32(z.Altitude)-ground(cx, cy), 0)
+	above := max(float32(z.Altitude)-ground, 0)
 	start, length := above*reach, float32(z.Height)*reach
 	mid := start + length/2
-	mx, my := cx+ux*mid, cy+uy*mid
-	along, wide := length/2+half, half
+	return Patch{X: cx + ux*mid, Y: cy + uy*mid, UX: ux, UY: uy, Along: length/2 + half, Wide: half, Fade: half / 2, Veil: veil}, true
+}
+
+// Shadow lays on f the shadow of an entity standing in box as z says (ShadowOf), its corners on
+// the ground groundAt gives, at the depth of its nearest corner.
+func (s Sun) Shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z world.Z, groundAt func(x, y float32) float32) {
+	p, ok := s.ShadowOf(box, z, groundAt)
+	if !ok {
+		return
+	}
+	ground := func(x, y float32) float32 {
+		if groundAt == nil {
+			return 0
+		}
+		return groundAt(x, y)
+	}
 	var dst render.Corners
 	depth := float32(math.Inf(-1))
-	for k, c := range [4][2]float32{{-along, -wide}, {along, -wide}, {-along, wide}, {along, wide}} {
-		x, y := mx+ux*c[0]-uy*c[1], my+uy*c[0]+ux*c[1]
+	for k, c := range [4][2]float32{{-p.Along, -p.Wide}, {p.Along, -p.Wide}, {-p.Along, p.Wide}, {p.Along, p.Wide}} {
+		x, y := p.X+p.UX*c[0]-p.UY*c[1], p.Y+p.UY*c[0]+p.UX*c[1]
 		g := ground(x, y)
 		dst[k][0], dst[k][1] = cam.Project(x, y, g)
 		depth = max(depth, cam.Depth(x, y, g))
 	}
+	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
 	scale := camera.ScaleAt(cam, cx, cy, ground(cx, cy))
 	if scale == 0 {
 		return // not in front of the eye
 	}
-	fade := half / 2 * scale // a solid core, soft for the outer half of each side
-	veil := color.RGBA{A: uint8(shadowVeil * min(s.Strength/shadowFull, 1))}
+	fade := p.Fade * scale
+	veil := color.RGBA{A: uint8(p.Veil*255 + 0.5)}
 	f.Soft(ShadowTier, depth, dst, veil, render.Fade{Left: fade, Right: fade, Top: fade, Bottom: fade})
 }

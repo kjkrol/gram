@@ -1,40 +1,37 @@
 package precipitation
 
 import (
+	"os"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	weather := air.Weather{}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
-	count := func() (n int, tier render.Tier) {
-		var f render.Frame
-		f.Reset(w.Camera())
-		p.Compose(&f, w.Camera())
-		f.Each(func(t render.Tier, _ float32, _ []ebiten.Vertex) { n, tier = n+1, t })
-		return
+	if p.Tier() != render.Air {
+		t.Errorf("what falls comes on tier %v, want the Air", p.Tier())
 	}
-	if n, _ := count(); n != 0 {
-		t.Errorf("a dry sky drew %d drops", n)
+	if f := p.fall(w.Camera()); f.Drops+f.Flakes != 0 {
+		t.Errorf("a dry sky lets %d drops and %d flakes fall", f.Drops, f.Flakes)
 	}
 	weather = air.Weather{Rain: 0.5}
-	half, tier := count()
+	half := p.fall(w.Camera()).Drops
 	weather = air.Weather{Rain: 1}
-	full, _ := count()
-	if half == 0 || tier != render.Air || full < 2*half-1 || full > 2*half+1 {
-		t.Errorf("half a rain drew %d drops on tier %v, a full one %d; want some in the air, twice as many", half, tier, full)
+	full := p.fall(w.Camera()).Drops
+	if half == 0 || full < 2*half-1 || full > 2*half+1 {
+		t.Errorf("half a rain lets %d drops fall, a full one %d; want some, twice as many", half, full)
 	}
 	weather = air.Weather{Snow: 1}
-	if n, _ := count(); n == 0 {
-		t.Error("a snowfall drew no flakes")
+	if f := p.fall(w.Camera()); f.Flakes == 0 || f.Drops != 0 {
+		t.Errorf("a snowfall lets %d flakes and %d drops fall, want flakes alone", f.Flakes, f.Drops)
 	}
 }
 
@@ -58,24 +55,42 @@ func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	weather := air.Weather{Rain: 1, Wind: [2]float32{10, 0}}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
-	cam := flung{w.Camera()}
-	var f render.Frame
-	f.Reset(cam)
-	p.Compose(&f, cam)
-	n := 0
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
-		n++
-		across := max(v[0].DstX, v[1].DstX, v[2].DstX, v[3].DstX) - min(v[0].DstX, v[1].DstX, v[2].DstX, v[3].DstX)
-		if across > 2*rainDrop {
-			t.Errorf("a streak of rain spans %v pixels across, want no more than it falls, %v", across, rainDrop)
-		}
-	})
-	if n == 0 {
-		t.Fatal("the rain drew nothing")
+	if f := p.fall(flung{w.Camera()}); f.Drift != 10*rainSlant {
+		t.Errorf("the rain drifts %v pixels a second, want the wind's 10 across the middle, %v times over", f.Drift, rainSlant)
 	}
-	x0, _ := cam.Project(500, 500, 0)
-	x1, _ := cam.Project(510, 500, 0)
-	if want := (x1 - x0) * rainSlant; want <= 0 {
-		t.Fatalf("the wind carries nothing across the middle: %v", want)
+	weather.Wind = [2]float32{1000, 0}
+	if f := p.fall(flung{w.Camera()}); f.Drift != rainSpeed {
+		t.Errorf("in a gale the rain drifts %v pixels a second, want no more than it falls, %v", f.Drift, rainSpeed)
+	}
+}
+
+// Drawn on the GPU the rain leaves streaks on a clear screen, and a dry sky nothing.
+func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	weather := air.Weather{Rain: 1}
+	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
+	screen := render.NewImage(640, 480)
+	pix := make([]byte, 4*640*480)
+	lit := func() int {
+		screen.Clear()
+		p.Draw(render.Target{Screen: screen}, w.Camera(), render.UniformsOf(map[string]any{"Clock": []float32{3}}))
+		screen.ReadPixels(pix)
+		n := 0
+		for i := 3; i < len(pix); i += 4 {
+			if pix[i] > 0 {
+				n++
+			}
+		}
+		return n
+	}
+	if n := lit(); n < 640*480/900*10 {
+		t.Errorf("a full rain covers %d pixels, want its streaks, some %d pixels each", n, rainDrop)
+	}
+	weather = air.Weather{}
+	if n := lit(); n != 0 {
+		t.Errorf("a dry sky covers %d pixels", n)
 	}
 }

@@ -6,9 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -20,7 +17,7 @@ import (
 // SceneKey is a key of the game's own scene — save, quit, a debug toggle — that is no command to a
 // plugin: what it does, labelled for the shortcuts list. Shift asks for Shift held.
 type SceneKey struct {
-	Key   ebiten.Key
+	Key   control.Key
 	Shift bool
 	Label string
 	Do    func(runtime game.Runtime, composition game.Composition)
@@ -89,7 +86,7 @@ func (s *Shortcuts) Layers() []render.Layer { return []render.Layer{s.layer} }
 // HandleEvents closes the scene on Esc or K.
 func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && (k.Key == ebiten.KeyEscape || k.Key == ebiten.KeyK) && !events.Modifiers.Shift {
+		if k.Action == control.ActionPress && (k.Key == control.KeyEscape || k.Key == control.KeyK) && !events.Modifiers.Shift {
 			s.Close(runtime, composition)
 			return
 		}
@@ -214,38 +211,38 @@ func withMods(m control.Mods, what string) string {
 	return strings.Join(parts, "+")
 }
 
-func buttonName(b ebiten.MouseButton) string {
+func buttonName(b control.MouseButton) string {
 	switch b {
-	case ebiten.MouseButtonLeft:
+	case control.MouseButtonLeft:
 		return "left"
-	case ebiten.MouseButtonRight:
+	case control.MouseButtonRight:
 		return "right"
-	case ebiten.MouseButtonMiddle:
+	case control.MouseButtonMiddle:
 		return "middle"
 	}
 	return fmt.Sprintf("button %d", b)
 }
 
 // keyName is a key as written on it, where ebiten's name is not.
-func keyName(k ebiten.Key) string {
+func keyName(k control.Key) string {
 	switch k {
-	case ebiten.KeyBracketLeft:
+	case control.KeyBracketLeft:
 		return "["
-	case ebiten.KeyBracketRight:
+	case control.KeyBracketRight:
 		return "]"
-	case ebiten.KeyEqual:
+	case control.KeyEqual:
 		return "="
-	case ebiten.KeyMinus:
+	case control.KeyMinus:
 		return "-"
-	case ebiten.KeyEscape:
+	case control.KeyEscape:
 		return "Esc"
-	case ebiten.KeyArrowUp:
+	case control.KeyArrowUp:
 		return "Up"
-	case ebiten.KeyArrowDown:
+	case control.KeyArrowDown:
 		return "Down"
-	case ebiten.KeyArrowLeft:
+	case control.KeyArrowLeft:
 		return "Left"
-	case ebiten.KeyArrowRight:
+	case control.KeyArrowRight:
 		return "Right"
 	}
 	return k.String()
@@ -263,20 +260,20 @@ const (
 	shortcutsColumn = 340
 )
 
-func (l *shortcutsLayer) Draw(screen *ebiten.Image) {
+func (l *shortcutsLayer) Draw(screen *render.Image) {
 	b := screen.Bounds()
-	vector.DrawFilledRect(screen, 0, 0, float32(b.Dx()), float32(b.Dy()), color.RGBA{A: 170}, false)
+	render.FillRect(screen, 0, 0, float32(b.Dx()), float32(b.Dy()), color.RGBA{A: 170})
 	x, y := shortcutsMargin, shortcutsMargin
-	ebitenutil.DebugPrintAt(screen, l.s.title(), x, y)
+	render.DebugPrintAt(screen, l.s.title(), x, y)
 	y += 2 * shortcutsLine
 	for _, g := range l.s.groups() {
 		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > 3*shortcutsLine {
 			x, y = x+shortcutsColumn, shortcutsMargin+2*shortcutsLine // the next column
 		}
-		ebitenutil.DebugPrintAt(screen, g.name, x, y)
+		render.DebugPrintAt(screen, g.name, x, y)
 		y += shortcutsLine
 		for _, line := range g.lines {
-			ebitenutil.DebugPrintAt(screen, "  "+line, x, y)
+			render.DebugPrintAt(screen, "  "+line, x, y)
 			y += shortcutsLine
 		}
 		y += shortcutsLine

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -133,14 +132,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
-		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
-		{Key: ebiten.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
 			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
 			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
 		}},
-		{Key: ebiten.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
+		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
 			s.state.Saves++
 			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
 				log.Printf("save: %v", err)

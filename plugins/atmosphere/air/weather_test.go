@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
@@ -17,7 +16,7 @@ import (
 // the white texel of these tests' sheet
 type sheet struct{}
 
-func (sheet) Atlas() *ebiten.Image                        { return nil }
+func (sheet) Atlas() *render.Image                        { return nil }
 func (sheet) UV(render.SpriteID) (x0, y0, x1, y1 float32) { return 0, 0, 8, 8 }
 func (sheet) White() (u, v float32)                       { return 40, 40 }
 
@@ -46,7 +45,7 @@ func TestOvercast_LaysTheCloudsShadowsOnlyUnderClouds(t *testing.T) {
 		t.Fatalf("under clouds %d pieces, want the sprite and the clouds' shadow over it", f.Len())
 	}
 	var frac float32
-	f.Each(func(_ render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
 		frac = v[0].ColorA - 2 - 2*float32(air.CloudShadow())
 	})
 	if frac != 1 {

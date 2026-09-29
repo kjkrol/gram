@@ -3,7 +3,6 @@ package control
 import (
 	"reflect"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 )
@@ -13,21 +12,18 @@ import (
 type Mods struct {
 	Shift, Ctrl, Alt bool
 
-	held uint16 // the held key plus one; zero holds none, since ebiten.KeyA is zero
+	held Key // the key held besides; KeyUnknown holds none
 }
 
 // Holding is m with key held down besides: S held while right-clicking, say.
-func (m Mods) Holding(key ebiten.Key) Mods {
-	m.held = uint16(key) + 1
+func (m Mods) Holding(key Key) Mods {
+	m.held = key
 	return m
 }
 
 // Held is the key m asks to be held down besides its modifiers, if any.
-func (m Mods) Held() (ebiten.Key, bool) {
-	if m.held == 0 {
-		return 0, false
-	}
-	return ebiten.Key(m.held - 1), true
+func (m Mods) Held() (Key, bool) {
+	return m.held, m.held != KeyUnknown
 }
 
 // Trigger is what fires a Binding: a key, a button, a gesture. The concrete triggers are values,
@@ -36,24 +32,24 @@ type Trigger interface{ trigger() }
 
 // KeyPress fires when Key goes down with Mods held.
 type KeyPress struct {
-	Key  ebiten.Key
+	Key  Key
 	Mods Mods
 }
 
 // KeyHeld fires once a tick while Key is down, whatever else is held — steering a vehicle, walking
 // a character — its command landing in the tick after; a key tapped between two ticks never fires.
-type KeyHeld struct{ Key ebiten.Key }
+type KeyHeld struct{ Key Key }
 
 // ButtonPress fires when Button goes down with Mods held; Context.Cursor is where.
 type ButtonPress struct {
-	Button ebiten.MouseButton
+	Button MouseButton
 	Mods   Mods
 }
 
 // Drag fires when Button comes up with Mods held, after going down: Context.Start is where it went
 // down, Context.Cursor where it came up. A click is a Drag of no length.
 type Drag struct {
-	Button ebiten.MouseButton
+	Button MouseButton
 	Mods   Mods
 }
 
@@ -62,7 +58,7 @@ type Wheel struct{}
 
 // ButtonHeld fires every pass Button is down and the cursor moved inside the window;
 // Context.Delta is by how much and Context.Start where the button went down.
-type ButtonHeld struct{ Button ebiten.MouseButton }
+type ButtonHeld struct{ Button MouseButton }
 
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.
 type CursorAtEdge struct{}

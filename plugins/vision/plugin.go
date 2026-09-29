@@ -29,6 +29,7 @@ type Plugin struct {
 	cones       control.Queue[Cones]
 
 	sightings host.PairHost[Sighting]
+	viewings  host.EachHost[Viewing] // which views are drawn; none, every one
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -66,7 +67,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep)
+	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep).WithCover(p.coverOf).WithScale(p.worldPlugin.Scale()).WithViewing(&p.viewings)
 	if p.style != nil {
 		p.renderer.WithStyle(p.style)
 	}
@@ -92,8 +93,11 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 // RegisterBehavior hosts a Between of Sighting, run once per observer; call before Use.
 func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
 	for _, b := range behaviors {
-		if err := p.sightings.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes Between for Sighting", err, p.Name())
+		if err := p.sightings.Add(b); err == nil {
+			continue
+		}
+		if err := p.viewings.Add(b); err != nil {
+			return fmt.Errorf("%w in %s — it takes Between for Sighting and Each or Every for Viewing", err, p.Name())
 		}
 	}
 	return nil

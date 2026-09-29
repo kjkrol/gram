@@ -4,20 +4,19 @@ import (
 	"image"
 	"image/color"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
+	"github.com/kjkrol/gram/plugins/topography/terrain"
 	"github.com/kjkrol/gram/render"
 )
 
 // whiteSheet is a sheet of white alone, for what is painted in the vertices' colours: every
 // sprite of it is its white.
-type whiteSheet struct{ img *ebiten.Image }
+type whiteSheet struct{ img *render.Image }
 
 var white = &whiteSheet{}
 
-func (w *whiteSheet) Atlas() *ebiten.Image {
+func (w *whiteSheet) Atlas() *render.Image {
 	if w.img == nil {
-		w.img = ebiten.NewImage(3, 3)
+		w.img = render.NewImage(3, 3)
 		w.img.Fill(color.White)
 	}
 	return w.img
@@ -25,7 +24,7 @@ func (w *whiteSheet) Atlas() *ebiten.Image {
 func (*whiteSheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (*whiteSheet) White() (u, v float32)                           { return 1.5, 1.5 }
 
-// The water's layers on the sheet (heightfield.WaterLayers): running water's flow, the running and
+// The water's layers on the sheet (terrain.WaterLayers): running water's flow, the running and
 // the still water's shine, the glint where a way turns into water.
 const (
 	flowLayer = iota
@@ -66,9 +65,9 @@ func (l *dresser) waterCorners(s *groundSheet, q, i int, w render.World) render.
 	return c
 }
 
-// flowOf is a flow as the water's layers hold it: over twice heightfield.FlowSpan, a half for none.
+// flowOf is a flow as the water's layers hold it: over twice terrain.FlowSpan, a half for none.
 func flowOf(v float32) float32 {
-	return min(max(v/(2*heightfield.FlowSpan)+0.5, 0), 1)
+	return min(max(v/(2*terrain.FlowSpan)+0.5, 0), 1)
 }
 
 // layWaterBase adds to s's water canvases cell i's own water, where its base shines: running

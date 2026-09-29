@@ -1,7 +1,6 @@
 package render
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -17,14 +16,14 @@ type Layer interface {
 // menu, a telemetry line.
 type Renderer interface {
 	Layer
-	Draw(screen *ebiten.Image)
+	Draw(screen *Image)
 }
 
 // WorldRenderer is a layer showing the world, drawn once a frame per viewport through its camera
 // onto an image the size of the viewport's area.
 type WorldRenderer interface {
 	Layer
-	DrawWorld(screen *ebiten.Image, cam camera.Camera)
+	DrawWorld(screen *Image, cam camera.Camera)
 }
 
 // Viewport is where the world is shown: through Camera, into Area of the screen, in pixels.

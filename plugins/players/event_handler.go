@@ -3,7 +3,6 @@ package players
 import (
 	"slices"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -83,8 +82,8 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				at.Start = start
 				t.fire(pl, control.ButtonHeld{Button: button}, at)
 			}
-			if _, down := pl.in.held[ebiten.MouseButtonMiddle]; ev.MiddleDown && !down {
-				t.fire(pl, control.ButtonHeld{Button: ebiten.MouseButtonMiddle}, ctx)
+			if _, down := pl.in.held[control.MouseButtonMiddle]; ev.MiddleDown && !down {
+				t.fire(pl, control.ButtonHeld{Button: control.MouseButtonMiddle}, ctx)
 			}
 		}
 		if atEdge(ctx) {
@@ -121,29 +120,29 @@ func (t eventHandler) hold() {
 
 // input is what the event handler has seen of one player's keys and buttons.
 type input struct {
-	cursor   geom.Vec                        // in the pixels of the player's part of the screen
-	held     map[ebiten.MouseButton]geom.Vec // buttons down and where they went down
-	keys     []ebiten.Key                    // keys down that some binding holds, last pressed last
-	steering []ebiten.Key                    // keys down that some KeyHeld binding is on
-	last     control.Context                 // the context of the last input pass
+	cursor   geom.Vec                         // in the pixels of the player's part of the screen
+	held     map[control.MouseButton]geom.Vec // buttons down and where they went down
+	keys     []control.Key                    // keys down that some binding holds, last pressed last
+	steering []control.Key                    // keys down that some KeyHeld binding is on
+	last     control.Context                  // the context of the last input pass
 }
 
-func (in *input) press(button ebiten.MouseButton, at geom.Vec) {
+func (in *input) press(button control.MouseButton, at geom.Vec) {
 	if in.held == nil {
-		in.held = map[ebiten.MouseButton]geom.Vec{}
+		in.held = map[control.MouseButton]geom.Vec{}
 	}
 	in.held[button] = at
 }
 
 // release forgets the button and reports where it went down, if it was down.
-func (in *input) release(button ebiten.MouseButton) (geom.Vec, bool) {
+func (in *input) release(button control.MouseButton) (geom.Vec, bool) {
 	at, down := in.held[button]
 	delete(in.held, button)
 	return at, down
 }
 
 // keyDown notes key as held when one of bindings asks for it held.
-func (in *input) keyDown(bindings []control.Binding, key ebiten.Key) {
+func (in *input) keyDown(bindings []control.Binding, key control.Key) {
 	if !holds(bindings, key) {
 		return
 	}
@@ -152,14 +151,14 @@ func (in *input) keyDown(bindings []control.Binding, key ebiten.Key) {
 }
 
 // keyUp forgets key as held.
-func (in *input) keyUp(key ebiten.Key) {
+func (in *input) keyUp(key control.Key) {
 	if i := slices.Index(in.keys, key); i >= 0 {
 		in.keys = slices.Delete(in.keys, i, i+1)
 	}
 }
 
 // steer notes key as down when a KeyHeld binding is on it, or forgets it.
-func (in *input) steer(bindings []control.Binding, key ebiten.Key, down bool) {
+func (in *input) steer(bindings []control.Binding, key control.Key, down bool) {
 	if i := slices.Index(in.steering, key); i >= 0 {
 		in.steering = slices.Delete(in.steering, i, i+1)
 	}
@@ -183,7 +182,7 @@ func (in *input) withHeld(mods control.Mods) control.Mods {
 }
 
 // holds reports whether one of bindings asks for key held down.
-func holds(bindings []control.Binding, key ebiten.Key) bool {
+func holds(bindings []control.Binding, key control.Key) bool {
 	for _, b := range bindings {
 		var mods control.Mods
 		switch t := b.Trigger.(type) {

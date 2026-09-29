@@ -4,12 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // eyed is a 100 x 100 screen through a perspective: an eye at (50, 150, 30) looking along -y and
@@ -53,50 +51,31 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun, weather := sky.Sun{}, air.Weather{}
 	b := NewBackdrop(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
-	pieces := func(cam camera.Camera) (n int, fans [][2]float32, depth float32) {
-		var f render.Frame
-		f.Reset(cam)
-		b.Compose(&f, cam)
-		f.Each(func(tier render.Tier, d float32, verts []ebiten.Vertex) {
-			n++
-			if tier != render.Backdrop {
-				t.Errorf("a piece on tier %v, want every one on the Backdrop", tier)
-			}
-			if len(verts) > 4 {
-				fans, depth = append(fans, [2]float32{verts[0].DstX, verts[0].DstY}), d
-			}
-		})
-		return
-	}
+	cam := raying{height: 30}
 	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
-	n, fans, depth := pieces(eyed{})
-	if n != 3 || len(fans) != 2 || math.IsInf(float64(depth), -1) {
-		t.Fatalf("the sun ahead: %d pieces, %d fans at depth %v; want the sky and the sun's glow and disc after it", n, len(fans), depth)
-	}
-	for _, p := range fans {
-		if math.Abs(float64(p[0]-50)) > 0.5 || math.Abs(float64(p[1]-50)) > 0.5 {
-			t.Errorf("the sun ahead is drawn round (%v, %v), want the middle of the screen", p[0], p[1])
-		}
+	p := b.plan(cam)
+	if p.SunRadius != 100*sunRadius || math.Abs(float64(p.SunAt[0]-50)) > 0.5 || math.Abs(float64(p.SunAt[1]-50)) > 0.5 || p.SunDisc[3] != 1 {
+		t.Fatalf("the sun ahead stands at %v, %v wide in %v; want the middle of the screen, a fortieth of it, opaque", p.SunAt, p.SunRadius, p.SunDisc)
 	}
 	sun = sky.Sun{Dir: [3]float32{0.2, -0.8855, 0.5059}, Strength: 0.7} // a fifth up and to the right of the way looked
-	if _, fans, _ := pieces(eyed{}); len(fans) != 2 || fans[0][0] <= 50 || fans[0][1] >= 50 {
-		t.Errorf("the sun up to the right is drawn at %v, want right of and above the middle", fans)
+	if p := b.plan(cam); p.SunRadius == 0 || p.SunAt[0] <= 50 || p.SunAt[1] >= 50 {
+		t.Errorf("the sun up to the right stands at %v, want right of and above the middle", p.SunAt)
 	}
 	sun = sky.Sun{Dir: [3]float32{0, 0.9487, 0.3162}, Strength: 0.7} // behind the eye
-	if n, fans, _ := pieces(eyed{}); n != 1 || len(fans) != 0 {
-		t.Errorf("the sun behind the eye: %d pieces, %d fans; want the sky alone", n, len(fans))
+	if p := b.plan(cam); p.SunRadius != 0 {
+		t.Errorf("the sun behind the eye shows at %v", p.SunAt)
 	}
 	sun = sky.Sun{Dir: [3]float32{0, -0.7, -0.7}, Strength: 0.7} // set
-	if n, _, _ := pieces(eyed{}); n != 1 {
-		t.Errorf("the sun under the horizon: %d pieces, want the sky alone", n)
+	if p := b.plan(cam); p.SunRadius != 0 {
+		t.Errorf("the sun under the horizon shows at %v", p.SunAt)
 	}
 	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
 	weather = air.Weather{Clouds: 1}
-	if n, _, _ := pieces(eyed{}); n != 1 {
-		t.Errorf("the sun under full cloud: %d pieces, want the sky alone", n)
+	if p := b.plan(cam); p.SunRadius != 0 {
+		t.Errorf("the sun under full cloud shows at %v", p.SunAt)
 	}
 	weather = air.Weather{}
-	if n, _, _ := pieces(shifted{Camera: w.Camera(), dx: 150}); n != 1 {
-		t.Errorf("the sun seen from above: %d pieces, want the sky alone: no way vanishes", n)
+	if p := b.plan(shifted{Camera: w.Camera(), dx: 150}); p.SunRadius != 0 {
+		t.Errorf("the sun seen from above shows at %v: no way vanishes", p.SunAt)
 	}
 }

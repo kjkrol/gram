@@ -1,10 +1,10 @@
 package vision
 
 import (
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"math"
 	"testing"
-
-	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -81,32 +81,62 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	}
 }
 
-func TestRenderer_QueryVisitsOnlyEntitiesWithAnOutline(t *testing.T) {
-	r := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
+// viewers is a tag family for the tests.
+type viewers struct{}
 
-	var withOutline, withoutOutline goke.Comp[world.Base]
+// Composed, only the views of the observers carrying an outline are drawn; with a Viewing behavior
+// showing the ones tagged, only theirs.
+func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) {
+	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
+	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
+	shown := plugin.Tag[viewers](3)
+	var h host.EachHost[Viewing]
+	if err := h.Add(ShowViewOf(shown)); err != nil {
+		t.Fatal(err)
+	}
+	tagged.WithViewing(&h)
+	drawn := map[*Renderer]int{}
+	for _, r := range []*Renderer{every, tagged} {
+		r.WithStyle(ConeStyleFn(func(*render.Frame, []ConePoint) { drawn[r]++ }))
+	}
+
+	var base goke.Comp[world.Base]
 	var sight goke.Comp[Sight]
 	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
-
+	var tags goke.Comp[plugin.Tags[viewers]]
+	good := SightOutline{Count: 3}
+	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
+	place := func(f *goke.Factory, at geom.Vec, marks plugin.Tags[viewers]) {
+		f.Create(1)
+		for f.Next() {
+			base.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
+			sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
+			eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 1}
+			outline.Slice(&f.Cursor)[0] = good
+			tags.Slice(&f.Cursor)[0] = marks
+		}
+	}
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			spawn(si.NewFactory(&withOutline, &sight, &eye, &outline), 1)
+			f := si.NewFactory(&base, &sight, &eye, &outline, &tags)
+			place(f, geom.NewVec(100, 100), plugin.Tags[viewers](0).With(shown))
+			place(f, geom.NewVec(300, 300), 0)
 		}},
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			spawn(si.NewFactory(&withoutOutline, &sight, &eye), 2)
+			spawn(si.NewFactory(&base, &sight, &eye), 2)
 		}},
-		goke.SystemFn{OnInit: r.Init},
+		goke.SystemFn{OnInit: every.Init},
+		goke.SystemFn{OnInit: tagged.Init},
 	)
-
-	seen := 0
-	r.query.All()
-	for r.query.Next() {
-		seen += len(r.query.Cursor().IDs)
+	composeWith(every)
+	composeWith(tagged)
+	if drawn[every] != 2 {
+		t.Errorf("without a Viewing behavior %d views were drawn, want the two with an outline", drawn[every])
 	}
-	if seen != 1 {
-		t.Errorf("renderer query matched %d entities, want only the one carrying SightOutline", seen)
+	if drawn[tagged] != 1 {
+		t.Errorf("showing the tagged, %d views were drawn, want the one tagged", drawn[tagged])
 	}
 }
 
@@ -362,7 +392,7 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 	r.shade(100, 100, 0.2, &sight, &o)
 
 	var pieces [][]float32 // per piece: left, right, top, bottom fade distance at its first corner
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier != render.Overlays {
 			t.Errorf("a shadow on tier %d, want Overlays", tier)
 		}
@@ -428,7 +458,7 @@ func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	}
 	r.shade(100, 100, 0.2, &sight, &o)
 	n := 0
-	f.Each(func(render.Tier, float32, []ebiten.Vertex) { n++ })
+	f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
 	if n != 3 {
 		t.Errorf("%d shadow pieces, want the three farther ones: the nearer reach back short of x 146", n)
 	}

@@ -3,8 +3,6 @@ package render
 import (
 	"fmt"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/kjkrol/goke/v3"
 )
 
@@ -36,16 +34,16 @@ func (s *TelemetryRenderer) Init(si *goke.SysInit) {
 	}
 }
 
-func (s *TelemetryRenderer) Draw(screen *ebiten.Image) {
+func (s *TelemetryRenderer) Draw(screen *Image) {
 	s.text = fmt.Appendf(s.text[:0],
-		"FPS: %0.2f\nTPS (Ebiten): %0.2f\nTPS (Physics): %d\nEntities: %d",
-		ebiten.ActualFPS(),
-		ebiten.ActualTPS(),
+		"FPS: %0.2f\nTPS (engine): %0.2f\nTPS (Physics): %d\nEntities: %d",
+		ActualFPS(),
+		ActualTPS(),
 		*s.measuredTPS,
 		s.entityCount(),
 	)
 	s.text = s.reported(s.text)
-	ebitenutil.DebugPrint(screen, string(s.text))
+	DebugPrint(screen, string(s.text))
 }
 
 // reported appends to text a line "label: value" for every line of the reporters.

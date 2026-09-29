@@ -23,6 +23,16 @@ type Look interface {
 	Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners
 }
 
+// DirectLook is a Look that draws the sprites itself on the GPU, through the cameras it takes,
+// rather than handing the frame their pieces: the world's renderer readies it every frame (Begin),
+// hands it the sprites in sight through Sprite as ever — the Look keeping them, and handing the
+// frame what else it lays — and has it draw them where render.Objects comes (DrawSprites).
+type DirectLook interface {
+	Look
+	Begin(cam camera.Camera)
+	DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms)
+}
+
 // Cameras makes a camera over a width x height world with the given edges, configured by cfg; a
 // view plugin puts its own in with Plugin.SetCameras.
 type Cameras func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera

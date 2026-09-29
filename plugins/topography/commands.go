@@ -3,7 +3,6 @@ package topography
 import (
 	"math"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -52,11 +51,6 @@ const LookStep = 0.0025
 // the view the camera was in, over the entity; Follow, LookFrom and LookAt let go first too.
 type LookOut struct{ Camera camera.Camera }
 
-// Heightfield draws the ground from its heightmap on the GPU, every pixel's line of sight traced
-// over it (topography/heightfield), in place of the tiles — and the tiles again, given once more;
-// nothing without Config.Heightfield.
-type Heightfield struct{}
-
 // Turn turns Camera by Angle radians, the world clockwise on the screen, keeping the ground point in
 // the middle of the screen where it is; a camera of another view stays as it is.
 type Turn struct {
@@ -94,9 +88,9 @@ const (
 	TiltStep = math.Pi / 180
 )
 
-// Queues are where the view's, the heightfield's and the shaping commands land.
+// Queues are where the view's and the shaping commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.fields, &p.shaping.raise, &p.shaping.lower, &p.shaping.level}
+	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.shaping.raise, &p.shaping.lower, &p.shaping.level}
 }
 
 // DefaultBindings switch the player's view on Tab, turn the camera while Q or E is held, raise its
@@ -120,26 +114,22 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		views += ", in perspective"
 	}
 	out := []control.Binding{
-		control.Command(control.KeyPress{Key: ebiten.KeyTab}, views, func(c control.Context) (View, bool) {
+		control.Command(control.KeyPress{Key: control.KeyTab}, views, func(c control.Context) (View, bool) {
 			return View{Camera: c.Camera}, true
 		}).In(camera.Free),
-		control.Command(control.KeyPress{Key: ebiten.KeyTab}, "Leave the unit", func(c control.Context) (View, bool) {
+		control.Command(control.KeyPress{Key: control.KeyTab}, "Leave the unit", func(c control.Context) (View, bool) {
 			return View{Camera: c.Camera}, true
 		}).In(camera.FirstPerson),
-		control.Command(control.KeyHeld{Key: ebiten.KeyQ}, "Turn the world anticlockwise", turn(-TurnStep)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyE}, "Turn the world clockwise", turn(TurnStep)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyR}, "Raise the head: look further off", tilt(-TiltStep)).In(camera.Free),
-		control.Command(control.KeyHeld{Key: ebiten.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Free),
-		control.Command(control.KeyPress{Key: ebiten.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
-		control.Command(control.KeyPress{Key: ebiten.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
-		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{}.Holding(ebiten.KeyL)}, "Level the ground",
+		control.Command(control.KeyHeld{Key: control.KeyQ}, "Turn the world anticlockwise", turn(-TurnStep)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyE}, "Turn the world clockwise", turn(TurnStep)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyR}, "Raise the head: look further off", tilt(-TiltStep)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Free),
+		control.Command(control.KeyPress{Key: control.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
+		control.Command(control.KeyPress{Key: control.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
+		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
 			}),
-	}
-	if p.cfg.Heightfield {
-		out = append(out, control.Command(control.KeyPress{Key: ebiten.KeyG}, "Draw the ground from its heightmap on the GPU, or as tiles",
-			func(control.Context) (Heightfield, bool) { return Heightfield{}, true }))
 	}
 	if p.selection != nil {
 		drive := func(ahead, turn int8) func(control.Context) (Drive, bool) {
@@ -151,23 +141,23 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		}
 		if !p.cfg.Perspective { // no first person: V follows the unit from behind, the arrows drive it
 			return append(out,
-				control.Command(control.KeyPress{Key: ebiten.KeyV}, "Follow the selected unit from behind", func(c control.Context) (Follow, bool) {
+				control.Command(control.KeyPress{Key: control.KeyV}, "Follow the selected unit from behind", func(c control.Context) (Follow, bool) {
 					return Follow{Camera: c.Camera}, true
 				}),
-				control.Command(control.KeyHeld{Key: ebiten.KeyArrowUp}, "Walk the followed unit on; with Shift, sprint", on),
-				control.Command(control.KeyHeld{Key: ebiten.KeyArrowDown}, "Brake the followed unit, then back it away", drive(-1, 0)),
-				control.Command(control.KeyHeld{Key: ebiten.KeyArrowLeft}, "Turn the followed unit anticlockwise", drive(0, -1)),
-				control.Command(control.KeyHeld{Key: ebiten.KeyArrowRight}, "Turn the followed unit clockwise", drive(0, 1)),
+				control.Command(control.KeyHeld{Key: control.KeyArrowUp}, "Walk the followed unit on; with Shift, sprint", on),
+				control.Command(control.KeyHeld{Key: control.KeyArrowDown}, "Brake the followed unit, then back it away", drive(-1, 0)),
+				control.Command(control.KeyHeld{Key: control.KeyArrowLeft}, "Turn the followed unit anticlockwise", drive(0, -1)),
+				control.Command(control.KeyHeld{Key: control.KeyArrowRight}, "Turn the followed unit clockwise", drive(0, 1)),
 			)
 		}
 		lookOut := func(c control.Context) (LookOut, bool) { return LookOut{Camera: c.Camera}, true }
 		out = append(out,
-			control.Command(control.KeyPress{Key: ebiten.KeyV}, "Ride in the selected unit: first person", lookOut).In(camera.Free),
-			control.Command(control.KeyPress{Key: ebiten.KeyV}, "Leave the unit", lookOut).In(camera.FirstPerson),
-			control.Command(control.KeyHeld{Key: ebiten.KeyW}, "Walk on; with Shift, sprint", on).In(camera.FirstPerson),
-			control.Command(control.KeyHeld{Key: ebiten.KeyS}, "Brake, then back away", drive(-1, 0)).In(camera.FirstPerson),
-			control.Command(control.KeyHeld{Key: ebiten.KeyA}, "Turn left", drive(0, -1)).In(camera.FirstPerson),
-			control.Command(control.KeyHeld{Key: ebiten.KeyD}, "Turn right", drive(0, 1)).In(camera.FirstPerson),
+			control.Command(control.KeyPress{Key: control.KeyV}, "Ride in the selected unit: first person", lookOut).In(camera.Free),
+			control.Command(control.KeyPress{Key: control.KeyV}, "Leave the unit", lookOut).In(camera.FirstPerson),
+			control.Command(control.KeyHeld{Key: control.KeyW}, "Walk on; with Shift, sprint", on).In(camera.FirstPerson),
+			control.Command(control.KeyHeld{Key: control.KeyS}, "Brake, then back away", drive(-1, 0)).In(camera.FirstPerson),
+			control.Command(control.KeyHeld{Key: control.KeyA}, "Turn left", drive(0, -1)).In(camera.FirstPerson),
+			control.Command(control.KeyHeld{Key: control.KeyD}, "Turn right", drive(0, 1)).In(camera.FirstPerson),
 			control.Command(control.CursorMove{}, "Look round: across turns, up and down the head", func(c control.Context) (Look, bool) {
 				return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, true
 			}).In(camera.FirstPerson),

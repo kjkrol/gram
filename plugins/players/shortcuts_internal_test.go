@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -16,13 +15,13 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 		trigger control.Trigger
 		want    string
 	}{
-		{control.KeyPress{Key: ebiten.KeyW, Mods: control.Mods{Shift: true}}, "Shift+W"},
-		{control.KeyPress{Key: ebiten.KeyBracketRight}, "]"},
-		{control.KeyPress{Key: ebiten.KeyEscape, Mods: control.Mods{Shift: true}}, "Shift+Esc"},
-		{control.KeyHeld{Key: ebiten.KeyQ}, "Q (held)"},
-		{control.ButtonPress{Button: ebiten.MouseButtonRight, Mods: control.Mods{Shift: true}.Holding(ebiten.KeyS)}, "Shift+S+right click"},
-		{control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{}.Holding(ebiten.KeyL)}, "L+left drag"},
-		{control.ButtonHeld{Button: ebiten.MouseButtonMiddle}, "middle drag"},
+		{control.KeyPress{Key: control.KeyW, Mods: control.Mods{Shift: true}}, "Shift+W"},
+		{control.KeyPress{Key: control.KeyBracketRight}, "]"},
+		{control.KeyPress{Key: control.KeyEscape, Mods: control.Mods{Shift: true}}, "Shift+Esc"},
+		{control.KeyHeld{Key: control.KeyQ}, "Q (held)"},
+		{control.ButtonPress{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}.Holding(control.KeyS)}, "Shift+S+right click"},
+		{control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "L+left drag"},
+		{control.ButtonHeld{Button: control.MouseButtonMiddle}, "middle drag"},
 		{control.Wheel{}, "wheel"},
 		{control.CursorAtEdge{}, "cursor at an edge"},
 	} {
@@ -40,7 +39,7 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	s := p.Shortcuts(SceneKeys{{Key: ebiten.KeyEscape, Shift: true, Label: "Quit"}})
+	s := p.Shortcuts(SceneKeys{{Key: control.KeyEscape, Shift: true, Label: "Quit"}})
 	groups := s.groups()
 	names := map[string][]string{}
 	for _, g := range groups {
@@ -103,20 +102,20 @@ func (r *ridingCam) FirstPerson() bool { return r.on }
 func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	ran := ""
 	keys := SceneKeys{
-		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(game.Runtime, game.Composition) { ran += "quit " }},
-		{Key: ebiten.KeyB, Label: "Grid", Do: func(game.Runtime, game.Composition) { ran += "grid " }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(game.Runtime, game.Composition) { ran += "quit " }},
+		{Key: control.KeyB, Label: "Grid", Do: func(game.Runtime, game.Composition) { ran += "grid " }},
 	}
 	events := &control.InputEvents{}
-	events.AddKeyEvent(ebiten.KeyEscape, control.ActionPress) // no Shift: nothing
-	events.AddKeyEvent(ebiten.KeyB, control.ActionPress)
-	events.AddKeyEvent(ebiten.KeyB, control.ActionRelease)
+	events.AddKeyEvent(control.KeyEscape, control.ActionPress) // no Shift: nothing
+	events.AddKeyEvent(control.KeyB, control.ActionPress)
+	events.AddKeyEvent(control.KeyB, control.ActionRelease)
 	keys.Handle(events, nil, nil)
 	if ran != "grid " {
 		t.Errorf("ran %q, want the grid alone: Esc without Shift is nothing, a release nothing", ran)
 	}
 	events = &control.InputEvents{}
 	events.Modifiers.Shift = true
-	events.AddKeyEvent(ebiten.KeyEscape, control.ActionPress)
+	events.AddKeyEvent(control.KeyEscape, control.ActionPress)
 	keys.Handle(events, nil, nil)
 	if ran != "grid quit " {
 		t.Errorf("ran %q, want the quit after Shift+Esc", ran)

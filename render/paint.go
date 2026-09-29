@@ -1,21 +1,20 @@
 package render
 
-import "github.com/hajimehoshi/ebiten/v2"
+import "github.com/kjkrol/gram/render/gpu"
 
 // Paint draws f's pieces onto dst in the order they came, through the composer's shader in no
 // light and no weather: for what is painted once into an image of its own, its corners in dst's
 // pixels. A sub-image of dst clips it.
-func Paint(dst *ebiten.Image, f *Frame) {
+func Paint(dst *Image, f *Frame) {
 	var (
-		verts   []ebiten.Vertex
+		verts   []Vertex
 		indices []uint16
 		sheet   AtlasSource
 	)
-	opts := &ebiten.DrawTrianglesShaderOptions{}
+	uniforms := composer.pack(nil)
 	flush := func() {
 		if len(verts) > 0 && sheet != nil {
-			opts.Images[0] = sheet.Atlas()
-			dst.DrawTrianglesShader(verts, indices, shader(), opts)
+			gpu.Triangles(&gpu.Draw{Target: dst.gpu(), Program: composer.program(), Images: [4]gpu.Image{sheet.Atlas().gpu()}, Uniforms: uniforms, Blend: gpu.SourceOver}, verts, indices)
 		}
 		verts, indices = verts[:0], indices[:0]
 	}

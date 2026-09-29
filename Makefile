@@ -6,7 +6,7 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-minimal demo-collision demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-board demo-board-topography demo-board-atlas demo-effect demo-split-screen demo-scenes demo-vision deps tidy test bench bench-save clean
+.PHONY: all demo-minimal demo-collision demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-board demo-board-topography demo-board-atlas demo-webgpu demo-effect demo-split-screen demo-scenes demo-vision deps tidy test bench bench-save clean
 
 all: demo-collision
 
@@ -28,6 +28,9 @@ demo-board: run-board
 demo-board-topography: run-board-topography
 
 demo-board-atlas: run-board-atlas
+
+demo-webgpu:
+	go run ./examples/webgpu-island
 
 demo-effect: run-effect
 

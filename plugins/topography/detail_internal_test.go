@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -85,7 +84,7 @@ func TestBlocks_TheTileTheEyeStandsInIsDrawnOnlyInFront(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	pieces := 0
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier != render.Ground {
 			return
 		}

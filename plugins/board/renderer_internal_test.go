@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/render"
@@ -13,7 +12,7 @@ import (
 
 type flatAtlas struct{}
 
-func (flatAtlas) Atlas() *ebiten.Image { return nil }
+func (flatAtlas) Atlas() *render.Image { return nil }
 
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 
@@ -44,7 +43,7 @@ func compose(r *Renderer, cam camera.Camera) map[render.Tier]int {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	out := map[render.Tier]int{}
-	f.Each(func(tier render.Tier, _ float32, _ []ebiten.Vertex) { out[tier]++ })
+	f.Each(func(tier render.Tier, _ float32, _ []render.Vertex) { out[tier]++ })
 	return out
 }
 
@@ -53,7 +52,7 @@ func outlinedTiles(r *Renderer, cam camera.Camera) (tiles, outlined int) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier != render.Ground {
 			return
 		}
@@ -156,8 +155,8 @@ func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	cam := icamera.NewFromSpace(64, 64, 0)
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	var v ebiten.Vertex
-	f.Each(func(_ render.Tier, _ float32, verts []ebiten.Vertex) { v = verts[0] })
+	var v render.Vertex
+	f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
 	if v.ColorR != 1 || v.ColorG != 1 || v.ColorB != 1 {
 		t.Errorf("a flat world's tile is lit %v %v %v, want as it is", v.ColorR, v.ColorG, v.ColorB)
 	}
@@ -186,7 +185,7 @@ func TestRenderer_Compose_OutlinesEachCellAsLargeAsItIsDrawn(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	near, far := 0, 0 // outlined tiles in the two nearer rows, and further
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier != render.Ground || v[0].Custom0 >= 0 {
 			return
 		}

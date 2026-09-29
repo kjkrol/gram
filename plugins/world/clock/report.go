@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
@@ -44,7 +42,7 @@ type hud struct{ c *Clock }
 
 func (*hud) Init(*goke.SysInit) {}
 
-func (h *hud) Draw(screen *ebiten.Image) {
+func (h *hud) Draw(screen *render.Image) {
 	b := screen.Bounds()
-	ebitenutil.DebugPrintAt(screen, h.c.Written(), b.Min.X+8, b.Max.Y-20)
+	render.DebugPrintAt(screen, h.c.Written(), b.Min.X+8, b.Max.Y-20)
 }

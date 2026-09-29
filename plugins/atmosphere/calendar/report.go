@@ -3,8 +3,6 @@ package calendar
 import (
 	"fmt"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
@@ -30,9 +28,9 @@ type hud struct{ c *Calendar }
 
 func (*hud) Init(*goke.SysInit) {}
 
-func (h *hud) Draw(screen *ebiten.Image) {
+func (h *hud) Draw(screen *render.Image) {
 	m := h.c.Now()
 	text := fmt.Sprintf("%s  %s, %s  %s", m.Hour(), m.Season(), m.Written(), m.MoonName())
 	b := screen.Bounds()
-	ebitenutil.DebugPrintAt(screen, text, b.Max.X-8-6*len(text), b.Max.Y-20)
+	render.DebugPrintAt(screen, text, b.Max.X-8-6*len(text), b.Max.Y-20)
 }

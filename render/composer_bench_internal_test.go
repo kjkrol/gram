@@ -3,8 +3,6 @@ package render
 import (
 	"fmt"
 	"testing"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // Benchmark_Composer_Render is the composer's own share of handing a frame to Ebitengine — the
@@ -26,7 +24,7 @@ func Benchmark_Composer_Render(b *testing.B) {
 			}
 		}))
 		calls, verts := 0, 0
-		c.draw = func(_ *ebiten.Image, v []ebiten.Vertex, _ []uint16, _ *ebiten.Image) { calls++; verts += len(v) }
+		c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image) { calls++; verts += len(v) }
 		c.compose(sorted())
 		b.Run(fmt.Sprintf("pieces=%d", c.Composed()), func(b *testing.B) {
 			b.ReportAllocs()

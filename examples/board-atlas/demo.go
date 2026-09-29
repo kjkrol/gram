@@ -12,8 +12,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -125,9 +123,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	main := &mainScene{stage: s, tps: ctx.TPS()}
 	main.keys = players.SceneKeys{
-		{Key: ebiten.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: ebiten.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: ebiten.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
 	stack, err := game.NewStack(main, s.shortcuts)
@@ -307,27 +305,27 @@ func (m *mainScene) Focusable() bool { return true }
 
 // striped is grass: a ground colour with lighter blades across it.
 func striped(ground, blade color.RGBA) render.SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
+	return func(dst *render.Canvas, size int) {
 		dst.Fill(ground)
 		for i := 0; i < size; i += 6 {
-			vector.DrawFilledRect(dst, float32(i), float32((i*7)%size), 2, 5, blade, false)
+			dst.FillRect(float32(i), float32((i*7)%size), 2, 5, blade)
 		}
 	}
 }
 
 // rippled is water: a colour with lighter ripples running across it.
 func rippled(water, ripple color.RGBA) render.SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
+	return func(dst *render.Canvas, size int) {
 		dst.Fill(water)
 		for y := 4; y < size; y += 8 {
-			vector.DrawFilledRect(dst, float32((y/2)%size), float32(y), float32(size)/3, 1, ripple, false)
+			dst.FillRect(float32((y/2)%size), float32(y), float32(size)/3, 1, ripple)
 		}
 	}
 }
 
 // cobbled is a road: stones set in mortar.
 func cobbled(mortar, stone color.RGBA) render.SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
+	return func(dst *render.Canvas, size int) {
 		dst.Fill(mortar)
 		step := size / 4
 		for y := 0; y < size; y += step {
@@ -336,7 +334,7 @@ func cobbled(mortar, stone color.RGBA) render.SpriteDrawer {
 				off = step / 2
 			}
 			for x := -off; x < size; x += step {
-				vector.DrawFilledRect(dst, float32(x+1), float32(y+1), float32(step-2), float32(step-2), stone, false)
+				dst.FillRect(float32(x+1), float32(y+1), float32(step-2), float32(step-2), stone)
 			}
 		}
 	}
@@ -344,11 +342,11 @@ func cobbled(mortar, stone color.RGBA) render.SpriteDrawer {
 
 // treed is a wood: tree tops on the undergrowth.
 func treed(under, top color.RGBA) render.SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
+	return func(dst *render.Canvas, size int) {
 		dst.Fill(under)
 		r := float32(size) / 5
 		for _, c := range [][2]float32{{0.3, 0.3}, {0.7, 0.35}, {0.5, 0.7}, {0.2, 0.75}, {0.8, 0.8}} {
-			vector.DrawFilledCircle(dst, c[0]*float32(size), c[1]*float32(size), r, top, false)
+			dst.FillCircle(c[0]*float32(size), c[1]*float32(size), r, top)
 		}
 	}
 }

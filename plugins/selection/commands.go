@@ -1,7 +1,6 @@
 package selection
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -49,12 +48,12 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		}
 	}
 	return []control.Binding{
-		control.Command(control.Drag{Button: ebiten.MouseButtonLeft}, "Select", box(false)),
-		control.Command(control.Drag{Button: ebiten.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
-		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
+		control.Command(control.Drag{Button: control.MouseButtonLeft}, "Select", box(false)),
+		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
+		control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
-		control.Command(control.KeyPress{Key: ebiten.KeyC}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
+		control.Command(control.KeyPress{Key: control.KeyC}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
 			return Follow{Camera: c.Camera}, true
 		}),
 	}

@@ -3,9 +3,6 @@ package render
 import (
 	"image/color"
 	"math"
-
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 func endpointAt(size int, angleDeg float64) (x, y float32) {
@@ -25,15 +22,15 @@ func abs32(v float32) float32 {
 }
 
 func Arrow(angleDeg float64, width float32, c color.RGBA) SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
+	return func(dst *Canvas, size int) {
 		x0, y0 := endpointAt(size, angleDeg)
 		cx, cy := float32(size)/2, float32(size)/2
-		vector.StrokeLine(dst, x0, y0, cx, cy, width, c, true)
+		dst.StrokeLine(x0, y0, cx, cy, width, c)
 	}
 }
 
 func Dot(radius float32, c color.RGBA) SpriteDrawer {
-	return func(dst *ebiten.Image, size int) {
-		vector.FillCircle(dst, float32(size)/2, float32(size)/2, radius, c, true)
+	return func(dst *Canvas, size int) {
+		dst.FillCircle(float32(size)/2, float32(size)/2, radius, c)
 	}
 }

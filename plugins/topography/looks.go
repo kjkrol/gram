@@ -5,7 +5,6 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/topography/heightfield"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -31,20 +30,37 @@ func (l boardLook) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 	board.FlatLook().Cell(f, cam, t)
 }
 
-var _ world.Look = worldLook{}
+var _ world.DirectLook = worldLook{}
 
 // worldLook lays the world's entities as the camera looks: billboards standing upright in the
-// isometric view, the world's own flat sprites from above — lit by the sky's sun on level ground,
-// leaning with its wind, each casting its shadow on the relief away from the sun.
+// views in relief, the world's own flat sprites from above — lit by the sky's sun on level ground,
+// leaning with its wind, each casting its shadow on the relief away from the sun. Over the ground
+// drawn on the GPU the billboards and their shadows are drawn on the GPU too (sprites), hidden by
+// the depth where the hills stand before them.
 type worldLook struct {
-	flat  world.Look
-	d     *dresser
-	field *heightfield.Renderer // the ground drawn from its heightmap, hiding what lies behind it; nil none
+	flat world.Look
+	d    *dresser
+	gpu  *sprites // nil off a square grid
+}
+
+// Begin readies the sprites drawn on the GPU for a frame through cam.
+func (l worldLook) Begin(cam camera.Camera) {
+	if l.gpu != nil {
+		l.gpu.begin(cam)
+	}
+}
+
+// DrawSprites draws the billboards and the shadows the frame took on the GPU.
+func (l worldLook) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
+	if l.gpu != nil {
+		l.gpu.draw(t, cam, u)
+	}
 }
 
 func (l worldLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	if l.field != nil && l.field.Hides(cam, float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2), float32(z.Altitude+z.Height/2)) {
-		return // behind the ground the heightfield draws, which no painter's order hides it by
+	if l.gpu != nil && l.gpu.on {
+		l.gpu.add(cam, box, z, atlas, id, light, sway, f.Time())
+		return
 	}
 	sun, weather := l.d.sky.Sun(), l.d.sky.Air()
 	if l.d.heights {

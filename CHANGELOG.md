@@ -5,6 +5,19 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The heights in runs of a fixed size**
+- `topography.Heights` is a run of `HeightsRun` (1024) heights, `First` and `Count` saying which,
+  on as many of the topography's entities as the relief takes, in place of one entity holding a
+  slice: goke keeps them in its own memory and no longer logs a dereference at start. They are
+  written when the ground changes, not every tick. A save's heights have a new shape.
+
+**A try of WebGPU (examples/webgpu-island)**
+- The island as a mesh the GPU raises from a texture of its heights, with a depth buffer, the
+  sun's light and the shadows it casts through a 2048-pixel shadow map, a rippling sea, and 400
+  units as boxes drawn in one instanced call, on gogpu (pure Go WebGPU over Vulkan): about 3 ms
+  of the GPU and 0.2 ms of the CPU a frame at 1024x768 on an Intel UHD 620. The WGSL is one file
+  per thing (`shaders/`). Behind the `webgpu` build tag; `make demo-webgpu` runs it.
+
 **Shift sprints in first person; the hawk flies where the rider looks**
 - Riding in a unit, W with Shift held drives it at its profile's `Sprint` times its top speed
   (`steering.Steering.Sprint`, `RequestSprint`; `steering.Driven.Sprint`, `topography.Drive.Sprint`),

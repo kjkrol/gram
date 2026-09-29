@@ -47,31 +47,52 @@ func (m *module) LoadComps() []goke.CompToken { return []goke.CompToken{goke.Loa
 
 var _ goke.System = (*heightsSystem)(nil)
 
-// heightsSystem keeps the ground's heights on the topography's own entity: found after a load —
-// the relief takes them over — or made at Setup; every tick the entity holds the relief's values.
+// heightsSystem keeps the ground's heights on the topography's own entities, a run of them each
+// (Heights): found after a load — the relief takes them over — or made at Setup; written anew
+// whenever the relief has changed.
 type heightsSystem struct {
-	relief *Relief
-	query  *goke.Query
-	comp   goke.Comp[Heights]
-	spawn  goke.Comp[Heights]
+	relief  *Relief
+	query   *goke.Query
+	comp    goke.Comp[Heights]
+	spawn   goke.Comp[Heights]
+	written uint64 // one more than the relief's version the runs hold; 0 none
 }
 
 func (s *heightsSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.comp).Build()
+	var loaded []Heights
 	for s.query.All(); s.query.Next(); {
-		s.relief.adopt(s.comp.Slice(s.query.Cursor())[0])
+		loaded = append(loaded, s.comp.Slice(s.query.Cursor())...)
+	}
+	if len(loaded) > 0 {
+		if s.relief.adopt(loaded) {
+			s.written = s.relief.Version() + 1
+		}
 		return
 	}
 	f := si.NewFactory(&s.spawn)
-	f.Create(1)
+	f.Create(s.relief.Runs())
+	run := 0
 	for f.Next() {
-		s.spawn.Slice(&f.Cursor)[0] = s.relief.Heights()
+		for i := range f.Cursor.IDs {
+			h := &s.spawn.Slice(&f.Cursor)[i]
+			h.First = uint32(run * HeightsRun)
+			s.relief.fill(h)
+			run++
+		}
 	}
+	s.written = s.relief.Version() + 1
 }
 
 func (s *heightsSystem) Update(*goke.CmdBuf, time.Duration) {
-	for s.query.All(); s.query.Next(); {
-		s.comp.Slice(s.query.Cursor())[0] = s.relief.Heights()
+	if s.written == s.relief.Version()+1 {
 		return
 	}
+	for s.query.All(); s.query.Next(); {
+		runs := s.comp.Slice(s.query.Cursor())
+		for i := range runs {
+			s.relief.fill(&runs[i])
+		}
+	}
+	s.written = s.relief.Version() + 1
 }

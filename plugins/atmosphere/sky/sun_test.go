@@ -4,7 +4,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -77,7 +76,7 @@ func shadowsOf(z world.Z, sun sky.Sun) (middles []geom.Vec) {
 	var f render.Frame
 	f.Reset(cam)
 	sun.Shadow(&f, cam, geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), z, nil)
-	f.Each(func(tier render.Tier, _ float32, v []ebiten.Vertex) {
+	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 		if tier != sky.ShadowTier {
 			return
 		}

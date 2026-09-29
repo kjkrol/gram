@@ -3,20 +3,21 @@ package render
 import (
 	"image/color"
 	"math"
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 // sheet is an AtlasSource of one 32x32 sprite with no image behind it.
 type sheet struct{ name string }
 
-func (sheet) Atlas() *ebiten.Image                     { return nil }
+func (sheet) Atlas() *Image                            { return nil }
 func (sheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 32, 32 }
 func (sheet) White() (u, v float32)                    { return 40, 40 }
 
@@ -107,7 +108,7 @@ func TestComposer_ThroughAProjectionThatSortsDrawsBackToFrontWithMarksOnTop(t *t
 // calls counts the draw calls of a render and the sheets they sampled.
 func calls(c *Composer) []string {
 	var out []string
-	c.draw = func(_ *ebiten.Image, _ []ebiten.Vertex, _ []uint16, _ *ebiten.Image) { out = append(out, "call") }
+	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image) { out = append(out, "call") }
 	c.render(nil)
 	return out
 }
@@ -141,8 +142,8 @@ func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 		f.Sprite(Ground, 0, a, 0, unit, Even(1))
 		f.Line(Ground, 0, 0, 0, 10, 0, 1, white)
 	}))
-	var verts []ebiten.Vertex
-	c.draw = func(_ *ebiten.Image, v []ebiten.Vertex, _ []uint16, _ *ebiten.Image) { verts = append(verts, v...) }
+	var verts []Vertex
+	c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image) { verts = append(verts, v...) }
 	c.render(nil)
 	if len(verts) != 8 || verts[4].SrcX != 40 || verts[7].SrcY != 40 {
 		t.Errorf("the line samples (%v, %v), want the sheet's white at (40, 40)", verts[4].SrcX, verts[4].SrcY)
@@ -158,7 +159,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 		}
 	}))
 	var sizes []int
-	c.draw = func(_ *ebiten.Image, v []ebiten.Vertex, idx []uint16, _ *ebiten.Image) {
+	c.draw = func(_ *Image, v []Vertex, idx []uint16, _ *Image) {
 		sizes = append(sizes, len(v))
 		for _, i := range idx {
 			if int(i) >= len(v) {
@@ -184,7 +185,7 @@ func TestComposer_RefusesALayerThatIsNoSource(t *testing.T) {
 type screenOnly struct{}
 
 func (screenOnly) Init(*goke.SysInit) {}
-func (screenOnly) Draw(*ebiten.Image) {}
+func (screenOnly) Draw(*Image)        {}
 
 func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
@@ -199,7 +200,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 		f.Uniform("Sun", 0, 0, 1)
 		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
-	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
 	cam := sorted()
 	c.compose(cam)
 	c.render(nil)
@@ -269,7 +270,7 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 		f.Fan(Overlays, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
 	}))
 	var idx []uint16
-	c.draw = func(_ *ebiten.Image, _ []ebiten.Vertex, i []uint16, _ *ebiten.Image) { idx = append(idx, i...) }
+	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image) { idx = append(idx, i...) }
 	c.render(nil)
 	fanIdx := idx[6:]
 	if len(fanIdx) != 9 || fanIdx[0] != 4 || fanIdx[1] != 5 || fanIdx[8] != 8 {
@@ -279,16 +280,26 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 
 // tint is a material registered for these tests: it paints what it reads.
 var tint = RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
-func TestTint(p vec2, red float, fraction float, custom vec4) vec4 {
-	return vec4(red, fraction, custom.x, 1)
+fn TestTint(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(red, fraction, custom.x, 1.0);
 }
-`), "TestTint")[0]
+`), nil, "TestTint")[0]
+
+// needGPU readies a device without a window, the software rasteriser with GRAM_GPU=software; a
+// machine without either skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+}
 
 func TestComposer_ItsShaderCompilesWithTheMaterialsRegistered(t *testing.T) {
+	needGPU(t)
 	if err := Compile(); err != nil {
 		t.Fatal(err)
 	}
-	if src := string(ShaderSource()); !strings.Contains(src, "return TestTint(p, red, fraction, custom)") {
+	if src := ShaderSource(); !strings.Contains(src, "return TestTint(p, red, fraction, custom);") {
 		t.Errorf("the shader hands no overlay to the material registered:\n%s", src)
 	}
 }
@@ -504,7 +515,7 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 		}
 		at = f.Time()
 	}))
-	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
 	c.compose(topDown())
 	c.render(nil)
 	sun, cover := c.uniforms["Sun"], c.uniforms["Cover"]
@@ -521,8 +532,8 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 		t.Errorf("the shader is handed Pixel %v at zoom 1, want 1", pixel)
 	}
 	for name, u := range c.uniforms {
-		if v, ok := c.opts.Uniforms[name].([]float32); !ok || &v[0] != &u[0] {
-			t.Errorf("the draw options hand the shader another %s than the composer keeps", name)
+		if v, ok := c.boxed[name].([]float32); !ok || &v[0] != &u[0] {
+			t.Errorf("a Direct source is handed another %s than the composer keeps", name)
 		}
 	}
 	set = false
@@ -552,7 +563,7 @@ type direct struct {
 func (*direct) Init(*goke.SysInit)            {}
 func (*direct) Compose(*Frame, camera.Camera) {}
 func (d *direct) Tier() Tier                  { return d.tier }
-func (d *direct) Draw(_ *ebiten.Image, _ camera.Camera, u Uniforms) {
+func (d *direct) Draw(_ Target, _ camera.Camera, u Uniforms) {
 	d.drawn = append(d.drawn, *d.after)
 	d.sun = u.Get("Seen")
 }
@@ -570,7 +581,7 @@ func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 		f.Sprite(Overlays, 0, a, 0, unit, Even(1)) // a route
 		f.Uniform("Seen", 7)
 	}), nil, ground)
-	c.draw = func(*ebiten.Image, []ebiten.Vertex, []uint16, *ebiten.Image) { calls++ }
+	c.draw = func(*Image, []Vertex, []uint16, *Image) { calls++ }
 	c.compose(topDown())
 	c.render(nil)
 	if len(c.sources) != 3 || len(c.directs) != 2 || c.directs[0] != ground {
@@ -588,27 +599,28 @@ func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 }
 
 // A shader built on the composer's library with a fragment of its own compiles, holds every
-// material registered, and seals them: none may come after.
-func TestShaderSourceWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
-	src := ShaderSourceWith([]byte(`var Shade float
-
-func Fragment(dst vec4, src vec2, color vec4, custom vec4) vec4 {
-	return TestTint(vec2(0), Shade, noise(src), vec4(Clock))
+// material registered and reads its own uniforms beside the composer's, and seals them: none may
+// come after.
+func TestNewShaderWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
+	needGPU(t)
+	s := NewShaderWith("test", []byte(`
+fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32> {
+    return TestTint(vec2<f32>(0.0), U.Shade, noise(src), vec4<f32>(U.Clock));
 }
-`))
-	if _, err := ebiten.NewShader(src); err != nil {
+`), []Uniform{{Name: "Shade", Size: 1}})
+	if err := s.Compile(); err != nil {
 		t.Fatalf("a fragment on the library does not compile: %v", err)
 	}
-	if !strings.Contains(string(src), "return TestTint(p, red, fraction, custom)") {
+	if !strings.Contains(s.Source(), "return TestTint(p, red, fraction, custom);") {
 		t.Error("the library holds no material registered")
 	}
-	if !strings.HasPrefix(string(ShaderSource()), string(libraryKage)) {
-		t.Error("the composer's shader is not built on the library")
+	if !strings.Contains(ShaderSource(), "fn faded(") || !strings.Contains(ShaderSource(), "fn Outline(") {
+		t.Error("the composer's shader is not built on the library and its materials")
 	}
 	defer func() {
 		if recover() == nil {
 			t.Error("a material registered after a shader was built on them did not panic")
 		}
 	}()
-	RegisterMaterials([]byte("func Late(p vec2, red float, fraction float, custom vec4) vec4 { return vec4(0) }"), "Late")
+	RegisterMaterials([]byte("fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { return vec4<f32>(0.0); }"), nil, "Late")
 }

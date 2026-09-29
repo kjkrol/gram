@@ -5,7 +5,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/view"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
@@ -19,7 +18,7 @@ import (
 // flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
 type flatAtlas struct{}
 
-func (flatAtlas) Atlas() *ebiten.Image                            { return nil }
+func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 

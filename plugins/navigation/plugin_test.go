@@ -5,7 +5,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"testing"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
@@ -50,7 +49,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	want, _ := grid.CellIndex(2, 2)
 
 	events := &control.InputEvents{}
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
 	var got []MoveTo
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
@@ -58,7 +57,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		t.Errorf("the right button going down issued %v, want nothing until it comes up", got)
 	}
 	events = &control.InputEvents{}
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionRelease)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(got) != 1 || got[0] != (MoveTo{Cell: want, At: geom.NewVec(25, 25)}) {
@@ -67,8 +66,8 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 
 	events = &control.InputEvents{}
 	events.Modifiers.Shift = true
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionRelease)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	got = got[:0]
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
@@ -78,9 +77,9 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 
 	// another key held does not get in the way of a click
 	events = &control.InputEvents{}
-	events.AddKeyEvent(ebiten.KeyQ, control.ActionPress)
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
-	events.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionRelease)
+	events.AddKeyEvent(control.KeyQ, control.ActionPress)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
+	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	var looks []LookAt
 	navPlugin.looks.Drain(func(i control.Issued[LookAt]) { looks = append(looks, i.Command) })
@@ -114,7 +113,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		return looks, moves
 	}
 	press := &control.InputEvents{MousePos: geom.NewVec(25, 25)}
-	press.AddClickEvent(25, 25, ebiten.MouseButtonRight, control.ActionPress)
+	press.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
 	if looks, moves := handle(press); len(looks) != 0 || len(moves) != 0 {
 		t.Fatalf("the button going down issued %v and %v, want nothing", looks, moves)
 	}
@@ -125,7 +124,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		}
 	}
 	release := &control.InputEvents{MousePos: geom.NewVec(40, 40)}
-	release.AddClickEvent(40, 40, ebiten.MouseButtonRight, control.ActionRelease)
+	release.AddClickEvent(40, 40, control.MouseButtonRight, control.ActionRelease)
 	if looks, moves := handle(release); len(looks) != 0 || len(moves) != 0 {
 		t.Errorf("the drag's release issued %v and %v, want nothing", looks, moves)
 	}
@@ -135,7 +134,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		t.Errorf("a shake within the slop issued %v, want no LookAt", looks)
 	}
 	shaken := &control.InputEvents{MousePos: geom.NewVec(27, 26)}
-	shaken.AddClickEvent(27, 26, ebiten.MouseButtonRight, control.ActionRelease)
+	shaken.AddClickEvent(27, 26, control.MouseButtonRight, control.ActionRelease)
 	want, _ := grid.CellIndex(2, 2)
 	if _, moves := handle(shaken); len(moves) != 1 || moves[0].Cell != want {
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
@@ -158,7 +157,7 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	}
 	events := &control.InputEvents{}
 	events.Modifiers.Shift = true
-	events.AddKeyEvent(ebiten.KeyP, control.ActionPress)
+	events.AddKeyEvent(control.KeyP, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
 	n := 0
 	navPlugin.routes.Drain(func(control.Issued[Routes]) { n++ })

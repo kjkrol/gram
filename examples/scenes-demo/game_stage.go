@@ -8,9 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -117,11 +114,11 @@ func handleGlobalKeys(events *control.InputEvents, runtime game.Runtime, basePat
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
+		case control.KeySpace:
 			runtime.TogglePause()
-		case ebiten.KeyF5:
+		case control.KeyF5:
 			if err := runtime.Persistence().Save(basePath, ""); err != nil {
 				log.Printf("save: %v", err)
 			} else {
@@ -163,7 +160,7 @@ func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	handleGlobalKeys(events, runtime, w.stage.basePath())
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyP {
+		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Show(w.stage.panel.Name())
 		}
 	}
@@ -184,7 +181,7 @@ func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRende
 func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	handleGlobalKeys(events, runtime, p.stage.basePath())
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyP {
+		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Hide(p.Name())
 		}
 	}
@@ -196,11 +193,11 @@ type panelRenderer struct{}
 
 func (r *panelRenderer) Init(*goke.SysInit) {}
 
-func (r *panelRenderer) Draw(screen *ebiten.Image) {
+func (r *panelRenderer) Draw(screen *render.Image) {
 	const w, h = 300, 140
 	x, y := float32(ScreenWidth-w)/2, float32(ScreenHeight-h)/2
-	vector.FillRect(screen, x, y, w, h, color.RGBA{R: 235, G: 235, B: 235, A: 255}, false)
-	ebitenutil.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
+	render.FillRect(screen, x, y, w, h, color.RGBA{R: 235, G: 235, B: 235, A: 255})
+	render.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
 }
 
 // hudScene is a passive overlay: always on top, never focusable, so it never takes input.
@@ -220,7 +217,7 @@ type hudRenderer struct{ stage *GameplayStage }
 
 func (r *hudRenderer) Init(*goke.SysInit) {}
 
-func (r *hudRenderer) Draw(screen *ebiten.Image) {
+func (r *hudRenderer) Draw(screen *render.Image) {
 	active := r.stage.stack.Composition().Active()
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
+	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
 }

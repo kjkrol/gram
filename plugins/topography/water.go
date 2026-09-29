@@ -1,19 +1,19 @@
 package topography
 
 import (
-	_ "embed"
+	"embed"
 	"math"
 
 	"github.com/kjkrol/gram/render"
 )
 
-//go:embed water.kage
-var waterKage []byte
+//go:embed shaders/*.wgsl
+var shaders embed.FS
 
-// seaGlint and runningWater are the materials of water on the board (water.kage): the sea's waves
-// and surf, and water running down its slope; they call the clouds' functions (render/overcast.kage).
+// seaGlint and runningWater are the materials of water on the board (shaders/): the sea's waves
+// and surf, and water running down its slope; they call the clouds' functions (plugins/atmosphere/air).
 var (
-	waterMaterials = render.RegisterMaterials(waterKage, "SeaGlint", "RunningWater")
+	waterMaterials = render.RegisterMaterials(render.Files(shaders, "shaders/water.wgsl", "shaders/sea.wgsl", "shaders/stream.wgsl"), nil, "SeaGlint", "RunningWater")
 	seaGlint       = waterMaterials[0]
 	runningWater   = waterMaterials[1]
 )
