@@ -8,15 +8,16 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// moveCommandSystem carries out MoveTo commands: every Selected entity whose domain the target
-// takes gets its order as the keeping says — a free cell each, or a spot round the point — or with
-// Append the target queued behind the order in flight. A LookAt has every Selected entity stop and
-// turn.
+// moveCommandSystem carries out MoveTo commands: every Selected entity of the player who gave one
+// (owner.Obeys) whose domain the target takes gets its order as the keeping says — a free cell
+// each, or a spot round the point — or with Append the target queued behind the order in flight.
+// A LookAt has every such entity stop and turn.
 type moveCommandSystem struct {
 	keep     keeping
 	moves    *control.Queue[MoveTo]
@@ -27,6 +28,7 @@ type moveCommandSystem struct {
 	query   *goke.Query
 	cell    goke.Comp[board.Cell]
 	marks   goke.Comp[plugin.Tags[selection.Family]]
+	owners  goke.OptComp[plugin.Tags[owner.Family]]
 	order   goke.OptComp[MoveOrder]
 	mover   goke.OptComp[board.Mover]
 	base    goke.OptComp[world.Base]
@@ -50,24 +52,29 @@ func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 }
 
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Build()
+	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
 	s.orderID = si.RegComp[MoveOrder]()
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command) })
-	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At) })
+	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command, i.Player) })
+	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, i.Player) })
 }
 
-// selectedMembers calls fn with every Selected entity as a member.
-func (s *moveCommandSystem) selectedMembers(fn func(member)) {
+// selectedMembers calls fn with every Selected entity player by owns as a member.
+func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		cells, marks, orders := s.cell.Slice(cursor), s.marks.Slice(cursor), s.order.Slice(cursor)
 		movers, bases, zs, steers := s.mover.Slice(cursor), s.base.Slice(cursor), s.z.Slice(cursor), s.steer.Slice(cursor)
+		owners := s.owners.Slice(cursor)
 		for i, id := range cursor.IDs {
-			if !marks[i].Has(s.selected) {
+			var owned plugin.Tags[owner.Family]
+			if owners != nil {
+				owned = owners[i]
+			}
+			if !marks[i].Has(s.selected) || !owner.Obeys(owned, by) {
 				continue
 			}
 			m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: board.DomainAt(movers, i)}
@@ -94,16 +101,17 @@ func (s *moveCommandSystem) selectedMembers(fn func(member)) {
 	}
 }
 
-// look has every Selected entity stop and turn towards at.
-func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec) {
-	s.selectedMembers(func(m member) { cb.AddOne(m.id, s.orderID, s.keep.look(m, at)) })
+// look has every Selected entity player by owns stop and turn towards at.
+func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by control.PlayerID) {
+	s.selectedMembers(by, func(m member) { cb.AddOne(m.id, s.orderID, s.keep.look(m, at)) })
 }
 
-// carryOut gives the Selected entities whose domain cmd.Cell takes their orders toward it.
-func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo) {
+// carryOut gives the Selected entities player by owns whose domain cmd.Cell takes their orders
+// toward it.
+func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by control.PlayerID) {
 	at := s.kind(cmd.Cell)
 	var members []member
-	s.selectedMembers(func(m member) {
+	s.selectedMembers(by, func(m member) {
 		if at.Admits(m.domain) {
 			members = append(members, m)
 		}

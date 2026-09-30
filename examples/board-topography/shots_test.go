@@ -41,13 +41,13 @@ func (s *shooter) cmd(c any) {
 			switch v := c.(type) {
 			case cameras.View:
 				v.Camera = cam
-				q.Put(control.Nobody, v)
+				q.Put(s.d.stage.player.ID, v)
 			case cameras.LookOut:
 				v.Camera = cam
-				q.Put(control.Nobody, v)
+				q.Put(s.d.stage.player.ID, v)
 			case cameras.Look:
 				v.Camera = cam
-				q.Put(control.Nobody, v)
+				q.Put(s.d.stage.player.ID, v)
 			}
 		}
 	}
@@ -62,7 +62,7 @@ func (s *shooter) selectOne() {
 	box := geom.NewAABB(geom.NewVec(at.X-CellSize/4, at.Y-CellSize/4), geom.NewVec(at.X+CellSize/4, at.Y+CellSize/4))
 	for _, q := range s.d.stage.selection.Queues() {
 		if q.Accepts() == reflect.TypeFor[selection.Select]() {
-			q.Put(control.Nobody, selection.Select{Box: box})
+			q.Put(s.d.stage.player.ID, selection.Select{Box: box})
 		}
 	}
 }

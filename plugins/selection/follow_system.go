@@ -8,14 +8,15 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*FollowSystem)(nil)
 
-// FollowSystem keeps a camera on the entity tagged Followed: Follow tags the one Selected unit or
-// untags the followed one, and every tick the camera of whoever asked is centred on it at its
+// FollowSystem keeps a camera on the entity tagged Followed: Follow tags the one Selected unit of
+// whoever asked or untags the followed one, and every tick the camera of whoever asked is centred on it at its
 // altitude. A player who
 // moves the camera by hand ends the following; zooming does not.
 type FollowSystem struct {
@@ -23,10 +24,11 @@ type FollowSystem struct {
 	camera  camera.Camera
 	tags    Tags
 
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	marks goke.Comp[plugin.Tags[Family]]
-	z     goke.OptComp[world.Z]
+	query  *goke.Query
+	base   goke.Comp[world.Base]
+	marks  goke.Comp[plugin.Tags[Family]]
+	z      goke.OptComp[world.Z]
+	owners goke.OptComp[plugin.Tags[owner.Family]]
 
 	// Where the followed point was drawn right after the last centring, at which zoom: a camera
 	// moved by hand no longer draws it there.
@@ -43,13 +45,13 @@ func NewFollowSystem(follows *control.Queue[Follow], tags Tags) *FollowSystem {
 }
 
 func (s *FollowSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base, &s.marks).Optional(&s.z).Build()
+	s.query = si.NewQueryBuilder(&s.base, &s.marks).Optional(&s.z).Optional(&s.owners).Build()
 }
 
 func (s *FollowSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.follows.Drain(func(i control.Issued[Follow]) {
 		if i.Command.Camera != nil {
-			s.toggle(i.Command.Camera)
+			s.toggle(i.Command.Camera, i.Player)
 		}
 	})
 	if s.camera == nil {
@@ -92,9 +94,9 @@ func (s *FollowSystem) movedByHand() bool {
 	return math.Abs(float64(sx-s.screenX)) > 0.5 || math.Abs(float64(sy-s.screenY)) > 0.5
 }
 
-// toggle stops following when something is followed, else follows the one Selected unit; with
-// none or several selected it does nothing.
-func (s *FollowSystem) toggle(cam camera.Camera) {
+// toggle stops following when something is followed, else follows the one Selected unit player
+// by owns; with none or several selected it does nothing.
+func (s *FollowSystem) toggle(cam camera.Camera, by control.PlayerID) {
 	if s.untagAll() {
 		return
 	}
@@ -104,8 +106,9 @@ func (s *FollowSystem) toggle(cam camera.Camera) {
 	s.query.All()
 	for s.query.Next() {
 		cur := s.query.Cursor()
+		owners := s.owners.Slice(cur)
 		for i, m := range s.marks.Slice(cur) {
-			if m.Has(s.tags.Selectable) && m.Has(s.tags.Selected) {
+			if m.Has(s.tags.Selectable) && m.Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
 				selected, one = selected+1, cur.IDs[i]
 			}
 		}

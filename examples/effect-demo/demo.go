@@ -94,6 +94,7 @@ type mainStage struct {
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 	effects   *effects.Effects
@@ -186,7 +187,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -285,10 +287,11 @@ func (s *mainStage) defineKinds() {
 		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
 	}
 	sel := comp.Tagged(s.selection.Tags().Selectable)
+	mine := comp.Tagged(s.player.Owner())
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.witch = units.Define("witch", board.Mover{Domain: board.Land | board.Water | Frost}, profile(UnitSpeed*4), sel, order, comp.Const(witch{Power: 1}))
-	s.walker = units.Define("walker", board.Mover{Domain: board.Land}, profile(UnitSpeed*4), sel)
-	s.boat = units.Define("boat", board.Mover{Domain: board.Water}, profile(UnitSpeed/4), sel, order)
+	s.witch = units.Define("witch", board.Mover{Domain: board.Land | board.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, comp.Const(witch{Power: 1}))
+	s.walker = units.Define("walker", board.Mover{Domain: board.Land}, profile(UnitSpeed*4), sel, mine)
+	s.boat = units.Define("boat", board.Mover{Domain: board.Water}, profile(UnitSpeed/4), sel, mine, order)
 }
 
 // Spawn lays the lake and the road and puts the three of them in place.

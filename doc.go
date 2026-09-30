@@ -75,6 +75,7 @@
 //	                                PairHost and EachHost, Serializable, PostLoader, Populator      (→ control, render)
 //	Layer 3   plugins/world/kind  — what an entity is: Spec, Const and Load, Define, Of, Registry    (→ render)
 //	          plugins/world/effects — temporary changes to entities: Grant and Alter, cast anywhere; made by the world (→ plugin, world/clock)
+//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys; a leaf read by selection, navigation and the cameras (→ plugin, control)
 //	Layer 4   plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
 //	                                movement, kinds, Seed and Populate, Attach and Detach, Camera   (→ camera, control, plugin, kind, effects, render)
 //	Layer 5   game                — what a game implements and receives: Game, Stage, Scene, Scenes,

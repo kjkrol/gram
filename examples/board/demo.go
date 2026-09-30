@@ -87,6 +87,7 @@ type mainStage struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	player     *players.Player // the one at this keyboard: the units are its
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
@@ -151,7 +152,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.vision)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -211,7 +213,7 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
-		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
+		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
 	)
 }

@@ -87,6 +87,7 @@ type mainStage struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	player     *players.Player // the one at this keyboard: the units are its
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	unitTag    plugin.Tag[units]
@@ -153,7 +154,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.topography, s.vision)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -207,14 +209,14 @@ func (s *mainStage) defineKinds() {
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
 		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: board.Land}, scout, order,
-			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
+			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 			sight, eye(1.5), comp.Tagged(s.unitTag)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, flyer, order,
-		comp.Tagged(s.selection.Tags().Selectable),
+		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye(1), comp.Tagged(s.unitTag))
 }
 

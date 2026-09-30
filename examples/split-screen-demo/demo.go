@@ -13,9 +13,11 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/plugins/world/kind/comp"
@@ -66,9 +68,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 // Drive is the command to drive the issuing player's block one way this tick; the ways of the
 // keys held add up.
 type Drive struct{ Dir geom.Vec }
-
-// Driver is the player driving a block.
-type Driver struct{ Player control.PlayerID }
 
 // =========================== Stage ===========================
 
@@ -172,19 +171,16 @@ func driveKeys(up, down, left, right control.Key) []control.Binding {
 	}
 }
 
-// block is the row a block spawns from: where it starts and who drives it.
-type block struct {
-	start  board.CellID
-	player control.PlayerID
-}
+// block is the row a block spawns from: where it starts.
+type block struct{ start board.CellID }
 
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
-	driver := comp.Load(func(b block) Driver { return Driver{Player: b.player} })
-	s.redBlock = units.Define("red", board.Mover{Domain: board.Land}, profile, driver)
-	s.blueBlock = units.Define("blue", board.Mover{Domain: board.Land}, profile, driver)
+	// each block is its player's: it takes that player's Drive alone
+	s.redBlock = units.Define("red", board.Mover{Domain: board.Land}, profile, comp.Tagged(s.redPlayer.Owner()))
+	s.blueBlock = units.Define("blue", board.Mover{Domain: board.Land}, profile, comp.Tagged(s.bluePlayer.Owner()))
 }
 
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
@@ -219,8 +215,8 @@ func (s *mainStage) Spawn() error {
 	}
 	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
 	s.world.Seed(
-		s.redBlock.Entry(block{start: cell(3, 3), player: s.redPlayer.ID}),
-		s.blueBlock.Entry(block{start: cell(GridWidth-4, GridHeight-4), player: s.bluePlayer.ID}),
+		s.redBlock.Entry(block{start: cell(3, 3)}),
+		s.blueBlock.Entry(block{start: cell(GridWidth-4, GridHeight-4)}),
 	)
 	return nil
 }
@@ -238,19 +234,19 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Systems ===========================
 
-// driveSystem steers every block the way its player's Drive commands add up to this tick, and
-// brakes it to a stop when there were none.
+// driveSystem steers every block the way the Drive commands of the player who owns it add up to
+// this tick, and brakes it to a stop when there were none.
 type driveSystem struct {
 	drives *control.Queue[Drive]
 	want   map[control.PlayerID]geom.Vec
 
 	query  *goke.Query
-	driver goke.Comp[Driver]
+	owners goke.Comp[plugin.Tags[owner.Family]]
 	steer  goke.Comp[steering.Steering]
 }
 
 func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.driver, &s.steer).Build()
+	s.query = si.NewQueryBuilder(&s.owners, &s.steer).Build()
 	s.want = map[control.PlayerID]geom.Vec{}
 }
 
@@ -259,10 +255,16 @@ func (s *driveSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.drives.Drain(func(i control.Issued[Drive]) { s.want[i.Player] = s.want[i.Player].Add(i.Command.Dir) })
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
-		drivers, steers := s.driver.Slice(cur), s.steer.Slice(cur)
+		owners, steers := s.owners.Slice(cur), s.steer.Slice(cur)
 		for i := range cur.IDs {
 			st := &steers[i]
-			if dir := s.want[drivers[i].Player]; dir.X != 0 || dir.Y != 0 {
+			var dir geom.Vec
+			for by, want := range s.want {
+				if owner.Obeys(owners[i], by) {
+					dir = dir.Add(want)
+				}
+			}
+			if dir.X != 0 || dir.Y != 0 {
 				st.Request(dir)
 				st.RequestSpeed(st.MaxSpeed)
 			} else {
@@ -272,27 +274,29 @@ func (s *driveSystem) Update(*goke.CmdBuf, time.Duration) {
 	}
 }
 
-// followSystem centres each player's camera on the block it drives.
+// followSystem centres each player's camera on the block it owns.
 type followSystem struct {
 	players *players.Plugin
 
 	query  *goke.Query
-	driver goke.Comp[Driver]
+	owners goke.Comp[plugin.Tags[owner.Family]]
 	base   goke.Comp[world.Base]
 }
 
 func (s *followSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.driver, &s.base).Build()
+	s.query = si.NewQueryBuilder(&s.owners, &s.base).Build()
 }
 
 func (s *followSystem) Update(*goke.CmdBuf, time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
-		drivers, bases := s.driver.Slice(cur), s.base.Slice(cur)
+		owners, bases := s.owners.Slice(cur), s.base.Slice(cur)
 		for i := range cur.IDs {
-			if pl := s.players.ByID(drivers[i].Player); pl != nil {
-				c := board.Center(bases[i].Pos)
-				pl.Camera.CenterOn(c.X, c.Y, 0)
+			for _, pl := range s.players.Players() {
+				if owner.Obeys(owners[i], pl.ID) {
+					c := board.Center(bases[i].Pos)
+					pl.Camera.CenterOn(c.X, c.Y, 0)
+				}
 			}
 		}
 	}

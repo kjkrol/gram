@@ -13,6 +13,17 @@
 // defaults: the wheel zooms, a middle drag pans, W, A, S and D held and the cursor at an edge
 // scroll — on the screen, so in a turned isometric view along the screen too.
 //
+// # Owners
+//
+// A unit belongs to the player whose tag it carries: [Player.Owner], a tag of the owners' family
+// (plugins/players/owner), given to a kind with comp.Tagged — several players' tags on one unit
+// share it among them. [NewPlugin] registers the family with the world's kinds, a tag a player,
+// saved by name. The plugins that take commands read the tag through the leaf package owner
+// (owner.Obeys), never through this plugin: a player selects, orders and rides its own units
+// alone; a unit nobody owns belongs to the virtual player control.Nobody, whom the game's code, a
+// script or an AI run as nobody speaks for. A side of its own — the wild, a rival — is a player
+// without a keyboard ([Plugin.Add]) owning its units.
+//
 // # Viewports
 //
 // A player looks at the world through its camera, in its part of the screen. [Plugin.Viewports] is

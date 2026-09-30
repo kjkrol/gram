@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -23,6 +24,7 @@ type pendingSeed struct {
 	alt        float64
 	id         *uid.UID64
 	plain      bool
+	owner      control.PlayerID // who owns it; nobody for Nobody
 }
 
 // harness seeds entities, drives the system through a player's bindings and a tick, and reads
@@ -41,6 +43,7 @@ type harness struct {
 	pos       goke.Comp[world.Base]
 	z         goke.Comp[world.Z]
 	tag       goke.Comp[plugin.Tags[Family]]
+	owners    goke.Comp[plugin.Tags[owner.Family]]
 	marks     goke.Comp[plugin.Tags[Family]]
 	tags      Tags
 	selectedQ *goke.Query
@@ -95,10 +98,16 @@ func newHarnessViewed(t *testing.T, cfg world.Config, view func(*world.Plugin)) 
 	return &harness{t: t, world: w, space: space, players: pl, local: local, sel: sel, sys: sys, follow: follow, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
-// seed queues a Selectable size x size entity at (x,y); the returned id is filled in by start.
+// seed queues a Selectable size x size entity at (x,y), the local player's; the returned id is
+// filled in by start.
 func (h *harness) seed(x, y, size float64) *uid.UID64 {
+	return h.seedOwned(x, y, size, h.local.ID)
+}
+
+// seedOwned is seed of an entity by owns; control.Nobody for one nobody owns.
+func (h *harness) seedOwned(x, y, size float64, by control.PlayerID) *uid.UID64 {
 	id := new(uid.UID64)
-	h.pending = append(h.pending, pendingSeed{x: x, y: y, size: size, id: id})
+	h.pending = append(h.pending, pendingSeed{x: x, y: y, size: size, id: id, owner: by})
 	return id
 }
 
@@ -118,7 +127,7 @@ func (h *harness) start() {
 		if len(h.pending) == 0 {
 			return
 		}
-		factories := map[bool]*goke.Factory{false: si.NewFactory(&h.pos, &h.tag, &h.z), true: si.NewFactory(&h.pos)}
+		factories := map[bool]*goke.Factory{false: si.NewFactory(&h.pos, &h.tag, &h.z, &h.owners), true: si.NewFactory(&h.pos)}
 		for plain, f := range factories {
 			var seeds []pendingSeed
 			for _, spec := range h.pending {
@@ -138,6 +147,9 @@ func (h *harness) start() {
 					if !plain {
 						h.tag.Slice(&f.Cursor)[j] = plugin.Tags[Family](0).With(h.tags.Selectable)
 						h.z.Slice(&f.Cursor)[j] = world.Z{Altitude: spec.alt}
+						if spec.owner != control.Nobody {
+							h.owners.Slice(&f.Cursor)[j] = plugin.Tags[owner.Family](0).With(owner.Of(spec.owner))
+						}
 					}
 					h.items = append(h.items, aabbworld.Item{ID: id, Box: aabb})
 					i++

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -44,8 +45,14 @@ var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
 // share, carrying the commands of handlers — the world's own, its clock's, among them; two
-// handlers of one command type panic.
+// handlers of one command type panic. It registers the owners' tags with the world's kinds, a
+// player each, saved by name.
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
+	for id := control.PlayerID(1); int(id) <= owner.Players; id++ {
+		if tag := worldPlugin.Kinds().DefineTag[owner.Family](owner.Name(id)); tag != owner.Of(id) {
+			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
+		}
+	}
 	p := &Plugin{worldPlugin: worldPlugin, queues: map[reflect.Type]control.CommandQueue{}, owners: map[reflect.Type]plugin.CommandHandler{}}
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	for _, c := range p.handlers {

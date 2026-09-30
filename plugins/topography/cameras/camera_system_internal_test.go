@@ -11,6 +11,7 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -41,6 +42,8 @@ type followRig struct {
 	q      *goke.Query
 	driven goke.OptComp[steering.Driven]
 	dq     *goke.Query
+	owners goke.Comp[plugin.Tags[owner.Family]]
+	oq     *goke.Query
 }
 
 func newFollowRig(t *testing.T) *followRig {
@@ -51,11 +54,13 @@ func newFollowRig(t *testing.T) *followRig {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
 	var marks goke.Comp[plugin.Tags[selection.Family]]
+	var owners goke.Comp[plugin.Tags[owner.Family]]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.base, &r.marks).Build()
 		var b goke.Comp[world.Base]
 		r.dq = si.NewQueryBuilder(&b).Optional(&r.driven).Build()
-		f := si.NewFactory(&base, &z, &marks)
+		r.oq = si.NewQueryBuilder(&r.owners).Build()
+		f := si.NewFactory(&base, &z, &marks, &owners)
 		f.Create(2)
 		n := 0
 		for f.Next() {
@@ -103,6 +108,22 @@ func (r *followRig) selectOnly(ids ...uid.UID64) {
 			}
 		}
 	})
+}
+
+// own gives the walker id to player by; control.Nobody makes it nobody's.
+func (r *followRig) own(id uid.UID64, by control.PlayerID) {
+	r.oq.All()
+	for r.oq.Next() {
+		cur := r.oq.Cursor()
+		for i, have := range cur.IDs {
+			if have == id {
+				r.owners.Slice(cur)[i] = 0
+				if by != control.Nobody {
+					r.owners.Slice(cur)[i] = plugin.Tags[owner.Family](0).With(owner.Of(by))
+				}
+			}
+		}
+	}
 }
 
 func (r *followRig) pressV() {

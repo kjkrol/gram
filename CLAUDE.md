@@ -678,7 +678,18 @@ shows how much of it is boilerplate vs. real behavior.
   camera's view until the `Select` that ends it), and F a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; F
   again stops), which the `FollowSystem` keeps in the middle of the camera every tick
   (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
-  keeps it. Depends on `world`.
+  keeps it. A `Select` hits and unselects only what the issuing player owns
+  (`players/owner.Obeys` over the optional `plugin.Tags[owner.Family]`), so one `Selected` tag
+  serves every player; `Follow` takes the issuer's one selected unit. Depends on `world` and the
+  leaf `players/owner`.
+- **`players/owner`** — whose a unit is, a leaf importing only `plugin` and `control` (as
+  `world/entity` is `world`'s): `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
+  `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
+  the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
+  by selection, navigation's `moveCommandSystem` and the topography's cameras (`theSelected`):
+  a player selects, orders and rides only its own units. A game gives a kind to a player with
+  `comp.Tagged(player.Owner())`; a side of its own (the wild, a rival) is `players.Add` owning
+  its units; the island's blue walkers are such a rival's.
 - **`players`** — whoever acts in the game, a carrier over `plugin.CommandHandler`s:
   `players.NewPlugin(world, s.selection, s.nav, ...)` gathers each one's `Queues()` (the
   `control.Queue[C]` it drains in its own pass) and `DefaultBindings()`; `Defaults()` is all of
@@ -693,7 +704,9 @@ shows how much of it is boilerplate vs. real behavior.
   per command type; events have subscribers, commands a handler), so a plugin with commands never
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
   `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
-  draws nothing, the Scene lists every layer itself. Its `eventHandler` is the layer from input to
+  draws nothing, the Scene lists every layer itself. `NewPlugin` registers the owners' family
+  (`players/owner`) with the world's kinds, 64 names saved by name; `Player.Owner()` is the
+  player's tag. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.

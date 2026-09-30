@@ -12,6 +12,15 @@
 // is the queue, [Plugin.DefaultBindings] a left drag through the player's camera — and the
 // [SelectionSystem] drains the queue into Selected tags.
 //
+// # Whose units
+//
+// A player selects its own units alone: a Select, carried with the player who gave it
+// (control.Issued), hits and unselects only the Selectable entities that player owns
+// (plugins/players/owner.Obeys), so another player's selection stays as it is and one Selected tag
+// serves every player. Units nobody owns belong to the virtual player control.Nobody — the game's
+// code, a script, an AI run as nobody — and only a Select nobody gave reaches them. Follow takes
+// the one selected unit of the player who asked.
+//
 // # Followed and FollowSystem
 //
 // The third tag, Followed, is the unit a camera follows. A [Follow] command (C by default) tags

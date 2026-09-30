@@ -74,7 +74,8 @@
 // (Tab) switches the view; [Turn] turns it (Q and E held, [TurnStep] a tick); [Tilt] bows the head
 // or raises it (F and R, [TiltStep] a tick); [LookOut], given the selection
 // ([Control.WithSelection], whose Selected tag it reads as navigation does) and the perspective, is
-// V: it rides in the one selected unit, first person — the eye in the unit, kept there as it goes,
+// V: it rides in the one selected unit of the player who gave it (players/owner.Obeys: its own,
+// never another's), first person — the eye in the unit, kept there as it goes,
 // pinned to the way it faces, world.Base's Vel.Dir, which is the axis of its sight where the game
 // turns the sight with it (the island's demo does). Riding, W walks the unit on — with Shift held
 // it sprints, to its steering's Sprint — S brakes it and then backs it away facing on, A and D turn
@@ -83,7 +84,7 @@
 // diving only along the look, at least its Mover's Clearance over the ground and under its
 // Ceiling — Q, E, R and F do nothing, and V or Tab leave it — back to the view the camera was in,
 // over the unit; K lists those keys then. [Follow] (V without the perspective) fastens the camera
-// behind the one selected unit: every tick the camera is centred on it at its altitude and turned,
+// behind the one selected unit of the player: every tick the camera is centred on it at its altitude and turned,
 // eased, until the way it walks runs up the screen. It holds whatever else is done — other units
 // selected and ordered, the camera panned or turned — until V again lets it go, or the unit is
 // gone; the lower the eye, the lower on the screen the unit stands, over its shoulder. In

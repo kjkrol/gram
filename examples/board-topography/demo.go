@@ -4,8 +4,9 @@
 // streams and rivers running down to the sea and falling over the cliffs, roads from stop to stop
 // over bridges, slower up the slopes and routed round them; seen isometrically, Transport Tycoon's
 // way, from above or in perspective — Tab goes round — the units giants, 9.4 m across and 20 m
-// tall, billboards as tall as their world.Z says, a hawk 300 m up whose cone looks over everything
-// a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far
+// tall, billboards as tall as their world.Z says — the red ones and the hawk the player's, the blue
+// ones a rival's, never selected nor ridden by the player — a hawk 300 m up whose cone looks over
+// everything a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far
 // off sinks under the horizon and fades in the air. A day goes by (plugins/atmosphere): long
 // shadows morning and evening, dark nights; Space pauses the game, ] and [ set its tempo — the
 // clock bottom-left shows it, and when the engine holds it back — P freezes the light, Shift+] and
@@ -119,10 +120,13 @@ type mainStage struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	player     *players.Player // the one at this keyboard: the walkers at every other stop and the hawk are its
+	rival      *players.Player // a player without a keyboard: the blue walkers are its, foreign to the player
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
 	unit       kind.Of[unit]
+	rivals     kind.Of[unit]
 	hawk       kind.Of[unit]
 	stack      game.Scenes
 	state      *State
@@ -200,7 +204,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// without it. The weather lies on the island as defineClimate says.
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
-		Calendar: calendar.Config{Start: 6 * time.Hour, Season: calendar.Winter, Year: calendar.EarthYear},
+		Calendar: calendar.Config{
+			Start:  6 * time.Hour,
+			Season: calendar.Summer,
+			Year:   calendar.EarthYear,
+		},
 		Climate: climate.Config{
 			Zone:     climate.Mediterranean,
 			Weathers: weathers,
@@ -224,7 +232,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.topography.WithAtmosphere(s.atmosphere) // the relief lit and shaded by the day, its weather over it
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.topography, s.vision)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	s.rival = s.players.Add("rival")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -289,8 +299,14 @@ func (s *mainStage) defineKinds() {
 	// the cone of sight and the camera riding in the unit read the one Eye: at the top, 72° across
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
-		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
+	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, walker,
+		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
+		sight, eye,
+	)
+	// The rival's walkers are the same giants, the player's to meet, not to command.
+	s.rivals = units.Define("rival", board.Mover{Domain: board.Land}, walker,
+		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
 		sight, eye,
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
@@ -298,7 +314,7 @@ func (s *mainStage) defineKinds() {
 	// its height over the sea and climbs and dives the way the rider looks, never nearer the
 	// ground than its own height nor higher than 100 m under the clouds.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
-		order, comp.Tagged(s.selection.Tags().Selectable),
+		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 }
@@ -313,7 +329,11 @@ func (s *mainStage) Spawn() error {
 
 	entries := make([]kind.Entry, 0, len(stops)+1)
 	for i, from := range stops {
-		entries = append(entries, s.unit.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
+		walkers := s.unit
+		if i%2 == 0 { // every other stop the rival's
+			walkers = s.rivals
+		}
+		entries = append(entries, walkers.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
 	}
 	// The hawk crosses the island from the first stop to the one across the range.
 	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
@@ -367,6 +387,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.RegisterAt(s.unit.SpriteID(), spritePx, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.RegisterAt(s.rivals.SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
 	worldAtlas.RegisterAt(s.hawk.SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)

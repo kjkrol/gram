@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 	"github.com/kjkrol/gram/plugins/topography/relief"
@@ -46,6 +47,7 @@ type cameraSystem struct {
 	z        goke.OptComp[world.Z]
 	eye      goke.OptComp[world.Eye]
 	marks    goke.OptComp[plugin.Tags[selection.Family]]
+	owners   goke.OptComp[plugin.Tags[owner.Family]]
 	driven   goke.OptComp[steering.Driven]
 	drivenID goke.CompID
 
@@ -82,7 +84,7 @@ const followEase = 250 * time.Millisecond
 const clearStep = 5 * math.Pi / 180
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.eye).Optional(&s.marks).Optional(&s.driven).Build()
+	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.eye).Optional(&s.marks).Optional(&s.owners).Optional(&s.driven).Build()
 	s.drivenID = si.RegComp[steering.Driven]()
 }
 
@@ -131,7 +133,7 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.lookOuts != nil {
 		s.lookOuts.Drain(func(i control.Issued[LookOut]) {
 			if cam, ok := i.Command.Camera.(*viewCamera); ok {
-				s.lookOut(cb, cam)
+				s.lookOut(cb, cam, i.Player)
 			}
 		})
 	}
@@ -147,7 +149,7 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				return
 			}
 		}
-		if id, ok := s.theSelected(); ok {
+		if id, ok := s.theSelected(i.Player); ok {
 			s.fasten(cb, cam, id, false)
 		}
 	})
@@ -252,8 +254,9 @@ func (s *cameraSystem) write(id uid.UID64, in steering.Driven) {
 	}
 }
 
-// theSelected is the one Selected entity; false with none, or several.
-func (s *cameraSystem) theSelected() (uid.UID64, bool) {
+// theSelected is the one Selected entity player by owns (owner.Obeys); false with none, or
+// several.
+func (s *cameraSystem) theSelected(by control.PlayerID) (uid.UID64, bool) {
 	if !s.selecting {
 		return 0, false
 	}
@@ -262,12 +265,16 @@ func (s *cameraSystem) theSelected() (uid.UID64, bool) {
 	s.query.All()
 	for s.query.Next() {
 		cur := s.query.Cursor()
-		marks := s.marks.Slice(cur)
+		marks, owners := s.marks.Slice(cur), s.owners.Slice(cur)
 		if marks == nil {
 			continue
 		}
 		for i, m := range marks {
-			if m.Has(s.selected) {
+			var owned plugin.Tags[owner.Family]
+			if owners != nil {
+				owned = owners[i]
+			}
+			if m.Has(s.selected) && owner.Obeys(owned, by) {
 				one, n = cur.IDs[i], n+1
 			}
 		}
@@ -423,11 +430,11 @@ func (s *cameraSystem) lineClear(t, e [3]float32, cell float32) bool {
 	return true
 }
 
-// lookOut puts cam's eye inside the one Selected entity and keeps it there — at its centre, as
+// lookOut puts cam's eye inside the one Selected entity player by owns and keeps it there — at its centre, as
 // high as it stands, looking the way it faces, up the screen where it never moved — or lets it
 // out, back to the view it was in, when it is inside one already; a camera fastened behind an
 // entity is let go first.
-func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera) {
+func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera, by control.PlayerID) {
 	if f := s.fastened(cam); f != nil {
 		inside := f.inside
 		s.letGo(cam)
@@ -435,7 +442,7 @@ func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera) {
 			return
 		}
 	}
-	id, ok := s.theSelected()
+	id, ok := s.theSelected(by)
 	if !ok {
 		return
 	}

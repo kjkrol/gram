@@ -929,6 +929,38 @@ Done in eight steps, each built, vetted, tested and shot against the tree before
   same after the atmosphere's move; the only differences were the water's animation and the
   frame time on the HUD.
 
+### Units belong to players (2026-09-30)
+
+The user's order after the packages: "tag grupujący" — units grouped under a player — before
+yielding and avoiding.
+
+- **The owner lives in `players`, in a leaf.** A plan put the family in `plugin`; the user: the
+  owner belongs where the player is introduced. `plugins/players/owner` imports only `plugin` and
+  `control`, as `world/entity` does for the world's components, so selection, navigation and the
+  cameras read it without the players plugin (which pulls `game`, the shortcuts and the carrier —
+  the layers would turn over). `players.NewPlugin` registers the family's 64 names with the
+  world's kinds, so a player added later is saved too.
+- **Own units alone; the ownerless are the virtual player's.** A plan let a player command what
+  nobody owns; the user: every player selects its own units alone, the ownerless belong to a
+  virtual player, with an AI or without. That player is `control.Nobody`: an ownerless unit obeys
+  only commands no player gave, and Nobody commands no player's unit. A named neutral side is a
+  player without a keyboard owning its units. Existing tests on ownerless units, issuing as Nobody,
+  pass unchanged.
+- **One `Selected` tag for everyone.** Each unit obeys one side (or its co-owners), so a player's
+  selection is Selected ∧ Obeys(player), and a non-additive Select unselects only the issuer's —
+  no per-player selection bits.
+- **Each system filters in its own plugin**, an optional `plugin.Tags[owner.Family]` in the query
+  it already runs and the issuing player passed down: `SelectionSystem.applySelection`,
+  `FollowSystem.toggle`, `moveCommandSystem.selectedMembers`, `cameraSystem.theSelected`.
+  `Drive` and `Look` follow the camera already fastened, which only its owner's command fastened.
+- **The demos.** Every demo whose player selects units now gives them to that player; the
+  island's shots test and probes issue as the player. The island has a rival (`players.Add`)
+  owning blue walkers at every other stop — the foreign units of the next stage. The split-screen
+  demo's `Driver{Player}` gave way to the owner tag: the established pattern, not a demo's own.
+- **Left for later:** the selection outline and `vision.ShowViewOf(Selected)` still show every
+  player's selected units in every viewport — on one screen with two selecting players each would
+  see the other's; the renderers do not know which player a viewport's camera is.
+
 ## Questions for review
 
 - **Determinism across tempos** holds for the simulation; the interface part (orders, selection)

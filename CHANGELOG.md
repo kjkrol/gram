@@ -6,6 +6,20 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**Units belong to players**
+- `plugins/players/owner`: whose a unit is — `owner.Family`, a tag a player (`owner.Of(id)`, saved
+  by `owner.Name`), `owner.Obeys(owners, by)`; a leaf importing only `plugin` and `control`.
+  `players.NewPlugin` registers the family with the world's kinds; `Player.Owner()` is the
+  player's tag, given to a kind with `comp.Tagged`.
+- A player selects, orders and rides its own units alone: `selection.Select` and `Follow`,
+  navigation's `MoveTo` and `LookAt`, the topography's `cameras.Follow` and `LookOut` act only on
+  what the issuing player owns; another player's selection stays. A unit nobody owns belongs to
+  the virtual player `control.Nobody` (the game's code, a script, an AI run as nobody) and takes
+  commands from it alone — a game whose players select units gives them their units.
+- The demos give their units to the player at the keyboard; the island has a rival without a
+  keyboard (`players.Add`) whose blue walkers start at every other stop; the split-screen demo's
+  blocks are their players' by the owner tag (its `Driver` component is gone).
+
 **Packages: the celestial sphere apart, the topography in parts**
 - `plugins/atmosphere/celestial` is the celestial sphere, out of `sky` and the atmosphere's root:
   `Place{Latitude, NoonWay}` (`SunPath`, `Sphere`, `MoonAt`, `HeavensAt`), `SiderealTime`,

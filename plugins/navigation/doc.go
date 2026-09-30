@@ -74,8 +74,8 @@
 //
 // # Commands
 //
-// A [MoveTo] sends every Selected entity to a cell, or with Append queues the cell behind their
-// orders; the plugin is a plugin.CommandHandler ([Plugin.Queues] is the queue) and its command
+// A [MoveTo] sends every Selected entity of the player who gave it — those it owns alone
+// (players/owner.Obeys) — to a cell, or with Append queues the cell behind their orders; the plugin is a plugin.CommandHandler ([Plugin.Queues] is the queue) and its command
 // system issues or extends the orders. [Plugin.DefaultBindings] make a right click one — the
 // button up where it went down, within a few pixels — Shift + right click an appending one, and a
 // right drag a [LookAt] at every move of the cursor: every Selected entity stops and turns to

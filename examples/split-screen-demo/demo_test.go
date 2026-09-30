@@ -8,6 +8,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -47,15 +49,15 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *testing.T) {
 	var drives control.Queue[Drive]
 	sys := &driveSystem{drives: &drives}
-	var driver goke.Comp[Driver]
+	var owners goke.Comp[plugin.Tags[owner.Family]]
 	var steer goke.Comp[steering.Steering]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&driver, &steer)
+		f := si.NewFactory(&owners, &steer)
 		f.Create(2)
 		for f.Next() {
 			for i := range f.Cursor.IDs {
-				driver.Slice(&f.Cursor)[i] = Driver{Player: control.PlayerID(i + 1)}
+				owners.Slice(&f.Cursor)[i] = plugin.Tags[owner.Family](0).With(owner.Of(control.PlayerID(i + 1)))
 				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100, WantSpeed: 50}
 			}
 		}
@@ -67,13 +69,13 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 	for sys.query.All(); sys.query.Next(); {
 		cur := sys.query.Cursor()
 		for i := range cur.IDs {
-			d, st := sys.driver.Slice(cur)[i], sys.steer.Slice(cur)[i]
-			switch d.Player {
-			case 1:
+			owned, st := sys.owners.Slice(cur)[i], sys.steer.Slice(cur)[i]
+			switch {
+			case owned.Has(owner.Of(1)):
 				if st.WantSpeed != 100 || st.Want.X <= 0 || st.Want.Y <= 0 {
 					t.Errorf("player 1's block wants %v at %v, want down-right at full speed", st.Want, st.WantSpeed)
 				}
-			case 2:
+			case owned.Has(owner.Of(2)):
 				if st.WantSpeed != 0 {
 					t.Errorf("player 2's block wants speed %v with no Drive, want 0", st.WantSpeed)
 				}

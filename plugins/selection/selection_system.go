@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -20,8 +21,9 @@ var _ goke.System = (*SelectionSystem)(nil)
 const pickReach = 160
 
 // SelectionSystem carries out Select commands as the Selected tag on Selectable entities — a bit
-// flipped in place, seen the same tick. A Select with a Screen rectangle hits the entities drawn
-// into it, where the world's Look draws them through the command's camera.
+// flipped in place, seen the same tick — the player who gave one selecting and unselecting only
+// what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
+// where the world's Look draws them through the command's camera.
 type SelectionSystem struct {
 	selects *control.Queue[Select]
 	space   *aabbworld.Space
@@ -31,8 +33,9 @@ type SelectionSystem struct {
 	marqueeQueue *control.Queue[Marquee]
 	marquees     *marquees
 
-	query *goke.Query
-	marks goke.Comp[plugin.Tags[Family]]
+	query  *goke.Query
+	marks  goke.Comp[plugin.Tags[Family]]
+	owners goke.OptComp[plugin.Tags[owner.Family]]
 
 	lookup     *goke.Query
 	lookupBase goke.Comp[world.Base]
@@ -48,7 +51,7 @@ func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, 
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.marks).Build()
+	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
 
@@ -80,7 +83,7 @@ func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 				}
 			})
 		}
-		s.applySelection(hit, cmd.Additive)
+		s.applySelection(hit, cmd.Additive, i.Player)
 	})
 }
 
@@ -113,14 +116,15 @@ func grow(box geom.AABB, reach float64) geom.AABB {
 	}
 }
 
-// applySelection tags every hit Selectable entity Selected and, unless additive, untags the rest.
-func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool) {
+// applySelection tags every hit Selectable entity player by owns Selected and, unless additive,
+// untags the rest of its own.
+func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by control.PlayerID) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		marks := s.marks.Slice(cursor)
+		marks, owners := s.marks.Slice(cursor), s.owners.Slice(cursor)
 		for i, id := range cursor.IDs {
-			if !marks[i].Has(s.tags.Selectable) {
+			if !marks[i].Has(s.tags.Selectable) || !owner.Obeys(ownersAt(owners, i), by) {
 				continue
 			}
 			if _, ok := hit[id]; ok {
@@ -130,4 +134,12 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 			}
 		}
 	}
+}
+
+// ownersAt is the owners of the i-th entity of a chunk whose owners are owners; none without them.
+func ownersAt(owners []plugin.Tags[owner.Family], i int) plugin.Tags[owner.Family] {
+	if owners == nil {
+		return 0
+	}
+	return owners[i]
 }
