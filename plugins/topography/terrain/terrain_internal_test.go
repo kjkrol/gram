@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/topography/water"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -52,7 +53,7 @@ func (h hill) Version() uint64 { return h.version }
 // bumped by hand.
 type flat struct {
 	img    *render.Image
-	shores []Shore
+	shores []water.Shore
 	coast  uint64
 	grid   float32
 }
@@ -227,7 +228,7 @@ func TestWetCells_FlagTheCellsWaterMayLieOn(t *testing.T) {
 // corner has none — which decodes to no way at all.
 func TestShores_HoldTheWayAndHowFar(t *testing.T) {
 	reach := float32(96)
-	from := []Shore{{X: 0.6, Y: -0.8, Dist: 30, Near: 1 - 30/reach}, {}, {X: -1, Y: 0, Dist: 0, Near: 1}}
+	from := []water.Shore{{X: 0.6, Y: -0.8, Dist: 30, Near: 1 - 30/reach}, {}, {X: -1, Y: 0, Dist: 0, Near: 1}}
 	buf := shores(2, 2, from, reach, nil)
 	decode := func(i int) (x, y, d float32) {
 		return float32(buf[4*i])/255*2 - 1, float32(buf[4*i+1])/255*2 - 1, float32(buf[4*i+2]) / 255 * reach

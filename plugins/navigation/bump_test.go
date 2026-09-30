@@ -1,12 +1,12 @@
 package navigation
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"

@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/painter"
 )
 
 // Colors is how each kind of the island looks: the sea, the grounds, the running water, the roads
@@ -53,12 +54,12 @@ func Kinds(forest float64) []board.CellKind {
 // Style gives t the island's looks in relief: the sea glinting under the grounds, which blend into
 // one another, and the running water running, taking on the sea's colour towards its mouth.
 func Style(t *topography.Plugin) *topography.Plugin {
-	return t.Style("water", topography.Style{Under: true, Shine: 0.9}).
-		Style("earth", topography.Style{Spread: 0.3}).
-		Style("sand", topography.Style{Spread: 0.35}).
-		Style("rock", topography.Style{Spread: 0.25}).
-		Style("brook", topography.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
-		Style("stream", topography.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
-		Style("river", topography.Style{Shine: 0.9, Flow: 22, MixWith: "water"}).
-		Style("ford", topography.Style{Shine: 0.9, Flow: 22, MixWith: "water"})
+	return t.Style("water", painter.Style{Under: true, Shine: 0.9}).
+		Style("earth", painter.Style{Spread: 0.3}).
+		Style("sand", painter.Style{Spread: 0.35}).
+		Style("rock", painter.Style{Spread: 0.25}).
+		Style("brook", painter.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
+		Style("stream", painter.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
+		Style("river", painter.Style{Shine: 0.9, Flow: 22, MixWith: "water"}).
+		Style("ford", painter.Style{Shine: 0.9, Flow: 22, MixWith: "water"})
 }

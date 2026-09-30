@@ -87,12 +87,14 @@ func (dp *Depth) free() {
 	if dp.tex == nil {
 		return
 	}
-	cur.submit()
-	if dp.group != nil {
-		dp.group.Release()
-	}
-	dp.view.Release()
-	dp.tex.Release()
+	group, view, tex := dp.group, dp.view, dp.tex
+	cur.retire(func() {
+		if group != nil {
+			group.Release()
+		}
+		view.Release()
+		tex.Release()
+	})
 	dp.tex, dp.view, dp.group = nil, nil, nil
 }
 
@@ -130,7 +132,7 @@ func (x *Indices) gpuBuffer(d *device) *wgpu.Buffer {
 // Release frees the indices on the GPU.
 func (x *Indices) Release() {
 	if x.buf != nil {
-		x.buf.Release()
+		retire(x.buf.Release) // a draw gathered or submitted may still read it
 		x.buf = nil
 	}
 }

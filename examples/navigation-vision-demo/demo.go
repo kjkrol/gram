@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -247,7 +248,7 @@ func (s *mainStage) Spawn() error {
 	for _, e := range cells {
 		hills[e.Cell] = e.Kind == "hill"
 	}
-	heights := topography.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
+	heights := relief.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
 		if hills[c] {
 			return hillHeight
 		}

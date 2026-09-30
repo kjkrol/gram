@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -26,8 +27,8 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	relief := topography.NewRelief(brd)
-	relief.SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 { // a ridge down the right half
+	ground := relief.New(brd)
+	ground.SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10
 		}
@@ -48,23 +49,23 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		})
 		return
 	}
-	r := NewPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() board.Heights { return relief })
+	r := NewPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() board.Heights { return ground })
 	pieces, depths := drawn(r)
-	want := int(math.Ceil(64 / relief.Step()))
+	want := int(math.Ceil(64 / ground.Step()))
 	if len(pieces) != want {
-		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), relief.Step(), want)
+		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), ground.Step(), want)
 	}
 	sx, sy, _, _ := ends(pieces[0])
-	if ax, ay := cam.Project(48, 48, float32(relief.At(a))); !near32(sx, ax) || !near32(sy, ay) {
+	if ax, ay := cam.Project(48, 48, float32(ground.At(a))); !near32(sx, ax) || !near32(sy, ay) {
 		t.Errorf("the route starts at (%v, %v), want (%v, %v): on the ground at its start", sx, sy, ax, ay)
 	}
 	last := pieces[len(pieces)-1]
 	_, _, ex, ey := ends(last)
-	if bx, by := cam.Project(112, 48, float32(relief.At(b))); !near32(ex, bx) || !near32(ey, by) {
+	if bx, by := cam.Project(112, 48, float32(ground.At(b))); !near32(ex, bx) || !near32(ey, by) {
 		t.Errorf("the route ends at (%v, %v), want (%v, %v): on the ridge at its end", ex, ey, bx, by)
 	}
 	mid := geom.NewVec(112-32.0/2, 48)
-	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(relief.At(mid))) {
+	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(ground.At(mid))) {
 		t.Errorf("the last piece lies at depth %v, want the ground's under its middle", d)
 	}
 	flat := NewPathRenderer(brd, RouteStyle{}, 0)

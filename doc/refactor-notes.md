@@ -871,6 +871,64 @@ below says what was decided and why, or what needs an answer. Take them out as t
   on it. Mouse up and down raise and lower the head, without a floor. R/F and Q/E are unbound
   riding. Mouse right turns right; not inverted vertically; `LookStep` 0.0025 rad a pixel.
 
+### Packages (2026-09-30)
+
+The user: time to group and clean the plugins — the moon, the stars, their images and data apart
+(they proposed `ecliptic`), and a proposal for the topography, "a huge set of many elements".
+Done in eight steps, each built, vetted, tested and shot against the tree before it.
+
+- **`celestial`, not `ecliptic`.** The ecliptic is only the sun's path; the package holds the
+  whole celestial sphere — the sun's path, the moon's orbit 5.14° off the ecliptic, the stars all
+  over the sphere, the sidereal time. Renaming is one word if the user prefers `ecliptic`.
+- **`sky` keeps the light, `celestial` the bodies.** `sky` imports `celestial` (the sun's path for
+  `SunAt`, the moon and its phase for `LightAt`), never the other way round; the observer is a
+  `celestial.Place{Latitude, NoonWay}` that `sky.Config` makes from its zone. The sun's colour for
+  the disc is the day's light (`sky.SunColorAt`), not the sphere's, so it stayed in `sky`. The
+  backdrop in the atmosphere's root stays the sky's composer: it takes `celestial.StarField`,
+  `MoonFace` and `Heavens`.
+- **The atmosphere's root draws nothing.** The user asked why shaders sat in the atmosphere's
+  root: they were the root's own two renderers, the backdrop and the flat world's clouds'
+  shadows, left there at first as "the sky's composer". Against the topography's split that was
+  inconsistent, so they are `atmosphere/backdrop` and `atmosphere/overcast` now, named as
+  `precipitation` is (`Renderer`, `New`). The backdrop read the whole `atmosphere.Running`; it
+  takes `WithShown(func() (stars, moon bool))` instead, which the plugin feeds from `Running`.
+  The overcast was not put into `air`: `air` is the weather and its materials, not a layer drawn
+  on a board.
+- **The topography's parts never import the plugin.** `relief`, `painter`, `water`, `terrain`,
+  `hexes`, `billboards` and `cameras` take what they need as small interfaces or explicit values
+  (`painter.Sky`, `billboards.Sky`, `hexes.Sky`, the relief, the board's Map); the plugin composes
+  them, registers their systems (`Relief.HeightsSystem`, `Relief.AltitudeSystem`,
+  `Shaper.System`, `Control.System`), gathers their queues and keys, and hands them one `liveSky`.
+  `go list -deps` of every part shows no import of the root.
+- **No aliases.** Types are named by their package (`relief.Relief`, `relief.New`,
+  `painter.Style`, `cameras.View`, `water.Shore`), as the round on aliases decided: aliases only
+  for the components every entity carries. Games, demos, the bench and the tests say the new names.
+- **The billboards ask the cameras through contracts.** They read `viewCamera`'s and
+  `perspCamera`'s insides before; now `camera.Rider.FirstPerson`, `camera.Eyed.Eye` and
+  `Projection().Sorts()` (what `viewCamera.relief()` was). `billboards` takes the terrain's
+  `*terrain.Renderer` as it is (nil over hex prisms, where the shadows go over the frame's depth).
+  The sprites' `heights` switch is gone: the plugin always passed true.
+- **`hexes` takes the world, the board, the board's Map (the plugin), the relief and a Sky**
+  instead of `*Plugin`; `fromAbove` wraps the Map, not the plugin.
+- **Tests went with their code.** Internal tests into their packages; the billboards' tests that
+  need the whole plugin into `billboards_test`, which may import the root, with a `Stood` hook in
+  the package's `export_test.go`; the root's `export_test.go` is gone. The root's shader-compile
+  test is gone too: the painter's compiles the same composer shader with the water's materials.
+- **Import groups.** The moves had put module imports above the standard library in many files,
+  some from earlier rounds; they are grouped again (standard library, then the rest).
+- **Two GPU bugs found on the way** (terrain tests failing together, not alone): gogpu does not
+  zero a new texture, so a partial first draw showed another texture's old tiles — `render/gpu`
+  zeroes every texture as it is realized; and gogpu frees a resource at once, while a submission
+  may still read it — releases are retired and freed after the next submission, the GPU waited
+  for. A test (`TestNewTexture_IsTransparent`) holds the first.
+- **Saves.** `Heights` is `relief.Heights` now, and goke names a saved component by its type, so a
+  game saved on this branch before the split does not load (CHANGELOG).
+- **Shots.** The island from above, isometric, and in perspective by day and night came out the
+  same after every step, the hex demo from above and in relief drew as before, and the sky (the
+  sun under clouds, the pole's stars, the moon) and the flat world's clouds' shadows came out the
+  same after the atmosphere's move; the only differences were the water's animation and the
+  frame time on the HUD.
+
 ## Questions for review
 
 - **Determinism across tempos** holds for the simulation; the interface part (orders, selection)

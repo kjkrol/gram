@@ -66,7 +66,7 @@ func (r *rig) now() Weather {
 func twoStates() Config {
 	return Config{Weathers: []weather.State{
 		{Name: "clear", Wind: [2]float32{10, 10}, Lasts: [2]time.Duration{time.Second, time.Second}, Next: map[string]float32{"cloudy": 1}},
-		{Name: "cloudy", Wind: [2]float32{20, 20}, Clouds: 0.8, Falls: 0.5, Lasts: [2]time.Duration{time.Minute, time.Minute}, Next: map[string]float32{"clear": 1}},
+		{Name: "cloudy", Wind: [2]float32{20, 20}, Clouds: [2]float32{0.8, 0.8}, Falls: 0.5, Lasts: [2]time.Duration{time.Minute, time.Minute}, Next: map[string]float32{"clear": 1}},
 	}, Zone: Temperate, Start: "clear", Blend: time.Second}
 }
 
@@ -129,6 +129,32 @@ func TestWeather_TheWindCarriesTheClouds(t *testing.T) {
 	after := r.now().Drift
 	if d := float32(math.Hypot(float64(after[0]-before[0]), float64(after[1]-before[1]))); !near(d, 200, 10) {
 		t.Errorf("in 10 seconds of a wind of 20 the clouds drifted %v, want about 200", d)
+	}
+}
+
+// With the weather's workings stopped the clear sky stays past its second, the clouds stand
+// still and the air has no wind, clouds or rain, though the weather goes on underneath; set going
+// again, all of it comes back.
+func TestClimate_RunningLeavesOutWhatIsStopped(t *testing.T) {
+	r := weatherOf(t, twoStates(), calendar.Summer)
+	r.c.SetRunning(Running{})
+	r.run(5 * time.Second)
+	if w := r.now(); w.State != 0 {
+		t.Fatalf("the weather changes stopped, it went on to state %d", w.State)
+	}
+	r.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	r.run(10 * time.Second)
+	w, a := r.now(), r.c.Air()
+	if w.State != 1 || w.Clouds < 0.5 || w.Rain < 0.3 {
+		t.Fatalf("set by hand the weather is %+v, want the clouds and the rain come underneath", w)
+	}
+	if w.Drift != ([2]float32{}) || a.Wind != ([2]float32{}) || a.Clouds != 0 || a.Rain != 0 || a.Snow != 0 {
+		t.Errorf("stopped, the clouds drifted %v and the air is %+v, want still, clear and dry", w.Drift, a)
+	}
+	r.c.SetRunning(AllRunning())
+	r.run(time.Second)
+	if a := r.c.Air(); a.Wind == ([2]float32{}) || a.Clouds < 0.5 || a.Rain < 0.3 || r.now().Drift == ([2]float32{}) {
+		t.Errorf("going again the air is %+v, want the wind, the clouds and the rain back", a)
 	}
 }
 
@@ -202,7 +228,7 @@ func TestReport_SaysTheWeatherTheWindAndTheSnow(t *testing.T) {
 func TestWeather_BeginsAsTheSeasonHasIt(t *testing.T) {
 	cfg := Config{Weathers: []weather.State{
 		{Name: "sunny", Lasts: [2]time.Duration{time.Minute, time.Minute}, Often: [4]float32{calendar.Summer: 1}},
-		{Name: "wet", Clouds: 0.8, Falls: 0.5, Lasts: [2]time.Duration{time.Minute, time.Minute}, Often: [4]float32{calendar.Spring: 1, calendar.Autumn: 1, calendar.Winter: 1}},
+		{Name: "wet", Clouds: [2]float32{0.8, 0.8}, Falls: 0.5, Lasts: [2]time.Duration{time.Minute, time.Minute}, Often: [4]float32{calendar.Spring: 1, calendar.Autumn: 1, calendar.Winter: 1}},
 	}}
 	for season, want := range map[calendar.Season]int32{calendar.Summer: 0, calendar.Autumn: 1, calendar.Spring: 1} {
 		r := weatherOf(t, cfg, season)
@@ -241,11 +267,11 @@ func TestWeather_GoesByTheStepsOfTheSimulation(t *testing.T) {
 
 func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 	r := weatherOf(t, Config{Zone: Tropical}, calendar.Summer)
-	rain := weather.Default[2]
+	rain := weather.Default[Config{Weathers: weather.Default}.index("rain")]
 	if wet, dry := r.sys.likely(rain, calendar.Summer), r.sys.likely(rain, calendar.Winter); dry >= wet/3 {
 		t.Errorf("in the tropics rain comes %v in summer and %v in winter, want the winter dry", wet, dry)
 	}
-	if clear := weather.Default[0]; r.sys.likely(clear, calendar.Winter) != 1 {
+	if clear := weather.Default[Config{Weathers: weather.Default}.index("clear")]; r.sys.likely(clear, calendar.Winter) != 1 {
 		t.Errorf("a dry weather comes %v in the dry season, want as likely as ever", r.sys.likely(clear, calendar.Winter))
 	}
 }

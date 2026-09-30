@@ -1,9 +1,6 @@
 package topography_test
 
 import (
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/players"
-	"github.com/kjkrol/gram/plugins/selection"
 	"math"
 	"reflect"
 	"strings"
@@ -11,22 +8,15 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/cameras"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
-
-// sheet is an AtlasSource of one sprite with no image behind it.
-type sheet struct{}
-
-func (sheet) Atlas() *render.Image                            { return nil }
-func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
-func (sheet) White() (u, v float32)                           { return 9, 9 }
 
 func newWorld(edges aabbworld.Edges) *world.Plugin {
 	return world.NewPlugin(world.Config{
@@ -100,7 +90,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	cam.CenterOn(1024, 1024, 0)
 	cellBefore, _ := cam.Project(1024, 1024, 0)
 	cellBefore2, _ := cam.Project(1056, 1024, 0)
-	topography.SwitchView(cam)
+	cameras.Switch(cam)
 	if !cam.Projection().Sorts() {
 		t.Fatal("after View the camera does not look isometrically")
 	}
@@ -114,7 +104,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	if width := right - left; math.Abs(float64(width-(cellBefore2-cellBefore))) > 0.5 {
 		t.Errorf("after View a cell spans %v pixels, want the %v it did from above", width, cellBefore2-cellBefore)
 	}
-	topography.SwitchView(cam)
+	cameras.Switch(cam)
 	if cam.Projection().Sorts() {
 		t.Error("View again does not look from above")
 	}
@@ -130,76 +120,6 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	w := newWorld(aabbworld.Torus)
 	b, _ := levelBoard(w)
 	topography.NewPlugin(w, b, topography.Config{Cell: 32})
-}
-
-// In relief an entity stands as a billboard drawn on the GPU: upright on its box's centre at its
-// altitude, as wide as the box and as tall as its Z says, as long as the box without one; picked and
-// outlined there. From above it lies over its box.
-func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
-	w, _, _, _ := isometricIsland()
-	cam := w.Camera()
-	cam.CenterOn(64, 64, 0)
-	look := w.Look()
-	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-	stand := func(z world.Z) [][6]float32 {
-		var f render.Frame
-		f.Reset(cam)
-		look.(world.DirectLook).Begin(cam)
-		look.Sprite(&f, cam, box, z, sheet{}, 0, render.Light{1, 1, 1}, 0)
-		return topography.Billboards(look)
-	}
-	if b := stand(world.Z{Altitude: 6}); len(b) != 1 || b[0] != [6]float32{45, 45, 6, 10, 10, 0} {
-		t.Errorf("billboards %v, want one on (45, 45) at 6, 10 tall, 10 wide, upright", b)
-	}
-	if b := stand(world.Z{Altitude: 6, Height: 30}); len(b) != 1 || b[0][3] != 30 || b[0][4] != 10 {
-		t.Errorf("billboards %v, want one 30 tall on its 10-wide box: as tall as its Z says", b)
-	}
-	drawn := look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
-	bx, by := cam.Project(45, 45, 6)
-	if drawn[2][1] != by || (drawn[2][0]+drawn[3][0])/2 != bx {
-		t.Errorf("drawn at %v, want the billboard standing on (%v, %v)", drawn, bx, by)
-	}
-	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
-		t.Errorf("footprint %v, want one diamond on the ground", fp)
-	}
-	// from above the world's own flat look: the sprite over its box
-	topography.SwitchView(cam)
-	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
-	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
-		t.Errorf("from above the entity is drawn at %v, want over its box's corner (%v, %v)", drawn[0], x0, y0)
-	}
-}
-
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
-
-// fixedSky is a topography.Atmosphere of a fixed sun and weather.
-type fixedSky struct {
-	sun sky.Sun
-	air air.Weather
-}
-
-func (s fixedSky) Sun() sky.Sun     { return s.sun }
-func (s fixedSky) Air() air.Weather { return s.air }
-
-// A billboard stands upright in the calm and leans with the wind what sways.
-func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
-	w, _, _, p := isometricIsland()
-	cam := w.Camera()
-	cam.CenterOn(48, 48, 0)
-	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
-
-	look := w.Look()
-	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-	lean := func(sway float32) float32 {
-		var f render.Frame
-		f.Reset(cam)
-		look.(world.DirectLook).Begin(cam)
-		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
-		return topography.Billboards(look)[0][5]
-	}
-	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {
-		t.Errorf("a billboard's top leans %v unswaying, %v swaying; want upright and leaning", still, swaying)
-	}
 }
 
 // Given the perspective, V rides in the selected unit: riding, W, S, A and D drive it, the mouse
@@ -219,21 +139,21 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 		return out
 	}
 	riding, free := holding(camera.FirstPerson), holding(camera.Free)
-	for key, want := range map[string]topography.Drive{"W (held)": {Ahead: 1}, "S (held)": {Ahead: -1}, "A (held)": {Turn: -1}, "D (held)": {Turn: 1}} {
+	for key, want := range map[string]cameras.Drive{"W (held)": {Ahead: 1}, "S (held)": {Ahead: -1}, "A (held)": {Turn: -1}, "D (held)": {Turn: 1}} {
 		bd, ok := riding[key]
 		if !ok {
 			t.Errorf("riding, %s is not bound", key)
 			continue
 		}
 		cmd, _ := bd.Build(control.Context{})
-		if d, ok := cmd.(topography.Drive); !ok || d.Ahead != want.Ahead || d.Turn != want.Turn {
+		if d, ok := cmd.(cameras.Drive); !ok || d.Ahead != want.Ahead || d.Turn != want.Turn {
 			t.Errorf("riding, %s issues %+v, want %+v", key, cmd, want)
 		}
 		if _, ok := free[key]; ok {
 			t.Errorf("free, %s is the topography's too: the camera's WASD would be taken", key)
 		}
 	}
-	if cmd, _ := riding["W (held)"].Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
+	if cmd, _ := riding["W (held)"].Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (cameras.Drive{Ahead: 1, Sprint: true}) {
 		t.Errorf("riding, W with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
 	}
 	for _, key := range []string{"Q (held)", "E (held)", "R (held)", "F (held)"} {
@@ -246,7 +166,7 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 	}
 	if bd, ok := riding["mouse"]; !ok {
 		t.Error("riding, the mouse does not look round")
-	} else if cmd, _ := bd.Build(control.Context{Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Dx: 3, Dy: -2}) {
+	} else if cmd, _ := bd.Build(control.Context{Delta: geom.NewVec(3, -2)}); cmd != (cameras.Look{Dx: 3, Dy: -2}) {
 		t.Errorf("riding, a mouse move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
 	}
 	if _, ok := free["mouse"]; ok {
@@ -260,10 +180,10 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 			t.Errorf("free, %s is not bound", key)
 		}
 	}
-	if cmd, _ := riding["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.LookOut]() {
+	if cmd, _ := riding["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[cameras.LookOut]() {
 		t.Errorf("riding, V issues %T, want LookOut: it leaves", cmd)
 	}
-	if cmd, _ := free["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.LookOut]() {
+	if cmd, _ := free["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[cameras.LookOut]() {
 		t.Errorf("free, V issues %T, want LookOut: it rides in", cmd)
 	}
 
@@ -274,12 +194,12 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 	for _, bd := range flat.DefaultBindings() {
 		keys[players.Written(bd.Trigger)] = bd
 	}
-	if cmd, _ := keys["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Follow]() {
+	if cmd, _ := keys["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[cameras.Follow]() {
 		t.Errorf("without the perspective V issues %T, want Follow", cmd)
 	}
 	if bd, ok := keys["Up (held)"]; !ok {
 		t.Error("without the perspective the arrows do not drive the followed unit")
-	} else if cmd, _ := bd.Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
+	} else if cmd, _ := bd.Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (cameras.Drive{Ahead: 1, Sprint: true}) {
 		t.Errorf("without the perspective the up arrow with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
 	}
 	if _, ok := keys["W (held)"]; ok {

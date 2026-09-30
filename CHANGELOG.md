@@ -3,7 +3,73 @@
 ## Unreleased
 
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
-and the climate's entities are gone, the clock's is new.
+and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
+the topography was split into packages: its heights are `relief.Heights` now.
+
+**Packages: the celestial sphere apart, the topography in parts**
+- `plugins/atmosphere/celestial` is the celestial sphere, out of `sky` and the atmosphere's root:
+  `Place{Latitude, NoonWay}` (`SunPath`, `Sphere`, `MoonAt`, `HeavensAt`), `SiderealTime`,
+  `Phase`, `Way` and its values, `Heavens`, the stars (`Star`, `Stars`, `StarSky`,
+  `RealStars`, `ScatteredStars`) and their catalogue, the moon's face (`MoonFace`) and the stars
+  drawn on the GPU (`StarField`). `sky` imports it: `sky.Config.NoonWay` is a `celestial.Way`,
+  `Sky.Heavens` a `celestial.Heavens`; `sky.SunColorAt` is the sun's colour at a height.
+- The atmosphere's two renderers left its root, each with its shader: `atmosphere.Backdrop` is
+  `backdrop.Renderer` (`backdrop.New`; `WithRunning` is `WithShown`, the stars and the moon
+  alone), the flat world's clouds' shadows are `overcast.Renderer` (`overcast.New`).
+  `Plugin.Renderer` and `Plugin.Clouds` hand them out as before.
+- `plugins/topography` is the plugin over its parts, none of which imports it: `relief` (`Relief`,
+  `New`, `Corners`, `Heights`, `HeightsRun`, `MeanOfCells`, `Climbing`, `DefaultClimbing`,
+  `Shaping`, `Raise`, `Lower`, `Level`, the `Shaper`, the heights' and the altitudes' systems),
+  `painter` (the board's Dressing in relief, the sheets, `Style`), `water` (the materials, `Shore`,
+  `Shores`, `Flow`, the water layers, one `Shore` where there were two), `terrain`, `hexes` (the
+  prisms), `billboards` (the world's Look in relief, the entities' shadows) and `cameras` (the
+  views, the camera commands `View`, `Turn`, `Tilt`, `LookOut`, `Look`, `Follow`, `Drive`,
+  `LookFrom`, `LookAt`, `TurnStep`, `TiltStep`, `LookStep`, `Control`, `Maker`, `Switch`). No
+  aliases: a game says `relief.MeanOfCells`, `painter.Style`, `cameras.View`.
+  `topography.NewPlugin`, `Config` and the Plugin's methods stay; `Config.Shaping` and
+  `Config.Climbing` take the relief's types.
+- The billboards ask the cameras through contracts (`camera.Rider.FirstPerson`,
+  `camera.Eyed.Eye`, `camera.Projection.Sorts`), not their insides.
+- `render/gpu` zeroes a texture as it is made (gogpu did not: a partial first draw showed another
+  texture's old data) and frees a released resource only after the next submission the GPU has
+  finished, not while a submission may still read it.
+
+**The real sky: the stars, the moon, the sun setting**
+- The night shows the real stars — the Yale Bright Star Catalogue to magnitude 6.0, 5080 of them
+  (`celestial.Stars`), in their colours, twinkling low — turning round the pole over the climate zone's
+  latitude with the sidereal time, drawn under the sky as GPU instances (~0.2 ms a frame);
+  `sky.Config.Stars` picks `RealStars` (the default) or `ScatteredStars`, the made-up ones.
+- The moon goes its own way along the ecliptic, 5° off it, rising and setting with the stars and
+  drifting 13° a day eastwards among them; its face is NASA's CGI Moon Kit's, lit by its phase,
+  its north towards the pole; it lights the night brighter (`moonStrength` 0.5).
+- `celestial.Heavens` has `Sphere` (the celestial sphere as it stands), `Pole`, `Stars`, `OnSky`;
+  `Turn` is gone.
+- The sun sets behind the horizon as it goes down rather than vanishing; the sun's and the moon's
+  discs keep their width on the sky, so they grow as the camera zooms in.
+- The clouds hide the stars, the moon and the sun behind them, and take their light from the sky
+  and the sun or the moon: dark at night, silver under the moon.
+
+**Clouds: torn shreds and big heaps, looked up in a tile**
+- A weather's cloud cover and how heaped its clouds are (`Billow`) are ranges thrown as it comes,
+  like its wind (`weather.State.Clouds` is `[2]float32` now; `climate.Weather` has `CloudsTo`,
+  `Billow`, `BillowTo`; `air.Weather.Billow`). The default weathers are clear (no clouds), fair
+  (a few big heaps far apart), cloudy, rain and storm.
+- The heaps are some 3000 world units apart, form whole as the cover reaches their own and grow as
+  it grows on; thick ones darker underneath, their edges shining towards the light.
+- The clouds' noise is periodic and baked once into a tile with levels (`air.BakeTile`,
+  `air.CloudTile`, `air.HeapTile`); the sky and the terrain look it up per pixel — fixed to the
+  world as the eye turns, evened out towards the horizon — and the terrain no longer bakes the
+  cover every frame. Clouds on the sky cost 3.5–4 ms at 2560x1440 where they took 7.
+  `air.CloudsOverhead` is gone: the sky's clouds are its own shader's.
+
+**Switches and the hour**
+- `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`, `Plugin.Running`) switches the day,
+  the weather's changes, the wind, the clouds, what falls, the weathering, the stars and the moon;
+  all on by default, none saved. Underneath: `climate.Running` (`Climate.SetRunning`),
+  `Weathering.SetRunning`, `Sky.SetMoon`.
+- `calendar.Config.Start` and `sky.Config.Hour` are hours on the clock, `time.Duration`s
+  (`23*time.Hour + 30*time.Minute`), no longer parts of the day.
+- The board-topography demo writes out its weathers and every switch to play with.
 
 **The sun goes on smoothly**
 - The sky's light goes on tick by tick (`sky.Config.Steps` zero, the default now), or in the

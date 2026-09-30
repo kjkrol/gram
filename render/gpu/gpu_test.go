@@ -195,3 +195,21 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
 		t.Errorf("the left is %v and the right %v, want red and blue", l, r)
 	}
 }
+
+// A new texture is transparent, as WebGPU has it, though its memory was another texture's: a part
+// drawn into it leaves the rest clear.
+func TestNewTexture_IsTransparent(t *testing.T) {
+	needDevice(t)
+	used := NewTexture(64, 64)
+	Fill(Image{Texture: used}, 0.3, 0.6, 0.9, 1)
+	used.Release()
+	tex := NewTexture(64, 64)
+	tex.WritePixels(10, 10, 4, 4, make([]byte, 4*4*4))
+	got := make([]byte, 4*64*64)
+	tex.ReadPixels(got)
+	for i, b := range got {
+		if b != 0 {
+			t.Fatalf("byte %d of a new texture is %d, want transparent", i, b)
+		}
+	}
+}

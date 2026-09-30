@@ -27,6 +27,22 @@ func TestCalendar_ReadsTheClockAtAFixedScale(t *testing.T) {
 	}
 }
 
+// Start is the hour on the clock's face a fresh game begins at: half past eleven at night, or
+// midnight as 24 hours.
+func TestCalendar_BeginsAtTheStartsHour(t *testing.T) {
+	late := calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute, Start: 23*time.Hour + 30*time.Minute})
+	if m := late.At(0); m.Hour() != "23:30" || m.Date != 1 {
+		t.Errorf("begun at 23:30 a fresh game is at %s of day %d, want 23:30 of day 1", m.Hour(), m.Date)
+	}
+	if m := late.At(time.Minute/48 + time.Millisecond); m.Hour() != "00:00" || m.Date != 2 {
+		t.Errorf("half an hour on it is %s of day %d, want midnight of the next day", m.Hour(), m.Date)
+	}
+	midnight := calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute, Start: 24 * time.Hour})
+	if m := midnight.At(0); m.Hour() != "00:00" {
+		t.Errorf("begun at 24 hours a fresh game is at %s, want midnight", m.Hour())
+	}
+}
+
 // Daily and Yearly give a schedule entry the period and the offset of its first coming.
 func TestCalendar_DailyAndYearlyEntries(t *testing.T) {
 	c := calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute})

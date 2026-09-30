@@ -25,12 +25,32 @@ type Climate struct {
 	set        control.Queue[Set]
 	report     report
 	behaviours host.EachHost[Weathering]
+	running    Running
 }
+
+// Running is which of the weather's workings go on: Changes, one weather following another as the
+// climate throws them (off, the weather now stays, though Change and Set still change it); Wind,
+// the wind blowing and carrying the clouds (off, the air stands still); Clouds, the clouds
+// covering the sky (off, a clear sky); Falls, rain and snow falling (off, nothing falls). The air
+// (Climate.Air) and the behaviours hosted with it have the weather as they leave it; the
+// weather's own entity goes on underneath and is saved as it is. They are not saved.
+type Running struct {
+	Changes, Wind, Clouds, Falls bool
+}
+
+// AllRunning is Running with all of it going on, as a Climate begins.
+func AllRunning() Running { return Running{Changes: true, Wind: true, Clouds: true, Falls: true} }
+
+// SetRunning has the weather's workings go on as r says, from the next step.
+func (c *Climate) SetRunning(r Running) { c.running = r }
+
+// Running is which of the weather's workings go on.
+func (c *Climate) Running() Running { return c.running }
 
 // New puts w in the climate of cfg, its seasons cal's.
 func New(w *world.Plugin, cal *calendar.Calendar, cfg Config) *Climate {
 	cfg = cfg.withDefaults()
-	c := &Climate{cfg: cfg, world: w, calendar: cal}
+	c := &Climate{cfg: cfg, world: w, calendar: cal, running: AllRunning()}
 	for _, s := range cfg.Weathers {
 		c.report.names = append(c.report.names, s.Name)
 	}
@@ -55,7 +75,7 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation; it finds or makes the
 // weather's entity in its own Init. Call it once.
 func (c *Climate) System() goke.System {
-	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.behaviours)
+	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.behaviours, &c.running)
 	return c.sys
 }
 

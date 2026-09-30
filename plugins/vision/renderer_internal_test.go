@@ -1,8 +1,6 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"math"
 	"testing"
 
@@ -12,6 +10,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"

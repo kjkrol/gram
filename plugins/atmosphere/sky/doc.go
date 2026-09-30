@@ -12,13 +12,14 @@
 // the south-east, the sun of a relief under no sky.
 //
 // [New] takes the calendar, the [Config] — which [Way] the sun stands at noon, in how many steps
-// a day it moves (none: as it goes), whether the light begins frozen and at what hour — and the latitude the sun goes
-// at, the climate's zone's in an atmosphere. Once a tick ([Sky.Update], in the interface part of
+// a day it moves (none: as it goes), whether the light begins frozen and at what hour on the
+// clock, which stars the night shows — and the latitude the sun goes at, the climate's zone's in
+// an atmosphere. Once a tick ([Sky.Update], in the interface part of
 // the plan) the sky sets its light ([Sky.Sun]) to [Config.LightAt] the hour: the
 // sun — with noon in the south rising in the east and setting in the west, the whole path turned
 // round to NoonWay, higher at midsummer and lower at midwinter, up all day or none at all past
-// the polar circle — and once it is well below the horizon the moon, going its way behind it, as
-// bright as it is full, in a paler light; the sun's strength rising and falling with it, and the
+// the polar circle — and once it is well below the horizon the moon, as bright as it is full, in
+// a paler light (none with [Sky.SetMoon] off); the sun's strength rising and falling with it, and the
 // colours of the sky and of the sun's light going through the day: blue by day, orange at sunrise
 // and sunset, deep blue at night. The atmosphere hands that sun to whoever draws — a topography
 // lights and shades its relief and the sprites on it by it, so mornings and evenings cast long
@@ -30,6 +31,11 @@
 // or back. Only the light freezes — the calendar, the weather and the schedule go on — and it is
 // a look at the world, like the camera's turn: it changes at once, in the tactical pause too, and
 // is not saved with the game. Let go, the light is the hour's again at once.
+//
+// Where the sun and the moon stand is plugins/atmosphere/celestial's, from the sky's place — the
+// latitude and the NoonWay; [Sky.Heavens] is its celestial.Heavens at the hour of the light, the
+// sphere of the stars with them, for whoever draws the sky, and [SunColorAt] the colour of the
+// sun's own light at a height, for its disc.
 //
 // [Sky.Reporter] adds the light to a scene's render.TelemetryRenderer. The sky behind the world
 // is plugins/atmosphere's Backdrop, which needs the weather too.

@@ -1,9 +1,9 @@
 package players_test
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"

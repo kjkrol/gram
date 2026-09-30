@@ -55,6 +55,10 @@ type device struct {
 	presented    [4][]byte
 
 	stages []*staging // the gathered bytes' way to the GPU, mapped
+
+	// retired is what was let go while a submission may still read it, freed once the GPU is done
+	// with everything given it (retire, bury): gogpu frees a resource at once
+	retired []func()
 }
 
 var cur *device
@@ -225,6 +229,7 @@ func (d *device) trySubmit() error {
 	if _, err := d.queue.Submit(all...); err != nil {
 		return fmt.Errorf("gpu: submitting: %w", err)
 	}
+	d.bury()
 	if st != nil {
 		return st.remap()
 	}
@@ -298,7 +303,7 @@ func (d *device) ensure(nv, ni int) {
 			size *= 2
 		}
 		if *b != nil {
-			(*b).Release()
+			d.retire((*b).Release) // the submissions before may still read it
 		}
 		nb, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: label, Size: size, Usage: usage | wgpu.BufferUsageCopyDst})
 		if err != nil {
@@ -335,7 +340,7 @@ func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	}
 	if len(d.groups) > 4096 {
 		for k, g := range d.groups {
-			g.Release()
+			d.retire(g.Release)
 			delete(d.groups, k)
 		}
 	}
@@ -352,14 +357,43 @@ func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	return g
 }
 
-// forget drops every bind group holding t.
+// forget drops every bind group holding t, freed once the GPU is done with them.
 func (d *device) forget(t *Texture) {
 	for k, g := range d.groups {
 		if k[0] == t || k[1] == t || k[2] == t || k[3] == t {
-			g.Release()
+			d.retire(g.Release)
 			delete(d.groups, k)
 		}
 	}
+}
+
+// retire has free run once the GPU is done with everything given it so far: after the next
+// submission, waited for (bury). A submission may still read what is let go, and gogpu frees it at
+// once.
+func (d *device) retire(free func()) { d.retired = append(d.retired, free) }
+
+// bury frees what was retired, the GPU waited for first; nothing to wait for with nothing retired.
+func (d *device) bury() {
+	if len(d.retired) == 0 {
+		return
+	}
+	d.dev.Poll(wgpu.PollWait)
+	for _, free := range d.retired {
+		free()
+	}
+	d.retired = d.retired[:0]
+}
+
+// retire has free run once the GPU is done with what it was given, on the device at hand; at once
+// without one.
+func retire(free func()) {
+	if cur == nil {
+		free()
+		return
+	}
+	cur.mu.Lock()
+	defer cur.mu.Unlock()
+	cur.retire(free)
 }
 
 func alignUp(n, a uint64) uint64 { return (n + a - 1) / a * a }

@@ -26,8 +26,11 @@
 // Warmth — towards the weather's, the wind's way wandering slowly; carries the clouds on the wind;
 // lets what falls come down as snow below 1°C and as rain above; and keeps the air as it stands
 // ([Climate.Air], an air.Weather), which the renderers draw: the clouds' shadows drifting over the
-// ground, the sea as rough as the wind, whatever sways swaying. A fresh game begins in the Start weather, or in one
-// thrown as the zone and the season have them.
+// ground, the sea as rough as the wind, whatever sways swaying. A weather's wind, cloud cover and
+// heaps are thrown within its State's ranges as it comes. A fresh game begins in the Start
+// weather, or in one thrown as the zone and the season have them. [Climate.SetRunning] stops what
+// of it a game wants still ([Running]: the changes, the wind, the clouds, what falls), the air
+// left without it, the weather going on underneath.
 //
 // [Every] hosts a behaviour told the weather and the season ([Weathering]) every step
 // ([Climate.Host]). [Change] (Shift+W) goes on to the next weather now, [Set] into a named one — a

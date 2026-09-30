@@ -159,7 +159,7 @@ the board's renderer is a `render.Direct` at `Ground` that composes a flat map u
 when the board changes (`Board.Changes`), draws it in `EvenLight` — copies across a wrapping seam
 — and the grid over it on the GPU (`shaders/grid.wgsl`: a square grid's tiles darkened along
 their edges, a hex grid's edges); anything else keeps composing its tiles every frame. The
-clouds' shadows over a flat world (`atmosphere.Plugin.Clouds`) are a Direct too, their noise
+clouds' shadows over a flat world (`atmosphere.Plugin.Clouds`, `atmosphere/overcast`) are a Direct too, their noise
 worked out every 8 pixels of a mesh on the GPU.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite, where
@@ -171,29 +171,29 @@ and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `C
 `DefaultAtlas`), the ways and crossings as plain bands (`simpleDressing`), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
-the world and the board, sets the world's camera factory (`world.SetCameras`; `camera.Config` has no
-projection), its Look (`worldLook`: billboards in relief, the world's `FlatLook` from above, all
-drawn on the GPU), the board's Map (its Look `board.Nothing`: the ground is drawn on the GPU) and
+the world and the board, sets the world's camera factory (`world.SetCameras(cameras.Maker(…))`;
+`camera.Config` has no projection), its Look (`billboards.Look`: billboards in relief, the world's
+`FlatLook` from above, all drawn on the GPU), the board's Map (its Look `board.Nothing`: the ground is drawn on the GPU) and
 the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
 the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
 `topography/terrain` — the relief's lattice as a mesh (every corner a vertex, heights in an R32F
-image), a depth prepass, the board painted flat by the dresser (albedo and water sheets, `Painted`)
+image), a depth prepass, the board painted flat by the painter (albedo and water sheets, `Painted`)
 sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves (`shade.wgsl`),
 the clouds' cover baked (`cover.wgsl`), water on wet cells only, the grid, fog, and a skirt of
 level ground round the world to the horizon (`skirtRings`, `skirtReach`); over a hex grid
-`hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
+`topography/hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
 from the tiles composed once from above (a `render.Still` through `board.NewRenderer` with the
-flat look and the dresser) and drawn every frame into a world image. The dresser only paints: its
+flat look and the painter) and drawn every frame into a world image. The painter only paints: its
 tiles are dressed in white without clouds (`tile.Light` even, `sunlit` full), into the sheets or
 the hexes' still; there is no per-frame tile path in relief any more. The world's entities are
-billboards drawn on the GPU (`sprites`, instanced, tested against the ground's depth, their
+billboards drawn on the GPU (`topography/billboards`: `sprites`, instanced, tested against the ground's depth, their
 shadows `sky.Sun.ShadowOf` patches draped over the terrain by `terrain.DrawShadows`, over the hex
 prisms laid from the frame's depth by `shades`); from above
 the flat look's sprites on the GPU and the same shadows. The cameras' `camera.Rays` (a
 `RayField`: origin and direction affine in the screen point; the perspective's from its eye, the
 isometric and flat views' parallel) give `camera.SceneTransform` for every GPU source. One camera,
-three views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
-sorting), the isometric and, given `Config.Perspective`, the perspective; `View{Camera}` (Tab) goes
+three views (`topography/cameras`): `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
+sorting), the isometric and, given `Config.Perspective`, the perspective; `cameras.View{Camera}` (Tab) goes
 round them keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
 screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
@@ -210,7 +210,8 @@ cursor stays put (`aim`), the eye flying on towards it where the pitch floor hol
 (heading saved with the camera): the projection turns the ground frame from the 2:1 view, Depth is
 how far down the screen the middle of the cell lies (every point of a cell ties with its tile),
 Toward follows the heading. The plugin is a CommandHandler with a RunPlan (after the world, before
-players; the cameras and the shaping at once, the altitudes in the simulation): `Turn{Camera,
+players; the cameras and the shaping at once, the altitudes in the simulation), gathering the
+queues and keys of `cameras.Control` and `relief.Shaper`: `Turn{Camera,
 Angle}` (Q/E held, `TurnStep` 2° a tick), `Tilt{Camera, Angle}` (R/F held, 1° a tick; the
 projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scaling the ground down
 the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
@@ -235,9 +236,16 @@ V, writes the keys every tick, writes a stop and detaches it on letting go; navi
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
 admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
 just ahead under `BodySpacing` — stops dead otherwise, removes a MoveOrder a hand touches and
-keeps Cell, occupancy and CellEntered with the unit) and `Raise`/`Lower`/`Level` (=, -, L-drag).
+keeps Cell, occupancy and CellEntered with the unit) and `relief.Raise`/`Lower`/`Level` (=, -, L-drag).
 Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
 players; which camera is fastened to what is the camera system's state, cameras being no entities.
+The topography's parts are packages none of which imports the plugin (it composes them, registers
+their systems, gathers their queues and keys, hands them its sky through `liveSky`): `relief`
+(heights, climbing, shaping, the heights' entity, altitudes), `painter` (the board's Dressing in
+relief, the sheets, `Style`), `water` (the materials, `Shore`, the water layers), `terrain`,
+`hexes`, `billboards` (the world's Look, the entities' shadows), `cameras` (the views and their
+control; `camera.Rider`, `camera.Eyed` and `Projection().Sorts()` are what the billboards ask of
+them) and `internal/vec`.
 selection must not import topography, even in tests (topography imports selection). Everything
 that is the view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
@@ -261,37 +269,55 @@ stretched by its height and pushed off by how far above the ground it stands; th
 look draws it as it is.
 The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
 (`plugins/world/clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
-every `Config.Day` of game time from the moment a fresh game begins at (`Start` of the day, the
-middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
+every `Config.Day` of game time from the moment a fresh game begins at (`Start`, the hour on the
+clock as a `time.Duration`, in the middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
 its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
 `Written`), `Daily`/`Yearly`/`Seasonal` give a schedule entry its period and offset.
 `atmosphere/sky` sets the world's sun once a tick, in the interface part, to `Config.LightAt` the
-moment — as it goes, or at every one of `Config.Steps` a day where a game asks for steps — the sun (with `NoonWay` `sky.South`: east at 6,
-south at noon, west at 18; the default `sky.NorthWest` turns the whole path so noon is beyond the
+moment — as it goes, or at every one of `Config.Steps` a day where a game asks for steps — the sun (with `NoonWay` `celestial.South`: east at 6,
+south at noon, west at 18; the default `celestial.NorthWest` turns the whole path so noon is beyond the
 isometric view's sea; the path worked out for the climate's zone's latitude: declination 23.44° ×
 sin(2π·ofYear), the hour angle from noon — polar day and night past the circle), and below −0.1 of
-height the moon (`moonStrength` 0.25 × how full, `moonColor`) — the strength rising and falling,
+height the moon (`moonStrength` 0.5 × how full, `moonColor`; `Sky.SetMoon` off: none) — the strength rising and falling,
 the sky's and the sun's colours and the ambient blended from the `daylight` table by the sun's
 height: blue by day, orange at sunrise and sunset, deep blue at night. The terrain bakes its shadows
 anew as the sun goes on a strip a frame (`shadeStrips` 16, a round past every tenth of a degree:
 0.4–0.85 ms of the GPU a frame at 2560x1440), all at once when the sun leaps a degree or the ground
 changes; H (`topography.CoarseShadows`, `Plugin.WithCoarseShadows`) bakes them half as fine a side. The light can be frozen (`Freeze` P, `Later`/`Earlier` Shift+]
 and Shift+[ move it half an hour): only the light, in memory, not saved; the calendar and the
-weather go on. `sky.Backdrop` is the viewport in the sky's colour on `render.Backdrop` (tier 0),
-a Direct: through a perspective the sky of the day (`shaders/backdrop.wgsl`: the gradient from
-the horizon up, the sun a white disc in a halo and a wider glare, the clouds on their layer, hazed
-towards the horizon), otherwise the viewport in the sky's colour wherever the ground does not
-cover it.
+weather go on. The celestial sphere is `atmosphere/celestial`, which `sky` imports, never the
+other way round: `celestial.Heavens` (`Place.HeavensAt`, a `Place{Latitude, NoonWay}` that
+`sky.Config` makes with its zone's latitude) is where the sky's bodies stand: the sphere turned by
+the sidereal time (`SiderealTime`: the sun's right ascension along the ecliptic,
+`λ = 2π·ofYear`, plus its hour angle) over the latitude (`Sphere`, `Pole`, `OnSky`), the sun on
+its path (`SunPath`), the moon on its own (`MoonAt`: ecliptic longitude the sun's + 2π·moon,
+5.14° off it, rising and setting with the stars, drifting 13° a day eastwards among them; `Phase`),
+the stars `sky.Config.Stars` chooses (`RealStars`: `celestial.Stars()`, the Yale Bright Star
+Catalogue to V 6.0, 5080 stars in `stars.bin` from `stars_gen.go`; `ScatteredStars` made up). `atmosphere/backdrop` (`backdrop.Renderer`) is the
+viewport in the sky's colour on `render.Backdrop` (tier 0), a Direct: through a perspective the
+sky of the day (`backdrop/shaders/backdrop.wgsl`: the gradient from the horizon up, the sun a white disc
+in a halo and a wider glare, the moon's face `celestial.MoonFace()` (`moon.png`, NASA SVS CGI Moon Kit) —
+lit by its phase, north to the pole; the discs `discAngle` of the camera's focal length, so they
+grow as it zooms; the clouds on their layer from the clouds' tile, hazed towards the horizon,
+hiding what lies behind them), the real stars drawn first as instances (`celestial.StarField`,
+`celestial/shaders/stars.wgsl`: placed on the CPU through `camera.Vanisher`, ~0.2 ms for 5080) on black,
+the sky laid over them with the alpha of what hides them; otherwise the viewport in the sky's
+colour wherever the ground does not cover it. `atmosphere.Running` (`Config.Running`,
+`Plugin.SetRunning`) switches the day, the weather's changes, the wind, the clouds, what falls,
+the weathering, the stars and the moon, all on by default, not saved (the backdrop takes the
+stars and the moon of it through `backdrop.Renderer.WithShown`). The atmosphere's root keeps no
+shaders and draws nothing itself: every part — `calendar`, `sky`, `celestial`, `climate`, `air`,
+`precipitation`, `weathering`, `backdrop`, `overcast` — is a package that never imports it.
 `CellKind.Shine` (0–1) makes a kind glint, per pixel in the topography's materials
-(`plugins/topography/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
+(`plugins/topography/water/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
 `render.RegisterMaterials` joins the composer's library and every mesh shader built on it): the
-dresser paints the wet cells' shine and flow into the water sheet, and the terrain's shader calls
+painter paints the wet cells' shine and flow into the water sheet, and the terrain's shader calls
 `SeaGlintAt(p, shine, lit, shore, pixel, toward)` and `RunningWater` over the wet cells. The sea
 is five octaves of stretched value noise (`chop`: `noised`, analytic gradient, each fading out
 where a pixel spans too much of it, `seenAt`) running along x — never turned with the wind,
 whose wander would swing the whole sea to and fro; the wind only roughens it
 (`calmSea`..`stormSea`) — shaded to and from the light, with a narrow glint and a broad sheen,
-within `shoreReach` cells of the shore (`Shore`, per corner of a square grid) a swell rolling in
+within `shoreReach` cells of the shore (`water.Shore`, per corner of a square grid) a swell rolling in
 and breaking into foam; it reflects the sky by Fresnel against the way to the eye — per pixel in
 a perspective, `camera.Projection.Toward()` otherwise — so it pales towards the horizon. The
 skirt round the world carries the sea on to the horizon. An effect altering `Ground` can make a
@@ -300,7 +326,8 @@ The climate is `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Facto
 `SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
 `Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
 `Day` 4, `Wet` per season by latitude band. The kinds of weather are the subpackage
-`climate/weather` (`weather.State`, `weather.Default`, `State.Likely`). The weather now, a
+`climate/weather` (`weather.State`, its `Wind`, `Clouds` and `Billow` ranges thrown as it comes;
+`weather.Default`: clear, fair, cloudy, rain, storm; `State.Likely`). The weather now, a
 `climate.Weather` on its own entity (made at Setup or found after a load, saved with its dice)
 begins in its first step in `Config.Start` or a state thrown by `Often[season]`, already at its
 clouds, fall and temperature, and goes from one of `Config.Weathers` to the next (weights `Next` ×
@@ -309,7 +336,7 @@ clouds, fall and temperature, and goes from one of `Config.Weathers` to the next
 the state's (`Blend`; the temperature the zone's `Mean` ± `Year` through the year, ± `Day` through
 the day, and `State.Warmth`, the day the calendar's), what falls coming down as snow below
 `snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
-`air.Weather`; `atmosphere.Plugin.Air()`) — every
+`air.Weather`; `atmosphere.Plugin.Air()`; `Climate.SetRunning` leaves out what is stopped) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
 tactical pause stops it. It hosts `climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`,
 run every step with the weather and season; `atmosphere.Plugin.RegisterBehavior`). `Change`
@@ -324,15 +351,20 @@ ground, a noise's seeds, next to snow) while it snows in the frost, melting lone
 first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
 stopping below 10; a winter begun has its drifts and shores laid at once
 (`atmosphere.Plugin.WithWeathering(board, cfg)`). `plugins/atmosphere/air` is the weather as
-drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift`, `Cover` and the
-`Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans what sways, `Weather.Cloud`/
-`Shade` are the clouds' noise and shadow on the CPU, the very numbers the shaders' `cloudField`,
-`cloudCover` and `cloudShade` (`air/shaders/cloud_noise.wgsl`, `cloud_shadow.wgsl`: `cloudSize` 420
-minus `Drift`, spread by `cloudContrast`, the shadow straight under, dimming the sun by
-`cloudDark`) work out on the GPU, `Weather.Haze` is how much the air hides a point from a camera's
-eye. The terrain bakes the clouds' cover over the board and works it out per pixel on the skirt;
+drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift` (a `HeapTile` at
+most), `Cover`, `Billow` and the `Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans
+what sways, `Weather.Cloud`/`Shade` are the clouds' noise and shadow on the CPU, the very numbers
+the shaders' `cloudField`, `cloudCover` and `cloudShade` (`air/shaders/cloud_noise.wgsl`,
+`cloud_shadow.wgsl`: shreds of `cloudSize` 420, four octaves, and heaps' cores in cells of
+`heapSize` 3150 — one heap a cell, flat topped, forming as the cover reaches its own, lobed —
+mixed by `Billow` (`cloudMix`), spread by `cloudContrast`, the shadow straight under, dimming the
+sun by `cloudDark`) work out on the GPU, `Weather.Haze` is how much the air hides a point from a
+camera's eye. The noise is periodic (`CloudTile` 12600, `HeapTile` 50400) and baked once by
+`air.BakeTile` into a 1536×1024 tile with six levels (red the shreds, green the heaps' cores); the
+sky and the terrain (a copy right of the shade in its baked image) look it up per pixel
+(`cloudTileSpot`, `cloudTileLevel`, `cloudFromTile`), the rest works out `cloudField` itself;
 waves steepen with `Wind` (`calmSea`..`stormSea`), water reflects `overcastSky()`. A flat world
-takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (tier `Objects+50`, a Direct: a mesh
+takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (`overcast.Renderer`, tier `Objects+50`, a Direct: a mesh
 over the viewport, the noise at its corners every 8 pixels where the camera's lines of sight meet
 the ground, the shadow per pixel) and its light by the hour through
 `atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `board.EvenLit`:
@@ -448,14 +480,14 @@ shows how much of it is boilerplate vs. real behavior.
   bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
   to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
   that ground, the kind under the way; slopes
-  cost too, through the board's Map — `topography.Climbing{Up, Down, Ease, Steep, Free}`
-  (`Config.Climbing`, `DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
+  cost too, through the board's Map — `relief.Climbing{Up, Down, Ease, Steep, Free}`
+  (`topography.Config.Climbing`, `relief.DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
   island: road and bridge 1, the rest 2.5 times what it was) slows the Moving behavior along the
   heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
   takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
   relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
-  runs down its cell's slope (`Tile.Flow` → `topography.Stream`, a flow map: ripples and foam
+  runs down its cell's slope (`Tile.Flow` → `water.Stream`, a flow map: ripples and foam
   carried with the current, white where it is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
@@ -465,11 +497,11 @@ shows how much of it is boilerplate vs. real behavior.
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
   tile's corners, side middles and middle by the share of the cells meeting there, shown where the
-  weight is over a half — one line across the tiles, not the cells' edges; a kind whose `topography.Style` lies `Under`
+  weight is over a half — one line across the tiles, not the cells' edges; a kind whose `painter.Style` lies `Under`
   (water) is drawn as the tile's base (`Tile.Base`) under its neighbours, glint and all, the land
   laid over it the same way. Ways curve round the cell's middle; a way's `Fade` has it fade out
   (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`).
-  `Board.CellVersion` counts each cell's changes; the dresser keeps a cell's read and its tile's
+  `Board.CellVersion` counts each cell's changes; the painter keeps a cell's read and its tile's
   blends and way (baked relative to the tile) until stale and paints them — the whole board flat
   for the terrain over a square grid (`render.Paint`), the tiles once from above for the hex
   prisms (`render.Still`) — anew where cells changed; a unit's
@@ -486,14 +518,14 @@ shows how much of it is boilerplate vs. real behavior.
   Setup or on a board no ECS runs. `Version` and `CellVersion` count every change: writes through
   the board, effects on cell entities, which the `cellSystem` learns from `effects.Active.Altered`
   and `effects.Idle` on the cells, and `Board.Touch(c)` by whoever changes a cell beyond the board.
-  The board is flat: the ground's heights are the topography's `Relief` — on a square grid a
+  The board is flat: the ground's heights are the topography's `relief.Relief` — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
-  (`topography.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
-  `topography.Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
+  (`relief.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
+  `relief.Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
   the relief takes, so the ECS keeps them in its own memory — written when the relief's version
   changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
-  (`Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the topography's
+  (`relief.Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the relief's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
   world with heights a `CellKind` has a `Height` (what stands on it); a flat world refuses what stands

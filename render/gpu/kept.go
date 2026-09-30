@@ -63,7 +63,7 @@ func (d *device) keep(label string, data []byte, usage gputypes.BufferUsage) *wg
 func (k *Kept) Release() {
 	for _, b := range []*wgpu.Buffer{k.vbuf, k.ibuf} {
 		if b != nil {
-			b.Release()
+			retire(b.Release) // a draw gathered or submitted may still read it
 		}
 	}
 	k.vbuf, k.ibuf = nil, nil

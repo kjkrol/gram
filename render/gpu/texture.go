@@ -45,6 +45,9 @@ func (t *Texture) realize(d *device) {
 	if t.tex != nil {
 		return
 	}
+	if t.cpu == nil { // transparent from the start, as WebGPU has it and gogpu does not: memory used before shows otherwise
+		t.cpu = make([]byte, 4*t.w*t.h)
+	}
 	tex, err := d.dev.CreateTexture(&wgpu.TextureDescriptor{
 		Size: wgpu.Extent3D{Width: uint32(t.w), Height: uint32(t.h), DepthOrArrayLayers: 1}, MipLevelCount: 1, SampleCount: 1,
 		Dimension: gputypes.TextureDimension2D, Format: Format,
@@ -104,8 +107,8 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	// gogpu's write at an origin but the corner spoils the texture left of it: the pixels go into
 	// a texture of their own, whole, and are drawn into place from there
 	part := NewTexture(w, h)
+	part.cpu = pix[:4*w*h] // written as it is put on the GPU
 	part.realize(d)
-	d.write(part, 0, 0, w, h, pix)
 	one := func(dx, dy float32) Vertex {
 		return Vertex{DstX: float32(x) + dx, DstY: float32(y) + dy, SrcX: dx, SrcY: dy, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
 	}
@@ -114,8 +117,7 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 		[]Vertex{one(0, 0), one(fw, 0), one(0, fh), one(fw, fh)}, []uint16{0, 1, 2, 1, 2, 3})
 	d.submit()
 	d.forget(part)
-	part.tgt.view.Release()
-	part.tex.Release()
+	d.retire(func() { part.tgt.view.Release(); part.tex.Release() }) // the draw into place may still read it
 }
 
 // write hands the GPU a copy of pix with its rows 256 bytes apart, as the GPU copies them, and has
@@ -208,9 +210,8 @@ func (t *Texture) Release() {
 	d := cur
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.submit()
 	d.forget(t)
-	t.tgt.view.Release()
-	t.tex.Release()
+	view, tex := t.tgt.view, t.tex
+	d.retire(func() { view.Release(); tex.Release() })
 	t.tex = nil
 }

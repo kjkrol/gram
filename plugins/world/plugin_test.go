@@ -1,9 +1,9 @@
 package world_test
 
 import (
-	"github.com/kjkrol/aabbworld"
 	"testing"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/plugins/world"
 )
 

@@ -1,12 +1,12 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"

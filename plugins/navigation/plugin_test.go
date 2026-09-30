@@ -1,14 +1,14 @@
 package navigation
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/selection"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 )
 

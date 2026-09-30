@@ -8,8 +8,11 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
+	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
+	"github.com/kjkrol/gram/plugins/atmosphere/overcast"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
@@ -20,12 +23,13 @@ import (
 )
 
 // Config is the atmosphere: the Calendar's days and year, the Sky's sun and light, the Climate's
-// zone and weathers. Zero fields take each package's defaults; the sun goes at the climate's
-// zone's latitude.
+// zone and weathers, and which of its workings go on from the start (Running; all of them when
+// nil). Zero fields take each package's defaults; the sun goes at the climate's zone's latitude.
 type Config struct {
 	Calendar calendar.Config
 	Sky      sky.Config
 	Climate  climate.Config
+	Running  *Running
 }
 
 // Plugin is the atmosphere over a world: the calendar of the world's clock, the light of the day
@@ -39,6 +43,7 @@ type Plugin struct {
 	climate     *climate.Climate
 	weathering  *weathering.Weathering
 	module      *module
+	running     Running
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -48,12 +53,22 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
-	return &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	r := AllRunning()
+	if cfg.Running != nil {
+		r = *cfg.Running
+	}
+	r.Day = r.Day && !cfg.Sky.Frozen // a light the sky's Config freezes stays frozen
+	p.SetRunning(r)
+	return p
 }
 
 // Sun is the light of the day as it stands: what lights the world and casts its shadows.
 func (p *Plugin) Sun() sky.Sun { return p.sky.Sun() }
+
+// Heavens is where the sun, the moon and the stars stand at the hour of the light.
+func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 
 // Air is the weather as the last step of the simulation left it: the wind, the clouds, what
 // falls, how far one sees.
@@ -67,6 +82,7 @@ func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugi
 		panic(err)
 	}
 	p.weathering = w
+	w.SetRunning(p.running.Weathering)
 	return p
 }
 
@@ -109,7 +125,11 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {}
 // Renderer is the sky behind the world, a render.Source for a scene's Composer: the viewport in
 // the sky's colour under everything, wherever the ground does not cover it.
 func (p *Plugin) Renderer() render.Layer {
-	return NewBackdrop(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air)
+	shown := func() (stars, moon bool) {
+		r := p.Running()
+		return r.Stars, r.Moon
+	}
+	return backdrop.New(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
 }
 
 // Precipitation is what falls — rain, snow — a render.Source for a scene's Composer, on render.Air.
@@ -118,7 +138,7 @@ func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, 
 // Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer: laid
 // over the ground under every pixel on the GPU, over what stands on it, under the overlays. A
 // world with heights has its terrain shadow itself.
-func (p *Plugin) Clouds() render.Layer { return &clouds{sun: p.Sun, air: p.Air} }
+func (p *Plugin) Clouds() render.Layer { return overcast.New(p.Sun, p.Air) }
 
 // Reporter is the atmosphere's lines for a render.TelemetryRenderer: the time of day and the date,
 // the light, the weather.

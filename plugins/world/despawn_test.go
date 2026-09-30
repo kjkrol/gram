@@ -1,11 +1,11 @@
 package world
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/uid"
 )

@@ -74,19 +74,21 @@
 //	Layer 2   plugin              — the extension contract: Plugin, Installer, Tick, Between and Each,
 //	                                PairHost and EachHost, Serializable, PostLoader, Populator      (→ control, render)
 //	Layer 3   plugins/world/kind  — what an entity is: Spec, Const and Load, Define, Of, Registry    (→ render)
+//	          plugins/world/effects — temporary changes to entities: Grant and Alter, cast anywhere; made by the world (→ plugin, world/clock)
 //	Layer 4   plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Attach and Detach, Camera   (→ camera, control, plugin, kind, render)
+//	                                movement, kinds, Seed and Populate, Attach and Detach, Camera   (→ camera, control, plugin, kind, effects, render)
 //	Layer 5   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, world, render)
 //	          plugins/collision   — the CollisionSystem over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
 //	          plugins/selection   — a Select command into a Selected tag                           (→ world, …)
 //	          plugins/vision      — a Sight cone into Seen, Sighting, SightOutline                   (→ world, …)
-//	          plugins/effects     — temporary changes to entities: Grant and Alter, cast anywhere    (→ world, …)
 //	Layer 6   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/behavior, plugins/vision/behavior — ready-made reactions              (→ their plugin, world, plugin)
 //	Layer 7   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
-//	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective (→ world, board, …)
-//	          plugins/sky         — a day going by: the time of day saved with the game, the world's sun following it (→ world, …)
+//	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
+//	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
+//	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
+//	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
 //	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
 //	Layer 8   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence (→ game, plugin, world, camera, control, render)
 //	Layer 9   gram                — Run; the package you import                                     (→ game, internal/engine)
@@ -96,7 +98,7 @@
 //	camera ──► render ──► plugin ──► plugins/world/kind ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                                              │  ▲
 //	                                                          ▼  │
-//	                     plugins/{collision, selection, vision, effects} ──► plugins/board ──► plugins/navigation, plugins/*/behavior
+//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/behavior
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,

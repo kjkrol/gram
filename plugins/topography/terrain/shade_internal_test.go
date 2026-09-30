@@ -26,7 +26,7 @@ func TestRenderer_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 	}
 	shade := func(r *Renderer) []byte {
 		cols, rows, _, _, _ := r.ground.Lattice()
-		ks, _ := bakedScale(cols, rows, r.coarse)
+		ks := bakedScale(cols, rows, r.coarse)
 		part := r.baked.SubImage(image.Rect(0, 0, ks*(cols-1), ks*(rows-1)))
 		pix := make([]byte, 4*part.Bounds().Dx()*part.Bounds().Dy())
 		part.ReadPixels(pix)
@@ -71,7 +71,7 @@ func TestRenderer_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 
 	r.Coarse(true)
 	frame(r, sun(-0.9))
-	if cols, _, _, _, _ := r.ground.Lattice(); r.baked.Bounds().Dy() != 4*16 || len(shade(r)) != 4*(4*(cols-1))*(4*16) {
+	if cols, rows, _, _, _ := r.ground.Lattice(); bakedScale(cols, rows, true) != 4 || len(shade(r)) != 4*(4*(cols-1))*(4*(rows-1)) {
 		t.Errorf("coarse, the baked image is %v, want 4 pixels a cell", r.baked.Bounds())
 	}
 }

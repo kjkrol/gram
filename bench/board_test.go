@@ -15,6 +15,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/cameras"
+	"github.com/kjkrol/gram/plugins/topography/painter"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -49,8 +52,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	}
 	brd := p.Res.Logic.Board
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	relief := topo.Relief()
-	relief.SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 {
+	ground := topo.Relief()
+	ground.SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -63,7 +66,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	for b.Loop() {
 		for i := range 64 {
 			d := float64(i) * size / 4
-			sum += relief.GroundAt(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
+			sum += ground.GroundAt(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
 	_ = sum
@@ -91,7 +94,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	}
 	brd := p.Res.Logic.Board
 	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	topo.Relief().SetHeights(topography.MeanOfCells(grid, func(c board.CellID) float64 {
+	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
@@ -138,7 +141,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	})
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}).Style("sea", topography.Style{Shine: 0.9})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}).Style("sea", painter.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -215,12 +218,12 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water},
 		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water},
 	)
-	topo.Style("sea", topography.Style{Shine: 0.9, Under: true}).
-		Style("earth", topography.Style{Spread: 0.3}).
-		Style("sand", topography.Style{Spread: 0.35}).
-		Style("rock", topography.Style{Spread: 0.25}).
-		Style("stream", topography.Style{Shine: 0.9, Flow: 60}).
-		Style("estuary", topography.Style{Shine: 0.9, Flow: 45})
+	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
+		Style("earth", painter.Style{Spread: 0.3}).
+		Style("sand", painter.Style{Spread: 0.35}).
+		Style("rock", painter.Style{Spread: 0.25}).
+		Style("stream", painter.Style{Shine: 0.9, Flow: 60}).
+		Style("estuary", painter.Style{Shine: 0.9, Flow: 45})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -280,8 +283,8 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
 	if view == "persp" { // Tab once, from the isometric view
 		for _, q := range topo.Queues() {
-			if q.Accepts() == reflect.TypeFor[topography.View]() {
-				q.Put(control.Nobody, topography.View{Camera: ctx.world.Camera()})
+			if q.Accepts() == reflect.TypeFor[cameras.View]() {
+				q.Put(control.Nobody, cameras.View{Camera: ctx.world.Camera()})
 			}
 		}
 		ecs.Tick(step)

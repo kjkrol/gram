@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
+	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -19,7 +20,7 @@ var defaults = Config{latitude: Latitude}
 func firstDay(t float32) Sun { return defaults.SunAt((1+t)/8, t) }
 
 func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
-	south := Config{NoonWay: South, latitude: Latitude}
+	south := Config{NoonWay: celestial.South, latitude: Latitude}
 	if s := south.SunAt(0, 0.25); s.Dir[0] < 0.99 || !near(s.Dir[2], 0) || s.Strength > 1e-6 {
 		t.Errorf("at 6 the sun is %+v, want it on the eastern horizon, no strength yet", s)
 	}
@@ -47,7 +48,7 @@ func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
 	if s := northWest.SunAt(0, 0.25); !near(s.Dir[0], -s.Dir[1]) || s.Dir[1] <= 0 || !near(s.Dir[2], 0) {
 		t.Errorf("at 6 the sun is %+v, want it on the horizon in the south-west", s)
 	}
-	if s, south := northWest.SunAt(0, 0.4), (Config{NoonWay: South, latitude: Latitude}).SunAt(0, 0.4); s.Strength != south.Strength || s.Ambient != south.Ambient {
+	if s, south := northWest.SunAt(0, 0.4), (Config{NoonWay: celestial.South, latitude: Latitude}).SunAt(0, 0.4); s.Strength != south.Strength || s.Ambient != south.Ambient {
 		t.Errorf("turned round the sun lights %v/%v, want the same light as over the south %v/%v", s.Strength, s.Ambient, south.Strength, south.Ambient)
 	}
 }
@@ -71,7 +72,7 @@ func (r *rig) tick(d time.Duration) {
 }
 
 func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
-	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
+	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
 	r.tick(time.Second / 60)
 	if r.sky.Sun() != firstDay(0.5) {
 		t.Errorf("the sky's sun %+v, want noon's", r.sky.Sun())
@@ -88,7 +89,7 @@ func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
 
 // Without steps the sun goes on with the calendar tick by tick.
 func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
-	r := skyOf(t, Config{}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
+	r := skyOf(t, Config{}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
 	r.tick(0)
 	noon := r.sky.Sun()
 	r.tick(time.Second / 60)
@@ -100,7 +101,7 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 // Frozen, the light stands at its hour while the calendar goes on; Later and Earlier move it by
 // half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
-	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
+	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
 	r.sky.freeze.Add(0, Freeze{})
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
@@ -130,7 +131,7 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 }
 
 func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
-	r := skyOf(t, Config{}, calendar.Config{Start: 0.25 / 24})
+	r := skyOf(t, Config{}, calendar.Config{Start: 15 * time.Minute})
 	r.sky.freeze.Add(0, Freeze{})
 	r.sky.earlier.Add(0, Earlier{})
 	r.tick(0)
@@ -144,12 +145,12 @@ func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
 }
 
 func TestSky_BeginsFrozenAtTheConfigsHour(t *testing.T) {
-	r := skyOf(t, Config{Frozen: true, Hour: 18.0 / 24, Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
+	r := skyOf(t, Config{Frozen: true, Hour: 18 * time.Hour, Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
 	r.tick(0)
 	if !r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
 		t.Errorf("begun frozen at 18:00 the light is %+v, want the evening's", r.sky.Sun())
 	}
-	if rep := (Config{Frozen: true}).withDefaults(); rep.Hour != 0.5 {
+	if rep := (Config{Frozen: true}).withDefaults(); rep.Hour != 12*time.Hour {
 		t.Errorf("a frozen light of no hour is at %v, want noon", rep.Hour)
 	}
 }
@@ -212,28 +213,18 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	}
 }
 
-func TestPath_StandsAsHighAsTheLatitudeLetsAndLongerInSummer(t *testing.T) {
-	temperate := Config{NoonWay: South, latitude: 55}
-	if up := temperate.path(0, 0.5)[2]; !near(up, float32(math.Sin(35*math.Pi/180))) {
-		t.Errorf("at 55° at noon at the equinox the sun stands %v up, want sin 35°", up)
+// The heavens have the sun where its light comes from by day, the moon where its light comes from
+// at night, full when opposite the sun, and the pole as high over the north as the latitude.
+func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
+	c := Config{NoonWay: celestial.South, latitude: 50}
+	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5); h.Sun != l.Dir {
+		t.Errorf("at noon the heavens' sun is %v, the light's %v", h.Sun, l.Dir)
 	}
-	if summer, winter := temperate.path(0.25, 0.5)[2], temperate.path(0.75, 0.5)[2]; !near(summer, float32(math.Sin((35+23.44)*math.Pi/180))) || winter >= summer {
-		t.Errorf("at 55° the midsummer noon sun stands %v up and the midwinter %v, want 23.44° higher in summer", summer, winter)
+	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5); h.Moon != l.Dir || h.Full < 0.99 {
+		t.Errorf("at night the heavens' moon is %v, full %v; the light's %v, want it, full", h.Moon, h.Full, l.Dir)
 	}
-	// at 6 in the morning: up in summer, still down in winter, just rising at the equinox
-	if summer, winter, equinox := temperate.path(0.25, 0.25)[2], temperate.path(0.75, 0.25)[2], temperate.path(0, 0.25)[2]; summer <= 0 || winter >= 0 || !near(equinox, 0) {
-		t.Errorf("at 55° at 6 the sun stands %v in summer, %v in winter, %v at the equinox; want up, down and rising", summer, winter, equinox)
-	}
-}
-
-func TestPath_PastThePolarCircleTheSunStaysUpInSummerAndDownInWinter(t *testing.T) {
-	polar := Config{latitude: 78}
-	for _, hour := range []float32{0, 0.25, 0.5, 0.75} {
-		if up := polar.path(0.25, hour)[2]; up <= 0 {
-			t.Errorf("at 78° at midsummer at %v of the day the sun stands %v, want above the horizon all day", hour, up)
-		}
-		if up := polar.path(0.75, hour)[2]; up >= 0 {
-			t.Errorf("at 78° at midwinter at %v of the day the sun stands %v, want below the horizon all day", hour, up)
-		}
+	h := c.place().HeavensAt(0.2, 0.5, 0, celestial.RealStars)
+	if up := float64(h.Pole[2]); math.Abs(up-math.Sin(50*math.Pi/180)) > 1e-5 || h.Pole[1] > -0.5 {
+		t.Errorf("the pole is %v, want 50° up over the north, away from the noon sun", h.Pole)
 	}
 }

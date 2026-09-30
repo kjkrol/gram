@@ -358,8 +358,8 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` behaviors; `SightOutline` drawn |
 | [`plugins/vision/behavior`](plugins/vision/behavior/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
-| [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, entries for the schedule), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`) and what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways) |
-| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit |
+| [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, entries for the schedule), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
+| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. Its parts: `relief`, `painter`, `water`, `terrain`, `hexes`, `billboards`, `cameras` |
 | [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases |
 | [`plugins/world/effects`](plugins/world/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the schedule of what happens when |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |
@@ -414,6 +414,13 @@ line of sight are `aabbworld`'s; gram is where they meet an ECS and a screen.
 - **Concepts and package graph** in the root [`doc.go`](doc.go); each package's own `doc.go`
   explains what it brings (see [Architecture](#architecture)).
 - **Benchmarks** in [BENCHMARKS.md](BENCHMARKS.md); **changes** in [CHANGELOG.md](CHANGELOG.md).
+
+# Credits
+
+- The night sky's stars: the Yale Bright Star Catalogue, 5th revised edition (Hoffleit &
+  Warren 1991), from the CDS, catalogue V/50 (`plugins/atmosphere/celestial/stars_gen.go`).
+- The moon's face: NASA's Scientific Visualization Studio, CGI Moon Kit (Lunar Reconnaissance
+  Orbiter LROC data) (`plugins/atmosphere/celestial/moon.png`).
 
 # License
 

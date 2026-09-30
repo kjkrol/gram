@@ -1,9 +1,9 @@
 package render_test
 
 import (
-	"github.com/kjkrol/aabbworld"
 	"testing"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/render"

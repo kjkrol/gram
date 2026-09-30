@@ -106,11 +106,12 @@ var (
 )
 
 // Config is the calendar: how long a Day is in game time, the time of day a fresh game begins at
-// (Start, 0 to 1), the Year, and the Season a fresh game begins in the middle of. Zero fields are
+// on the clock's face (Start: 23*time.Hour + 30*time.Minute is half past eleven at night; midnight
+// is 24*time.Hour), the Year, and the Season a fresh game begins in the middle of. Zero fields are
 // DefaultDay, 8 in the morning, a GameYear and spring.
 type Config struct {
 	Day    time.Duration
-	Start  float32
+	Start  time.Duration
 	Year   Year
 	Season Season
 }
@@ -124,9 +125,16 @@ func (c Config) withDefaults() Config {
 		c.Day = DefaultDay
 	}
 	if c.Start == 0 {
-		c.Start = 8.0 / 24
+		c.Start = 8 * time.Hour
 	}
 	return c
+}
+
+// begins is the part of the day a fresh game begins at, 0 to 1.
+func (c Config) begins() float64 {
+	day := float64(24 * time.Hour)
+	f := float64(c.Start) / day
+	return f - math.Floor(f)
 }
 
 // midst is the day in the middle of season.
@@ -157,7 +165,7 @@ func (c *Calendar) Now() Moment { return c.At(c.clock.Time()) }
 
 // At is the moment the clock stands at when it reads t.
 func (c *Calendar) At(t time.Duration) Moment {
-	days := float64(c.cfg.midst(c.cfg.Season)) + float64(c.cfg.Start) + t.Seconds()/c.cfg.Day.Seconds()
+	days := float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins() + t.Seconds()/c.cfg.Day.Seconds()
 	whole := math.Floor(days)
 	year := int64(c.cfg.Year.Days())
 	return Moment{Date: int32(((int64(whole) % year) + year) % year), Time: float32(days - whole), Year: c.cfg.Year}
@@ -166,7 +174,8 @@ func (c *Calendar) At(t time.Duration) Moment {
 // Daily is the period and the offset of a schedule entry that comes every day at hour (0 to 1 of
 // the day): effects.Schedule.Every(Daily(22.0 / 24)).
 func (c *Calendar) Daily(hour float32) (period, offset time.Duration) {
-	first := float64(hour-c.cfg.Start) - math.Floor(float64(hour-c.cfg.Start))
+	first := float64(hour) - c.cfg.begins()
+	first -= math.Floor(first)
 	return c.cfg.Day, time.Duration(first * float64(c.cfg.Day)).Round(time.Millisecond)
 }
 
@@ -175,7 +184,7 @@ func (c *Calendar) Daily(hour float32) (period, offset time.Duration) {
 func (c *Calendar) Yearly(ofYear float32) (period, offset time.Duration) {
 	days := float64(c.cfg.Year.Days())
 	year := time.Duration(days * float64(c.cfg.Day))
-	begun := (float64(c.cfg.midst(c.cfg.Season)) + float64(c.cfg.Start)) / days
+	begun := (float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins()) / days
 	first := float64(ofYear) - begun
 	first -= math.Floor(first)
 	return year, time.Duration(first * float64(year)).Round(time.Millisecond)

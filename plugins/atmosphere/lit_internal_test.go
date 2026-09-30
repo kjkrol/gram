@@ -2,6 +2,7 @@ package atmosphere
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -54,9 +55,9 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	if l := even(); l != (render.Light{1, 1, 1}) {
 		t.Fatalf("without an atmosphere the tiles' even light is %v, want white", l)
 	}
-	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 0.02}}).WithBoard(b) // frozen at 00:29
-	if s := a.Sun(); s.Dir[2] > 0 {
-		t.Fatalf("the sun at half past midnight stands at %v, want under the horizon", s.Dir)
+	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 29 * time.Minute}}).WithBoard(b) // frozen at 00:29
+	if sun := a.Heavens().Sun; sun[2] > 0 {
+		t.Fatalf("the sun at half past midnight stands at %v, want under the horizon", sun)
 	}
 	if l := tile(); l[0] >= 0.5 || l[2] <= l[0] {
 		t.Errorf("under the midnight sky a tile is lit %v, want it dark and blue", l)

@@ -2,13 +2,15 @@ package topography
 
 import (
 	"fmt"
-	"math"
+	"github.com/kjkrol/gram/plugins/topography/billboards"
+	"github.com/kjkrol/gram/plugins/topography/cameras"
+	"github.com/kjkrol/gram/plugins/topography/hexes"
+	"github.com/kjkrol/gram/plugins/topography/painter"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -42,9 +44,10 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // above, how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
 // view's, below which the near relief hides what lies behind it), whether View reaches a third
 // view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and LookOut,
-// seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how Raise,
-// Lower and Level shape the ground (Shaping; zero: a quarter of a cell a step, any slope), what
-// slopes do to whoever goes over them (Climbing; zero: DefaultClimbing).
+// seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how
+// relief.Raise, relief.Lower and relief.Level shape the ground (Shaping; zero: a quarter of a cell
+// a step, any slope) and what slopes do to whoever goes over them (Climbing; zero:
+// relief.DefaultClimbing).
 type Config struct {
 	Cell, TileW, TileH float32
 	HeightUnit         float32
@@ -53,8 +56,8 @@ type Config struct {
 	MinPitch           float32
 	Perspective        bool
 	FieldOfView        float32
-	Shaping            Shaping
-	Climbing           Climbing
+	Shaping            relief.Shaping
+	Climbing           relief.Climbing
 }
 
 // Plugin is a map in relief over a board: the ground's heights, shaped by the player and pricing
@@ -67,29 +70,19 @@ type Plugin struct {
 	cfg         Config
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
-	relief      *Relief
-	dresser     *dresser
+	relief      *relief.Relief
+	painter     *painter.Painter
 	sky         Atmosphere
-	styles      map[board.Name]Style
-	projection  projection
-	climbing    Climbing
-	shaping     shaping
+	climbing    relief.Climbing
+	shaper      *relief.Shaper
 	seeded      func(p geom.Vec) float64
 
 	// ground draws the ground on the GPU as a mesh of its heights, in place of the tiles; nil off
 	// a square grid, where hexes draws it as prisms
 	ground *terrain.Renderer
-	hexes  *hexes
+	hexes  *hexes.Ground
 
-	turns     control.Queue[Turn]
-	tilts     control.Queue[Tilt]
-	follows   control.Queue[Follow]
-	drives    control.Queue[Drive]
-	views     control.Queue[View]
-	lookFroms control.Queue[LookFrom]
-	lookAts   control.Queue[LookAt]
-	lookOuts  control.Queue[LookOut]
-	looks     control.Queue[Look]
+	cameras   *cameras.Control
 	coarse    control.Queue[CoarseShadows]
 	selection *selection.Plugin
 	module    *module
@@ -113,40 +106,39 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
 	brd := boardPlugin.Res.Logic.Board
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, styles: map[board.Name]Style{}, sky: stillSky{},
-		projection: projection{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom, MinPitch: cfg.MinPitch * math.Pi / 180, flat: !cfg.Isometric}.withDefaults(),
-		climbing:   cfg.Climbing}
-	if p.climbing == (Climbing{}) {
-		p.climbing = DefaultClimbing
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
+		climbing: cfg.Climbing}
+	if p.climbing == (relief.Climbing{}) {
+		p.climbing = relief.DefaultClimbing
 	}
-	p.shaping.cfg = cfg.Shaping
-	if p.shaping.cfg.Step == 0 {
+	shaping := cfg.Shaping
+	if shaping.Step == 0 {
 		w, h := brd.CellBounds()
-		p.shaping.cfg.Step = min(w, h) / 4
+		shaping.Step = min(w, h) / 4
 	}
-	p.relief = NewRelief(brd)
-	p.dresser = newDresser(brd, p.relief, p.sky, true, p.styles)
-	p.dresser.kinds = boardPlugin.CellKindDict()
+	p.relief = relief.New(brd)
+	p.shaper = relief.NewShaper(p.relief, shaping)
+	p.painter = painter.New(brd, p.relief, liveSky{p}, true, map[board.Name]painter.Style{}).WithKinds(boardPlugin.CellKindDict())
 	boardPlugin.WithMap(p)
 	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) {
 		low, high := p.relief.Extent()
 		return float32(low), float32(high)
 	}
-	worldPlugin.SetCameras(func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
-		return newCamera(p.projection, width, height, edges, c, cfg.FieldOfView*math.Pi/180, cfg.Perspective, ground, extent, float32(worldPlugin.Scale().Bend()))
-	})
+	views := cameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
+		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
+	worldPlugin.SetCameras(cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
+	p.cameras = cameras.NewControl(p.relief, p.topAt, cfg.Perspective)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
-		p.hexes = newHexes(p, float64(brd.CellSpan()))
+		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}
-	look := worldLook{flat: worldPlugin.FlatLook(), d: p.dresser, gpu: newSprites(p.dresser, p.ground)}
-	worldPlugin.SetLook(look)
+	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground))
 	return p
 }
 
-// boardSurface is the ground's look as the dresser paints it out of the board's atlas — the board
+// boardSurface is the ground's look as the painter paints it out of the board's atlas — the board
 // painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from
 // every corner, the grid while the board's is on, and where water may lie: the terrain.Surface
 // contract.
@@ -154,7 +146,7 @@ type boardSurface struct{ p *Plugin }
 
 func (s boardSurface) Surface() terrain.Painted {
 	var out terrain.Painted
-	d := s.p.dresser
+	d := s.p.painter
 	if atlas := s.p.boardPlugin.Atlas(); atlas != nil {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
 		if out.Albedo != nil {
@@ -168,8 +160,8 @@ func (s boardSurface) Surface() terrain.Painted {
 	return out
 }
 
-// liveSky is the plugin's atmosphere as it stands, whenever it is set — the terrain.Sky
-// contract.
+// liveSky is the plugin's atmosphere as it stands, whenever it is set — the sky of the terrain,
+// the painter and the billboards.
 type liveSky struct{ p *Plugin }
 
 func (s liveSky) Sun() sky.Sun     { return s.p.sky.Sun() }
@@ -179,7 +171,7 @@ func (s liveSky) Air() air.Weather { return s.p.sky.Air() }
 // its weather leans what sways, lays the clouds' shadows and hazes the far off. Call it once the
 // atmosphere is made, before the first frame is drawn.
 func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
-	p.sky, p.dresser.sky = a, a
+	p.sky = a
 	return p
 }
 
@@ -193,18 +185,18 @@ func (p *Plugin) topAt(at geom.Vec) float64 {
 	return top
 }
 
-// Relief is the ground's heights, to read and shape from a game's code.
-func (p *Plugin) Relief() *Relief { return p.relief }
+// relief.Relief is the ground's heights, to read and shape from a game's code.
+func (p *Plugin) Relief() *relief.Relief { return p.relief }
 
 // Style sets how the kind named name looks in relief beyond its sprite; a kind without one is
 // plain ground.
-func (p *Plugin) Style(name string, s Style) *Plugin {
-	p.styles[board.Named(name)] = s
+func (p *Plugin) Style(name string, s painter.Style) *Plugin {
+	p.painter.Style(name, s)
 	return p
 }
 
 // StyleOf is how the kind named name looks, as Style set it.
-func (p *Plugin) StyleOf(name string) Style { return p.styles[board.Named(name)] }
+func (p *Plugin) StyleOf(name string) painter.Style { return p.painter.StyleOf(name) }
 
 // WithShadows says whether the terrain casts shadows — the ground and what stands on it hiding
 // the sun from what lies behind; on by default.
@@ -231,6 +223,7 @@ func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coars
 // before the plugin is installed.
 func (p *Plugin) WithSelection(selectionPlugin *selection.Plugin) *Plugin {
 	p.selection = selectionPlugin
+	p.cameras.WithSelection(selectionPlugin.Tags().Selected)
 	return p
 }
 
@@ -256,9 +249,9 @@ func (p *Plugin) Look() board.Look { return board.Nothing }
 
 // Dressing is what lies over the tiles: the light on the relief and the terrain's shadows, the
 // grounds blending, coasts, water, the ways, the clouds' shadows.
-func (p *Plugin) Dressing() board.Dressing { return p.dresser }
+func (p *Plugin) Dressing() board.Dressing { return p.painter }
 
-// Heights is the relief: the ground's height at any point, for sight and navigation.
+// relief.Heights is the relief: the ground's height at any point, for sight and navigation.
 func (p *Plugin) Heights() board.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
@@ -267,7 +260,7 @@ func (p *Plugin) Top(c board.CellID) (corners [4]float32, level float32) {
 }
 
 // Climb is how many times as long the step from one cell to its neighbour takes whoever moves in
-// d as on the flat: the slope's, as Climbing says.
+// d as on the flat: the slope's, as relief.Climbing says.
 func (p *Plugin) Climb(from, to board.CellID, d board.Domain) float64 {
 	return p.relief.Climb(from, to, d, p.climbing)
 }
@@ -281,16 +274,16 @@ func (p *Plugin) Least(d board.Domain) float64 {
 }
 
 // Slope is how many times as long moving at at towards dir takes whoever moves in d: the slope
-// under the entity, as Climbing says.
+// under the entity, as relief.Climbing says.
 func (p *Plugin) Slope(at, dir geom.Vec, d board.Domain) float64 {
 	if !p.climbing.Feels(d) {
 		return 1
 	}
-	return p.climbing.Factor(p.relief.slopeAt(at, dir))
+	return p.climbing.Factor(p.relief.SlopeAt(at, dir))
 }
 
-// Climbing is how slopes slow a climb and speed a descent.
-func (p *Plugin) Climbing() Climbing { return p.climbing }
+// relief.Climbing is how slopes slow a climb and speed a descent.
+func (p *Plugin) Climbing() relief.Climbing { return p.climbing }
 
 // =================================================================
 // plugin.Plugin contract
@@ -300,16 +293,11 @@ func (p *Plugin) Name() string { return "gram.topography" }
 
 // Install wires the heights' entity, the cameras, the shaping and the altitudes.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	cams := &cameraSystem{turns: &p.turns, tilts: &p.tilts, follows: &p.follows, drives: &p.drives, views: &p.views,
-		lookFroms: &p.lookFroms, lookAts: &p.lookAts, lookOuts: &p.lookOuts, looks: &p.looks, relief: p.relief, topAt: p.topAt}
-	if p.selection != nil {
-		cams.selected, cams.selecting = p.selection.Tags().Selected, true
-	}
 	p.module = &module{
-		heights:  &heightsSystem{relief: p.relief},
-		cameras:  cams,
-		shaping:  &shapingSystem{relief: p.relief, shape: &p.shaping},
-		altitude: newAltitudeSystem(p.relief),
+		heights:  p.relief.HeightsSystem(),
+		cameras:  p.cameras.System(),
+		shaping:  p.shaper.System(),
+		altitude: p.relief.AltitudeSystem(),
 		clock:    p.worldPlugin.Clock(),
 	}
 	ctx.UseModule(p.module)

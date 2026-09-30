@@ -46,6 +46,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
@@ -160,8 +161,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		HeightUnit:  1,
 		Isometric:   true,
 		Perspective: true,
-		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
+		Shaping:     relief.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
 		return err
 	}
@@ -192,12 +192,32 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	// A temperate island — central Europe, southern Scandinavia before the warming — whose weather is
-	// thrown anew every run; the same seed would give the same weather. The noon sun stands over the
-	// north-west, as it does by default: beyond the sea as the view looks at it, so the water throws
-	// it back towards the eye. The weather lies on the island as defineClimate says.
-	seed := uint64(time.Now().UnixNano())
-	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Spring, Year: calendar.EarthYear}, Climate: climate.Config{Zone: climate.Temperate, Seed: seed}}).WithWeathering(s.board, weather)
+	// A Mediterranean island at midsummer, from eleven at night, whose weather is thrown anew every
+	// run from the weathers of climate.go, beginning clear; the same seed would give the same
+	// weather. The noon sun stands over the north-west, as it does by
+	// default: beyond the sea as the view looks at it, so the water throws it back towards the eye.
+	// Running says what of the atmosphere goes on, all of it here, to switch off and see the rest
+	// without it. The weather lies on the island as defineClimate says.
+	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
+	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
+		Calendar: calendar.Config{Start: 6 * time.Hour, Season: calendar.Winter, Year: calendar.EarthYear},
+		Climate: climate.Config{
+			Zone:     climate.Mediterranean,
+			Weathers: weathers,
+			Start:    "clear", // the weather to begin in, one of weathers; "" throws it as the season has it
+			Seed:     uint64(time.Now().UnixNano()),
+		},
+		Running: &atmosphere.Running{
+			Day:        true, // the sun and the moon cross the sky; off, the light stands at the Start
+			Weather:    true, // one weather follows another; off, the first stays (Shift+W changes it)
+			Wind:       true, // the wind carries the clouds, sways the trees, slants the rain
+			Clouds:     true, // the clouds cover the sky and shade the ground
+			Falls:      true, // rain and snow fall
+			Weathering: true, // snow lies, water freezes
+			Stars:      true, // the stars come out at night
+			Moon:       true, // the moon shows and lights the night
+		},
+	}).WithWeathering(s.board, weather)
 	if err := ctx.Use(s.atmosphere); err != nil {
 		return err
 	}

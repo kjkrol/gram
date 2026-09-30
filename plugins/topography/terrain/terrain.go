@@ -8,8 +8,8 @@
 // water with the topography's materials. The Renderer keeps the lattice in one image of quadrants
 // — heights (16 bits a corner), the way the ground faces, the way to the shore — and the mesh's
 // triangles, made anew as the ground or the coast changes, and reads the ground's look from
-// whoever draws the board (Surface): the board painted flat, its water in layers (WaterLayers), the
-// shores and the grid. What stands on the ground is tested against the depth the ground leaves;
+// whoever draws the board (Surface): the board painted flat, its water in layers (water.Layers),
+// the shores and the grid. What stands on the ground is tested against the depth the ground leaves;
 // DrawShadows lays the shadows of what stands on it, following its rise and fall.
 package terrain
 
@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/topography/water"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 
@@ -40,7 +41,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
-		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1}, {Name: "CloudPx", Size: 1}, {Name: "CloudFrom", Size: 1},
+		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1}, {Name: "CloudFrom", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 	})
 
@@ -61,18 +62,15 @@ var shadows = render.NewMeshShaderWith("terrain shadows",
 // piece.
 const shadowPieces = 6 * 6 * 6
 
-// bakeShade and bakeCover are the shaders baking how much of the sun reaches the ground and how
-// thick the clouds stand over it into the baked image, for the ground's shader to read between
-// its pixels rather than work out at every one of the screen's.
-var (
-	bakeShade = render.NewShaderWith("terrain shade",
-		render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/shade.wgsl"),
-		[]render.Uniform{{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1}, {Name: "Shadows", Size: 1}})
-	bakeCover = render.NewShaderWith("terrain clouds", render.Files(shaders, "shaders/cover.wgsl"), nil)
-)
+// bakeShade is the shader baking how much of the sun reaches the ground into the baked image, for
+// the ground's shader to read between its pixels rather than work out at every one of the
+// screen's.
+var bakeShade = render.NewShaderWith("terrain shade",
+	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/shade.wgsl"),
+	[]render.Uniform{{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1}, {Name: "Shadows", Size: 1}})
 
-// shadePx is how many pixels a cell the baked image holds the shade at most, the clouds at half as
-// many, and maxBaked how wide it may be.
+// shadePx is how many pixels a cell the baked image holds the shade at most, and maxBaked how wide
+// it may be.
 const (
 	shadePx  = 8
 	maxBaked = 8192
@@ -90,7 +88,7 @@ const (
 
 // Ground is the relief as the renderer reads it: its heights as a lattice over a square grid —
 // cols by rows corners a cell apart, row by row, false off a square grid — and a count of its
-// changes. topography.Relief is one.
+// changes. relief.Relief is one.
 type Ground interface {
 	Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
 	Version() uint64
@@ -106,7 +104,7 @@ type Surface interface {
 // lattice's top-left; nil, plain grey) and its water (Water, WaterPx pixels a cell, in quadrants
 // of cols·WaterPx by rows·WaterPx: running water's flow and coverage top-left, the running and
 // the still water's shine and coverage top-right, the glint where a way turns into water
-// bottom-left — see WaterLayers; nil, none); the way to the shore from every lattice corner
+// bottom-left — see water.Layers; nil, none); the way to the shore from every lattice corner
 // (Shores, row by row; Reach the farthest a shore is seen from; Coast counts their changes); and
 // the grid, drawn where a cell spans Grid screen pixels or more, 0 for none; and whether water may
 // lie on each cell, row by row (Wet; Wetness counts its changes, 0 for none known: water may lie
@@ -114,26 +112,13 @@ type Surface interface {
 type Painted struct {
 	Albedo, Water *render.Image
 	Px, WaterPx   int
-	Shores        []Shore
+	Shores        []water.Shore
 	Reach         float32
 	Coast         uint64
 	Grid          float32
 	Wet           []bool
 	Wetness       uint64
 }
-
-// Shore is the way from a lattice corner to the nearest shore, of length 1 or none, how far it is
-// and how near: 1 on it down to 0 at Painted.Reach.
-type Shore struct{ X, Y, Dist, Near float32 }
-
-// WaterLayers is how the water is painted, each value times the coverage W of its layer, the
-// flows v as v/(2·FlowSpan)+½: top-left (vx, vy, Wrun), top-right (run shine·Wrun, sea shine·Wsea,
-// Wsea), bottom-left (way glint·Wglint, Wglint, 0); what covers the water paints them black.
-const WaterLayers = 3
-
-// FlowSpan is the fastest water the water's flow holds, world units a second: faster runs white
-// anyway.
-const FlowSpan = 64
 
 // Sky is the air over the ground, for how far one sees through it.
 type Sky interface {
@@ -168,15 +153,14 @@ type Renderer struct {
 	painted   Painted       // the surface as Draw last read it
 
 	// baked holds how much of the sun reaches the ground, for the heights of shadeAt and the sun's
-	// way shadeSun — the next of its strips baked anew the frame after strip — and right of it how
-	// thick the clouds stand over it, baked every frame; coarse bakes them half as fine a side
+	// way shadeSun — the next of its strips baked anew the frame after strip — and right of it the
+	// tile of the clouds' noise (air.BakeTile), baked once; coarse bakes the shade half as fine a side
 	baked     *render.Image
 	shadeAt   uint64
 	shadeSun  [3]float32
 	strip     int
 	coarse    bool
 	baking    render.DrawTrianglesShaderOptions
-	clouding  render.DrawTrianglesShaderOptions
 	bakeVerts []render.Vertex
 
 	opts     render.DrawMeshOptions
@@ -256,26 +240,23 @@ func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Unif
 
 // bake brings the baked image up to date: the shade, where the ground casts its shadows, all at
 // once as the ground changes or the frame's sun leaps, and as it turns by more than shadeTurn a
-// strip a frame round the image, so a sun going on costs a little every frame; the clouds every
-// frame there are any.
+// strip a frame round the image, so a sun going on costs a little every frame; the clouds' tile
+// once, as the image is made.
 func (r *Renderer) bake(u render.Uniforms) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
-	ks, kc := bakedScale(cols, rows, r.coarse)
-	ws, wc, h := ks*(cols-1), kc*(cols-1), ks*(rows-1)
-	if r.baked == nil || r.baked.Bounds().Dx() != ws+wc || r.baked.Bounds().Dy() != h {
+	ks := bakedScale(cols, rows, r.coarse)
+	ws, h := ks*(cols-1), ks*(rows-1)
+	if r.baked == nil || r.baked.Bounds().Dx() != ws+air.TileWidth || r.baked.Bounds().Dy() != max(h, air.TileHeight) {
 		if r.baked != nil {
 			r.baked.Deallocate()
 		}
-		r.baked = render.NewImage(ws+wc, h)
+		r.baked = render.NewImage(ws+air.TileWidth, max(h, air.TileHeight))
+		air.BakeTile(r.baked.SubImage(image.Rect(ws, 0, ws+air.TileWidth, air.TileHeight)))
 		r.shadeAt = 0
 		r.bakeVerts = make([]render.Vertex, 4)
-		r.baking.Uniforms, r.clouding.Uniforms = map[string]any{}, map[string]any{}
+		r.baking.Uniforms = map[string]any{}
 	}
 	size := [2]float32{float32(cols-1) * cell, float32(rows-1) * cell}
-	if cover := u.Get("Cover"); len(cover) == 1 && cover[0] > 0 {
-		u.Into(r.clouding.Uniforms)
-		r.bakeInto(image.Rect(ws, 0, ws+wc, kc*(rows-1)), [2]float32{}, size, bakeCover, &r.clouding)
-	}
 	if !r.cfg.Shadows {
 		return
 	}
@@ -339,14 +320,14 @@ func (r *Renderer) bakeInto(at image.Rectangle, from, size [2]float32, s *render
 var quad = []uint16{0, 1, 2, 1, 2, 3}
 
 // bakedScale is how many pixels a cell the baked image of a lattice cols by rows corners holds the
-// shade and the clouds at: shadePx and half as many, fewer where it would be wider than maxBaked,
-// half as many again coarse.
-func bakedScale(cols, rows int, coarse bool) (shade, clouds int) {
-	shade = max(min(shadePx, 2*maxBaked/(3*max(cols-1, 1)), maxBaked/max(rows-1, 1)), 2)
+// shade at: shadePx, fewer where it would be wider than maxBaked beside the clouds' tile, half as
+// many again coarse.
+func bakedScale(cols, rows int, coarse bool) int {
+	shade := max(min(shadePx, (maxBaked-air.TileWidth)/max(cols-1, 1), maxBaked/max(rows-1, 1)), 2)
 	if coarse {
 		shade = max(shade/2, 2)
 	}
-	return shade, shade / 2
+	return shade
 }
 
 // prepare readies a draw through cam under the frame's uniforms u: the lattice, the mesh and the
@@ -511,10 +492,10 @@ func (r *Renderer) write(x, y, w, h int) {
 // shores is the way to the shore from every lattice corner as the lattice holds it: (dir+1)/2 in
 // red and green, the distance over reach in blue; open water at every corner without one; appended
 // to dst.
-func shores(cols, rows int, from []Shore, reach float32, dst []byte) []byte {
+func shores(cols, rows int, from []water.Shore, reach float32, dst []byte) []byte {
 	unit := func(v float32) byte { return byte(min(max(v, 0), 1)*255 + 0.5) }
 	for i := range cols * rows {
-		s := Shore{Dist: reach}
+		s := water.Shore{Dist: reach}
 		if i < len(from) {
 			s = from[i]
 		}
@@ -617,13 +598,12 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 		wpx = float32(r.painted.WaterPx)
 	}
 	r.set("WaterPx", wpx)
-	r.set("FlowSpan", FlowSpan)
+	r.set("FlowSpan", water.FlowSpan)
 	r.set("Shadows", flag(r.cfg.Shadows))
 	r.set("GridFrom", r.painted.Grid)
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
-	ks, kc := bakedScale(cols, rows, r.coarse)
+	ks := bakedScale(cols, rows, r.coarse)
 	r.set("ShadePx", float32(ks))
-	r.set("CloudPx", float32(kc))
 	r.set("CloudFrom", float32(ks*(cols-1)))
 	visibility := float32(0)
 	if _, eyed := cam.(camera.Eyed); eyed && r.sky != nil {

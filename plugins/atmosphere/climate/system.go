@@ -27,6 +27,7 @@ type weatherSystem struct {
 	calendar *calendar.Calendar
 	change   *control.Queue[Change]
 	set      *control.Queue[Set]
+	running  *Running // which of the workings go on, the Climate's
 
 	query   *goke.Query
 	now     goke.Comp[Weather]
@@ -38,8 +39,8 @@ type weatherSystem struct {
 	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], behaviours *host.EachHost[Weathering]) *weatherSystem {
-	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, host: behaviours, profile: cfg.Zone.Profile()}
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], behaviours *host.EachHost[Weathering], running *Running) *weatherSystem {
+	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: behaviours, profile: cfg.Zone.Profile()}
 	s.about = func(int) Weathering { return s.told }
 	return s
 }
@@ -77,7 +78,7 @@ func (s *weatherSystem) begin(w *Weather, m calendar.Moment) {
 	}
 	s.enter(w, start)
 	st := s.cfg.Weathers[start]
-	w.Blow, w.Clouds, w.Temperature = w.Target, st.Clouds, s.warmth(st, m)
+	w.Blow, w.Clouds, w.Billow, w.Temperature = w.Target, w.CloudsTo, w.BillowTo, s.warmth(st, m)
 	w.Rain, w.Snow = falling(st.Falls, w.Temperature)
 }
 
@@ -98,11 +99,13 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		})
 		dt := float32(d.Seconds())
-		if w.Left -= dt; w.Left <= 0 {
-			s.enter(w, s.next(w, season))
+		if s.running.Changes {
+			if w.Left -= dt; w.Left <= 0 {
+				s.enter(w, s.next(w, season))
+			}
 		}
 		s.settle(w, dt, m)
-		now := w.air(s.world.Scale())
+		now := w.air(s.world.Scale(), *s.running)
 		s.current = now
 		if !s.host.Empty() {
 			s.told = Weathering{Weather: now, Season: season}
@@ -138,12 +141,15 @@ func falling(falls, t float32) (rain, snow float32) {
 	return falls, 0
 }
 
-// enter has w begin state at: how long it lasts and the wind it blows up to, thrown now.
+// enter has w begin state at: how long it lasts, the wind it blows up to, how much of the sky its
+// clouds cover and how heaped they grow, thrown now.
 func (s *weatherSystem) enter(w *Weather, at int32) {
 	st := s.cfg.Weathers[at]
 	w.State = at
 	w.Left = float32(st.Lasts[0].Seconds()) + roll(&w.Dice)*float32((st.Lasts[1]-st.Lasts[0]).Seconds())
 	w.Target = st.Wind[0] + roll(&w.Dice)*(st.Wind[1]-st.Wind[0])
+	w.CloudsTo = st.Clouds[0] + roll(&w.Dice)*(st.Clouds[1]-st.Clouds[0])
+	w.BillowTo = st.Billow[0] + roll(&w.Dice)*(st.Billow[1]-st.Billow[0])
 }
 
 // next throws the state to follow w's by its weights and how often each comes in season; w's own
@@ -187,8 +193,8 @@ func (s *weatherSystem) throw(w *Weather, season calendar.Season, weight func(i 
 	return -1
 }
 
-// settle brings w over dt seconds towards its state's at m: the wind, the clouds, the
-// temperature, what falls — snow below snowsBelow, rain above — the wind's way wandering, the
+// settle brings w over dt seconds towards its state's at m: the wind, the clouds and their heaps,
+// the temperature, what falls — snow below snowsBelow, rain above — the wind's way wandering, the
 // clouds carried on.
 func (s *weatherSystem) settle(w *Weather, dt float32, m calendar.Moment) {
 	st := s.cfg.Weathers[w.State]
@@ -196,13 +202,16 @@ func (s *weatherSystem) settle(w *Weather, dt float32, m calendar.Moment) {
 	w.Temperature += (s.warmth(st, m) - w.Temperature) * k
 	rain, snow := falling(st.Falls, w.Temperature)
 	w.Blow += (w.Target - w.Blow) * k
-	w.Clouds += (st.Clouds - w.Clouds) * k
+	w.Clouds += (w.CloudsTo - w.Clouds) * k
+	w.Billow += (w.BillowTo - w.Billow) * k
 	w.Rain += (rain - w.Rain) * k
 	w.Snow += (snow - w.Snow) * k
 	w.Heading += (roll(&w.Dice)*2 - 1) * wander * dt
-	wind := w.wind()
-	w.Drift[0] += wind[0] * dt
-	w.Drift[1] += wind[1] * dt
+	if s.running.Wind {
+		wind := w.wind()
+		w.Drift[0] += wind[0] * dt
+		w.Drift[1] += wind[1] * dt
+	}
 }
 
 // wind is the wind w blows, world units a second along x and y.
@@ -211,9 +220,19 @@ func (w *Weather) wind() [2]float32 {
 	return [2]float32{float32(c) * w.Blow, float32(s) * w.Blow}
 }
 
-// air is w as the air over a world of scale, seen as far through as the weather lets.
-func (w *Weather) air(scale world.Scale) air.Weather {
-	a := air.Weather{Wind: w.wind(), Clouds: w.Clouds, Rain: w.Rain, Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift}
+// air is w as the air over a world of scale, with what r stops left out, seen as far through as the
+// weather lets.
+func (w *Weather) air(scale world.Scale, r Running) air.Weather {
+	a := air.Weather{Wind: w.wind(), Clouds: w.Clouds, Billow: w.Billow, Rain: w.Rain, Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift}
+	if !r.Wind {
+		a.Wind = [2]float32{}
+	}
+	if !r.Clouds {
+		a.Clouds = 0
+	}
+	if !r.Falls {
+		a.Rain, a.Snow = 0, 0
+	}
 	a.Visibility = air.Visibility(scale, a)
 	return a
 }

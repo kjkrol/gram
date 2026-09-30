@@ -8,12 +8,12 @@
 package main
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"image/color"
 	"log"
 	"math"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"

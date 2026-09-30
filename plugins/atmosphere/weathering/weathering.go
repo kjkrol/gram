@@ -81,7 +81,15 @@ type Weathering struct {
 	cells           []board.CellID // every cell of the board, to pick from
 	dice            uint64
 	laid            bool // the first second has laid what a winter begun lies under
+	still           bool // the weather works nothing on the board (SetRunning)
 }
+
+// SetRunning has the weather work on the board, or not: off, the ground stays as it is, the snow
+// and the ice as they lie, what sways as it stands. It is not saved.
+func (w *Weathering) SetRunning(on bool) { w.still = !on }
+
+// Running reports whether the weather works on the board.
+func (w *Weathering) Running() bool { return !w.still }
 
 // New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
 // effects fx's. Call it once the kinds cfg names are in brd's dictionary, before the game is set
@@ -132,6 +140,9 @@ func (w *Weathering) Schedule(s *effects.Schedule) { s.Every(time.Second, 0, w.s
 
 // second is a second of the weather on the board.
 func (w *Weathering) second(t plugin.Tick) {
+	if w.still {
+		return
+	}
 	air := w.air()
 	if !w.laid {
 		w.laid = true

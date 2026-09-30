@@ -1,8 +1,6 @@
 package world
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/world/view"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -11,6 +9,8 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )

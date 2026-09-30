@@ -46,7 +46,7 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 
 ## Landscape and the islands
 
-- **The surf follows the cells** — the line of breaking waves (`topography.Shore`) runs along the
+- **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at

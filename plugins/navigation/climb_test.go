@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,14 +14,14 @@ import (
 type hill map[board.CellID]float64
 
 func (h hill) Least(d board.Domain) float64 {
-	if !topography.DefaultClimbing.Feels(d) {
+	if !relief.DefaultClimbing.Feels(d) {
 		return 1
 	}
-	return topography.DefaultClimbing.Least()
+	return relief.DefaultClimbing.Least()
 }
 
 func (h hill) Climb(from, to board.CellID, d board.Domain) float64 {
-	c := topography.DefaultClimbing
+	c := relief.DefaultClimbing
 	if !c.Feels(d) {
 		return 1
 	}
@@ -226,7 +226,7 @@ func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {
 		pf := newPathFinder(grid, terrain, h, &board.MultipleOccupancy{})
 		want := 1.0
 		if !graded {
-			want = topography.DefaultClimbing.Factor(2)
+			want = relief.DefaultClimbing.Factor(2)
 		}
 		if got, _ := pf.price(at(2, 1), at(3, 1), road, board.Land); math.Abs(got-want) > 1e-9 {
 			t.Errorf("graded %v: the step up the ridge costs %v, want %v", graded, got, want)

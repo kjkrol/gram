@@ -9,7 +9,8 @@ import (
 // Weather is the weather now, the one fact of the plugin, held by its own entity and saved with
 // it: which of the climate's weathers it is in and how many seconds of it are left, the wind it
 // has come to — Blow world units a second towards Heading, radians from +x — and the Target it is
-// blowing up or down to, the Clouds, the Rain and the Snow falling, the Temperature (degrees
+// blowing up or down to, the Clouds and the CloudsTo they are coming to, how heaped they are
+// (Billow, 0 shreds to 1 heaps) and the BillowTo they are turning to, the Rain and the Snow falling, the Temperature (degrees
 // Celsius), how far the wind has carried the clouds (Drift), and the dice the next weather is
 // thrown with. It goes by in the simulation's time: the clock's steps.
 type Weather struct {
@@ -19,6 +20,9 @@ type Weather struct {
 	Blow        float32
 	Target      float32
 	Clouds      float32
+	CloudsTo    float32
+	Billow      float32
+	BillowTo    float32
 	Rain        float32
 	Snow        float32
 	Temperature float32

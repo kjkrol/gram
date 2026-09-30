@@ -1,12 +1,12 @@
 package effects
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
 	"reflect"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/uid"
 )
 

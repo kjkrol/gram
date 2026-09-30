@@ -1,7 +1,6 @@
 package behavior_test
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/behavior"
 	"github.com/kjkrol/gram/plugins/world"

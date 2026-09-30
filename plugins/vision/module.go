@@ -1,11 +1,11 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
