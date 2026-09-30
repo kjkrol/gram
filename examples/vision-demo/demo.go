@@ -10,20 +10,20 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	cbehavior "github.com/kjkrol/gram/plugins/collision/behavior"
+	ctrigger "github.com/kjkrol/gram/plugins/collision/trigger"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
-	vbehavior "github.com/kjkrol/gram/plugins/vision/behavior"
+	vtrigger "github.com/kjkrol/gram/plugins/vision/trigger"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -82,10 +82,10 @@ type mainStage struct {
 	hunter    kind.Of[body]
 	collision *collision.Plugin
 
-	avoidance *vbehavior.Flee
-	tags      vbehavior.Tags
+	avoidance *vtrigger.Flee
+	tags      vtrigger.Tags
 	avoiding  bool
-	hits      cbehavior.ContactStats
+	hits      ctrigger.ContactStats
 
 	players *players.Plugin
 
@@ -103,23 +103,23 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
 	})
 
-	s.tags = vbehavior.DefineTags(s.world.Kinds())
+	s.tags = vtrigger.DefineTags(s.world.Kinds())
 	s.defineKinds()
 
-	s.avoidance = vbehavior.NewFlee(s.tags)
+	s.avoidance = vtrigger.NewFlee(s.tags)
 
 	s.vision = vision.NewPlugin(s.world)
-	if err := s.vision.RegisterBehavior(
-		vision.Between(s.tags.Skittish, plugin.Any, s.avoidance.Steer),
-		vision.Between(s.tags.Predator, s.tags.Prey, vbehavior.Chase(hunterLooksEvery)),
-		vision.Between(plugin.Any, plugin.Any, faceTravel),
+	if err := s.vision.Hook(
+		act.Trigger[vision.Sighting]("steer").Self(s.tags.Skittish).Runs(s.avoidance.Steer),
+		act.Trigger[vision.Sighting]("chase").Self(s.tags.Predator).Other(s.tags.Prey).Do(vtrigger.Chase(hunterLooksEvery)),
+		act.Trigger[vision.Sighting]("face travel").Runs(faceTravel),
 	); err != nil {
 		return err
 	}
 	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.RegisterBehavior(
-		collision.Between(plugin.Any, plugin.Any, cbehavior.CountContacts(&s.hits)),
-		collision.Between(s.tags.Predator, s.tags.Prey, s.caught),
+	if err := s.collision.Hook(
+		act.Trigger[collision.Meeting]("count contacts").Do(ctrigger.CountContacts(&s.hits)),
+		act.Trigger[collision.Meeting]("caught").Self(s.tags.Predator).Other(s.tags.Prey).Runs(s.caught),
 	); err != nil {
 		return err
 	}

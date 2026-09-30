@@ -3,11 +3,11 @@ package camera
 import (
 	"bytes"
 	"encoding/gob"
-	"github.com/kjkrol/aabbworld"
-	contract "github.com/kjkrol/gram/camera"
 	"testing"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	contract "github.com/kjkrol/gram/camera"
 )
 
 func testViewport(x, y, w, h float64) contract.AABB {

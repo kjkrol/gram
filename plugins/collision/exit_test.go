@@ -10,8 +10,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/uid"
 )
 
@@ -26,7 +27,7 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	var left []uid.UID64
-	if err := w.RegisterBehavior(world.Each[world.Appearance](func(_ plugin.Tick, _ *world.Appearance, l world.Leaving) {
+	if err := w.Hook(act.Trigger[world.Leaving]("left").RunsOn(func(_ plugin.Tick, _ *world.Appearance, l world.Leaving) {
 		left = append(left, l.ID)
 	})); err != nil {
 		t.Fatal(err)

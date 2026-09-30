@@ -961,6 +961,144 @@ yielding and avoiding.
   player's selected units in every viewport — on one screen with two selecting players each would
   see the other's; the renderers do not know which player a viewport's camera is.
 
+### Conduct and courtesy (2026-09-30)
+
+The user's third stage: units that talk — "move aside, you block my goal", "I'll stand on
+yours" — allies asked, strangers gone round, without deadlocks. After two rounds of design the
+user chose behavior trees whose state is component blocks, in a package of the world with
+ready-made behaviors, the named-branch notation, and two layers (behaviors stay reflexes).
+
+- **`plugins/world/conduct`**: made and run by the world like the effects, after the behaviors in
+  every step, on the world's clock (`Mind.Since` holds clock times, saved). A reactive `First`
+  re-runs from the top every tick, `Then` remembers its step; nodes that ran and are not running
+  now are halted, so a lost branch's action comes off at once. `On` latches for one-tick facts.
+  `Parallel` and `Limit` from the plan were left out: nothing needs them yet.
+- **Trees registered globally by the root's name hashed** (a `Mind` keeps the hash; a save knows
+  the name, not a pointer), laid out afresh for each world, so their steps bind that world's goke
+  columns. Two different trees under one name panic.
+- **Fields exported, arrays fixed**: goke refuses unexported fields and reads only fixed sizes.
+  goke registers at most 128 component types; every fact, action, `Asked[W]` and `Replied[W]` is
+  one — worth watching as trees grow.
+- **Conversation**: delivered a tick later through the command buffer (no recursion, no chunk
+  order); asks reach only an entity with a mind (goke errors adding to a gone entity); a relay
+  keeps its ask until it answers itself, passes refusals back and turns a yes further on into a
+  "wait" for the asker, who then waits up to `AskLife`.
+- **Entity 0 is an entity.** `uid.UID64` has no nil; the first conversation code used 0 as
+  nobody and a unit with id 0 could not be asked. Subjects are `(id, ok)`, `Room.Beside` and
+  `blocked`'s `known` say presence. The old `MoveOrder.Hit == 0` meant the ground and also struck
+  entity 0: `HitUnit` now tells them apart, and bump no longer looks up entity 0 for the ground.
+- **Navigation for a conducted unit**: it keeps the aside reflex and the stall safety, but not its
+  own decisions (asking holders off, learning cells, `placeAgain`, the press-based `yield`); a
+  refused step falls back to navigation's own going round after `conductGrace` if the tree never
+  moves it. `Blocked` holds `blockedHold` past the last contact, so a body standing still while it
+  waits keeps its fact; `WaitFor` probes `mayStep` and re-notes the blocker while held.
+- **Deadlock rules**, each found by a test: two groupmates asked each other to swap at once — the
+  one that waits first no longer asks; a detour that must still pass the blocker's cell fails, and
+  the unit steps aside (a corridor's passing place) instead of rerouting into it each tick; a unit
+  giving way itself only waits or goes round, else its step aside nested into others' and allies
+  in a crowd never got home. The corridor scene takes about 6.5 s: the one stepping aside comes
+  back once before the other passes.
+- **Bodies are nudged while they talk**: under BodySpacing the ask takes a few ticks, and the
+  collision pushes the one struck a couple of units meanwhile; the test allows its side.
+- **Not measured**: the island's walkers meet on long crossings; a quick probe cannot run them
+  there. Watch it in the demo.
+
+### One behaviour: triggers, trees, effects, commands (2026-09-30)
+
+Reading the conduct stage, the user found three mechanisms saying one thing: a `plugin.Behavior`
+was a trigger that mostly cast an effect or did something, an effect was state, and a tree
+decided. They asked for one vocabulary in `conduct`, with every "do" a command queued as a
+player's is. The decisions were theirs: `conduct.Trigger` with optional filters (no `plugin.Any`
+in calls), pairs kept; the hosts' method `Hook`; triggers take instant nodes alone; memory
+through an effect; `Issue` fire and forget, the tree waiting on facts; effects under conduct;
+`kind` and the tags under `world/entity`.
+
+- **Triggers reuse the tree's steps** in an instant pass (`ctx.instant`): a trigger's `fired`
+  holds the moment by pointer and a scratch `Mind`, so a firing allocates nothing. The hosts are
+  still `plugin/host`'s, erased (`PairOf`, `EachWith`, `ListHost`); the bench of collision, vision
+  and the world tick showed no regression (a single-run baseline, the new runs 0–20% faster —
+  noise, not a gain).
+- **Filters decide the host**: `Having` or `RunOn` → `EachWith` over that component; a `Self`
+  alone on a moment that is not a pair reads the entity's tags as state; `Self`/`Other` or a
+  `Met` moment → a pair; none → every entity. Two triggers over one component, or a host that
+  reads it itself (the board's `Mover` for `Standing.Domain`), panicked goke with a column added
+  twice: the host's columns are shared by type now (`host.Own`).
+- **The schedule is a trigger of the clock**: `clock.Moment{Last, Now}` every step, `clock.At` and
+  `clock.Every` its conditions, fired by the effects' pass where the schedule ran. A moment of no
+  entity: a node acting on an entity fails on it — the test caught a cast landing on entity 0,
+  the clock's own.
+- **Commands from entities**: `control.Issued` names its entity (`ByEntity`), the world keeps a
+  `control.Carrier` the engine fills with every `CommandHandler` used — before the world too —
+  and hosts hand it to triggers in `plugin.Tick`. An unknown command panics: a game's mistake. The
+  players keep their own carrier for now.
+- **Fire and forget changes the trees**: no action succeeds or fails; navigation tells outcomes as
+  facts (`Blocked.Cornered` after a `Detour` with no way round, `Blocked.WaitedOut` after a
+  `Hold`, `Arrived` once an order is over, until the next — a state, so `Until` sees it at any
+  tempo). A reactive branch that issues and succeeds would issue again every tick: it is
+  followed by `Until` or `Idle`, and the reaction to the outcome sits earlier in the `First`.
+  `Until` counts a fact come afresh only, or a patrol's second leg would take the first leg's
+  `Arrived`. The eight courtesy scenarios pass unchanged; a patrol test orders a unit alone while
+  another of its player's stays selected.
+- **`MaxNodes` 128**: `Courteous` grew to 73 nodes with the `Issue`/`Until` pairs; `Mind.Running`
+  is a two-word bit set (`Nodes`) and a `Mind` about 1.2 kB.
+- **Left for later**: collision's `HitMark` is a timer that could be an effect; the players'
+  carrier and the world's could become one; a command issued in the step a game is saved is lost
+  (drained in the same frame in practice).
+
+### act: builders with methods, the hit an effect, one carrier (2026-09-30)
+
+The user read `WhenBlocked` and asked for a builder: a variable `c` whose methods make the nodes,
+`When` a constructor, the package named `act` (chosen over `action`, which in behaviour trees is a
+leaf and was just what commands replaced), and the three loose ends done with it.
+
+- **Builders**: `act.When[F]`, `act.On[F]`, `act.Named` make a `Branch`; `act.Trigger[P]` a
+  `Reaction[P]`; `Do` closes them. Go 1.27's methods with type parameters carry `c.Issue(cmd)`,
+  `c.Ask[W](…)`, `c.Until[F]()` and `Command.Until[F]()`, also on the generic `Reaction[P]`
+  (checked before the move). Only the root is named, so the `""` of every inner `First` and `Then`
+  went; `Issue(x).Until(p)` and `.Stay()` replace `Then("", Issue(x), Until(p))`; branches are
+  values (`hold`, `goRound`), each use laid out on its own. The old package functions are gone —
+  one way to write a node.
+- **Instant by type**: a Reaction's methods hand out `Instant` nodes (a wrapper marking them), so a
+  lasting node in a trigger no longer compiles; the runtime check stays as an internal guard, and
+  its test went, the compiler being the test now.
+- **The hit an effect**: `trigger.Hit(fx, d)`, `ShowHits(hit)` on a `Struck` that `Hit()`s,
+  `HitOverlay(hit, with)` through `IfUnder`. It lasts in game time now (the mark counted wall
+  time) and any collider may carry it; a kind opts out by narrowing the trigger.
+- **One carrier**: the players give their commands to the world's carrier. Writing it turned up a
+  bug from the step before: `players.RunPlan` emptied every queue at the end of a frame, the
+  world's `Despawn` among them, and a board trigger's `Despawn` comes after the world's pass — so
+  a drowned unit never went. Nothing clears a queue now; a command waits for its handler's pass,
+  given after it for the next frame's. Two engine tests: a trigger's late `Despawn` is carried out
+  (it fails with the old clearing), and a tree's commands leave no queue holding one at the end of
+  a frame, so a save between frames loses none a tree gave. A trigger's late command can still be
+  in a queue at a save; triggers fire again on the state that caused it, so it is given again.
+- Names: the world's `conduct` field is `trees` (`act.Trees`), navigation's `conducted` is
+  `minded`, `conductGrace` `treeGrace`; `doc/conduct.md` is `doc/act.md`.
+
+### Markers, and goke's save order (2026-09-30)
+
+The hit as an effect cost the collision demo ~7.6 ms a frame: effects put `Active` on at the first
+cast, took it off at the last end and put `Idle` on for a step — each a move of the entity in
+memory. The user asked for a valuation, then for markers as a part of the kind: states switched by
+a bit of a family carried for good. Tags stay groups (a built-in tag column in every goke archetype
+was weighed and rejected: tags would lose their worth to queries).
+
+- `Benchmark_Marker_*`: a component put on and off costs ~160–290 ns an entity, a bit 1–2 ns;
+  finding the marked by the bit ~1 ns an entity of the family.
+- Effects: `Active` stays, empty when idle (a prototype: 28.9 → 26.0 ms); `Idle` a marker; the
+  `touched` map is reused instead of made for every entity every step. Navigation: `Entered`.
+  Collision: the hit grants a marker, the overlay reads it.
+- `world.Outside` stayed a component: rare, and the exit system walks the outside alone.
+- Writing it turned up a goke bug: Save wrote an archetype's values in its own order and listed its
+  components by type number; Load read in the list's order. A type registered early and put on
+  later swapped values with another (a two-component example in goke showed A and B exchanged). The
+  user: base both on the archetype's order — goke's directory now lists it (3.2.4, unreleased; gram
+  tested against the local goke through a go.work outside the repo).
+- `TestBodySpacing_CrowdsStandRoundThePointWithoutPushing`: 25 units from the north-east strike
+  2082 ticks against a bound of 2000. Navigation is unchanged; the order the units are walked in
+  changed (they no longer move between archetypes each step), and the crowd's contacts swing with
+  it — with markers from spawn another case, a column, reached 2364. Left for the user to decide.
+
 ## Questions for review
 
 - **Determinism across tempos** holds for the simulation; the interface part (orders, selection)

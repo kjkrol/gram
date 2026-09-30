@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
@@ -20,9 +21,11 @@ var _ goke.System = (*ScanSystem)(nil)
 
 // ScanSystem fills in what every Sight-carrying entity sees, and the outline of those that also
 // carry SightOutline: observers enough at a time on several goroutines at once (Workers), each
-// with a scanner of its own; then it runs the Between behaviors over what each saw.
+// with a scanner of its own; then it runs the pair triggers over what each saw.
 type ScanSystem struct {
 	scanner // the system's own, for one observer at a time
+
+	commands *control.Carrier // the world's, for the triggers
 
 	// scanners are the system's own and one more a goroutine sharing a chunk's observers, at most
 	// count of them: 0 as many as there are CPUs, 1 none
@@ -49,7 +52,7 @@ type ScanSystem struct {
 	outline goke.OptComp[SightOutline]
 	z       goke.OptComp[world.Z]
 
-	// host runs the Between behaviors registered with the plugin, inside this pass.
+	// host runs the pair triggers registered with the plugin, inside this pass.
 	host *host.PairHost[Sighting]
 
 	jobs []job // the frame's chunks of observers
@@ -100,7 +103,7 @@ type scanner struct {
 // observersPerWorker is the fewest observers worth a goroutine of their own.
 const observersPerWorker = 8
 
-// The two queries the scan offers its hosted behaviors, by index.
+// The two queries the scan offers its hosted triggers, by index.
 const (
 	walked = iota // the observer, a chunk at a time
 	sought        // what it sees, one entity at a time
@@ -223,7 +226,7 @@ func (s *scanner) sunkGround(p geom.Vec) float64 {
 }
 
 func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	t := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}
+	t := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
 	hosting := !s.host.Empty()
 	s.lookupHot = false
 	if s.heights && !s.grounded {
@@ -358,7 +361,7 @@ func (s *ScanSystem) gather(found *Sighted) {
 	}
 }
 
-// sighting is the observer in hand, seeing just the entities a behavior asked for.
+// sighting is the observer in hand, seeing just the entities a trigger asked for.
 func (s *ScanSystem) sighting(matched []int) Sighting {
 	s.matched = s.matched[:0]
 	for _, k := range matched {

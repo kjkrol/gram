@@ -10,8 +10,10 @@
 // with its terrain, the one place to read the topology and read or write terrain. [Plugin], built
 // over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a [Layout] (a default
 // kind for every cell, per-cell overrides, and the heights) when the Stage starts fresh, and slows
-// every entity carrying a [Mover] by the terrain under it (a Moving behavior it registers on the
-// world).
+// every entity carrying a [Mover] by the terrain under it (a Moving trigger it hooks on the
+// world). Every step it tells the triggers of a [Standing] hooked on it ([Plugin.Hook]) where
+// each entity stands: the cell, its kind, the entity's box and domain — [Standing.Fallen] where
+// the domain may not be, a unit pushed into the sea.
 //
 // # Cell, CellKind and Terrain
 //

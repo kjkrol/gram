@@ -10,11 +10,11 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -89,7 +89,7 @@ type viewers struct{}
 func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
-	shown := plugin.Tag[viewers](3)
+	shown := tag.Tag[viewers](3)
 	var h host.EachHost[Viewing]
 	if err := h.Add(ShowViewOf(shown)); err != nil {
 		t.Fatal(err)
@@ -104,10 +104,10 @@ func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) 
 	var sight goke.Comp[Sight]
 	var eye goke.Comp[world.Eye]
 	var outline goke.Comp[SightOutline]
-	var tags goke.Comp[plugin.Tags[viewers]]
+	var tags goke.Comp[tag.Tags[viewers]]
 	good := SightOutline{Count: 3}
 	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
-	place := func(f *goke.Factory, at geom.Vec, marks plugin.Tags[viewers]) {
+	place := func(f *goke.Factory, at geom.Vec, marks tag.Tags[viewers]) {
 		f.Create(1)
 		for f.Next() {
 			base.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
@@ -121,7 +121,7 @@ func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) 
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			f := si.NewFactory(&base, &sight, &eye, &outline, &tags)
-			place(f, geom.NewVec(100, 100), plugin.Tags[viewers](0).With(shown))
+			place(f, geom.NewVec(100, 100), tag.Tags[viewers](0).With(shown))
 			place(f, geom.NewVec(300, 300), 0)
 		}},
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {

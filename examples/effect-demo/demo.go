@@ -24,9 +24,11 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/effects"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -97,11 +99,11 @@ type mainStage struct {
 	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
 	brd       *board.Board
-	effects   *effects.Effects
+	effects   *effect.Effects
 	snow, ice board.CellKind
 
-	frost, frozen, slip effects.ID
-	frozenTag           plugin.Tag[chill]
+	frost, frozen, slip effect.Effect
+	frozenTag           tag.Tag[chill]
 	paleSprite          render.SpriteID
 
 	witch, walker, boat kind.Of[unit]
@@ -140,39 +142,43 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.snow, _ = s.board.CellKindDict().Get("snow")
 	s.ice, _ = s.board.CellKindDict().Get("ice")
 
-	// The whole of the game's logic: two reactions to where things stand, registered before Use.
-	if err := s.board.RegisterBehavior(
-		board.Each[witch](s.freeze),
-		board.Each[board.Mover](s.onGround),
+	// Three effects: frost on a cell's ground, for a while; frozen on whoever is caught in the ice
+	// and slip on whoever walks on it, both while it lasts. What frozen means for movement is a
+	// speed modifier of the game's.
+	s.frozenTag = s.world.Kinds().DefineTag[chill]("frozen")
+	s.paleSprite = s.world.Kinds().NewSprite()
+	s.frost = s.effects.Define("frost", effect.Spec{
+		effect.Lasts(thawAfter),
+		effect.Alter(func(g *board.Ground) { g.Kind = s.frozenKind(g.Kind) }),
+	})
+	s.frozen = s.effects.Define("frozen", effect.Spec{
+		effect.Grant(s.frozenTag),
+		effect.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
+		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }), // stuck fast: nobody shoves it
+	})
+	s.slip = s.effects.Define("slip", effect.Spec{
+		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }), // ice: brakes barely bite
+	})
+
+	// The whole of the game's logic: reactions to where things stand, hooked before Use. The witch
+	// freezes the ground round her; one caught in the ice is frozen while it is, one fallen in
+	// where there is no ice gives itself a Despawn; one walking on ice slips while it does.
+	inIce, onIce := act.Trigger[board.Standing]("in the ice"), act.Trigger[board.Standing]("on the ice")
+	if err := s.board.Hook(
+		act.Trigger[board.Standing]("freeze").RunsOn(s.freeze),
+		inIce.Do(inIce.First(
+			inIce.If(s.caughtInIce, inIce.While(s.frozen)),
+			inIce.If(s.fellIn, inIce.Then(inIce.Run(fell), inIce.Issue(world.Despawn{}))),
+		)),
+		onIce.Do(onIce.If(s.onIce, onIce.While(s.slip))),
 	); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
 		return err
 	}
-
-	// Two effects: frost on a cell's ground, for a while; frozen on whoever is caught in the ice,
-	// until the ice is gone. What frozen means for movement is a speed modifier of the game's.
-	s.frozenTag = s.world.Kinds().DefineTag[chill]("frozen")
-	s.paleSprite = s.world.Kinds().NewSprite()
-	s.frost = s.effects.Define("frost", effects.Spec{
-		effects.Lasts(thawAfter),
-		effects.Alter(func(g *board.Ground) { g.Kind = s.frozenKind(g.Kind) }),
-	})
-	s.frozen = s.effects.Define("frozen", effects.Spec{
-		effects.Grant(s.frozenTag),
-		effects.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
-		effects.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }), // stuck fast: nobody shoves it
-	})
-	s.slip = s.effects.Define("slip", effects.Spec{
-		effects.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }), // ice: brakes barely bite
-	})
-	frozen := s.frozenTag
-	if err := s.world.RegisterBehavior(world.Each[plugin.Tags[chill]](func(_ plugin.Tick, marks *plugin.Tags[chill], m world.Moving) {
-		if marks.Has(frozen) {
-			m.Base.Vel.Value = 0 // frozen fast: whoever carries the tag does not move
-		}
-	})); err != nil {
+	// frozen fast: whoever carries the tag does not move
+	if err := s.world.Hook(act.Trigger[world.Moving]("frozen fast").Self(s.frozenTag).Runs(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value = 0 })); err != nil {
 		return err
 	}
 
@@ -253,30 +259,18 @@ func (s *mainStage) freeze(t plugin.Tick, w *witch, st board.Standing) {
 	}
 }
 
-// onGround decides for whoever stands on the board by what is under it: caught in ice — a boat
-// whose water froze — it is frozen until the ice is gone; on ice it may walk, it slips; where its
-// domain may not be and there is no ice — a walker whose ice melted — it has fallen in and is gone.
-func (s *mainStage) onGround(t plugin.Tick, m *board.Mover, st board.Standing) {
-	fell := st.Fell(m.Domain)
-	onIce := st.Kind == s.ice
-	frozen, slipping := s.effects.Has(st.ID, s.frozen), s.effects.Has(st.ID, s.slip)
-	switch {
-	case fell && onIce && !frozen:
-		log.Printf("entity %d froze into the ice at cell %d", st.ID, st.Cell)
-		s.effects.Cast(t.CmdBuf, st.ID, s.frozen)
-	case fell && !onIce:
-		log.Printf("entity %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-		s.world.Despawn(t.CmdBuf, st.ID)
-	case !fell && frozen:
-		log.Printf("entity %d is free of the ice", st.ID)
-		s.effects.Dispel(st.ID, s.frozen)
-	}
-	switch {
-	case !fell && onIce && !slipping:
-		s.effects.Cast(t.CmdBuf, st.ID, s.slip)
-	case !onIce && slipping:
-		s.effects.Dispel(st.ID, s.slip)
-	}
+// caughtInIce: standing where its domain may not be, on ice — a boat whose water froze.
+func (s *mainStage) caughtInIce(st board.Standing) bool { return st.Fallen() && st.Kind == s.ice }
+
+// fellIn: standing where its domain may not be, and no ice — a walker whose ice melted.
+func (s *mainStage) fellIn(st board.Standing) bool { return st.Fallen() && st.Kind != s.ice }
+
+// onIce: walking on ice.
+func (s *mainStage) onIce(st board.Standing) bool { return !st.Fallen() && st.Kind == s.ice }
+
+// fell tells of whoever fell in, as it gives itself a Despawn.
+func fell(_ plugin.Tick, st board.Standing) {
+	log.Printf("entity %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
 }
 
 // defineKinds says what this game's entities are: the witch walks on land and water, the walker

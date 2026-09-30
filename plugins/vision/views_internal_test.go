@@ -2,16 +2,15 @@ package vision
 
 import (
 	"image/color"
-
-	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/gram/plugins/world"
 	"math"
 	"os"
 	"testing"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )

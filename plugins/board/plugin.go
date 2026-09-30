@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -64,7 +64,7 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	if err := worldPlugin.RegisterBehavior(terrainSpeed(p.Res.Logic.Board)); err != nil {
+	if err := worldPlugin.Hook(terrainSpeed(p.Res.Logic.Board)); err != nil {
 		panic(err)
 	}
 	return p
@@ -83,6 +83,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		standing: newStandingSystem(p.Res.Logic.Board, &p.standing),
 		clock:    p.worldPlugin.Clock(),
 	}
+	p.module.standing.commands = p.worldPlugin.Commands()
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -158,12 +159,12 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior hosts an Each or Every of Standing, run every step for every entity on the
-// board; register before Use.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
+// Hook hosts triggers of Standing (act.Trigger), fired every step for every entity on the
+// board; hook them before Use.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
 		if err := p.standing.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes Each for Standing", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a trigger of Standing", err, p.Name())
 		}
 	}
 	return nil

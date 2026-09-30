@@ -7,9 +7,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/relief"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // View has Camera look the next way round: from above, isometrically, in perspective when the
@@ -111,7 +111,7 @@ type Control struct {
 	relief      *relief.Relief
 	topAt       func(geom.Vec) float64
 	perspective bool
-	selected    plugin.Tag[selection.Family]
+	selected    tag.Tag[selection.Family]
 	selecting   bool
 }
 
@@ -122,7 +122,7 @@ func NewControl(ground *relief.Relief, topAt func(geom.Vec) float64, perspective
 }
 
 // WithSelection has Follow and LookOut fasten a camera to the one entity carrying selected.
-func (ctl *Control) WithSelection(selected plugin.Tag[selection.Family]) *Control {
+func (ctl *Control) WithSelection(selected tag.Tag[selection.Family]) *Control {
 	ctl.selected, ctl.selecting = selected, true
 	return ctl
 }

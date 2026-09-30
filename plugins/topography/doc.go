@@ -33,7 +33,7 @@
 // Height is what stands on the cell: [Plugin.Top] is the cell's top as drawn, the ground and the
 // kind together, which the cameras pick on. The slope multiplies the kind's cost, in the planner
 // ([Plugin.Climb], [Plugin.Least]) and on the move ([Plugin.Slope], through the board's Moving
-// behavior), off a road and on one, unless its kind is Graded (board.CellKind.Graded): a road cut
+// trigger), off a road and on one, unless its kind is Graded (board.CellKind.Graded): a road cut
 // into the slope costs its own price alone. The relief is the board's Heights ([Plugin.Heights]),
 // which sight and navigation read through the board.
 //

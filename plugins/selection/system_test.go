@@ -11,10 +11,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -42,9 +42,9 @@ type harness struct {
 	ecs       *goke.ECS
 	pos       goke.Comp[world.Base]
 	z         goke.Comp[world.Z]
-	tag       goke.Comp[plugin.Tags[Family]]
-	owners    goke.Comp[plugin.Tags[owner.Family]]
-	marks     goke.Comp[plugin.Tags[Family]]
+	tag       goke.Comp[tag.Tags[Family]]
+	owners    goke.Comp[tag.Tags[owner.Family]]
+	marks     goke.Comp[tag.Tags[Family]]
 	tags      Tags
 	selectedQ *goke.Query
 	handle    goke.Runnable
@@ -145,10 +145,10 @@ func (h *harness) start() {
 					aabb := plane.NewAABB(geom.NewVec(spec.x, spec.y), spec.size, spec.size)
 					positions[j].Pos = world.Position{AABB: aabb}
 					if !plain {
-						h.tag.Slice(&f.Cursor)[j] = plugin.Tags[Family](0).With(h.tags.Selectable)
+						h.tag.Slice(&f.Cursor)[j] = tag.Tags[Family](0).With(h.tags.Selectable)
 						h.z.Slice(&f.Cursor)[j] = world.Z{Altitude: spec.alt}
 						if spec.owner != control.Nobody {
-							h.owners.Slice(&f.Cursor)[j] = plugin.Tags[owner.Family](0).With(owner.Of(spec.owner))
+							h.owners.Slice(&f.Cursor)[j] = tag.Tags[owner.Family](0).With(owner.Of(spec.owner))
 						}
 					}
 					h.items = append(h.items, aabbworld.Item{ID: id, Box: aabb})
@@ -206,7 +206,7 @@ func (h *harness) moveTo(id uid.UID64, x, y float64) {
 	}
 }
 
-func (h *harness) has(id uid.UID64, tag plugin.Tag[Family]) bool {
+func (h *harness) has(id uid.UID64, tag tag.Tag[Family]) bool {
 	h.selectedQ.All()
 	for h.selectedQ.Next() {
 		cur := h.selectedQ.Cursor()

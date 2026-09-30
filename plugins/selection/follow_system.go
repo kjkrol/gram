@@ -7,9 +7,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -26,9 +26,9 @@ type FollowSystem struct {
 
 	query  *goke.Query
 	base   goke.Comp[world.Base]
-	marks  goke.Comp[plugin.Tags[Family]]
+	marks  goke.Comp[tag.Tags[Family]]
 	z      goke.OptComp[world.Z]
-	owners goke.OptComp[plugin.Tags[owner.Family]]
+	owners goke.OptComp[tag.Tags[owner.Family]]
 
 	// Where the followed point was drawn right after the last centring, at which zoom: a camera
 	// moved by hand no longer draws it there.

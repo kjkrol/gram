@@ -5,53 +5,55 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
-// Each is a behavior run every tick on every entity on the board carrying T, told where it stands;
-// naturally Each[Mover]. Register it with Plugin.RegisterBehavior.
-func Each[T any](react func(t plugin.Tick, state *T, s Standing)) plugin.Behavior {
-	return host.Each(react)
-}
-
-// Every is Each without a state component: every entity on the board, every tick.
-func Every(react func(t plugin.Tick, s Standing)) plugin.Behavior { return host.Every(react) }
-
 // Standing is where an entity on the board stands this tick: the cell under its centre, that
-// cell's kind, and its box (Grid.CellsUnder lists every cell it touches). Board hosts Each
-// behaviors of it; one over Mover knows the entity's domain.
+// cell's kind, its box (Grid.CellsUnder lists every cell it touches) and the domains it moves in
+// (its Mover's; Land without one). Board hosts triggers of it.
 type Standing struct {
-	ID   uid.UID64
-	Cell CellID
-	Kind CellKind
-	Box  geom.AABB
+	ID     uid.UID64
+	Cell   CellID
+	Kind   CellKind
+	Box    geom.AABB
+	Domain Domain
 }
 
-// Fell reports whether an entity moving in d stands where it may not: in a hole, in water on foot.
-func (s Standing) Fell(d Domain) bool { return !s.Kind.Admits(d) }
+// Who is the entity standing: whose moment it is, for a trigger.
+func (s Standing) Who() uid.UID64 { return s.ID }
+
+// Fallen reports whether the entity stands where its domain may not be: in a hole, in water on
+// foot.
+func (s Standing) Fallen() bool { return !s.Kind.Admits(s.Domain) }
 
 var _ goke.System = (*standingSystem)(nil)
 
-// standingSystem tells every Each behavior where each entity carrying Cell stands, after
-// movement and collisions have had their say.
+// standingSystem tells every trigger where each entity carrying Cell stands, after movement and
+// collisions have had their say.
 type standingSystem struct {
-	brd  *Board
-	host *host.EachHost[Standing]
+	brd      *Board
+	host     *host.EachHost[Standing]
+	commands *control.Carrier
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
 	cell  goke.Comp[Cell]
+	mover goke.OptComp[Mover]
 
-	ids   []uid.UID64
-	bases []world.Base
-	cells []Cell
+	ids    []uid.UID64
+	bases  []world.Base
+	cells  []Cell
+	movers []Mover
 }
 
-func newStandingSystem(brd *Board, host *host.EachHost[Standing]) *standingSystem {
-	return &standingSystem{brd: brd, host: host}
+func newStandingSystem(brd *Board, each *host.EachHost[Standing]) *standingSystem {
+	s := &standingSystem{brd: brd, host: each}
+	host.Own(each, &s.mover)
+	return s
 }
 
 func (s *standingSystem) Init(si *goke.SysInit) {
@@ -64,11 +66,11 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.host.Empty() {
 		return
 	}
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}
+	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		s.ids, s.bases, s.cells = cursor.IDs, s.base.Slice(cursor), s.cell.Slice(cursor)
+		s.ids, s.bases, s.cells, s.movers = cursor.IDs, s.base.Slice(cursor), s.cell.Slice(cursor), s.mover.Slice(cursor)
 		s.host.Run(tick, cursor, s.at)
 	}
 }
@@ -79,5 +81,5 @@ func (s *standingSystem) at(i int) Standing {
 	if !ok {
 		c = s.cells[i].ID
 	}
-	return Standing{ID: s.ids[i], Cell: c, Kind: s.brd.Kind(c), Box: s.bases[i].Pos.AABB.AABB}
+	return Standing{ID: s.ids[i], Cell: c, Kind: s.brd.Kind(c), Box: s.bases[i].Pos.AABB.AABB, Domain: DomainAt(s.movers, i)}
 }

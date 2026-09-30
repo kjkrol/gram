@@ -43,7 +43,7 @@ func TestCalendar_BeginsAtTheStartsHour(t *testing.T) {
 	}
 }
 
-// Daily and Yearly give a schedule entry the period and the offset of its first coming.
+// Daily and Yearly give clock.Every the period and the offset of its first coming.
 func TestCalendar_DailyAndYearlyEntries(t *testing.T) {
 	c := calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute})
 	if period, offset := c.Daily(22.0 / 24); period != time.Minute || offset != 35*time.Second {

@@ -89,6 +89,38 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 
 // The heights make the relief: a range whose peaks stand far over the lowland, a plateau flat on
 // top, and gentle ground in places.
+// The plateau's flat top holds a group: twenty cells or more, each level at the plateau's height and
+// none of them water, nearest its middle first.
+func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	layout, heights, _ := Layout(grid)
+	kinds := map[board.CellID]string{}
+	for _, e := range layout.Cells {
+		kinds[e.Cell] = e.Kind
+	}
+	top := Plateau(grid)
+	if len(top) < 20 {
+		t.Fatalf("%d cells on the plateau's top, want 20 or more", len(top))
+	}
+	kinds20 := map[string]int{}
+	for _, c := range top[:20] {
+		x, y, _ := grid.Coords(c)
+		centre := geom.NewVec((float64(x)+0.5)*CellSize, (float64(y)+0.5)*CellSize)
+		if h := heights(centre); math.Abs(h-landHeight-plateauHeight) > 1 {
+			t.Errorf("cell (%d, %d) stands at %.1f, want the plateau's %v", x, y, h, landHeight+plateauHeight)
+		}
+		kind := kinds[c]
+		if kind == "" {
+			kind = layout.Default
+		}
+		kinds20[kind]++
+		if kind == "water" || kind == "sea" {
+			t.Errorf("cell (%d, %d) on the plateau is %s", x, y, kind)
+		}
+	}
+	t.Logf("%d cells on the top; the first twenty: %v", len(top), kinds20)
+}
+
 func TestIslandLayout_RisesToARangeOfPeaksAndAPlateau(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)

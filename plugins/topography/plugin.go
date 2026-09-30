@@ -2,11 +2,6 @@ package topography
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugins/topography/billboards"
-	"github.com/kjkrol/gram/plugins/topography/cameras"
-	"github.com/kjkrol/gram/plugins/topography/hexes"
-	"github.com/kjkrol/gram/plugins/topography/painter"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -17,6 +12,11 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/topography/billboards"
+	"github.com/kjkrol/gram/plugins/topography/cameras"
+	"github.com/kjkrol/gram/plugins/topography/hexes"
+	"github.com/kjkrol/gram/plugins/topography/painter"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/topography/terrain"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -334,10 +334,10 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // with the world.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior refuses every behavior: the topography hosts none.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
+// Hook refuses every trigger: the topography hosts none.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
+		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

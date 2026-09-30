@@ -9,10 +9,12 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -22,9 +24,13 @@ import (
 type roadUnit struct {
 	start, target board.CellID
 	ordered       bool
-	domain        board.Domain // zero: Land
-	wide          bool         // the hawk's profile: faster, turning slower, looking further ahead
-	selected      bool         // Selectable and Selected, for the commands of a player
+	domain        board.Domain     // zero: Land
+	wide          bool             // the hawk's profile: faster, turning slower, looking further ahead
+	selected      bool             // Selectable and Selected, for the commands of a player
+	owner         control.PlayerID // who owns it; nobody for Nobody
+	courteous     bool             // it acts by Courteous
+	tree          act.Node         // or by this tree
+	group         uint32           // the group of its order
 }
 
 type roadWorld struct {
@@ -58,6 +64,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	sel := selection.NewPlugin(w)
 	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
+	if err := w.Carry(rw.nav); err != nil { // as the engine does with Use
+		t.Fatal(err)
+	}
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -73,7 +82,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 
-	spec := func(ordered bool, domain board.Domain, wide, selected bool) kind.Spec {
+	spec := func(ordered bool, domain board.Domain, wide, selected bool, u roadUnit) kind.Spec {
 		if domain == 0 {
 			domain = board.Land
 		}
@@ -92,16 +101,25 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			comp.Const(board.Mover{Domain: domain}),
 		}
 		if ordered {
-			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target} }))
+			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target, Group: u.group} }))
 		}
 		if selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
+		}
+		if u.owner != control.Nobody {
+			s = append(s, comp.Tagged(owner.Of(u.owner)))
+		}
+		switch {
+		case u.tree != nil:
+			s = append(s, act.Tree(u.tree))
+		case u.courteous:
+			s = append(s, act.Tree(Courteous()))
 		}
 		return s
 	}
 	kindIDs := make([]kind.ID, len(units))
 	for i, u := range units {
-		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected))
+		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
 		kindIDs[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}

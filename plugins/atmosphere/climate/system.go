@@ -19,7 +19,7 @@ var _ goke.System = (*weatherSystem)(nil)
 // weatherSystem moves the weather on every step of the simulation, on the calendar's day: counts
 // its state down and throws the next when it runs out, or when Change or Set asks; brings the
 // wind, the clouds, what falls and the temperature towards the state's, the wind's way wandering;
-// carries the clouds on the wind; keeps the air as it stands; and runs the behaviours hosted with
+// carries the clouds on the wind; keeps the air as it stands; and runs the triggers hosted with
 // it.
 type weatherSystem struct {
 	cfg      Config
@@ -34,13 +34,13 @@ type weatherSystem struct {
 	spawn   goke.Comp[Weather]
 	host    *host.EachHost[Weathering]
 	profile Profile                // the zone's climate in numbers
-	about   func(i int) Weathering // what a behaviour hears, bound once so a tick allocates nothing
+	about   func(i int) Weathering // what a trigger hears, bound once so a tick allocates nothing
 	told    Weathering
 	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], behaviours *host.EachHost[Weathering], running *Running) *weatherSystem {
-	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: behaviours, profile: cfg.Zone.Profile()}
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], triggers *host.EachHost[Weathering], running *Running) *weatherSystem {
+	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: triggers, profile: cfg.Zone.Profile()}
 	s.about = func(int) Weathering { return s.told }
 	return s
 }
@@ -109,7 +109,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.current = now
 		if !s.host.Empty() {
 			s.told = Weathering{Weather: now, Season: season}
-			s.host.Run(plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}, cursor, s.about)
+			s.host.Run(plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.world.Commands()}, cursor, s.about)
 		}
 		return
 	}

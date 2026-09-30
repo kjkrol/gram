@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -33,8 +32,9 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -120,7 +120,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKindDict().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
-	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
+	drown := act.Trigger[board.Standing]("drown")
+	if err := s.board.Hook(drown.Do(drown.If(board.Standing.Fallen, drown.Then(drown.Run(drowned), drown.Issue(world.Despawn{}))))); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -136,7 +137,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Hook(act.Trigger[vision.Sighting]("face travel").Runs(faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -237,12 +238,10 @@ func faceTravel(_ plugin.Tick, s vision.Sighting) {
 	}
 }
 
-// drown despawns a unit standing where its domain may not — pushed into the sea, say.
-func (s *mainStage) drown(t plugin.Tick, m *board.Mover, st board.Standing) {
-	if st.Fell(m.Domain) {
-		log.Printf("unit %d drowned in the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-		s.world.Despawn(t.CmdBuf, st.ID)
-	}
+// drowned tells of a unit standing where its domain may not — pushed into the sea, say — as it
+// gives itself a Despawn.
+func drowned(_ plugin.Tick, st board.Standing) {
+	log.Printf("unit %d drowned in the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
 }
 
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {

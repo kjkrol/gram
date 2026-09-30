@@ -12,8 +12,8 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -45,12 +45,12 @@ func (a *ecsAccessor) Install(ctx plugin.Installer) error {
 func (a *ecsAccessor) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: a.setup}}
 }
-func (a *ecsAccessor) RunPlan(goke.RunCtx, time.Duration)        {}
-func (a *ecsAccessor) WithRenderer(render.AtlasSource)           {}
-func (a *ecsAccessor) Renderer() render.Layer                    { return nil }
-func (a *ecsAccessor) EventHandler() control.EventHandler        { return nil }
-func (a *ecsAccessor) Serializable() plugin.Serializable         { return nil }
-func (a *ecsAccessor) RegisterBehavior(...plugin.Behavior) error { return plugin.ErrUnhostedBehavior }
+func (a *ecsAccessor) RunPlan(goke.RunCtx, time.Duration) {}
+func (a *ecsAccessor) WithRenderer(render.AtlasSource)    {}
+func (a *ecsAccessor) Renderer() render.Layer             { return nil }
+func (a *ecsAccessor) EventHandler() control.EventHandler { return nil }
+func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
+func (a *ecsAccessor) Hook(...plugin.Trigger) error       { return plugin.ErrUnhosted }
 
 // saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {

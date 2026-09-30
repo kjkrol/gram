@@ -5,6 +5,8 @@ import (
 
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 // The demo sets itself up without a window: its plugins install, its keys bind without a clash,
@@ -32,5 +34,26 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 	}
 	if s.rivals.SpriteID() == s.unit.SpriteID() {
 		t.Error("the rival's walkers are drawn as the player's")
+	}
+}
+
+// The demo draws its frames: every kind of its units has a sprite in the atlas — the crowd on the
+// plateau once had none and the first frame panicked. Needs a GPU; skipped without one.
+func TestDemo_DrawsAFrame(t *testing.T) {
+	if err := gpu.Headless(false); err != nil {
+		t.Skip(err)
+	}
+	e := engine.NewEngine(NewDemo())
+	if err := e.Init(); err != nil {
+		t.Fatal(err)
+	}
+	w, h := e.Layout(640, 360)
+	screen := render.NewImage(w, h)
+	for range 3 {
+		if err := e.Update(); err != nil {
+			t.Fatal(err)
+		}
+		screen.Clear()
+		e.Draw(screen)
 	}
 }

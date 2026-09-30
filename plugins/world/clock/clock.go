@@ -7,7 +7,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -20,8 +20,8 @@ type State struct {
 	Paused bool
 }
 
-// Phase is the family of the clock's tags: what the schedule switches on and off — night, winter
-// — for a behavior to run only while it holds (Clock.In). A game defines its phases with
+// Phase is the family of the clock's tags: what effects cast on the clock switch on and off —
+// night, winter — for a trigger to run only while it holds (Clock.In). A game defines its phases with
 // world.Kinds.DefineTag[clock.Phase].
 type Phase struct{}
 
@@ -102,7 +102,7 @@ func (c *Clock) SetTempo(tempo float32) error {
 
 // In reports whether the clock is in phase: its entity carries the tag, as of this step of the
 // simulation — an effect granting it in one step is seen in the next.
-func (c *Clock) In(phase plugin.Tag[Phase]) bool {
+func (c *Clock) In(phase tag.Tag[Phase]) bool {
 	s := c.system
 	if s.query == nil {
 		return false
@@ -114,8 +114,8 @@ func (c *Clock) In(phase plugin.Tag[Phase]) bool {
 	return false
 }
 
-// Entity is the clock's entity — what a Phase is granted to, by an effect the schedule casts; 0
-// before the game is set up.
+// Entity is the clock's entity — what a Phase is granted to, by an effect cast on it; 0 before the
+// game is set up.
 func (c *Clock) Entity() uid.UID64 { return c.entity }
 
 // Simulate hands the clock a piece of the simulation for this tick: block runs at Replay, as many
@@ -236,12 +236,12 @@ func (c *Clock) shift(by int) {
 func (c *Clock) System() goke.System { return c.system }
 
 // system keeps the clock's entity: the State on it is what a save carries, the Phase tags on it
-// what the schedule set, read by In.
+// what effects set, read by In.
 type system struct {
 	c     *Clock
 	query *goke.Query
 	state goke.Comp[State]
-	tags  goke.OptComp[plugin.Tags[Phase]]
+	tags  goke.OptComp[tag.Tags[Phase]]
 	spawn goke.Comp[State]
 }
 

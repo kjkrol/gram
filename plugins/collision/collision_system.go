@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
@@ -23,12 +24,13 @@ var _ collide.FieldHandler = (*handler)(nil)
 const solverIterations = 16
 
 // CollisionSystem runs one tick of collisions: what each entity struck last tick, who really
-// overlaps now, the bounce, the push apart, and the contacts left behind for behaviors.
+// overlaps now, the bounce, the push apart, and the contacts left behind for triggers.
 type CollisionSystem struct {
-	space  *aabbworld.Space
-	engine collide.Engine
+	space    *aabbworld.Space
+	engine   collide.Engine
+	commands *control.Carrier // the world's, for the triggers
 
-	// walk is the pass over every Collider: its Each behaviors and its capabilities.
+	// walk is the pass over every Collider: its triggers and its capabilities.
 	walk     *goke.Query
 	base     goke.Comp[world.Base]
 	collider goke.Comp[Collider]
@@ -101,7 +103,7 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 	}
 }
 
-// sought is the one query the system offers its hosted behaviors.
+// sought is the one query the system offers its hosted triggers.
 const sought = 0
 
 // NewCollisionSystem builds the collision system over space.
@@ -139,7 +141,7 @@ func (d *CollisionSystem) Init(si *goke.SysInit) {
 }
 
 func (d *CollisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
-	d.tick = plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: dt}
+	d.tick = plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: dt, Commands: d.commands}
 	if d.mark() {
 		d.rebuild()
 	}
@@ -162,7 +164,7 @@ func (d *CollisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-// mark runs the Each behaviors over every Collider and settles its capabilities; true if changed.
+// mark runs the triggers over every Collider and settles its capabilities; true if changed.
 func (d *CollisionSystem) mark() bool {
 	changed := false
 	d.walk.All()
@@ -202,7 +204,7 @@ func (d *CollisionSystem) rebuild() {
 	d.space.Rebuild(d.items)
 }
 
-// struck is what the hosted behaviors are told about the i-th entity of the chunk being walked.
+// struck is what the hosted triggers are told about the i-th entity of the chunk being walked.
 func (d *CollisionSystem) struck(i int) Struck {
 	return Struck{ID: d.walking.ids[i], Contacts: d.walking.colliders[i].Contacts()}
 }

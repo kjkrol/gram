@@ -8,8 +8,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/vision/behavior"
+	"github.com/kjkrol/gram/plugins/vision/trigger"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -138,11 +139,11 @@ func placeOnPrey(t *testing.T, stage *mainStage, view bodyView) uid.UID64 {
 type bodyView struct {
 	query *goke.Query
 	base  goke.Comp[world.Base]
-	marks goke.Comp[plugin.Tags[behavior.Family]]
-	tags  behavior.Tags
+	marks goke.Comp[tag.Tags[trigger.Family]]
+	tags  trigger.Tags
 }
 
-func bodies(ecs *goke.ECS, tags behavior.Tags) bodyView {
+func bodies(ecs *goke.ECS, tags trigger.Tags) bodyView {
 	view := bodyView{tags: tags}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
@@ -151,7 +152,7 @@ func bodies(ecs *goke.ECS, tags behavior.Tags) bodyView {
 }
 
 // each calls fn for every entity carrying tag.
-func (v *bodyView) each(tag plugin.Tag[behavior.Family], fn func(id uid.UID64, b *world.Base)) {
+func (v *bodyView) each(tag tag.Tag[trigger.Family], fn func(id uid.UID64, b *world.Base)) {
 	v.query.All()
 	for v.query.Next() {
 		cursor := v.query.Cursor()

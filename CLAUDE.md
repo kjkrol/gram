@@ -70,27 +70,36 @@ on Go 1.27.0.
 
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`,
 `WithRenderer`, `Renderer`, `EventHandler`, `Serializable`,
-`RegisterBehavior` — is the one extension point. A behavior is registered on
-the plugin it concerns and run inside that plugin's own pass. The hosting plugin's own
-constructors build them — `vision.Between(a, b, fn)` (a pair of tags), `board.Each[T](fn)`
-(one entity carrying `T`), `world.Every(fn)` (every entity) — so a game never imports
-`plugin/host`; the tag families join the host's queries as optional components, so a
-behavior costs no query. The func's payload type — `collision.Meeting`, `collision.Struck`,
-`vision.Sighting` — is what says whose it is: a host refuses one made for another (`ErrUnhostedBehavior`), so
-registering in the wrong place is an error, never a silent no-op. A plugin author wraps
-`host.Pair`/`host.Each`/`host.Every` from `plugin/host` in typed constructors and runs them
-with `host.PairHost[P]`/`host.EachHost[P]`. Tags are bits of a family, not component types: `plugin.Tags[F]` is one component
-holding up to 64 tags of family `F` (an empty type a plugin or a game names the family by:
-`selection.Family`, `behavior.Family` in vision), `kinds.DefineTag[F](name)`
-hands out the bits by name through `world.Kinds` (saved by name, remapped on load like `TypeID`),
-`comp.Tagged(tags...)` gives them to a kind, a query over the family's `Tags` narrows to entities
-carrying any of them, and flipping a bit is a value write seen the same tick. `Between(a, b, fn)`
-takes tags as values (`plugin.Any` for either side); a payload's `plugin.Marks` answers
-`marks.Carries(tag)` for the families the host's behaviors name. This keeps goke's
-128-component budget for data. A `Stage` builds its plugins as its own struct fields
+`Hook` — is the one extension point. A trigger (`act.Trigger[P](name).Do(body)`,
+`plugins/world/act`) is hooked on the plugin it concerns and run inside that plugin's own
+pass: `.Self(a)`/`.Other(b)` narrow to tags (a pair for a payload that is `act.Met`),
+`.Having[T]()` to entities carrying `T`, none to every entity — so a game
+never imports `plugin/host`; the tag families join the host's queries as optional components,
+so a trigger costs no query, and triggers over one component share its column
+(`host.Own` shares the host's own). The payload type — `collision.Meeting`, `collision.Struck`,
+`vision.Sighting`, `board.Standing`, `world.Moving`, `clock.Moment` — is what says whose it is: a
+host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
+error, never a silent no-op. A plugin author runs them with `host.PairHost[P]`/`host.EachHost[P]`/
+`host.ListHost[P]` from `plugin/host`. Tags are bits of a family, not component types
+(`plugins/world/entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
+family `F` (an empty type a plugin or a game names the family by: `selection.Family`,
+`trigger.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
+`world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
+to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
+flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` answers
+`marks.Carries(tag)` for the families the host's triggers name. This keeps goke's 128-component
+budget for data. The bits serve two ways (`entity/tag` doc): **tags** are groups a kind gives
+(`comp.Tagged`); **markers** are states switched on and off — a plugin's family `States`, carried
+for good (`comp.Marks[F]()` in a kind, `Roster().Unit.Default` for every unit, attached once where
+missing), each marker a constant bit defined by name like the owners (`effect.Idle`,
+`navigation.Entered`, `trigger.States` "collision.hit"). Putting a component on or off moves the
+entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
+often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
+`Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
+component, empty when off (`effect.Active`). A `Stage` builds its plugins as its own struct fields
 inside `Init` and installs each via `ctx.Use(p)`, which registers
 `p.Serializable()` (if any) and calls `p.Install`. There is no dependency
-retry mechanism: a plugin needing another plugin's *behavior* takes it as
+retry mechanism: a plugin needing another plugin's *logic* takes it as
 an explicit constructor argument (e.g.
 `collision.NewPlugin(hitExpires, worldPlugin)`) rather than looking it
 up — the dependency's construction order in the caller's code, not `Use`
@@ -108,7 +117,7 @@ Initial state follows the same optional-interface pattern as
 each plugin's own typed `Seed` (`world.Plugin.Seed(roster)`,
 `board.Plugin.Seed(layout)`), and the engine then calls `Populate()` on every
 tracked `plugin.Populator` — only when `Restore` loaded nothing. Entity kinds
-are defined in `Stage.Init` with the `plugins/world/kind` package:
+are defined in `Stage.Init` with the `plugins/world/entity/kind` package:
 `prey := kind.Define[P](world.Kinds(), "prey", kind.Spec{...})` — a `Spec` is
 just the list of a kind's components, each made in `kind/comp`: `comp.Const(v)` (same for all) or
 `comp.Load(func(row P) T)` (read from that entity's row), `world.Position` and
@@ -121,7 +130,7 @@ what its entities carry and are drawn from. `kind` never imports `world`
 `world.Kinds`, sits behind the `kind.Registry` interface; it also issues atlas
 slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
 every component type its kinds carry (`Kinds.LoadComps`), so a game's own tags
-and state (`behavior.Predator`, `behavior.HitMark`) survive a save without being registered
+and state (`trigger.Predator`, a game's own component) survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKindDict().Create`.
 
@@ -236,7 +245,7 @@ V, writes the keys every tick, writes a stop and detaches it on letting go; navi
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
 admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
 just ahead under `BodySpacing` — stops dead otherwise, removes a MoveOrder a hand touches and
-keeps Cell, occupancy and CellEntered with the unit) and `relief.Raise`/`Lower`/`Level` (=, -, L-drag).
+keeps Cell, occupancy and the `Entered` marker with the unit) and `relief.Raise`/`Lower`/`Level` (=, -, L-drag).
 Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
 players; which camera is fastened to what is the camera system's state, cameras being no entities.
 The topography's parts are packages none of which imports the plugin (it composes them, registers
@@ -338,8 +347,8 @@ the day, and `State.Warmth`, the day the calendar's), what falls coming down as 
 `snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
 `air.Weather`; `atmosphere.Plugin.Air()`; `Climate.SetRunning` leaves out what is stopped) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
-tactical pause stops it. It hosts `climate.Every(func(plugin.Tick, Weathering))` (`host.EachHost`,
-run every step with the weather and season; `atmosphere.Plugin.RegisterBehavior`). `Change`
+tactical pause stops it. It hosts triggers of `Weathering` (`host.EachHost`, fired every step
+with the weather and season; `atmosphere.Plugin.Hook`). `Change`
 (Shift+W) and `Set{Name}`. `atmosphere/precipitation` is what falls (screen-space streaks and
 flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, depth +∞);
 `atmosphere.Plugin.Precipitation()`. `atmosphere/weathering` is what the weather does to a board:
@@ -374,7 +383,7 @@ look's GPU sprites through). A flat board without an atmosphere is drawn as it i
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
-their data (queries, `View`, `Drawing` behaviors, the cells) and ask the Look only for geometry;
+their data (queries, `View`, `Drawing` triggers, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
 the camera. Heights (`Heights`) are the model and work in either view. `plugin`
 (root) — `Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`, the extension
@@ -424,9 +433,12 @@ shows how much of it is boilerplate vs. real behavior.
   axis by default: a box stops whole at a closed edge, wraps at a wrapping one,
   and may leave by an open one. An entity wholly past an open edge carries
   `world.Outside`, put on by whoever moved it there (`MoveSystem`, collision's
-  solver); every tick it does, `world.Each` behaviors of a `world.Leaving`
-  registered on the world hear of it, and with none it is despawned; back inside
-  it loses the mark.
+  solver); every tick it does, triggers of a `world.Leaving`
+  hooked on the world hear of it, and with none it is despawned; back inside
+  it loses the mark. An entity gives itself `world.Despawn{}` (`Issue` in its tree or a trigger) to go; the world
+  carries the commands entities give themselves (`control.Carrier`, `world.Plugin.Carry`/`Commands`;
+  the engine carries every `plugin.CommandHandler` a stage uses, and a host's `plugin.Tick.Commands`
+  hands the carrier to its triggers).
   `world.Roster()` is what the plugins in the game ask of a unit's kind, gathered as the plugins
   are made: `kind.Require[T](&roster.Unit, by, why)` names what the game must supply (world:
   `Position`; board: `Cell`, `Mover`; navigation: `steering.Steering`), `roster.Unit.Default(comp.Const(v))`
@@ -456,11 +468,12 @@ shows how much of it is boilerplate vs. real behavior.
   sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
   root package `camera` is only the contract and the projections; the cameras, with their window
   arithmetic — wrapping on a wrapping axis, held inside the world on any other — live in
-  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts three payloads for `world.Each[T]`/`world.Every`, all through
-  `RegisterBehavior`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
+  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts triggers of five payloads, all through
+  `Hook`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
   board's terrain speed is one), a `Leaving` (every tick an entity is `Outside`) and a
   `Drawing` (every entity about to be drawn; `world.Draw.Overlay[T]`, `Draw.As[T]`,
-  `Draw.With[T]`, `Draw.Facing` are ready-made). The space keeps no state of its own between ticks:
+  `Draw.With[T]`, `Draw.Facing` are ready-made), and, through its effects, an `effect.Idling` and a
+  `clock.Moment` (every step). The space keeps no state of its own between ticks:
   `MoveSystem` moves every box under the edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
@@ -475,7 +488,7 @@ shows how much of it is boilerplate vs. real behavior.
   (`Land`, `Water`, `Air`, a game's own bits), whether it is `Solid` (a wall), how much it
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
-  `CostFor(domain)` is what a unit pays in the planner and in the Moving behavior board
+  `CostFor(domain)` is what a unit pays in the planner and in the Moving trigger board
   registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road, a
   bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
   to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
@@ -483,7 +496,7 @@ shows how much of it is boilerplate vs. real behavior.
   cost too, through the board's Map — `relief.Climbing{Up, Down, Ease, Steep, Free}`
   (`topography.Config.Climbing`, `relief.DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
-  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving behavior along the
+  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving trigger along the
   heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
   takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
   relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
@@ -532,9 +545,10 @@ shows how much of it is boilerplate vs. real behavior.
   at a height at the first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
-  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre and its kind) to
-  `board.Each` behaviors registered on the board, naturally `board.Each[board.Mover]`;
-  `Standing.Fell(domain)` is a land unit in water or in a hole, and the reaction is the game's.
+  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
+  box and the `Mover`'s domain) to the triggers hooked on the board; `Standing.Fallen()` is a land
+  unit in water or in a hole, and the reaction is the game's (the demos:
+  `t.Do(t.If(board.Standing.Fallen, t.Issue(world.Despawn{})))` with `t := act.Trigger[board.Standing](…)`).
   A `board.Effect` (`Tick(brd, d) alive`) is what the board does to itself over time by writing
   terrain — `Plugin.Cast`/`Dispel`, ticked first each tick; `board/effect` ships `Timed` (terrain
   that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Terrain is never an entity in
@@ -571,14 +585,16 @@ shows how much of it is boilerplate vs. real behavior.
   split. With a world `Field` (the board's solid cells) the engine, built in `Init` with
   `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
   `CollisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
-  recording a `Contact{Terrain: true, Cell}` (no `Meeting`: `Between` is for entities).
-  Reactions are behaviors hosted inside the `CollisionSystem`'s own pass:
-  `collision.Between(a, b, fn)` of a `Meeting` per confirmed contact between two tags
-  (`plugin.Any` as the wildcard), `collision.Each[T]` of a `Struck` per entity per
-  tick, with what it struck the tick before. A strategy exports a plain function of
-  the flat `collision/behavior` package (`CountContacts`, `LogContacts`, `ShowHits`) —
-  the tags it runs between are named where it is registered,
-  `RegisterBehavior(collision.Between(a, b, fn), ...)`. `Collider` is the plugin's one
+  recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities).
+  Reactions are triggers hosted inside the `CollisionSystem`'s own pass: of a `Meeting` per
+  confirmed contact between two tags (`Self`/`Other` of the trigger, none for either side), of a
+  `Struck` per entity per tick, with what it struck the tick before. Ready-made nodes are in the
+  flat `collision/trigger` package (`CountContacts`, `LogContacts`, `ShowHits`, `HitOverlay`) —
+  the tags they run between are named where the trigger is made,
+  `Hook(act.Trigger[collision.Meeting](name).Self(a).Other(b).Do(node))`; the hit is an effect
+  (`trigger.Hit(w, d)` → `Hits{Effect, Mark}`: the effect grants the marker `collision.hit` of
+  `trigger.States`; cast by `ShowHits(h)` on a `Struck` that `Hit()`s, drawn by `HitOverlay(h,
+  with)`, which reads the marker, `.Self(h.Mark)`). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. `pathFinder.price` is what a step costs: the destination's `CostFor` over the step's
@@ -609,7 +625,7 @@ shows how much of it is boilerplate vs. real behavior.
   keeps `wanted`/`wanting` maps (who came at whom, swapped each tick) and `giveWay` turns them,
   and bodies' collision contacts, into `press`es for `keeping.yield`: `cellKeeping.yield` steps to
   a free cell square off the way, else beside, never ahead, `GivingWay` with `Linger` then home.
-  Struck bodily (`bumped()`, a `Struck` behavior on `c`) a unit stops, re-plans and holds that
+  Struck bodily (`bumped()`, a `Struck` trigger on `c`) a unit stops, re-plans and holds that
   route for `bumpInterval`. Occupancy is seeded from `Cell` + `Mover` at Setup.
   `BodySpacing`: the occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the
   ground alone and reacts only to what it strikes (`struckBy`: step aside, note a standing one's
@@ -619,7 +635,8 @@ shows how much of it is boilerplate vs. real behavior.
   struck by one on the move, gives way (`bodyKeeping.yield`, `navigationSystem.giveWay`: a
   `GivingWay` order aside with `Linger`, then home). Never make a unit see the others ahead: the
   user asked for it to learn by striking. A `MoveTo{Cell, At, Append}` command orders
-  every `Selected` entity; a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
+  every `Selected` entity the player owns — or, given by an entity for itself (`Issue` in a tree),
+  that entity alone (`LookAt` too); a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
   Shift appends. `WithRenderer` builds the `PathRenderer`: for every selected unit its goals as
   the entity's outline where it will stand (`world.Look.Footprint` on the ground, `Marks` tier,
   always) and, on `Routes{}` (Shift+P, `ShowRoutes`), its routes as thin lines over the ground
@@ -627,13 +644,32 @@ shows how much of it is boilerplate vs. real behavior.
   (sprites were interpolated affinely in perspective and wobbled); `RouteStyle` via
   `WithRouteStyle`. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
   command orders).
+  Courtesy: a unit whose kind gives it `act.Tree(navigation.Courteous())` decides for itself
+  (`plugins/world/act`); navigation writes it the facts `Blocked` (whom it struck or whose cell
+  refused its step: stranger or ally by `owner.Allies`, groupmate by `MoveOrder.Group` — each
+  `MoveTo` a fresh group, counted on from the orders after a load — moving or idle, on its goal,
+  whether a swap `Shortens` both ways, `First` of two on the move to wait: lower id, flipped when
+  they `Met` before; `Yielding` while giving way itself; `WaitedOut`/`Cornered`, what came of its
+  `Hold`/`Detour`; held `blockedLasts` after the last contact), `Room` (a standing unit asked
+  `MakeWay`/`FreeGoal` by an ally: free place beside, no steeper than `yieldClimb` by `Map.Climb`,
+  or the ally standing there, `Beside`) and `Arrived` (its order over, until the next), and carries
+  out the commands its tree gives it (`Issue`, in `Plugin.Queues`, drained into `told` by
+  unit): `Detour` (with no way round, `MoveOrder.Cornered`), `Hold` (until `mayStep` ahead, at most
+  `stallAfter`, then `MoveOrder.WaitedOut`; both reset on the next step), `StepAside` (standing:
+  aside and home; moving: aside a while, its goals queued after), `SwapGoals`, `Settle`. Conducted units skip navigation's own decisions (asking a holder
+  off, learning and replanning, `placeAgain`, the press-based `yield`) but keep the aside reflex
+  and the stall safety (`treeGrace` for a refused step; `member.minded` is a unit with a tree). `MoveOrder.HitUnit` tells a unit
+  struck from the ground (entity ids start at 0: never use 0 as "nobody").
 - **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
   from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike. A
   leaf: the world's sub-packages read the components
   from it, and the world re-exports them as type aliases (`world.Base = entity.Base`, …), so
   every other plugin and a game say `world.Base` as before and the component is one type for goke
-  and the saves. Nothing outside `plugins/world` needs to import it.
+  and the saves. Nothing outside `plugins/world` needs to import it. Beside it, `world/entity/kind`
+  (+ `kind/comp`) is what an entity is (a kind's `Spec`, `Define`, `Of`, the `Registry`) and
+  `world/entity/tag` the tag families (`tag.Tags[F]`, `tag.Tag[F]`, `tag.Any`), a leaf `plugin`,
+  `plugin/host` and `comp` import.
 - **`world/steering`** — `steering.Steering{Want, TurnRate, Reflex, MaxSpeed, Accel, Brake, V0,
   Speed, WantSpeed}` (`Request(heading)`, `RequestSpeed`, `Braking`) and `steering.System`
   (`steering.NewSystem()`), registered by the world in every simulation step before movement:
@@ -659,15 +695,46 @@ shows how much of it is boilerplate vs. real behavior.
   clock's `Shown` through `render.Clocked` (the world's renderer): game time past the last tick by
   the real time the engine holds toward the next (`Clock.Pending`, every frame) at the tempo, so
   animations move every frame, not in the ticks' steps.
-- **`world/effects`** — temporary changes to entities, cast from anywhere, made and installed by
-  the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking, Grant(tags...),
-  Alter(func(*T))})`, `e.Cast`/`CastFor`/`Dispel`/`Has` by entity id, `Active` slots saved with
-  the entity, originals of altered components kept and saved with the game; effects last in game
-  time. An entity whose last effect ended carries `effects.Idle` for one step, and `effects.Each`
-  behaviors of an `effects.Idling` registered on the world hear of it once. A cast before the
-  effects' pass lands the same step. `e.Schedule()` is what happens when: `At(moment)` and
-  `Every(period, offset)` entries laid in code, fired by clock time in the step their moment falls
-  in (never refired after a load); an entry casts effects or grants a `clock.Phase`.
+- **`world/act`** — how entities behave, one vocabulary (`doc/act.md`; the package was `conduct`):
+  triggers, trees, effects, commands, facts, all built with the methods of a builder (Go 1.27's
+  methods with type parameters), no package functions for nodes. `act.Trigger[P](name)` is a
+  `Reaction[P]`: `.Self(tag)`/`.Other(tag)`/`.Having[T]()` narrow it, its methods make `Instant`
+  nodes alone (a lasting one is not to be had — the compiler refuses it), `.Do(body...)` is the
+  `plugin.Trigger` for the host's `Hook` (built on `plugin/host`), `.Runs(fn)`/`.RunsOn(fn)` one
+  of a function alone; payloads are `act.About` (`Who()`), pairs `act.Met` (`Whom`); `Run`/`RunOn`
+  a trigger's own code, `ToOther` acts on whom it met. A tree's branch is a `Branch`:
+  `act.When[F](name)`, `act.On[F](name)` (latches for one-tick facts) or `act.Named(name)` (a
+  root), closed with `.Do(body)` — only the root is named. Trees a kind gives its entities
+  (`act.Tree(root)`, a `comp.Template[Mind]`; registered by the root's name hashed, one name one
+  tree) run in every simulation step after the world's decision systems (`act.Trees`, made by the
+  world). A Branch's nodes: `First` (reactive selector), `Then` (sequence with memory), `If[F]`
+  over a fact, `Until[F]` (a fact coming afresh, or coming to hold a condition), `Wait`,
+  `Timeout`, `Cooldown`, `Invert`, `Idle`; `Apply`/`While`/`Unless`/`IfUnder` over effects (an
+  effect's presence is state: a trigger's memory); `Issue(cmd)` gives a command for the entity —
+  fire and forget, the handler told `control.Issued{Entity, ByEntity}` (`Aimed` commands get the
+  subject) — and hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch
+  from giving it every tick; a branch is a value, usable in several places; conversation
+  `Ask`/`Agree`/`Refuse`/`Relay` with facts `Asked[W]`/`Replied[W]`, delivered a tick later,
+  `Chain` ≤ `MaxChain`, dropped after `AskLife`; a fact's `Subject() (id, ok)` is whom
+  Ask/Relay/Aimed speak to. A node acting on an entity fails on a moment of none (`clock.Moment`).
+  `Mind` holds per-node slots in fixed arrays (`MaxNodes` 128, `Running` a `Nodes` bit set; goke
+  needs exported, fixed-size fields). goke registers 128 component types at most — every fact is
+  one.
+- **`world/act/effect`** — temporary changes to entities, cast from anywhere, made and
+  installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
+  Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
+  (`Cast`/`CastFor`/`Dispel`/`On`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active` slots
+  saved with the entity, originals of altered components kept and saved with the game; effects
+  last in game time. `Active` stays on an entity once an effect came (empty when none runs — a
+  marker's second form); the entity's `effect.States` markers (the world gives them to every unit,
+  the board to every cell) have `effect.Idle` on for the step after its last effect ended, and
+  triggers of an `effect.Idling` hooked on the world hear of it once (`host.EachHost.RunRows`
+  runs them for those rows alone). A cast before the effects'
+  pass lands the same step. The effects fire the triggers of a `clock.Moment{Last, Now}` every
+  step (a `host.ListHost`): what happens when is a trigger of `clock.Moment` holding
+  `t.If(clock.Every(period, offset), …)` or `clock.At(t)` (`calendar.Daily/Yearly/Seasonal`
+  give the period and offset), fired by clock time, never again after a load; it casts effects
+  or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
   `Alter[board.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
@@ -679,10 +746,10 @@ shows how much of it is boilerplate vs. real behavior.
   again stops), which the `FollowSystem` keeps in the middle of the camera every tick
   (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
   keeps it. A `Select` hits and unselects only what the issuing player owns
-  (`players/owner.Obeys` over the optional `plugin.Tags[owner.Family]`), so one `Selected` tag
+  (`players/owner.Obeys` over the optional `tag.Tags[owner.Family]`), so one `Selected` tag
   serves every player; `Follow` takes the issuer's one selected unit. Depends on `world` and the
   leaf `players/owner`.
-- **`players/owner`** — whose a unit is, a leaf importing only `plugin` and `control` (as
+- **`players/owner`** — whose a unit is, a leaf importing only `world/entity/tag` and `control` (as
   `world/entity` is `world`'s): `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
@@ -690,9 +757,12 @@ shows how much of it is boilerplate vs. real behavior.
   a player selects, orders and rides only its own units. A game gives a kind to a player with
   `comp.Tagged(player.Owner())`; a side of its own (the wild, a rival) is `players.Add` owning
   its units; the island's blue walkers are such a rival's.
-- **`players`** — whoever acts in the game, a carrier over `plugin.CommandHandler`s:
-  `players.NewPlugin(world, s.selection, s.nav, ...)` gathers each one's `Queues()` (the
-  `control.Queue[C]` it drains in its own pass) and `DefaultBindings()`; `Defaults()` is all of
+- **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
+  `players.NewPlugin(world, s.selection, s.nav, ...)` has the world carry each one's `Queues()`
+  (the `control.Queue[C]` it drains in its own pass; the world's `control.Carrier` is a stage's
+  one carrier, for players and entities alike) and gathers its `DefaultBindings()`; nothing clears
+  a queue — a command waits for its handler's pass, given after it for the next frame's (the old
+  end-of-frame clear dropped entities' `Despawn`s given in later passes); `Defaults()` is all of
   them plus `CameraBindings()` for players' own `Pan`/`Zoom`. `Local(name)` is a player at the
   keyboard over the world's camera and `View`, `Add(name)` one without (an AI, a client);
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
@@ -735,14 +805,14 @@ shows how much of it is boilerplate vs. real behavior.
   `WithGroundStep` (default: a sixteenth of the radius; the renderer drapes the shadows in the
   same step), and a hawk 40 up looks over the wall, the forest and the hill a walker's cone stops
   at; `Blockers` are refused there, `Eye.Height` in a flat world. It
-  hosts `vision.Between(a, b, fn)` of a `Sighting` inside the scan's own pass: once
-  a tick per observer carrying `a`, with everything in view carrying `b` — a
-  directed pair, grouped by observer, empty included. A behavior tells its seen
-  entities apart with `seen.Carries(tag)`, and steers only
-  through `Steering.Request`. Ready-made ones live in the flat `vision/behavior`
-  package (`behavior.DefineTags`, `Flee.Steer`, `Chase`); a file using both plugins'
-  behaviors imports them as `cbehavior`/`vbehavior` — who flees or hunts
-  whom is the registration's to say. A `plugin.CommandHandler`: the views start hidden and
+  hosts triggers of a `Sighting` inside the scan's own pass: once
+  a tick per observer carrying `a` (the trigger's `Self`), with everything in view carrying `b`
+  (`Other`) — a directed pair, grouped by observer, empty included. A trigger tells its
+  seen entities apart with `seen.Carries(tag)`, and steers only
+  through `Steering.Request`. Ready-made ones live in the flat `vision/trigger`
+  package (`trigger.DefineTags`, `Flee.Steer`, `Chase`); a file using both plugins'
+  triggers imports them as `ctrigger`/`vtrigger` — who flees or hunts
+  whom is the trigger's to say. A `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.

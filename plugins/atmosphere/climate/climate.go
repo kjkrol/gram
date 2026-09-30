@@ -17,22 +17,22 @@ import (
 // of the climate's weathers to the next in the simulation's time, saved with the game, the
 // world's weather — wind, clouds, rain, snow, the temperature — following it.
 type Climate struct {
-	cfg        Config
-	world      *world.Plugin
-	calendar   *calendar.Calendar
-	sys        *weatherSystem
-	change     control.Queue[Change]
-	set        control.Queue[Set]
-	report     report
-	behaviours host.EachHost[Weathering]
-	running    Running
+	cfg      Config
+	world    *world.Plugin
+	calendar *calendar.Calendar
+	sys      *weatherSystem
+	change   control.Queue[Change]
+	set      control.Queue[Set]
+	report   report
+	triggers host.EachHost[Weathering]
+	running  Running
 }
 
 // Running is which of the weather's workings go on: Changes, one weather following another as the
 // climate throws them (off, the weather now stays, though Change and Set still change it); Wind,
 // the wind blowing and carrying the clouds (off, the air stands still); Clouds, the clouds
 // covering the sky (off, a clear sky); Falls, rain and snow falling (off, nothing falls). The air
-// (Climate.Air) and the behaviours hosted with it have the weather as they leave it; the
+// (Climate.Air) and the triggers hosted with it have the weather as they leave it; the
 // weather's own entity goes on underneath and is saved as it is. They are not saved.
 type Running struct {
 	Changes, Wind, Clouds, Falls bool
@@ -75,18 +75,18 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation; it finds or makes the
 // weather's entity in its own Init. Call it once.
 func (c *Climate) System() goke.System {
-	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.behaviours, &c.running)
+	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.triggers, &c.running)
 	return c.sys
 }
 
 // LoadComps lists the weather's one component — see goke.CompProvider.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
-// Host hosts an Every of Weathering, run every step with the weather; call before the system's
-// Init.
-func (c *Climate) Host(b plugin.Behavior) error {
-	if err := c.behaviours.Add(b); err != nil {
-		return fmt.Errorf("%w in the climate — it takes Every for Weathering", err)
+// Host hosts a trigger of Weathering, fired every step with the weather; call before the
+// system's Init.
+func (c *Climate) Host(b plugin.Trigger) error {
+	if err := c.triggers.Add(b); err != nil {
+		return fmt.Errorf("%w in the climate — it takes a trigger of Weathering", err)
 	}
 	return nil
 }

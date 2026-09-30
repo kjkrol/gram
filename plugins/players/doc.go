@@ -5,8 +5,9 @@
 // # A carrier to the command handlers
 //
 // [NewPlugin] takes the world and every plugin.CommandHandler the game uses (selection, navigation,
-// a game with commands of its own): it gathers their queues by command type and their default
-// bindings ([Plugin.Defaults]). The plugins never know players; they know plugin.CommandHandler and
+// a game with commands of its own): the world carries their queues — its one carrier of commands,
+// which the entities give theirs to as well (world.Plugin.Commands) — and the players gather
+// their default bindings ([Plugin.Defaults]). The plugins never know players; they know plugin.CommandHandler and
 // the vocabulary in package control. [Plugin.Issue] is how a command comes in — from a binding, an
 // AI, a network — and a type no handler defines is [ErrUnknownCommand]. Players' own commands are
 // [Pan] and [Zoom], carried out on the issuing player's camera; [CameraBindings] are their
@@ -71,7 +72,9 @@
 //
 // The active Scene hands the tick's input to [Plugin.EventHandler], which runs every local
 // player's bindings and fills the queues; the command handlers drain theirs in their RunPlan;
-// [Plugin.RunPlan], called last, carries out Pan and Zoom and empties whatever is left.
+// [Plugin.RunPlan], called last, carries out Pan and Zoom. Nothing is dropped: a command given
+// after its handler's pass — by an entity's trigger in a later plugin's — waits for the next
+// frame's.
 //
 // # Scene keys and the shortcuts
 //

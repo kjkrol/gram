@@ -10,8 +10,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/uid"
 )
 
@@ -30,10 +31,8 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	}
 
 	contacts := 0
-	if err := c.RegisterBehavior(collision.Between(plugin.Any, plugin.Any,
-		func(plugin.Tick, collision.Meeting) { contacts++ },
-	)); err != nil {
-		t.Fatalf("RegisterBehavior: %v", err)
+	if err := c.Hook(act.Trigger[collision.Meeting]("hook").Runs(func(plugin.Tick, collision.Meeting) { contacts++ })); err != nil {
+		t.Fatalf("Hook: %v", err)
 	}
 
 	town := kind.Define[float64](w.Kinds(), "town", kind.Spec{

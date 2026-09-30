@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
 
 // behaviorTag marks the one kind TestBehavior_Include applies to.
@@ -84,7 +84,7 @@ func tickWorld(t *testing.T, wm *module) []float64 {
 
 func TestBehavior_RunsBeforeMovement(t *testing.T) {
 	p := testPlugin()
-	p.RegisterBehavior(&driveVelocity{})
+	p.Hook(&driveVelocity{})
 	wm := p.module
 	spawnAt(wm, 100)
 
@@ -100,8 +100,8 @@ func TestBehavior_RunsBeforeMovement(t *testing.T) {
 func TestBehavior_RunsInRegistrationOrder(t *testing.T) {
 	var log []string
 	wm := testWorld()
-	wm.RegisterBehavior(&driveVelocity{log: &log, name: "first"})
-	wm.RegisterBehavior(&driveVelocity{log: &log, name: "second"})
+	wm.Hook(&driveVelocity{log: &log, name: "first"})
+	wm.Hook(&driveVelocity{log: &log, name: "second"})
 	spawnAt(wm, 100)
 
 	tickWorld(t, wm)
@@ -113,7 +113,7 @@ func TestBehavior_RunsInRegistrationOrder(t *testing.T) {
 func TestBehavior_IncludeVisitsOnlyTaggedEntities(t *testing.T) {
 	b := &driveVelocity{tagged: true}
 	wm := testWorld()
-	wm.RegisterBehavior(b)
+	wm.Hook(b)
 	spawnAt(wm, 100)
 	spawnAt(wm, 300, comp.Const(behaviorTag{}))
 
@@ -133,13 +133,13 @@ func TestBehavior_NoneRegisteredLeavesTheTickUnchanged(t *testing.T) {
 	}
 }
 
-func TestRegisterBehavior_RefusesWhatIsNotASystem(t *testing.T) {
+func TestHook_RefusesWhatIsNotASystem(t *testing.T) {
 	p := testPlugin()
 
-	if err := p.RegisterBehavior(&driveVelocity{}); err != nil {
-		t.Errorf("RegisterBehavior(a system) = %v, want nil", err)
+	if err := p.Hook(&driveVelocity{}); err != nil {
+		t.Errorf("Hook(a system) = %v, want nil", err)
 	}
-	if err := p.RegisterBehavior(struct{}{}); !errors.Is(err, plugin.ErrUnhostedBehavior) {
-		t.Errorf("RegisterBehavior(not a system) = %v, want ErrUnhostedBehavior", err)
+	if err := p.Hook(struct{}{}); !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Hook(not a system) = %v, want ErrUnhosted", err)
 	}
 }

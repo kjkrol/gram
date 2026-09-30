@@ -5,8 +5,8 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -53,15 +53,15 @@ type Renderer struct {
 
 	query    *goke.Query
 	base     goke.Comp[world.Base]
-	marks    goke.Comp[plugin.Tags[Family]]
+	marks    goke.Comp[tag.Tags[Family]]
 	z        goke.OptComp[world.Z]
-	selected plugin.Tag[Family]
+	selected tag.Tag[Family]
 }
 
 var _ render.Source = (*Renderer)(nil)
 
 // NewRenderer builds a Renderer with DefaultHighlightStyle, outlining what look draws.
-func NewRenderer(selected plugin.Tag[Family], look func() world.Look) *Renderer {
+func NewRenderer(selected tag.Tag[Family], look func() world.Look) *Renderer {
 	return &Renderer{style: DefaultHighlightStyle(), selected: selected, look: look}
 }
 

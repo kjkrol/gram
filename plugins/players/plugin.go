@@ -21,14 +21,13 @@ import (
 // ErrUnknownCommand is what Issue reports for a command type no handler defines.
 var ErrUnknownCommand = errors.New("players: no plugin listens for this command")
 
-// Plugin keeps the game's players and carries their commands to the handlers that define them: a
-// player's bindings, an AI or a network issue a command, and it lands in its handler's queue.
+// Plugin keeps the game's players and gives their commands to the world's carrier, which takes
+// each to the handler that defines it: a player's bindings, an AI or a network issue a command,
+// and it lands in its handler's queue.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	handlers    []plugin.CommandHandler
-	owners      map[reflect.Type]plugin.CommandHandler // the handler of each command type
 	players     []*Player
-	queues      map[reflect.Type]control.CommandQueue
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
 	module      *module
@@ -44,8 +43,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
-// share, carrying the commands of handlers — the world's own, its clock's, among them; two
-// handlers of one command type panic. It registers the owners' tags with the world's kinds, a
+// share, having the world carry the commands of handlers — beside the world's own and the
+// players' — as it does those of the plugins a stage uses; two handlers of one command type
+// panic. It registers the owners' tags with the world's kinds, a
 // player each, saved by name.
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
 	for id := control.PlayerID(1); int(id) <= owner.Players; id++ {
@@ -53,15 +53,10 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
 	}
-	p := &Plugin{worldPlugin: worldPlugin, queues: map[reflect.Type]control.CommandQueue{}, owners: map[reflect.Type]plugin.CommandHandler{}}
+	p := &Plugin{worldPlugin: worldPlugin}
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
-	for _, c := range p.handlers {
-		for _, box := range c.Queues() {
-			if other, taken := p.queues[box.Accepts()]; taken && other != box {
-				panic(fmt.Sprintf("players: %v is defined twice", box.Accepts()))
-			}
-			p.queues[box.Accepts()], p.owners[box.Accepts()] = box, c
-		}
+	if err := worldPlugin.Carry(p.handlers...); err != nil {
+		panic(fmt.Sprintf("players: %v", err))
 	}
 	return p
 }
@@ -115,15 +110,25 @@ func (p *Plugin) Defaults() []control.Binding {
 // Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
 // type. Bindings, an AI or a network all come in here.
 func (p *Plugin) Issue(player *Player, cmd any) error {
-	box, ok := p.queues[reflect.TypeOf(cmd)]
-	if !ok {
-		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
-	}
 	id := control.Nobody
 	if player != nil {
 		id = player.ID
 	}
-	box.Put(id, cmd)
+	if !p.worldPlugin.Commands().Put(id, cmd) {
+		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
+	}
+	return nil
+}
+
+// handlerOf is the handler whose queue takes commands of type t, nil for none of the players'.
+func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
+	for _, h := range p.handlers {
+		for _, q := range h.Queues() {
+			if q.Accepts() == t {
+				return h
+			}
+		}
+	}
 	return nil
 }
 
@@ -246,10 +251,10 @@ func (o ownCameras) Persisted() []any {
 	return out
 }
 
-// RegisterBehavior reports ErrUnhostedBehavior — players host no behaviors; they carry commands.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
+// Hook reports ErrUnhosted — players host no triggers; they carry commands.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
+		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

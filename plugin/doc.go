@@ -1,5 +1,5 @@
 // Package plugin is the extension contract: what a [Plugin] is, what it is handed at install
-// time, and how game logic is hosted inside a plugin's own pass as a behavior. Built-in plugins
+// time, and how game logic is hosted inside a plugin's own pass as a trigger. Built-in plugins
 // and third-party ones implement exactly the same interface.
 //
 // # Plugin
@@ -8,7 +8,7 @@
 // that queues its ECS wiring, a RunPlan the game calls once a tick in the order it needs, and
 // optional faces: WithRenderer and Renderer for what it draws, EventHandler for the input it
 // reads (the players plugin's, in practice: other plugins take commands, not input), Serializable
-// for the state it saves, RegisterBehavior for the behaviors it hosts. A
+// for the state it saves, Hook for the triggers it hosts. A
 // [Builtin] plugin is one the engine installs itself, such as the world; Use refuses it.
 //
 // # Installer
@@ -17,22 +17,22 @@
 // the engine flushes every plugin's wiring in one ecs.Setup after the Stage's Init. Cross-plugin
 // data comes from constructor injection, not from the Installer.
 //
-// # Behaviors
+// # Triggers
 //
-// A [Behavior] is game logic a plugin runs inside its own pass, built with that plugin's own
-// constructors and registered with its RegisterBehavior: vision.Between(a, b, fn) reacts to every
-// observer carrying tag a and what it sees carrying b, [Any] standing for either side;
-// board.Each[T](fn) reacts on every entity on the board carrying T, world.Every(fn) on every
-// entity the payload's host visits. The payload type — a Sighting, a Standing, a Moving — is what
-// says which plugin hosts it; a host refuses another's with [ErrUnhostedBehavior], and one
-// registered after the host's queries were built with [ErrHostBuilt]. Register before Use. The
-// generic constructors and the hosts behind them are in plugin/host, a plugin author's package.
+// A [Trigger] is a moment a plugin catches in its own pass and what is done then, built with
+// act.Trigger and hooked with the plugin's Hook: act.Trigger[vision.Sighting](name).Self(a).
+// Other(b).Do(body) fires for every observer carrying tag a and what it sees carrying b;
+// act.Trigger[board.Standing](name).Do(body) for every entity on the board. The
+// payload type — a Sighting, a Standing, a Moving — is what says which plugin hosts it; a host
+// refuses another's with [ErrUnhosted], and one hooked after the host's queries were built with
+// [ErrHostBuilt]. Hook before Use. The hosts behind triggers are in plugin/host, a plugin author's
+// package. A trigger is instant, in the host's pass; what lasts over ticks and talks to other
+// entities is a kind's tree (plugins/world/act).
 //
-// A [Tag] is a bit of a family: [Tags] is the family's component, holding up to
-// [MaxTagsPerFamily] of them, and an empty type of the plugin's or the game's names the family.
-// The families a host's behaviors name join its queries as optional components, so a behavior
-// costs no query of its own, and a host reads what an entity carries as [Marks] — what a payload
-// passes on for [Marks.Carries]. One host's behaviors may name at most [MaxFamilies] families.
+// A tag is a bit of a family (plugins/world/entity/tag). The families a host's triggers name join
+// its queries as optional components, so a trigger costs no query of its own, and a host reads
+// what an entity carries as [Marks] — what a payload passes on for [Marks.Carries]. One host's
+// triggers may name at most [MaxFamilies] families.
 //
 // # Commands
 //
@@ -41,13 +41,14 @@
 // keeps a control.Queue of each as a field, lists them in Queues, drains them in its own pass, and
 // suggests the control.Bindings that issue them. A command type has one handler — a subscriber is
 // what hears an event, and there may be many. The players plugin is the carrier built over the
-// handlers.
+// handlers for the players; the world carries the commands its entities give themselves
+// (Issue in an act tree or trigger), the engine handing it every handler a stage uses.
 //
 // # Tick
 //
-// [Tick] is what a behavior is told about the pass it runs in: the command buffer its structural
+// [Tick] is what a trigger is told about the pass it runs in: the command buffer its structural
 // changes go through (they land when the pass is over), the time read once for the whole pass,
-// and the tick's length.
+// the tick's length, and the world's carrier of commands.
 //
 // # Optional interfaces
 //

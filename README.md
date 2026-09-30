@@ -1,7 +1,7 @@
 # gram
 
 <p align="center">
-  <img src=".github/docs/img/logo.png" alt="gram logo" width="300">
+  <img src=".github/docs/img/gram.png" alt="gram logo" width="300">
   <br>
   <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="https://pkg.go.dev/github.com/kjkrol/gram"><img src="https://img.shields.io/badge/GoDoc-Reference-007d9c?style=flat-square&logo=go" alt="GoDoc"></a>
@@ -68,12 +68,13 @@ cgo. Without a GPU the tests that draw skip themselves.
 | Capability | Package | What you get |
 |:---|:---|:---|
 | **Stages and Scenes** | `game` | Named Stages with their own ECS and lifecycle (`Init`/`Restore`/`Spawn`/`Update`); Scenes with layered renderers and input; a live Composition of what is shown and which Scene is active |
-| **Plugins and behaviors** | `plugin` | The one extension contract; behaviors built by the hosting plugin (`Between`, `Each`, `Every`) and run in its own pass |
+| **Plugins and triggers** | `plugin` | The one extension contract; triggers hooked on the plugin whose pass catches their moment, pairs too |
+| **Behaviour** | `plugins/world/act` | One vocabulary, built with methods: triggers, trees a kind deliberates by, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
 | **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds; `Heights` for a world with heights |
 | **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
-| **Kinds** | `plugins/world/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
-| **Collisions** | `plugins/collision` | A `CollisionSystem` over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, a `ShapeTest` to refine, `Meeting`/`Struck` for behaviors |
-| **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` behaviors per observer; outlines shown with Shift+C; in a world with heights the eye looks over walls, forests and hills by height |
+| **Kinds** | `plugins/world/entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
+| **Collisions** | `plugins/collision` | A `CollisionSystem` over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, a `ShapeTest` to refine, `Meeting`/`Struck` for triggers |
+| **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` triggers per observer; outlines shown with Shift+C; in a world with heights the eye looks over walls, forests and hills by height |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain and occupancy; `MoveOrder` paths that re-route when terrain changes |
 | **Topography** | `plugins/topography` | A map in relief over the board: the ground's heights shaped by the player and pricing every slope, the sun's light on the relief and the terrain's shadows, grounds blending, round coasts, water glinting and running, rivers and roads drawn across the cells, the clouds' shadows, less detail far off; each kind styled by name; seen from above, isometrically or in perspective, Tab goes round |
 | **Selection** | `plugins/selection` | A `Select` command into a `Selected` tag, with default bindings (click, marquee, shift-add) and a highlight renderer |
@@ -102,12 +103,12 @@ import (
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/behavior"
+	"github.com/kjkrol/gram/plugins/collision/trigger"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -141,7 +142,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
-	stats     behavior.ContactStats
+	stats     trigger.ContactStats
 	scenes    game.Scenes
 }
 
@@ -162,8 +163,8 @@ func (a *arena) Init(ctx game.Initializer) error {
 	})
 
 	a.collision = collision.NewPlugin(a.world)
-	if err := a.collision.RegisterBehavior(
-		collision.Between(plugin.Any, plugin.Any, behavior.CountContacts(&a.stats)),
+	if err := a.collision.Hook(
+		act.Trigger[collision.Meeting]("count contacts").Do(trigger.CountContacts(&a.stats)),
 	); err != nil {
 		return err
 	}
@@ -302,21 +303,25 @@ Scene whose `HandleEvents` runs. A HUD that is not focusable can sit on top and 
 input. `Runtime` (pause, quit, switch Stage, persistence, camera) is one interface that reaches a
 Stage and every Scene alike.
 
-## Plugins and behaviors
+## Plugins, triggers and trees
 
 A plugin's `Install` only queues ECS wiring; the engine flushes it all in one `ecs.Setup` after
 the Stage's `Init`, which is what lets `Restore` decide fresh-spawn or restore before the ECS
-commits to either. Game logic that reacts to what a plugin finds is a *behavior*, built with the
-plugin's own constructors: `collision.Between(a, b, fn)` for every pair it meets where one entity
-carries tag `a` and the other `b` (`plugin.Any` as the wildcard), `board.Each[T](fn)` for every
-entity carrying `T`, `world.Every(fn)` for every entity the payload's host visits. A tag
-is a bit of a family — one `plugin.Tags[F]` component per family, named through `Kinds.DefineTag`,
-given to a kind with `comp.Tagged` — so markers cost no component types of their own. Ready-made
-behaviors live in `plugins/collision/behavior` and `plugins/vision/behavior`; which tags they run
-between is the registration's to say. What a player *wants* goes the other way, as a command:
-the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a `plugin.CommandHandler`
-that keeps its `control.Queue` and drains it in its own pass; the `players` plugin is built over
-the command handlers and carries what a player's bindings, an AI or a network issue.
+commits to either. Game logic that reacts to what a plugin finds is a *trigger*,
+`act.Trigger[P](name).Do(body)` hooked on the plugin whose pass catches `P`:
+`act.Trigger[collision.Meeting]("hit").Self(a).Other(b).Do(body)` for every pair
+it meets where one entity carries tag `a` and the other `b`, `act.Trigger[board.Standing]` for
+every entity on the board. A tag is a bit of a family — one `tag.Tags[F]` component per family,
+named through `Kinds.DefineTag`, given to a kind with `comp.Tagged` — so markers cost no component
+types of their own. What lasts over ticks is a *tree* a kind gives its entities
+(`act.Tree`), built of the same nodes; both cast *effects* that hold for a while and give
+*commands* for their entity (`c.Issue(navigation.MoveTo{…})`), and a tree waits for the *facts* a
+plugin tells it (`.Until[navigation.Arrived]()`) — the story is in [`doc/act.md`](doc/act.md). Ready-made triggers live in `plugins/collision/trigger` and
+`plugins/vision/trigger`, a ready tree in navigation (`Courteous`). What a player *wants* is a
+command too: the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a
+`plugin.CommandHandler` that keeps its `control.Queue` and drains it in its own pass; the
+`players` plugin is built over the command handlers and carries what a player's bindings, an AI
+or a network issue, the world what the entities give themselves.
 
 ## Kinds, spawning and saves
 
@@ -343,36 +348,38 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | Package | Responsibility |
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
-| [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued`, `Binding`, `Command`, the triggers |
+| [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued` (by a player or an entity), `Carrier`, `Binding`, `Command`, the triggers of bindings |
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers |
-| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Behavior`, `Tag`/`Tags`/`Any`, `Marks`, `Serializable`, `PostLoader`, `Populator` |
-| [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `Pair`/`Each`/`Every` behind a plugin's typed constructors, `PairHost` and `EachHost` that run them |
-| [`plugins/world/kind`](plugins/world/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load`, `Define`, `Of`, `Registry` |
-| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Attach`/`Detach`, the entity renderer |
+| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Trigger`, `Marks`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator` |
+| [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `PairHost`, `EachHost` and `ListHost` that run triggers in a plugin's pass, and the constructors `act.Trigger` builds them from |
+| [`plugins/world/entity/tag`](plugins/world/entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
+| [`plugins/world/entity/kind`](plugins/world/entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
+| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Attach`/`Detach`, `Despawn`, the carrier of the commands entities give themselves, the entity renderer |
 | [`plugins/world/entity`](plugins/world/entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` requests and profiles carried out by the `System` each step; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`plugins/collision`](plugins/collision/doc.go) | The `CollisionSystem` over the world's space; `Collider`, `Physics`, `ShapeTest`, `Meeting`, `Struck` |
-| [`plugins/collision/behavior`](plugins/collision/behavior/doc.go) | `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
-| [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` behaviors; `SightOutline` drawn |
-| [`plugins/vision/behavior`](plugins/vision/behavior/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
+| [`plugins/collision/trigger`](plugins/collision/trigger/doc.go) | `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
+| [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` triggers; `SightOutline` drawn |
+| [`plugins/vision/trigger`](plugins/vision/trigger/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
-| [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, entries for the schedule), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
+| [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's triggers), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. Its parts: `relief`, `painter`, `water`, `terrain`, `hexes`, `billboards`, `cameras` |
-| [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases |
-| [`plugins/world/effects`](plugins/world/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the schedule of what happens when |
-| [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |
+| [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases, the `Moment` of a step with `At` and `Every` |
+| [`plugins/world/act/effect`](plugins/world/act/effect/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the triggers of the clock's moments |
+| [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; courtesy — the `Courteous` tree over the commands `Detour`, `Hold`, `StepAside`, `SwapGoals`, `Settle`: allies make way and swap goals within a group, strangers are gone round |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; highlight renderer |
+| [`plugins/world/act`](plugins/world/act/doc.go) | How entities behave, in one vocabulary built with the methods of a builder ([the story](doc/act.md)): triggers hooked on a plugin's pass (`Trigger` → `Reaction`: `Self`, `Other`, `Having`, `Do`), trees a kind gives (`When`, `On`, `Named` → `Branch`: `First`, `Then`, `If`, `Until`, `Ask`), effects (`Apply`, `While`, `Unless`), commands an entity gives itself (`Issue`), facts plugins tell it; run by the world |
 | [`plugins/players`](plugins/players/doc.go) | A carrier over the command handlers: players and their bindings, `Pan` and `Zoom`; whose a unit is (`players/owner`) — a player selects, orders and rides its own units alone |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop (gogpu), one active Stage, persistence, input capture |
 | [`gram`](doc.go) (public) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 
 ```
-camera ──► render ──► plugin ──► plugins/world/kind ──► plugins/world ──► game ──► internal/engine ──► gram
-control ───┘ (→ camera)                                   │  ▲
-                                                          ▼  │
-                     plugins/{collision, selection, vision, effects} ──► plugins/board ──► plugins/navigation, plugins/*/behavior ──► plugins/players
+camera ──► render ──► plugin ──► plugins/world/act ──► plugins/world ──► game ──► internal/engine ──► gram
+control ───┘ (→ camera)                                  │  ▲
+                                                         ▼  │
+                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/*/trigger ──► plugins/players
 ```
 
 Outside the module: [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,

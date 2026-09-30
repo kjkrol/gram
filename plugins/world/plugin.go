@@ -14,10 +14,10 @@ import (
 	"github.com/kjkrol/gram/control"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/effects"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -71,6 +71,13 @@ func NewPlugin(cfg Config) *Plugin {
 	p.view = p.NewView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
+	if t := kinds.DefineTag[effect.States](effect.IdleName); t != effect.Idle {
+		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.IdleName))
+	}
+	p.roster.Unit.Default(comp.Marks[effect.States]())
+	if err := m.commands.Carry(p.Queues()...); err != nil {
+		panic(err)
+	}
 	return p
 }
 
@@ -84,7 +91,7 @@ func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
 
 // Effects are the world's effects and their schedule: temporary changes to entities, counted down
 // in the clock's time.
-func (p *Plugin) Effects() *effects.Effects { return p.module.effects }
+func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
 
 // HasHeights reports whether this world has heights — see Config.Heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
@@ -185,8 +192,26 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's — for the players plugin, which carries the world's commands itself.
-func (p *Plugin) Queues() []control.CommandQueue { return p.module.clock.Queues() }
+// Queues are the clock's and Despawn's — for the players plugin, which carries the world's
+// commands itself.
+func (p *Plugin) Queues() []control.CommandQueue {
+	return append(p.module.clock.Queues(), &p.module.despawns)
+}
+
+// Carry has the world take commands — its players', its entities' (Issue in a tree) — to the
+// queues of handlers; the engine carries every plugin.CommandHandler it is given with Use.
+func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
+	for _, h := range handlers {
+		if err := p.module.commands.Carry(h.Queues()...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Commands is what takes the commands the world's entities give themselves to their handlers:
+// a host's plugin.Tick carries it.
+func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
 
 // DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
 func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.DefaultBindings() }
@@ -211,25 +236,26 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
-// RegisterBehavior adds world.Behaviors to the decision pass run before movement, in order, and
-// hosts Each and Every of a Moving (every entity, before it moves), a Leaving (every tick an
-// entity is Outside an open edge), a Drawing (every entity about to be drawn) and an
-// effects.Idling (an entity whose last effect ended). Call before Use.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
+// Hook adds world.Behaviors to the decision pass run before movement, in order, and hosts
+// triggers (act.Trigger) of a Moving (every entity, before it moves), a Leaving (every tick
+// an entity is Outside an open edge), a Drawing (every entity about to be drawn), an
+// effect.Idling (an entity whose last effect ended) and a clock.Moment (every step). Call before
+// Use.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
 		if system, ok := b.(Behavior); ok {
-			p.module.RegisterBehavior(system)
+			p.module.Hook(system)
 			continue
 		}
 		var err error
-		hosts := []func(plugin.Behavior) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
+		hosts := []func(plugin.Trigger) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
 		for _, add := range hosts {
-			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhostedBehavior) {
+			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
 				break
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a world.Behavior or Each/Every for Moving, Leaving, Drawing or Idling", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a world.Behavior or a trigger of Moving, Leaving, Drawing, Idling or clock.Moment", err, p.Name())
 		}
 	}
 	return nil

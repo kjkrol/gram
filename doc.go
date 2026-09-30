@@ -22,7 +22,7 @@
 // handling of its own. [game.Runtime] is one undivided interface — pause, quit, switch Stage,
 // persistence, the camera — that reaches a Stage and every Scene alike.
 //
-// # Plugins and behaviors
+// # Plugins and triggers
 //
 // A [plugin.Plugin] is installed from Stage.Init through ctx.Use. Its Install only queues ECS
 // wiring; the engine flushes it all in one ecs.Setup after Init returns, which is what lets
@@ -30,16 +30,18 @@
 // plugin takes it as a constructor argument — construction order in the game's code is the
 // dependency order; there is no registry, no lookup by name and no install-order retry.
 //
-// Game logic that reacts to what a plugin finds is a behavior, registered on the plugin it
-// concerns and run inside that plugin's own pass, built with that plugin's constructors:
-// collision.Between of a Meeting for every pair of entities it meets, one carrying tag A and the
-// other B; board.Each of a Standing for every entity carrying T. The payload type says whose the behavior is — a Meeting is collision's,
-// a Sighting is vision's — and a plugin refuses one made for another, so registering in the wrong
-// place is an error, never a silent no-op.
+// Game logic that reacts to what a plugin finds is a trigger (act.Trigger), hooked on the
+// plugin it concerns and run inside that plugin's own pass: a trigger of a collision.Meeting for
+// every pair of entities it meets, one carrying tag A and the other B; of a board.Standing for
+// every entity on the board. The payload type says whose the trigger is — a Meeting is
+// collision's, a Sighting is vision's — and a plugin refuses one made for another, so hooking in
+// the wrong place is an error, never a silent no-op. What lasts over ticks is a kind's tree, from
+// the same nodes (plugins/world/act): it casts effects and issues commands — the same as a
+// player's — for its entity.
 //
 // # Kinds and spawning
 //
-// What an entity is comes from a kind, defined in Stage.Init with package plugins/world/kind: a
+// What an entity is comes from a kind, defined in Stage.Init with package plugins/world/entity/kind: a
 // Spec lists the components every entity of the kind carries, each the same for all (Const) or
 // read from that entity's own row (Load). Define hands back the kind; its Entry puts one entity on
 // the world's roster (Seed), and the engine spawns the roster (Populate) only when nothing was
@@ -71,20 +73,23 @@
 //	Layer 1   render              — drawing: Renderer, Composer, Frame, Atlas, sprites                (→ camera)
 //	          control             — the input vocabulary: InputEvents, KeyEvent, ClickEvent, EventHandler;
 //	                                commands and bindings: Queue, Issued, Binding, Command, the triggers   (→ camera)
-//	Layer 2   plugin              — the extension contract: Plugin, Installer, Tick, Between and Each,
-//	                                PairHost and EachHost, Serializable, PostLoader, Populator      (→ control, render)
-//	Layer 3   plugins/world/kind  — what an entity is: Spec, Const and Load, Define, Of, Registry    (→ render)
-//	          plugins/world/effects — temporary changes to entities: Grant and Alter, cast anywhere; made by the world (→ plugin, world/clock)
-//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys; a leaf read by selection, navigation and the cameras (→ plugin, control)
+//	          plugins/world/entity/tag — tag families: Tags, Tag, Any; a leaf                          (→ nothing)
+//	Layer 2   plugin              — the extension contract: Plugin, Installer, Tick, Trigger, Marks,
+//	                                CommandHandler, Serializable, PostLoader, Populator; plugin/host the hosts (→ control, render, tag)
+//	Layer 3   plugins/world/entity/kind — what an entity is: Spec, Const and Load (kind/comp), Define, Of, Registry (→ render, tag)
+//	          plugins/world/clock — the tactical clock: time, pause, tempo, phases, Moment, At, Every (→ control, render, tag)
+//	          plugins/world/act/effect — temporary changes to entities: Grant and Alter; the clock's moments; made by the world (→ plugin, clock)
+//	          plugins/world/act   — how entities behave: triggers and trees built with methods (Trigger, When, On, Named), effects, commands, facts, asks; made and run by the world (→ plugin, effect, kind/comp)
+//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
 //	Layer 4   plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Attach and Detach, Camera   (→ camera, control, plugin, kind, effects, render)
+//	                                movement, kinds, Seed and Populate, Despawn, the carrier of commands, Camera (→ camera, control, plugin, kind, act, render)
 //	Layer 5   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, world, render)
 //	          plugins/collision   — the CollisionSystem over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
 //	          plugins/selection   — a Select command into a Selected tag                           (→ world, …)
 //	          plugins/vision      — a Sight cone into Seen, Sighting, SightOutline                   (→ world, …)
 //	Layer 6   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	          plugins/collision/behavior, plugins/vision/behavior — ready-made reactions              (→ their plugin, world, plugin)
+//	          plugins/collision/trigger, plugins/vision/trigger — ready-made triggers                   (→ their plugin, world, act)
 //	Layer 7   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
@@ -96,10 +101,10 @@
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
 //
-//	camera ──► render ──► plugin ──► plugins/world/kind ──► plugins/world ──► game ──► internal/engine ──► gram
-//	control ───┘                                              │  ▲
-//	                                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/behavior
+//	camera ──► render ──► plugin ──► plugins/world/act ──► plugins/world ──► game ──► internal/engine ──► gram
+//	control ───┘                                             │  ▲
+//	                                                         ▼  │
+//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/trigger
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,

@@ -6,7 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
 
 func TestNewPlugin_SetsEachGridAxisFromTheWorldsEdges(t *testing.T) {

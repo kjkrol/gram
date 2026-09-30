@@ -9,10 +9,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // moods is a tag family of the test's own.
@@ -27,13 +27,13 @@ type tagStage struct {
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
-	tags  map[string]plugin.Tag[moods]
+	tags  map[string]tag.Tag[moods]
 	probe *tagProbe
 	stack game.Scenes
 }
 
 type tagProbe struct {
-	marks goke.Comp[plugin.Tags[moods]]
+	marks goke.Comp[tag.Tags[moods]]
 	query *goke.Query
 }
 
@@ -49,11 +49,11 @@ func (g *tagStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	g.probe = &tagProbe{}
 	ctx.Setup(g.probe)
-	g.tags = map[string]plugin.Tag[moods]{}
+	g.tags = map[string]tag.Tag[moods]{}
 	for _, name := range g.order {
 		g.tags[name] = g.world.Kinds().DefineTag[moods](name)
 	}
-	var tags []plugin.Tag[moods]
+	var tags []tag.Tag[moods]
 	for _, name := range g.carries {
 		tags = append(tags, g.tags[name])
 	}
@@ -87,9 +87,9 @@ func (g *tagStage) Stack() game.Scenes {
 }
 
 // onlyMarks reads the marks of the single entity the stage holds.
-func onlyMarks(t *testing.T, g *tagStage) plugin.Tags[moods] {
+func onlyMarks(t *testing.T, g *tagStage) tag.Tags[moods] {
 	t.Helper()
-	var got plugin.Tags[moods]
+	var got tag.Tags[moods]
 	seen := 0
 	g.probe.query.All()
 	for g.probe.query.Next() {

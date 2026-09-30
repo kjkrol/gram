@@ -10,16 +10,16 @@ import (
 	"github.com/kjkrol/goke/v3"
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
 // selected is the Selected tag of the rig's selection family.
-const selected plugin.Tag[selection.Family] = 1
+const selected tag.Tag[selection.Family] = 1
 
 // followRig is the camera system over two 10x10 walkers 5 up, the first at (300, 300), and an
 // isometric camera.
@@ -38,11 +38,11 @@ type followRig struct {
 	walkers  [2]uid.UID64
 	// the query's own handles: a handle serves the query or factory it was built into
 	base   goke.Comp[world.Base]
-	marks  goke.Comp[plugin.Tags[selection.Family]]
+	marks  goke.Comp[tag.Tags[selection.Family]]
 	q      *goke.Query
 	driven goke.OptComp[steering.Driven]
 	dq     *goke.Query
-	owners goke.Comp[plugin.Tags[owner.Family]]
+	owners goke.Comp[tag.Tags[owner.Family]]
 	oq     *goke.Query
 }
 
@@ -53,8 +53,8 @@ func newFollowRig(t *testing.T) *followRig {
 	r.sys = &cameraSystem{turns: &r.turns, tilts: &r.tilts, follows: &r.follow, drives: &r.drives, lookOuts: &r.lookOuts, views: &r.views, looks: &r.looks, selected: selected, selecting: true}
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
-	var marks goke.Comp[plugin.Tags[selection.Family]]
-	var owners goke.Comp[plugin.Tags[owner.Family]]
+	var marks goke.Comp[tag.Tags[selection.Family]]
+	var owners goke.Comp[tag.Tags[owner.Family]]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.base, &r.marks).Build()
 		var b goke.Comp[world.Base]
@@ -78,7 +78,7 @@ func newFollowRig(t *testing.T) *followRig {
 }
 
 // each calls fn with every walker's base and marks.
-func (r *followRig) each(fn func(id uid.UID64, b *world.Base, m *plugin.Tags[selection.Family])) {
+func (r *followRig) each(fn func(id uid.UID64, b *world.Base, m *tag.Tags[selection.Family])) {
 	r.q.All()
 	for r.q.Next() {
 		cur := r.q.Cursor()
@@ -90,7 +90,7 @@ func (r *followRig) each(fn func(id uid.UID64, b *world.Base, m *plugin.Tags[sel
 
 // walk puts the first walker at (x, y) heading along (dx, dy).
 func (r *followRig) walk(x, y, dx, dy float64) {
-	r.each(func(id uid.UID64, b *world.Base, _ *plugin.Tags[selection.Family]) {
+	r.each(func(id uid.UID64, b *world.Base, _ *tag.Tags[selection.Family]) {
 		if id == r.walkers[0] {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(x, y), 10, 10)
 			b.Vel.Dir, b.Vel.Value = geom.NewVec(dx, dy), 20
@@ -100,7 +100,7 @@ func (r *followRig) walk(x, y, dx, dy float64) {
 
 // selectOnly has exactly the walkers given Selected.
 func (r *followRig) selectOnly(ids ...uid.UID64) {
-	r.each(func(id uid.UID64, _ *world.Base, m *plugin.Tags[selection.Family]) {
+	r.each(func(id uid.UID64, _ *world.Base, m *tag.Tags[selection.Family]) {
 		*m = m.Without(selected)
 		for _, want := range ids {
 			if id == want {
@@ -119,7 +119,7 @@ func (r *followRig) own(id uid.UID64, by control.PlayerID) {
 			if have == id {
 				r.owners.Slice(cur)[i] = 0
 				if by != control.Nobody {
-					r.owners.Slice(cur)[i] = plugin.Tags[owner.Family](0).With(owner.Of(by))
+					r.owners.Slice(cur)[i] = tag.Tags[owner.Family](0).With(owner.Of(by))
 				}
 			}
 		}

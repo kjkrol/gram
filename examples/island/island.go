@@ -1,7 +1,9 @@
 package island
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
@@ -267,6 +269,34 @@ func plateau(x, y float64) float64 {
 	a := math.Atan2(y-plateauY, x-plateauX)
 	r := plateauR + 2.5*(fbm(3*math.Cos(a)+11, 3*math.Sin(a)+5)-0.5)
 	return rise(r-math.Hypot(x-plateauX, y-plateauY), plateauEdge)
+}
+
+// Plateau is the cells of the plateau's flat top, nearest its middle first: high ground with a
+// steep, ragged edge all round, at the range's western end.
+func Plateau(grid board.Grid) []board.CellID {
+	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
+	type at struct {
+		c board.CellID
+		d float64
+	}
+	var top []at
+	for y := range GridHeight {
+		for x := range GridWidth {
+			dx, dy := float64(x)+0.5-cx, float64(y)+0.5-cy
+			if plateau(dx, dy) < 1 {
+				continue
+			}
+			if c, ok := grid.CellIndex(uint32(x), uint32(y)); ok {
+				top = append(top, at{c, math.Hypot(dx-plateauX, dy-plateauY)})
+			}
+		}
+	}
+	slices.SortStableFunc(top, func(a, b at) int { return cmp.Compare(a.d, b.d) })
+	cells := make([]board.CellID, len(top))
+	for i, t := range top {
+		cells[i] = t.c
+	}
+	return cells
 }
 
 // smoothMax is the larger of a and b, rounded where they are near: two slopes meet in a saddle,

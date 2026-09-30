@@ -6,10 +6,10 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -71,7 +71,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var mover goke.Comp[board.Mover]
-	var selected goke.Comp[plugin.Tags[selection.Family]]
+	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
 

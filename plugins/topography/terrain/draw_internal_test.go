@@ -1,16 +1,15 @@
 package terrain
 
 import (
-	"os"
-
-	"github.com/kjkrol/gram/render/gpu"
 	"image/color"
+	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 // bumped is level ground 16 cells a side with one corner, (4, 10), raised 40.

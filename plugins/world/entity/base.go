@@ -2,7 +2,7 @@ package entity
 
 import (
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
 )
 
 // Base is what every entity in the world is made of: where it is, how it moves, which kind it was

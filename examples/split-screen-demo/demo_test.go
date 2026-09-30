@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -49,7 +49,7 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *testing.T) {
 	var drives control.Queue[Drive]
 	sys := &driveSystem{drives: &drives}
-	var owners goke.Comp[plugin.Tags[owner.Family]]
+	var owners goke.Comp[tag.Tags[owner.Family]]
 	var steer goke.Comp[steering.Steering]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -57,7 +57,7 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 		f.Create(2)
 		for f.Next() {
 			for i := range f.Cursor.IDs {
-				owners.Slice(&f.Cursor)[i] = plugin.Tags[owner.Family](0).With(owner.Of(control.PlayerID(i + 1)))
+				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(control.PlayerID(i + 1)))
 				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100, WantSpeed: 50}
 			}
 		}

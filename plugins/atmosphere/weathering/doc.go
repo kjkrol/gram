@@ -6,7 +6,7 @@
 // ground with another look), what water freezes into, what sways in the wind, where snow lies
 // first (high ground), and the seed of its dice. It defines three effects: snow turns a cell's
 // kind into its snowy one, ice turns water into ice, sway has a kind bend in the wind. Laid on
-// the world's schedule ([Weathering.Schedule]) it works once a second of game time — hurried with
+// the world as a trigger of the clock ([Weathering.Trigger]) it works once a second of game time — hurried with
 // the tempo, stopped in the tactical pause: snow settles on cells here and there while it snows in
 // the frost, in patches that grow from the drifts' pattern, high ground and snow already lying,
 // and melts off them once it is warm, the loneliest first; water freezes from the shore out in a

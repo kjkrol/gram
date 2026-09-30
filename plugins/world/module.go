@@ -2,18 +2,20 @@ package world
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/plugins/world/view"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/effects"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/uid"
 )
 
@@ -55,18 +57,30 @@ type module struct {
 	// the tactical clock and the effects, the world's own: the clock's system goes first in the
 	// tick, the effects last in every step of the simulation
 	clock         *clock.Clock
-	effects       *effects.Effects
+	effects       *effect.Effects
 	clockRunnable goke.Runnable
+
+	// the entities' trees, run in every step of the simulation after the behaviors
+	trees         *act.Trees
+	treesRunnable goke.Runnable
+
+	// commands takes the commands the entities give themselves to the plugins that handle them;
+	// despawns are the world's own
+	commands control.Carrier
+	despawns control.Queue[Despawn]
 }
 
 var _ goke.Module = (*module)(nil)
 
-// newModule builds the world's topology and spatial index from cfg, its clock and its effects.
+// newModule builds the world's topology and spatial index from cfg, its clock and its effect.
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
-	return &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
+	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
-		clock: clk, effects: effects.New(clk)}
+		clock: clk}
+	w.effects = effect.New(clk, &w.commands)
+	w.trees = act.New(clk.Time, w.effects, &w.commands)
+	return w
 }
 
 // =================================================================
@@ -82,17 +96,21 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 		w.behaviorRunnables = append(w.behaviorRunnables, ecs.RegSys(b))
 	}
 	w.steeringRunnable = ecs.RegSys(steering.NewSystem())
-	w.velocityRunnable = ecs.RegSys(NewVelocitySystem(w.movers))
+	velocity := NewVelocitySystem(w.movers)
+	velocity.commands = &w.commands
+	w.velocityRunnable = ecs.RegSys(velocity)
 	w.moveRunnable = ecs.RegSys(NewMoveSystem(w.space))
 	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.clockRunnable = ecs.RegSys(w.clock.System())
+	w.treesRunnable = ecs.RegSys(w.trees.System())
 	w.effects.Module().RegSystems(ecs)
 }
 
 // RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
-// move in the tactical pause too. In the simulation, every step: the decisions, steering, the
-// Moving behaviors, movement, then the leavers, then the effects. The sync after movement lands
+// move in the tactical pause too. In the simulation, every step: the decisions — the behaviors,
+// then the entities' trees — steering, the Moving triggers, movement, then the leavers, then the
+// effect. The sync after movement lands
 // the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(w.clockRunnable, d)
@@ -108,6 +126,8 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(b, step)
 		ctx.Sync()
 	}
+	ctx.Run(w.treesRunnable, step)
+	ctx.Sync()
 	ctx.Run(w.steeringRunnable, step)
 	ctx.Run(w.velocityRunnable, step)
 	ctx.Run(w.moveRunnable, step)
@@ -132,8 +152,9 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Eye](),
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[clock.State](),
-		goke.LoadComp[plugin.Tags[clock.Phase]](),
+		goke.LoadComp[tag.Tags[clock.Phase]](),
 	}, w.effects.Module().LoadComps()...)
+	tokens = append(tokens, w.trees.LoadComps()...)
 	return append(tokens, w.declared...)
 }
 
@@ -194,8 +215,8 @@ func (w *module) remapTypes(si *goke.SysInit) {
 // world-specific
 // =================================================================
 
-// RegisterBehavior adds b to the decision pass that runs before movement.
-func (w *module) RegisterBehavior(b Behavior) { w.behaviors = append(w.behaviors, b) }
+// Hook adds b to the decision pass that runs before movement.
+func (w *module) Hook(b Behavior) { w.behaviors = append(w.behaviors, b) }
 
 // despawn drops id from the ECS, once per tick.
 func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {

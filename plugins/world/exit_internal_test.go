@@ -9,18 +9,19 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/uid"
 )
 
 // leaving is a world with one 10x10 entity heading east, four ticks from wholly crossing the edge,
 // with behaviors registered on it.
-func leaving(t *testing.T, edges aabbworld.Edges, behaviors ...plugin.Behavior) (*Plugin, *goke.ECS, *goke.Query, *goke.Query) {
+func leaving(t *testing.T, edges aabbworld.Edges, behaviors ...plugin.Trigger) (*Plugin, *goke.ECS, *goke.Query, *goke.Query) {
 	t.Helper()
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 1000, Height: 1000, Edges: edges},
 		Entities: EntitiesCfg{MaxCount: 10, MinSize: 1, MaxSize: 100},
 	})
-	if err := p.RegisterBehavior(behaviors...); err != nil {
+	if err := p.Hook(behaviors...); err != nil {
 		t.Fatal(err)
 	}
 	wm := p.module
@@ -69,8 +70,8 @@ func TestExit_AnEntityLeavingByAnOpenEdgeIsDespawnedByDefault(t *testing.T) {
 }
 
 // hears is an Each of Leaving that appends every id it is told of to dst.
-func hears(dst *[]uid.UID64) plugin.Behavior {
-	return Each[Appearance](func(_ plugin.Tick, _ *Appearance, l Leaving) { *dst = append(*dst, l.ID) })
+func hears(dst *[]uid.UID64) plugin.Trigger {
+	return act.Trigger[Leaving]("record").RunsOn(func(_ plugin.Tick, _ *Appearance, l Leaving) { *dst = append(*dst, l.ID) })
 }
 
 func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t *testing.T) {
@@ -96,7 +97,7 @@ func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t 
 
 func TestExit_ALeaverPutBackInsideLosesItsMark(t *testing.T) {
 	var heard []uid.UID64
-	back := Each[Appearance](func(_ plugin.Tick, _ *Appearance, l Leaving) {
+	back := act.Trigger[Leaving]("back").RunsOn(func(_ plugin.Tick, _ *Appearance, l Leaving) {
 		b := l.Base
 		heard = append(heard, l.ID)
 		b.Pos.AABB = plane.NewAABB(geom.NewVec(500, 500), 10, 10)

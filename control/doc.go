@@ -20,8 +20,10 @@
 // A command is an intention in the game's vocabulary, as data (selection.Select,
 // navigation.MoveTo). The plugin that defines a command's type handles it: it keeps a [Queue] of
 // it and drains it in its own pass ([Queue.Drain], every [Issued] with the [PlayerID] that gave it,
-// [Nobody] for none); [CommandQueue] is a Queue with the type erased, as a carrier sorts commands
-// into them. A [Binding] is a [Trigger] — [KeyPress], [KeyHeld], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
+// [Nobody] for none — or, ByEntity, the entity that gave it itself); [CommandQueue] is a Queue
+// with the type erased, as a carrier sorts commands into them, and [Carrier] is one: the world's
+// takes the players' commands and those its entities give themselves (Issue in an act tree or
+// trigger) to the queues of their types. A [Binding] is a [Trigger] — [KeyPress], [KeyHeld], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
 // [CursorAtEdge], [CursorMove], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
 // player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera —
 // a camera.Picker's own pick of the ground, else, over Ground, on the ground: a click on a hill

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
 
 func TestHeights_AreTheConfigsChoice(t *testing.T) {

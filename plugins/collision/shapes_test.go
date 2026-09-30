@@ -9,8 +9,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
 
 type shaped struct{ x float64 }
@@ -26,10 +27,10 @@ func shapesRun(t *testing.T, test collision.ShapeTest) (meetings []collision.Mee
 	if test != nil {
 		c.WithShapeTest(test)
 	}
-	if err := c.RegisterBehavior(collision.Between(plugin.Any, plugin.Any, func(_ plugin.Tick, m collision.Meeting) {
+	if err := c.Hook(act.Trigger[collision.Meeting]("hook").Runs(func(_ plugin.Tick, m collision.Meeting) {
 		meetings = append(meetings, m)
 	})); err != nil {
-		t.Fatalf("RegisterBehavior: %v", err)
+		t.Fatalf("Hook: %v", err)
 	}
 	ctx := &installCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {

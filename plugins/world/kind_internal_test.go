@@ -1,6 +1,6 @@
 package world
 
-import "github.com/kjkrol/gram/plugins/world/kind/comp"
+import "github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 
 // testKind is a kind as the registry would hold it, built straight from its parts.
 func testKind(pos Position, vel Velocity, comps ...comp.Comp) registered {

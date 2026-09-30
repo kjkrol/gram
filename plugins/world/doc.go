@@ -2,10 +2,12 @@
 // Velocity each, a shared spatial index other plugins query, and motion integrated each tick,
 // never further than Position.MaxStep. What an entity carries is set by its kind — see kind.
 //
-// The world has sub-packages: kind (what an entity is), entity (what every entity carries; the
-// world names its types itself, see below), steering (heading and speed asked for and reached
-// gradually), view (what one pair of eyes sees), clock (game time) and effects (temporary changes
-// to entities). The world makes and runs their systems; none of them imports the world.
+// The world has sub-packages: entity (what every entity carries; the world names its types
+// itself, see below), entity/kind (what an entity is) and entity/tag (tag families), steering
+// (heading and speed asked for and reached gradually), view (what one pair of eyes sees), clock
+// (game time) and act (how entities behave: triggers, trees, commands, facts; act/effect the
+// temporary changes to entities). The world makes and runs their systems; none of them imports
+// the world.
 //
 // # Plugin
 //
@@ -15,8 +17,8 @@
 // a wrapping one, may leave by an open one); the [EntitiesCfg] bounds how many entities the world
 // holds and the sizes they spawn with; the camera.Config sizes the camera. An entity wholly past
 // an open edge carries [Outside] — put on by whoever moved it there, the MoveSystem or collision's
-// solver — and every tick it does, the [Each] behaviors of a [Leaving] registered with
-// [Plugin.RegisterBehavior] hear of it; with none registered it is despawned. Put back inside, it
+// solver — and every tick it does, the triggers of a [Leaving] hooked with [Plugin.Hook] hear of
+// it; with none hooked it is despawned. Put back inside, it
 // loses the mark. [Plugin.Roster] is what the plugins in the game ask of a unit's kind — see
 // package kind; world requires a Position and brings a Velocity. [Layers] are the planes an
 // entity is on, one bit each, read by collision and
@@ -68,11 +70,12 @@
 //
 // # Tags
 //
-// A tag is a bit of a family: [plugin.Tags] is the family's component, an empty type of the
+// A tag is a bit of a family: [tag.Tags] is the family's component, an empty type of the
 // plugin's or the game's names the family, and [Kinds.DefineTag] hands out the bits by name — saved by name, so a build defining them in another order still loads. A
 // kind gives its entities tags with [comp.Tagged]; a query over the family's Tags narrows to
 // the entities carrying any of them, and setting or clearing a bit is a value write, seen the
-// same tick. Behaviors name tags in a plugin's Between; the marker components of old are gone.
+// same tick. Triggers name tags with a Reaction's Self and Other (plugins/world/act); the marker
+// components of old are gone.
 //
 // # Bodies
 //
@@ -86,21 +89,34 @@
 //
 // [Plugin.Attach] and [Plugin.Detach] are the mid-game counterparts of a kind's Const, for game
 // logic that has a plugin.Tick and no component id; [Plugin.Despawn] removes an entity at the end
-// of the tick. [Plugin.Declare] tells saves about a type only ever attached; call it in Init.
+// of the tick, and an entity gives itself the command [Despawn] to go (Issue in a tree or a
+// trigger).
+// [Plugin.Declare] tells saves about a type only ever attached; call it in Init.
+//
+// # Commands the entities give themselves
+//
+// The world keeps a stage's one carrier of commands, [Plugin.Commands]: the players plugin gives
+// it the players' commands, and a tree or a trigger (Issue) the commands its entities give
+// themselves, each taken to the queue of the plugin that handles it. [Plugin.Carry] takes a
+// plugin.CommandHandler's queues; the engine carries every one a stage uses, and a host's
+// plugin.Tick hands the carrier to its triggers. Nothing is dropped: a command waits for its
+// handler's pass — given after it, for the next frame's.
 //
 // # Clock, Systems and Effects
 //
 // The world keeps the tactical clock (plugins/world/clock, [Plugin.Clock]): game time is the sum
 // of the simulation's steps, Space is the tactical pause and ] and [ the tempo — the players carry
-// its commands ([Plugin.Queues], [Plugin.DefaultBindings]) — and the effects (plugins/world/effects,
-// [Plugin.Effects]), which last in game time and keep the schedule of what happens when.
+// its commands ([Plugin.Queues], [Plugin.DefaultBindings]) — the entities' trees
+// (plugins/world/act), run after the decision systems, and the effects
+// (plugins/world/act/effect, [Plugin.Effects]), which last in game time and fire the triggers
+// of the clock's moments (clock.Moment) every step.
 //
 // [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
 // the simulation the clock replays as many times as the tempo says and not at all in the pause,
 // every registered [Behavior] (a decision system, see
-// [Plugin.RegisterBehavior]), then the steering.System carries out steering.Steering requests
-// (heading, and base speed for an entity with a motion profile), [VelocitySystem] runs the [Each] and [Every]
-// behaviors of a [Moving] over every entity so they may scale that speed, then [MoveSystem] moves every box under the
+// [Plugin.Hook]), then the steering.System carries out steering.Steering requests
+// (heading, and base speed for an entity with a motion profile), [VelocitySystem] runs the
+// triggers of a [Moving] over every entity so they may scale that speed, then [MoveSystem] moves every box under the
 // edge rules and hands the space every Base as an aabbworld.Item — Space.Rebuild. The space keeps
 // no state of its own between ticks: Populate and PostLoad rebuild it too, so it is whole before
 // the first tick, and a despawned entity is gone from it on the next. Anything reading the space
@@ -110,7 +126,7 @@
 // # Appearance and Renderer
 //
 // [Appearance] is the sprite an entity is drawn from; [Plugin.WithRenderer] builds the entity
-// [Renderer] over an atlas, and the Each behaviors of a [Drawing] registered on the plugin settle
+// [Renderer] over an atlas, and the triggers of a [Drawing] registered on the plugin settle
 // each entity's layers in order — [Draw].Overlay, Draw.As, Draw.With and Draw.Facing are the
 // ready-made ones. The Renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]

@@ -7,12 +7,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -39,15 +39,15 @@ type cameraSystem struct {
 	// topAt is the top of the cell under a point as it is drawn — the ground and its kind's
 	// Height — which an eye riding in an entity never goes under; nil, the ground
 	topAt     func(geom.Vec) float64
-	selected  plugin.Tag[selection.Family]
+	selected  tag.Tag[selection.Family]
 	selecting bool // the selection was given: Follow has a unit to fasten to
 
 	query    *goke.Query
 	base     goke.Comp[world.Base]
 	z        goke.OptComp[world.Z]
 	eye      goke.OptComp[world.Eye]
-	marks    goke.OptComp[plugin.Tags[selection.Family]]
-	owners   goke.OptComp[plugin.Tags[owner.Family]]
+	marks    goke.OptComp[tag.Tags[selection.Family]]
+	owners   goke.OptComp[tag.Tags[owner.Family]]
 	driven   goke.OptComp[steering.Driven]
 	drivenID goke.CompID
 
@@ -270,7 +270,7 @@ func (s *cameraSystem) theSelected(by control.PlayerID) (uid.UID64, bool) {
 			continue
 		}
 		for i, m := range marks {
-			var owned plugin.Tags[owner.Family]
+			var owned tag.Tags[owner.Family]
 			if owners != nil {
 				owned = owners[i]
 			}

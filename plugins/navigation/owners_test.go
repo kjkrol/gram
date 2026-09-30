@@ -6,11 +6,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -29,8 +29,8 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	var cell goke.Comp[board.Cell]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var marks goke.Comp[plugin.Tags[selection.Family]]
-	var owners goke.Comp[plugin.Tags[owner.Family]]
+	var marks goke.Comp[tag.Tags[selection.Family]]
+	var owners goke.Comp[tag.Tags[owner.Family]]
 	var read *goke.Query
 	var ids []uid.UID64
 	ecs := goke.New()
@@ -45,7 +45,7 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 			order.Slice(&f.Cursor)[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 			marks.Slice(&f.Cursor)[i] = selectedMarks
 			if by != control.Nobody {
-				owners.Slice(&f.Cursor)[i] = plugin.Tags[owner.Family](0).With(owner.Of(by))
+				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(by))
 			}
 		}
 		read = si.NewQueryBuilder(&order).Build()

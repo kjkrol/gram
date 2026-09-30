@@ -113,18 +113,19 @@ func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 	}
 }
 
-// state reads the entity's Base and its order, nil once the order is done.
+// state reads the one entity's Base and its order, nil once the order is done.
 func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
-	for pw.q.All(); pw.q.Next(); {
-		cur := pw.q.Cursor()
-		b := pw.pos.Slice(cur)[0]
-		if orders := pw.order.Slice(cur); orders != nil {
-			o := orders[0]
-			return b, &o
-		}
-		return b, nil
+	pw.q.All()
+	if !pw.q.Next() {
+		return world.Base{}, nil
 	}
-	return world.Base{}, nil
+	cur := pw.q.Cursor()
+	b := pw.pos.Slice(cur)[0]
+	if orders := pw.order.Slice(cur); orders != nil {
+		o := orders[0]
+		return b, &o
+	}
+	return b, nil
 }
 
 // A unit standing where its domain may not — frozen in — keeps its order and moves on once the

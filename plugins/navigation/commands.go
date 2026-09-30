@@ -10,7 +10,7 @@ import (
 )
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
-// the orders they already have. At is the world point clicked: under BodySpacing where the group
+// the orders they already have; given by an entity for itself, it sends that entity alone. At is the world point clicked: under BodySpacing where the group
 // stands round, under CellSpacing where one standing on Cell turns instead of going anywhere.
 type MoveTo struct {
 	Cell   board.CellID
@@ -18,8 +18,8 @@ type MoveTo struct {
 	Append bool
 }
 
-// LookAt is the command to every Selected entity to finish the step it is on, stop and turn
-// towards At.
+// LookAt is the command to every Selected entity — or to the entity that gives it itself — to
+// finish the step it is on, stop and turn towards At.
 type LookAt struct {
 	At geom.Vec
 }
@@ -39,9 +39,10 @@ func dragged(c control.Context) bool {
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where MoveTo, LookAt and Routes land — for the players plugin.
+// Queues are where MoveTo, LookAt and Routes land — for the players plugin — and the commands a
+// unit's tree gives it among others: Detour, Hold, StepAside, SwapGoals and Settle.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.moves, &p.looks, &p.routes}
+	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.courtesy.all()...)
 }
 
 // DefaultBindings is a right click — the button up where it went down, within clickSlop — into a

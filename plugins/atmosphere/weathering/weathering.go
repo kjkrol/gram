@@ -9,7 +9,9 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world/effects"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
+	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 // Config is what the weather does to the board: Snowy names, for each kind snow may lie on, the
@@ -70,10 +72,10 @@ type Weathering struct {
 	cfg      Config
 	board    *board.Plugin
 	air      func() air.Weather
-	effects  *effects.Effects
+	effects  *effect.Effects
 	calendar *calendar.Calendar
 
-	snow, ice, sway effects.ID
+	snow, ice, sway effect.Effect
 	snowy           map[board.Name]board.CellKind
 	frozen          board.CellKind
 	water           board.Name
@@ -94,7 +96,7 @@ func (w *Weathering) Running() bool { return !w.still }
 // New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
 // effects fx's. Call it once the kinds cfg names are in brd's dictionary, before the game is set
 // up; it defines the effects at once.
-func New(brd *board.Plugin, weather func() air.Weather, fx *effects.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
+func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
 	kinds := brd.CellKindDict()
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
@@ -116,27 +118,31 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effects.Effects, cal
 	for _, name := range cfg.Sway {
 		ww.swaying[board.Named(name)] = true
 	}
-	ww.snow = fx.Define("snow", effects.Spec{effects.Alter(func(g *board.Ground) {
+	ww.snow = fx.Define("snow", effect.Spec{effect.Alter(func(g *board.Ground) {
 		if under, ok := ww.snowy[g.Kind.Name]; ok {
 			under.Sway = g.Kind.Sway // what sways goes on swaying under snow
 			g.Kind = under
 		}
 	})})
-	ww.ice = fx.Define("ice", effects.Spec{effects.Alter(func(g *board.Ground) {
+	ww.ice = fx.Define("ice", effect.Spec{effect.Alter(func(g *board.Ground) {
 		if g.Kind.Name == ww.water && ww.cfg.Ice != "" {
 			g.Kind = ww.frozen
 		}
 	})})
-	ww.sway = fx.Define("sway", effects.Spec{effects.Alter(func(g *board.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
+	ww.sway = fx.Define("sway", effect.Spec{effect.Alter(func(g *board.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
 	return ww, nil
 }
 
 // Effects are the weathering's: snow, ice and sway, for a game asking whether a cell lies under
-// one (effects.Effects.Has).
-func (w *Weathering) Effects() (snow, ice, sway effects.ID) { return w.snow, w.ice, w.sway }
+// one (effect.Effects.Has).
+func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
-// Schedule lays the weathering on s: every second of game time.
-func (w *Weathering) Schedule(s *effects.Schedule) { s.Every(time.Second, 0, w.second) }
+// Trigger is the weathering as a trigger of the world's clock: every second of game time. Hook it
+// on the world.
+func (w *Weathering) Trigger() plugin.Trigger {
+	t := act.Trigger[clock.Moment]("weathering")
+	return t.Do(t.If(clock.Every(time.Second, 0), t.Run(func(tick plugin.Tick, _ clock.Moment) { w.second(tick) })))
+}
 
 // second is a second of the weather on the board.
 func (w *Weathering) second(t plugin.Tick) {
@@ -187,22 +193,22 @@ func (w *Weathering) pick() board.CellID {
 	return w.cells[min(int(w.roll()*float32(len(w.cells))), len(w.cells)-1)]
 }
 
-// scatter casts effect on about share of the board's cells picked at random, those may takes.
-func (w *Weathering) scatter(t plugin.Tick, share float32, effect effects.ID, may func(c board.CellID) bool) {
+// scatter casts fx on about share of the board's cells picked at random, those may takes.
+func (w *Weathering) scatter(t plugin.Tick, share float32, fx effect.Effect, may func(c board.CellID) bool) {
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
-			w.effects.Cast(t.CmdBuf, id, effect)
+			fx.Cast(t.CmdBuf, id)
 		}
 	}
 }
 
-// clear takes effect off about share of the board's cells picked at random, those may lets go.
-func (w *Weathering) clear(share float32, effect effects.ID, may func(c board.CellID) bool) {
+// clear takes fx off about share of the board's cells picked at random, those may lets go.
+func (w *Weathering) clear(share float32, fx effect.Effect, may func(c board.CellID) bool) {
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
-		if id, ok := w.board.CellEntity(c); ok && w.effects.Has(id, effect) && may(c) {
-			w.effects.Dispel(id, effect)
+		if id, ok := w.board.CellEntity(c); ok && fx.On(id) && may(c) {
+			fx.Dispel(id)
 		}
 	}
 }

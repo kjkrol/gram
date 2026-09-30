@@ -8,10 +8,10 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -77,13 +77,13 @@ type PathRenderer struct {
 	finder   *pathFinder
 	previews map[uid.UID64]*preview
 
-	selected plugin.Tag[selection.Family]
+	selected tag.Tag[selection.Family]
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
 	cell  goke.Comp[board.Cell]
 	order goke.Comp[MoveOrder]
-	marks goke.Comp[plugin.Tags[selection.Family]]
+	marks goke.Comp[tag.Tags[selection.Family]]
 	mover goke.OptComp[board.Mover]
 
 	footprint []render.Corners // reused
@@ -95,7 +95,7 @@ type PathRenderer struct {
 var _ render.Direct = (*PathRenderer)(nil)
 
 // NewPathRenderer draws the routes and goals of the entities carrying selected, as style says.
-func NewPathRenderer(grid board.Grid, style RouteStyle, selected plugin.Tag[selection.Family]) *PathRenderer {
+func NewPathRenderer(grid board.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *PathRenderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}

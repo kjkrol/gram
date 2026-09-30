@@ -6,10 +6,10 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -38,7 +38,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	cw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var cell goke.Comp[board.Cell]
 		var pos goke.Comp[world.Base]
-		var sel goke.Comp[plugin.Tags[selection.Family]]
+		var sel goke.Comp[tag.Tags[selection.Family]]
 		var order goke.Comp[MoveOrder]
 
 		f := si.NewFactory(&cell, &pos, &sel, &order)

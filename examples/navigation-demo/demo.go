@@ -17,8 +17,9 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -101,7 +102,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.registerCellKinds()
 	s.under = map[uid.UID64]board.CellID{}
-	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.standing)); err != nil {
+	t := act.Trigger[board.Standing]("standing")
+	if err := s.board.Hook(t.Do(t.First(
+		t.If(board.Standing.Fallen, t.Then(t.Run(s.fell), t.Issue(world.Despawn{}))),
+		t.Run(s.stands),
+	))); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -172,15 +177,13 @@ func (s *mainStage) registerCellKinds() {
 	)
 }
 
-// standing remembers where each unit stands and despawns the ones that fell into a hole.
-func (s *mainStage) standing(t plugin.Tick, m *board.Mover, st board.Standing) {
-	if st.Fell(m.Domain) {
-		log.Printf("unit %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-		delete(s.under, st.ID)
-		s.world.Despawn(t.CmdBuf, st.ID)
-		return
-	}
-	s.under[st.ID] = st.Cell
+// stands remembers where each unit stands.
+func (s *mainStage) stands(_ plugin.Tick, st board.Standing) { s.under[st.ID] = st.Cell }
+
+// fell forgets a unit that fell into a hole, as it gives itself a Despawn.
+func (s *mainStage) fell(_ plugin.Tick, st board.Standing) {
+	log.Printf("unit %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
+	delete(s.under, st.ID)
 }
 
 // openTrapdoors turns the cell under every unit into a hole.
@@ -218,6 +221,7 @@ func (s *mainStage) defineKinds() {
 	own := []comp.Comp{
 		comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
+		act.Tree(navigation.Courteous()), // they make way for each other and swap goals within a group
 	}
 	s.red = units.Define("red", board.Mover{Domain: board.Land}, profile, own...)
 	s.blue = units.Define("blue", board.Mover{Domain: board.Land}, profile, own...)

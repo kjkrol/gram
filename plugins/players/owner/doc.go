@@ -8,5 +8,6 @@
 // [Obeys] is the one rule they keep: an entity takes commands from its owners alone; one nobody
 // owns belongs to the virtual player control.Nobody — the game's code, a script, a test or an AI
 // the game runs as nobody — and takes commands from it alone. A player never selects nor orders
-// another's units, nor ownerless ones.
+// another's units, nor ownerless ones. [Allies] tells whether two entities are on one side — a
+// shared owner, or nobody's both — as navigation's courtesy asks.
 package owner

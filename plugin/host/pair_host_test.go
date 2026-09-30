@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,7 +15,7 @@ import (
 type roles struct{}
 
 const (
-	hunter plugin.Tag[roles] = iota
+	hunter tag.Tag[roles] = iota
 	hunted
 )
 
@@ -24,7 +25,7 @@ type body struct{ N int }
 type sighting struct{ from, to uid.UID64 }
 
 // hostOf builds a host with behaviors registered, a hunter, a hunted, and what each carries.
-func hostOf(t *testing.T, behaviors ...plugin.Behavior) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
+func hostOf(t *testing.T, behaviors ...plugin.Trigger) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
 	t.Helper()
 	h = &host.PairHost[sighting]{}
 	for _, b := range behaviors {
@@ -35,13 +36,13 @@ func hostOf(t *testing.T, behaviors ...plugin.Behavior) (h *host.PairHost[sighti
 
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var bodies goke.Comp[body]
-		var tags goke.Comp[plugin.Tags[roles]]
+		var tags goke.Comp[tag.Tags[roles]]
 		f := si.NewFactory(&bodies, &tags)
 		f.Create(2)
 		f.Next()
 		pair = sighting{from: f.IDs[0], to: f.IDs[1]}
-		tags.Slice(&f.Cursor)[0] = plugin.Tags[roles](0).With(hunter)
-		tags.Slice(&f.Cursor)[1] = plugin.Tags[roles](0).With(hunted)
+		tags.Slice(&f.Cursor)[0] = tag.Tags[roles](0).With(hunter)
+		tags.Slice(&f.Cursor)[1] = tag.Tags[roles](0).With(hunted)
 
 		var walked, sought goke.Comp[body]
 		walk, seek := si.NewQueryBuilder(&walked), si.NewQueryBuilder(&sought)
@@ -63,7 +64,7 @@ func hostOf(t *testing.T, behaviors ...plugin.Behavior) (h *host.PairHost[sighti
 	return h, hunterMarks, huntedMarks, pair
 }
 
-func recording(into *[]sighting) plugin.Behavior {
+func recording(into *[]sighting) plugin.Trigger {
 	return host.Pair(hunter, hunted, func(_ plugin.Tick, s sighting) { *into = append(*into, s) })
 }
 
@@ -106,7 +107,7 @@ func TestPairHost_DispatchEitherWay_SameTagRunsOnce(t *testing.T) {
 
 func TestPairHost_Any_TakesWhateverIsThere(t *testing.T) {
 	var got []sighting
-	h, hunterMarks, _, pair := hostOf(t, host.Pair(plugin.Any, hunter, func(_ plugin.Tick, s sighting) { got = append(got, s) }))
+	h, hunterMarks, _, pair := hostOf(t, host.Pair(tag.Any, hunter, func(_ plugin.Tick, s sighting) { got = append(got, s) }))
 
 	h.Dispatch(plugin.Tick{}, plugin.Marks{}, hunterMarks, pair)
 	h.Dispatch(plugin.Tick{}, hunterMarks, plugin.Marks{}, pair)
@@ -120,8 +121,8 @@ func TestPairHost_Add_RefusesABehaviorMadeForAnotherHost(t *testing.T) {
 	var h host.PairHost[sighting]
 	stranger := host.Pair(hunter, hunted, func(plugin.Tick, string) {})
 
-	if err := h.Add(stranger); !errors.Is(err, plugin.ErrUnhostedBehavior) {
-		t.Errorf("Add = %v, want ErrUnhostedBehavior", err)
+	if err := h.Add(stranger); !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Add = %v, want ErrUnhosted", err)
 	}
 }
 
@@ -166,7 +167,7 @@ func TestPairHost_DispatchGrouped_HandsOverTheOthersThatFit(t *testing.T) {
 
 // The host reads every family its behaviors name, so a payload can ask about any of their tags.
 func TestCarries_AnswersForTheFamiliesTheHostNames(t *testing.T) {
-	h, hunterMarks, huntedMarks, _ := hostOf(t, host.Pair(hunter, plugin.Any, func(plugin.Tick, sighting) {}))
+	h, hunterMarks, huntedMarks, _ := hostOf(t, host.Pair(hunter, tag.Any, func(plugin.Tick, sighting) {}))
 
 	if !huntedMarks.Carries(hunted) || hunterMarks.Carries(hunted) {
 		t.Errorf("Carries(hunted) = %v for the hunted and %v for the hunter, want true and false",
@@ -181,12 +182,12 @@ func TestCarries_AnswersForTheFamiliesTheHostNames(t *testing.T) {
 			t.Error("Carries about a family no behavior names returned quietly, want a panic naming the fix")
 		}
 	}()
-	hunterMarks.Carries(plugin.Tag[other](0))
+	hunterMarks.Carries(tag.Tag[other](0))
 	_ = h
 }
 
 func TestTags_WithAndWithout(t *testing.T) {
-	var s plugin.Tags[roles]
+	var s tag.Tags[roles]
 	s = s.With(hunter, hunted)
 	if !s.Has(hunter) || !s.Has(hunted) {
 		t.Fatalf("With set %b, want both bits", s)

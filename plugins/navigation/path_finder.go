@@ -58,6 +58,15 @@ func (p *pathFinder) price(from, to board.CellID, kind board.CellKind, d board.D
 	return cost, true
 }
 
+// climb is how many times as long as on the level the step from one cell to its neighbour takes
+// in d, the slope's price: 1 on the level or with no slopes.
+func (p *pathFinder) climb(from, to board.CellID, d board.Domain) float64 {
+	if p.slopes == nil || from == to {
+		return 1
+	}
+	return p.slopes.Climb(from, to, d)
+}
+
 // findPath computes a route from 'from' toward 'to' for entity moving in domain — ok=false if
 // unreachable.
 func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to board.CellID) (Path, bool) {

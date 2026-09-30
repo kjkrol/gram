@@ -8,9 +8,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,8 +34,8 @@ type SelectionSystem struct {
 	marquees     *marquees
 
 	query  *goke.Query
-	marks  goke.Comp[plugin.Tags[Family]]
-	owners goke.OptComp[plugin.Tags[owner.Family]]
+	marks  goke.Comp[tag.Tags[Family]]
+	owners goke.OptComp[tag.Tags[owner.Family]]
 
 	lookup     *goke.Query
 	lookupBase goke.Comp[world.Base]
@@ -137,7 +137,7 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 }
 
 // ownersAt is the owners of the i-th entity of a chunk whose owners are owners; none without them.
-func ownersAt(owners []plugin.Tags[owner.Family], i int) plugin.Tags[owner.Family] {
+func ownersAt(owners []tag.Tags[owner.Family], i int) tag.Tags[owner.Family] {
 	if owners == nil {
 		return 0
 	}

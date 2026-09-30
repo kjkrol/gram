@@ -73,7 +73,7 @@ shorter.
 ## Collision tick — `Benchmark_Collision_Tick`
 
 One tick of world plus collision at the collision demo's scales: movement, the space rebuilt,
-every overlapping pair found, tested, bounced and pushed apart, with a `CountContacts` behavior
+every overlapping pair found, tested, bounced and pushed apart, with a `CountContacts` trigger
 counting. The scene is a 1024×1024 torus covered to a share of its area with square boxes of one
 side, each heading somewhere at random, after 120 ticks so the boxes have spread.
 "Covering 20%" means the boxes' total area is 20% of the world's.
@@ -106,7 +106,7 @@ goroutine. Measured on 2026-09-29, the better of two runs of 300 ticks.
 
 On one goroutine about 1 µs per observer to know what it sees, 2.6 µs to also know the shape of
 its view; both scale linearly with the observers. On eight threads a tick is a half to a third of
-that: what stays on one goroutine is walking the ECS's chunks and, with behaviors, running them.
+that: what stays on one goroutine is walking the ECS's chunks and, with triggers, running them.
 Before 2026-09-29 the harness did not replay the world's clock, so these benchmarks had measured
 an empty tick since the clock came; the numbers before that agree with today's serial ones.
 
@@ -260,6 +260,43 @@ quads — the tiles, their outlines, the glints and the ways.
   write.
 * **Zero allocations once warm.** Every benchmark reports 0 allocs/op after the first ticks have
   grown the buffers.
+
+## Markers — `Benchmark_Marker_*`
+
+What it costs to mark an entity for a while — put a state on it, take it off — three ways, on
+10,000 entities of a collider's row (`Base`, `Appearance`, `Collider`, `Physics`, a tag family):
+
+- **one** — a marker component put on and taken off entity by entity (`AddOne`, `RemoveCompOne`):
+  the entity moves to another archetype, its whole row copied, both ways;
+- **batch** — the same, chunk by chunk through goke's editors;
+- **flag** — a bit of a tag family the entity carries for good, set and cleared: a write in place.
+
+`Benchmark_Marker_Toggle` marks a share of the entities on one tick and unmarks them on the next;
+the op is the two ticks. `Benchmark_Marker_Tick` is those two ticks with nothing marked — the
+system still walking every entity — and `Benchmark_Marker_Find` counts the marked: by the
+archetype, visiting the marked alone, or by the bit, visiting every entity of the family. Medians
+of 3 runs on 2026-09-30, the tree uncommitted after `c983cec`.
+
+| Marked | one | batch | flag |
+|---:|---:|---:|---:|
+| 1% (100) | 56 µs | 70 µs | 25 µs |
+| 10% (1,000) | 359 µs | 520 µs | 25 µs |
+| 100% (10,000) | 5.6 ms | 3.2 ms | 47 µs |
+| none (`Tick`) | 16 µs | | |
+
+| Finding the marked | by the archetype | by the bit |
+|---:|---:|---:|
+| 1% | 40 ns | 8.4 µs |
+| 10% | 250 ns | 9.2 µs |
+| 100% | 2.2 µs | 15.9 µs |
+
+A marker put on and taken off costs about 160–290 ns an entity; a bit, 1–2 ns. Finding the
+marked by the bit costs about a nanosecond for every entity of the family, where the archetype
+visits the marked alone. So a state that comes and goes often — more than about 50 entities a
+tick in 10,000, or read by a pass that walks those entities anyway — is cheaper as a bit of a
+family carried for good; a state that lasts, on few entities, which a pass wants alone, is
+cheaper as a component of its own. That is the rule of gram's markers (`comp.Marks`, described in
+`plugins/world/entity/tag`): effects' `Idle`, navigation's `Entered`, collision's hit.
 
 ## How to benchmark
 

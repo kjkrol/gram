@@ -6,9 +6,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/view"
 )
 
@@ -40,7 +40,7 @@ func (p *Player) OwnCamera() *Player {
 
 // Owner is the player's tag: a kind its units are made of carries it (comp.Tagged), and they
 // take commands from this player alone.
-func (p *Player) Owner() plugin.Tag[owner.Family] { return owner.Of(p.ID) }
+func (p *Player) Owner() tag.Tag[owner.Family] { return owner.Of(p.ID) }
 
 // Area is the player's part of the screen, in pixels, as the viewports last laid it out; zero
 // before.

@@ -8,12 +8,12 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
 )
 
 // Plugin wires the collision engine into a Game — optional, borrows world.Plugin's own Space.
-// Must never import collision/behavior; a game registers those with RegisterBehavior.
+// Must never import collision/trigger; a game registers those with Hook.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
@@ -42,6 +42,7 @@ func (p *Plugin) Name() string { return "gram.collision" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p.worldPlugin.Space(), ctx.ECS(), &p.pairs, &p.entities)
 	p.module.shapes, p.module.fieldOf, p.module.clock = p.shapes, func() Field { return p.field }, p.worldPlugin.Clock()
+	p.module.commands = p.worldPlugin.Commands()
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -74,7 +75,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — collision has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior hosts a Between of Meeting or an Each/Every of Struck; call before Use.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	return hostAll(&p.pairs, &p.entities, behaviors)
+// Hook hosts triggers (act.Trigger) of Meeting, a pair, or of Struck; call before Use.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	return hostAll(&p.pairs, &p.entities, triggers)
 }

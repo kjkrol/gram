@@ -11,7 +11,9 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -21,15 +23,16 @@ import (
 type Plugin struct {
 	boardPlugin *board.Plugin
 	worldPlugin *world.Plugin
-	selected    plugin.Tag[selection.Family]
+	selected    tag.Tag[selection.Family]
 
 	board  *board.Board
 	module *module
 
-	moves  control.Queue[MoveTo]
-	looks  control.Queue[LookAt]
-	routes control.Queue[Routes]
-	finder *pathFinder
+	moves    control.Queue[MoveTo]
+	looks    control.Queue[LookAt]
+	routes   control.Queue[Routes]
+	courtesy courtesyQueues
+	finder   *pathFinder
 
 	routeStyle   RouteStyle
 	routesShown  bool // the routes are drawn — see Routes
@@ -44,6 +47,10 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // command and default bindings. Entities move as their Steering profile says.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
+	if t := worldPlugin.Kinds().DefineTag[States](EnteredName); t != Entered {
+		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", EnteredName))
+	}
+	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
@@ -74,6 +81,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
+	navSys.courtesy = &p.courtesy
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	if p.collision != nil {
@@ -81,7 +89,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		if p.spacing == BodySpacing {
 			answer = struckBy()
 		}
-		if err := p.collision.RegisterBehavior(answer); err != nil {
+		if err := p.collision.Hook(answer); err != nil {
 			return err
 		}
 	}
@@ -142,10 +150,10 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — navigation has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior reports ErrUnhostedBehavior — navigation hosts no behaviors.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
+// Hook reports ErrUnhosted — navigation hosts no triggers.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
+		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

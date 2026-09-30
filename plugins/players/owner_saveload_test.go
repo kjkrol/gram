@@ -9,12 +9,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // ownerStage is a world with two players and one unit the second owns; loadFrom, when set, is the
@@ -25,7 +25,7 @@ type ownerStage struct {
 	world   *world.Plugin
 	players *players.Plugin
 	unit    kind.Of[struct{}]
-	owners  goke.Comp[plugin.Tags[owner.Family]]
+	owners  goke.Comp[tag.Tags[owner.Family]]
 	query   *goke.Query
 	stack   game.Scenes
 }
@@ -71,9 +71,9 @@ func (s *ownerStage) Stack() game.Scenes {
 }
 
 // ownersOfTheUnit is what the stage's one unit is owned by.
-func (s *ownerStage) ownersOfTheUnit(t *testing.T) plugin.Tags[owner.Family] {
+func (s *ownerStage) ownersOfTheUnit(t *testing.T) tag.Tags[owner.Family] {
 	t.Helper()
-	var got plugin.Tags[owner.Family]
+	var got tag.Tags[owner.Family]
 	n := 0
 	for s.query.All(); s.query.Next(); {
 		for _, o := range s.owners.Slice(s.query.Cursor()) {

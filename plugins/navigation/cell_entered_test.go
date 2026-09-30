@@ -7,11 +7,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
-// enteredWorld is a one-entity navigation ECS that also observes CellEntered.
+// enteredWorld is a one-entity navigation ECS that also observes its Entered marker.
 type enteredWorld struct {
 	ecs  *goke.ECS
 	id   uid.UID64
@@ -22,7 +23,9 @@ type enteredWorld struct {
 	hasOrder map[uid.UID64]bool
 }
 
-func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *enteredWorld {
+// newEnteredWorld makes the world; with marks the entity carries its markers from the start, else it
+// gets them at the first cell it enters.
+func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, marks bool) *enteredWorld {
 	t.Helper()
 	ew := &enteredWorld{
 		grid:     board.DefaultGrids{}.Square(w, h, legCellSize),
@@ -38,7 +41,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *ent
 	space := testSpace(t)
 	steer.BindSpace(space)
 
-	var enteredComp goke.Comp[CellEntered]
+	var statesComp goke.OptComp[tag.Tags[States]]
 	var orderComp goke.OptComp[MoveOrder]
 	var cellComp goke.Comp[board.Cell]
 	var enteredQ, orderQ *goke.Query
@@ -50,7 +53,11 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *ent
 		var order goke.Comp[MoveOrder]
 		var profile goke.Comp[steering.Steering]
 
+		var states goke.Comp[tag.Tags[States]]
 		f := si.NewFactory(&cell, &pos, &order, &profile)
+		if marks {
+			f = si.NewFactory(&cell, &pos, &order, &profile, &states)
+		}
 		f.Create(1)
 		f.Next()
 		ew.id = f.Cursor.IDs[0]
@@ -61,7 +68,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *ent
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 		occupancy.Enter(start, ew.id, board.Land)
 
-		enteredQ = si.NewQueryBuilder(&enteredComp).Build()
+		enteredQ = si.NewQueryBuilder(&cellComp).Optional(&statesComp).Build()
 		orderQ = si.NewQueryBuilder(&cellComp).Optional(&orderComp).Build()
 	}})
 
@@ -74,9 +81,11 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID) *ent
 		enteredQ.All()
 		for enteredQ.Next() {
 			cur := enteredQ.Cursor()
-			entered := enteredComp.Slice(cur)
+			states, cells := statesComp.Slice(cur), cellComp.Slice(cur)
 			for i, id := range cur.IDs {
-				ew.entered[id] = entered[i].ID
+				if states != nil && states[i].Has(Entered) {
+					ew.entered[id] = cells[i].ID
+				}
 			}
 		}
 		orderQ.All()
@@ -105,11 +114,21 @@ func (ew *enteredWorld) cellAt(x, y uint32) board.CellID {
 	return c
 }
 
-func TestCellEntered_ReportsEveryCellOnTheWayToTheTarget(t *testing.T) {
+// Entered is on for the one step a unit comes into each cell on its way, and off between: one
+// report a cell, whether the unit carried its markers from the start or got them at its first cell.
+func TestEntered_ReportsEveryCellOnTheWayToTheTarget(t *testing.T) {
+	for _, marks := range []bool{true, false} {
+		t.Run(map[bool]string{true: "carried", false: "got on the way"}[marks], func(t *testing.T) {
+			enteredOnTheWay(t, marks)
+		})
+	}
+}
+
+func enteredOnTheWay(t *testing.T, marks bool) {
 	grid := board.DefaultGrids{}.Square(6, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(3, 0)
-	ew := newEnteredWorld(t, 6, 1, start, target)
+	ew := newEnteredWorld(t, 6, 1, start, target, marks)
 
 	const maxTicks = 600
 	var reported []board.CellID

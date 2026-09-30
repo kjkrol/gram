@@ -32,6 +32,6 @@ type Plugin interface {
 	// Serializable returns this plugin's persistable state, or nil if it has none.
 	Serializable() Serializable
 
-	// RegisterBehavior hosts behaviors in this plugin's own pass; call before Use.
-	RegisterBehavior(behaviors ...Behavior) error
+	// Hook hosts triggers in this plugin's own pass; call before Use.
+	Hook(triggers ...Trigger) error
 }

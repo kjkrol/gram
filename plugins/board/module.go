@@ -4,8 +4,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/effects"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -47,6 +48,6 @@ func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Cell](), goke.LoadComp[Mover](),
 		goke.LoadComp[Plot](), goke.LoadComp[Ground](), goke.LoadComp[Way](), goke.LoadComp[Crossing](),
-		goke.LoadComp[effects.Active](), goke.LoadComp[effects.Idle](),
+		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](),
 	}
 }

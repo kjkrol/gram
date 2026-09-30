@@ -171,16 +171,16 @@ func (c *Calendar) At(t time.Duration) Moment {
 	return Moment{Date: int32(((int64(whole) % year) + year) % year), Time: float32(days - whole), Year: c.cfg.Year}
 }
 
-// Daily is the period and the offset of a schedule entry that comes every day at hour (0 to 1 of
-// the day): effects.Schedule.Every(Daily(22.0 / 24)).
+// Daily is the period and the offset of every day at hour (0 to 1 of the day), for clock.Every:
+// clock.Every(cal.Daily(22.0 / 24)).
 func (c *Calendar) Daily(hour float32) (period, offset time.Duration) {
 	first := float64(hour) - c.cfg.begins()
 	first -= math.Floor(first)
 	return c.cfg.Day, time.Duration(first * float64(c.cfg.Day)).Round(time.Millisecond)
 }
 
-// Yearly is the period and the offset of a schedule entry that comes every year at ofYear (0 to
-// 1 of the year, 0 the first of spring): every winter is Yearly(0.75).
+// Yearly is the period and the offset of every year at ofYear (0 to 1 of the year, 0 the first of
+// spring), for clock.Every: every winter is Yearly(0.75).
 func (c *Calendar) Yearly(ofYear float32) (period, offset time.Duration) {
 	days := float64(c.cfg.Year.Days())
 	year := time.Duration(days * float64(c.cfg.Day))

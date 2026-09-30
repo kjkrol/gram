@@ -3,15 +3,15 @@ package board
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/act"
 )
 
-// terrainSpeed is the Moving behavior board registers on the world: every entity carrying a Mover
+// terrainSpeed is the Moving trigger board hooks on the world: every entity carrying a Mover
 // moves at 1/CostFor(its domain) of the cell under its centre, and as the Map's slope under it
 // says — slower up, quicker down — unless the kind is Graded.
-func terrainSpeed(brd *Board) plugin.Behavior {
-	return host.Each[Mover](func(_ plugin.Tick, m *Mover, mv world.Moving) {
+func terrainSpeed(brd *Board) plugin.Trigger {
+	return act.Trigger[world.Moving]("terrain speed").RunsOn(func(_ plugin.Tick, m *Mover, mv world.Moving) {
 		at := Center(mv.Base.Pos)
 		cell, ok := brd.CellAt(at)
 		if !ok {

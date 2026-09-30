@@ -3,7 +3,7 @@ package world
 import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/uid"
 )
 

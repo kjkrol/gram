@@ -10,8 +10,9 @@
 // removed when the last is reached. Where in a cell the entity stops is its Spot, zero the cell's
 // centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
 // by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
-// [Leg] is the single step in flight. [CellEntered] is a one-tick tag added the tick an entity's
-// Cell changes. A navigated entity carries a steering.Steering profile: navigation only asks it for
+// [Leg] is the single step in flight. Its markers ([States], carried for good — the plugin gives
+// them to every unit the world's roster makes) have [Entered] on for the step its Cell changed:
+// the Cell says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
 // a heading at the lookahead point and for its own top speed, braking from the profile before the
 // goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
@@ -34,7 +35,7 @@
 //     way to one giving way. Two coming at each other's cells: the one with the greater id goes
 //     round, the other waits. Someone standing on a unit's goal is waited targetWaitTimeout for,
 //     then the unit settles on the nearest free cell; someone passing over it is waited for. One
-//     that struck someone bodily (a Struck behavior navigation registers on the board's collision
+//     that struck someone bodily (a Struck trigger navigation registers on the board's collision
 //     plugin) stops, plans again from where it stands and keeps that route for a while whatever
 //     bumps follow — MoveOrder.Bumped and Cooldown. Occupancy is seeded from every entity's Cell
 //     and Mover when the Stage is set up, fresh or loaded. Board games and units a cell large.
@@ -60,6 +61,36 @@
 // or lies on a step — its top under a corner of the box more than half the unit's height off the
 // top under its middle; the rows furthest along the way the group comes going to the units
 // furthest on, so none passes one of its group standing already.
+//
+// # Courtesy
+//
+// A unit whose kind gives it a tree (plugins/world/act) decides for itself what to do about
+// those in its way; navigation perceives and carries out. It tells such a unit the fact [Blocked]
+// while a step is refused it or it strikes someone, and a moment after: whom, whether a stranger
+// or an ally (players/owner.Allies), one of its group — the units a MoveTo sent together
+// ([MoveOrder].Group) — on the move or idle, on its goal, whether swapping goals would shorten
+// both ways, and, of two on the move, whether it is the one to wait first (the lower id, the
+// other way round when the two met before). A unit standing that an ally asks to make way or to
+// free its goal is told the fact [Room]: somewhere free to step to — no farther than beside, no
+// steeper than yieldClimb — or the ally standing where it could, to ask on. The commands its tree
+// gives it (Issue in an act.Branch) are carried out here, for it alone: [Detour] plans a way round the one
+// in the way — Blocked says it is cornered with none; [Hold] keeps the unit where it stands until
+// the way ahead clears — Blocked says it waited out after a while; [StepAside] steps off the
+// asker's way and back home, or, on the move, aside a while and on; [SwapGoals] swaps goals with
+// one of its group; [Settle] stands it beside a goal someone stands on. A [MoveTo] or [LookAt] it
+// gives itself orders it alone, and once its order is over it is told the fact [Arrived] until
+// the next. The asks are [MakeWay], [FreeGoal] and [SwapGoals].
+//
+// [Courteous] is the ready tree: allies asked make way and come back, leave a goal for good, pass
+// the ask on to an ally beside when there is no room, and swap goals; blocked, a unit asks a
+// groupmate to swap when that shortens both ways, an idle ally on its goal to free it — else it
+// stands beside — an idle ally in the way to make way — else it goes round; a stranger on its goal
+// has it stand beside at once; of two on the move the first waits and the other goes round —
+// strangers are never asked and never make way for strangers — one that waited out goes round,
+// and with no way round it steps aside until the other has passed; one giving way itself only
+// waits or goes round. Its branches
+// ([MakeWayWhenAsked], [LeaveTheGoalWhenAsked], [SwapWhenAsked], [WhenBlocked]) are for a game to
+// take one by one. A unit with no tree keeps the reflexes above.
 //
 // # The price of a step
 //
@@ -94,7 +125,7 @@
 // under BodySpacing, it touches nobody just ahead — and stops dead otherwise, so it never walks into
 // the sea; with no hand on it, it brakes. A hand ends any order it had, giving up the cells of the
 // step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
-// cell by cell, with CellEntered.
+// cell by cell, with Entered.
 //
 // # Renderer
 //

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -31,8 +32,9 @@ type driveSystem struct {
 	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
 	mover  goke.OptComp[board.Mover]
+	states goke.OptComp[tag.Tags[States]]
 
-	orderID, enteredID goke.CompID
+	orderID, statesID goke.CompID
 }
 
 // driveTurn is how far a hand turns an entity a tick: four degrees.
@@ -43,9 +45,9 @@ const driveTurn = math.Pi / 45
 const driveMargin = 2.0
 
 func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.driven).Optional(&s.order).Optional(&s.mover).Build()
+	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.enteredID = si.RegComp[CellEntered]()
+	s.statesID = si.RegComp[tag.Tags[States]]()
 }
 
 func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -53,7 +55,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	for s.query.Next() {
 		cur := s.query.Cursor()
 		cells, bases, steers, drivens := s.cell.Slice(cur), s.base.Slice(cur), s.steer.Slice(cur), s.driven.Slice(cur)
-		orders, movers := s.order.Slice(cur), s.mover.Slice(cur)
+		orders, movers, states := s.order.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur)
 		for i, id := range cur.IDs {
 			in, st, base := drivens[i], &steers[i], &bases[i]
 			domain := board.DomainAt(movers, i)
@@ -68,7 +70,9 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				}
 				cb.RemoveCompOne(id, s.orderID)
 			}
-			s.follow(cb, id, &cells[i], base.Pos, domain)
+			if s.follow(id, &cells[i], base.Pos, domain) {
+				s.nav.enter(states, i, id)
+			}
 
 			heading := base.Vel.Dir
 			if heading.X == 0 && heading.Y == 0 {
@@ -112,6 +116,10 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 		}
 	}
+	for _, id := range s.nav.lacking { // no batch here: a move by id at once
+		cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Entered))
+	}
+	s.nav.lacking = s.nav.lacking[:0]
 }
 
 // backing is how fast a driven entity backs away: at the speed it sets off at, a quarter of its
@@ -123,16 +131,17 @@ func backing(st *steering.Steering) float64 {
 	return st.MaxSpeed / 4
 }
 
-// follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre.
-func (s *driveSystem) follow(cb *goke.CmdBuf, id uid.UID64, cell *board.Cell, pos world.Position, domain board.Domain) {
+// follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre;
+// true when that is another cell.
+func (s *driveSystem) follow(id uid.UID64, cell *board.Cell, pos world.Position, domain board.Domain) bool {
 	actual, ok := s.nav.grid.CellAt(board.Center(pos))
 	if !ok || actual == cell.ID {
-		return
+		return false
 	}
 	s.nav.occupancy.Leave(cell.ID, id)
 	s.nav.occupancy.Enter(actual, id, domain)
 	cell.ID = actual
-	cb.AddOne(id, s.enteredID, CellEntered{ID: actual})
+	return true
 }
 
 // open reports whether the ground just ahead of m, the way it faces, takes it: a cell its domain

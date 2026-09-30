@@ -1,7 +1,7 @@
 // Package collision detects overlaps between world entities each tick and records what each
 // struck on its Collider. An entity takes part while it carries Collider; one also carrying
-// Physics is pushed apart and bounces. Reactions are behaviors: Between of a Meeting, Each or
-// Every of a Struck, registered with Plugin.RegisterBehavior.
+// Physics is pushed apart and bounces. Reactions are triggers (act.Trigger) of a Meeting, a
+// pair, or of a Struck, hooked with Plugin.Hook.
 //
 // # Plugin and CollisionSystem
 //
@@ -21,13 +21,13 @@
 // pushes every movable collider out of the solid ground on its world.Layers, through the side of
 // a cell facing open ground. A contact with the ground bounces off it as off an infinite mass and
 // is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed.
-// Between behaviors meet entities only.
+// pair triggers meet entities only.
 //
 // # Collider and Physics
 //
 // [Collider] is all it takes to take part; it also holds what the entity struck the tick before
 // ([Collider.Contacts], at most [MaxContacts] recorded — extras are still separated, bounced and
-// reported to behaviors). Two colliders touch only where their world.Layers meet — a board game
+// reported to triggers). Two colliders touch only where their world.Layers meet — a board game
 // gives its units their Domain bits, so a flyer passes over a walker. [Physics] makes an entity take the physical side of a contact: pushed
 // out of overlaps and bouncing, by Mass (non-positive weighs [DefaultMass], +Inf is a wall) and
 // Restitution (the share of approach speed given back, 0 to 1; a pair uses the lower). An entity
@@ -45,9 +45,9 @@
 //
 // # Meeting and Struck
 //
-// A [Between] behavior is handed a [Meeting] per confirmed contact between its two tags,
+// A trigger of a [Meeting] is handed one per confirmed contact between its two tags,
 // seen from Self: who it met, the impulse exchanged (zero when only detected) and the way Self
-// left Other. An [Each] behavior is handed a [Struck] per entity per tick: which it is and what
-// it struck the tick before. Ready-made ones are in plugins/collision/behavior; this package
+// left Other. A trigger of a [Struck] is handed one per entity per tick: which it is and what
+// it struck the tick before. Ready-made ones are in plugins/collision/trigger; this package
 // never imports it.
 package collision

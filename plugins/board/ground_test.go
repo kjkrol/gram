@@ -16,8 +16,9 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -63,7 +64,7 @@ type groundWorld struct {
 	q     *goke.Query
 }
 
-func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain func(*board.Board), units []mover, behaviors ...plugin.Behavior) *groundWorld {
+func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain func(*board.Board), units []mover, behaviors ...plugin.Trigger) *groundWorld {
 	t.Helper()
 	bw := &groundWorld{t: t}
 	bw.w = world.NewPlugin(world.Config{
@@ -74,9 +75,9 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 	bw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, bw.w).WithCollision(c)
 	terrain(bw.brd.Res.Logic.Board)
 	for _, b := range behaviors {
-		err := bw.brd.RegisterBehavior(b)
-		if errors.Is(err, plugin.ErrUnhostedBehavior) {
-			err = c.RegisterBehavior(b)
+		err := bw.brd.Hook(b)
+		if errors.Is(err, plugin.ErrUnhosted) {
+			err = c.Hook(b)
 		}
 		if err != nil {
 			t.Fatal(err)
@@ -219,7 +220,7 @@ func squareWorld(t *testing.T, units ...mover) (*groundWorld, board.CellID) {
 }
 
 // squareWorldWith is squareWorld with a behavior registered on the board.
-func squareWorldWith(t *testing.T, behavior plugin.Behavior, units ...mover) (*groundWorld, board.CellID) {
+func squareWorldWith(t *testing.T, behavior plugin.Trigger, units ...mover) (*groundWorld, board.CellID) {
 	t.Helper()
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
@@ -228,7 +229,7 @@ func squareWorldWith(t *testing.T, behavior plugin.Behavior, units ...mover) (*g
 			units[i].cell = cell(1, 7)
 		}
 	}
-	var behaviors []plugin.Behavior
+	var behaviors []plugin.Trigger
 	if behavior != nil {
 		behaviors = append(behaviors, behavior)
 	}
@@ -325,7 +326,7 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 
 func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 	var hits []collision.Contact
-	strikes := collision.Every(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
+	strikes := act.Trigger[collision.Struck]("hook").Runs(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
 	bw, gap := squareWorldWith(t, strikes, mover{heading: east})
 	for range 60 {
 		bw.tick()

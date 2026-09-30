@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/uid"
@@ -15,16 +16,23 @@ import (
 // exitSystem takes it off once the entity is back inside.
 type Outside struct{}
 
-// Leaving is what an Each behavior hosted by world gets, every tick, for an entity carrying Outside.
+// Despawn is the command an entity gives itself to leave the world: gone in the step it gives it.
+type Despawn struct{}
+
+// Leaving is what a trigger hosted by world gets, every tick, for an entity carrying Outside.
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base
 }
 
+// Who is the entity leaving: whose moment it is, for a trigger.
+func (l Leaving) Who() uid.UID64 { return l.ID }
+
 var _ goke.System = (*exitSystem)(nil)
 
-// exitSystem walks the entities carrying Outside: the hosted behaviors hear of them, or they are
-// despawned when there are none; one that is back inside loses the mark.
+// exitSystem despawns the entities that gave themselves a Despawn, and walks those carrying
+// Outside: the hosted triggers hear of them, or they are despawned when there are none; one that
+// is back inside loses the mark.
 type exitSystem struct {
 	w    *module
 	host *host.EachHost[Leaving]
@@ -32,6 +40,10 @@ type exitSystem struct {
 	query   *goke.Query
 	base    goke.Comp[Base]
 	outside goke.CompID
+
+	// alive finds whoever gave itself a Despawn: one gone already is not despawned again
+	alive     *goke.Query
+	aliveBase goke.Comp[Base]
 
 	ids   []uid.UID64
 	bases []Base
@@ -46,10 +58,16 @@ func (s *exitSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base).Include(goke.Include[Outside]())
 	s.host.Bind(qb)
 	s.query = qb.Build()
+	s.alive = si.NewQueryBuilder(&s.aliveBase).Build()
 }
 
 func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}
+	s.w.despawns.Drain(func(i control.Issued[Despawn]) {
+		if i.ByEntity && s.alive.Seek(i.Entity) {
+			s.w.despawn(cb, i.Entity)
+		}
+	})
+	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &s.w.commands}
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()

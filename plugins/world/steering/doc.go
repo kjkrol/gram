@@ -5,7 +5,7 @@
 // writes its base speed from the profile. [Steering.Request] asks for a heading (after Reflex
 // ticks), [Steering.RequestSpeed] for a speed, [Steering.RequestBack] to back away and
 // [Steering.RequestSprint] for Sprint times the top speed, a hand urging it on. Navigation steers
-// units through it; a game's behaviours may as well.
+// units through it; a game's triggers may as well.
 //
 // [Driven] marks an entity steered by hand — walk on, sprint or stop, turn, or turn to face a way,
 // and, flown from inside, how steeply to climb where it flies ([Driven.Slope]) — written every tick

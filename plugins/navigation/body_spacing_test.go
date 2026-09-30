@@ -12,10 +12,12 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -28,6 +30,8 @@ type fieldUnit struct {
 	selected bool
 	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
+	owner    control.PlayerID // who owns it; nobody for Nobody
+	courtly  bool             // it acts by Courteous
 }
 
 // standAt is the order to stand at p, as a click on p with the unit alone selected gives.
@@ -73,6 +77,9 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 	}
 	sel := selection.NewPlugin(w)
 	fw.nav = NewPlugin(brd, w, sel).WithCollision(c).WithSpacing(spacing)
+	if err := w.Carry(fw.nav); err != nil { // as the engine does with Use
+		t.Fatal(err)
+	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -108,6 +115,12 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 		}
 		if u.order != nil {
 			s = append(s, comp.Load(func(u fieldUnit) MoveOrder { return *u.order }))
+		}
+		if u.owner != control.Nobody {
+			s = append(s, comp.Tagged(owner.Of(u.owner)))
+		}
+		if u.courtly {
+			s = append(s, act.Tree(Courteous()))
 		}
 		k := kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		kinds[i] = k.ID()

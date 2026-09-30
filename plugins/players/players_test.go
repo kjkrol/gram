@@ -360,8 +360,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if r.p.Renderer() != nil || r.p.Serializable() != nil {
 		t.Error("players draw nothing and save nothing of their own")
 	}
-	if err := r.p.RegisterBehavior(struct{}{}); !errors.Is(err, plugin.ErrUnhostedBehavior) {
-		t.Errorf("RegisterBehavior = %v, want ErrUnhostedBehavior", err)
+	if err := r.p.Hook(struct{}{}); !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}
 }
 

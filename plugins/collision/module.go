@@ -3,12 +3,13 @@ package collision
 import (
 	"errors"
 	"fmt"
-	"github.com/kjkrol/gram/plugin/host"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -22,11 +23,12 @@ type module struct {
 	pairs    *host.PairHost[Meeting]
 	entities *host.EachHost[Struck]
 
-	system  goke.Runnable
-	shapes  ShapeTest
-	fieldOf func() Field
-	clock   *clock.Clock // the world's; nil, run at once
-	built   bool
+	system   goke.Runnable
+	shapes   ShapeTest
+	fieldOf  func() Field
+	clock    *clock.Clock     // the world's; nil, run at once
+	commands *control.Carrier // the world's, for the triggers
+	built    bool
 }
 
 // New builds the collision engine over space.
@@ -72,20 +74,20 @@ func (m *module) LoadComps() []goke.CompToken {
 // collision-specific
 // =================================================================
 
-// RegisterBehavior hosts a Between of Meeting or an Each/Every of Struck.
-func (m *module) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	return hostAll(m.pairs, m.entities, behaviors)
+// Hook hosts triggers of Meeting, a pair, or of Struck.
+func (m *module) Hook(triggers ...plugin.Trigger) error {
+	return hostAll(m.pairs, m.entities, triggers)
 }
 
-// hostAll hands each behavior to whichever host takes it, stopping at the first neither does.
-func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], behaviors []plugin.Behavior) error {
-	for _, b := range behaviors {
+// hostAll hands each trigger to whichever host takes it, stopping at the first neither does.
+func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], triggers []plugin.Trigger) error {
+	for _, b := range triggers {
 		err := pairs.Add(b)
-		if errors.Is(err, plugin.ErrUnhostedBehavior) {
+		if errors.Is(err, plugin.ErrUnhosted) {
 			err = entities.Add(b)
 		}
-		if errors.Is(err, plugin.ErrUnhostedBehavior) {
-			return fmt.Errorf("%w in collision — it takes Between for Meeting and Each for Struck", err)
+		if errors.Is(err, plugin.ErrUnhosted) {
+			return fmt.Errorf("%w in collision — it takes a trigger of Meeting or of Struck", err)
 		}
 		if err != nil {
 			return err
@@ -95,6 +97,8 @@ func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], beh
 }
 
 func (m *module) build() {
-	m.system = m.ecs.RegSys(newCollisionSystem(m.space, m.pairs, m.entities, m.shapes, m.fieldOf))
+	s := newCollisionSystem(m.space, m.pairs, m.entities, m.shapes, m.fieldOf)
+	s.commands = m.commands
+	m.system = m.ecs.RegSys(s)
 	m.built = true
 }

@@ -117,7 +117,7 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			h := s.p.owners[b.Command()]
+			h := s.p.handlerOf(b.Command())
 			byHandler[h] = append(byHandler[h], line)
 		}
 	}

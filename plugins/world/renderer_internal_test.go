@@ -10,6 +10,7 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -30,7 +31,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
 	host := &host.EachHost[Drawing]{}
-	if err := host.Add(Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
+	if err := host.Add(act.Trigger[Drawing]("visit").Runs(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
 	look := &flatLook{worldW: 1000, worldH: 1000}

@@ -6,9 +6,86 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**Entities behave in one vocabulary: triggers, trees, effects, commands, facts**
+- `plugins/world/act` is how entities behave (`doc/act.md`), every node made by the methods of a
+  builder (Go 1.27's methods with type parameters), no package functions. A **trigger**,
+  `act.Trigger[P](name)` — a `Reaction[P]`, narrowed with `.Self(tag)`, `.Other(tag)`,
+  `.Having[T]()` and closed with `.Do(body…)` or `.Runs(fn)`/`.RunsOn(fn)` — is a moment a plugin
+  catches in its own pass — a `board.Standing`, a `vision.Sighting`, a `collision.Meeting` or
+  `Struck`, a `world.Moving`, `Leaving` or `Drawing`, an `effect.Idling`, a
+  `climate.Weathering`, a `clock.Moment` — hooked on that plugin (pairs for a moment that is
+  `act.Met`); a Reaction makes `Instant` nodes alone (`First`, `Then`, `If` on the moment,
+  `Unless`, `IfUnder`, `Apply`, `While`, `Issue`, `ToOther`, `Run`, `RunOn`), so a lasting one is
+  refused by the compiler. A **tree** (`act.Tree`) is how a kind deliberates, run by the world in
+  every step of its simulation and saved with the game; its branches are `Branch`es —
+  `act.When[F](name)`, `act.On[F](name)`, `act.Named(name)` closed with `.Do(body)`, only the
+  root named — whose methods are `First`, `Then`, `If`, `Until`, `Wait`, `Timeout`, `Cooldown`,
+  `Invert`, `Idle`, and conversation between entities — `Ask`, `Agree`, `Refuse`, `Relay`, the
+  facts `Asked` and `Replied`, a `Chain` of at most `MaxChain`, asks dropped after `AskLife`.
+  **Effects** are cast by nodes: `Apply`, `While` (held while its branch runs, or while a trigger
+  keeps firing it), `Unless`, `IfUnder` — an effect's presence is a trigger's memory. A
+  **command** is what an entity gives itself, `Issue(cmd)`, the same command a player gives, fire
+  and forget — in a tree a `Command` whose `.Until[F](…)` or `.Stay()` gives it once in a reactive
+  branch: the world carries it (`control.Carrier`, `world.Plugin.Carry`/`Commands`; the engine
+  carries every `plugin.CommandHandler` a stage uses, `plugin.Tick.Commands` hands it to
+  triggers), the handler told who gave it (`control.Issued.Entity`, `ByEntity`;
+  `CommandQueue.PutFrom`, `Queue.AddFrom`). A **fact** is what a plugin tells an entity with a
+  `Mind`, and how a tree learns what came of its commands (`Until[F]()`, a fact come afresh, or
+  `Until(pred)`).
+- **Markers**: states an entity switches on and off are bits of a plugin's family `States`
+  carried for good (`comp.Marks[F]()`, the roster's defaults), never components put on and taken
+  off — which moved the entity in memory, some 200 ns a time (`Benchmark_Marker_*`).
+  `effect.Idle` is a marker of `effect.States` (the type `effect.Idle` component is gone) and
+  `Active` stays on an entity, empty when no effect runs; navigation's `CellEntered` is the marker
+  `navigation.Entered` (the cell is the unit's `board.Cell`); collision's hit grants the marker
+  `collision.hit` of `trigger.States`: `trigger.Hit(w, d)` hands back `Hits{Effect, Mark}`, which
+  `ShowHits` and `HitOverlay` take. `host.EachHost.RunRows` runs triggers for chosen rows. Saves
+  made before this do not load.
+- Needs goke 3.2.4: 3.2.3 wrote an archetype's values in one order and read them in another when a
+  component type was registered before the entities' others but put on them after — values landed
+  in other components' columns (a board's cells with markers, from the first save).
+- One carrier of commands a stage: the players give theirs to the world's (`Carrier.Put`,
+  `Takes`, `Empty`); `players.Plugin` keeps no queues of its own, and its `RunPlan` no longer
+  empties every queue at the end of a frame — which dropped an entity's `Despawn` given after the
+  world's pass, so a unit that fell in never went. A command waits for its handler's pass;
+  `CommandQueue` has `Empty` in place of `Clear`.
+- Collision's hit is an effect: `trigger.Hit(fx, d)` defines it, `ShowHits(hit)` casts it on a
+  `Struck` that `Hit()`s, `HitOverlay(hit, with)` draws it — in game time; `HitMark` is gone.
+- Gone: `plugin.Behavior` (now `plugin.Trigger`), `RegisterBehavior` (now `Hook` on every
+  plugin), `vision.Between`, `collision.Each`/`Between`/`Every`, `board.Each`/`Every`,
+  `world.Each`/`Every`, `effects.Each`/`Every`, `climate.Every`, `effects.Schedule` (a trigger of
+  the clock's `clock.Moment{Last, Now}` with `clock.At(t)` or `clock.Every(period, offset)`;
+  `calendar.Daily`/`Yearly`/`Seasonal` give the period and offset; `weathering.Weathering.Trigger`
+  in place of `Schedule`). `plugin/host` gains `PairOf`, `EachWith`, `StateOf`, `SideOf`,
+  `AnySide`, `ListHost` and `Own`; triggers over one component share its column.
+- Packages: `plugins/world/kind` is `plugins/world/entity/kind` (and `kind/comp`); the tags
+  (`plugin.Tags`, `Tag`, `Any`, `Anything`, `MaxTagsPerFamily`) are the leaf
+  `plugins/world/entity/tag`; `plugins/world/effects` is `plugins/world/act/effect` (package
+  `effect`), whose `Define` hands back an `effect.Effect` that casts on its own effects
+  (`Cast`, `CastFor`, `Dispel`, `On`); `plugins/collision/behavior` and `plugins/vision/behavior`
+  are the packages `trigger`, their reactions nodes for a trigger's body.
+- `world.Despawn`, a command an entity gives itself to leave the world; `board.Standing` carries
+  the entity's `Domain`, `Standing.Fallen()` in place of `Fell(domain)`. The demos' falls and
+  drownings are triggers issuing `Despawn`; the effect demo's ice is triggers holding `frozen` and
+  `slip` with `While`.
+- navigation's courtesy (`navigation.Courteous()`): allies asked make way and come back, leave a
+  goal for good, pass the ask on in a crowd and swap goals within a group (`MoveOrder.Group`, a
+  fresh one each `MoveTo`) when that shortens both ways; strangers are never asked and never make
+  way for strangers — a traveller goes round them at once, or steps aside when there is no way
+  round; of two on the move the lower id waits, the other way round the next time they meet. Facts
+  `Blocked` (with `WaitedOut` and `Cornered`, what came of its commands), `Room`, `Arrived` (its
+  order over); commands `Detour`, `Hold`, `StepAside`, `SwapGoals`, `Settle`, carried out for the
+  unit that gives them; a `MoveTo` or `LookAt` a unit gives itself orders it alone; asks
+  `MakeWay`, `FreeGoal`, `SwapGoals`. Units without a tree keep navigation's reflexes.
+- `players/owner.Allies`. `MoveOrder.HitUnit`: a unit struck, told from the ground — entity 0 was
+  taken for the ground before.
+- The island's and the navigation demo's units are `Courteous`.
+- Saves made before this do not load: `MoveOrder` and `act.Mind` changed shape, and the
+  effects' components are of the package `effect` now.
+
 **Units belong to players**
 - `plugins/players/owner`: whose a unit is — `owner.Family`, a tag a player (`owner.Of(id)`, saved
-  by `owner.Name`), `owner.Obeys(owners, by)`; a leaf importing only `plugin` and `control`.
+  by `owner.Name`), `owner.Obeys(owners, by)`; a leaf importing only the tags and `control`.
   `players.NewPlugin` registers the family with the world's kinds; `Player.Owner()` is the
   player's tag, given to a kind with `comp.Tagged`.
 - A player selects, orders and rides its own units alone: `selection.Select` and `Follow`,

@@ -7,8 +7,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -103,11 +104,11 @@ func (k *Kinds) Reserve(name string) kind.ID {
 
 // DefineTag registers name in family F and returns its tag, assigned by call order within the
 // family; a save records the names, so a build that defines them in another order still loads.
-func (k *Kinds) DefineTag[F any](name string) plugin.Tag[F] {
+func (k *Kinds) DefineTag[F any](name string) tag.Tag[F] {
 	family := reflect.TypeFor[F]()
 	f := k.families[family]
 	if f == nil {
-		f = &tagFamily{load: goke.LoadComp[plugin.Tags[F]](), remap: remapTags[F]}
+		f = &tagFamily{load: goke.LoadComp[tag.Tags[F]](), remap: remapTags[F]}
 		k.families[family] = f
 		k.familyOrder = append(k.familyOrder, family)
 	}
@@ -116,22 +117,22 @@ func (k *Kinds) DefineTag[F any](name string) plugin.Tag[F] {
 			panic(fmt.Sprintf("world: tag %q is defined twice in family %v", name, family))
 		}
 	}
-	if len(f.names) == plugin.MaxTagsPerFamily {
-		panic(fmt.Sprintf("world: family %v holds at most %d tags", family, plugin.MaxTagsPerFamily))
+	if len(f.names) == tag.MaxTagsPerFamily {
+		panic(fmt.Sprintf("world: family %v holds at most %d tags", family, tag.MaxTagsPerFamily))
 	}
 	f.names = append(f.names, name)
-	return plugin.Tag[F](len(f.names) - 1)
+	return tag.Tag[F](len(f.names) - 1)
 }
 
 // remapTags rewrites every loaded Tags[F] from the saved bit order to this build's.
 func remapTags[F any](si *goke.SysInit, lut []uint8) {
-	var tags goke.Comp[plugin.Tags[F]]
+	var tags goke.Comp[tag.Tags[F]]
 	query := si.NewQueryBuilder(&tags).Build()
 	query.All()
 	for query.Next() {
 		cursor := query.Cursor()
 		for i, old := range tags.Slice(cursor) {
-			var fresh plugin.Tags[F]
+			var fresh tag.Tags[F]
 			for bit := range lut {
 				if old&(1<<bit) != 0 {
 					fresh |= 1 << lut[bit]

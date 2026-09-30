@@ -6,9 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -106,7 +106,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	starts := []board.CellID{at(5, 0), at(5, 4), at(5, 2)}
 
 	var cell goke.Comp[board.Cell]
-	var selected goke.Comp[plugin.Tags[selection.Family]]
+	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var q *goke.Query
 	var nearest uid.UID64

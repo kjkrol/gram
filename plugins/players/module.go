@@ -23,14 +23,12 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) { m.runnable = ecs.RegSys(&cameraSystem{p: m.p}) }
 
-// RunPlan moves the cameras and empties every queue, then issues the KeyHeld commands of the keys
-// still down, for the next tick; call it after the plugins that drain theirs.
+// RunPlan moves the cameras, then issues the KeyHeld commands of the keys still down, for the
+// next tick; call it after the plugins that drain theirs. A command waits in its queue for its
+// handler's pass: nothing is dropped, whoever gave it — a player, or an entity after that pass.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
 	ctx.Sync()
-	for _, box := range m.p.queues {
-		box.Clear()
-	}
 	eventHandler{m.p}.hold()
 }
 
@@ -41,7 +39,7 @@ func (m *module) SetupSystems() []goke.System {
 		var missing []string
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {
-				if _, ok := m.p.queues[b.Command()]; !ok {
+				if !m.p.worldPlugin.Commands().Takes(b.Command()) {
 					missing = append(missing, fmt.Sprintf("%v (%q for %s)", b.Command(), b.Label, pl.Name))
 				}
 			}

@@ -13,14 +13,14 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -241,7 +241,7 @@ type driveSystem struct {
 	want   map[control.PlayerID]geom.Vec
 
 	query  *goke.Query
-	owners goke.Comp[plugin.Tags[owner.Family]]
+	owners goke.Comp[tag.Tags[owner.Family]]
 	steer  goke.Comp[steering.Steering]
 }
 
@@ -279,7 +279,7 @@ type followSystem struct {
 	players *players.Plugin
 
 	query  *goke.Query
-	owners goke.Comp[plugin.Tags[owner.Family]]
+	owners goke.Comp[tag.Tags[owner.Family]]
 	base   goke.Comp[world.Base]
 }
 

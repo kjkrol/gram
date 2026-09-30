@@ -2,19 +2,19 @@ package vision
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugin/host"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
 // Plugin wires vision into a Stage over world.Plugin's space.
-// It publishes what entities can see; what to do about it is a behavior's business.
+// It publishes what entities can see; what to do about it is a trigger's business.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
@@ -54,6 +54,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
 	p.module.clock = p.worldPlugin.Clock()
+	p.module.sys.commands = p.worldPlugin.Commands()
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -90,14 +91,15 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior hosts a Between of Sighting, run once per observer; call before Use.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
+// Hook hosts triggers (act.Trigger) of Sighting, a pair fired once per observer, and of
+// Viewing, fired as the frame is composed; call before Use.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
 		if err := p.sightings.Add(b); err == nil {
 			continue
 		}
 		if err := p.viewings.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes Between for Sighting and Each or Every for Viewing", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a trigger of Sighting or of Viewing", err, p.Name())
 		}
 	}
 	return nil

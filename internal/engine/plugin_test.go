@@ -36,12 +36,12 @@ func (p *stubPlugin) Install(ctx plugin.Installer) error {
 	}
 	return nil
 }
-func (p *stubPlugin) RunPlan(goke.RunCtx, time.Duration)        {}
-func (p *stubPlugin) WithRenderer(render.AtlasSource)           {}
-func (p *stubPlugin) Renderer() render.Layer                    { return nil }
-func (p *stubPlugin) EventHandler() control.EventHandler        { return nil }
-func (p *stubPlugin) Serializable() plugin.Serializable         { return p.serializable }
-func (p *stubPlugin) RegisterBehavior(...plugin.Behavior) error { return plugin.ErrUnhostedBehavior }
+func (p *stubPlugin) RunPlan(goke.RunCtx, time.Duration) {}
+func (p *stubPlugin) WithRenderer(render.AtlasSource)    {}
+func (p *stubPlugin) Renderer() render.Layer             { return nil }
+func (p *stubPlugin) EventHandler() control.EventHandler { return nil }
+func (p *stubPlugin) Serializable() plugin.Serializable  { return p.serializable }
+func (p *stubPlugin) Hook(...plugin.Trigger) error       { return plugin.ErrUnhosted }
 
 // stubStage is a minimal game.Stage for testing Engine/Initializer.
 type stubStage struct {

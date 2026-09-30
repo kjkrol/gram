@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -23,14 +24,14 @@ type driveRig struct {
 	occupancy *board.SingleOccupancy
 	walker    uid.UID64
 
-	cell    goke.Comp[board.Cell]
-	base    goke.Comp[world.Base]
-	steer   goke.Comp[steering.Steering]
-	driven  goke.Comp[steering.Driven]
-	order   goke.OptComp[MoveOrder]
-	entered goke.OptComp[CellEntered]
-	mover   goke.OptComp[board.Mover]
-	q       *goke.Query
+	cell   goke.Comp[board.Cell]
+	base   goke.Comp[world.Base]
+	steer  goke.Comp[steering.Steering]
+	driven goke.Comp[steering.Driven]
+	order  goke.OptComp[MoveOrder]
+	states goke.OptComp[tag.Tags[States]]
+	mover  goke.OptComp[board.Mover]
+	q      *goke.Query
 }
 
 func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig {
@@ -50,7 +51,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 	var ord goke.Comp[MoveOrder]
 	var mov goke.Comp[board.Mover]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.driven).Optional(&r.order).Optional(&r.entered).Optional(&r.mover).Build()
+		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.driven).Optional(&r.order).Optional(&r.states).Optional(&r.mover).Build()
 		comps := []goke.Addable{&cell, &base, &steer, &driven}
 		if order != nil {
 			comps = append(comps, &ord)
@@ -91,7 +92,7 @@ func (r *driveRig) with(fn func(c *board.Cell, b *world.Base, st *steering.Steer
 		if orders := r.order.Slice(cur); orders != nil {
 			o = &orders[0]
 		}
-		fn(&r.cell.Slice(cur)[0], &r.base.Slice(cur)[0], &r.steer.Slice(cur)[0], &r.driven.Slice(cur)[0], o, r.entered.Slice(cur) != nil)
+		fn(&r.cell.Slice(cur)[0], &r.base.Slice(cur)[0], &r.steer.Slice(cur)[0], &r.driven.Slice(cur)[0], o, entered(r.states.Slice(cur)))
 	}
 }
 
@@ -318,3 +319,6 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 		t.Errorf("a walker ridden looking up asks %v, want its top speed", st.WantSpeed)
 	}
 }
+
+// entered reports whether the chunk's one unit has its Entered on.
+func entered(states []tag.Tags[States]) bool { return states != nil && states[0].Has(Entered) }

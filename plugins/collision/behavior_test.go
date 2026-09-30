@@ -2,14 +2,16 @@ package collision_test
 
 import (
 	"errors"
-	"github.com/kjkrol/gram/plugin/host"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -17,7 +19,7 @@ import (
 type roles struct{}
 
 const (
-	bullet plugin.Tag[roles] = iota
+	bullet tag.Tag[roles] = iota
 	target
 )
 
@@ -30,16 +32,16 @@ type tagged struct {
 
 // registrar is the part of the collision engine a fixture registers behaviors on.
 type registrar interface {
-	RegisterBehavior(behaviors ...plugin.Behavior) error
+	Hook(behaviors ...plugin.Trigger) error
 }
 
 // meet runs the real collision engine for one tick over boxes and returns every Meeting handed out.
-func meet(t *testing.T, behaviorsOf func(record func(collision.Meeting)) []plugin.Behavior, boxes ...*tagged) []collision.Meeting {
+func meet(t *testing.T, behaviorsOf func(record func(collision.Meeting)) []plugin.Trigger, boxes ...*tagged) []collision.Meeting {
 	t.Helper()
 	var met []collision.Meeting
 	meetWith(t, func(engine registrar) {
-		if err := engine.RegisterBehavior(behaviorsOf(func(m collision.Meeting) { met = append(met, m) })...); err != nil {
-			t.Fatalf("RegisterBehavior: %v", err)
+		if err := engine.Hook(behaviorsOf(func(m collision.Meeting) { met = append(met, m) })...); err != nil {
+			t.Fatalf("Hook: %v", err)
 		}
 	}, boxes...)
 	return met
@@ -56,7 +58,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var base goke.Comp[world.Base]
 		var coll goke.Comp[collision.Collider]
-		var tags goke.Comp[plugin.Tags[roles]]
+		var tags goke.Comp[tag.Tags[roles]]
 		for _, box := range boxes {
 			comps := []goke.Addable{&base, &coll}
 			if box.bullet || box.target {
@@ -69,7 +71,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
 			placed := posAt(box.x, 100, 10, 10)
 			base.Slice(&f.Cursor)[0].Pos = placed
 			if box.bullet || box.target {
-				var marks plugin.Tags[roles]
+				var marks tag.Tags[roles]
 				if box.bullet {
 					marks = marks.With(bullet)
 				}
@@ -85,8 +87,8 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
 	ecs.Tick(time.Millisecond)
 }
 
-func bulletsAgainstTargets(record func(collision.Meeting)) []plugin.Behavior {
-	return []plugin.Behavior{collision.Between(bullet, target, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
+func bulletsAgainstTargets(record func(collision.Meeting)) []plugin.Trigger {
+	return []plugin.Trigger{act.Trigger[collision.Meeting]("hook").Self(bullet).Other(target).Runs(func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 }
 
 func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
@@ -124,8 +126,8 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 
 // A pair of the same tag would match either way round, and is still one contact.
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
-	met := meet(t, func(record func(collision.Meeting)) []plugin.Behavior {
-		return []plugin.Behavior{collision.Between(bullet, bullet, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
+	met := meet(t, func(record func(collision.Meeting)) []plugin.Trigger {
+		return []plugin.Trigger{act.Trigger[collision.Meeting]("hook").Self(bullet).Other(bullet).Runs(func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
 	if len(met) != 1 {
@@ -137,8 +139,8 @@ func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	shot, wall := &tagged{x: 100, bullet: true}, &tagged{x: 105}
 
-	met := meet(t, func(record func(collision.Meeting)) []plugin.Behavior {
-		return []plugin.Behavior{collision.Between(bullet, plugin.Any, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
+	met := meet(t, func(record func(collision.Meeting)) []plugin.Trigger {
+		return []plugin.Trigger{act.Trigger[collision.Meeting]("hook").Self(bullet).Runs(func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 	}, shot, wall)
 
 	if len(met) != 1 || met[0].Self != shot.id || met[0].Other != wall.id {
@@ -148,10 +150,10 @@ func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 
 func TestBetween_BehaviorsSharingATag_BothRun(t *testing.T) {
 	var first, second int
-	met := meet(t, func(func(collision.Meeting)) []plugin.Behavior {
-		return []plugin.Behavior{
-			collision.Between(bullet, target, func(plugin.Tick, collision.Meeting) { first++ }),
-			collision.Between(bullet, plugin.Any, func(plugin.Tick, collision.Meeting) { second++ }),
+	met := meet(t, func(func(collision.Meeting)) []plugin.Trigger {
+		return []plugin.Trigger{
+			act.Trigger[collision.Meeting]("hook").Self(bullet).Other(target).Runs(func(plugin.Tick, collision.Meeting) { first++ }),
+			act.Trigger[collision.Meeting]("hook").Self(bullet).Runs(func(plugin.Tick, collision.Meeting) { second++ }),
 		}
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
@@ -160,45 +162,45 @@ func TestBetween_BehaviorsSharingATag_BothRun(t *testing.T) {
 	}
 }
 
-func TestRegisterBehavior_RefusesWhatItCannotHost(t *testing.T) {
+func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 	engine := collision.New(testSpace(t), goke.New())
 
-	for name, b := range map[string]plugin.Behavior{
+	for name, b := range map[string]plugin.Trigger{
 		"not a behavior at all":          "just a string",
 		"a pair made for another host":   host.Pair(bullet, target, func(plugin.Tick, string) {}),
 		"an entity made for another one": host.Each(func(plugin.Tick, *tagged, string) {}),
 	} {
-		if err := engine.RegisterBehavior(b); !errors.Is(err, plugin.ErrUnhostedBehavior) {
-			t.Errorf("%s: RegisterBehavior = %v, want ErrUnhostedBehavior", name, err)
+		if err := engine.Hook(b); !errors.Is(err, plugin.ErrUnhosted) {
+			t.Errorf("%s: Hook = %v, want ErrUnhosted", name, err)
 		}
 	}
 }
 
-func TestRegisterBehavior_RefusesOneThatComesTooLate(t *testing.T) {
+func TestHook_RefusesOneThatComesTooLate(t *testing.T) {
 	ecs := goke.New()
 	engine := collision.New(testSpace(t), ecs)
 	ecs.Setup()
 	engine.RegSystems(ecs)
 
-	if err := engine.RegisterBehavior(bulletsAgainstTargets(func(collision.Meeting) {})[0]); !errors.Is(err, plugin.ErrHostBuilt) {
-		t.Errorf("RegisterBehavior after the systems were built = %v, want ErrHostBuilt", err)
+	if err := engine.Hook(bulletsAgainstTargets(func(collision.Meeting) {})[0]); !errors.Is(err, plugin.ErrHostBuilt) {
+		t.Errorf("Hook after the systems were built = %v, want ErrHostBuilt", err)
 	}
 }
 
-func TestRegisterBehavior_StopsAtTheFirstItCannotHost(t *testing.T) {
+func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 	var before, after int
 	var refused error
 
 	meetWith(t, func(engine registrar) {
-		refused = engine.RegisterBehavior(
-			collision.Between(bullet, target, func(plugin.Tick, collision.Meeting) { before++ }),
+		refused = engine.Hook(
+			act.Trigger[collision.Meeting]("hook").Self(bullet).Other(target).Runs(func(plugin.Tick, collision.Meeting) { before++ }),
 			"not a behavior at all",
-			collision.Between(bullet, target, func(plugin.Tick, collision.Meeting) { after++ }),
+			act.Trigger[collision.Meeting]("hook").Self(bullet).Other(target).Runs(func(plugin.Tick, collision.Meeting) { after++ }),
 		)
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
-	if !errors.Is(refused, plugin.ErrUnhostedBehavior) {
-		t.Errorf("RegisterBehavior = %v, want ErrUnhostedBehavior", refused)
+	if !errors.Is(refused, plugin.ErrUnhosted) {
+		t.Errorf("Hook = %v, want ErrUnhosted", refused)
 	}
 	if before != 1 || after != 0 {
 		t.Errorf("behaviors ran (before %d, after %d), want (1, 0)", before, after)

@@ -23,8 +23,10 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -90,7 +92,7 @@ type mainStage struct {
 	player     *players.Player // the one at this keyboard: the units are its
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
-	unitTag    plugin.Tag[units]
+	unitTag    tag.Tag[units]
 	kinds      []kind.Of[unit]
 	hawk       kind.Of[unit]
 	noticed    map[[2]uid.UID64]bool
@@ -145,9 +147,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.noticed = map[[2]uid.UID64]bool{}
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
-	if err := s.vision.RegisterBehavior(
-		vision.Between(plugin.Any, plugin.Any, faceTravel),
-		vision.Between(s.unitTag, s.unitTag, s.noticedEachOther),
+	if err := s.vision.Hook(
+		act.Trigger[vision.Sighting]("face travel").Runs(faceTravel),
+		act.Trigger[vision.Sighting]("noticed each other").Self(s.unitTag).Other(s.unitTag).Runs(s.noticedEachOther),
 		vision.ShowViewOf(s.selection.Tags().Selected), // the views drawn are the selected units'
 	); err != nil {
 		return err

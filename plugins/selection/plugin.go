@@ -76,10 +76,10 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — selection has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// RegisterBehavior reports ErrUnhostedBehavior — selection hosts no behaviors.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
+// Hook reports ErrUnhosted — selection hosts no triggers.
+func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
+	for _, b := range triggers {
+		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

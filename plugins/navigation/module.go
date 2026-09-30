@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // module registers and runs the move commands at once, and navigation and the driving in the
@@ -82,6 +83,9 @@ func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[board.Cell](),
 		goke.LoadComp[MoveOrder](),
-		goke.LoadComp[CellEntered](),
+		goke.LoadComp[tag.Tags[States]](),
+		goke.LoadComp[Blocked](),
+		goke.LoadComp[Room](),
+		goke.LoadComp[Arrived](),
 	}
 }

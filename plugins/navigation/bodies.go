@@ -5,10 +5,13 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
-// body is a unit as BodySpacing sees it this tick: its box, how it moves and whether it stands.
+// body is a unit as the keeping sees it this tick: its box, how it moves and whether it stands,
+// whose it is and where its order ends.
 type body struct {
 	id       uid.UID64
 	at       geom.Vec // the middle of its box
@@ -17,6 +20,10 @@ type body struct {
 	domain   board.Domain
 	moving   bool // under an order
 	yielding bool // under an order to give way, lingering aside
+	owners   tag.Tags[owner.Family]
+	group    uint32       // the group its order was given to; zero, none
+	goal     board.CellID // where its order ends
+	cell     board.CellID // the cell it stands on
 }
 
 // bodyIndex is the tick's bodies, by id and bucketed by the cells their boxes touch: what a unit

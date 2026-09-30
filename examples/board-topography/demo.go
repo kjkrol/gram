@@ -5,7 +5,9 @@
 // over bridges, slower up the slopes and routed round them; seen isometrically, Transport Tycoon's
 // way, from above or in perspective — Tab goes round — the units giants, 9.4 m across and 20 m
 // tall, billboards as tall as their world.Z says — the red ones and the hawk the player's, the blue
-// ones a rival's, never selected nor ridden by the player — a hawk 300 m up whose cone looks over
+// ones a rival's, never selected nor ridden by the player — twenty more of the player's standing
+// on the plateau's flat top, unselected and under no order, a crowd to command round its cliffs —
+// a hawk 300 m up whose cone looks over
 // everything a walker's stops at — Shift+C shows the cones, Shift+P the routes; in perspective the ground far
 // off sinks under the horizon and fades in the air. A day goes by (plugins/atmosphere): long
 // shadows morning and evening, dark nights; Space pauses the game, ] and [ set its tempo — the
@@ -50,8 +52,9 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
-	"github.com/kjkrol/gram/plugins/world/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/entity/kind"
+	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -77,8 +80,10 @@ const (
 	// eye and the camera riding in it share.
 	sightRadius = 960
 	eyeAngle    = 72 * math.Pi / 180
+	// PlateauUnits is how many of the player's units stand on the plateau's top.
+	PlateauUnits = 20
 	// MaxEntCount is the units and the hawk, with room to spare.
-	MaxEntCount = 4 * island.Stops
+	MaxEntCount = 4*island.Stops + PlateauUnits
 
 	saveBasePath = "board-topography"
 )
@@ -127,6 +132,7 @@ type mainStage struct {
 	atmosphere *atmosphere.Plugin
 	unit       kind.Of[unit]
 	rivals     kind.Of[unit]
+	plateau    kind.Of[unit]
 	hawk       kind.Of[unit]
 	stack      game.Scenes
 	state      *State
@@ -166,7 +172,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Isometric:   true,
 		Perspective: true,
 		Shaping:     relief.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.drown)); err != nil {
+	drown := act.Trigger[board.Standing]("drown")
+	if err := s.board.Hook(drown.Do(drown.If(board.Standing.Fallen, drown.Then(drown.Run(drowned), drown.Issue(world.Despawn{}))))); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -189,7 +196,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.RegisterBehavior(vision.Between(plugin.Any, plugin.Any, faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Hook(act.Trigger[vision.Sighting]("face travel").Runs(faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -300,14 +307,22 @@ func (s *mainStage) defineKinds() {
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	// every unit acts by navigation's Courteous: allies make way for each other and swap
+	// goals within a group, strangers are gone round
+	courteous := act.Tree(navigation.Courteous())
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
-		sight, eye,
+		sight, eye, courteous,
+	)
+	// The crowd on the plateau: the player's walkers standing, under no order and not selected.
+	s.plateau = units.Define("plateau", board.Mover{Domain: board.Land}, walker,
+		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
+		sight, eye, courteous,
 	)
 	// The rival's walkers are the same giants, the player's to meet, not to command.
 	s.rivals = units.Define("rival", board.Mover{Domain: board.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
-		sight, eye,
+		sight, eye, courteous,
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
 	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
@@ -315,12 +330,12 @@ func (s *mainStage) defineKinds() {
 	// ground than its own height nor higher than 100 m under the clouds.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
-		sight, eye,
+		sight, eye, courteous,
 	)
 }
 
-// Spawn lays the island out and puts a unit at every stop, bound for the one across the range; the
-// way it takes goes round what is steep.
+// Spawn lays the island out and puts a unit at every stop, bound for the one across the range —
+// the way it takes goes round what is steep — and the crowd on the plateau.
 func (s *mainStage) Spawn() error {
 	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
 	s.board.Seed(layout)
@@ -337,6 +352,10 @@ func (s *mainStage) Spawn() error {
 	}
 	// The hawk crosses the island from the first stop to the one across the range.
 	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
+	// The crowd stands on the plateau's top, a cell each, nearest its middle.
+	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
+		entries = append(entries, s.plateau.Entry(unit{start: c, target: c}))
+	}
 	s.world.Seed(entries...)
 	return nil
 }
@@ -349,12 +368,10 @@ func faceTravel(_ plugin.Tick, s vision.Sighting) {
 	}
 }
 
-// drown despawns a unit standing where its domain may not — pushed into the sea, say.
-func (s *mainStage) drown(t plugin.Tick, m *board.Mover, st board.Standing) {
-	if st.Fell(m.Domain) {
-		log.Printf("unit %d drowned in the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-		s.world.Despawn(t.CmdBuf, st.ID)
-	}
+// drowned tells of a unit standing where its domain may not — pushed into the sea, say — as it
+// gives itself a Despawn.
+func drowned(_ plugin.Tick, st board.Standing) {
+	log.Printf("unit %d drowned in the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
 }
 
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
@@ -386,7 +403,9 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.unit.SpriteID(), spritePx, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	mine := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}) // the player's walkers, the crowd too
+	worldAtlas.RegisterAt(s.unit.SpriteID(), spritePx, mine)
+	worldAtlas.RegisterAt(s.plateau.SpriteID(), spritePx, mine)
 	worldAtlas.RegisterAt(s.rivals.SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
 	worldAtlas.RegisterAt(s.hawk.SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
 	worldAtlas.Close()

@@ -7,7 +7,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/effects"
+	"github.com/kjkrol/gram/plugins/world/act/effect"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -16,8 +17,8 @@ import (
 type cellWorld struct {
 	ecs     *goke.ECS
 	brd     *board.Plugin
-	fx      *effects.Effects
-	frost   effects.ID
+	fx      *effect.Effects
+	frost   effect.Effect
 	target  board.CellID
 	grass   board.CellKind
 	snow    board.CellKind
@@ -25,7 +26,7 @@ type cellWorld struct {
 
 	plots *goke.Query
 	plot  goke.Comp[board.Plot]
-	idle  goke.OptComp[effects.Idle]
+	marks goke.OptComp[tag.Tags[effect.States]]
 }
 
 const cellTick = time.Second / 10
@@ -45,7 +46,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	cw.snow = board.CellKind{Name: board.Named("snow"), Cost: 3, Allows: board.Land}
 	cw.brd.Res.Logic.Board.SetAll(cw.grass)
 	snow := cw.snow
-	cw.frost = cw.fx.Define("frost", effects.Spec{effects.Lasts(2 * cellTick), effects.Alter(func(g *board.Ground) { g.Kind = snow })})
+	cw.frost = cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *board.Ground) { g.Kind = snow })})
 
 	ctx := &installCtx{ecs: goke.New()}
 	for _, install := range []func() error{
@@ -60,7 +61,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		cw.plots = si.NewQueryBuilder(&cw.plot).Optional(&cw.idle).Build()
+		cw.plots = si.NewQueryBuilder(&cw.plot).Optional(&cw.marks).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	caster := ctx.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
@@ -92,13 +93,15 @@ func (cw *cellWorld) board() *board.Board { return cw.brd.Res.Logic.Board }
 
 func (cw *cellWorld) kind() board.CellKind { return cw.board().Kind(cw.target) }
 
-// cells counts the cell entities and how many of them still carry Idle.
+// cells counts the cell entities and how many of them still have Idle on.
 func (cw *cellWorld) cells() (n, idle int) {
 	for cw.plots.All(); cw.plots.Next(); {
 		cur := cw.plots.Cursor()
 		n += len(cur.IDs)
-		if cw.idle.Present(cur) {
-			idle += len(cur.IDs)
+		for _, m := range cw.marks.Slice(cur) {
+			if m.Has(effect.Idle) {
+				idle++
+			}
 		}
 	}
 	return n, idle

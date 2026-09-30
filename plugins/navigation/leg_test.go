@@ -6,10 +6,10 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -266,7 +266,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 
 	var cell goke.Comp[board.Cell]
 	var order goke.Comp[MoveOrder]
-	var selected goke.Comp[plugin.Tags[selection.Family]]
+	var selected goke.Comp[tag.Tags[selection.Family]]
 	var q *goke.Query
 
 	ecs := goke.New()
