@@ -5,6 +5,71 @@
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new.
 
+**The sun goes on smoothly**
+- The sky's light goes on tick by tick (`sky.Config.Steps` zero, the default now), or in the
+  steps a game asks for; it no longer jumps 3.75° every 96th of a day.
+- The terrain bakes its shadows anew a strip a frame as the sun goes on — 0.4 to 0.85 ms of the
+  GPU a frame at 2560x1440 where a bake of the whole took 5 to 10 at once — and all of it at once
+  when the sun leaps a degree (a frozen light moved) or the ground changes.
+- H (`topography.CoarseShadows`, `Plugin.WithCoarseShadows`) bakes the shadows half as fine a
+  side: softer edges, about half the work.
+
+**gram on WebGPU: Ebitengine gone, the whole picture on the GPU**
+- The engine runs in a gogpu window (pure Go WebGPU over Vulkan) and draws through `render/gpu`,
+  WGSL throughout; only `render/gpu` and `internal/engine` import gogpu. `GRAM_FPS_LOG`,
+  `GRAM_FULLSCREEN`, `GRAM_VSYNC=off` for measuring; per-frame data goes through mapped staging
+  buffers, Wayland's frame gating off.
+- `render.Direct` sources draw with shaders of their own at their tier into a `render.Target`: the
+  screen and the frame's shared, reversed depth buffer (`render.Depth`); `NewMeshShaderWith`,
+  `Shader.Instanced`, `DrawMeshOptions` (depth, a prepass, instances, the frame's depth to read);
+  `camera.SceneTransform` and `Transform.Unproject` from a camera's `Rays`.
+- The relief's ground is a mesh of its lattice on the GPU (topography/terrain): the board painted
+  flat, lit per pixel with shadows baked on the GPU, the clouds' cover, water only on wet cells,
+  the grid, fog, and a skirt of level ground to the horizon. The heightfield, G and
+  `Config.Heightfield` are retired.
+- The world's entities are billboards drawn on the GPU against the ground's depth, their shadows
+  draped over the terrain (`sky.Sun.ShadowOf`, `sky.Patch`); `Hides` is retired; from above the
+  world's flat look draws its sprites as GPU instances (`world.DirectLook`, `render.Sprites`).
+- The sky, the sun, the clouds on the sky and what falls are Direct sources; the views of sight
+  are baked per observer and laid over the ground read from its depth, or over level ground along
+  the camera's lines of sight, past a wrapping world's seam too (`vision.ShowViewOf` shows only
+  the selected entity's); the routes are laid over the ground the same way.
+
+**Hex boards in relief as prisms on the GPU**
+- Over a hex grid the topography's ground is a prism a cell, a face down to each lower neighbour,
+  coloured from the tiles composed once from above and drawn every frame into an image of the
+  world; the board's tiles lay nothing, the units stand on it as GPU billboards, their shadows laid
+  over whatever ground the frame drew, read from its depth.
+  navigation-vision-hex's CPU drawing went from 1.2 to 0.25 ms a frame.
+
+**The sea to the horizon, a brighter sun, steady waves**
+- The sea's waves are noise of five sizes, shaded to and from the light, reflecting the sky by the
+  way to the eye per pixel in a perspective, calming far off instead of flickering; they run along
+  x — the wind's wander no longer swings the sea to and fro — the wind making them rougher.
+- The sun is a white disc in a halo and a wider glare of its light, no longer greyed.
+
+**Removed with the CPU composing of the relief**
+- The topography's tile blocks, its tiles' light and shadows per corner, its clouds per corner and
+  its parallel dressing workers (the dresser now only paints, in white), the CPU billboards,
+  `sky.Sun.Shadow` and `sky.ShadowTier`, `air.Weather.Overcast`, `OvercastOn`, `Shadowed`,
+  `OvercastQuad` and `CloudQuad`; `examples/webgpu-island` and `make demo-webgpu`.
+  `topography.Plugin.WithShadows` now turns the terrain's GPU shadows off.
+
+**Flat boards and their clouds on the GPU**
+- A flat board seen from above is composed once and kept on the GPU (`render.Still`), composed
+  anew only when a cell changes, its grid drawn by a shader; the board demo's CPU drawing went
+  from 3.2 to 0.3 ms a frame at 2560x1440. A `board.Dressing` lighting every tile alike says so
+  with `board.EvenLit`; the ways' and rivers' bands are now lit by the sun as the tiles they lie
+  on.
+- The clouds' shadows over a flat world are one draw on the GPU, their noise worked out every 8
+  pixels: 0.6 ms of the GPU at 2560x1440 where they took about 6.5.
+- `gpu.Draw` gains `Place` and `Tint`, `gpu.Kept` keeps triangles on the GPU.
+- A flat world's views of sight are drawn on the GPU over level ground, past a wrapping world's
+  seam too, for observers without a `vision.SightOutline`; one with it keeps its outline, cut by
+  the entities as the scan found it.
+- The navigation-vision demos draw their ground again: their composers take the topography's
+  renderer.
+
 **Animations move every frame**
 - What is drawn goes by `clock.Clock.Shown`: game time run on past the last tick by the real time
   the engine holds toward the next (`Clock.Pending`), at the tempo. The sea, the rain and what

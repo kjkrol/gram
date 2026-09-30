@@ -72,6 +72,21 @@ func (d *litDressing) Light(*board.Tile) render.Shade {
 	return render.Lit(d.sky.Sun().Light(0, 0, 1))
 }
 
+// EvenLight is the sun's light on level ground, as every tile has it (Light), where the dressing
+// under it dresses every tile the same frame after frame; false where it does not.
+func (d *litDressing) EvenLight() (render.Light, bool) {
+	if d.Dressing != nil {
+		e, ok := d.Dressing.(board.EvenLit)
+		if !ok {
+			return render.Light{}, false
+		}
+		if _, ok := e.EvenLight(); !ok {
+			return render.Light{}, false
+		}
+	}
+	return d.sky.Sun().Light(0, 0, 1), true
+}
+
 func (d *litDressing) Sheet(atlas render.AtlasSource) render.AtlasSource {
 	if d.Dressing == nil {
 		return atlas
@@ -106,6 +121,20 @@ func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x
 type litLook struct {
 	world.Look
 	sky *Plugin
+}
+
+// Begin readies the world's Look under it where it draws on the GPU.
+func (l litLook) Begin(cam camera.Camera) {
+	if d, ok := l.Look.(world.DirectLook); ok {
+		d.Begin(cam)
+	}
+}
+
+// DrawSprites has the world's Look under it draw where it draws on the GPU.
+func (l litLook) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
+	if d, ok := l.Look.(world.DirectLook); ok {
+		d.DrawSprites(t, cam, u)
+	}
 }
 
 func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {

@@ -20,7 +20,8 @@ func (litSheet) White() (u, v float32)                           { return 9, 9 }
 
 // Under the atmosphere a flat board's tiles and the world's sprites take the sun's light on level
 // ground: at midnight, frozen, they are dark and blue; without the atmosphere they are drawn as
-// they are.
+// they are — the light a tile composed every frame takes and the even light a still is drawn in
+// alike.
 func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
@@ -30,16 +31,15 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	b.WithRenderer(litSheet{})
-	b.Res.Render.ShowGridLines = false
 	cam := w.Camera()
-	tile := func() render.Vertex {
-		var f render.Frame
-		f.Reset(cam)
-		b.Renderer().(render.Source).Compose(&f, cam)
-		var v render.Vertex
-		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
-		return v
+	even := func() render.Light {
+		l, ok := b.Map().Dressing().(board.EvenLit).EvenLight()
+		if !ok {
+			t.Fatal("a flat board's dressing does not light its tiles alike")
+		}
+		return l
 	}
+	tile := func() render.Light { return b.Map().Dressing().Light(nil)[0] }
 	sprite := func() render.Vertex {
 		var f render.Frame
 		f.Reset(cam)
@@ -48,15 +48,21 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
 		return v
 	}
-	if v := tile(); v.ColorR != 1 || v.ColorB != 1 {
-		t.Fatalf("without an atmosphere a tile is lit %v %v %v, want as it is", v.ColorR, v.ColorG, v.ColorB)
+	if l := tile(); l != (render.Light{1, 1, 1}) {
+		t.Fatalf("without an atmosphere a tile is lit %v, want as it is", l)
+	}
+	if l := even(); l != (render.Light{1, 1, 1}) {
+		t.Fatalf("without an atmosphere the tiles' even light is %v, want white", l)
 	}
 	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 0.02}}).WithBoard(b) // frozen at 00:29
 	if s := a.Sun(); s.Dir[2] > 0 {
 		t.Fatalf("the sun at half past midnight stands at %v, want under the horizon", s.Dir)
 	}
-	if v := tile(); v.ColorR >= 0.5 || v.ColorB <= v.ColorR {
-		t.Errorf("under the midnight sky a tile is lit %v %v %v, want it dark and blue", v.ColorR, v.ColorG, v.ColorB)
+	if l := tile(); l[0] >= 0.5 || l[2] <= l[0] {
+		t.Errorf("under the midnight sky a tile is lit %v, want it dark and blue", l)
+	}
+	if l := even(); l != tile() {
+		t.Errorf("under the midnight sky the tiles' even light is %v, want the tile's %v", l, tile())
 	}
 	if v := sprite(); v.ColorR >= 0.5 || v.ColorB <= v.ColorR {
 		t.Errorf("under the midnight sky a sprite is lit %v %v %v, want it dark and blue", v.ColorR, v.ColorG, v.ColorB)

@@ -2,11 +2,9 @@ package sky
 
 import (
 	"embed"
-	"image/color"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -78,7 +76,7 @@ func (l Lamp) Shaded(nx, ny, nz, lit float32) render.Light {
 // SkyLight is the colour of the sky, white for the zero one.
 func (s Sun) SkyLight() render.Light { return white(s.Sky) }
 
-// Frame hands f the sun as its shader reads it (sun.kage): the way towards it, its strength, the
+// Frame hands f the sun as its shader reads it (shaders/sun.wgsl): the way towards it, its strength, the
 // colours of its light and of the sky, and the light every surface gets from the sky.
 func (s Sun) Frame(f *render.Frame) {
 	sky := white(s.Sky)
@@ -97,9 +95,6 @@ func white(l render.Light) render.Light {
 	}
 	return l
 }
-
-// ShadowTier puts the shadows of what stands over the ground and its grid and under what stands.
-const ShadowTier = render.Ground + 20
 
 // maxShadowReach caps how far a unit of height casts its shadow: a sun on the horizon would cast it
 // for ever.
@@ -144,35 +139,4 @@ func (s Sun) ShadowOf(box geom.AABB, z world.Z, groundAt func(x, y float32) floa
 	start, length := above*reach, float32(z.Height)*reach
 	mid := start + length/2
 	return Patch{X: cx + ux*mid, Y: cy + uy*mid, UX: ux, UY: uy, Along: length/2 + half, Wide: half, Fade: half / 2, Veil: veil}, true
-}
-
-// Shadow lays on f the shadow of an entity standing in box as z says (ShadowOf), its corners on
-// the ground groundAt gives, at the depth of its nearest corner.
-func (s Sun) Shadow(f *render.Frame, cam camera.Camera, box geom.AABB, z world.Z, groundAt func(x, y float32) float32) {
-	p, ok := s.ShadowOf(box, z, groundAt)
-	if !ok {
-		return
-	}
-	ground := func(x, y float32) float32 {
-		if groundAt == nil {
-			return 0
-		}
-		return groundAt(x, y)
-	}
-	var dst render.Corners
-	depth := float32(math.Inf(-1))
-	for k, c := range [4][2]float32{{-p.Along, -p.Wide}, {p.Along, -p.Wide}, {-p.Along, p.Wide}, {p.Along, p.Wide}} {
-		x, y := p.X+p.UX*c[0]-p.UY*c[1], p.Y+p.UY*c[0]+p.UX*c[1]
-		g := ground(x, y)
-		dst[k][0], dst[k][1] = cam.Project(x, y, g)
-		depth = max(depth, cam.Depth(x, y, g))
-	}
-	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
-	scale := camera.ScaleAt(cam, cx, cy, ground(cx, cy))
-	if scale == 0 {
-		return // not in front of the eye
-	}
-	fade := p.Fade * scale
-	veil := color.RGBA{A: uint8(p.Veil*255 + 0.5)}
-	f.Soft(ShadowTier, depth, dst, veil, render.Fade{Left: fade, Right: fade, Top: fade, Bottom: fade})
 }

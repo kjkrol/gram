@@ -2,6 +2,9 @@ package vision
 
 import (
 	"image/color"
+
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/gram/plugins/world"
 	"math"
 	"os"
 	"testing"
@@ -52,7 +55,7 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	tr, _ := camera.SceneTransform(f, 256, 256)
 	screen.DrawMesh(nil, level, &render.DrawMeshOptions{Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]}})
 	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6})
-	v.draw(render.Target{Screen: screen, Depth: depth}, cam, ridge{}, nil, 256, 256, 4, 0, DefaultShadow)
+	v.draw(render.Target{Screen: screen, Depth: depth}, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
@@ -78,5 +81,51 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	}
 	if len(v.observers) != 0 {
 		t.Error("the views drawn are kept for the next frame")
+	}
+}
+
+// wall is a flat world's cover: a wall without end across x from 100 to 120.
+type wall struct{}
+
+func (wall) Walk(origin, dir geom.Vec, length float64, _ world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
+	if dir.X > 0 && origin.X <= 100 && origin.X+length >= 120 {
+		visit(100-origin.X, 120-origin.X, math.Inf(-1), math.Inf(1), 0)
+	}
+}
+func (wall) Version() uint64 { return 3 }
+
+// Over a flat world, nothing drawn but the ground's colour and no depth, the views find the level
+// ground along the camera's lines of sight: a wall without end hides what lies behind it, and on a
+// wrapping world a view reaching over the seam is laid on past it.
+func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+	cam := icamera.NewFromSpace(256, 256, aabbworld.Torus)
+	v := newViews()
+	screen, depth := render.NewImage(256, 256), render.NewDepth()
+	screen.Fill(color.White)
+	screen.ClearDepth(depth)
+	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6})
+	v.look(cam, observer{X: 240, Y: 40, Eye: 2, Reach: 60, Half: math.Pi / 6})
+	v.draw(render.Target{Screen: screen, Depth: depth}, cam, nil, wall{}, 256, 256, 4, [2]bool{true, true}, 0, DefaultShadow)
+	pix := make([]byte, 4*256*256)
+	screen.ReadPixels(pix)
+	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
+	if c := at(80, 128); c < 3*250 {
+		t.Errorf("the ground in sight before the wall is %d bright, want it clear", c)
+	}
+	if c := at(200, 128); c > 3*200 {
+		t.Errorf("the ground behind the wall is %d bright, want it veiled", c)
+	}
+	// the second view's rim, 60 east of (240, 40): past the seam at 44
+	stroked := false
+	for x := 40; x <= 48; x++ {
+		if c := at(x, 40); c < 3*245 {
+			stroked = true
+		}
+	}
+	if !stroked {
+		t.Error("the view reaching over the seam is not laid on past it")
 	}
 }

@@ -10,7 +10,8 @@ with its own lifecycle (`Init`/`Restore`/`Spawn`/`Update`) and its own
 `game.Scene`s (`Stack`/`Composition`, the sole entry point for input) — is
 driven by a `gram.Engine` that wraps
 [goke](https://github.com/kjkrol/goke) (a type-safe, archetype-based ECS)
-into [Ebitengine](https://ebitengine.org/)'s `Update`/`Draw`/`Layout` loop.
+in a window's loop — a tick and a picture a frame — drawing everything on the GPU through WebGPU
+([gogpu](https://github.com/gogpu/gogpu), pure Go over Vulkan; Ebitengine is gone since 2026-09-29).
 Everything beyond the tick loop is installed as a `plugin.Plugin`, added
 from `Stage.Init` via `ctx.Use`. See "Stage / Scene" below for the model.
 
@@ -37,7 +38,6 @@ make demo-effect                                                   # an ice witc
 make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
-make demo-webgpu                                                   # the WebGPU try: the island as a GPU mesh with a depth buffer and shadow map (gogpu)
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -45,11 +45,15 @@ make bench                                                        # every benchm
 make bench-save                                                   # 5 repeats into bench_results/ (ignored by git)
 ```
 
-`examples/webgpu-island` is behind the `webgpu` build tag: gogpu's FFI (goffi) does not link
-beside cgo, so a binary holding both it and Ebitengine builds with `CGO_ENABLED=0 -tags
-"webgpu nofakecgo"` (goffi then uses purego's fakecgo); the default build skips it.
+Only `render/gpu` and `internal/engine` import gogpu (and wgpu, gputypes); plugins see `render`
+and `control`. Tests that draw ready a headless device (`gpu.Headless`; `GRAM_GPU=software` for
+the software rasteriser, which draws wrong) and skip without a GPU. A running game logs its frame
+rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`, starts fullscreen with
+`GRAM_FULLSCREEN=1` (F11 switches) and runs unpaced with `GRAM_VSYNC=off`; headless probes of a
+demo's frame (temporary `zz_*_test.go` files) include about 10 ms of waiting for the GPU's
+readback at 2560x1440, so compare them with each other, not with a frame rate.
 
-The `examples/*` programs are real Ebitengine GUI apps (open a window)
+The `examples/*` programs are real GUI apps (open a gogpu window)
 — `go test` alone can't exercise them. To sanity-check one still runs after
 a change in a headless environment: build to a temp path, run under
 `timeout <n>s`, treat exit 124 (still running, not crashed) as healthy.
@@ -134,12 +138,29 @@ drawing with zero knowledge of Stages/Scenes/plugins. The world of a scene is on
 a `render.Frame` in screen pixels with a `Tier` (`Ground` 100, `Objects` 200, `Overlays` 300,
 `Marks` 400; a game may use the gaps) and a depth; the composer draws tiers in order, and when the
 camera's projection `Sorts()` everything below `Marks` back to front by depth (ties by tier, then arrival),
-so a hill hides the route and the cone behind it and the selection stays on top. One Kage shader
-draws every piece, a plain colour sampling its sheet's white texel (`AtlasSource.White`), so a run on
-one sheet is one call; `Frame.Line` and `Frame.Soft` fade their edges through the vertices' custom
+so a hill hides the route and the cone behind it and the selection stays on top. One WGSL shader
+(`render/shaders/compose.wgsl` over the library and every registered material) draws every piece,
+a plain colour sampling its sheet's white texel (`AtlasSource.White`), so a run on one sheet is one
+call; `Frame.Line` and `Frame.Soft` fade their edges through the vertices' custom
 values; `Frame.Tile`/`TileRect` outline a tile along its own edges, which is the square board's grid.
 A piece lying across cells takes the depth of its nearest end, else the nearer tile covers
-half of it.
+half of it. A `render.Direct` source draws a part of the picture itself with a WGSL shader of its
+own (`render.NewMeshShaderWith`: its own vertex stage, `Instanced(n)` vec4s an instance, depth
+test and write, `ReadDepth` to lay a decal over what the frame drew) at its tier, handed a
+`render.Target{Screen, Depth}` — the frame's shared depth buffer, reversed (1 nearest), cleared
+as the frame begins — and the composer's uniforms; the terrain, the sky, the rain, the world's
+sprites, the views of sight and the routes are Direct. `render.Sprites` draws a Direct source's
+sprites as instances, piece for piece what `Frame.SpriteRectUV` lays (the world's flat look). The
+per-frame CPU work of the island at 2560x1440 is under 0.5 ms. A `render.Still` is a frame composed once in world units (a camera drawing a world
+unit a pixel) and kept on the GPU run by run (`gpu.Kept`), drawn every frame scaled and moved
+(`gpu.Draw.Place`) and lit (`gpu.Draw.Tint`, plain colours only) as a camera from above shows it:
+the board's renderer is a `render.Direct` at `Ground` that composes a flat map under a
+`board.EvenLit` dressing (the simple map's, the atmosphere's `litDressing`) into one, anew only
+when the board changes (`Board.Changes`), draws it in `EvenLight` — copies across a wrapping seam
+— and the grid over it on the GPU (`shaders/grid.wgsl`: a square grid's tiles darkened along
+their edges, a hex grid's edges); anything else keeps composing its tiles every frame. The
+clouds' shadows over a flat world (`atmosphere.Plugin.Clouds`) are a Direct too, their noise
+worked out every 8 pixels of a mesh on the GPU.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite, where
 it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, handed as a
@@ -151,23 +172,29 @@ and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `C
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
 the world and the board, sets the world's camera factory (`world.SetCameras`; `camera.Config` has no
-projection), its Look (`worldLook`: billboards isometrically, the world's `FlatLook` from above),
-the board's Map (`boardLook`: blocks with the faces turned towards the eye, or `board.FlatLook`)
-and the world's Ground (its `Relief`); it refuses a flat or a wrapping world. Under the topography
-the board's tiles are dressed on every CPU: its dresser is a `board.Parallel` and `boardLook` a
-`board.ParallelLook` (`board.Plugin.WithWorkers`, 0 all CPUs, 1 none) — the renderer warms every
-visible tile (shores), has the dresser `Ready` (the highest top, every top a worker may read, then
-frozen), and shares the tiles out among `Worker` dressers, each with its own scratch, clouds and
-`render.Frame` (`Frame.Branch`/`Append`), so the picture is piece for piece the serial one
-(`internal/parallel` shares the runs out). With `Config.Heightfield`, G (`topography.Heightfield`,
-`Plugin.ShowHeightfield`) draws the ground on the GPU instead: `topography/heightfield` is a
-`render.Direct` source at the Ground tier ray-marching the relief's lattice (`Relief.Lattice`, 16
-bits a corner in an image, the kinds' colours a cell) from the camera's `camera.Rays` (a
+projection), its Look (`worldLook`: billboards in relief, the world's `FlatLook` from above, all
+drawn on the GPU), the board's Map (its Look `board.Nothing`: the ground is drawn on the GPU) and
+the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
+the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
+`topography/terrain` — the relief's lattice as a mesh (every corner a vertex, heights in an R32F
+image), a depth prepass, the board painted flat by the dresser (albedo and water sheets, `Painted`)
+sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves (`shade.wgsl`),
+the clouds' cover baked (`cover.wgsl`), water on wet cells only, the grid, fog, and a skirt of
+level ground round the world to the horizon (`skirtRings`, `skirtReach`); over a hex grid
+`hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
+from the tiles composed once from above (a `render.Still` through `board.NewRenderer` with the
+flat look and the dresser) and drawn every frame into a world image. The dresser only paints: its
+tiles are dressed in white without clouds (`tile.Light` even, `sunlit` full), into the sheets or
+the hexes' still; there is no per-frame tile path in relief any more. The world's entities are
+billboards drawn on the GPU (`sprites`, instanced, tested against the ground's depth, their
+shadows `sky.Sun.ShadowOf` patches draped over the terrain by `terrain.DrawShadows`, over the hex
+prisms laid from the frame's depth by `shades`); from above
+the flat look's sprites on the GPU and the same shadows. The cameras' `camera.Rays` (a
 `RayField`: origin and direction affine in the screen point; the perspective's from its eye, the
-isometric and flat views' parallel), the board's Look becoming `board.Nothing`; `Renderer.Hides`
-walks a line of sight on the CPU so `worldLook` leaves out billboards behind hills. One camera, two
-views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
-sorting); `View{Camera}` (Tab) flips it keeping the ground point in the middle and a cell as wide
+isometric and flat views' parallel) give `camera.SceneTransform` for every GPU source. One camera,
+three views: `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
+sorting), the isometric and, given `Config.Perspective`, the perspective; `View{Camera}` (Tab) goes
+round them keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
 screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
 corners into the world along x and y, `minZoom` is where the screen's footprint — `spanX`,
@@ -223,55 +250,52 @@ world knows its entities and nothing else; the ground is the board's, the sky th
 (`WithAtmosphere(atmospherePlugin)`; without one `sky.DefaultSun` in still clear air): `sky.Sun`
 (`Dir`, `Strength`, `Ambient`, the colours of its light and of the sky — zero is white;
 `Sun.Light`/`Shaded` give a `render.Light`: Ambient × Sky plus the direct light × Color; `Sun.Frame`
-hands the frame the uniforms of `sky/sun.kage`, `Sun.Shadow` lays an entity's shadow). The
-topography lights each tile per corner from the ground's slope there and at its neighbours
-(`board.Tile.Light`, `FaceLight` for upright faces) and both looks draw with it, so a top-down map
-shows its relief; pieces carry a `render.Shade` — a `render.Light` (RGB) per corner,
+hands the frame the uniforms of `sky/shaders/sun.wgsl`, `Sun.ShadowOf` is the `sky.Patch` an
+entity's shadow covers on the ground). The ground is lit on the GPU per pixel from its normal, the
+shadows of the relief and of what stands on it baked as the sun moves (`topography.Plugin.WithShadows`,
+on by default); pieces of a frame carry a `render.Shade` — a `render.Light` (RGB) per corner,
 `render.Even(v)` grey, `render.Lit(l)` one light. The world's renderer asks its `Look` for every
 entity in white light with its `Appearance.Sway`; the topography's look lights it by the sun on
-level ground, leans it with the wind and lays its shadow on the relief; the world's own flat look
-draws it as it is. The terrain casts shadows (`board.Plugin.WithShadows`, on by default):
-per tile corner, a walk towards the sun over the tops of the cells as the frame read them, stopped
-above the highest top within 16 cells of the view; worked out as cells come into sight and kept by
-the renderer until `Board.Version` or the sun changes. Entities with a `Z` cast soft shadows the
-world renderer lays on the ground away from the sun (tier `Ground+20`), stretched by their height
-and pushed off by how far above the ground they stand. A flat world is drawn as its sprites are,
-save that slopes of its ground are shaded against level (lighter towards the sun, darker away).
+level ground, leans it with the wind and lays its shadow on the relief away from the sun,
+stretched by its height and pushed off by how far above the ground it stands; the world's own flat
+look draws it as it is.
 The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
 (`plugins/world/clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
 every `Config.Day` of game time from the moment a fresh game begins at (`Start` of the day, the
 middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
 its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
 `Written`), `Daily`/`Yearly`/`Seasonal` give a schedule entry its period and offset.
-`atmosphere/sky` sets the world's sun once a tick, in the interface part, at every one of
-`Config.Steps` a day to `Config.LightAt` the hour — the sun (with `NoonWay` `sky.South`: east at 6,
+`atmosphere/sky` sets the world's sun once a tick, in the interface part, to `Config.LightAt` the
+moment — as it goes, or at every one of `Config.Steps` a day where a game asks for steps — the sun (with `NoonWay` `sky.South`: east at 6,
 south at noon, west at 18; the default `sky.NorthWest` turns the whole path so noon is beyond the
 isometric view's sea; the path worked out for the climate's zone's latitude: declination 23.44° ×
 sin(2π·ofYear), the hour angle from noon — polar day and night past the circle), and below −0.1 of
 height the moon (`moonStrength` 0.25 × how full, `moonColor`) — the strength rising and falling,
 the sky's and the sun's colours and the ambient blended from the `daylight` table by the sun's
-height: blue by day, orange at sunrise and sunset, deep blue at night — so the terrain's shadows
-are worked out anew only per step. The light can be frozen (`Freeze` P, `Later`/`Earlier` Shift+]
+height: blue by day, orange at sunrise and sunset, deep blue at night. The terrain bakes its shadows
+anew as the sun goes on a strip a frame (`shadeStrips` 16, a round past every tenth of a degree:
+0.4–0.85 ms of the GPU a frame at 2560x1440), all at once when the sun leaps a degree or the ground
+changes; H (`topography.CoarseShadows`, `Plugin.WithCoarseShadows`) bakes them half as fine a side. The light can be frozen (`Freeze` P, `Later`/`Earlier` Shift+]
 and Shift+[ move it half an hour): only the light, in memory, not saved; the calendar and the
-weather go on. `sky.Backdrop` is the viewport in the sky's colour on `render.Backdrop` (tier 0,
-depth −∞), drawn only when some corner of the screen is off the world's ground.
-`CellKind.Shine` (0–1) makes a kind glint, per pixel in the topography's material
-(`plugins/topography/water.kage`; the composer's shader is `render/compose.kage` plus every material a
-plugin registers with `render.RegisterMaterials`, compiled once): after the tile a look calls
-`t.DrawSurface` (`f.Overcast`, then `topography.Glint(f, box, shine, lit, shore)` or `topography.Stream`), a quad over the tile added to it (alpha 0)
-whose vertices carry the kind's shine in red, the world position in green and blue, 2 + the sun
-reaching the corner in alpha and the shore in Custom0..3 (the way to it, the distance, how near). The shader tilts the surface by seven waves moving with the composer's clock —
-within `shoreReach` (3) cells of the nearest cell that does not shine, by a swell whose crests
-follow the distance to it, rolling in, its phase drifting along the coast, breaking into foam
-(`surfWidth`, in the sky's light and the sun's, laid over with its alpha) — reflects the sky, the
-more the flatter the eye looks (Fresnel over a calmed normal, `mirrorSwell`), and throws the
-frame's sun (the uniforms `sky.Sun.Frame` sets: `Sun`, `SunStrength`, `SunColor`, `SkyColor`,
-`Ambience`) towards
-`camera.Projection.Toward()` (the eye; straight up from above, along the diagonal in the isometric
-view). The board works the shore out per corner of a square grid (open water on any other), once
-per terrain version. A shiny tile gets its glint at night too (no sun, the foam and the night sky
-reflected left). An effect altering `Ground` can make a cell shiny. The islands with heights
-give their water 0.9.
+weather go on. `sky.Backdrop` is the viewport in the sky's colour on `render.Backdrop` (tier 0),
+a Direct: through a perspective the sky of the day (`shaders/backdrop.wgsl`: the gradient from
+the horizon up, the sun a white disc in a halo and a wider glare, the clouds on their layer, hazed
+towards the horizon), otherwise the viewport in the sky's colour wherever the ground does not
+cover it.
+`CellKind.Shine` (0–1) makes a kind glint, per pixel in the topography's materials
+(`plugins/topography/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
+`render.RegisterMaterials` joins the composer's library and every mesh shader built on it): the
+dresser paints the wet cells' shine and flow into the water sheet, and the terrain's shader calls
+`SeaGlintAt(p, shine, lit, shore, pixel, toward)` and `RunningWater` over the wet cells. The sea
+is five octaves of stretched value noise (`chop`: `noised`, analytic gradient, each fading out
+where a pixel spans too much of it, `seenAt`) running along x — never turned with the wind,
+whose wander would swing the whole sea to and fro; the wind only roughens it
+(`calmSea`..`stormSea`) — shaded to and from the light, with a narrow glint and a broad sheen,
+within `shoreReach` cells of the shore (`Shore`, per corner of a square grid) a swell rolling in
+and breaking into foam; it reflects the sky by Fresnel against the way to the eye — per pixel in
+a perspective, `camera.Projection.Toward()` otherwise — so it pales towards the horizon. The
+skirt round the world carries the sea on to the horizon. An effect altering `Ground` can make a
+cell shiny. The islands with heights give their water 0.9.
 The climate is `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
 `SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
 `Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
@@ -302,19 +326,19 @@ stopping below 10; a winter begun has its drifts and shores laid at once
 (`atmosphere.Plugin.WithWeathering(board, cfg)`). `plugins/atmosphere/air` is the weather as
 drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift`, `Cover` and the
 `Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans what sways, `Weather.Cloud`/
-`Shade` are the clouds' noise and shadow, `Weather.Overcast`/`OvercastOn`/`OvercastQuad` lay the
-`CloudShadow` material (`air/weather.kage`: a quad only under clouds; the noise on the CPU at the
-corners, `cloudSize` 420 minus `Drift`, spread by `cloudContrast`, the shadow straight under: cast
-off towards the sun it would jump with every step of the sun; dims the sun by `cloudDark`),
-`Weather.Haze` is how much the air hides a point from a camera's eye (`render.Frame.Fog`). The
-topography's dresser reads all of it from its `Atmosphere` each frame; glints die under clouds,
-waves turn with `Wind` and steepen with it (`calmSea`..`stormSea`), water reflects `overcastSky()`.
-A flat board takes the clouds' shadows once over the whole screen (`atmosphere.Plugin.Clouds()`,
-tier `Objects+50`) and its light by the hour through `atmosphere.Plugin.WithBoard(board)`, which
-wraps the board's Map and the world's Look (`lit.go`: tiles lit on level ground, sprites too, what
-sways leaning; Kage cannot move vertices, so leaning is on the CPU). A flat board without an
-atmosphere is drawn as it is. Units' shadows are `shadowVeil` × the light's strength over
-`shadowFull` (`sky.Sun.Shadow`).
+`Shade` are the clouds' noise and shadow on the CPU, the very numbers the shaders' `cloudField`,
+`cloudCover` and `cloudShade` (`air/shaders/cloud_noise.wgsl`, `cloud_shadow.wgsl`: `cloudSize` 420
+minus `Drift`, spread by `cloudContrast`, the shadow straight under, dimming the sun by
+`cloudDark`) work out on the GPU, `Weather.Haze` is how much the air hides a point from a camera's
+eye. The terrain bakes the clouds' cover over the board and works it out per pixel on the skirt;
+waves steepen with `Wind` (`calmSea`..`stormSea`), water reflects `overcastSky()`. A flat world
+takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (tier `Objects+50`, a Direct: a mesh
+over the viewport, the noise at its corners every 8 pixels where the camera's lines of sight meet
+the ground, the shadow per pixel) and its light by the hour through
+`atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `board.EvenLit`:
+the sun on level ground, one light for every tile, so the board is composed once and tinted on the
+GPU) and the world's Look (`litLook`: sprites lit, what sways leaning on the CPU, handing the flat
+look's GPU sprites through). A flat board without an atmosphere is drawn as it is.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
@@ -445,12 +469,10 @@ shows how much of it is boilerplate vs. real behavior.
   (water) is drawn as the tile's base (`Tile.Base`) under its neighbours, glint and all, the land
   laid over it the same way. Ways curve round the cell's middle; a way's `Fade` has it fade out
   (a river running out to sea: `water.Config.Plume`, `water.Mouth`, `Network.Fade`).
-  `Board.CellVersion` counts each cell's changes; the renderer keeps a cell's read, its tile's
-  blends and way (baked relative to the tile, lit per frame) and its light (by the sun stamp) until
-  stale; under 16 px a cell (square grids) the topography paints blends and ways once onto a ground
-  sheet (the board's atlas + the cells, `board.Dressing.Sheet`, `render.Paint`) and a tile draws
-  them as one `Frame.SpritePart`; the clouds' shadow goes once per tile after all on it
-  (`render.Frame.OvercastOn`); a unit's
+  `Board.CellVersion` counts each cell's changes; the dresser keeps a cell's read and its tile's
+  blends and way (baked relative to the tile) until stale and paints them — the whole board flat
+  for the terrain over a square grid (`render.Paint`), the tiles once from above for the hex
+  prisms (`render.Still`) — anew where cells changed; a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a world with heights, how high it
   flies (`Lift`), the least it keeps over the ground (`Clearance`) and how high over sea level it
   may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
@@ -689,9 +711,10 @@ once at startup by `gram.Run(g)`; `Resizable` makes the screen the window — th
 `Layout` follows it and hands the active world's camera `SetViewport`, whose zoom floor scales a
 world smaller than the window up to cover it; F11 toggles fullscreen in every game,
 `Runtime.ToggleFullscreen`; `TargetTPS` is the engine's own fixed
-step — Ebitengine runs one `Update` per frame (`SyncWithFPS`), and a frame that
-falls behind runs at most 5 steps and drops the rest, so the game slows down
-instead of spiralling) alongside a named collection of
+step — the window's loop (gogpu, paced by the swapchain) runs one `Update` per frame, stepping as
+many times as the time gone says, and a frame that falls behind runs at most 5 steps and drops the
+rest, so the game slows down instead of spiralling; what is drawn goes by `clock.Clock.Shown`, the
+game time run on past the last step by the time held toward the next) alongside a named collection of
 `game.Stage`s plus which one starts active (`Stages() (map[string]Stage,
 string)`) — every game writes its own small `Game` implementation, even
 for a single Stage, since only a concrete type can supply its own `Props`.
@@ -743,8 +766,9 @@ world plus a non-focusable HUD overlay.
 
 ### Game / persistence
 
-`internal/engine.Engine` (aliased `gram.Engine`) owns the Ebitengine
-loop and drives a user's `game.Game` one active `Stage` at a time — see
+`internal/engine.Engine` (aliased `gram.Engine`) owns the window's
+loop (gogpu; `Run` opens it, every frame `Update`, `Draw` into an image the size of the screen, then
+`Present`) and drives a user's `game.Game` one active `Stage` at a time — see
 "Stage / Scene" above. `Engine` never caches its own copy of the Stage
 set: it calls `game.Stages()` whenever it needs to resolve a name (once in
 `Init`, and on every `Runtime.SwitchStage`) — `game.Game` is the sole

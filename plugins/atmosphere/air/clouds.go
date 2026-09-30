@@ -48,7 +48,7 @@ const (
 
 // Cloud is the clouds' noise over the world point (x, y) with w's wind having carried them as far
 // as its Drift says: 0 to 1, smooth over about a cloud's width, the clouds where it is high — the
-// very noise the shader works out per pixel (weather.kage's cloudField), so what is read here of
+// very noise the shader works out per pixel (shaders/cloud_noise.wgsl's cloudField), so what is read here of
 // a piece's corners, to tell a clear piece from a clouded one, is what the pixels get. Shade is
 // how much shadow a value gives under w's cover.
 func (w Weather) Cloud(x, y float32) float32 {
@@ -68,20 +68,6 @@ func (w Weather) Shade(n float32) float32 {
 	return t * t * (3 - 2*t)
 }
 
-// Shadowed reports whether clouds of noise cloud at a piece's corners shade any of it under w's
-// cover: the shader shades between the corners, so a piece whose corners are all clear is clear.
-func (w Weather) Shadowed(cloud [4]float32) bool {
-	if w.Clouds <= 0 {
-		return false
-	}
-	for _, n := range cloud {
-		if w.Shade(n) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
 // cloudNoise is smooth value noise at (x, y): 0 to 1, changing over a unit.
 func cloudNoise(x, y float64) float64 {
 	x0, y0 := math.Floor(x), math.Floor(y)
@@ -93,7 +79,7 @@ func cloudNoise(x, y float64) float64 {
 }
 
 // cloudHash is a number 0 to 1 fixed for the lattice point (x, y): a permutation polynomial mod
-// 289 in whole numbers under 2²⁴, which floats hold exactly, so the shader (weather.kage) works
+// 289 in whole numbers under 2²⁴, which floats hold exactly, so the shader (shaders/cloud_noise.wgsl) works
 // out the very same; the lattice is shifted off the origin, where the polynomial is small.
 func cloudHash(x, y float64) float64 {
 	x, y = mod289(x+17), mod289(y+53)
@@ -103,45 +89,3 @@ func cloudHash(x, y float64) float64 {
 
 // mod289 is v mod 289, never negative, as the shader's mod has it.
 func mod289(v float64) float64 { return v - 289*math.Floor(v/289) }
-
-// Overcast lays over the last sprite added to f, whose corners lie at wo in the world under clouds
-// of noise cloud (Cloud at each corner), the shadows of w's clouds — as faint as the sprite and
-// fading or blending as it does; nothing under a clear sky, nor over a piece the clouds miss.
-func (w Weather) Overcast(f *render.Frame, wo render.World, cloud [4]float32) {
-	if !w.Shadowed(cloud) {
-		return
-	}
-	f.Overlay(&render.Overlay{Material: cloudShadow, World: wo, Fraction: cloud, Under: true})
-}
-
-// OvercastOn is Overcast over the sprite m drawn earlier, and over all drawn on it since.
-func (w Weather) OvercastOn(f *render.Frame, m render.Mark, wo render.World, cloud [4]float32) {
-	if !w.Shadowed(cloud) {
-		return
-	}
-	f.OverlayOn(m, &render.Overlay{Material: cloudShadow, World: wo, Fraction: cloud, Under: true})
-}
-
-// OvercastQuad lays the clouds' shadows on their own over the screen quad dst, whose corners lie
-// at wo in the world under clouds of noise cloud: a flat world's, laid over the screen piece by
-// piece rather than tile by tile.
-func (w Weather) OvercastQuad(f *render.Frame, tier render.Tier, depth float32, dst render.Corners, wo render.World, cloud [4]float32) {
-	if !w.Shadowed(cloud) {
-		return
-	}
-	o := render.Overlay{Material: cloudShadow, World: wo, Red: [4]float32{1, 1, 1, 1}, Fraction: cloud}
-	f.Material(tier, depth, dst, &o)
-}
-
-// CloudQuad draws the clouds on the screen quad dst, a piece of the sky: every pixel of it looks
-// along its own line of sight — the frame's EyeAt, LookDir, LookDX and LookDY uniforms, a
-// camera.RayField — up to the cloud layer CloudHeight high, and takes the clouds' noise there,
-// the same noise that lays their shadows straight under them, hazed as far off as the layer lies
-// over Visibility; a pixel looking under the layer shows nothing.
-func (w Weather) CloudQuad(f *render.Frame, tier render.Tier, depth float32, dst render.Corners) {
-	o := render.Overlay{Material: cloudsOverhead, Red: [4]float32{1, 1, 1, 1}}
-	for k, c := range dst {
-		o.Custom[k][0], o.Custom[k][1] = c[0], c[1]
-	}
-	f.Material(tier, depth, dst, &o)
-}

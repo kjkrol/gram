@@ -175,19 +175,24 @@ func (c *Composer) setUniforms() {
 	}
 }
 
-// render draws the ordered items, one call per run sharing a sheet; a plain colour joins the run
-// it falls in and samples that sheet's white texel. A Direct source draws before the first item
-// of its tier or over, after all before it.
+// render draws the ordered items under the frame's uniforms, the Direct sources where their tiers
+// come.
 func (c *Composer) render(screen *Image) {
-	f := &c.frame
 	c.setUniforms()
 	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
-	var sheet AtlasSource
-	c.verts, c.indices = c.verts[:0], c.indices[:0]
 	if screen != nil {
 		screen.ClearDepth(c.depth)
 	}
-	target := Target{Screen: screen, Depth: c.depth}
+	c.paint(screen, Target{Screen: screen, Depth: c.depth})
+}
+
+// paint draws the ordered items, one call per run sharing a sheet; a plain colour joins the run it
+// falls in and samples that sheet's white texel. A Direct source draws before the first item of
+// its tier or over, after all before it.
+func (c *Composer) paint(screen *Image, target Target) {
+	f := &c.frame
+	var sheet AtlasSource
+	c.verts, c.indices = c.verts[:0], c.indices[:0]
 	direct := 0
 	for _, i := range f.order {
 		it := &f.items[i]

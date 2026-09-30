@@ -1,6 +1,7 @@
-// Package gram is a modular 2D game engine for Go: a user-implemented [game.Game] — a named set
-// of [game.Stage] values, each with its own entity-component world and its own [game.Scene]s —
-// driven through Ebitengine's Update/Draw/Layout loop by an engine that wraps the goke ECS.
+// Package gram is a modular game engine for Go: a user-implemented [game.Game] — a named set of
+// [game.Stage] values, each with its own entity-component world and its own [game.Scene]s —
+// driven by an engine that wraps the goke ECS in a window's loop, a tick and a picture a frame,
+// the picture drawn on the GPU through WebGPU (gogpu).
 // Everything beyond the tick loop is a [plugin.Plugin]: the built-in ones give a Stage a world of
 // moving boxes, collisions, sight, a board with terrain, pathfinding and mouse selection; a game
 // adds its own the same way. [Run] is the whole public surface of this package.
@@ -47,9 +48,10 @@
 //
 // # Tick
 //
-// Props.TargetTPS is the engine's one fixed step. Ebitengine runs one Update per frame; a frame
-// that falls behind runs at most five steps and drops the rest, so the game slows down instead of
-// spiralling. Each step calls the active Scene's HandleEvents, then Stage.Update, where the game
+// Props.TargetTPS is the engine's one fixed step. The window's loop runs one Update per frame,
+// stepping as many times as the time gone says; a frame that falls behind runs at most five steps
+// and drops the rest, so the game slows down instead of spiralling. What is drawn goes by the
+// clock's Shown time, which runs on between the steps, so it moves every frame. Each step calls the active Scene's HandleEvents, then Stage.Update, where the game
 // runs its plugins' RunPlan in the order it needs — world first, then whatever reads the world's
 // space (collision, vision, ...), as the examples do.
 //
@@ -83,10 +85,10 @@
 //	Layer 6   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/behavior, plugins/vision/behavior — ready-made reactions              (→ their plugin, world, plugin)
 //	Layer 7   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
-//	          plugins/topography  — a map in relief: the heights, the light and the water on them, the views from above and isometric (→ world, board, …)
+//	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective (→ world, board, …)
 //	          plugins/sky         — a day going by: the time of day saved with the game, the world's sun following it (→ world, …)
 //	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
-//	Layer 8   internal/engine     — the Engine: the Ebitengine loop, one active Stage, persistence   (→ game, plugin, world, camera, control, render)
+//	Layer 8   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence (→ game, plugin, world, camera, control, render)
 //	Layer 9   gram                — Run; the package you import                                     (→ game, internal/engine)
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
@@ -97,6 +99,6 @@
 //	                     plugins/{collision, selection, vision, effects} ──► plugins/board ──► plugins/navigation, plugins/*/behavior
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
-// line of sight under the world, ebiten/v2 the loop and the drawing, astar the pathfinding, and
-// uid the entity identifiers.
+// line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,
+// astar the pathfinding, and uid the entity identifiers.
 package gram

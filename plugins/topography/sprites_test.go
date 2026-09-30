@@ -1,6 +1,7 @@
 package topography_test
 
 import (
+	"image/color"
 	"os"
 	"testing"
 
@@ -126,5 +127,69 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	}
 	if darker == 0 {
 		t.Error("the sprite on the slope casts no shadow on the ground")
+	}
+}
+
+// Over a hex board in relief, drawn as prisms, a billboard shows and casts its shadow on the prisms
+// it stands among, laid from the frame's depth.
+func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Camera:   camera.Config{ViewportWidth: 320, ViewportHeight: 240},
+		Heights:  true,
+	})
+	grid := board.DefaultGrids{}.Hex(6, 6, 16)
+	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land, SpriteID: 1})
+	tiles := render.NewAtlas()
+	tiles.RegisterAt(1, 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
+	tiles.Close()
+	b.WithRenderer(tiles)
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	cam := w.Camera()
+	c, _ := grid.CellIndex(2, 2)
+	at := grid.CellCenter(c)
+	cam.CenterOn(at.X, at.Y, 0)
+	vw, vh := cam.Viewport()
+	screen, depth := render.NewImage(int(vw), int(vh)), render.NewDepth()
+	pix := make([]byte, 4*int(vw)*int(vh))
+	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
+	look := w.Look().(world.DirectLook)
+	draw := func(standing bool) []byte {
+		screen.Clear()
+		screen.ClearDepth(depth)
+		target := render.Target{Screen: screen, Depth: depth}
+		p.Renderer().(render.Direct).Draw(target, cam, u)
+		var f render.Frame
+		f.Reset(cam)
+		look.Begin(cam)
+		if standing {
+			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
+			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, 0, render.Light{1, 1, 1}, 0)
+		}
+		look.DrawSprites(target, cam, u)
+		screen.ReadPixels(pix)
+		return append([]byte(nil), pix...)
+	}
+	draw(true) // a first frame: the depth buffer made to be read, what it held gone this once
+	bare, with := draw(false), draw(true)
+	shown, darker := 0, 0
+	for i := 0; i < len(with); i += 4 {
+		switch {
+		case purple(with[i:]):
+			shown++
+		case int(with[i])+int(with[i+1])+int(with[i+2]) < int(bare[i])+int(bare[i+1])+int(bare[i+2])-6:
+			darker++
+		}
+	}
+	if bare[4*(int(vh)/2*int(vw)+int(vw)/2)+3] == 0 {
+		t.Fatal("the prisms draw nothing in the middle of the screen")
+	}
+	if shown == 0 || darker == 0 {
+		t.Errorf("a billboard on the prisms shows %d pixels and darkens %d round it, want some of each", shown, darker)
 	}
 }

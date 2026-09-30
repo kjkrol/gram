@@ -79,8 +79,14 @@ const (
 )
 
 // shadeTurn is how far the sun turns before the shade is baked anew: its ways' dot product under
-// it, a tenth of a degree.
-const shadeTurn = 0.9999985
+// it, a tenth of a degree; shadeStrips is how many strips it is baked anew in then, one a frame;
+// shadeLeap how far it leaps for all of it to be baked at once: a degree — a frozen light moved,
+// a game loaded.
+const (
+	shadeTurn   = 0.9999985
+	shadeStrips = 16
+	shadeLeap   = 0.99985
+)
 
 // Ground is the relief as the renderer reads it: its heights as a lattice over a square grid —
 // cols by rows corners a cell apart, row by row, false off a square grid — and a count of its
@@ -162,10 +168,13 @@ type Renderer struct {
 	painted   Painted       // the surface as Draw last read it
 
 	// baked holds how much of the sun reaches the ground, for the heights of shadeAt and the sun's
-	// way shadeSun, and right of it how thick the clouds stand over it, baked every frame
+	// way shadeSun — the next of its strips baked anew the frame after strip — and right of it how
+	// thick the clouds stand over it, baked every frame; coarse bakes them half as fine a side
 	baked     *render.Image
 	shadeAt   uint64
 	shadeSun  [3]float32
+	strip     int
+	coarse    bool
 	baking    render.DrawTrianglesShaderOptions
 	clouding  render.DrawTrianglesShaderOptions
 	bakeVerts []render.Vertex
@@ -245,14 +254,18 @@ func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Unif
 	t.Screen.DrawMesh(nil, shadows, &r.casting)
 }
 
-// bake brings the baked image up to date: the shade, where the ground casts its shadows, anew as
-// the ground changes or the frame's sun turns by more than shadeTurn; the clouds every frame there
-// are any.
+// bake brings the baked image up to date: the shade, where the ground casts its shadows, all at
+// once as the ground changes or the frame's sun leaps, and as it turns by more than shadeTurn a
+// strip a frame round the image, so a sun going on costs a little every frame; the clouds every
+// frame there are any.
 func (r *Renderer) bake(u render.Uniforms) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
-	ks, kc := bakedScale(cols, rows)
+	ks, kc := bakedScale(cols, rows, r.coarse)
 	ws, wc, h := ks*(cols-1), kc*(cols-1), ks*(rows-1)
 	if r.baked == nil || r.baked.Bounds().Dx() != ws+wc || r.baked.Bounds().Dy() != h {
+		if r.baked != nil {
+			r.baked.Deallocate()
+		}
 		r.baked = render.NewImage(ws+wc, h)
 		r.shadeAt = 0
 		r.bakeVerts = make([]render.Vertex, 4)
@@ -261,7 +274,7 @@ func (r *Renderer) bake(u render.Uniforms) {
 	size := [2]float32{float32(cols-1) * cell, float32(rows-1) * cell}
 	if cover := u.Get("Cover"); len(cover) == 1 && cover[0] > 0 {
 		u.Into(r.clouding.Uniforms)
-		r.bakeInto(image.Rect(ws, 0, ws+wc, kc*(rows-1)), size, bakeCover, &r.clouding)
+		r.bakeInto(image.Rect(ws, 0, ws+wc, kc*(rows-1)), [2]float32{}, size, bakeCover, &r.clouding)
 	}
 	if !r.cfg.Shadows {
 		return
@@ -275,25 +288,48 @@ func (r *Renderer) bake(u render.Uniforms) {
 		return
 	}
 	way := [3]float32{sun[0] / n, sun[1] / n, sun[2] / n}
-	if r.shadeAt == r.heightsAt && way[0]*r.shadeSun[0]+way[1]*r.shadeSun[1]+way[2]*r.shadeSun[2] > shadeTurn {
-		return
+	y0, y1 := 0, h
+	turned := way[0]*r.shadeSun[0] + way[1]*r.shadeSun[1] + way[2]*r.shadeSun[2]
+	switch {
+	case r.shadeAt != r.heightsAt || turned < shadeLeap: // the ground changed, the sun leapt, or nothing is baked yet: all of it now
+		r.shadeAt, r.shadeSun, r.strip = r.heightsAt, way, 0
+	case r.strip == 0 && turned > shadeTurn:
+		return // the sun has not turned since the last round
+	default:
+		if r.strip == 0 {
+			r.shadeSun = way
+		}
+		per := (h + shadeStrips - 1) / shadeStrips
+		y0, y1 = min(r.strip*per, h), min((r.strip+1)*per, h)
+		r.strip = (r.strip + 1) % shadeStrips
+		if y0 >= y1 {
+			return
+		}
 	}
-	r.shadeAt, r.shadeSun = r.heightsAt, way
 	u.Into(r.baking.Uniforms)
 	for _, name := range []string{"Cell", "Corners", "Low", "Span"} {
 		r.baking.Uniforms[name] = r.boxed[name]
 	}
 	r.baking.Uniforms["Shadows"] = []float32{1}
 	r.baking.Images = [4]*render.Image{r.lattice, nil, nil, nil}
-	r.bakeInto(image.Rect(0, 0, ws, h), size, bakeShade, &r.baking)
+	from := [2]float32{0, float32(y0) / float32(h) * size[1]}
+	part := [2]float32{size[0], float32(y1-y0) / float32(h) * size[1]}
+	r.bakeInto(image.Rect(0, y0, ws, y1), from, part, bakeShade, &r.baking)
 }
 
-// bakeInto draws s over the part at of the baked image, its pixels spanning the lattice's cells,
+// Coarse has the shade baked half as fine a side from the next frame on — a quarter of the work
+// and a quarter of the pixels to read — or as fine as ever again.
+func (r *Renderer) Coarse(on bool) { r.coarse = on }
+
+// Coarsened reports whether the shade is baked coarse.
+func (r *Renderer) Coarsened() bool { return r.coarse }
+
+// bakeInto draws s over the part at of the baked image, its pixels spanning the world from from,
 // size world units, each handed its point of the world in its custom values.
-func (r *Renderer) bakeInto(at image.Rectangle, size [2]float32, s *render.Shader, op *render.DrawTrianglesShaderOptions) {
+func (r *Renderer) bakeInto(at image.Rectangle, from, size [2]float32, s *render.Shader, op *render.DrawTrianglesShaderOptions) {
 	for i, c := range [4][2]float32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 		r.bakeVerts[i] = render.Vertex{DstX: float32(at.Min.X) + c[0]*float32(at.Dx()), DstY: float32(at.Min.Y) + c[1]*float32(at.Dy()),
-			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1, Custom0: c[0] * size[0], Custom1: c[1] * size[1]}
+			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1, Custom0: from[0] + c[0]*size[0], Custom1: from[1] + c[1]*size[1]}
 	}
 	r.baked.SubImage(at).DrawTrianglesShader(r.bakeVerts, quad, s, op)
 }
@@ -303,9 +339,13 @@ func (r *Renderer) bakeInto(at image.Rectangle, size [2]float32, s *render.Shade
 var quad = []uint16{0, 1, 2, 1, 2, 3}
 
 // bakedScale is how many pixels a cell the baked image of a lattice cols by rows corners holds the
-// shade and the clouds at: shadePx and half as many, fewer where it would be wider than maxBaked.
-func bakedScale(cols, rows int) (shade, clouds int) {
+// shade and the clouds at: shadePx and half as many, fewer where it would be wider than maxBaked,
+// half as many again coarse.
+func bakedScale(cols, rows int, coarse bool) (shade, clouds int) {
 	shade = max(min(shadePx, 2*maxBaked/(3*max(cols-1, 1)), maxBaked/max(rows-1, 1)), 2)
+	if coarse {
+		shade = max(shade/2, 2)
+	}
 	return shade, shade / 2
 }
 
@@ -547,6 +587,9 @@ func decode(hi, lo byte, low, span float32) float32 {
 	return low + float32(uint32(hi)<<8|uint32(lo))/65535*span
 }
 
+// Shadows says whether the ground casts shadows, from the next frame on.
+func (r *Renderer) Shadows(on bool) { r.cfg.Shadows = on }
+
 // setUniforms hands the shader the transform, the lattice, the surface, the grid and how far one
 // sees, over the frame's: the sun, the clouds, the clock, a world unit a screen pixel spans and
 // the rest come from the frame.
@@ -578,7 +621,7 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Shadows", flag(r.cfg.Shadows))
 	r.set("GridFrom", r.painted.Grid)
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
-	ks, kc := bakedScale(cols, rows)
+	ks, kc := bakedScale(cols, rows, r.coarse)
 	r.set("ShadePx", float32(ks))
 	r.set("CloudPx", float32(kc))
 	r.set("CloudFrom", float32(ks*(cols-1)))

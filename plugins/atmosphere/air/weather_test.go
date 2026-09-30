@@ -26,33 +26,6 @@ type source func(f *render.Frame)
 func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
-func TestOvercast_LaysTheCloudsShadowsOnlyUnderClouds(t *testing.T) {
-	var f render.Frame
-	f.Reset(icamera.NewFromSpace(64, 64, 0))
-	f.Sprite(render.Ground, 0, sheet{}, 0, render.Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}, render.Even(1))
-	thick := [4]float32{1, 1, 1, 1}
-	air.Weather{}.Overcast(&f, render.Box(0, 0, 8, 8), thick)
-	if f.Len() != 1 {
-		t.Fatalf("under a clear sky %d pieces, want the sprite alone", f.Len())
-	}
-	w := air.Weather{Clouds: 0.5}
-	w.Overcast(&f, render.Box(0, 0, 8, 8), [4]float32{}) // the clouds miss the piece: no shadow to lay
-	if f.Len() != 1 {
-		t.Fatalf("under clouds that miss the piece %d pieces, want the sprite alone", f.Len())
-	}
-	w.Overcast(&f, render.Box(0, 0, 8, 8), thick)
-	if f.Len() != 2 {
-		t.Fatalf("under clouds %d pieces, want the sprite and the clouds' shadow over it", f.Len())
-	}
-	var frac float32
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
-		frac = v[0].ColorA - 2 - 2*float32(air.CloudShadow())
-	})
-	if frac != 1 {
-		t.Errorf("the shadow's corner carries clouds of %v, want the 1 given", frac)
-	}
-}
-
 // The clouds' noise is smooth, 0 to 1, and drifts with the wind: a point under a cloud is under the
 // same cloud once both have moved on together.
 func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {
@@ -77,9 +50,6 @@ func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {
 	half := air.Weather{Clouds: 0.5}
 	if half.Shade(0) != 0 || half.Shade(1) != 1 || (air.Weather{}).Shade(1) != 0 {
 		t.Error("Shade: no cloud where the noise is low, all of it where high, none under a clear sky")
-	}
-	if half.Shadowed([4]float32{0.2, 0.2, 0.2, 0.2}) || !half.Shadowed([4]float32{0.2, 0.2, 0.2, 0.9}) {
-		t.Error("Shadowed: a piece whose corners are clear is clear, one with a cloud over a corner is not")
 	}
 }
 

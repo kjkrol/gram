@@ -3,7 +3,7 @@
 //
 // [NewPlugin] takes the world and the [Config]: the calendar's (plugins/atmosphere/calendar — how
 // long a day is, when a fresh game begins, a GameYear of eight days or an EarthYear), the sky's
-// (plugins/atmosphere/sky — where the sun stands at noon, the light's steps, a frozen light) and
+// (plugins/atmosphere/sky — where the sun stands at noon, the light going on or in steps, a frozen light) and
 // the climate's (plugins/atmosphere/climate — the zone, the weathers, the seed). The calendar is
 // the clock at a fixed scale, so it is saved with the clock and hurries with its tempo; the sun
 // goes at the climate's zone's latitude.
@@ -13,10 +13,11 @@
 // simulation, standing in the pause and hurrying with the tempo. The sun and the weather are the
 // atmosphere's to give ([Plugin.Sun], [Plugin.Air]; the world knows nothing of them): a board in
 // relief takes them through topography.Plugin.WithAtmosphere and shades its terrain by the sun,
-// lays the clouds' shadows tile by tile and hazes the far off; a flat board and the world's sprites
-// take the sun's light on level ground through [Plugin.WithBoard] — tinted by the hour, night dark,
-// dawn warm, what sways leaning with the wind — and the clouds' shadows from [Plugin.Clouds], laid
-// over the screen piece by piece. The sun's maths and shaders are plugins/atmosphere/sky's, the
+// lays the clouds' shadows and hazes the far off, all on the GPU; a flat board and the world's
+// sprites take the sun's light on level ground through [Plugin.WithBoard] — tinted by the hour,
+// night dark, dawn warm, what sways leaning with the wind — and the clouds' shadows from
+// [Plugin.Clouds], drawn on the GPU over the ground under every pixel, their noise worked out every
+// few pixels. The sun's maths and shaders are plugins/atmosphere/sky's, the
 // weather's plugins/atmosphere/air's; [Backdrop] is the sky behind the world, a render.Direct
 // drawn on the GPU (shaders/backdrop.wgsl), and plugins/atmosphere/precipitation what falls.
 //

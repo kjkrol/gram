@@ -101,66 +101,6 @@ func styled(st map[board.Name]Style, k board.CellKind, s Style) board.CellKind {
 	return k
 }
 
-// lightsOf composes brd from above in a world with heights under sun and gives each cell's light.
-func lightsOf(brd *board.Board, st map[board.Name]Style, sun sky.Sun) map[board.CellID]render.Shade {
-	out := map[board.CellID]render.Shade{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { out[t.ID] = t.Light() })
-	d := newDresser(brd, reliefFor(brd), skyOf(sun), true, st)
-	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(256, 256, 0))
-	return out
-}
-
-func TestTile_LightFollowsTheSlopeOfTheGround(t *testing.T) {
-	st := map[board.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	hill, _ := grid.CellIndex(1, 1)
-	reliefFor(brd).SetHeights(MeanOfCells(grid, func(c board.CellID) float64 {
-		if c == hill {
-			return 16
-		}
-		return 0
-	}))
-	sun := sky.Sun{Dir: [3]float32{1, 0, 1}, Strength: 0.6, Ambient: 0.3} // from the east, 45° up
-	lights := lightsOf(brd, st, sun)
-	at := func(x, y uint32) render.Shade { c, _ := grid.CellIndex(x, y); return lights[c] }
-
-	level := sun.Light(0, 0, 1)
-	if far := at(3, 3); far != render.Lit(level) {
-		t.Errorf("level ground far from the hill is lit %v, want %v everywhere", far, level)
-	}
-	// the hill's east side falls away towards the sun, its west side rises away from it
-	if east, west := at(2, 1)[0], at(0, 1)[1]; east[0] <= level[0] || west[0] >= level[0] {
-		t.Errorf("the hill's sunny side is lit %v and its shady side %v, want above and below level %v", east, west, level)
-	}
-	// neighbouring tiles agree on the corner they share: the slope runs on without a seam
-	if a, b := at(1, 1)[1], at(2, 1)[0]; a != b {
-		t.Errorf("the corner the hill shares with its east neighbour is lit %v from one side and %v from the other", a, b)
-	}
-}
-
-// A flat world with heights shows its slopes: ground facing the sun lighter than as drawn, ground
-// turned away darker.
-func TestTile_AFlatWorldShadesItsSlopes(t *testing.T) {
-	st := map[board.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 1, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 16 - math.Abs(p.X-64)/2 }) // a ridge along x = 64
-	got := map[board.CellID]render.Shade{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = t.Light() })
-	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(128, 32, 0))
-	east, _ := grid.CellIndex(2, 0) // falls to the east, where the default sun stands
-	west, _ := grid.CellIndex(1, 0)
-	if e, w := got[east][1][0], got[west][0][0]; e <= 1 || w >= 1 {
-		t.Errorf("the ridge's east side is lit %v and its west side %v, want above and below 1", e, w)
-	}
-}
-
 // A stream down the middle of a valley runs down it at every corner, as fast as its Flow by the
 // square root of the slope; the banks falling into it turn it neither way, and still water does
 // not run.
@@ -593,73 +533,9 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 	}
 }
 
-// wallInSun is a 6x3 board of level grass with a wall 10 tall at (3, 1), under a sun low in the
-// east: its shadow falls 50 to the west.
-func wallInSun(t *testing.T) (*board.Board, board.Grid, sky.Sun) {
-	t.Helper()
-	grid := board.DefaultGrids{}.Square(6, 3, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	wall, _ := grid.CellIndex(3, 1)
-	brd.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 10})
-	return brd, grid, sky.Sun{Dir: [3]float32{1, 0, 0.2}, Strength: 0.6, Ambient: 0.3}
-}
-
-func TestTile_TheTerrainCastsItsShadowAwayFromTheSun(t *testing.T) {
-	st := map[board.Name]Style{}
-	brd, grid, sun := wallInSun(t)
-	lights := lightsOf(brd, st, sun)
-	at := func(x uint32) render.Shade { c, _ := grid.CellIndex(x, 1); return lights[c] }
-	lit, shade := sun.Light(0, 0, 1), sun.Shaded(0, 0, 1, 0)
-
-	// the wall's west edge is at x 96: the grass right behind it is in shadow up to 50 away
-	if got := at(2); got[1] != shade || got[0] != shade {
-		t.Errorf("the grass behind the wall is lit %v, want its corners 32 and 0 from the wall in shadow %v", got, shade)
-	}
-	if got := at(1); got[1] != shade || got[0] != lit {
-		t.Errorf("the next tile is lit %v, want 32 from the wall in shadow and 64 from it in the sun", got)
-	}
-	if got := at(4); got[0] != lit || got[1] != lit {
-		t.Errorf("the grass on the sunny side is lit %v, want %v", got, lit)
-	}
-}
-
-func TestTile_AShadowGoesWithWhatCastItAndWithTheSun(t *testing.T) {
-	st := map[board.Name]Style{}
-	brd, grid, sun := wallInSun(t)
-	var got map[board.CellID]render.Shade
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = t.Light() })
-	current := sun
-	d := newDresser(brd, reliefFor(brd), &movingSky{sun: &current}, true, st)
-	r := dressed(brd, d, look)
-	behind, _ := grid.CellIndex(2, 1)
-	frame := func() render.Shade {
-		got = map[board.CellID]render.Shade{}
-		compose(r, icamera.NewFromSpace(192, 96, 0))
-		return got[behind]
-	}
-	if frame()[1] != sun.Shaded(0, 0, 1, 0) {
-		t.Fatal("no shadow behind the wall to begin with")
-	}
-	noon := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
-	current = noon
-	if l := frame()[1]; l != noon.Light(0, 0, 1) {
-		t.Errorf("under a sun overhead the grass behind the wall is lit %v, want %v: no shadow", l, noon.Light(0, 0, 1))
-	}
-	current = sun
-	wall, _ := grid.CellIndex(3, 1)
-	brd.Set(wall, board.CellKind{Cost: 1, Allows: board.Land})
-	if l := frame()[1]; l != sun.Light(0, 0, 1) {
-		t.Errorf("with the wall knocked down the grass is lit %v, want the full sun %v", l, sun.Light(0, 0, 1))
-	}
-	d.shadows = false
-	brd.Set(wall, board.CellKind{Cost: 1, Allows: board.Land, Solid: true, Height: 10})
-	if l := frame()[1]; l != sun.Light(0, 0, 1) {
-		t.Errorf("with shadows off the grass behind the wall is lit %v, want the full sun", l)
-	}
-}
-
-func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
+// A shiny kind's cell shines as much as its kind's Shine says, all the sun on it — the GPU casts the
+// shadows — and nothing else shines; in a flat world nothing does.
+func TestTile_AShinyCellShines(t *testing.T) {
 	st := map[board.Name]Style{}
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
@@ -686,13 +562,10 @@ func TestTile_AShinyCellShinesAsMuchAsTheSunReachesIt(t *testing.T) {
 	day := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
 	got := shines(day, true)
 	if got[sea] != (shining{0.8, [4]float32{1, 1, 1, 1}}) {
-		t.Errorf("the sea in the full sun shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
+		t.Errorf("the sea shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
 	}
 	if _, ok := got[grass]; ok {
 		t.Errorf("grass shines %v, want nothing", got[grass])
-	}
-	if got := shines(sky.Sun{Dir: [3]float32{0, 0, -1}, Ambient: 0.1}, true); got[sea] != (shining{0.8, [4]float32{}}) {
-		t.Errorf("at night the sea shines %v, want its shine and none of the sun: it reflects the night sky, foams", got[sea])
 	}
 	if got := shines(day, false); len(got) > 0 {
 		t.Errorf("in a flat world %d cells shine, want none: it is drawn as its sprites are", len(got))
@@ -734,50 +607,6 @@ func abs32(v float32) float32 {
 	return v
 }
 
-// Under clouds each tile's top takes their shadow once, over the grounds running in on it too.
-func TestTile_TheCloudsShadowLiesOnceOverATopAndTheGroundsOnIt(t *testing.T) {
-	st := map[board.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(styled(st, board.CellKind{Name: board.Named("k40"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3}))
-	c, _ := grid.CellIndex(1, 1)
-	brd.Set(c, styled(st, board.CellKind{Name: board.Named("k41"), Allows: board.Water, SpriteID: 4}, Style{Under: true}))
-	look := lookFn(func(f *render.Frame, cam camera.Camera, t *tile) {
-		f.Sprite(render.Ground, 0, flatAtlas{}, t.Base(), render.Corners{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}, t.Light())
-		t.Tile.Dress(f, cam, t.X0, t.Y0, t.X1, t.Y1, 0)
-	})
-	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	var f render.Frame
-	cam := icamera.NewFromSpace(96, 96, 0)
-	f.Reset(cam)
-	d.sky = testSky{sun: sky.DefaultSun, air: air.Weather{Clouds: 1}} // an overcast sky: every top the clouds reach is shaded
-	r.Compose(&f, cam)
-
-	shadow := float32(2 + 2*air.CloudShadow())
-	var top []render.Vertex
-	shadows, grounds := 0, 0
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
-		switch {
-		case v[0].ColorA >= shadow && v[0].ColorA <= shadow+1:
-			shadows++
-			if top == nil || v[0].DstX != top[0].DstX || v[3].DstY != top[3].DstY {
-				t.Errorf("a shadow lies at %v,%v; want over the top before it", v[0].DstX, v[0].DstY)
-			}
-			top = nil
-		case v[0].ColorA > 1.5: // another overlay
-		case top == nil:
-			top = v
-		default:
-			grounds++
-		}
-	})
-	// under a sky all covered the clouds' noise (fixed, the drift 0) reaches every one of the 9 tops
-	if shadows != 9 || grounds == 0 {
-		t.Errorf("%d shadows over 9 tops with %d grounds running in on them; want one each, some grounds", shadows, grounds)
-	}
-}
-
 // sheetAtlas is an atlas on a sheet of its own, 8 pixels a sprite.
 type sheetAtlas struct{ img *render.Image }
 
@@ -786,71 +615,6 @@ func (sheetAtlas) UV(id render.SpriteID) (sx0, sy0, sx1, sy1 float32) {
 	return float32(id) * 8, 0, float32(id)*8 + 8, 8
 }
 func (sheetAtlas) White() (u, v float32) { return 1, 1 }
-
-// From far a tile is dressed from the ground sheet: its top is drawn from the sheet, what lies over
-// it is one piece of it painted once, and a tile nothing lies over has none; near, the grounds
-// running in are drawn piece by piece from the board's atlas.
-func TestDresser_FromFarTilesAreDressedFromTheGroundSheet(t *testing.T) {
-	st := map[board.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(styled(st, board.CellKind{Name: board.Named("k42"), Allows: board.Land, SpriteID: 1}, Style{Spread: 0.3}))
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	brd.Set(at(0, 0), styled(st, board.CellKind{Name: board.Named("k43"), Allows: board.Water, SpriteID: 2}, Style{Under: true}))
-	atlas := sheetAtlas{render.NewImage(24, 8)}
-	sheets := map[board.CellID]render.AtlasSource{}
-	look := lookFn(func(f *render.Frame, cam camera.Camera, t *tile) {
-		sheets[t.ID] = t.Atlas
-		f.Sprite(render.Ground, 0, t.Atlas, t.Base(), render.Corners{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}}, t.Light())
-		t.Tile.Dress(f, cam, t.X0, t.Y0, t.X1, t.Y1, 0)
-	})
-	d := newDresser(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := board.NewRenderer(brd, atlas, testMap{look: dressedLook{d, look}, d: d})
-
-	for _, c := range []struct {
-		zoom float32
-		far  bool
-	}{{0.25, true}, {1, false}} {
-		cam := icamera.NewFromSpace(128, 128, 0, geom.NewAABBAt(geom.NewVec(0, 0), 16, 16))
-		cam.ZoomIn(c.zoom, 64, 64)
-		cam.CenterOn(64, 64, 0)
-		var f render.Frame
-		f.Reset(cam)
-		clear(sheets)
-		r.Compose(&f, cam)
-		fromSheet, blends := 0, 0
-		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
-			switch {
-			case v[0].Custom3 > 5.5:
-				blends++
-			case v[0].ColorA <= 1.5 && v[0].SrcY >= 8: // below the atlas: a piece of the painted cells
-				fromSheet++
-			}
-		})
-		sheet, ok := sheets[at(2, 2)].(*groundSheet)
-		switch {
-		case c.far && (!ok || sheets[at(0, 0)] != sheet):
-			t.Errorf("from far the tiles are drawn from %T, want the ground sheet", sheets[at(2, 2)])
-		case c.far && (blends != 0 || fromSheet != 4 || sheet.dressed[3*4+3]):
-			t.Errorf("from far %d grounds drawn running in, %d pieces of the sheet; want none and one each over the sea and its 3 neighbours",
-				blends, fromSheet)
-		case !c.far && (ok || blends == 0 || fromSheet != 0):
-			t.Errorf("near the tiles are drawn from %T with %d grounds running in, %d pieces of a sheet; want the atlas, some, none",
-				sheets[at(2, 2)], blends, fromSheet)
-		}
-	}
-
-	// the sheet is painted anew where the board changes
-	brd.Set(at(3, 3), board.CellKind{Name: board.Named("k43"), Allows: board.Water, SpriteID: 2})
-	cam := icamera.NewFromSpace(128, 128, 0, geom.NewAABBAt(geom.NewVec(0, 0), 16, 16))
-	cam.ZoomIn(0.25, 64, 64)
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
-	if !d.sheet.dressed[3*4+3] || !d.sheet.dressed[2*4+2] {
-		t.Errorf("a sea laid at 3, 3 left it and its neighbour undressed on the sheet")
-	}
-}
 
 // kindsOf is a CellKindDict of the kinds given.
 type kindsOf []board.CellKind

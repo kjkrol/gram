@@ -220,6 +220,12 @@ type Draw struct {
 	Images   [4]Image
 	Uniforms []byte // the program's Uniforms, packed by WGSL's layout (Layout)
 	Blend    Blend
+	// Place lays the vertices' Dst on the target scaled by its first two and moved by its last
+	// two, for triangles kept in other units; zero, as they are.
+	Place [4]float32
+	// Tint multiplies the vertices' colours — theirs, not the data an overlay's hold — for
+	// triangles kept in another light; zero, white.
+	Tint [4]float32
 }
 
 // Triangles draws the triangles indices picks out of verts as dw says.
@@ -262,7 +268,7 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	for len(d.indices)%4 != 0 {
 		d.indices = append(d.indices, 0)
 	}
-	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms)
+	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint)
 
 	pass := d.begin(t, nil, false)
 	pass.SetPipeline(pipeline) // gogpu's Vulkan binds a group through the pipeline's layout: first
@@ -275,9 +281,9 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(len(indices)), InstanceCount: 1})
 }
 
-// drawBlock gathers a draw's block — the target's size and the images' rectangles — and its
-// uniforms, and says where each lies in its buffer.
-func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte) (dOff, uOff uint64) {
+// drawBlock gathers a draw's block — the target's size, the images' rectangles, the place and the
+// tint of its vertices — and its uniforms, and says where each lies in its buffer.
+func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte, place, tint [4]float32) (dOff, uOff uint64) {
 	if len(uniforms) > uniformBlock {
 		panic(fmt.Sprintf("gpu: %d bytes of uniforms, more than %d", len(uniforms), uniformBlock))
 	}
@@ -290,6 +296,15 @@ func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte) (dOff, u
 			r = Rect{}
 		}
 		d.draws = appendF32(appendF32(appendF32(appendF32(d.draws, float32(r.X)), float32(r.Y)), float32(r.W)), float32(r.H))
+	}
+	if place == ([4]float32{}) {
+		place = [4]float32{1, 1, 0, 0}
+	}
+	if tint == ([4]float32{}) {
+		tint = [4]float32{1, 1, 1, 1}
+	}
+	for _, v := range append(place[:], tint[:]...) {
+		d.draws = appendF32(d.draws, v)
 	}
 	uOff = alignUp(uint64(len(d.uniforms)), d.align)
 	d.uniforms = append(d.uniforms, make([]byte, int(uOff)-len(d.uniforms))...)

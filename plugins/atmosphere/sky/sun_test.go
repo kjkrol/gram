@@ -69,23 +69,12 @@ type source func(f *render.Frame)
 func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
-// shadowsOf lays the shadow of a 10x10 entity at (100, 100) standing as z says under sun, from
-// above over level ground, and gives the shadow pieces' middles.
+// shadowsOf is the middle of the shadow of a 10x10 entity at (100, 100) standing as z says under
+// sun, over level ground: none with the sun down.
 func shadowsOf(z world.Z, sun sky.Sun) (middles []geom.Vec) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
-	var f render.Frame
-	f.Reset(cam)
-	sun.Shadow(&f, cam, geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), z, nil)
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier != sky.ShadowTier {
-			return
-		}
-		var x, y float32
-		for _, p := range v {
-			x, y = x+p.DstX/4, y+p.DstY/4
-		}
-		middles = append(middles, geom.NewVec(float64(x), float64(y)))
-	})
+	if p, ok := sun.ShadowOf(geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), z, nil); ok {
+		middles = append(middles, geom.NewVec(float64(p.X), float64(p.Y)))
+	}
 	return middles
 }
 

@@ -26,9 +26,8 @@ func (w Way) angle() float64 {
 const Latitude = 30
 
 // Config is the sun's path and the light: which Way the sun stands at noon (the north-west by
-// default), in how many Steps a day it moves — the terrain's shadows are worked out anew at every
-// step; 96 when zero — and whether the light begins Frozen at Hour of the day (0 to 1; noon when
-// zero). How high the sun goes is the latitude's, the climate's zone's in an atmosphere.
+// default), in how many Steps a day it moves — none, continuously, every tick — and whether the
+// light begins Frozen at Hour of the day (0 to 1; noon when zero). How high the sun goes is the latitude's, the climate's zone's in an atmosphere.
 type Config struct {
 	NoonWay Way
 	Steps   int
@@ -39,9 +38,6 @@ type Config struct {
 }
 
 func (c Config) withDefaults() Config {
-	if c.Steps <= 0 {
-		c.Steps = 96
-	}
 	if c.Hour == 0 {
 		c.Hour = 0.5
 	}

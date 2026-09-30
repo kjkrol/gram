@@ -9,9 +9,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Over a square grid the plugin draws the ground Direct at the Ground tier and the board's Look
-// lays no tile; off one there is no such renderer and the tiles are laid. G is bound to nothing.
-func TestPlugin_TheTerrainTakesTheTilesPlaceOverASquareGrid(t *testing.T) {
+// Over a square grid and over a hex one the plugin draws the ground Direct at the Ground tier — a
+// mesh, prisms — and the board's Look lays no tile. G is bound to nothing.
+func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w := newWorld(0)
 	b, _ := levelBoard(w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
@@ -31,11 +31,28 @@ func TestPlugin_TheTerrainTakesTheTilesPlaceOverASquareGrid(t *testing.T) {
 	w2 := newWorld(0)
 	hex := board.NewPlugin(board.DefaultGrids{}.Hex(4, 4, 16), &board.MultipleOccupancy{}, w2)
 	hex.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	tiles := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	if tiles.Renderer() != nil {
-		t.Errorf("off a square grid the renderer is %T, want nil", tiles.Renderer())
+	prisms := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	if r, ok := prisms.Renderer().(render.Direct); !ok || r.Tier() != render.Ground {
+		t.Errorf("over a hex grid the renderer is %T, want a render.Direct at the Ground tier", prisms.Renderer())
 	}
-	if tiles.Look() == board.Nothing {
-		t.Error("off a square grid the board's Look lays no tile")
+	if prisms.Look() != board.Nothing {
+		t.Error("over a hex grid the board's Look still lays tiles")
+	}
+}
+
+// H makes the terrain's shadows coarser and fine again; a game's code does the same.
+func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
+	w := newWorld(0)
+	b, _ := levelBoard(w)
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	bound := false
+	for _, bd := range p.DefaultBindings() {
+		bound = bound || players.Written(bd.Trigger) == "H"
+	}
+	if !bound {
+		t.Error("H is bound to nothing")
+	}
+	if p.ShadowsCoarse() || !p.WithCoarseShadows(true).ShadowsCoarse() || p.WithCoarseShadows(false).ShadowsCoarse() {
+		t.Error("the shadows are not fine at first, coarse when asked and fine again")
 	}
 }

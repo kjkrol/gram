@@ -86,6 +86,17 @@ func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
 	}
 }
 
+// Without steps the sun goes on with the calendar tick by tick.
+func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
+	r := skyOf(t, Config{}, calendar.Config{Day: 24 * time.Second, Start: 0.5})
+	r.tick(0)
+	noon := r.sky.Sun()
+	r.tick(time.Second / 60)
+	if r.sky.Sun() == noon || r.sky.Sun() != firstDay(0.5+1.0/60/24) {
+		t.Errorf("a tick on the sun is %+v, want the moment's own, moved on from noon's", r.sky.Sun())
+	}
+}
+
 // Frozen, the light stands at its hour while the calendar goes on; Later and Earlier move it by
 // half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {

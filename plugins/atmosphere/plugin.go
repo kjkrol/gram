@@ -2,11 +2,9 @@ package atmosphere
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -118,8 +116,8 @@ func (p *Plugin) Renderer() render.Layer {
 func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
 
 // Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer: laid
-// over the whole screen, piece by piece, over the ground and what stands on it, under the
-// overlays. A world with heights has its terrain shadow itself, tile by tile.
+// over the ground under every pixel on the GPU, over what stands on it, under the overlays. A
+// world with heights has its terrain shadow itself.
 func (p *Plugin) Clouds() render.Layer { return &clouds{sun: p.Sun, air: p.Air} }
 
 // Reporter is the atmosphere's lines for a render.TelemetryRenderer: the time of day and the date,
@@ -200,64 +198,8 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken { return m.comps }
 
 // =================================================================
-// clouds and reporters
+// reporters
 // =================================================================
-
-var _ render.Source = (*clouds)(nil)
-
-// clouds lays the clouds' shadows over the whole screen, the ground under it flat: a mesh of
-// pieces cloudPiece pixels across, the clouds' noise worked out at every corner (air.Weather.Cloud)
-// and shaded between them by the shader.
-type clouds struct {
-	sun  func() sky.Sun
-	air  func() air.Weather
-	mesh []cloudCorner // the corners of the mesh, row by row, kept between frames
-}
-
-// cloudCorner is one corner of the mesh: where it lies on the screen and in the world, and the
-// clouds' noise over it.
-type cloudCorner struct{ sx, sy, x, y, n float32 }
-
-// cloudTier puts the shadows over what stands and under the overlays; cloudPiece is how many
-// pixels a piece of the mesh spans.
-const (
-	cloudTier  = render.Objects + 50
-	cloudPiece = 64
-)
-
-func (*clouds) Init(*goke.SysInit) {}
-
-func (c *clouds) Compose(f *render.Frame, cam camera.Camera) {
-	sun, weather := c.sun(), c.air()
-	sun.Frame(f)
-	weather.Frame(f, sun)
-	if weather.Clouds <= 0 {
-		return
-	}
-	w, h := cam.Viewport()
-	nx, ny := int(math.Ceil(float64(w/cloudPiece))), int(math.Ceil(float64(h/cloudPiece)))
-	c.mesh = c.mesh[:0]
-	for j := 0; j <= ny; j++ {
-		for i := 0; i <= nx; i++ {
-			sx, sy := min(float32(i)*cloudPiece, w), min(float32(j)*cloudPiece, h)
-			x, y := cam.Unproject(sx, sy, 0)
-			c.mesh = append(c.mesh, cloudCorner{sx: sx, sy: sy, x: x, y: y, n: weather.Cloud(x, y)})
-		}
-	}
-	depth := float32(math.Inf(1))
-	for j := 0; j < ny; j++ {
-		for i := 0; i < nx; i++ {
-			var dst render.Corners
-			var world render.World
-			var cloud [4]float32
-			for k, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-				at := c.mesh[(j+d[1])*(nx+1)+i+d[0]]
-				dst[k], world[k], cloud[k] = [2]float32{at.sx, at.sy}, [2]float32{at.x, at.y}, at.n
-			}
-			weather.OvercastQuad(f, cloudTier, depth, dst, world, cloud)
-		}
-	}
-}
 
 // reporters is several reporters as one.
 type reporters []render.Reporter

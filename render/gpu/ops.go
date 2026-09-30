@@ -94,7 +94,7 @@ func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.T
 	}
 	indices := []byte{0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0}
 	var draw []byte
-	for _, f := range [20]float32{fw, fh, 0, 0, 0, 0, sw, sh} {
+	for _, f := range [28]float32{fw, fh, 0, 0, 0, 0, sw, sh, 20: 1, 21: 1, 24: 1, 25: 1, 26: 1, 27: 1} {
 		draw = appendF32(draw, f)
 	}
 	uniforms := make([]byte, uniformBlock)

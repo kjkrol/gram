@@ -81,6 +81,10 @@ type Drive struct {
 	Sprint      bool
 }
 
+// CoarseShadows switches the terrain's shadows between their full detail and a coarser bake: half
+// as fine a side, a quarter of the work the GPU does while the sun goes on.
+type CoarseShadows struct{}
+
 // TurnStep is how far Q and E turn the view a tick they are held: two degrees; TiltStep how far
 // R and F tilt it: one.
 const (
@@ -90,12 +94,13 @@ const (
 
 // Queues are where the view's and the shaping commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.shaping.raise, &p.shaping.lower, &p.shaping.level}
+	return []control.CommandQueue{&p.turns, &p.tilts, &p.follows, &p.drives, &p.views, &p.lookFroms, &p.lookAts, &p.lookOuts, &p.looks, &p.shaping.raise, &p.shaping.lower, &p.shaping.level, &p.coarse}
 }
 
 // DefaultBindings switch the player's view on Tab, turn the camera while Q or E is held, raise its
 // head while R is and bow it while F is; = raises and - lowers the ground under the cursor, a left
-// drag with L held levels it to where the drag began. Given the selection, V rides in the selected
+// drag with L held levels it to where the drag began; H makes the shadows coarser or fine again.
+// Given the selection, V rides in the selected
 // unit, first person, where the game reaches the perspective (Config.Perspective): there W walks
 // the unit on, S brakes it and then backs it away, A and D turn it, the mouse looks round, Q, E, R and F do nothing, V or
 // Tab leave it (bindings holding in camera.FirstPerson; the free camera's keys hold in camera.Free).
@@ -130,6 +135,8 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
 			}),
+		control.Command(control.KeyPress{Key: control.KeyH}, "Coarser shadows, a quarter of the work, or fine again",
+			func(control.Context) (CoarseShadows, bool) { return CoarseShadows{}, true }),
 	}
 	if p.selection != nil {
 		drive := func(ahead, turn int8) func(control.Context) (Drive, bool) {

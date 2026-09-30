@@ -279,6 +279,50 @@ below says what was decided and why, or what needs an answer. Take them out as t
   isometric camera untouched, the free perspective as it stood). The ridden unit's billboard is not
   drawn. Question for review: should the eye sit at the sight's `Eye` height rather than on top
   of the billboard? It needs the sight, so the same cycle.
+- **Thirtieth round: gram on WebGPU, the whole picture on the GPU (2026-09-29/30).** The user:
+  leave Ebitengine altogether, rebuild on WebGPU (gogpu), then draw everything on the GPU — "po to
+  była ta cała zmiana" when the first port drew worse than Ebitengine. Targets: 60 FPS in a window
+  and fullscreen at 2560x1440 on the UHD 620, the CPU's part of a picture under 2 ms. Phase 1 put
+  `render` on `render/gpu` (WGSL programs, textures, mapped staging buffers) and the engine in a
+  gogpu window. Two findings made most of the difference: `Queue.WriteBuffer` waits for the GPU to
+  finish all it was given (an 11 ms stall a frame; the frame's bytes now go through our own
+  MapWrite buffers, a failed map falling back to writing them directly), and gogpu waits for
+  Wayland's frame callback after every frame (40 FPS where 100 were possible; the engine turns it
+  off). Phase 2 in stages: the relief's ground a mesh of its lattice (`topography/terrain`: a depth
+  prepass saved 3 ms at 2560x1440; the heightfield and G retired), the world's entities GPU
+  billboards against its depth (`Hides` retired), the sky and the rain Direct, the views of sight
+  baked per observer and laid over the ground read from the depth (only the selected entity's,
+  `vision.ShowViewOf`), the routes likewise, the water (noise waves faded per pixel, a skirt of sea
+  to the horizon, the sky reflected by the way to the eye per pixel), a sun that is not grey.
+  Then the flat boards: composed once and kept on the GPU (`render.Still`, `gpu.Kept`, placed and
+  lit by `gpu.Draw.Place`/`Tint`; composed anew only when a cell changes — none in 20 s of the board
+  demo), the grid by a shader, the flat world's clouds a mesh of noise every 8 pixels (6.5 → 0.6 ms
+  of the GPU), the flat look's sprites as instances (`render.Sprites`), the views over level ground
+  on the GPU; and a hex board in relief as prisms, coloured from its tiles composed once from
+  above. CPU drawing a frame at 2560x1440: the island 0.5 ms, board 3.2 → 0.3, board-atlas
+  0.46 → 0.2, navigation-hex 0.69 → 0.14, navigation-vision-hex 1.2 → 0.25, collision 2.8 → 1.4
+  (the walk over 14,000 entities). Removed: the topography's tile blocks, its per-corner light,
+  shadows and clouds, its parallel dressing workers — the dresser now only paints, in white — the
+  CPU billboards, `sky.Sun.Shadow`, the CPU cloud overlays, `examples/webgpu-island`.
+  **Two user reports along the way.** "Nothing changed" about the open sea swaying to and fro: my
+  first probe froze the uniforms, found the frames smooth and I fixed an unrelated clock step
+  (`clock.Clock.Shown`: game time run on between the ticks — right, but not it); the cause was the
+  wind's heading wandering every tick and the sea turning its whole field with it about the world's
+  corner. The waves run along x now, the wind only roughens them. And the bands of roads and rivers
+  on a flat board are now lit by the sun as the tiles are (they were not); said to the user.
+  **Decisions.** The composer stays: it orchestrates the tiers, the depth and the Direct sources,
+  and paints (the sheets, the stills). The selection's and the goals' outlines and the marquee stay
+  2D pieces of the frame on the Marks tier — a handful a frame, drawn by the GPU in one call — like
+  the HUD. The board's per-frame tile path stays for cameras not looking from above and dressings
+  that light tiles apart (`board.EvenLit` says which). An observer of a world without heights that
+  carries a `SightOutline` keeps its outline: the entities cut its view on the CPU only.
+  **Found on the way**: the navigation-vision demos drew no ground since the terrain became a
+  Direct (their composers lacked the topography's renderer; fixed); on a wrapping flat board the
+  per-frame bands jumped across the screen where a cell lay just past the view's edge (the camera's
+  `Project` wraps each point alone) — the still does not.
+  **Known limits, questions for review.** The hex prisms cast no shadows (the units on them do,
+  laid over the prisms from the frame's depth); the GPU views ignore entities as occluders; FPS were not measured live at the end (the screen was
+  locked: the compositor held every window at 20 FPS), only headless — to check in the demos.
 - **Twenty-eighth round: the WebGPU try (step 0 of the backend plan).** The user asked for
   WebGPU beside Ebitengine, the abstraction in gram, gogpu first, with a gate after a try on the
   UHD 620. `examples/webgpu-island` draws the island as a mesh raised in the vertex shader from

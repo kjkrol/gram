@@ -99,6 +99,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	}
 	p.Res.Render = &RenderState{ShowGridLines: true}
 	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map)
+	p.renderer.space = p.worldPlugin.Res.Config.Space
 	p.renderer.Workers(p.workers)
 }
 

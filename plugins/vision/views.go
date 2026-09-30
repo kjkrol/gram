@@ -16,15 +16,15 @@ var shaders embed.FS
 
 // sighted bakes the sight of every view drawn (shaders/sighted.wgsl) over the ground and its cover.
 var sighted = render.NewShaderWith("vision sight", render.Files(shaders, "shaders/ground.wgsl", "shaders/sighted.wgsl"), []render.Uniform{
-	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
+	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 	{Name: "SightBend", Size: 1}, {Name: "March", Size: 1}, {Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1},
 })
 
 // viewing lays the views over what the frame drew (shaders/views.wgsl), an observer an instance.
 var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "shaders/ground.wgsl", "shaders/views.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Perspective", Size: 1},
-	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2},
-	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
+	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
+	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 	{Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1}, {Name: "ShadowColor", Size: 4}, {Name: "ConeColor", Size: 4},
 }).Instanced(3)
 
@@ -37,10 +37,11 @@ const (
 	maxGround = 4096
 )
 
-// views are the views of a world with heights drawn on the GPU: the ground and its cover copied
-// into images as they change, every observer's sight baked each frame into a block of its own,
-// then laid over the ground the frame's meshes drew, read from their depth — the ground out of
-// sight veiled, the cone stroked.
+// views are the views drawn on the GPU: the ground and its cover copied into images as they change,
+// every observer's sight baked each frame into a block of its own, then laid over the ground the
+// frame's meshes drew, read from their depth — or over the level ground of a world without heights,
+// found along the camera's lines of sight — the ground out of sight veiled, the cone stroked; over
+// a wrapping world the copy wraps and a view is laid again past a seam it reaches over.
 type views struct {
 	observers []observer // the frame's, in sight of its camera
 
@@ -48,6 +49,7 @@ type views struct {
 	groundAt      [2]uint64     // the ground's version and the cover's the copy holds, 1 more; 0 none
 	nx, ny        int
 	step          float32
+	wrap          [2]bool
 	low, span     float32
 	heights       []float64
 	covers        []coverTexel
@@ -86,12 +88,12 @@ func (v *views) look(cam camera.Camera, o observer) {
 	v.observers = append(v.observers, o)
 }
 
-// draw bakes the frame's views and draws them into the target through cam, over ground and cover,
-// the world w by h, the ground copied every step; shadow veils the ground out of sight, bend sinks
-// it under an eye's level per d².
-func (v *views) draw(t render.Target, cam camera.Camera, ground board.Heights, cover board.Cover, w, h, step float32, bend float64, shadow Shadow) {
+// draw bakes the frame's views and draws them into the target through cam, over ground — nil,
+// level at 0 — and cover, the world w by h wrapping along the axes wrap says, the ground copied
+// every step; shadow veils the ground out of sight, bend sinks it under an eye's level per d².
+func (v *views) draw(t render.Target, cam camera.Camera, ground board.Heights, cover board.Cover, w, h, step float32, wrap [2]bool, bend float64, shadow Shadow) {
 	defer func() { v.observers = v.observers[:0] }()
-	if t.Screen == nil || t.Depth == nil || len(v.observers) == 0 || ground == nil || step <= 0 {
+	if t.Screen == nil || t.Depth == nil || len(v.observers) == 0 || step <= 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -111,16 +113,40 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground board.Heights, c
 	if !ok {
 		return
 	}
-	v.copy(ground, cover, w, h, step)
+	v.copy(ground, cover, w, h, step, wrap)
 	v.bake(bend)
 	persp, span := float32(0), [2]float32{length(f.DX), 0}
 	if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
 		persp, span = 1, [2]float32{0, length(f.DDX)}
 	}
+	// a view is laid again past each seam of a wrapping world, wherever it shows in the viewport
+	images := [][2]float32{{0, 0}}
+	for axis, size := range [2]float32{w, h} {
+		if !wrap[axis] {
+			continue
+		}
+		for _, img := range images {
+			for _, d := range [2]float32{-size, size} {
+				shifted := img
+				shifted[axis] += d
+				images = append(images, shifted)
+			}
+		}
+	}
 	v.instances = v.instances[:0]
 	for k, o := range v.observers {
-		r := v.covered(tr, o, vw, vh)
-		v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3])
+		for _, d := range images {
+			o := o
+			o.X, o.Y = o.X+d[0], o.Y+d[1]
+			r := v.covered(tr, o, vw, vh)
+			if r[0] >= r[2] || r[1] >= r[3] {
+				continue
+			}
+			v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3])
+		}
+	}
+	if len(v.instances) == 0 {
+		return
 	}
 	at := t.Screen.Bounds().Min
 	u, own := v.drawing.Uniforms, v.drawOwn
@@ -131,6 +157,11 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground board.Heights, c
 	set(u, own, "ViewSize", vw, vh)
 	set(u, own, "ViewAt", float32(at.X), float32(at.Y))
 	set(u, own, "PixelSpan", span[:]...)
+	flat := float32(0)
+	if ground == nil {
+		flat = 1
+	}
+	set(u, own, "FlatGround", flat)
 	v.groundUniforms(u, own)
 	sc, cc := unitColor(shadow.Color), unitColor(coneColor)
 	set(u, own, "ShadowColor", sc[:]...)
@@ -206,6 +237,7 @@ func (v *views) bake(bend float64) {
 func (v *views) groundUniforms(u map[string]any, own map[string][]float32) {
 	set(u, own, "GroundStep", v.step)
 	set(u, own, "GroundCount", float32(v.nx), float32(v.ny))
+	set(u, own, "GroundWrap", flag(v.wrap[0]), flag(v.wrap[1]))
 	set(u, own, "Low", v.low)
 	set(u, own, "Span", v.span)
 	set(u, own, "Spokes", spokes)
@@ -223,15 +255,22 @@ func set(u map[string]any, own map[string][]float32, name string, vals ...float3
 	copy(s, vals)
 }
 
-// copy copies the ground and its cover into images, a texel every step over the world w by h,
-// anew where either has changed since — or every frame for one that does not count its changes.
-func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32) {
-	nx, ny := min(int(w/step)+1, maxGround), min(int(h/step)+1, maxGround)
+// copy copies the ground — nil, level at 0 — and its cover into images, a texel every step over
+// the world w by h, the last on its far edge or, along an axis that wraps, a step short of it, anew
+// where either has changed since — or every frame for one that does not count its changes.
+func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32, wrap [2]bool) {
+	count := func(size float32, wraps bool) int {
+		if wraps {
+			return min(max(int(size/step+0.5), 1), maxGround)
+		}
+		return min(int(size/step)+1, maxGround)
+	}
+	nx, ny := count(w, wrap[0]), count(h, wrap[1])
 	at := [2]uint64{versionOf(ground), versionOf(cover)}
-	if v.ground != nil && nx == v.nx && ny == v.ny && step == v.step && at[0] != 0 && at[1] != 0 && at == v.groundAt {
+	if v.ground != nil && nx == v.nx && ny == v.ny && step == v.step && wrap == v.wrap && at[0] != 0 && at[1] != 0 && at == v.groundAt {
 		return
 	}
-	v.groundAt, v.nx, v.ny, v.step = at, nx, ny, step
+	v.groundAt, v.nx, v.ny, v.step, v.wrap = at, nx, ny, step, wrap
 	n := nx * ny
 	v.heights, v.covers = resize(v.heights, n), resizeCover(v.covers, n)
 	x := func(i int) float64 { return math.Min(float64(i)*float64(step), float64(w)-1e-3) }
@@ -239,7 +278,10 @@ func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32
 	low, high := math.Inf(1), math.Inf(-1)
 	for j := range ny {
 		for i := range nx {
-			g := ground.At(geom.NewVec(x(i), y(j)))
+			g := 0.0
+			if ground != nil {
+				g = ground.At(geom.NewVec(x(i), y(j)))
+			}
 			v.heights[j*nx+i] = g
 			low, high = math.Min(low, g), math.Max(high, g)
 		}
@@ -251,15 +293,14 @@ func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32
 		for j := range ny {
 			row := v.covers[j*nx : (j+1)*nx]
 			cover.Walk(geom.NewVec(0, y(j)), geom.NewVec(1, 0), float64(w), 0, func(near, far, bottom, top, tau float64) bool {
-				if math.IsInf(bottom, 0) || math.IsInf(top, 0) {
-					return true
-				}
 				for i := max(int(math.Ceil(near/float64(step))), 0); i < nx && float64(i)*float64(step) <= far; i++ {
 					if tau < row[i].tau {
 						row[i] = coverTexel{tau: math.Max(tau, 0), bottom: bottom, top: top}
 					}
 				}
-				low, high = math.Min(low, bottom), math.Max(high, top)
+				if !math.IsInf(bottom, 0) && !math.IsInf(top, 0) {
+					low, high = math.Min(low, bottom), math.Max(high, top)
+				}
 				return true
 			})
 		}
@@ -276,7 +317,12 @@ func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32
 	for k := range n {
 		hi, lo := enc(v.heights[k])
 		c := v.covers[k]
-		v.pix = append(v.pix, hi, lo, byte(math.Min(c.tau, 1)*255+0.5), 255)
+		// a band without end — a flat world's cover — has it all: alpha none
+		whole := byte(255)
+		if math.IsInf(c.bottom, 0) || math.IsInf(c.top, 0) {
+			whole = 0
+		}
+		v.pix = append(v.pix, hi, lo, byte(math.Min(c.tau, 1)*255+0.5), whole)
 		th, tl := enc(c.top)
 		bh, bl := enc(c.bottom)
 		v.bandPix = append(v.bandPix, th, tl, bh, bl)
@@ -336,4 +382,12 @@ func pow2(n int) int {
 // unitColor is c, premultiplied as the frame takes a colour, 0 to 1 a channel.
 func unitColor(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255, float32(c.A) / 255}
+}
+
+// flag is b as a shader reads it: 1 for true.
+func flag(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
 }

@@ -111,6 +111,7 @@ type Renderer struct {
 	cover   board.Cover
 	bend    float64
 	custom  bool
+	wrap    [2]bool // which axes of the world wrap
 }
 
 // NewRenderer builds a Renderer with DefaultConeStyle and DefaultShadow, wrapping cones at the
@@ -119,7 +120,7 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
 		space: space, style: DefaultConeStyle(), shadow: DefaultShadow,
-		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, gpu: newViews(),
+		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, wrap: [2]bool{edges.WrapsX(), edges.WrapsY()}, gpu: newViews(),
 	}
 }
 
@@ -187,6 +188,10 @@ func (r *Renderer) Init(si *goke.SysInit) {
 // Tier is where the views drawn on the GPU come: ViewTier.
 func (r *Renderer) Tier() render.Tier { return ViewTier }
 
+// levelStep is how far apart, in world units, the views of a world without heights read its cover
+// unless the scan's step says otherwise.
+const levelStep = 8
+
 // ViewTier puts the views drawn on the GPU over the ground and under what stands on it, read from
 // the depth the ground alone left.
 const ViewTier = render.Ground + 50
@@ -196,7 +201,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.hidden || !r.onGPU {
 		return
 	}
-	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.bend, r.shadow)
+	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
 }
 
 // settle has the Viewing behaviors say which views of the chunk under cursor are drawn: every one
@@ -235,15 +240,16 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if r.coverOf != nil {
 			r.cover = r.coverOf()
 		}
+		r.step = levelStep
 		if r.ground != nil {
 			r.step = float32(r.ground.Step())
-			if r.groundStep > 0 {
-				r.step = r.groundStep
-			}
+		}
+		if r.groundStep > 0 {
+			r.step = r.groundStep
 		}
 	}
 	_, rays := cam.(camera.Rays)
-	r.onGPU = rays && r.ground != nil && !r.wraps && !r.custom
+	r.onGPU = rays && !r.custom
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
@@ -261,14 +267,17 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if zs != nil {
 				z = zs[i]
 			}
-			if r.onGPU {
+			// over level ground an observer's outline holds what the GPU cannot see: the entities
+			// cutting its view, as the scan found them
+			outlined := outlines != nil && outlines[i].Count >= 2
+			if r.onGPU && (r.ground != nil || !outlined) {
 				ox, oy := centreOf(&bases[i].Pos)
 				f := sights[i].Facing
 				r.gpu.look(cam, observer{X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)), Reach: float32(sights[i].Radius),
 					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2)})
 				continue
 			}
-			if outlines == nil || outlines[i].Count < 2 || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
+			if !outlined || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
 				continue
 			}
 			r.cone(&bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &sights[i], &outlines[i])

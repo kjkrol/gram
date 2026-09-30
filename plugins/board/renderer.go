@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -48,6 +49,19 @@ type Renderer struct {
 	// scaleVaries is whether the frame's camera draws a world unit larger in some places than
 	// others — a perspective — so each cell is measured where it lies
 	scaleVaries bool
+
+	// space is the world the board lies in, for the still: how large, whether it wraps; zero for a
+	// renderer of a board no plugin runs, which composes its tiles every frame
+	space world.SpaceCfg
+	// still is the tiles of a flat map under an EvenLit dressing composed once in white (white
+	// while composing), again when the board changes (stillAt); drawn this frame (stillOn) in
+	// stillLight
+	still      *render.Still
+	stillAt    uint64
+	stillOn    bool
+	stillLight render.Light
+	white      bool
+	grid       gridLines // the still's
 }
 
 // cellTop is a cell as one Compose reads it once: its kind's sway and height, its sprite, and its
@@ -72,7 +86,7 @@ func abs32(v float32) float32 {
 	return v
 }
 
-var _ render.Source = (*Renderer)(nil)
+var _ render.Direct = (*Renderer)(nil)
 
 // gridTier puts the lines of a grid other than square over every tile and under whatever stands on
 // them.
@@ -108,17 +122,97 @@ func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
 // grid the Look outlines each tile along its own edges, on any other the cells' outlines are
 // drawn as lines. Under a Parallel Dressing and a ParallelLook, with tiles enough, every tile is
 // warmed first, then the tiles are shared out among goroutines, each drawing its run into a frame
-// of its own, appended to f in order: the picture is the one goroutine would draw.
+// of its own, appended to f in order: the picture is the one goroutine would draw. A flat map under
+// an EvenLit dressing seen from above is composed once instead (render.Still), again when the board
+// changes, and drawn by Draw, the grid over it on the GPU.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	d := l.dressing()
-	look := l.mapping().Look()
+	m := l.mapping()
+	look := m.Look()
 	if d != nil {
 		d.Begin(f, cam)
 	}
 	if look == Nothing {
 		return // the ground is drawn some other way: the dressing is readied for the frame, no more
 	}
+	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
+		l.composeStill(look, d)
+		l.camera = cam
+		return
+	}
+	l.compose(f, look, d)
+}
+
+// Tier is where the still comes: render.Ground, under all else.
+func (l *Renderer) Tier() render.Tier { return render.Ground }
+
+// Draw draws the still this frame composed through cam, as many times as a wrapping world shows
+// it, and the grid over it when it is on; nothing where the tiles were composed into the frame.
+func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
+	if !l.stillOn || t.Screen == nil {
+		return
+	}
+	zoom := cam.Zoom()
+	x, y := cam.FromScreen(0, 0)
+	w, h := cam.Viewport()
+	ww, wh := float32(l.space.Width), float32(l.space.Height)
+	xs, ys := []float32{x}, []float32{y}
+	if l.space.Edges.WrapsX() && x+w/zoom > ww {
+		xs = append(xs, x-ww)
+	}
+	if l.space.Edges.WrapsY() && y+h/zoom > wh {
+		ys = append(ys, y-wh)
+	}
+	for _, sy := range ys {
+		for _, sx := range xs {
+			l.still.Draw(t.Screen, u, zoom, sx, sy, l.stillLight)
+		}
+	}
+	if l.state.ShowGridLines && float32(min(l.cellW, l.cellH))*zoom >= MinGridCell {
+		l.grid.draw(t, cam, u, l.board, l.space.Edges.WrapsX(), l.space.Edges.WrapsY())
+	}
+}
+
+// evenLight is the light the still is drawn in this frame, and whether it is: a board in a world
+// a plugin runs, a flat map, a camera looking straight down, the dressing none or lighting every
+// tile alike.
+func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
+	if l.space.Width == 0 || l.space.Height == 0 || m.Heights() != nil {
+		return render.Light{}, false
+	}
+	if _, top := cam.Projection().(camera.TopDown); !top {
+		return render.Light{}, false
+	}
+	if d == nil {
+		return render.Light{1, 1, 1}, true
+	}
+	if e, ok := d.(EvenLit); ok {
+		return e.EvenLight()
+	}
+	return render.Light{}, false
+}
+
+// composeStill composes the still anew where the board has changed since it was last.
+func (l *Renderer) composeStill(look Look, d Dressing) {
+	if l.still == nil {
+		l.still = render.NewStill()
+	}
+	if l.stillAt == l.board.Changes()+1 {
+		return
+	}
+	l.white = true
+	l.still.Compose(float32(l.space.Width), float32(l.space.Height), func(f *render.Frame, cam camera.Camera) {
+		l.camera = cam
+		l.compose(f, look, d)
+	})
+	l.white = false
+	l.stillAt = l.board.Changes() + 1
+}
+
+// compose hands look every cell under the renderer's camera, dressed by d.
+func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
+	cam := l.camera
 	sheet := l.atlas
 	if d != nil {
 		sheet = d.Sheet(l.atlas)
@@ -198,7 +292,7 @@ func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c CellID, outline [
 // gridShown reports whether the grid is on and cell c, its centre at center, is large enough on
 // screen to read it: where it is drawn, as the camera draws a world unit there.
 func (l *Renderer) gridShown(c CellID, center geom.Vec) bool {
-	if !l.state.ShowGridLines {
+	if !l.state.ShowGridLines || l.white { // a still's grid is drawn over it on the GPU
 		return false
 	}
 	scale := l.camera.Zoom()

@@ -1,5 +1,6 @@
 // Package render is the drawing side of gram: pure primitives that know nothing of Stages,
-// Scenes or plugins. A Scene's Layers and a plugin's Renderer are made of these.
+// Scenes or plugins. A Scene's Layers and a plugin's Renderer are made of these. Everything is
+// drawn on the GPU through WebGPU (render/gpu over gogpu), in WGSL shaders.
 //
 // # Layers: Renderer and WorldRenderer
 //
@@ -37,23 +38,35 @@
 // game's own — and when the camera's projection sorts, everything below Marks is drawn back to
 // front by depth, ties by tier, so a mountain hides the route and the cone behind it while the
 // selection stays on top; otherwise the tier alone decides. Every piece is drawn with one shader, sampling a
-// sheet — a colour its white texel — so a run of pieces on one sheet is one DrawTrianglesShader
-// call. Ties keep the order pieces came in. [Frame.SpriteBlend] draws a sprite only where a weight
+// sheet — a colour its white texel — so a run of pieces on one sheet is one call. Ties keep the
+// order pieces came in. [Frame.SpriteBlend] draws a sprite only where a weight
 // blended between its corners is over a half: one ground running into another along a line, not
 // along the edges of a quad. A [Direct] source draws a part of the picture itself, with a shader
-// of its own — a heightfield traced per pixel — before the first piece of its tier or over and
-// after all before it, handed the frame's [Uniforms]; [ShaderSourceWith] builds such a shader on
-// the composer's library and materials. A nil layer handed to the composer is left out. [Frame.Branch] and
-// [Frame.Append] let a source gather pieces on several goroutines and take them back in order.
+// of its own — the ground as a mesh of its heights, the sky, the rain — before the first piece of
+// its tier or over and after all before it, handed where to draw ([Target]: the screen and the
+// frame's shared [Depth], reversed, 1 nearest, cleared as the frame begins) and the frame's
+// [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library and materials, its
+// own vertex stage drawing [Image.DrawMesh] with depth, instances ([Shader.Instanced]) and the
+// frame's depth to read ([DrawMeshOptions.ReadDepth]: what lies under a decal). A nil layer handed
+// to the composer is left out. [Frame.Branch] and [Frame.Append] let a source gather pieces on
+// several goroutines and take them back in order.
+//
+// # Still and Sprites
+//
+// A [Still] is a frame composed once in world units — through a camera drawing a world unit a
+// pixel — and kept on the GPU run by run, drawn every frame scaled and moved as a camera from
+// above shows the world and in a light of its own: a flat board's tiles, composed anew only when
+// the board changes. [Sprites] is a Direct source's sprites drawn as instances, one call a run
+// sharing an atlas, piece for piece what Frame.SpriteRectUV would lay.
 //
 // What is worked out per pixel beyond that — water, the clouds' shadows — is a material a plugin
-// brings in Kage of its own and registers ([RegisterMaterials]); the composer's one shader is its
+// brings in WGSL of its own and registers ([RegisterMaterials]); the composer's one shader is its
 // own part and every material registered, put together and compiled once ([Compile],
 // [ShaderSource]). [Frame.Overlay] lays over the sprite just added a quad for a material to work out,
 // where its corners lie in the world ([World], [Box]) and what the material reads at each —
 // [Frame.OverlayOn] over one added earlier ([Frame.Last]), over all drawn on it since;
-// [Frame.Material] lays a material's quad on its own. A material declares its own uniforms in its
-// Kage and a source sets them ([Frame.Uniform]); the composer's own are Toward, the way towards
+// [Frame.Material] lays a material's quad on its own. A material declares its own uniforms beside
+// its WGSL and a source sets them ([Frame.Uniform]); the composer's own are Toward, the way towards
 // the eye, Clock, the frame's time ([Frame.Time]), Pixel, the world units a pixel spans, and Fog,
 // the colour what lies far off turns to as much as a plain sprite asks ([Frame.Fog]). What the
 // light, the weather or the ground are is no business of the frame's: the sun and the air are

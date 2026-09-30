@@ -4,7 +4,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -16,73 +15,50 @@ func inRelief(cam camera.Camera) bool {
 	return ok && c.relief()
 }
 
-var _ board.Look = boardLook{}
-
-// boardLook lays the board's cells as the camera looks: blocks in the isometric view, flat tiles
-// from above.
-type boardLook struct{ d *dresser }
-
-func (l boardLook) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
-	if inRelief(cam) {
-		blocks{d: l.d}.Cell(f, cam, t)
-		return
-	}
-	board.FlatLook().Cell(f, cam, t)
-}
-
 var _ world.DirectLook = worldLook{}
 
-// worldLook lays the world's entities as the camera looks: billboards standing upright in the
-// views in relief, the world's own flat sprites from above — lit by the sky's sun on level ground,
-// leaning with its wind, each casting its shadow on the relief away from the sun. Over the ground
-// drawn on the GPU the billboards and their shadows are drawn on the GPU too (sprites), hidden by
-// the depth where the hills stand before them.
+// worldLook lays the world's entities as the camera looks, on the GPU: billboards standing upright
+// in the views in relief (sprites), hidden by the depth where the ground stands before them, the
+// world's own flat sprites from above — lit by the sky's sun on level ground, leaning with its
+// wind, each casting its shadow on the relief away from the sun.
 type worldLook struct {
 	flat world.Look
 	d    *dresser
-	gpu  *sprites // nil off a square grid
+	gpu  *sprites
 }
 
-// Begin readies the sprites drawn on the GPU for a frame through cam.
+// Begin readies the billboards, the shadows and the flat sprites for a frame through cam.
 func (l worldLook) Begin(cam camera.Camera) {
-	if l.gpu != nil {
-		l.gpu.begin(cam)
+	l.gpu.begin(cam)
+	if d, ok := l.flat.(world.DirectLook); ok {
+		d.Begin(cam)
 	}
 }
 
-// DrawSprites draws the billboards and the shadows the frame took on the GPU.
+// DrawSprites draws the shadows, then the billboards or the flat sprites the frame took.
 func (l worldLook) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
-	if l.gpu != nil {
-		l.gpu.draw(t, cam, u)
+	l.gpu.draw(t, cam, u)
+	if d, ok := l.flat.(world.DirectLook); ok {
+		d.DrawSprites(t, cam, u)
 	}
 }
 
 func (l worldLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	if l.gpu != nil && l.gpu.on {
+	if l.gpu.on {
 		l.gpu.add(cam, box, z, atlas, id, light, sway, f.Time())
 		return
 	}
-	sun, weather := l.d.sky.Sun(), l.d.sky.Air()
-	if l.d.heights {
-		sun.Shadow(f, cam, box.AABB, z, l.groundAt)
-	}
-	if inRelief(cam) {
-		billboards{d: l.d}.Sprite(f, cam, box, z, atlas, id, light, sway)
-		return
+	if l.gpu.shading {
+		l.gpu.shadow(box, z)
 	}
 	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
-		lx, ly := weather.Sway(f.Time(), cx, cy, sway)
+		lx, ly := l.d.sky.Air().Sway(f.Time(), cx, cy, sway)
 		rise := max(sizeX, sizeY)
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
 	}
-	l.flat.Sprite(f, cam, box, z, atlas, id, lit(sun, light), 0)
-}
-
-// groundAt is the relief's height at a point, for the shadows.
-func (l worldLook) groundAt(x, y float32) float32 {
-	return float32(l.d.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
+	l.flat.Sprite(f, cam, box, z, atlas, id, lit(l.d.sky.Sun(), light), 0)
 }
 
 func (l worldLook) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {

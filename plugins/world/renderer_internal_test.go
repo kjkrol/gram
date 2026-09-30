@@ -33,7 +33,8 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	if err := host.Add(Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, host, func() Look { return &flatLook{worldW: 1000, worldH: 1000} })
+	look := &flatLook{worldW: 1000, worldH: 1000}
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, host, func() Look { return look })
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -60,7 +61,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	return f.Len(), visited
+	return f.Len() + look.sprites.Len(), visited // laid on the frame, or gathered for the GPU
 }
 
 func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {

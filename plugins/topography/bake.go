@@ -56,23 +56,9 @@ const (
 // sheet: no finer than the sheet paints it.
 const bakeCell = bakePx
 
-// Sheet is the ground sheet made of the board's atlas while tiles may be dressed from it
-// (sheeted), brought up to date with the board; else the atlas itself. The sheet holds the atlas
-// as it is, so a tile drawn in full takes its sprites from it the same.
-func (l *dresser) Sheet(atlas render.AtlasSource) render.AtlasSource {
-	if !l.sheeted {
-		return atlas
-	}
-	if l.sheet == nil || l.sheet.atlas != atlas {
-		l.sheet = l.newSheet(atlas, false)
-	}
-	if l.sheet == nil {
-		l.sheeted = false // nothing to paint on
-		return atlas
-	}
-	l.paint(l.sheet)
-	return l.sheet
-}
+// Sheet is the atlas itself: the tiles are dressed only when composed once, from above, for the
+// ground drawn on the GPU.
+func (l *dresser) Sheet(atlas render.AtlasSource) render.AtlasSource { return atlas }
 
 // Surface is the whole board painted flat out of atlas, px pixels a cell — every cell's base with
 // the grounds running in, the ways and the crossings over it — and its water, wpx pixels a cell
@@ -369,21 +355,4 @@ func unwrap(d, n int) int {
 		return d + n
 	}
 	return d
-}
-
-// dressBaked lays over tile t, its top drawn at corners, what lies over it as one piece of the
-// ground sheet, where anything does.
-func (l *dresser) dressBaked(f *render.Frame, t *tile, corners render.Corners, depth float32) {
-	s := l.sheet
-	i, _ := l.ordinal(t.ID)
-	if !s.dressed[i] {
-		return
-	}
-	cols := int(l.sq.Cols)
-	r := s.cell(uint32(i%cols), uint32(i/cols))
-	src := [4]float32{float32(r.Min.X), float32(r.Min.Y), float32(r.Max.X), float32(r.Max.Y)}
-	f.SpritePart(render.Ground, depth, s, src, corners, t.Light())
-	z := l.topOf(t.ID).z
-	hazed(f, l.camera, l.weather, [4][3]float32{{t.X0, t.Y0, z[0]}, {t.X1, t.Y0, z[1]}, {t.X0, t.Y1, z[2]}, {t.X1, t.Y1, z[3]}})
-	f.Fold(z)
 }

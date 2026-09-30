@@ -10,10 +10,10 @@
   <a href="https://github.com/kjkrol/gram/actions"><img src="https://github.com/kjkrol/gram/actions/workflows/go.yml/badge.svg" alt="Go Quality Check"></a>
 </p>
 
-**gram** is a modular 2D game engine for Go. A game is a set of named **Stages**, each with its
-own entity-component world and its own **Scenes**; an engine drives the active Stage through
-[Ebitengine](https://ebitengine.org/)'s `Update`/`Draw`/`Layout` loop on the
-[goke](https://github.com/kjkrol/goke) ECS. Everything beyond the tick loop is a **plugin**: the
+**gram** is a modular game engine for Go. A game is a set of named **Stages**, each with its
+own entity-component world and its own **Scenes**; an engine drives the active Stage on the
+[goke](https://github.com/kjkrol/goke) ECS, a tick and a picture a frame, and draws it on the GPU
+through WebGPU ([gogpu](https://github.com/gogpu/gogpu), pure Go over Vulkan, Metal or DirectX). Everything beyond the tick loop is a **plugin**: the
 built-in ones give a Stage a world of moving boxes, collisions, sight, a board with terrain,
 pathfinding and mouse selection, and a game adds its own the same way. Formerly *gokebiten*.
 
@@ -59,9 +59,8 @@ pathfinding and mouse selection, and a game adds its own the same way. Formerly 
 go get github.com/kjkrol/gram
 ```
 
-**Prerequisites:** Go 1.27+ and the
-[Ebitengine system dependencies](https://ebitengine.org/en/documents/install.html) (a C compiler
-and a few system libraries; Ebitengine uses cgo on most platforms).
+**Prerequisites:** Go 1.27+ and a GPU with a Vulkan, Metal or DirectX 12 driver; gogpu needs no
+cgo. Without a GPU the tests that draw skip themselves.
 
 <a id="features"></a>
 # ✨ Key Features
@@ -80,7 +79,7 @@ and a few system libraries; Ebitengine uses cgo on most platforms).
 | **Selection** | `plugins/selection` | A `Select` command into a `Selected` tag, with default bindings (click, marquee, shift-add) and a highlight renderer |
 | **Players** | `plugins/players` | Who acts: a camera and view per player, the plugins' default bindings gathered and bound, input translated into typed commands the defining plugins drain |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
-| **Camera and rendering** | `camera`, `render` | A wrap-aware camera with zoom and pan; an atlas baked at `Close`, quad batching, cached and telemetry renderers |
+| **Camera and rendering** | `camera`, `render` | A wrap-aware camera with zoom and pan; everything drawn on the GPU (WebGPU, WGSL): sources composed by tier with a shared depth buffer, Direct sources with shaders of their own, a picture composed once and kept on the GPU (`Still`), instanced sprites; an atlas baked at `Close`, telemetry renderers |
 
 <a id="example"></a>
 # Example
@@ -97,7 +96,6 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -109,6 +107,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision/behavior"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/kind/comp"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -223,8 +222,8 @@ func (v *view) Layers() []render.Layer {
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
-		v.arena.world.Renderer(),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count, &v.arena.stats.Counter),
+		render.NewComposer(v.arena.world.Renderer()),
+		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
 	}
 }
 
@@ -235,7 +234,7 @@ func (v *view) Viewports(screen geom.AABB) []render.Viewport {
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyEscape {
+		if k.Action == control.ActionPress && k.Key == control.KeyEscape {
 			runtime.Quit()
 		}
 	}
@@ -360,13 +359,13 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/vision/behavior`](plugins/vision/behavior/doc.go) | `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, entries for the schedule), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`) and what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways) |
-| [`plugins/topography`](plugins/topography/doc.go) | A map in relief: the heights, the slopes' cost, the light, the water and the ways on them, the two views — from above and isometric, Tab switches — with the cameras turned, tilted and fastened behind a unit |
+| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit |
 | [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases |
 | [`plugins/world/effects`](plugins/world/effects/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the schedule of what happens when |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands; route drawing |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; highlight renderer |
 | [`plugins/players`](plugins/players/doc.go) | A carrier over the command handlers: players and their bindings, `Pan` and `Zoom` |
-| [`internal/engine`](internal/engine/doc.go) | The `Engine`: the Ebitengine loop, one active Stage, persistence, input capture |
+| [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop (gogpu), one active Stage, persistence, input capture |
 | [`gram`](doc.go) (public) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 
 ```
@@ -378,7 +377,7 @@ control ───┘ (→ camera)                                   │  ▲
 
 Outside the module: [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,
 [aabbworld](https://github.com/kjkrol/aabbworld) the space, collisions and line of sight under the
-world, [Ebitengine](https://ebitengine.org/) the loop and the drawing,
+world, [gogpu](https://github.com/gogpu/gogpu) the window, the loop and the GPU (WebGPU),
 [astar](https://github.com/kjkrol/astar) the pathfinding.
 
 <a id="performance"></a>
@@ -404,7 +403,8 @@ make bench
 # Relationship to goke and aabbworld
 
 gram began as `goke`'s Ebitengine example and was extracted so the ECS stays free of GUI
-dependencies while this integration evolves and versions on its own. The world, collisions and
+dependencies while this integration evolves and versions on its own; it has since left Ebitengine
+for WebGPU, drawing the whole picture on the GPU. The world, collisions and
 line of sight are `aabbworld`'s; gram is where they meet an ECS and a screen.
 
 <a id="documentation"></a>

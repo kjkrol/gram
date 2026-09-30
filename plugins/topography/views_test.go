@@ -132,27 +132,28 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	topography.NewPlugin(w, b, topography.Config{Cell: 32})
 }
 
-func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
+// In relief an entity stands as a billboard drawn on the GPU: upright on its box's centre at its
+// altitude, as wide as the box and as tall as its Z says, as long as the box without one; picked and
+// outlined there. From above it lies over its box.
+func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	w, _, _, _ := isometricIsland()
 	cam := w.Camera()
 	cam.CenterOn(64, 64, 0)
 	look := w.Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-
-	var f render.Frame
-	f.Reset(cam)
-	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, depth float32, v []render.Vertex) {
-		if tier == sky.ShadowTier {
-			return // its shadow on the ground, laid before it
-		}
-		if tier != render.Objects || depth != cam.Depth(45, 45, 6) {
-			t.Errorf("entity on tier %d at depth %v, want Objects at its centre's %v", tier, depth, cam.Depth(45, 45, 6))
-		}
-		if v[0].DstY != v[1].DstY || v[2].DstY-v[0].DstY != 10 {
-			t.Errorf("entity drawn at %v %v %v, want an upright 10-tall rectangle", v[0], v[1], v[2])
-		}
-	})
+	stand := func(z world.Z) [][6]float32 {
+		var f render.Frame
+		f.Reset(cam)
+		look.(world.DirectLook).Begin(cam)
+		look.Sprite(&f, cam, box, z, sheet{}, 0, render.Light{1, 1, 1}, 0)
+		return topography.Billboards(look)
+	}
+	if b := stand(world.Z{Altitude: 6}); len(b) != 1 || b[0] != [6]float32{45, 45, 6, 10, 10, 0} {
+		t.Errorf("billboards %v, want one on (45, 45) at 6, 10 tall, 10 wide, upright", b)
+	}
+	if b := stand(world.Z{Altitude: 6, Height: 30}); len(b) != 1 || b[0][3] != 30 || b[0][4] != 10 {
+		t.Errorf("billboards %v, want one 30 tall on its 10-wide box: as tall as its Z says", b)
+	}
 	drawn := look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	bx, by := cam.Project(45, 45, 6)
 	if drawn[2][1] != by || (drawn[2][0]+drawn[3][0])/2 != bx {
@@ -161,29 +162,12 @@ func TestBillboards_StandEntitiesUprightAtTheDepthOfTheirCentre(t *testing.T) {
 	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
 		t.Errorf("footprint %v, want one diamond on the ground", fp)
 	}
-	// an entity 30 tall stands as a billboard 30 tall on its 10-wide box: as tall as its Z says
-	f.Reset(cam)
-	look.Sprite(&f, cam, box, world.Z{Altitude: 6, Height: 30}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier == sky.ShadowTier {
-			return
-		}
-		if v[2].DstY-v[0].DstY != 30 || v[1].DstX-v[0].DstX != 10 {
-			t.Errorf("an entity 30 tall is drawn %v wide and %v tall, want 10 by 30", v[1].DstX-v[0].DstX, v[2].DstY-v[0].DstY)
-		}
-	})
 	// from above the world's own flat look: the sprite over its box
 	topography.SwitchView(cam)
-	f.Reset(cam)
-	look.Sprite(&f, cam, box, world.Z{Altitude: 6}, sheet{}, 0, render.Light{1, 1, 1}, 0)
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier == sky.ShadowTier {
-			return
-		}
-		if x0, y0 := cam.Project(40, 40, 0); v[0].DstX != x0 || v[0].DstY != y0 {
-			t.Errorf("from above the entity is drawn at (%v, %v), want over its box's corner (%v, %v)", v[0].DstX, v[0].DstY, x0, y0)
-		}
-	})
+	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
+	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
+		t.Errorf("from above the entity is drawn at %v, want over its box's corner (%v, %v)", drawn[0], x0, y0)
+	}
 }
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -206,16 +190,15 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 
 	look := w.Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-	edge := func(sway float32) float32 {
+	lean := func(sway float32) float32 {
 		var f render.Frame
 		f.Reset(cam)
+		look.(world.DirectLook).Begin(cam)
 		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
-		var x float32
-		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) { x = v[0].DstX - v[2].DstX })
-		return x
+		return topography.Billboards(look)[0][5]
 	}
-	if still, swaying := edge(0), edge(1); still != 0 || swaying == 0 {
-		t.Errorf("a billboard's top edge stands %v off its foot unswaying, %v swaying; want upright and leaning", still, swaying)
+	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {
+		t.Errorf("a billboard's top leans %v unswaying, %v swaying; want upright and leaning", still, swaying)
 	}
 }
 

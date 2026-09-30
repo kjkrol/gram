@@ -119,7 +119,10 @@
 // The Renderer asks the Look for every entity in white light, swaying as its Appearance says: the
 // world knows no sun and no wind; the Look — a view plugin's, or the atmosphere's over a flat board
 // (atmosphere.Plugin.WithBoard) — lights the entity, leans it and lays its shadow. Picking and
-// outlines ask the same Look. A view plugin also makes the world's cameras ([Plugin.SetCameras],
+// outlines ask the same Look. A [DirectLook] draws the sprites itself on the GPU: the Renderer, a
+// render.Direct at render.Objects, readies it every frame, hands it the sprites and has it draw
+// them — the world's own flat look as instances (render.Sprites), the topography's as billboards
+// against the ground's depth. A view plugin also makes the world's cameras ([Plugin.SetCameras],
 // [Cameras]).
 //
 // # Views

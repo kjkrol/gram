@@ -234,7 +234,7 @@ func Mesh(dw *MeshDraw) {
 			d.verts = appendF32(d.verts, f)
 		}
 	}
-	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms)
+	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{})
 	pass := d.begin(t, dw.Depth, dw.ClearDepth && dw.Depth != nil)
 	if dw.Primed && dw.Depth != nil {
 		r := dw.Target.rect()

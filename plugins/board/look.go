@@ -34,6 +34,16 @@ type Dressing interface {
 	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32)
 }
 
+// EvenLit is a Dressing that lights every tile of a flat map alike and dresses each the same frame
+// after frame while the board stays as it is. Seen from above, the board's renderer composes such a
+// map's tiles once in white light (render.Still), again only when the board changes, and has the
+// GPU draw them every frame in EvenLight.
+type EvenLit interface {
+	// EvenLight is the light every tile is lit in this frame; false where the tiles are lit apart
+	// or dressed anew every frame.
+	EvenLight() (render.Light, bool)
+}
+
 // Parallel is a Dressing that dresses tiles on several goroutines at once. Under one, with a
 // ParallelLook, the renderer Warms every visible tile first, on the frame's goroutine, then shares
 // the tiles out among Workers, each dressing its share into a frame of its own.
@@ -88,6 +98,9 @@ func (t *Tile) Kind() CellKind { return t.r.board.Kind(t.ID) }
 
 // Light is the light on the tile's top at its corners: the Dressing's; even without one.
 func (t *Tile) Light() render.Shade {
+	if t.r.white {
+		return render.Even(1) // composed once, lit on the GPU
+	}
 	if d := t.dress; d != nil {
 		return d.Light(t)
 	}

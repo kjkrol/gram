@@ -102,7 +102,7 @@ func (f *Frame) Reset(cam camera.Camera) {
 }
 
 // Uniform sets the shader's uniform name to v — a float, or a vector of two to four — for this
-// frame: what a source's materials read, declared in their own Kage (RegisterMaterials). A frame
+// frame: what a source's materials read, declared with their own WGSL (RegisterMaterials). A frame
 // hands the composer only what was set; the rest is zero. The names Toward, Clock, Pixel and Fog
 // are the composer's own.
 func (f *Frame) Uniform(name string, v ...float32) {
@@ -313,19 +313,13 @@ func (f *Frame) SpriteRect(tier Tier, depth float32, atlas AtlasSource, id Sprit
 // SpriteRectUV is SpriteRect showing only the part u0..u1, v0..v1 of the sprite, 0 to 1 across it.
 func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, shade Shade) {
 	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = len(f.verts), true, tier, depth, atlas, quad
-	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
-	w, h := sx1-sx0, sy1-sy0
-	f.quads = f.cam.ToScreenQuads(x0, y0, x1, y1, f.quads[:0])
-	for _, q := range f.quads {
-		pu0, pu1 := u0+q.T0X*(u1-u0), u0+q.T1X*(u1-u0)
-		pv0, pv1 := v0+q.T0Y*(v1-v0), v0+q.T1Y*(v1-v0)
-		a0, b0, a1, b1 := sx0+pu0*w, sy0+pv0*h, sx0+pu1*w, sy0+pv1*h
+	f.quads = spritePieces(f.cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, f.quads[:0], func(q camera.Quad, a0, b0, a1, b1 float32) {
 		// a piece of the rectangle takes the shade the rectangle has where the piece's corners are
 		f.verts = append(f.verts,
 			vertex(q.X0, q.Y0, a0, b0, lit(shade.at(q.T0X, q.T0Y))), vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
 			vertex(q.X0, q.Y1, a0, b1, lit(shade.at(q.T0X, q.T1Y))), vertex(q.X1, q.Y1, a1, b1, lit(shade.at(q.T1X, q.T1Y))))
 		f.add(tier, depth, atlas, quad, 4)
-	}
+	})
 }
 
 // World is where each corner of a piece lies in the world — top-left, top-right, bottom-left,

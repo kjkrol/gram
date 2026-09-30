@@ -23,15 +23,13 @@ type dresser struct {
 	sq      board.SquareShape
 
 	lighted sky.Sun       // the sun of the frame being drawn
-	lamp    sky.Lamp      // lighted, ready to light every corner
 	weather air.Weather   // the weather of the frame being drawn
 	camera  camera.Camera // the one of the frame being drawn
 	cellW   float64
 	cellH   float64
-	cellPx  float32     // how many pixels a cell spans in the frame being drawn, at its zoom (tile.px: where)
-	varies  bool        // the camera draws a world unit larger in some places than others: a perspective
-	pieces  []nearPiece // the pieces of a tile the eye stands among, kept between tiles
-	tile    tile        // the tile being dressed
+	cellPx  float32 // how many pixels a cell spans in the frame being drawn, at its zoom (tile.px: where)
+	varies  bool    // the camera draws a world unit larger in some places than others: a perspective
+	tile    tile    // the tile being dressed
 
 	ways   []WayPiece   // the pieces of the last tile's Way
 	blends []BlendPiece // the last tile's Blends
@@ -39,14 +37,6 @@ type dresser struct {
 	// bakes what has been worked out of it and the cells round it, good while they all do.
 	tops  []cellTop
 	bakes []cellBake
-	// sunlit holds by ordinal how much sun reaches each corner of a cell's top, good while its
-	// stamp is sunStamp: as long as neither the terrain nor the sun changes.
-	shadows  bool
-	sunlit   []cellSunlit
-	sunStamp uint32
-	sunFor   sunKey
-	highest  float32 // the highest top a shadow may come from, measured when the shadows go stale
-	stale    bool    // the shadows went stale this frame: highest is still to be measured
 	// shores holds by corner of a square grid, row by row, the way to the shore from it, good
 	// while its stamp is shoreStamp: as long as the terrain does not change.
 	shores     []cornerShore
@@ -55,26 +45,14 @@ type dresser struct {
 	// wet holds by cell whether water may lie on it, for the board's count of changes wetAt
 	wet   []bool
 	wetAt uint64
-	// the frame's clouds: clouds holds by corner of a square grid, row by row, their noise over
-	// it, good while its stamp is cloudFrame: this frame
-	clouds     []float32
-	cloudStamp []uint32
-	cloudFrame uint32
-	// sheeted has the tiles too small on screen dressed from sheet this frame (baked), on a
-	// square grid; albedo is the whole board painted flat for the ground traced on the GPU;
-	// newest, unpainted, canvas and the scratch tile are what painting either works with
-	sheeted   bool
-	sheet     *groundSheet
+	// albedo is the whole board painted flat for the ground drawn on the GPU; newest, unpainted,
+	// canvas and the scratch tile are what painting it works with
 	albedo    *groundSheet
 	newest    []uint64
 	unpainted []int
 	canvas    render.Frame
 	scratch   board.Tile
 	bakeTile  tile
-	// workers are the dressers of the goroutines sharing a frame's tiles (Worker); a worker is
-	// frozen: it reads the tops as Ready read them
-	workers []*dresser
-	frozen  bool
 	// coast is the way to the shore from every corner for the ground traced on the GPU (Coast)
 	coast coast
 }
@@ -84,7 +62,7 @@ var _ board.Dressing = (*dresser)(nil)
 func newDresser(b *board.Board, relief *Relief, sky Atmosphere, heights bool, styles map[board.Name]Style) *dresser {
 	w, h := b.CellBounds()
 	sq, square := b.Square()
-	return &dresser{board: b, relief: relief, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h, shadows: true}
+	return &dresser{board: b, relief: relief, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h}
 }
 
 // version counts the changes to the terrain and the relief together: what the light and the
@@ -147,10 +125,6 @@ func (l *dresser) inFront(cam camera.Camera, w render.World, z [4]float32) bool 
 	return true
 }
 
-// baked reports whether tile t is dressed from the ground sheet: the sheet is in use this frame
-// and the tile spans too few pixels for more.
-func (l *dresser) baked(t *tile) bool { return l.sheeted && t.px() < bakeCell }
-
 // cellTop is a cell as the landscape reads it: its corners with its kind standing on them, the
 // ground's corners under it, its level, its sprite, its kind's Style and the way across it.
 type cellTop struct {
@@ -174,22 +148,17 @@ type cellTop struct {
 func (l *dresser) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
 	l.lighted, l.weather = l.sky.Sun(), l.sky.Air()
-	l.lamp = l.lighted.Lamp()
 	l.lighted.Frame(f)
 	l.weather.Frame(f, l.lighted)
 	l.tables()
-	l.nextSunlit()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
-	// the sheet is needed where any tile may span too few pixels: all of them from far, the far
-	// ones through a perspective, whose top of the screen shows the ground furthest off
+	// a perspective draws a cell larger near than far
 	w, h := cam.Viewport()
 	x, y := cam.Unproject(w/2, 0, 0)
 	far := camera.ScaleAt(cam, x, y, 0)
 	x, y = cam.Unproject(w/2, h, 0)
 	l.varies = far != camera.ScaleAt(cam, x, y, 0) || far != cam.Zoom()
-	l.sheeted = l.square && min(l.cellPx, float32(min(l.cellW, l.cellH))*far) < bakeCell
 	l.nextShores()
-	l.nextClouds()
 }
 
 // tables sizes what is kept of every cell to the board.
@@ -197,61 +166,6 @@ func (l *dresser) tables() {
 	if n := l.board.CellCount(); len(l.tops) != n {
 		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
 	}
-}
-
-// nextClouds starts a frame's clouds: every corner's noise to be worked out anew as it comes into
-// sight.
-func (l *dresser) nextClouds() {
-	if !l.square {
-		return
-	}
-	if n := (int(l.sq.Cols) + 1) * (int(l.sq.Rows) + 1); len(l.clouds) != n {
-		l.clouds, l.cloudStamp, l.cloudFrame = make([]float32, n), make([]uint32, n), 0
-	}
-	if l.cloudFrame++; l.cloudFrame == 0 { // wrapped round: old values would pass for new
-		clear(l.cloudStamp)
-		l.cloudFrame = 1
-	}
-}
-
-// cloudCorner is the clouds' noise over the square grid's corner (x, y) this frame, worked out once
-// however many tiles meet there.
-func (l *dresser) cloudCorner(x, y int64) float32 {
-	i := int(y)*(int(l.sq.Cols)+1) + int(x)
-	if l.cloudStamp[i] != l.cloudFrame {
-		l.clouds[i] = l.weather.Cloud(float32(x)*float32(l.cellW), float32(y)*float32(l.cellH))
-		l.cloudStamp[i] = l.cloudFrame
-	}
-	return l.clouds[i]
-}
-
-// cloudsOf is the clouds' noise at the corners of t this frame.
-func (l *dresser) cloudsOf(t *board.Tile) [4]float32 {
-	if l.square {
-		x, y := l.xy(t.ID)
-		return [4]float32{l.cloudCorner(int64(x), int64(y)), l.cloudCorner(int64(x)+1, int64(y)), l.cloudCorner(int64(x), int64(y)+1), l.cloudCorner(int64(x)+1, int64(y)+1)}
-	}
-	return l.cloudsAt(render.Box(t.X0, t.Y0, t.X1, t.Y1))
-}
-
-// cloudsAt is the clouds' noise at the corners of w this frame.
-func (l *dresser) cloudsAt(w render.World) [4]float32 {
-	var out [4]float32
-	for k, p := range w {
-		out[k] = l.weather.Cloud(p[0], p[1])
-	}
-	return out
-}
-
-// shaded is lit with the clouds' shadow taken off at each corner, the clouds' noise there cloud.
-func (l *dresser) shaded(lit, cloud [4]float32) [4]float32 {
-	if l.weather.Clouds <= 0 {
-		return lit
-	}
-	for k := range lit {
-		lit[k] *= 1 - l.weather.Shade(cloud[k])
-	}
-	return lit
 }
 
 // Base is the sprite t's top is drawn in first: its own kind's, or the kind Under it round it.
@@ -268,12 +182,7 @@ func (l *dresser) FaceLight(t *board.Tile, dx, dy int) render.Light {
 // Covers reports whether Dress lays over t's top the grounds round it or a way — from far a piece
 // of the ground sheet — which would hide its outline.
 func (l *dresser) Covers(t *board.Tile) bool {
-	d := l.tileOf(t)
-	if l.baked(d) {
-		i, ok := l.ordinal(t.ID)
-		return ok && l.sheet != nil && l.sheet.dressed[i]
-	}
-	b := l.bakeOf(d)
+	b := l.bakeOf(l.tileOf(t))
 	return len(b.blends) > 0 || len(b.ways) > 0 || len(b.crossings) > 0
 }
 
@@ -283,27 +192,12 @@ func (l *dresser) Covers(t *board.Tile) bool {
 // across it: laid in the order the frame draws them, so it needs no sorting.
 func (l *dresser) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y0, x1, y1, depth float32) {
 	d, top := l.tileOf(t), f.Last()
-	baked := l.baked(d)
 	d.DrawSurface(f, x0, y0, x1, y1)
-	if baked {
-		z := l.topOf(t.ID).z
-		var corners render.Corners
-		for k, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
-			corners[k][0], corners[k][1] = cam.Project(p[0], p[1], z[k])
-		}
-		l.dressBaked(f, d, corners, depth)
-	} else {
-		d.DrawBlends(f, cam, depth)
-	}
-	if l.weather.Clouds > 0 {
-		l.weather.OvercastOn(f, top, render.Box(x0, y0, x1, y1), d.clouds())
-	}
+	d.DrawBlends(f, cam, depth)
 	if t.Outlined && l.Covers(t) {
 		f.OutlineOn(top)
 	}
-	if !baked {
-		d.DrawWay(f, cam, depth)
-	}
+	d.DrawWay(f, cam, depth)
 }
 
 // tileOf is t as the dresser dresses it, what it worked out of it kept while it is the same cell.
@@ -320,9 +214,6 @@ func (l *dresser) tileOf(t *board.Tile) *tile {
 func (l *dresser) topOf(c board.CellID) *cellTop {
 	i, _ := l.ordinal(c)
 	t := &l.tops[i]
-	if l.frozen {
-		return t
-	}
 	changes := l.board.Changes()
 	if t.ver != 0 && t.seen == changes { // nothing on the board has changed since
 		return t

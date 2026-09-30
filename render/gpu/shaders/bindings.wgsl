@@ -7,6 +7,8 @@ struct Draw {
     rect1: vec4<f32>,
     rect2: vec4<f32>,
     rect3: vec4<f32>,
+    place: vec4<f32>, // a triangle draw's vertices scaled by xy and moved by zw (gpu.Draw.Place)
+    tint: vec4<f32>,  // a triangle draw's plain colours times it (gpu.Draw.Tint)
 }
 
 @group(0) @binding(0) var<uniform> D: Draw;

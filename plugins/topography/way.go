@@ -380,13 +380,8 @@ func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier 
 				d = max(d, cam.Depth(x, y, float32(t.r.relief.GroundAt(geom.NewVec(float64(x), float64(y))))))
 			}
 		}
-		mark := p.draw(f, tier, d, t.Atlas, corners, p.Light)
+		p.draw(f, tier, d, t.Atlas, corners, p.Light)
 		lit := p.Lit
-		if t.r.weather.Clouds > 0 {
-			cloud := t.r.cloudsAt(p.World)
-			t.r.weather.OvercastOn(f, mark, p.World, cloud)
-			lit = t.r.shaded(lit, cloud)
-		}
 		// the water runs the less, and glints as what it turns into the more, the further it has turned
 		var runs, glints [4]float32
 		for k, m := range p.Mix {

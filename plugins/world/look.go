@@ -38,20 +38,43 @@ type DirectLook interface {
 type Cameras func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera
 
 // flatLook is the world seen from above: a sprite over its box, in a piece per image where the
-// box crosses a wrap seam; it knows no wind, so nothing sways.
+// box crosses a wrap seam; it knows no wind, so nothing sways. Readied for a frame (Begin) it
+// gathers the sprites and draws them on the GPU (DrawSprites); else it lays them on the frame.
 type flatLook struct {
 	worldW, worldH float32
 	quads          []camera.Quad
+	sprites        render.Sprites
+	direct         bool // readied for this frame
 }
 
-func (l *flatLook) Sprite(f *render.Frame, _ camera.Camera, box plane.AABB, _ Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, _ float32) {
+var _ DirectLook = (*flatLook)(nil)
+
+// Begin readies the look to gather the frame's sprites for the GPU.
+func (l *flatLook) Begin(camera.Camera) {
+	l.sprites.Reset()
+	l.direct = true
+}
+
+// DrawSprites draws the sprites gathered since Begin.
+func (l *flatLook) DrawSprites(t render.Target, cam camera.Camera, _ render.Uniforms) {
+	if l.direct {
+		l.sprites.Draw(t, cam)
+	}
+	l.direct = false
+}
+
+func (l *flatLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, _ Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, _ float32) {
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
 		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
 		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
-		f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Lit(light))
+		if l.direct {
+			l.sprites.Rect(cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, light)
+		} else {
+			f.SpriteRectUV(render.Objects, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Lit(light))
+		}
 		return true
 	})
 }

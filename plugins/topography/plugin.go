@@ -77,8 +77,9 @@ type Plugin struct {
 	seeded      func(p geom.Vec) float64
 
 	// ground draws the ground on the GPU as a mesh of its heights, in place of the tiles; nil off
-	// a square grid
+	// a square grid, where hexes draws it as prisms
 	ground *terrain.Renderer
+	hexes  *hexes
 
 	turns     control.Queue[Turn]
 	tilts     control.Queue[Tilt]
@@ -89,6 +90,7 @@ type Plugin struct {
 	lookAts   control.Queue[LookAt]
 	lookOuts  control.Queue[LookOut]
 	looks     control.Queue[Look]
+	coarse    control.Queue[CoarseShadows]
 	selection *selection.Plugin
 	module    *module
 }
@@ -136,11 +138,10 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	})
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
+	} else {
+		p.hexes = newHexes(p, float64(brd.CellSpan()))
 	}
-	look := worldLook{flat: worldPlugin.FlatLook(), d: p.dresser}
-	if p.ground != nil {
-		look.gpu = newSprites(p.dresser, p.ground)
-	}
+	look := worldLook{flat: worldPlugin.FlatLook(), d: p.dresser, gpu: newSprites(p.dresser, p.ground)}
 	worldPlugin.SetLook(look)
 	return p
 }
@@ -208,9 +209,23 @@ func (p *Plugin) StyleOf(name string) Style { return p.styles[board.Named(name)]
 // WithShadows says whether the terrain casts shadows — the ground and what stands on it hiding
 // the sun from what lies behind; on by default.
 func (p *Plugin) WithShadows(on bool) *Plugin {
-	p.dresser.shadows = on
+	if p.ground != nil {
+		p.ground.Shadows(on)
+	}
 	return p
 }
+
+// WithCoarseShadows has the terrain's shadows baked coarser — half as fine a side, a quarter of the
+// work the GPU does while the sun goes on — or fine again (H switches).
+func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
+	if p.ground != nil {
+		p.ground.Coarse(on)
+	}
+	return p
+}
+
+// ShadowsCoarse reports whether the terrain's shadows are baked coarse.
+func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
 // WithSelection lets Follow fasten a camera behind the unit selectionPlugin has selected; call it
 // before the plugin is installed.
@@ -235,15 +250,9 @@ func (p *Plugin) Populate() error {
 // board.Map contract
 // =================================================================
 
-// Look is how the board's cells lie on the screen: no tiles at all over a square grid, whose
-// ground is drawn on the GPU (board.Nothing); blocks in the isometric view, flat tiles from above
-// over any other.
-func (p *Plugin) Look() board.Look {
-	if p.ground != nil {
-		return board.Nothing
-	}
-	return boardLook{d: p.dresser}
-}
+// Look is how the board's cells lie on the screen: no tiles at all, the ground drawn on the GPU
+// (board.Nothing) — a mesh of the heights over a square grid, prisms over a hex one.
+func (p *Plugin) Look() board.Look { return board.Nothing }
 
 // Dressing is what lies over the tiles: the light on the relief and the terrain's shadows, the
 // grounds blending, coasts, water, the ways, the clouds' shadows.
@@ -312,6 +321,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // simulation; call it after the world has moved, before the world is drawn and before the players'
 // RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.coarse.Drain(func(control.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -319,14 +329,14 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // and its ground is painted from the board's atlas, reached through its plugin.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is the ground's renderer, drawing it on the GPU as a mesh of its heights
-// (topography/terrain) — for the scene's composer, beside the board's and the world's; nil off a
-// square grid.
+// Renderer is the ground's renderer, drawing it on the GPU — as a mesh of its heights over a square
+// grid (topography/terrain), as prisms over a hex one — for the scene's composer, beside the
+// board's and the world's.
 func (p *Plugin) Renderer() render.Layer {
-	if p.ground == nil {
-		return nil
+	if p.ground != nil {
+		return p.ground
 	}
-	return p.ground
+	return p.hexes
 }
 
 // EventHandler is nil: the topography takes commands, not input.

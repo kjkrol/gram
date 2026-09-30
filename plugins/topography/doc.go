@@ -1,5 +1,5 @@
 // Package topography is a map in relief over a board: the ground's heights, the light and the
-// water on them, and the two views of it — from above and isometric.
+// water on them, drawn on the GPU, and the views of it — from above, isometric and in perspective.
 //
 // [NewPlugin] takes the world, the board and the [Config] — the isometric view's cell and tile
 // sizes, whether a fresh game begins isometric, the [Shaping] and the [Climbing] — and puts the
@@ -44,28 +44,27 @@
 //
 // The relief stands under an [Atmosphere] — plugins/atmosphere's Plugin ([Plugin.WithAtmosphere]),
 // or, given none, sky.DefaultSun in still, clear air: its sun lights and shades it, its weather
-// leans what sways, lays the clouds' shadows and hazes the far off. A tile is lit by the sun per
-// corner, from the slope of the ground there and at the neighbours', so a slope runs on without a
-// seam, and an upright face as much as the top's edge over it: a map in relief, from above as
-// isometrically. The terrain casts shadows: a corner the ground or what stands on it hides from
-// the sun, walked towards it up to 16 cells, gets the ambient light alone. Shadows and light are
-// worked out as cells come into sight and kept until the terrain or the sun changes;
-// [Plugin.WithShadows] turns the shadows off. The world's entities are lit by the sun on level
-// ground, lean with the wind and cast their shadows on the relief away from the sun (sky.Sun.Shadow),
-// from above as in relief. The relief is the board's Heights ([Plugin.Heights]), which sight and
-// navigation read through the board.
+// leans what sways, lays the clouds' shadows and hazes the far off. The ground is lit on the GPU,
+// every pixel by the sun on the slope under it; the relief and what stands on it cast shadows,
+// baked on the GPU as the sun moves — a strip a frame while it goes on, all at once when it leaps
+// ([Plugin.WithShadows] turns them off; [CoarseShadows], H, or [Plugin.WithCoarseShadows] bakes
+// them half as fine a side, softer, for about half the GPU's work). The world's entities
+// are lit by the sun on level ground, lean with the wind and cast their shadows on the relief away
+// from the sun (sky.Sun.ShadowOf, laid over the ground on the GPU), from above as in relief. The
+// relief is the board's Heights ([Plugin.Heights]), which sight and navigation read through the
+// board.
 //
 // # Water
 //
-// A kind with a Shine glints ([Glint], the SeaGlint material of water.kage): the shader ripples its
+// A kind with a Shine glints ([Glint], the SeaGlint material of shaders/sea.wgsl): the shader ripples its
 // surface with small waves and throws the sun back towards the eye, and within a few cells of a
 // shore — the nearest cell that does not shine, worked out per corner of a square grid as the
 // terrain changes ([Shore]) — the waves face it, roll in and break into foam. Water of a kind with a
 // Flow runs instead ([Stream], the RunningWater material): down the slope of its cell, read off its
 // corners, as fast as the Flow by the square root of the slope, averaged at each corner over the
 // running cells meeting there, carried as a flow map — ripples and flecks of foam flowing on
-// without a seam — and white where it runs fast: a rapid, a waterfall. The clouds of the world's
-// weather shadow every tile once, over all that lies on it (render.Frame.OvercastOn).
+// without a seam — and white where it runs fast: a rapid, a waterfall. The clouds' shadows lie over
+// the water as over the ground.
 //
 // # Blends and coasts
 //
@@ -97,20 +96,16 @@
 // either side of the corner it runs through, so its last stretch takes the depth of the nearest of
 // the four cells meeting there.
 //
-// # Kept, and less far off
+// # Painted once
 //
 // Nothing of this is worked out per frame: a cell's read is kept while board.Board.CellVersion
 // says it is as it was, a tile's blends and way (placed as if it stood at 0, 0) while the cells
-// round it are, its light while the terrain and the sun are. Far off, less is drawn — by how many
-// pixels a cell spans where the tile is drawn (camera.ScaleAt at its middle), so through a
-// perspective a tile near the eye has all of it and one on the horizon none: a tile's
-// detail eases its water's glint and running out between 12 and 6 pixels a cell and its shore
-// below 16, a way's between 24 and 16, and the shader leaves out waves finer than a pixel or two.
-// Where a cell spans fewer than 16 pixels on a square grid, a tile's blends and the ways over it
-// are painted once on a ground sheet — the board's atlas with the board's cells below it, 16
-// pixels a cell — and the tile draws its top and all that lies on it as one piece of the sheet, in
-// its light; a cell is painted anew when it or a cell round it changes, the whole board at once
-// when many do. So a far view hands the frame about as many pieces as the sprites alone.
+// round it are. The tiles are dressed only to be painted: over a square grid the whole board is
+// painted flat — every cell's base, the grounds running in, the ways and the crossings, 16 pixels
+// a cell, its water beside it — a cell anew when it or a cell round it changes, the whole board
+// when many do; over a hex grid the tiles are composed once from above (render.Still), anew when
+// the board or the relief changes. The shader leaves out waves finer than a pixel or two, so the
+// water far off calms instead of flickering.
 //
 // # Views
 //
@@ -118,14 +113,11 @@
 // Transport Tycoon, a cell a diamond, heights lifting what stands — or, when the game says so
 // (Config.Perspective), in perspective; [View] (Tab) goes round them at play, keeping the ground
 // point in the middle of the screen, the heading, the pitch and how large a world unit is drawn
-// there; the view is saved with the camera. From above the board's tiles lie flat (board.FlatLook)
-// and the world's entities as the world draws them; in relief the cells stand as blocks — each top
-// sloped between its corners and raised by its kind's Height, its top leant with the wind if its
-// kind sways, the faces turned towards the viewer where it stands above its neighbour — and the
-// entities as billboards upright on their centres at their altitudes, as wide as their boxes and as
-// tall as their world.Z says (as the box is long without a height), at the depth of that centre,
-// which a render.Composer sorts by; picking and the selection's outline follow, since they ask the
-// world's Look. The isometric camera turns by any angle — the world clockwise on the screen as the
+// there; the view is saved with the camera. Every view draws the same ground on the GPU; from above
+// the world's entities lie over their boxes as the world draws them, in relief they stand as
+// billboards upright on their centres at their altitudes, as wide as their boxes and as tall as
+// their world.Z says (as the box is long without a height), hidden by the ground's depth where it
+// stands before them; picking and the selection's outline follow, since they ask the world's Look. The isometric camera turns by any angle — the world clockwise on the screen as the
 // heading grows, keeping the ground point in the middle of the screen — and tilts from
 // Config.MinPitch over the ground (30°, the 2:1 view's, unless the game lowers it: flatter, the
 // near relief hides what lies behind it) to straight down. From above and in the isometric view
@@ -183,18 +175,18 @@
 // in a unit, on a slope above the eye lands on the cell drawn there; the ground point in the middle
 // of the screen, which Turn goes round, is found the same way.
 //
-// # Heightfield
+// # The ground on the GPU
 //
-// The ground has another way of being drawn: traced on the GPU from its heightmap, every pixel's
-// line of sight marched over the relief in a shader of its own (topography/heightfield) — the
-// same ground, split into the two triangles a tile is, lit as the tiles are with its shadows,
-// coloured from the board painted flat (the cells' bases, the grounds running in, the ways and
-// the crossings, as the ground sheet paints them), its water glinting, its waves breaking on the
-// shore and running down the rivers, the clouds' shadows and the grid over it, hazed far off —
-// in place of the tiles, which lay nothing then (board.Nothing). Config.Heightfield reaches it, [Heightfield] (G) switches between the two,
-// [Plugin.ShowHeightfield] from a game's code; [Plugin.Renderer] is its renderer, a render.Direct
-// for the scene's composer beside the board's and the world's. What stands on the ground is drawn
-// as before, a billboard the ground hides from the eye left out. The tiles stay the default.
+// [Plugin.Renderer] draws the ground, a render.Direct at the Ground tier for the scene's composer
+// beside the board's and the world's, and the board's tiles lay nothing (board.Nothing). Over a
+// square grid it is a mesh of the relief's lattice (topography/terrain): every corner a vertex at
+// its height, coloured from the board painted flat, lit per pixel with its shadows, its water
+// glinting and running, its waves breaking on the shore, the clouds' shadows and the grid over
+// it, hazed far off, and round the world a skirt of level ground running on to the horizon. Over a
+// hex grid every cell is a prism standing to its top, a face down to each lower neighbour,
+// coloured from the tiles composed from above. The world's entities stand on it as billboards
+// drawn on the GPU against its depth, hidden where the ground stands before them; from above they
+// lie over their boxes.
 //
 // # Commands
 //
@@ -225,7 +217,7 @@
 // camera system keeps a steering.Driven on it while fastened, writes the keys into it every tick —
 // riding, Flown and the look's rise too — and leaves it braking when let go; navigation carries it
 // out along the ground, the topography's altitude system up and down. [Raise],
-// [Lower] and [Level] shape the ground; [Heightfield] (G, with Config.Heightfield) draws the ground
-// from its heightmap or as tiles again. Call [Plugin.RunPlan] after the world has moved and before
+// [Lower] and [Level] shape the ground; [CoarseShadows] (H) switches the shadows' detail. Call
+// [Plugin.RunPlan] after the world has moved and before
 // the players' RunPlan.
 package topography

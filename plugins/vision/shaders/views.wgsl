@@ -3,7 +3,8 @@
 // third image, U.Spokes by U.Rings texels an observer, sighted.wgsl); the rectangle of the viewport
 // its cone may cover, pixels. Every pixel of it finds the ground point drawn there from the depth
 // the ground left (depthAt, through U.Unproject, the viewport U.ViewSize pixels from U.ViewAt on
-// the target) — the views come after the ground, before what stands on it — and, inside the cone,
+// the target) — the views come after the ground, before what stands on it — or, over level ground
+// (U.FlatGround), where its line of sight meets the ground at 0 — and, inside the cone,
 // veils it in U.ShadowColor as far as the observer does not see it; the cone's edge is stroked in
 // U.ConeColor, a pixel wide.
 
@@ -27,15 +28,29 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @locatio
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32> {
-    let depth = depthAt(frag.xy);
-    if depth <= 0.0 {
-        discard; // nothing drawn there: the sky
-    }
     let px = frag.xy - U.ViewAt;
-    let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
-    var p = w.xyz / w.w;
-    let off = p.xy - U.Eye.xy;
-    p.z += U.Bend * dot(off, off); // as high as it stands, not as far as it is sunk
+    let ndc = vec2<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0);
+    var p: vec3<f32>;
+    if U.FlatGround > 0.5 {
+        // the line of sight through two depths, down to the ground at 0
+        let far = U.Unproject * vec4<f32>(ndc, 0.25, 1.0);
+        let near = U.Unproject * vec4<f32>(ndc, 1.0, 1.0);
+        let a = far.xyz / far.w;
+        let b = near.xyz / near.w;
+        if a.z >= b.z - 1e-6 {
+            discard; // it never comes down to the ground
+        }
+        p = mix(a, b, a.z / (a.z - b.z));
+    } else {
+        let depth = depthAt(frag.xy);
+        if depth <= 0.0 {
+            discard; // nothing drawn there: the sky
+        }
+        let w = U.Unproject * vec4<f32>(ndc, depth, 1.0);
+        p = w.xyz / w.w;
+        let off = p.xy - U.Eye.xy;
+        p.z += U.Bend * dot(off, off); // as high as it stands, not as far as it is sunk
+    }
     let rel = p.xy - v.at.xy;
     let dist = length(rel);
     let half = v.look.y;

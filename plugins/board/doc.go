@@ -87,7 +87,13 @@
 // ([NewRenderer] for a board no plugin runs): it reads each visible cell and hands it, as a [Tile]
 // — its box, its sprite, its kind — to the Map's Look, which lays it on the render.Ground tier:
 // from above its sprite over its box, or as the Map has it. A kind with a Sway — trees, set by an
-// effect when the wind blows — leans its top with the wind ([Tile.Sway]).
+// effect when the wind blows — leans its top with the wind ([Tile.Sway]). A flat map seen from
+// above whose Dressing lights every tile alike ([EvenLit]: the simple map's, a sky's over it) is
+// composed once instead, every cell, and kept on the GPU (render.Still), composed anew only when
+// a cell changes ([Board.Changes]); the renderer, a render.Direct at the Ground tier, draws it every
+// frame in the Dressing's light, again past a wrapping world's seam, and the grid over it on the
+// GPU. A Map in relief draws its ground itself (plugins/topography) and its Look lays nothing
+// ([Nothing]).
 //
 // Over a cell's ground may run a [Way] — a river, a road — and over that a [Crossing] — a bridge:
 // the way decides who may cross the cell and at what cost, the crossing lets whoever it admits
@@ -97,22 +103,24 @@
 // frame first and takes from it the sheet the tiles are drawn from ([Tile].Atlas: the board's
 // atlas or a sheet of the dressing's with the atlas on it), the tile asks it its [Tile.Base] and
 // its [Tile.Light] and [Tile.FaceLight], and the Look has it lay what lies on the tile
-// ([Tile.Dress]). The simple map's lays the bands; a topography's the sun's light on the relief
-// and the terrain's shadows, grounds blending, coasts, water glinting and running, the ways drawn
-// across the cells, the clouds' shadows. Without a Dressing's light a tile is drawn as it is; a sky
-// over a flat board (atmosphere.Plugin.WithBoard) lights it by the hour.
-// [RenderState] holds the renderer's live toggles, such as the grid: on a square grid each tile
-// outlined by the shader along its own edges at no piece of its own (render.Frame.Tile) — where a
-// Dressing lays grounds or ways over it ([Tile.Covered]), outlined by the dressing over them
-// instead (render.Frame.OutlineOn); on a hex grid the cells' outlines as lines on a tier just
-// above the tiles. It is left out where a cell spans fewer than a few pixels on screen.
+// ([Tile.Dress]). The simple map's lays the bands; a topography's the grounds blending, coasts,
+// water glinting and running and the ways drawn across the cells, painted for its ground on the
+// GPU. Without a Dressing's light a tile is drawn as it is; a sky over a flat board
+// (atmosphere.Plugin.WithBoard) lights it by the hour.
+// [RenderState] holds the renderer's live toggles, such as the grid: over a board composed once a
+// shader draws it, a square grid's tiles darkened along their edges, a hex grid's edges as lines;
+// over tiles composed every frame, on a square grid each tile outlined by the shader along its own
+// edges at no piece of its own (render.Frame.Tile) — where a Dressing lays grounds or ways over it
+// ([Tile.Covered]), outlined by the dressing over them instead (render.Frame.OutlineOn); on a hex
+// grid the cells' outlines as lines on a tier just above the tiles. It is left out where a cell
+// spans fewer than a few pixels on screen.
 //
 // A Dressing that is [Parallel], under a Look that is a [ParallelLook], dresses the tiles on
 // several goroutines at once ([Plugin.WithWorkers]; as many as there are CPUs unless told
 // otherwise, none for a few tiles): the renderer Warms every visible tile on its own goroutine,
 // has the dressing Ready itself, then shares the tiles out in runs, each drawn by a Worker of the
 // dressing and of the look into a frame of its own, appended in order — the picture one goroutine
-// would draw, piece for piece. The topography's dressing is one; the simple map's is not.
+// would draw, piece for piece — for a game's own dressing; gram's dress their tiles once.
 //
 // The board is the [Cover] sight is held back by ([Board.Walk]) and reads the cells' cover all at
 // once when asked ([Board.Ready], the [Readied] contract), for whoever walks it from several

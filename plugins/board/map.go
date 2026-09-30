@@ -76,6 +76,9 @@ func (*simpleDressing) Covers(*Tile) bool                                 { retu
 
 func (*simpleDressing) Light(*Tile) render.Shade { return render.Even(1) }
 
+// EvenLight is white: the simple map's tiles are drawn as they are.
+func (*simpleDressing) EvenLight() (render.Light, bool) { return render.Light{1, 1, 1}, true }
+
 func (d *simpleDressing) Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32) {
 	if w := d.board.Way(t.ID); w.Runs() {
 		d.bands(f, cam, t, w, depth)

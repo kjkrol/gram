@@ -18,11 +18,14 @@ var boards = render.NewMeshShaderWith("billboards", render.Files(shaders, "shade
 
 // sprites are the world's entities drawn on the GPU through a view in relief: billboards tested
 // against the depth the ground left, so the hills hide what stands behind them, and their shadows
-// laid on the ground before them. Sprite takes them a frame at a time, Draw draws them.
+// laid on the ground before them — draped over the terrain's mesh, over hex prisms read from the
+// frame's depth. Sprite takes them a frame at a time, Draw draws them.
 type sprites struct {
-	d      *dresser
-	ground *terrain.Renderer
-	on     bool // the frame's camera draws them here
+	d       *dresser
+	ground  *terrain.Renderer // nil over hex prisms, where shades lays the shadows
+	shades  shades
+	on      bool // the frame's camera draws the billboards here
+	shading bool // and the shadows
 
 	batches []spriteBatch
 	shadows []sky.Patch
@@ -42,14 +45,15 @@ func newSprites(d *dresser, ground *terrain.Renderer) *sprites {
 	return s
 }
 
-// begin readies a frame through cam: the sprites are drawn here through a view in relief with Rays.
+// begin readies a frame through cam: the billboards are drawn here through a view in relief with
+// Rays, the shadows through any view with them.
 func (s *sprites) begin(cam camera.Camera) {
 	for i := range s.batches {
 		s.batches[i].inst = s.batches[i].inst[:0]
 	}
 	s.shadows = s.shadows[:0]
 	_, rays := cam.(camera.Rays)
-	s.on = s.ground != nil && rays && inRelief(cam)
+	s.on, s.shading = rays && inRelief(cam), rays
 }
 
 // add takes the sprite id of atlas for an entity standing in box as z says, in light, swaying as
@@ -72,10 +76,17 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	l := lit(sun, light)
 	b := s.batch(atlas)
 	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1, l[0], l[1], l[2], 0)
-	if s.d.heights {
-		if p, ok := sun.ShadowOf(box.AABB, z, s.groundAt); ok {
-			s.shadows = append(s.shadows, p)
-		}
+	s.shadow(box, z)
+}
+
+// shadow takes the shadow of an entity standing in box as z says, laid on the ground away from the
+// sun.
+func (s *sprites) shadow(box plane.AABB, z world.Z) {
+	if !s.d.heights {
+		return
+	}
+	if p, ok := s.d.sky.Sun().ShadowOf(box.AABB, z, s.groundAt); ok {
+		s.shadows = append(s.shadows, p)
 	}
 }
 
@@ -97,10 +108,17 @@ func (s *sprites) groundAt(x, y float32) float32 {
 
 // draw lays the frame's shadows on the ground and draws its billboards into the target through cam.
 func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	if !s.on || t.Screen == nil || t.Depth == nil {
+	if !s.shading || t.Screen == nil || t.Depth == nil {
 		return
 	}
-	s.ground.DrawShadows(t, cam, u, s.shadows)
+	if s.ground != nil {
+		s.ground.DrawShadows(t, cam, u, s.shadows)
+	} else {
+		s.shades.draw(t, cam, s.d.relief, s.shadows)
+	}
+	if !s.on {
+		return
+	}
 	f, _ := cam.(camera.Rays).Rays()
 	w, h := cam.Viewport()
 	tr, ok := camera.SceneTransform(f, w, h)

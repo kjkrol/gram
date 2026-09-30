@@ -136,7 +136,6 @@ func (t *tile) DrawSurface(f *render.Frame, x0, y0, x1, y1 float32) {
 		return
 	}
 	even := [4]float32{shine, shine, shine, shine}
-	lit = t.r.shaded(lit, t.clouds()) // the clouds' shadow dims what the sun gives the water
 	if flow, ok := t.Flow(); ok {
 		Stream(f, box, even, lit, flow)
 	} else {

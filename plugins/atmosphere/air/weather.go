@@ -63,7 +63,7 @@ func Visibility(scale world.Scale, w Weather) float64 {
 
 func clamp01(v float32) float32 { return min(max(v, 0), 1) }
 
-// Frame hands f the air as its shader reads it (weather.kage) — the wind, the clouds' drift and
+// Frame hands f the air as its shaders read it (shaders/*.wgsl) — the wind, the clouds' drift and
 // cover — and the colour what lies far off turns to: the sky of sun, greyed by the clouds.
 func (w Weather) Frame(f *render.Frame, sun sky.Sun) {
 	f.Uniform("Wind", w.Wind[0], w.Wind[1])

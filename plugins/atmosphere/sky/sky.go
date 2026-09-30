@@ -9,7 +9,7 @@ import (
 )
 
 // Sky is the light of the day over a world: the sun of the calendar's hour, or of a frozen one,
-// set into the world once a tick in steps. The frozen light is a look at the world, like the
+// set into the world once a tick, as it goes or in steps. The frozen light is a look at the world, like the
 // camera's turn: it changes at once, in the tactical pause too, and is not saved.
 type Sky struct {
 	cfg      Config
@@ -17,8 +17,9 @@ type Sky struct {
 	sun      Sun // the light of the hour, as Update last set it
 
 	frozen  bool
-	hour    float32 // the frozen light's time of day
-	step    int     // the step whose light the world has; -1 before the first
+	hour    float32         // the frozen light's time of day
+	step    int             // the step whose light the world has; -1 before the first
+	at      calendar.Moment // going on: the moment whose light the world has
 	freeze  control.Queue[Freeze]
 	later   control.Queue[Later]
 	earlier control.Queue[Earlier]
@@ -76,7 +77,7 @@ func (s *Sky) Shift(by float32) {
 const halfHour = float32(1) / 48
 
 // Update carries out the commands and sets the light to the hour's, by the calendar's or the
-// frozen one, whenever it moves onto another step.
+// frozen one: as it goes, or whenever it moves onto another step.
 func (s *Sky) Update() {
 	s.freeze.Drain(func(control.Issued[Freeze]) { s.SetFrozen(!s.frozen) })
 	s.later.Drain(func(control.Issued[Later]) { s.Shift(halfHour) })
@@ -84,6 +85,13 @@ func (s *Sky) Update() {
 	m := s.calendar.Now()
 	if s.frozen {
 		m.Time = s.hour
+	}
+	if s.cfg.Steps <= 0 { // going on: the moment's light, whenever the moment has moved
+		if m != s.at {
+			s.at = m
+			s.sun = s.cfg.LightAt(m.OfYear(), m.Time, m.Moon())
+		}
+		return
 	}
 	// a hair over, so an hour moved onto a step by halves is on it, not a rounding short of it
 	step := int(m.Time*float32(s.cfg.Steps)+1e-3) % s.cfg.Steps

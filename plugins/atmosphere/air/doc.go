@@ -13,12 +13,10 @@
 //
 // [Weather.Sway] is how far what sways leans in the wind at a time: with it, the harder the
 // further, rocking as gusts roll downwind. [Weather.Cloud] is the clouds' noise over a point,
-// drifted with the wind, [Weather.Shade] how much shadow it casts under the cover, and
-// [Weather.Overcast], [Weather.OvercastOn] and [Weather.OvercastQuad] lay the clouds' shadows over
-// a sprite, over one drawn earlier, or on their own over a piece of the screen — a material of the
-// composer's shader (weather.kage, [CloudShadow]) shaded between a piece's corners, laid only where
-// a cloud reaches. [Weather.Haze] is how much of a point the air hides from a camera's eye, for
-// render.Frame.Fog.
+// drifted with the wind, and [Weather.Shade] how much shadow it casts under the cover — on the
+// CPU the very numbers the shaders' cloudField, cloudCover and cloudShade work out on the GPU for
+// the ground's shadows and the clouds on the sky; [CloudShadow] is their material for a piece of a
+// frame. [Weather.Haze] is how much of a point the air hides from a camera's eye.
 //
 // The package is a leaf under plugins/atmosphere: the topography lights and dresses its relief by
 // it and the sky's sun, the atmosphere's own sources draw the sky, the rain and a flat world's
