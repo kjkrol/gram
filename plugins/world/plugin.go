@@ -17,6 +17,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -71,9 +73,11 @@ func NewPlugin(cfg Config) *Plugin {
 	p.view = p.NewView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
-	if t := kinds.DefineTag[effect.States](effect.IdleName); t != effect.Idle {
-		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.IdleName))
+	if t := kinds.DefineTag[effect.States](effect.ChangedName); t != effect.Changed {
+		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.ChangedName))
 	}
+	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
+	m.plans = rule.New(m.clock.Time, cfg.Seed, m.effects, &m.commands)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
@@ -89,9 +93,12 @@ func (p *Plugin) Roster() *kind.Roster { return p.roster }
 // tactical pause and its tempo. A plugin hands it what simulates (clock.Clock.Simulate).
 func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
 
-// Effects are the world's effects and their schedule: temporary changes to entities, counted down
-// in the clock's time.
+// Effects are the world's effects: temporary changes to entities, counted down in the clock's time.
 func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
+
+// Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation: the
+// world's carrier of commands, the game time the step ends at and the world's seed.
+func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick { return p.module.tick(cb, d) }
 
 // HasHeights reports whether this world has heights — see Config.Heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
@@ -220,6 +227,7 @@ func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.Def
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
 	p.renderer.clock = p.module.clock.Shown
+	p.renderer.stepped, p.renderer.seed = p.module.clock.Time, p.module.config.Seed
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -238,9 +246,8 @@ func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // Hook adds world.Behaviors to the decision pass run before movement, in order, and hosts
 // rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge), a Drawing (every entity about to be drawn), an
-// effect.Idling (an entity whose last effect ended) and a clock.Moment (every step). Call before
-// Use.
+// an entity is Outside an open edge), a Drawing (every entity about to be drawn) and a
+// clock.Moment (every step). Call before Use.
 func (p *Plugin) Hook(rules ...plugin.Rule) error {
 	for _, b := range rules {
 		if system, ok := b.(Behavior); ok {
@@ -248,14 +255,14 @@ func (p *Plugin) Hook(rules ...plugin.Rule) error {
 			continue
 		}
 		var err error
-		hosts := []func(plugin.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
+		hosts := []func(plugin.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.moments.host.Add}
 		for _, add := range hosts {
 			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
 				break
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a world.Behavior or a rule of Moving, Leaving, Drawing, Idling or clock.Moment", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a world.Behavior or a rule of Moving, Leaving, Drawing or clock.Moment", err, p.Name())
 		}
 	}
 	return nil

@@ -54,14 +54,8 @@ type eachWith[P any] struct {
 
 func (e *eachWith[P]) bind(qb *goke.QueryBuilder, cols columns) { e.s.bind(qb, cols) }
 
-func (e *eachWith[P]) run(t plugin.Tick, cursor *goke.Cursor, rows []int, about func(i int) P) {
+func (e *eachWith[P]) run(t plugin.Tick, cursor *goke.Cursor, about func(i int) P) {
 	if !e.s.present(cursor) {
-		return
-	}
-	if rows != nil {
-		for _, i := range rows {
-			e.react(t, e.s.at(cursor, i), about(i))
-		}
 		return
 	}
 	for i := range cursor.IDs {

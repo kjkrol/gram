@@ -94,7 +94,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
-	navSys.given, navSys.touches, navSys.commands = &p.given, &p.touches, p.worldPlugin.Commands()
+	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	if p.collision != nil {

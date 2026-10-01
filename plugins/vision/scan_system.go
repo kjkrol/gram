@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
@@ -25,7 +24,7 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner // the system's own, for one observer at a time
 
-	commands *control.Carrier // the world's, for the rules
+	tick plugin.TickSource // the world's, for the rules
 
 	// scanners are the system's own and one more a goroutine sharing a chunk's observers, at most
 	// count of them: 0 as many as there are CPUs, 1 none
@@ -226,7 +225,7 @@ func (s *scanner) sunkGround(p geom.Vec) float64 {
 }
 
 func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	t := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
+	t := s.tick.Of(cb, d)
 	hosting := !s.host.Empty()
 	s.lookupHot = false
 	if s.heights && !s.grounded {

@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/uid"
 )
@@ -67,7 +66,7 @@ func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.w.despawn(cb, i.Entity)
 		}
 	})
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &s.w.commands}
+	tick := s.w.tick(cb, d)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()

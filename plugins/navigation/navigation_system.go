@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
@@ -207,7 +206,7 @@ type navigationSystem struct {
 	touches  *host.PairHost[Touch]
 	marks    *goke.Query
 	markCell goke.Comp[board.Cell]
-	commands *control.Carrier
+	tick     plugin.TickSource // the world's, for the rules
 
 	orderID goke.CompID
 
@@ -750,7 +749,7 @@ func (s *navigationSystem) feel() {
 // notes what blocks every unit on the move with a tree.
 func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	hosted := s.touches != nil && !s.touches.Empty()
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
+	tick := s.tick.Of(cb, d)
 	clear(s.felt)
 	for _, t := range s.touched {
 		if t.refused {

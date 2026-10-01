@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -45,7 +46,7 @@ type box struct{ x, vx float64 }
 type hits struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
-	hit     hooks.Hits
+	hit     effect.Effect
 	ids     []uid.UID64
 	drawing *host.EachHost[world.Drawing]
 	drawn   *goke.Query
@@ -73,7 +74,6 @@ func newHits(t *testing.T, boxes ...box) *hits {
 		comp.Load(func(b box) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(b.x, 100), 10, 10)} }),
 		comp.Load(func(b box) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: b.vx} }),
 		comp.Const(collision.Collider{}),
-		comp.Marks[hooks.States](),
 	})
 	for _, b := range boxes {
 		h.w.Seed(unit.Entry(b))
@@ -120,7 +120,7 @@ func (h *hits) tick(n int) {
 func (h *hits) under() []bool {
 	var out []bool
 	for _, id := range h.ids {
-		out = append(out, h.hit.Effect.On(id))
+		out = append(out, h.hit.On(id))
 	}
 	return out
 }

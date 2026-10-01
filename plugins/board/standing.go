@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
@@ -35,9 +34,9 @@ var _ goke.System = (*standingSystem)(nil)
 // standingSystem tells every rule where each entity carrying Cell stands, after movement and
 // collisions have had their say.
 type standingSystem struct {
-	brd      *Board
-	host     *host.EachHost[Standing]
-	commands *control.Carrier
+	brd  *Board
+	host *host.EachHost[Standing]
+	tick plugin.TickSource // the world's
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
@@ -66,7 +65,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.host.Empty() {
 		return
 	}
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
+	tick := s.tick.Of(cb, d)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()

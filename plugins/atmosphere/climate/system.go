@@ -6,7 +6,6 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -109,7 +108,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.current = now
 		if !s.host.Empty() {
 			s.told = Weathering{Weather: now, Season: season}
-			s.host.Run(plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.world.Commands()}, cursor, s.about)
+			s.host.Run(s.world.Tick(cb, d), cursor, s.about)
 		}
 		return
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
@@ -26,9 +25,9 @@ const solverIterations = 16
 // CollisionSystem runs one tick of collisions: what each entity struck last tick, who really
 // overlaps now, the bounce, the push apart, and the contacts left behind for rules.
 type CollisionSystem struct {
-	space    *aabbworld.Space
-	engine   collide.Engine
-	commands *control.Carrier // the world's, for the rules
+	space  *aabbworld.Space
+	engine collide.Engine
+	tickOf plugin.TickSource // the world's, for the rules
 
 	// walk is the pass over every Collider: its rules and its capabilities.
 	walk     *goke.Query
@@ -141,7 +140,7 @@ func (d *CollisionSystem) Init(si *goke.SysInit) {
 }
 
 func (d *CollisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
-	d.tick = plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: dt, Commands: d.commands}
+	d.tick = d.tickOf.Of(cb, dt)
 	if d.mark() {
 		d.rebuild()
 	}

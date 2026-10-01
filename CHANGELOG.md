@@ -11,21 +11,24 @@ the topography was split into packages: its heights are `relief.Heights` now.
   function that writes the steps for a builder (Go 1.27's methods with type parameters). A
   **rule**, `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` — a `plugin.Rule` — is what
   is done at a moment a plugin catches in its own pass — a `board.Standing`, a `vision.Sighting`, a
-  `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, an `effect.Idling`, a
+  `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, a
   `climate.Weathering`, a `clock.Moment`, a `navigation.Touch` — hooked on that plugin; the filter
   says whom it fires for: `rule.All`, `rule.Self(tag)`, `rule.Between(a, b)` (pairs, for a moment
   that is `rule.Met`), `rule.Having[T]()` (the component `m.CallOn` hands its function). A
   Moment's steps are instant (`OneOf`, `Steps`, `If` on the moment, `Not`, `Apply`, `Keep`,
-  `Unless`, `Under`, `Order`, `ForOther`, `Call`, `CallOn`); a lasting one is refused as the rule
-  is made. A **plan**, `rule.Plan(name, func(a *rule.Actor) rule.Step)`, is the component a kind
+  `Dispel`, `Chance`, `Unless`, `Under`, `Order`, `ForOther`, `Call`, `CallOn`); a lasting one is
+  refused as the rule is made. A **plan**, `rule.Plan(name, func(a *rule.Actor) rule.Step)`, is the component a kind
   gives its entities: what they do over time, run by the world in every step of its simulation and
   saved with the game; an Actor's steps are the same and `When[F]`/`On[F]` (branches on a fact),
   `If`, `Until`, `Wait`, `Timeout`, `Cooldown`, `Idle`, and conversation between entities — `Ask`,
   `Agree`, `Refuse`, `Relay`, the facts `Asked` and `Replied`, a `Chain` of at most `MaxChain`,
   asks dropped after `AskLife`. One type, `rule.Step`, for both; a function writing part of either
   takes the Moment or the Actor. **Effects** are cast by steps: `Apply`, `Keep` (held while its
-  branch runs, or while a rule keeps firing it), `Unless`, `Under` — an effect's presence is a
-  rule's memory. A **command** is what an entity gives itself, `Order(cmd)`, the same command a
+  branch runs, or while a rule keeps firing it), `Dispel`, `Unless`, `Under` — an effect's
+  presence is a rule's memory. A rule keeping an effect someone dispelled has it back the step
+  after; a plan's `Keep` gives way. `Chance(p, step)` draws from the world's seed
+  (`world.Config.Seed`), the game time and the entity, keeping nothing; every `plugin.Tick` comes
+  from the world (`world.Plugin.Tick`, a `plugin.TickSource`) with `Time` and `Seed`. A **command** is what an entity gives itself, `Order(cmd)`, the same command a
   player gives, fire and forget — in a plan a `Command` whose `.Until[F](…)` or `.Stay()` gives it
   once in a reactive branch: the world carries it (`control.Carrier`,
   `world.Plugin.Carry`/`Commands`; the engine carries every `plugin.CommandHandler` a stage uses,
@@ -38,12 +41,18 @@ the topography was split into packages: its heights are `relief.Heights` now.
 - **Markers**: states an entity switches on and off are bits of a plugin's family `States`
   carried for good (`comp.Marks[F]()`, the roster's defaults), never components put on and taken
   off — which moved the entity in memory, some 200 ns a time (`Benchmark_Marker_*`).
-  `effect.Idle` is a marker of `effect.States` (the type `effect.Idle` component is gone) and
-  `Active` stays on an entity, empty when no effect runs; navigation's `CellEntered` is the marker
-  `navigation.Entered` (the cell is the unit's `board.Cell`); collision's hit grants the marker
-  `collision.hit` of `hooks.States`: `hooks.Hit(w, d)` hands back `Hits{Effect, Mark}`, which
-  `ShowHits` and `HitOverlay` take. `host.EachHost.RunRows` runs rules for chosen rows. Saves
-  made before this do not load.
+  Every effect has its own marker of `effect.States`, "effect.<name>", on while it runs
+  (`Effect.Mark()`): what rules of any plugin filter by, `rule.Self(frozen.Mark())`; at most 63
+  effects. `effect.Changed` is on for the step after an `Alter` rewrote an entity's components —
+  the board learns of a cell's ground so — in place of `Active.Altered`, `effect.Idle`, the
+  `effect.Idling` moment and `host.EachHost.RunRows`. `Active` stays on an entity, empty when no
+  effect runs; navigation's `CellEntered` is the marker `navigation.Entered` (the cell is the
+  unit's `board.Cell`); collision's hit is an effect whose marker `HitOverlay` reads:
+  `hooks.Hit(w, d)` hands back the `effect.Effect`, `ShowHits(hit)` and `HitOverlay(hit, with)`
+  take it. Saves made before this do not load (`Active`'s slots changed).
+- `effect.Then(next)` casts the next effect when one's time is up, not when it is dispelled. The
+  world fires the clock's moments, in a system of its own just before the effects' pass; the
+  `effect` package no longer knows the clock, and `effect.New` takes the namer of the markers.
 - Needs goke 3.2.4: 3.2.3 wrote an archetype's values in one order and read them in another when a
   component type was registered before the entities' others but put on them after — values landed
   in other components' columns (a board's cells with markers, from the first save).

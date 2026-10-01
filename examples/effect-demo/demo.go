@@ -26,7 +26,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -53,9 +52,6 @@ const (
 	// Power widens the area, not the time.
 	thawAfter = 5 * time.Second
 )
-
-// chill is the demo's tag family; frozen is who is stuck in the ice.
-type chill struct{}
 
 // =========================== Game ===========================
 
@@ -103,7 +99,6 @@ type mainStage struct {
 	snow, ice board.CellKind
 
 	frost, frozen, slip effect.Effect
-	frozenTag           tag.Tag[chill]
 	paleSprite          render.SpriteID
 
 	witch, walker, boat kind.Of[unit]
@@ -145,14 +140,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// Three effects: frost on a cell's ground, for a while; frozen on whoever is caught in the ice
 	// and slip on whoever walks on it, both while it lasts. What frozen means for movement is a
 	// speed modifier of the game's.
-	s.frozenTag = s.world.Kinds().DefineTag[chill]("frozen")
 	s.paleSprite = s.world.Kinds().NewSprite()
 	s.frost = s.effects.Define("frost", effect.Spec{
 		effect.Lasts(thawAfter),
 		effect.Alter(func(g *board.Ground) { g.Kind = s.frozenKind(g.Kind) }),
 	})
 	s.frozen = s.effects.Define("frozen", effect.Spec{
-		effect.Grant(s.frozenTag),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }), // stuck fast: nobody shoves it
 	})
@@ -182,8 +175,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.board); err != nil {
 		return err
 	}
-	// frozen fast: whoever carries the tag does not move
-	if err := s.world.Hook(rule.On("frozen fast", rule.Self(s.frozenTag), func(m *rule.Moment[world.Moving]) rule.Step {
+	// frozen fast: whoever carries frozen's marker does not move
+	if err := s.world.Hook(rule.On("frozen fast", rule.Self(s.frozen.Mark()), func(m *rule.Moment[world.Moving]) rule.Step {
 		return m.Call(func(_ plugin.Tick, mv world.Moving) { mv.Base.Vel.Value = 0 })
 	})); err != nil {
 		return err

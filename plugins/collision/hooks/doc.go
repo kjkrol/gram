@@ -10,10 +10,10 @@
 //
 // # ShowHits and HitOverlay
 //
-// [Hit] defines the hit ([Hits]): the effect of having struck something, lasting a while of game
-// time, and the marker ([States]) it has on while it lasts. [ShowHits] casts it on an entity that
-// struck something — hook it on collision — and [HitOverlay] draws an overlay sprite on top of the
-// entity while its marker is on — hook it on the world.
+// [Hit] defines the hit: the effect of having struck something, lasting a while of game time, with
+// its marker on while it lasts. [ShowHits] casts it on an entity that struck something — hook it on
+// collision — and [HitOverlay] draws an overlay sprite on top of the entity while the marker is on
+// — hook it on the world.
 //
 // # LogContacts
 //

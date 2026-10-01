@@ -203,3 +203,32 @@ func TestRule_OrdersCommands(t *testing.T) {
 		t.Errorf("%d units in the world, want the target alone", n)
 	}
 }
+
+// An effect's marker is a filter in any plugin: the bullet set burning by a world's rule sets the
+// target burning by a collision's, filtered by burning's marker alone; with nobody burning, nobody
+// catches fire.
+func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
+	for _, ignite := range []bool{true, false} {
+		var burning effect.Effect
+		g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
+		g.hook = func(g *triggerStage) error {
+			burning = g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
+			if ignite {
+				if err := g.world.Hook(rule.On("the bullet ignites", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
+					return m.Unless(burning, m.Apply(burning))
+				})); err != nil {
+					return err
+				}
+			}
+			return g.coll.Hook(rule.On("fire spreads", rule.Between(burning.Mark(), tag.Any), func(m *rule.Moment[collision.Meeting]) rule.Step {
+				return m.ForOther(m.Apply(burning))
+			}))
+		}
+		runTriggers(t, g, 700*time.Millisecond)
+		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under int) {
+			if (under > 0) != ignite {
+				t.Errorf("ignited %v: the bullet %v is burning %v; want %v", ignite, bullet, under > 0, ignite)
+			}
+		})
+	}
+}

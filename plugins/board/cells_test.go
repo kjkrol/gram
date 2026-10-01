@@ -93,18 +93,18 @@ func (cw *cellWorld) board() *board.Board { return cw.brd.Res.Logic.Board }
 
 func (cw *cellWorld) kind() board.CellKind { return cw.board().Kind(cw.target) }
 
-// cells counts the cell entities and how many of them still have Idle on.
-func (cw *cellWorld) cells() (n, idle int) {
+// cells counts the cell entities and how many of them still have Changed on.
+func (cw *cellWorld) cells() (n, changed int) {
 	for cw.plots.All(); cw.plots.Next(); {
 		cur := cw.plots.Cursor()
 		n += len(cur.IDs)
 		for _, m := range cw.marks.Slice(cur) {
-			if m.Has(effect.Idle) {
-				idle++
+			if m.Has(effect.Changed) {
+				changed++
 			}
 		}
 	}
-	return n, idle
+	return n, changed
 }
 
 func TestCells_EveryCellIsAnEntityForGood(t *testing.T) {
@@ -147,7 +147,7 @@ func TestCells_SetWritesTheEntityAtOnceAndCountsAChange(t *testing.T) {
 }
 
 // An effect on a cell's entity is an effect on the terrain, whichever plugin's pass runs first:
-// the Version moves when it lands and when it ends, the entity stays, and no Idle is left behind.
+// the Version moves when it lands and when it ends, the entity stays, and no Changed is left on.
 func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 	for name, boardFirst := range map[string]bool{"effects then board": false, "board then effects": true} {
 		t.Run(name, func(t *testing.T) {
@@ -175,8 +175,8 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 			if again, _ := cw.brd.CellEntity(cw.target); again != first {
 				t.Errorf("the cell entity changed from %d to %d; it is the cell's for good", first, again)
 			}
-			if n, idle := cw.cells(); n != 16 || idle != 0 {
-				t.Errorf("%d cell entities, %d of them Idle, want 16 and none", n, idle)
+			if n, changed := cw.cells(); n != 16 || changed != 0 {
+				t.Errorf("%d cell entities, %d of them Changed, want 16 and none", n, changed)
 			}
 		})
 	}

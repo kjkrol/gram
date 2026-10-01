@@ -22,16 +22,18 @@
 // # Rules
 //
 // [On] makes a rule of a moment a plugin catches in its own pass — a board.Standing, a
-// vision.Sighting, a collision.Meeting, a world.Moving, an effect.Idling, a clock.Moment — for the
-// plugin's Hook: board.Plugin.Hook, vision's, collision's, world's, navigation's. Its [Filter],
-// the second argument, says whom it fires for: [All], [Self] one carrying a tag, [Between] a pair
-// whose sides carry the tags given, for a moment that is [Met], [Having] one carrying a component,
-// which CallOn hands its function. A Moment's steps — OneOf, Steps, If on the moment, Not, Apply,
-// Keep, Unless, Under, Order, ForOther, Call, CallOn — are each done within the plugin's pass; a
-// step that lasts, made by an Actor, is refused as the rule is made. A rule keeps no memory of its
-// own: an effect's presence is its memory — "at most once a while" is Unless an effect that lasts
-// that while. A moment is [About] one entity, whom the steps act for; a clock.Moment is of none,
-// and steps acting on one fail on it.
+// vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment — for the plugin's Hook:
+// board.Plugin.Hook, vision's, collision's, world's, navigation's. Its [Filter], the second
+// argument, says whom it fires for: [All], [Self] one carrying a tag — an effect's marker among
+// them — [Between] a pair whose sides carry the tags given, for a moment that is [Met], [Having]
+// one carrying a component, which CallOn hands its function. A Moment's steps — OneOf, Steps, If
+// on the moment, Not, Apply, Keep, Dispel, Chance, Unless, Under, Order, ForOther, Call, CallOn —
+// are each done within the plugin's pass; a step that lasts, made by an Actor, is refused as the
+// rule is made. A rule keeps no memory of its own: an effect's presence is its memory — "at most
+// once a while" is Unless an effect that lasts that while. A moment is [About] one entity, whom
+// the steps act for; a clock.Moment is of none, and steps acting on one fail on it. Chance draws
+// from the world's seed, the step's game time and the entity, keeping nothing: a load and a replay
+// draw alike.
 //
 // # Plans
 //
@@ -50,8 +52,13 @@
 // # Effects and commands
 //
 // Apply casts an effect (effect.Effect) on the entity, lasting as its Spec says; Keep holds one
-// for as long as its branch runs — in a rule, as long as the rule keeps firing it; Unless and Under
-// run a step as the entity is under one or not. Order gives a command for the entity — the same
+// for as long as its branch runs — in a rule, as long as the rule keeps firing it; Dispel takes one
+// off; Unless and Under run a step as the entity is under one or not. A rule keeping an effect
+// someone dispelled has it back the step after, its cause going on; a dispeller that is to win
+// casts a shield the keeper checks with Unless. A plan's Keep gives way — its branch fails — when
+// someone else takes its effect off. Within a step, rules of one moment run in the order they were
+// hooked, moments in the order of their plugins' passes, and every cast and Dispel lands together
+// in the effects' pass. Order gives a command for the entity — the same
 // command a player gives, queued for the plugin that handles its type (navigation.MoveTo,
 // world.Despawn) — and does well at once: fire and forget. In a plan it hands back a [Command]:
 // its Until waits for what comes of it, a fact — navigation.Arrived — and its Stay keeps the

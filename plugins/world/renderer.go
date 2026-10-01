@@ -33,6 +33,10 @@ type Renderer struct {
 	view        *view.View // the one being drawn
 	// clock is the game time the frame's animations go by; nil, the composer's own
 	clock func() time.Duration
+	// stepped is the game time of the last step, seed the world's: what a Drawing rule's Chance
+	// draws from
+	stepped func() time.Duration
+	seed    uint64
 
 	ids   []uid.UID64
 	bases []Base
@@ -98,7 +102,10 @@ func (s *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 // each walks the drawn entities of the View, their Drawing rules run, calling visit once per
 // entity with its index in the chunk and its Z, nil without one.
 func (s *Renderer) each(visit func(i int, z *Z)) {
-	tick := plugin.Tick{Now: time.Now()}
+	tick := plugin.Tick{Now: time.Now(), Seed: s.seed}
+	if s.stepped != nil {
+		tick.Time = s.stepped()
+	}
 	s.renderQuery.All()
 	for s.renderQuery.Next() {
 		cursor := s.renderQuery.Cursor()

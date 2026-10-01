@@ -19,10 +19,10 @@ type Plans struct {
 	system *system
 }
 
-// New is the plans over now, the world's clock's time, casting the world's effects fx and
-// giving the commands its plans order to commands, the world's carrier.
-func New(now func() time.Duration, fx *effect.Effects, commands *control.Carrier) *Plans {
-	return &Plans{system: &system{now: now, effects: fx, commands: commands}}
+// New is the plans over now, the world's clock's time, drawing their Chance from seed, casting
+// the world's effects fx and giving the commands its plans order to commands, the world's carrier.
+func New(now func() time.Duration, seed uint64, fx *effect.Effects, commands *control.Carrier) *Plans {
+	return &Plans{system: &system{now: now, seed: seed, effects: fx, commands: commands}}
 }
 
 // System is the plans' system, run in every step of the simulation.
@@ -46,6 +46,7 @@ func (c *Plans) LoadComps() []goke.CompToken {
 // system runs the plans.
 type system struct {
 	now      func() time.Duration
+	seed     uint64           // the world's, which Chance draws from
 	effects  *effect.Effects  // the world's, which Apply, Keep and the rest cast
 	commands *control.Carrier // the world's, which Order gives to
 	trees    map[uint64]*tree

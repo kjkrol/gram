@@ -92,8 +92,8 @@ flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` a
 budget for data. The bits serve two ways (`entity/tag` doc): **tags** are groups a kind gives
 (`comp.Tagged`); **markers** are states switched on and off — a plugin's family `States`, carried
 for good (`comp.Marks[F]()` in a kind, `Roster().Unit.Default` for every unit, attached once where
-missing), each marker a constant bit defined by name like the owners (`effect.Idle`,
-`navigation.Entered`, `hooks.States` "collision.hit"). Putting a component on or off moves the
+missing), each marker a constant bit defined by name like the owners (`effect.Changed`, every
+effect's own `Effect.Mark()` "effect.<name>", `navigation.Entered`). Putting a component on or off moves the
 entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
 often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
 `Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
@@ -440,6 +440,14 @@ public API is small. A new behaviour adds a moment, a fact or a command where
 perception or an action is missing, and writes the rule with `rule`; it never adds a
 branch to a system.
 
+A game is written the same way: its **states are effects** (burning, frozen, alarmed),
+each with its own marker (`Effect.Mark()`) that rules of any plugin filter by; its
+**rules connect** the plugins' moments to those effects (`Apply`, `Keep`, `Dispel`,
+`Unless`, `Chance`, `Then`); and the plugins give **knobs** — components an effect's
+`Alter` turns (a cell's `Ground`, `Steering`, `Physics`, `Appearance`). A plugin's own
+effects stay private. A step a rule cannot say is a missing moment, step or knob, not a
+reason to write Go code in a rule (`doc/rule.md`, "A game: states as effects").
+
 ### Built-in plugins (`plugins/`)
 
 - **`world`** — foundation a Stage installs by calling
@@ -489,8 +497,10 @@ branch to a system.
   `Hook`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
   board's terrain speed is one), a `Leaving` (every tick an entity is `Outside`) and a
   `Drawing` (every entity about to be drawn; `world.Draw.Overlay[T]`, `Draw.As[T]`,
-  `Draw.With[T]`, `Draw.Facing` are ready-made), and, through its effects, an `effect.Idling` and a
-  `clock.Moment` (every step). The space keeps no state of its own between ticks:
+  `Draw.With[T]`, `Draw.Facing` are ready-made), and a `clock.Moment` (every step, its own system
+  just before the effects' pass). Every `plugin.Tick` a host hands its rules comes from
+  `world.Plugin.Tick(cb, d)` (a `plugin.TickSource`): the carrier, `Time` (game time at the step's
+  end) and `Seed` (`world.Config.Seed`), which `Chance` draws from. The space keeps no state of its own between ticks:
   `MoveSystem` moves every box under the edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
@@ -546,8 +556,8 @@ branch to a system.
   `Crossing`, made by the `cellSystem` at Setup or found after a load; the `Board` reads and
   writes them, keeping only the cells' entity ids by ordinal, and a seed (`TerrainMap`) before
   Setup or on a board no ECS runs. `Version` and `CellVersion` count every change: writes through
-  the board, effects on cell entities, which the `cellSystem` learns from `effects.Active.Altered`
-  and `effects.Idle` on the cells, and `Board.Touch(c)` by whoever changes a cell beyond the board.
+  the board, effects on cell entities, which the `cellSystem` learns from `effect.Changed` on the
+  cells, and `Board.Touch(c)` by whoever changes a cell beyond the board.
   The board is flat: the ground's heights are the topography's `relief.Relief` — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
@@ -617,9 +627,8 @@ branch to a system.
   `LogContacts(opts…)`, and `HitOverlay(hit, with)` for the world's Hook; a game's own is
   `Hook(rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step { … }))`;
   the hit is an effect
-  (`hooks.Hit(w, d)` → `Hits{Effect, Mark}`: the effect grants the marker `collision.hit` of
-  `hooks.States`; cast by `ShowHits(h)` on a `Struck` that `Hit()`s, drawn by `HitOverlay(h,
-  with)`, which reads the marker, `rule.Self(h.Mark)`). `Collider` is the plugin's one
+  (`hooks.Hit(w, d)` → `effect.Effect`, cast by `ShowHits(hit)` on a `Struck` that `Hit()`s, drawn
+  by `HitOverlay(hit, with)`, which reads its marker, `rule.Self(hit.Mark())`). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. `pathFinder.price` is what a step costs: the destination's `CostFor` over the step's
@@ -747,21 +756,23 @@ branch to a system.
   acting on an entity fails on a moment of none (`clock.Moment`). `Mind{Plan, Running, Slot,
   Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
   exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
-- **`world/rule/effect`** — temporary changes to entities, cast from anywhere, made and
+- **`world/rule/effect`** — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
-  Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
-  (`Cast`/`CastFor`/`Dispel`/`On`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active` slots
-  saved with the entity, originals of altered components kept and saved with the game; effects
-  last in game time. `Active` stays on an entity once an effect came (empty when none runs — a
-  marker's second form); the entity's `effect.States` markers (the world gives them to every unit,
-  the board to every cell) have `effect.Idle` on for the step after its last effect ended, and
-  rules of an `effect.Idling` hooked on the world hear of it once (`host.EachHost.RunRows`
-  runs them for those rows alone). A cast before the effects'
-  pass lands the same step. The effects fire the rules of a `clock.Moment{Last, Now}` every
-  step (a `host.ListHost`): what happens when is a rule of `clock.Moment` holding
-  `m.If(clock.Every(period, offset), …)` or `clock.At(t)` (`calendar.Daily/Yearly/Seasonal`
-  give the period and offset), fired by clock time, never again after a load; it casts effects
-  or grants a `clock.Phase`.
+  Then(next), Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
+  (`Cast`/`CastFor`/`Dispel`/`On`/`Mark`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active`
+  slots saved with the entity, originals of altered components kept and saved with the game;
+  effects last in game time. Every effect has its own marker of `effect.States`, "effect.<name>",
+  on while it runs (`Effect.Mark()`, for `rule.Self` in any plugin; at most 63 effects). `Then`
+  casts the next effect when the time is up, not after a `Dispel`; a cast after a `Dispel` in the
+  same step takes the slot back. `Active` stays on an entity once an effect came (empty when none
+  runs — a marker's second form); the entity's `effect.States` markers (the world gives them to
+  every unit, the board to every cell, attached at the first effect where missing) have
+  `effect.Changed` on for the step after an `Alter` rewrote one of its components. A cast before
+  the effects' pass lands the same step. The world fires the rules of a `clock.Moment{Last, Now}`
+  every step (a `host.ListHost`, its own system just before the effects' pass): what happens when
+  is a rule of `clock.Moment` holding `m.If(clock.Every(period, offset), …)` or `clock.At(t)`
+  (`calendar.Daily/Yearly/Seasonal` give the period and offset), fired by clock time, never again
+  after a load; it casts effects or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
   `Alter[board.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`

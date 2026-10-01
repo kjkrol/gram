@@ -1,18 +1,18 @@
 package effect_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
@@ -58,10 +58,11 @@ type rig struct {
 	active  goke.OptComp[effect.Active]
 	states  goke.OptComp[tag.Tags[effect.States]]
 	casting func(cb *goke.CmdBuf)
-	idled   []uid.UID64 // whom the hosted Idling behavior heard of, in order
+	comps   []comp.Comp // more of the entity's kind: a plan
 }
 
-// newRig builds the rig; define adds effects before Install and may read the rig's tags.
+// newRig builds the rig; define adds effects before Install and may read the rig's tags. Without
+// withFamily the entity carries neither moods nor the effects' markers.
 func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	t.Helper()
 	r := &rig{t: t}
@@ -71,13 +72,6 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	})
 	r.angry = r.w.Kinds().DefineTag[moods]("angry")
 	r.fx = r.w.Effects()
-	if err := r.w.Hook(rule.On("idled", rule.Having[steering.Steering](), func(m *rule.Moment[effect.Idling]) rule.Step {
-		return m.CallOn(func(_ plugin.Tick, _ *steering.Steering, i effect.Idling) {
-			r.idled = append(r.idled, i.ID)
-		})
-	})); err != nil {
-		t.Fatal(err)
-	}
 	define(r)
 
 	ctx := &installCtx{ecs: goke.New()}
@@ -90,8 +84,9 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		comp.Const(steering.Steering{MaxSpeed: 10}),
 	}
 	if withFamily {
-		spec = append(spec, comp.Tagged[moods]())
+		spec = append(spec, comp.Tagged[moods](), comp.Marks[effect.States]())
 	}
+	spec = append(spec, r.comps...)
 	unit := kind.Define[struct{}](r.w.Kinds(), "unit", spec)
 	r.w.Seed(unit.Entry(struct{}{}))
 	if err := r.w.Populate(); err != nil {
@@ -153,14 +148,14 @@ func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
 	return
 }
 
-// idleMarked reports whether the entity's Idle is on right now.
-func (r *rig) idleMarked() bool {
-	marked := false
+// marked reports whether the entity has the effects' marker t on right now.
+func (r *rig) marked(t tag.Tag[effect.States]) bool {
+	on := false
 	for r.query.All(); r.query.Next(); {
 		m := r.states.Slice(r.query.Cursor())
-		marked = m != nil && m[0].Has(effect.Idle)
+		on = m != nil && m[0].Has(t)
 	}
-	return marked
+	return on
 }
 
 func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
@@ -179,76 +174,145 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 	if speed, sprite, angry, active := r.state(); speed != 20 || sprite != 7 || !angry || !active {
 		t.Fatalf("running: speed %v sprite %d angry %v active %v, want 20, 7, true, true", speed, sprite, angry, active)
 	}
+	if !r.marked(rage.Mark()) {
+		t.Error("rage's own marker is off while it runs")
+	}
 	for range 3 {
 		r.tick()
 	}
 	if speed, sprite, angry, active := r.state(); speed != 10 || sprite != 0 || angry || active {
 		t.Errorf("after its time: speed %v sprite %d angry %v active %v, want 10, 0, false, false", speed, sprite, angry, active)
 	}
-	if len(r.idled) != 1 || r.idled[0] != r.id {
-		t.Errorf("the Idling behavior heard %v, want the entity once", r.idled)
+	if r.marked(rage.Mark()) {
+		t.Error("rage's own marker stayed after it ended")
 	}
 }
 
-func TestEffects_IdleMarksTheEntityForOneTickAfterItsLastEffect(t *testing.T) {
-	var blink effect.Effect
-	r := newRig(t, false, func(r *rig) {
-		blink = r.fx.Define("blink", effect.Spec{effect.Lasts(tick), effect.Alter(func(a *world.Appearance) { a.SpriteID = 3 })})
-	})
-	r.cast(blink)
-	r.tick() // lands and begins
-	if r.idleMarked() {
-		t.Fatal("Idle while the effect runs")
-	}
-	r.tick() // its time is up: Active empties, Idle goes on
-	if _, _, _, active := r.state(); active || !r.idleMarked() {
-		t.Fatalf("after the effect: under an effect %v, idle %v; want none and Idle on", active, r.idleMarked())
-	}
-	if len(r.idled) != 0 {
-		t.Errorf("heard %v before the Idle pass, want nothing yet", r.idled)
-	}
-	r.tick() // the Idle pass: behaviors hear, the mark goes
-	if r.idleMarked() {
-		t.Error("Idle still on after its tick")
-	}
-	if len(r.idled) != 1 {
-		t.Errorf("heard %v, want the entity once", r.idled)
-	}
-	r.tick()
-	if len(r.idled) != 1 {
-		t.Errorf("heard %v after another tick, want still once", r.idled)
-	}
-}
-
-// altered reads the entity's Active.Altered; false without an Active.
-func (r *rig) altered() bool {
-	for r.query.All(); r.query.Next(); {
-		if a := r.active.Slice(r.query.Cursor()); a != nil {
-			return a[0].Altered
-		}
-	}
-	return false
-}
-
-func TestEffects_AlteredMarksThePassThatRewroteAComponent(t *testing.T) {
+func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(4 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
 		mark = r.fx.Define("mark", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
 	})
 	r.cast(haste)
 	r.tick() // lands and begins: the speed is rewritten
-	if !r.altered() {
-		t.Error("the pass that began an Alter left Altered off")
+	if !r.marked(effect.Changed) {
+		t.Error("the step that began an Alter left Changed off")
 	}
 	r.tick() // runs on, nothing rewritten
-	if r.altered() {
-		t.Error("a pass that rewrote nothing left Altered on")
+	if r.marked(effect.Changed) {
+		t.Error("a step that rewrote nothing left Changed on")
 	}
 	r.cast(mark)
 	r.tick() // a Grant begins beside it: tags, no Alter
-	if r.altered() {
-		t.Error("a Grant beginning turned Altered on")
+	if r.marked(effect.Changed) {
+		t.Error("a Grant beginning turned Changed on")
+	}
+	r.tick() // haste's time is up: the speed goes back
+	if speed, _, _, _ := r.state(); speed != 10 || !r.marked(effect.Changed) {
+		t.Errorf("haste ended: speed %v, Changed %v; want 10 and on", speed, r.marked(effect.Changed))
+	}
+	r.tick()
+	if r.marked(effect.Changed) {
+		t.Error("Changed stayed on a step after the speed went back")
+	}
+}
+
+func TestEffects_TwoEffectsGrantingOneTagKeepItTillTheLast(t *testing.T) {
+	var rage, fury effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		rage = r.fx.Define("rage", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
+		fury = r.fx.Define("fury", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
+	})
+	r.casting = func(cb *goke.CmdBuf) {
+		r.fx.Cast(cb, r.id, rage)
+		r.fx.Cast(cb, r.id, fury)
+	}
+	r.tick()
+	r.tick()
+	r.tick() // rage is over, fury runs
+	if _, _, angry, _ := r.state(); !angry || r.marked(rage.Mark()) || !r.marked(fury.Mark()) {
+		t.Errorf("rage over, fury on: angry %v, rage %v, fury %v; want true, false, true",
+			angry, r.marked(rage.Mark()), r.marked(fury.Mark()))
+	}
+	r.tick()
+	r.tick()
+	if _, _, angry, _ := r.state(); angry || r.marked(fury.Mark()) {
+		t.Errorf("both over: angry %v, fury %v; want false, false", angry, r.marked(fury.Mark()))
+	}
+}
+
+func TestEffects_StackedCastsKeepTheMarkerTillTheLast(t *testing.T) {
+	var sting effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		sting = r.fx.Define("sting", effect.Spec{effect.Lasts(2 * tick), effect.Stacking()})
+	})
+	r.cast(sting)
+	r.tick() // the first begins: two ticks left
+	r.cast(sting)
+	r.tick() // the second begins, the first has one left
+	r.tick() // the first is over
+	if !r.marked(sting.Mark()) {
+		t.Error("the marker went with the first of two stacked casts")
+	}
+	r.tick()
+	if r.marked(sting.Mark()) {
+		t.Error("the marker outlived the last stacked cast")
+	}
+}
+
+func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
+	var burn, ash effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		ash = r.fx.Define("ash", effect.Spec{effect.Lasts(2 * tick)})
+		burn = r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+	})
+	r.cast(burn)
+	r.tick() // begins
+	r.tick()
+	r.tick() // its time is up: ash is queued
+	if r.fx.Has(r.id, burn) || !r.fx.Has(r.id, ash) {
+		t.Fatalf("burn over: burn %v, ash %v; want false, true", r.fx.Has(r.id, burn), r.fx.Has(r.id, ash))
+	}
+	r.tick() // ash begins
+	if !r.marked(ash.Mark()) {
+		t.Error("the effect that follows never began")
+	}
+	for range 3 {
+		r.tick()
+	}
+	if r.fx.Has(r.id, ash) {
+		t.Fatal("the effect that follows outlived its time")
+	}
+
+	r.cast(burn)
+	r.tick()
+	r.fx.Dispel(r.id, burn)
+	r.tick()
+	r.tick()
+	if r.fx.Has(r.id, burn) || r.fx.Has(r.id, ash) {
+		t.Errorf("burn dispelled: burn %v, ash %v; want false, false", r.fx.Has(r.id, burn), r.fx.Has(r.id, ash))
+	}
+}
+
+func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
+	var burn, ash effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		ash = r.fx.Define("ash", effect.Spec{effect.Lasts(tick)})
+		burn = r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+	})
+	r.cast(burn)
+	r.tick()
+	r.fx.Dispel(r.id, burn)
+	r.cast(burn) // cast again in the same step, after the Dispel: the cause goes on
+	r.tick()
+	if !r.fx.Has(r.id, burn) {
+		t.Fatal("a cast after Dispel did not take the slot back")
+	}
+	r.tick()
+	r.tick() // its time is up, not dispelled: ash follows
+	if !r.fx.Has(r.id, ash) {
+		t.Error("the slot taken back still counted as dispelled")
 	}
 }
 
@@ -348,4 +412,21 @@ func TestEffects_GrantAttachesAMissingFamily(t *testing.T) {
 	if _, _, angry, _ := r.state(); angry {
 		t.Error("the granted tag stayed after the effect ended")
 	}
+}
+
+func TestEffects_DefineRefusesOneEffectTooManyByName(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 400, Height: 400},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
+	})
+	fx := w.Effects()
+	for i := range tag.MaxTagsPerFamily - 1 {
+		fx.Define(fmt.Sprint("e", i), effect.Spec{})
+	}
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, `"last straw"`) {
+			t.Errorf("panic %q, want one naming the effect", msg)
+		}
+	}()
+	fx.Define("last straw", effect.Spec{})
 }

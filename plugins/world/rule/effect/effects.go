@@ -1,56 +1,58 @@
 package effect
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
 // Effects puts effects on entities — temporary changes to their components: tags granted for a
-// while, values altered and restored — cast from anywhere, and fires the rules of the clock's
-// Moment. The world makes and runs it (world.Plugin.Effects); nothing installs it by hand.
+// while, values altered and restored — cast from anywhere. The world makes and runs it
+// (world.Plugin.Effects); nothing installs it by hand.
 type Effects struct {
 	defs      []def
 	originals *originals
-	idlers    host.EachHost[Idling]
-	moments   moments
-	commands  *control.Carrier
+	name      func(name string) tag.Tag[States]
 	system    *effectSystem
 	module    *Module
 }
 
-// New makes the effects over clk, whose time they count down in, handing their rules commands,
-// the world's carrier.
-func New(clk *clock.Clock, commands *control.Carrier) *Effects {
-	e := &Effects{originals: newOriginals(), commands: commands}
-	e.moments.clock = clk
-	e.system = newEffectSystem(&e.defs, e.originals, &e.idlers, &e.moments, commands)
+// New makes the effects, naming each effect's marker with name — the world's Kinds, so the saves
+// know it by name.
+func New(name func(name string) tag.Tag[States]) *Effects {
+	e := &Effects{originals: newOriginals(), name: name}
+	e.system = newEffectSystem(&e.defs, e.originals)
 	e.module = &Module{system: e.system, originals: e.originals}
 	return e
 }
 
-// Define registers an effect under name; call it in Init, before the game runs.
+// MarkerPrefix comes before an effect's name in the name of its marker: "effect.burning".
+const MarkerPrefix = "effect."
+
+// Define registers an effect under name, with its own marker on while it runs (Effect.Mark);
+// call it in Init, before the game runs.
 func (e *Effects) Define(name string, spec Spec) Effect {
 	if e.system.built {
 		panic(fmt.Sprintf("effects: %q defined after the game was set up", name))
 	}
-	if len(e.defs) == 1<<8 {
-		panic("effects: at most 256 effects")
+	if len(e.defs) == tag.MaxTagsPerFamily-1 {
+		panic(fmt.Sprintf("effects: %q is one too many: at most %d effects, each with its marker", name, tag.MaxTagsPerFamily-1))
+	}
+	mark := e.name(MarkerPrefix + name)
+	if mark == Changed {
+		panic(fmt.Sprintf("effects: %q is named as Changed is", name))
 	}
 	d := def{name: name}
+	Grant(mark).apply(&d)
 	for _, t := range spec {
 		t.apply(&d)
 	}
 	e.defs = append(e.defs, d)
-	return Effect{owner: e, id: ID(len(e.defs) - 1)}
+	return Effect{owner: e, id: ID(len(e.defs) - 1), mark: mark}
 }
 
 // Cast puts effect on id for as long as its Spec says; cast again, it is refreshed unless it
@@ -70,24 +72,14 @@ func (e *Effects) Dispel(id uid.UID64, effect Effect) { e.system.dispel(id, effe
 // Has reports whether id is under effect.
 func (e *Effects) Has(id uid.UID64, effect Effect) bool { return e.system.has(id, effect.id) }
 
-func (e *Effects) lasts(effect ID) time.Duration {
-	if d := e.defs[effect].lasts; d > 0 {
-		return d
+func (e *Effects) lasts(effect ID) time.Duration { return lastsOf(&e.defs[effect]) }
+
+// lastsOf is how long a cast of d lasts when nobody says: its Lasts, or Forever.
+func lastsOf(d *def) time.Duration {
+	if d.lasts > 0 {
+		return d.lasts
 	}
 	return Forever
-}
-
-// Host takes a rule of Idling — run once for an entity whose last effect ended — or of the
-// clock's Moment — once every step — for the world's Hook; ErrUnhosted for anything else.
-func (e *Effects) Host(b plugin.Rule) error {
-	err := e.idlers.Add(b)
-	if errors.Is(err, plugin.ErrUnhosted) {
-		err = e.moments.host.Add(b)
-	}
-	if err != nil && !errors.Is(err, plugin.ErrUnhosted) {
-		return fmt.Errorf("%w in effects", err)
-	}
-	return err
 }
 
 // Module is the effects as a goke.Module, for the world to install: its system, its components
@@ -112,7 +104,7 @@ func (m *Module) RegSystems(ecs *goke.ECS) {
 	}
 }
 
-// RunPlan advances every effect and the schedule over d — a step of the simulation.
+// RunPlan advances every effect over d — a step of the simulation.
 func (m *Module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
 	ctx.Sync()
@@ -129,15 +121,20 @@ func (m *Module) LoadComps() []goke.CompToken {
 // Persisted returns the saved originals for Persistence.Save and Load.
 func (m *Module) Persisted() []any { return []any{&m.originals.byEntity} }
 
-// Effect is one effect defined with its Effects: what a kind's tree or a rule casts, the
-// Effects it belongs to carried along.
+// Effect is one effect defined with its Effects: what a plan or a rule casts, the Effects it
+// belongs to carried along.
 type Effect struct {
 	owner *Effects
 	id    ID
+	mark  tag.Tag[States]
 }
 
 // ID is the effect's number, as Active's slots keep it.
 func (e Effect) ID() ID { return e.id }
+
+// Mark is the effect's own marker, on while it runs: what rules of other plugins filter by —
+// rule.Self(burning.Mark()).
+func (e Effect) Mark() tag.Tag[States] { return e.mark }
 
 // Cast puts the effect on id for as long as its Spec says; see Effects.Cast.
 func (e Effect) Cast(cb *goke.CmdBuf, id uid.UID64) { e.owner.Cast(cb, id, e) }

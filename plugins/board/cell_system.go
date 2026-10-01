@@ -13,8 +13,8 @@ import (
 var _ goke.System = (*cellSystem)(nil)
 
 // cellSystem gives every cell an entity at Setup, or finds the ones a save brought back, and hands
-// them to the board. Every step it counts a change wherever an effect rewrote a cell
-// (effect.Active.Altered) or has just ended on one (its effect.Idle on).
+// them to the board. Every step it counts a change wherever an effect changed a cell's components —
+// began or ended an Alter of its Ground (its effect.Changed on).
 type cellSystem struct {
 	brd *Board
 
@@ -91,8 +91,11 @@ func (s *cellSystem) Update(*goke.CmdBuf, time.Duration) {
 	for s.active.All(); s.active.Next(); {
 		cur := s.active.Cursor()
 		plots, marks := s.activePlot.Slice(cur), s.activeMarks.Slice(cur)
-		for i, a := range s.activeComp.Slice(cur) {
-			if a.Altered || marks != nil && marks[i].Has(effect.Idle) {
+		if marks == nil {
+			continue
+		}
+		for i := range plots {
+			if marks[i].Has(effect.Changed) {
 				s.brd.touch(plots[i].Cell)
 				changed = true
 			}

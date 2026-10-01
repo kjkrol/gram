@@ -1,4 +1,4 @@
-package effect_test
+package world_test
 
 import (
 	"testing"
@@ -12,7 +12,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 )
 
-// Rules of the clock's Moment fire once at their time and every period after their offset, on
+// tick is a step of the moments' test.
+const tick = time.Second / 10
+
+// Rules of the clock's Moment, fired by the world, fire once at their time and every period after their offset, on
 // the clock's time — at any tempo and never in the pause — and an effect one casts on the clock's
 // entity switches a phase on until it ends.
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {

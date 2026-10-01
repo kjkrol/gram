@@ -54,7 +54,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
 	p.module.clock = p.worldPlugin.Clock()
-	p.module.sys.commands = p.worldPlugin.Commands()
+	p.module.sys.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
 	return nil
 }

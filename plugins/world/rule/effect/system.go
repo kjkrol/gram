@@ -5,9 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
@@ -15,30 +12,19 @@ import (
 var _ goke.System = (*effectSystem)(nil)
 
 // effectSystem begins, counts down and ends every slot of every Active, applying and undoing
-// what the effects grant and alter; an entity whose last effect ended keeps its Active, empty, and
-// has its Idle on for a step.
+// what the effects grant and alter, casting a spent effect's Then; an entity whose components an
+// Alter changed has its Changed on for the step after. An entity whose last effect ended keeps its
+// Active, empty.
 type effectSystem struct {
 	defs      *[]def
 	originals *originals
-	idlers    *host.EachHost[Idling]
-	moments   *moments
-	commands  *control.Carrier
 
 	query   *goke.Query
 	active  goke.Comp[Active]
-	states  goke.OptComp[tag.Tags[States]]
+	states  *tagColumn[States] // the markers: Changed and each effect's own
 	columns map[reflect.Type]column
 	touched map[reflect.Type]bool // the altered components of the entity in hand, reused
-
-	// idle walks the entities with an effect's markers for those whose Idle went on last step —
-	// idled of them — for the hosted rules; the bit goes off after.
-	idle       *goke.Query
-	idleStates goke.Comp[tag.Tags[States]]
-	idleActive goke.Comp[Active]
-	idleIDs    []uid.UID64
-	idleRows   []int
-	idled      int
-	statesID   goke.CompID
+	thens   []ID                  // the Thens of the entity in hand, reused
 
 	// lookup finds one entity's Active for Cast and Dispel outside the walk.
 	lookup       *goke.Query
@@ -47,13 +33,15 @@ type effectSystem struct {
 	built        bool
 }
 
-func newEffectSystem(defs *[]def, originals *originals, idlers *host.EachHost[Idling], moments *moments, commands *control.Carrier) *effectSystem {
-	return &effectSystem{defs: defs, originals: originals, idlers: idlers, moments: moments, commands: commands,
-		columns: map[reflect.Type]column{}, touched: map[reflect.Type]bool{}}
+func newEffectSystem(defs *[]def, originals *originals) *effectSystem {
+	return &effectSystem{defs: defs, originals: originals, columns: map[reflect.Type]column{}, touched: map[reflect.Type]bool{}}
 }
 
 func (s *effectSystem) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&s.active).Optional(&s.states)
+	qb := si.NewQueryBuilder(&s.active)
+	s.states = &tagColumn[States]{}
+	s.states.bind(si, qb)
+	s.columns[reflect.TypeFor[States]()] = s.states
 	for _, d := range *s.defs {
 		for _, g := range d.grants {
 			if _, ok := s.columns[g.family]; !ok {
@@ -71,69 +59,52 @@ func (s *effectSystem) Init(si *goke.SysInit) {
 	s.query = qb.Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupActive).Build()
 	s.activeID = si.RegComp[Active]()
-	s.statesID = si.RegComp[tag.Tags[States]]()
-	iq := si.NewQueryBuilder(&s.idleActive, &s.idleStates)
-	s.idlers.Bind(iq)
-	s.idle = iq.Build()
 	s.built = true
 }
 
 func (s *effectSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	t := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
-	s.moments.run(t)
-	if s.idled > 0 {
-		s.idled = 0
-		for s.idle.All(); s.idle.Next(); {
-			cursor := s.idle.Cursor()
-			states := s.idleStates.Slice(cursor)
-			s.idleRows = s.idleRows[:0]
-			for i := range states {
-				if states[i].Has(Idle) {
-					states[i] = states[i].Without(Idle)
-					s.idleRows = append(s.idleRows, i)
-				}
-			}
-			s.idleIDs = cursor.IDs
-			s.idlers.RunRows(t, cursor, s.idleRows, s.idling)
-		}
-	}
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		actives, states := s.active.Slice(cursor), s.states.Slice(cursor)
+		actives := s.active.Slice(cursor)
 		for i, id := range cursor.IDs {
 			a := &actives[i]
-			if a.empty() {
-				a.Altered = false
-				continue
+			changed := false
+			if !a.empty() {
+				changed = s.step(cb, cursor, i, id, a, d)
 			}
-			if s.step(t, cursor, i, id, a, d) {
-				s.idleOn(cb, states, i, id)
-			}
+			s.mark(cb, cursor, i, id, changed)
 		}
 	}
 }
 
-// idleOn has the entity's Idle on, for the next step — its family given it where it has none.
-func (s *effectSystem) idleOn(cb *goke.CmdBuf, states []tag.Tags[States], i int, id uid.UID64) {
-	if states != nil {
-		states[i] = states[i].With(Idle)
-	} else {
-		cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Idle))
+// mark has the entity's Changed on when changed, off otherwise — its family given it where it has
+// none and Changed is to go on.
+func (s *effectSystem) mark(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, changed bool) {
+	if !s.states.present(cursor) {
+		if changed {
+			s.states.attach(cb, id, uint64(tag.Tags[States](0).With(Changed)))
+		}
+		return
 	}
-	s.idled++
+	if changed {
+		s.states.or(cursor, i, uint64(tag.Tags[States](0).With(Changed)))
+	} else {
+		s.states.clear(cursor, i, uint64(tag.Tags[States](0).With(Changed)))
+	}
 }
 
-// step advances one entity: begins pending slots, counts running ones down, ends the spent; true
-// when its last effect ended, its Active left empty.
-func (s *effectSystem) step(t plugin.Tick, cursor *goke.Cursor, i int, id uid.UID64, a *Active, d time.Duration) bool {
+// step advances one entity: begins pending slots, counts running ones down, ends the spent, and
+// casts the Thens of those that ran out; true when an Alter changed its components.
+func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, a *Active, d time.Duration) bool {
 	touched := s.touched
 	clear(touched)
+	s.thens = s.thens[:0]
 	for k := range a.Slots {
 		slot := &a.Slots[k]
 		switch slot.State {
 		case Pending:
-			if s.begin(t, cursor, i, id, slot, touched) {
+			if s.begin(cb, cursor, i, id, slot, touched) {
 				slot.State = Running
 			}
 		case Running:
@@ -148,27 +119,29 @@ func (s *effectSystem) step(t plugin.Tick, cursor *goke.Cursor, i int, id uid.UI
 	for comp := range touched {
 		s.recompute(cursor, i, id, a, comp)
 	}
-	a.Altered = len(touched) > 0
+	for _, next := range s.thens {
+		s.queue(a, next, lastsOf(&(*s.defs)[next]))
+	}
 	if a.empty() {
 		s.originals.forget(id)
-		return true
 	}
-	return false
+	return len(touched) > 0
 }
 
-// idling describes the i-th entity of the Idle chunk being walked.
-func (s *effectSystem) idling(i int) Idling { return Idling{ID: s.idleIDs[i]} }
-
 // begin applies a slot's grants and marks its alters for recompute; false while a granted
-// family is not on the entity yet — it is attached and the slot waits a tick.
-func (s *effectSystem) begin(t plugin.Tick, cursor *goke.Cursor, i int, id uid.UID64, slot *Slot, touched map[reflect.Type]bool) bool {
+// family is not on the entity yet — the missing ones are attached and the slot waits a tick.
+func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slot *Slot, touched map[reflect.Type]bool) bool {
 	d := &(*s.defs)[slot.Kind]
-	for _, g := range d.grants {
-		col := s.columns[g.family]
-		if !col.present(cursor) {
-			col.(tagWriter).attach(t.CmdBuf, id, g.bits)
-			return false
+	ready := true
+	for k, g := range d.grants {
+		if s.columns[g.family].present(cursor) || attachedBefore(d.grants[:k], g.family) {
+			continue
 		}
+		s.columns[g.family].(tagWriter).attach(cb, id, g.bits)
+		ready = false
+	}
+	if !ready {
+		return false
 	}
 	for _, g := range d.grants {
 		s.columns[g.family].(tagWriter).or(cursor, i, g.bits)
@@ -181,9 +154,23 @@ func (s *effectSystem) begin(t plugin.Tick, cursor *goke.Cursor, i int, id uid.U
 	return true
 }
 
-// end frees slot k: bits nobody else grants are cleared, its alters marked for recompute.
+// attachedBefore reports whether one of grants is of family: attached once, as one component.
+func attachedBefore(grants []grant, family reflect.Type) bool {
+	for _, g := range grants {
+		if g.family == family {
+			return true
+		}
+	}
+	return false
+}
+
+// end frees slot k: bits nobody else grants are cleared, its alters marked for recompute, and its
+// Then noted when it ran out rather than was dispelled.
 func (s *effectSystem) end(cursor *goke.Cursor, i int, id uid.UID64, a *Active, k int, touched map[reflect.Type]bool) {
 	d := &(*s.defs)[a.Slots[k].Kind]
+	if d.follows && !a.Slots[k].Dispelled {
+		s.thens = append(s.thens, d.then)
+	}
 	a.Slots[k] = Slot{}
 	for _, g := range d.grants {
 		bits := g.bits
@@ -234,19 +221,11 @@ func (s *effectSystem) recompute(cursor *goke.Cursor, i int, id uid.UID64, a *Ac
 	}
 }
 
-// cast puts effect on id for left, refreshing a slot it already holds unless it stacks; an
-// entity without Active gets one attached, its slot pending.
+// cast puts effect on id for left, refreshing a slot it already holds unless it stacks — a slot
+// dispelled this step is taken back; an entity without Active gets one attached, its slot pending.
 func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect ID, left time.Duration) {
-	d := &(*s.defs)[effect]
 	if s.lookup.Seek(id) {
-		a := s.lookupActive.At(s.lookup.Cursor())
-		if k := a.slot(effect); k >= 0 && !d.stacking {
-			a.Slots[k].Left = left
-			return
-		}
-		if k := a.free(); k >= 0 {
-			a.Slots[k] = Slot{Kind: effect, Left: left, State: Pending}
-		}
+		s.queue(s.lookupActive.At(s.lookup.Cursor()), effect, left)
 		return
 	}
 	var a Active
@@ -254,7 +233,19 @@ func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect ID, left time.
 	cb.AddOne(id, s.activeID, a)
 }
 
-// dispel ends effect on id at the next tick.
+// queue puts effect on a for left: a slot it holds refreshed unless it stacks, else a free one
+// pending; with none free nothing happens.
+func (s *effectSystem) queue(a *Active, effect ID, left time.Duration) {
+	if k := a.slot(effect); k >= 0 && !(*s.defs)[effect].stacking {
+		a.Slots[k].Left, a.Slots[k].Dispelled = left, false
+		return
+	}
+	if k := a.free(); k >= 0 {
+		a.Slots[k] = Slot{Kind: effect, Left: left, State: Pending}
+	}
+}
+
+// dispel ends effect on id at the next tick, its Then not cast.
 func (s *effectSystem) dispel(id uid.UID64, effect ID) {
 	if !s.lookup.Seek(id) {
 		return
@@ -262,7 +253,7 @@ func (s *effectSystem) dispel(id uid.UID64, effect ID) {
 	a := s.lookupActive.At(s.lookup.Cursor())
 	for k := range a.Slots {
 		if a.Slots[k].State != Empty && a.Slots[k].Kind == effect {
-			a.Slots[k].Left = 0
+			a.Slots[k].Left, a.Slots[k].Dispelled = 0, true
 			if a.Slots[k].State == Pending {
 				a.Slots[k] = Slot{}
 			}

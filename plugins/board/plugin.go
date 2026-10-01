@@ -83,7 +83,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		standing: newStandingSystem(p.Res.Logic.Board, &p.standing),
 		clock:    p.worldPlugin.Clock(),
 	}
-	p.module.standing.commands = p.worldPlugin.Commands()
+	p.module.standing.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
 	return nil
 }

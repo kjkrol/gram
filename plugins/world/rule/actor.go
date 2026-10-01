@@ -62,8 +62,16 @@ func (a *Actor) Idle() Step { return newIdle() }
 func (a *Actor) Apply(e effect.Effect) Step { return newApply(e) }
 
 // Keep holds the effect on the actor for as long as it runs — until its branch gives way — and
-// takes it off then; it never ends by itself.
+// takes it off then; it never ends by itself, but fails when someone else takes the effect off.
 func (a *Actor) Keep(e effect.Effect) Step { return newKeep(e) }
+
+// Dispel takes the effect off the actor with the effects' next pass, and does well; a branch that
+// Keeps it gives way.
+func (a *Actor) Dispel(e effect.Effect) Step { return newDispel(e) }
+
+// Chance runs step with likelihood p, drawn afresh at every step of the game from the world's seed,
+// the clock's time and the actor, and fails otherwise: the same after a load and in a replay.
+func (a *Actor) Chance(p float64, step Step) Step { return newChance(p, step) }
 
 // Unless runs step while the actor is not under the effect, and fails while it is: an effect's
 // presence is the actor's memory.

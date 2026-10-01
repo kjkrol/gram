@@ -13,7 +13,7 @@ import (
 // Spec is the definition of one effect: what it does to an entity and for how long.
 type Spec []Trait
 
-// Trait is one part of a Spec — made with Lasts, Stacking, Grant or Alter.
+// Trait is one part of a Spec — made with Lasts, Stacking, Grant, Alter or Then.
 type Trait interface{ apply(d *def) }
 
 // def is an effect as the plugin runs it.
@@ -23,6 +23,8 @@ type def struct {
 	stacking bool
 	grants   []grant
 	alters   []alter
+	then     ID // cast once it runs out, when follows
+	follows  bool
 }
 
 type traitFn func(d *def)
@@ -35,6 +37,12 @@ func Lasts(d time.Duration) Trait { return traitFn(func(e *def) { e.lasts = d })
 
 // Stacking makes a repeated Cast add a slot instead of refreshing the one there.
 func Stacking() Trait { return traitFn(func(e *def) { e.stacking = true }) }
+
+// Then casts next once the effect runs out — not when it is dispelled: burning, then ash. next is
+// one of the same Effects, defined before.
+func Then(next Effect) Trait {
+	return traitFn(func(e *def) { e.then, e.follows = next.id, true })
+}
 
 // Grant gives the entity these tags of family F while the effect runs, and takes them back after
 // unless another running effect grants them; an entity without the family gets it attached.

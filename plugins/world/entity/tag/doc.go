@@ -12,9 +12,9 @@
 // (comp.Tagged), they seldom change, and a query over the family reaches only the entities that
 // carry it.
 //
-// Markers are states an entity switches on and off, often or for a single step: its last effect
-// just ended (effect.Idle), it entered another cell (navigation.Entered), a hit shows
-// (collision/hooks). A plugin names its family of markers States and has every entity carry it
+// Markers are states an entity switches on and off, often or for a single step: an effect is on it
+// (Effect.Mark), an effect changed its components (effect.Changed), it entered another cell
+// (navigation.Entered). A plugin names its family of markers States and has every entity carry it
 // for good — a kind lists it with comp.Marks, the world's roster gives it to every unit
 // (Role.Default), an entity without it gets it the first time it is needed — and switches a marker
 // by writing its bit. Putting a component on an entity or taking it off moves the entity to

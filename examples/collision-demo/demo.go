@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -97,7 +98,7 @@ type mainStage struct {
 	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
 	kinds     [entityColors][entityShapes]kind.Of[body]
 	hitSprite render.SpriteID
-	hit       hooks.Hits
+	hit       effect.Effect
 
 	state          *State
 	collisionStats hooks.ContactStats
@@ -182,7 +183,6 @@ func (s *mainStage) defineKinds() {
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{Restitution: 1}),
-				comp.Marks[hooks.States](), // the hit's marker, for good
 			})
 		}
 	}

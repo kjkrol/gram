@@ -21,6 +21,9 @@ type Config struct {
 	// Scale is how many metres a world unit spans: with one the world is a stretch of the Earth,
 	// its ground sinking under the horizon far off and its air thickening; zero, a board.
 	Scale Scale
+	// Seed is what the rules' and the plans' Chance draws from: one seed, one game, the same
+	// after a load and in a replay.
+	Seed uint64
 }
 
 type SpaceCfg struct {

@@ -27,6 +27,19 @@ type Tick struct {
 	Now      time.Time        // read once for the whole pass
 	Dt       time.Duration    // length of this tick
 	Commands *control.Carrier // the world's, for the commands an entity gives itself
+	Time     time.Duration    // the game time the step ends at, on the world's clock
+	Seed     uint64           // the world's seed, which a rule's Chance draws from
+}
+
+// TickSource builds the Tick of a pass: the world's (world.Plugin.Tick), which a host is handed.
+type TickSource func(cb *goke.CmdBuf, dt time.Duration) Tick
+
+// Of is the Tick of a pass over dt; with no source, one of no world — no carrier, no game time.
+func (f TickSource) Of(cb *goke.CmdBuf, dt time.Duration) Tick {
+	if f == nil {
+		return Tick{CmdBuf: cb, Now: time.Now(), Dt: dt}
+	}
+	return f(cb, dt)
 }
 
 // MaxFamilies is how many tag families one host's rules may name between them.

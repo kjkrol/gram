@@ -100,6 +100,14 @@ func (m *Moment[P]) Apply(e effect.Effect) Step { return newApply(e) }
 // a time, it ends by itself when the rule stops.
 func (m *Moment[P]) Keep(e effect.Effect) Step { return newKeep(e) }
 
+// Dispel takes the effect off the entity with the effects' next pass, and does well; a rule
+// keeping it may cast it again.
+func (m *Moment[P]) Dispel(e effect.Effect) Step { return newDispel(e) }
+
+// Chance runs step with likelihood p, drawn afresh at every step of the game from the world's seed,
+// the moment's game time and the entity, and fails otherwise: the same after a load and in a replay.
+func (m *Moment[P]) Chance(p float64, step Step) Step { return newChance(p, step) }
+
 // Unless runs step while the entity is not under the effect, and fails while it is: "at most once
 // a while" is Unless an effect lasting that while, applied in step.
 func (m *Moment[P]) Unless(e effect.Effect, step Step) Step { return newUnless(e, step) }

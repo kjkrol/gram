@@ -35,7 +35,7 @@ func newRig(t *testing.T, plan comp.Template[rule.Mind]) *rig {
 	t.Helper()
 	r := &rig{t: t, ecs: goke.New(), ids: map[string]goke.CompID{}, toys: newToys()}
 	template := plan
-	c := rule.New(func() time.Duration { return r.now }, nil, &r.toys.carrier)
+	c := rule.New(func() time.Duration { return r.now }, 0, nil, &r.toys.carrier)
 	var mind goke.Comp[rule.Mind]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.ids["alarm"], r.ids["poke"], r.ids["mood"] = si.RegComp[alarm](), si.RegComp[poke](), si.RegComp[mood]()
@@ -249,4 +249,24 @@ func TestOrder_ACommandNobodyHandlesPanics(t *testing.T) {
 		}
 	}()
 	r.tick(1)
+}
+
+// Chance draws afresh at every tick from the clock's time: a branch taken about as often as its
+// likelihood, the same in a second run.
+func TestChance_TakesItsBranchAsOftenAsItsLikelihood(t *testing.T) {
+	plan := rule.Plan("jump now and then", func(a *rule.Actor) rule.Step {
+		return a.OneOf(a.Chance(0.25, a.Order(jump{})), a.Idle())
+	})
+	jumps := func() int {
+		r := newRig(t, plan)
+		r.tick(1000)
+		return r.toys.given[r.id]
+	}
+	n := jumps()
+	if n < 200 || n > 300 {
+		t.Errorf("jumped %d times in 1000 ticks, want about 250", n)
+	}
+	if again := jumps(); again != n {
+		t.Errorf("a second run jumped %d times, the first %d", again, n)
+	}
 }

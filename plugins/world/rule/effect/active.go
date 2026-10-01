@@ -15,16 +15,16 @@ const Forever = time.Duration(-1)
 // Saved with the entity, so a load resumes the countdown.
 type Active struct {
 	Slots [MaxEffects]Slot
-	// Altered is whether the plugin's last pass rewrote a component of the entity through an Alter.
-	Altered bool
 }
 
-// Slot is one effect on an entity: which, how long it has left (Forever for no limit), and
-// whether it has begun — its changes are applied on the tick after Cast.
+// Slot is one effect on an entity: which, how long it has left (Forever for no limit), whether it
+// has begun — its changes are applied on the tick after Cast — and whether it was dispelled, so its
+// Then is not cast.
 type Slot struct {
-	Kind  ID
-	Left  time.Duration
-	State SlotState
+	Kind      ID
+	Left      time.Duration
+	State     SlotState
+	Dispelled bool
 }
 
 // SlotState is where a Slot is in its life.

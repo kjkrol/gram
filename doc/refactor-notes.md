@@ -1165,6 +1165,36 @@ The packages `collision/trigger` and `vision/trigger` are `collision/hooks` and 
 `vhooks.NewFlee(tags).Rule()` — where they held steps a game had to wrap in `rule.On` itself.
 Saves made before this do not load: `rule.Mind` is a new type path.
 
+### Effects, step 1: a game written as states (2026-10-01)
+
+Talking through an imagined fire that touches many plugins, the user set the direction: a game's
+states are effects, its rules connect the plugins' moments to them, the plugins give knobs that
+effects alter, a plugin's own effects stay private. `Call` turned out a trap that hid what was
+missing; it goes in step 2. Step 1, done:
+
+- every effect has its own marker, "effect.<name>" of `effect.States`, granted by `Define` before
+  the Spec's traits (`Effect.Mark()`); the user preferred this to bundling rules with an effect,
+  which would keep another plugin from adding its own rules for fire. Collision's hit and the
+  effect demo's `frozen` lost their own tag families.
+- `Dispel` as a step; a cast after a `Dispel` in the same step takes the slot back (the slot
+  remembers it was dispelled, so `Then` is not cast). Agreed: a rule keeping an effect has it back
+  the step after someone's `Dispel`; a shield checked with `Unless` lets the dispeller win; a
+  plan's `Keep` gives way. The plan's `Keep` notes when it first saw its effect on (`keepCast`,
+  `keepOn`), since a cast on an entity without `Active` lands only after the next sync.
+- `effect.Then(next)`: the next effect queued in the same pass, beginning the step after.
+- `Chance(p, step)`: a hash of the world's seed, the game time, the entity and the step's place;
+  `plugin.Tick` carries `Time` and `Seed`, every host takes its tick from the world
+  (`world.Plugin.Tick`, `plugin.TickSource`), and the world's renderer gives its Drawing rules the
+  last step's time.
+- the clock's moments are fired by the world, in their own system before the effects' pass.
+- one marker, `effect.Changed`, in place of `Active.Altered`, `effect.Idle`, the `Idling` moment
+  and `host.EachHost.RunRows`: the user asked to keep to the established pattern.
+- a slot waiting for missing tag families attaches them all at once (it attached one a step).
+- At most 63 effects (one bit each beside `Changed`); the 64th panics naming it.
+
+Fire does not yet spread over the ground: it needs a step turning to the cell a unit stands on and
+a board moment of a cell with its neighbours — for step 2's audit of moments and knobs.
+
 ## Questions for review
 
 

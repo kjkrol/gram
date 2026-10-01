@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
@@ -55,14 +56,16 @@ type module struct {
 	viewRunnable goke.Runnable
 
 	// the tactical clock and the effects, the world's own: the clock's system goes first in the
-	// tick, the effects last in every step of the simulation
-	clock         *clock.Clock
-	effects       *effect.Effects
-	clockRunnable goke.Runnable
+	// tick, the rules of its moments and then the effects last in every step of the simulation
+	clock           *clock.Clock
+	moments         moments
+	effects         *effect.Effects
+	clockRunnable   goke.Runnable
+	momentsRunnable goke.Runnable
 
-	// the entities' trees, run in every step of the simulation after the behaviors
-	trees         *rule.Plans
-	treesRunnable goke.Runnable
+	// the entities' plans, run in every step of the simulation after the behaviors
+	plans         *rule.Plans
+	plansRunnable goke.Runnable
 
 	// commands takes the commands the entities give themselves to the plugins that handle them;
 	// despawns are the world's own
@@ -78,9 +81,14 @@ func newModule(cfg Config) *module {
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
 		clock: clk}
-	w.effects = effect.New(clk, &w.commands)
-	w.trees = rule.New(clk.Time, w.effects, &w.commands)
+	w.moments = moments{clock: clk, tick: w.tick}
 	return w
+}
+
+// tick is the Tick of a pass over d of the simulation: the world's carrier, the game time the
+// step ends at and the world's seed.
+func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
+	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed}
 }
 
 // =================================================================
@@ -97,13 +105,14 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	}
 	w.steeringRunnable = ecs.RegSys(steering.NewSystem())
 	velocity := NewVelocitySystem(w.movers)
-	velocity.commands = &w.commands
+	velocity.tick = w.tick
 	w.velocityRunnable = ecs.RegSys(velocity)
 	w.moveRunnable = ecs.RegSys(NewMoveSystem(w.space))
 	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.clockRunnable = ecs.RegSys(w.clock.System())
-	w.treesRunnable = ecs.RegSys(w.trees.System())
+	w.plansRunnable = ecs.RegSys(w.plans.System())
+	w.momentsRunnable = ecs.RegSys(w.moments.system())
 	w.effects.Module().RegSystems(ecs)
 }
 
@@ -126,13 +135,15 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(b, step)
 		ctx.Sync()
 	}
-	ctx.Run(w.treesRunnable, step)
+	ctx.Run(w.plansRunnable, step)
 	ctx.Sync()
 	ctx.Run(w.steeringRunnable, step)
 	ctx.Run(w.velocityRunnable, step)
 	ctx.Run(w.moveRunnable, step)
 	ctx.Sync()
 	ctx.Run(w.exitRunnable, step)
+	ctx.Sync()
+	ctx.Run(w.momentsRunnable, step)
 	ctx.Sync()
 	w.effects.Module().RunPlan(ctx, step)
 }
@@ -154,7 +165,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[clock.State](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 	}, w.effects.Module().LoadComps()...)
-	tokens = append(tokens, w.trees.LoadComps()...)
+	tokens = append(tokens, w.plans.LoadComps()...)
 	return append(tokens, w.declared...)
 }
 
