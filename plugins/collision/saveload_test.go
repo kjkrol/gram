@@ -1,4 +1,4 @@
-package main
+package collision_test
 
 import (
 	"fmt"
@@ -10,35 +10,13 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
-
-// testInstallCtx is a minimal plugin.Installer for tests that call Install directly.
-type testInstallCtx struct {
-	ecs     *goke.ECS
-	pending []func() []goke.System
-	tracked []any
-}
-
-func (c *testInstallCtx) UseModule(m goke.Module) {
-	regSys := goke.SystemFn{OnInit: func(si *goke.SysInit) { m.RegSystems(c.ecs) }}
-	c.tracked = append(c.tracked, m)
-	c.pending = append(c.pending, func() []goke.System { return append(m.SetupSystems(), regSys) })
-}
-func (c *testInstallCtx) Setup(providers ...goke.SetupProvider) {
-	for _, p := range providers {
-		c.tracked = append(c.tracked, p)
-		c.pending = append(c.pending, p.SetupSystems)
-	}
-}
-func (c *testInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
-	return c.ecs.RegSys(factory())
-}
-func (c *testInstallCtx) ECS() *goke.ECS { return c.ecs }
 
 // eachOnce drops repeated tokens, as the engine does.
 func eachOnce(tokens []goke.CompToken) []goke.CompToken {
@@ -53,9 +31,22 @@ func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 	return once
 }
 
+// the world the cycle runs in, a few colliders in it
+const (
+	screenWidth  = 1024
+	screenHeight = 1024
+	rectSize     = uint32(5)
+)
+
+// body is a collider's row: where it starts and how it moves.
+type body struct {
+	pos world.Position
+	vel world.Velocity
+}
+
 // countCollidable reports how many entities the space offers as collision candidates.
 func countCollidable(space *aabbworld.Space) int {
-	box := geom.NewAABBAt(geom.NewVec(0, 0), ScreenWidth-1, ScreenHeight-1)
+	box := geom.NewAABBAt(geom.NewVec(0, 0), screenWidth-1, screenHeight-1)
 	seen := map[uid.UID64]struct{}{}
 	space.Query(box, aabbworld.CanCollide, func(id uid.UID64) {
 		seen[id] = struct{}{}
@@ -68,14 +59,13 @@ func TestSaveLoadCycle(t *testing.T) {
 
 	const count = 5
 	cfg := world.Config{
-		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: count, MinSize: RectSize, MaxSize: RectSize},
+		Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
+		Entities: world.EntitiesCfg{MaxCount: count, MinSize: rectSize, MaxSize: rectSize},
 	}
 
 	ecs := goke.New()
 	wp := world.NewPlugin(cfg)
-	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
-	motion := newRandomVelocity(200, 50, 10)
+	placement := world.NewGridPlacement(screenWidth, screenHeight, rectSize)
 	defineKinds := func(wp *world.Plugin) []kind.Entry {
 		var entries []kind.Entry
 		for i := range count {
@@ -84,7 +74,7 @@ func TestSaveLoadCycle(t *testing.T) {
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 			})
-			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: motion.initialVelocity(i)}))
+			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float64(10 * (i + 1))}}))
 		}
 		return entries
 	}
@@ -94,18 +84,14 @@ func TestSaveLoadCycle(t *testing.T) {
 	}
 	cm := collision.New(wp.Space(), ecs)
 
-	ctx := &testInstallCtx{ecs: ecs}
+	ctx := collisiontest.NewInstallCtx(ecs)
 	if err := wp.Install(ctx); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
 
 	var origIDs []uint64
 	var origAppearance map[uint64]render.SpriteID
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	systems = append(systems,
+	systems := append(ctx.Systems(),
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			var posQ goke.Comp[world.Base]
 			var appQ goke.Comp[world.Appearance]
@@ -146,19 +132,19 @@ func TestSaveLoadCycle(t *testing.T) {
 	defineKinds(plugin2)
 	cm2 := collision.New(plugin2.Space(), ecs2)
 
-	ctx2 := &testInstallCtx{ecs: ecs2}
+	ctx2 := collisiontest.NewInstallCtx(ecs2)
 	if err := plugin2.Install(ctx2); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
 
-	comps := goke.ProvidedComps(append([]any{cm2}, ctx2.tracked...)...)
+	comps := goke.ProvidedComps(append([]any{cm2}, ctx2.Tracked()...)...)
 	if err := ecs2.Load(path, eachOnce(comps)...); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	cm2.RegSystems(ecs2)
 
 	var postLoad []goke.System
-	for _, v := range append([]any{cm2}, ctx2.tracked...) {
+	for _, v := range append([]any{cm2}, ctx2.Tracked()...) {
 		if pl, ok := v.(plugin.PostLoader); ok {
 			postLoad = append(postLoad, pl.PostLoad())
 		}

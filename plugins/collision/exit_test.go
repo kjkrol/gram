@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
@@ -34,14 +34,6 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 	}
 
 	c := collision.NewPlugin(w)
-	ctx := &installCtx{ecs: goke.New()}
-	if err := w.Install(ctx); err != nil {
-		t.Fatalf("world Install: %v", err)
-	}
-	if err := c.Install(ctx); err != nil {
-		t.Fatalf("collision Install: %v", err)
-	}
-
 	boxes := kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b pushedOut) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -58,19 +50,9 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 		t.Fatalf("Populate: %v", err)
 	}
 
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		c.RunPlan(rc, d)
-		rc.Sync()
-		w.Clock().Replay(rc, d)
-	})
+	ecs := collisiontest.Start(t, w, c)
 	for range 3 {
-		ctx.ecs.Tick(time.Second / 60)
+		ecs.Tick(time.Second / 60)
 	}
 
 	if len(left) == 0 {

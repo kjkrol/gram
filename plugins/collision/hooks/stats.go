@@ -23,9 +23,6 @@ type ContactStats struct {
 	Counter int
 }
 
-// Reset zeroes Counter, for a game that wants to start counting afresh.
-func (s *ContactStats) Reset() { s.Counter = 0 }
-
 // Reporter is the stats' lines for a render.TelemetryRenderer: contacts a second, averaged over
 // the last few, and contacts a tick at the tick rate tps points to.
 func (s *ContactStats) Reporter(tps *int) render.Reporter { return &reporter{stats: s, tps: tps} }

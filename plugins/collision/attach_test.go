@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
@@ -23,14 +24,6 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
 	})
 	c := collision.NewPlugin(w)
-	ctx := &installCtx{ecs: goke.New()}
-	if err := w.Install(ctx); err != nil {
-		t.Fatalf("world Install: %v", err)
-	}
-	if err := c.Install(ctx); err != nil {
-		t.Fatalf("collision Install: %v", err)
-	}
-
 	contacts := 0
 	if err := c.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { contacts++ })); err != nil {
 		t.Fatalf("Hook: %v", err)
@@ -48,31 +41,25 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 
 	var first uid.UID64
 	var edit func(cb *goke.CmdBuf)
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var base goke.Comp[world.Base]
 		q := si.NewQueryBuilder(&base).Build()
 		q.All()
 		q.Next()
 		first = q.Cursor().IDs[0]
 	}})
-	ctx.ecs.Setup(systems...)
 
-	editor := ctx.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
+	editor := ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
 		if edit != nil {
 			edit(cb)
 			edit = nil
 		}
 	}})
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+	step := collisiontest.Step(w, c)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		rc.Run(editor, d)
 		rc.Sync()
-		w.RunPlan(rc, d)
-		c.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		step(rc, d)
 	})
 
 	collidable := func() int {
@@ -80,7 +67,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	}
 	tick := func() int {
 		contacts = 0
-		ctx.ecs.Tick(time.Second / 60)
+		ecs.Tick(time.Second / 60)
 		return contacts
 	}
 

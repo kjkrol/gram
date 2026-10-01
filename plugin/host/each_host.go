@@ -11,7 +11,7 @@ import (
 // eachRunner is a rule with its component type erased.
 type eachRunner[P any] interface {
 	bind(qb *goke.QueryBuilder, cols columns)
-	run(t plugin.Tick, cursor *goke.Cursor, about func(i int) P)
+	run(t plugin.Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P)
 }
 
 // columns are the optional columns a host's query has, by component type: rules over one
@@ -37,13 +37,15 @@ type each[T, P any] struct {
 
 func (e *each[T, P]) bind(qb *goke.QueryBuilder, cols columns) { e.state = column[T](qb, cols) }
 
-func (e *each[T, P]) run(t plugin.Tick, cursor *goke.Cursor, about func(i int) P) {
+func (e *each[T, P]) run(t plugin.Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P) {
 	if !e.state.Present(cursor) {
 		return
 	}
 	states := e.state.Slice(cursor)
 	for i := range cursor.IDs {
-		e.react(t, &states[i], about(i))
+		if keep == nil || keep(i) {
+			e.react(t, &states[i], about(i))
+		}
 	}
 }
 
@@ -51,9 +53,11 @@ type every[P any] struct{ react func(plugin.Tick, P) }
 
 func (e *every[P]) bind(*goke.QueryBuilder, columns) {}
 
-func (e *every[P]) run(t plugin.Tick, cursor *goke.Cursor, about func(i int) P) {
+func (e *every[P]) run(t plugin.Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P) {
 	for i := range cursor.IDs {
-		e.react(t, about(i))
+		if keep == nil || keep(i) {
+			e.react(t, about(i))
+		}
 	}
 }
 
@@ -104,7 +108,12 @@ func (h *EachHost[P]) Bind(qb *goke.QueryBuilder) {
 
 // Run runs every rule over the chunk being walked; about(i) describes its i-th entity.
 func (h *EachHost[P]) Run(t plugin.Tick, cursor *goke.Cursor, about func(i int) P) {
+	h.RunWhere(t, cursor, nil, about)
+}
+
+// RunWhere is Run over the entities of the chunk keep lets through: a moment only some have.
+func (h *EachHost[P]) RunWhere(t plugin.Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P) {
 	for _, r := range h.runners {
-		r.run(t, cursor, about)
+		r.run(t, cursor, keep, about)
 	}
 }

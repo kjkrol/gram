@@ -11,32 +11,13 @@ import (
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/uid"
 )
-
-// installCtx installs the plugins of a hit test without an engine.
-type installCtx struct {
-	ecs     *goke.ECS
-	pending []func() []goke.System
-}
-
-func (c *installCtx) UseModule(m goke.Module) {
-	reg := goke.SystemFn{OnInit: func(*goke.SysInit) { m.RegSystems(c.ecs) }}
-	c.pending = append(c.pending, func() []goke.System { return append(m.SetupSystems(), reg) })
-}
-func (c *installCtx) Setup(providers ...goke.SetupProvider) {
-	for _, p := range providers {
-		c.pending = append(c.pending, p.SetupSystems)
-	}
-}
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable {
-	return c.ecs.RegSys(factory())
-}
-func (c *installCtx) ECS() *goke.ECS { return c.ecs }
 
 // box is a hit test's collider: where it starts and how fast it goes right.
 type box struct{ x, vx float64 }
@@ -57,7 +38,7 @@ var flash = world.Appearance{SpriteID: 2}
 
 func newHits(t *testing.T, boxes ...box) *hits {
 	t.Helper()
-	h := &hits{ecs: goke.New(), drawing: &host.EachHost[world.Drawing]{}}
+	h := &hits{drawing: &host.EachHost[world.Drawing]{}}
 	h.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: len(boxes), MinSize: 10, MaxSize: 10},
@@ -81,29 +62,11 @@ func newHits(t *testing.T, boxes ...box) *hits {
 	if err := h.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	ctx := &installCtx{ecs: h.ecs}
-	if err := h.w.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	h.ecs = collisiontest.Start(t, h.w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		qb := si.NewQueryBuilder(&h.base)
 		h.drawing.Bind(qb)
 		h.drawn = qb.Build()
 	}})
-	h.ecs.Setup(systems...)
-	h.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		h.w.RunPlan(rc, d)
-		c.RunPlan(rc, d)
-		rc.Sync()
-		h.w.Clock().Replay(rc, d)
-	})
 	for h.drawn.All(); h.drawn.Next(); {
 		h.ids = append(h.ids, h.drawn.Cursor().IDs...)
 	}

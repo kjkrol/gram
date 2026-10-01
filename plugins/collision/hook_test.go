@@ -22,24 +22,24 @@ const (
 	target
 )
 
-// tagged is one box of a behavior fixture: where it is and which tags it carries.
+// tagged is one box of a rule fixture: where it is and which tags it carries.
 type tagged struct {
 	x              float64
 	bullet, target bool
 	id             uid.UID64
 }
 
-// registrar is the part of the collision engine a fixture registers behaviors on.
+// registrar is the part of the collision engine a fixture hooks rules on.
 type registrar interface {
-	Hook(behaviors ...plugin.Rule) error
+	Hook(rules ...plugin.Rule) error
 }
 
 // meet runs the real collision engine for one tick over boxes and returns every Meeting handed out.
-func meet(t *testing.T, behaviorsOf func(record func(collision.Meeting)) []plugin.Rule, boxes ...*tagged) []collision.Meeting {
+func meet(t *testing.T, rulesOf func(record func(collision.Meeting)) []plugin.Rule, boxes ...*tagged) []collision.Meeting {
 	t.Helper()
 	var met []collision.Meeting
 	meetWith(t, func(engine registrar) {
-		if err := engine.Hook(behaviorsOf(func(m collision.Meeting) { met = append(met, m) })...); err != nil {
+		if err := engine.Hook(rulesOf(func(m collision.Meeting) { met = append(met, m) })...); err != nil {
 			t.Fatalf("Hook: %v", err)
 		}
 	}, boxes...)
@@ -103,7 +103,7 @@ func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
 				shot, struck = second, first
 			}
 			if len(met) != 1 {
-				t.Fatalf("behavior ran %d times, want once", len(met))
+				t.Fatalf("the rule ran %d times, want once", len(met))
 			}
 			if met[0].Self != shot.id || met[0].Other != struck.id {
 				t.Errorf("Meeting = (self %v, other %v), want (bullet %v, target %v)", met[0].Self, met[0].Other, shot.id, struck.id)
@@ -119,7 +119,7 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 	)
 
 	if len(met) != 0 {
-		t.Errorf("behavior ran for %+v, want it left alone — no bullet met a target", met)
+		t.Errorf("the rule ran for %+v, want it left alone — no bullet met a target", met)
 	}
 }
 
@@ -130,7 +130,7 @@ func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
 	if len(met) != 1 {
-		t.Errorf("behavior ran %d times, want once for one contact", len(met))
+		t.Errorf("the rule ran %d times, want once for one contact", len(met))
 	}
 }
 
@@ -147,7 +147,7 @@ func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	}
 }
 
-func TestBetween_BehaviorsSharingATag_BothRun(t *testing.T) {
+func TestBetween_RulesSharingATag_BothRun(t *testing.T) {
 	var first, second int
 	met := meet(t, func(func(collision.Meeting)) []plugin.Rule {
 		return []plugin.Rule{
@@ -157,7 +157,7 @@ func TestBetween_BehaviorsSharingATag_BothRun(t *testing.T) {
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
 	if first != 1 || second != 1 || len(met) != 0 {
-		t.Errorf("behaviors ran (%d, %d) times, want (1, 1)", first, second)
+		t.Errorf("the rules ran (%d, %d) times, want (1, 1)", first, second)
 	}
 }
 
@@ -165,7 +165,7 @@ func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 	engine := collision.New(testSpace(t), goke.New())
 
 	for name, b := range map[string]plugin.Rule{
-		"not a behavior at all":          "just a string",
+		"not a rule at all":              "just a string",
 		"a pair made for another host":   host.Pair(bullet, target, func(plugin.Tick, string) {}),
 		"an entity made for another one": host.Each(func(plugin.Tick, *tagged, string) {}),
 	} {
@@ -193,7 +193,7 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 	meetWith(t, func(engine registrar) {
 		refused = engine.Hook(
 			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { before++ }),
-			"not a behavior at all",
+			"not a rule at all",
 			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { after++ }),
 		)
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
@@ -202,6 +202,6 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 		t.Errorf("Hook = %v, want ErrUnhosted", refused)
 	}
 	if before != 1 || after != 0 {
-		t.Errorf("behaviors ran (before %d, after %d), want (1, 0)", before, after)
+		t.Errorf("the rules ran (before %d, after %d), want (1, 0)", before, after)
 	}
 }

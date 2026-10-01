@@ -14,14 +14,14 @@ import (
 )
 
 // leaving is a world with one 10x10 entity heading east, four ticks from wholly crossing the edge,
-// with behaviors registered on it.
-func leaving(t *testing.T, edges aabbworld.Edges, behaviors ...plugin.Rule) (*Plugin, *goke.ECS, *goke.Query, *goke.Query) {
+// with rules registered on it.
+func leaving(t *testing.T, edges aabbworld.Edges, rules ...plugin.Rule) (*Plugin, *goke.ECS, *goke.Query, *goke.Query) {
 	t.Helper()
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 1000, Height: 1000, Edges: edges},
 		Entities: EntitiesCfg{MaxCount: 10, MinSize: 1, MaxSize: 100},
 	})
-	if err := p.Hook(behaviors...); err != nil {
+	if err := p.Hook(rules...); err != nil {
 		t.Fatal(err)
 	}
 	wm := p.module
@@ -74,7 +74,7 @@ func hears(dst *[]uid.UID64) plugin.Rule {
 	return host.Each(func(_ plugin.Tick, _ *Appearance, l Leaving) { *dst = append(*dst, l.ID) })
 }
 
-func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t *testing.T) {
+func TestExit_ALeavingRuleHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t *testing.T) {
 	var heard []uid.UID64
 	_, ecs, query, _ := leaving(t, aabbworld.OpenX, hears(&heard))
 
@@ -83,7 +83,7 @@ func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t 
 	}
 	alive := living(query)
 	if len(alive) != 1 {
-		t.Fatalf("%d entities alive, want the leaver kept for the behavior to deal with", len(alive))
+		t.Fatalf("%d entities alive, want the leaver kept for the rule to deal with", len(alive))
 	}
 	if len(heard) != 3 {
 		t.Errorf("heard %v over six ticks, want the leaver on each of the three ticks it was out", heard)

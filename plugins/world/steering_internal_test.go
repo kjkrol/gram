@@ -138,8 +138,8 @@ func TestSteering_LeavesHeadingAloneWithNoRequest(t *testing.T) {
 	}
 }
 
-// asking is a behavior that renews the same request every tick, the way any
-// behavior watching a lasting stimulus does.
+// asking renews the same request every tick, before the world's step, the way anything watching a
+// lasting stimulus does.
 type asking struct {
 	towards geom.Vec
 	query   *goke.Query
@@ -161,7 +161,6 @@ func (a *asking) Update(*goke.CmdBuf, time.Duration) {
 
 func TestSteering_LastingStimulusStillTurnsTheEntity(t *testing.T) {
 	wm := testWorld()
-	wm.Hook(&asking{towards: north})
 	wm.populate(testKind(
 		Position{AABB: plane.NewAABB(geom.NewVec(500, 500), 10, 10)},
 		Velocity{Dir: east, Value: 1},
@@ -175,7 +174,13 @@ func TestSteering_LastingStimulusStillTurnsTheEntity(t *testing.T) {
 		query = si.NewQueryBuilder(&base).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
+	ask := ecs.RegSys(&asking{towards: north})
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		rc.Run(ask, d)
+		rc.Sync()
+		wm.RunPlan(rc, d)
+		wm.clock.Replay(rc, d)
+	})
 	for range 30 {
 		ecs.Tick(time.Second / 60)
 	}
@@ -202,7 +207,7 @@ func TestSteering_KeepsActingOnTheLastDecisionWhileReacting(t *testing.T) {
 }
 
 // speedTicks spawns one entity carrying st and co at vel, runs n ticks at 60 TPS with the given Moving
-// behaviors, and reports the Steering's base speed and the entity's Velocity.Value after each.
+// rules, and reports the Steering's base speed and the entity's Velocity.Value after each.
 func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velocity, moving []plugin.Rule, n int) (speeds, values []float64) {
 	t.Helper()
 
@@ -242,7 +247,7 @@ func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velo
 	return speeds, values
 }
 
-// halving is a Moving behavior that halves every entity's speed.
+// halving is a Moving rule that halves every entity's speed.
 var halving = host.Every(func(_ plugin.Tick, m Moving) { m.Base.Vel.Value *= 0.5 })
 
 func TestSteering_NoProfileLeavesSpeedAlone(t *testing.T) {

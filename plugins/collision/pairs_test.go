@@ -65,17 +65,17 @@ func seedMovingCollidableEntity(t *testing.T, si *goke.SysInit, space *aabbworld
 	return f.IDs[0]
 }
 
-type candidate struct{ A, B uid.UID64 }
+type pair struct{ A, B uid.UID64 }
 
 // contactsOf lists every pair the last tick confirmed a contact between, once.
-func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []candidate {
-	var found []candidate
+func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []pair {
+	var found []pair
 	for q.All(); q.Next(); {
 		cursor := q.Cursor()
 		for i, c := range comp.Slice(cursor) {
 			for _, contact := range c.Contacts() {
 				if cursor.IDs[i].Index() < contact.Other.Index() {
-					found = append(found, candidate{cursor.IDs[i], contact.Other})
+					found = append(found, pair{cursor.IDs[i], contact.Other})
 				}
 			}
 		}
@@ -84,7 +84,7 @@ func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []candidate 
 }
 
 // broadTick seeds a world, runs ticks of movement and detection, and lists who touched on the last.
-func broadTick(t *testing.T, ticks int, seed func(si *goke.SysInit, space *aabbworld.Space)) []candidate {
+func broadTick(t *testing.T, ticks int, seed func(si *goke.SysInit, space *aabbworld.Space)) []pair {
 	t.Helper()
 	space := testSpace(t)
 	ecs := goke.New()
@@ -109,7 +109,7 @@ func broadTick(t *testing.T, ticks int, seed func(si *goke.SysInit, space *aabbw
 }
 
 // paired reports whether found names a and b as a pair, either way round.
-func paired(found []candidate, a, b uid.UID64) bool {
+func paired(found []pair, a, b uid.UID64) bool {
 	for _, c := range found {
 		if (c.A == a && c.B == b) || (c.A == b && c.B == a) {
 			return true
@@ -118,7 +118,7 @@ func paired(found []candidate, a, b uid.UID64) bool {
 	return false
 }
 
-func TestContacts_Update_NamesOverlappingNeighborsOnce(t *testing.T) {
+func TestPairs_NamesOverlappingNeighborsOnce(t *testing.T) {
 	var idA, idB uid.UID64
 	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
 		idA = seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
@@ -130,7 +130,7 @@ func TestContacts_Update_NamesOverlappingNeighborsOnce(t *testing.T) {
 	}
 }
 
-func TestContacts_Update_FarApart_NothingNamed(t *testing.T) {
+func TestPairs_FarApart_NothingNamed(t *testing.T) {
 	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
 		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
 		seedBroadPhaseEntity(t, si, space, posAt(900, 900, 10, 10))
@@ -141,7 +141,7 @@ func TestContacts_Update_FarApart_NothingNamed(t *testing.T) {
 	}
 }
 
-func TestContacts_Update_SingleEntity_NeverPairsWithItself(t *testing.T) {
+func TestPairs_SingleEntity_NeverPairsWithItself(t *testing.T) {
 	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
 		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
 	})
@@ -151,7 +151,7 @@ func TestContacts_Update_SingleEntity_NeverPairsWithItself(t *testing.T) {
 	}
 }
 
-func TestContacts_Update_IgnoresNonCollidableNeighbor(t *testing.T) {
+func TestPairs_IgnoresNonCollidableNeighbor(t *testing.T) {
 	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
 		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
 		seedNonCollidableEntity(t, si, space, posAt(5, 0, 10, 10))
@@ -162,7 +162,7 @@ func TestContacts_Update_IgnoresNonCollidableNeighbor(t *testing.T) {
 	}
 }
 
-func TestContacts_Update_FollowsAnEntityMovedByMoveSystem(t *testing.T) {
+func TestPairs_FollowsAnEntityMovedByMoveSystem(t *testing.T) {
 	var idA, idB uid.UID64
 	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
 		idA = seedMovingCollidableEntity(t, si, space, posAt(88, 0, 10, 10), world.Velocity{Dir: geom.NewVec(1, 0), Value: 1000})

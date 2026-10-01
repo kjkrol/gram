@@ -246,16 +246,11 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
-// Hook adds world.Behaviors to the decision pass run before movement, in order, and hosts
-// rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
+// Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
 // an entity is Outside an open edge), a Drawing (every entity about to be drawn) and a
 // clock.Moment (every step). Call before Use.
 func (p *Plugin) Hook(rules ...plugin.Rule) error {
 	for _, b := range rules {
-		if system, ok := b.(Behavior); ok {
-			p.module.Hook(system)
-			continue
-		}
 		var err error
 		hosts := []func(plugin.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.moments.host.Add}
 		for _, add := range hosts {
@@ -264,7 +259,7 @@ func (p *Plugin) Hook(rules ...plugin.Rule) error {
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a world.Behavior or a rule of Moving, Leaving, Drawing or clock.Moment", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a rule of Moving, Leaving, Drawing or clock.Moment", err, p.Name())
 		}
 	}
 	return nil

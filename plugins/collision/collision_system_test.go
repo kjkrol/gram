@@ -16,7 +16,7 @@ import (
 
 const epsilon = 1e-9
 
-// thing is one entity of a detector fixture — a 10x10 box at y=100 — and,
+// thing is one entity of a collision fixture — a 10x10 box at y=100 — and,
 // once the tick has run, what became of it.
 type thing struct {
 	x       float64
@@ -33,7 +33,7 @@ func elastic(mass float64) *collision.Physics {
 	return &collision.Physics{Mass: mass, Restitution: 1}
 }
 
-// detectTick spawns things, runs one detector tick over them and reads each back.
+// detectTick spawns things, runs one collision tick over them and reads each back.
 func detectTick(t *testing.T, things ...*thing) {
 	t.Helper()
 	space := testSpace(t)
@@ -93,7 +93,7 @@ func (th *thing) left() float64 { return float64(th.base.Pos.TopLeft.X) }
 
 func (th *thing) speedX() float64 { return th.base.Vel.Delta().X }
 
-func TestDetector_PhysicalPair_IsPushedApart(t *testing.T) {
+func TestCollisionSystem_PhysicalPair_IsPushedApart(t *testing.T) {
 	a := &thing{x: 100, physics: elastic(1)}
 	b := &thing{x: 105, physics: elastic(1)}
 
@@ -104,7 +104,7 @@ func TestDetector_PhysicalPair_IsPushedApart(t *testing.T) {
 	}
 }
 
-func TestDetector_ImmovableSide_StaysPutAndReflectsTheOther(t *testing.T) {
+func TestCollisionSystem_ImmovableSide_StaysPutAndReflectsTheOther(t *testing.T) {
 	ball := &thing{x: 100, delta: geom.NewVec(4, 0), physics: elastic(1)}
 	wall := &thing{x: 105, physics: elastic(math.Inf(1))}
 
@@ -124,7 +124,7 @@ func TestDetector_ImmovableSide_StaysPutAndReflectsTheOther(t *testing.T) {
 	}
 }
 
-func TestDetector_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testing.T) {
+func TestCollisionSystem_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testing.T) {
 	wall := &thing{x: 105, physics: elastic(math.Inf(1))}
 	ball := &thing{x: 100, delta: geom.NewVec(4, 0), physics: elastic(1)}
 
@@ -141,7 +141,7 @@ func TestDetector_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testing.T) {
 	}
 }
 
-func TestDetector_SideWithoutPhysics_IsDetectedButNeverPushed(t *testing.T) {
+func TestCollisionSystem_SideWithoutPhysics_IsDetectedButNeverPushed(t *testing.T) {
 	for name, town := range map[string]*thing{
 		"spawned after the walker":  {x: 105},
 		"spawned before the walker": {x: 105, first: true},
@@ -173,7 +173,7 @@ func TestDetector_SideWithoutPhysics_IsDetectedButNeverPushed(t *testing.T) {
 	}
 }
 
-func TestDetector_KeepsIteratingWhileSeparationCreatesNewOverlap(t *testing.T) {
+func TestCollisionSystem_KeepsIteratingWhileSeparationCreatesNewOverlap(t *testing.T) {
 	a := &thing{x: 100, physics: elastic(1)}
 	b := &thing{x: 102, physics: elastic(1)}
 	c := &thing{x: 104, physics: elastic(1)}
@@ -190,7 +190,7 @@ func TestDetector_KeepsIteratingWhileSeparationCreatesNewOverlap(t *testing.T) {
 	}
 }
 
-func TestDetector_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testing.T) {
+func TestCollisionSystem_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testing.T) {
 	left := &thing{x: 93, delta: geom.NewVec(5, 0), physics: elastic(1)}
 	middle := &thing{x: 100, physics: elastic(1)}
 	right := &thing{x: 107, delta: geom.NewVec(-5, 0), physics: elastic(1)}
@@ -215,7 +215,7 @@ func TestDetector_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testing.T) {
 	}
 }
 
-func TestDetector_EqualMasses_ExchangeVelocitiesAlongTheNormal(t *testing.T) {
+func TestCollisionSystem_EqualMasses_ExchangeVelocitiesAlongTheNormal(t *testing.T) {
 	a := &thing{x: 100, delta: geom.NewVec(5, 2), physics: elastic(1)}
 	b := &thing{x: 107, delta: geom.NewVec(-5, 2), physics: elastic(1)}
 
@@ -229,7 +229,7 @@ func TestDetector_EqualMasses_ExchangeVelocitiesAlongTheNormal(t *testing.T) {
 	}
 }
 
-func TestDetector_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing.T) {
+func TestCollisionSystem_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing.T) {
 	const heavyMass, lightMass = 9, 1
 	heavy := &thing{x: 100, delta: geom.NewVec(2, 0), physics: elastic(heavyMass)}
 	light := &thing{x: 107, delta: geom.NewVec(-2, 0), physics: elastic(lightMass)}
@@ -249,7 +249,7 @@ func TestDetector_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing.T) {
 }
 
 // A pair bounces by the softer of its two sides, all the way down to not at all.
-func TestDetector_Restitution_DampsTheBounce(t *testing.T) {
+func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 	cases := map[string]struct {
 		restitutionA, restitutionB float64
 		wantA, wantB               float64
@@ -273,7 +273,7 @@ func TestDetector_Restitution_DampsTheBounce(t *testing.T) {
 	}
 }
 
-func TestDetector_Material_IsReadPerSide(t *testing.T) {
+func TestCollisionSystem_Material_IsReadPerSide(t *testing.T) {
 	a := &thing{x: 100, delta: geom.NewVec(5, 0), physics: &collision.Physics{Mass: 4, Restitution: 0.5}}
 	b := &thing{x: 105, delta: geom.NewVec(-5, 0), physics: &collision.Physics{Restitution: 1}}
 
@@ -284,7 +284,7 @@ func TestDetector_Material_IsReadPerSide(t *testing.T) {
 	}
 }
 
-func TestDetector_Contacts_PublishedToBothSides(t *testing.T) {
+func TestCollisionSystem_Contacts_PublishedToBothSides(t *testing.T) {
 	a := &thing{x: 100, delta: geom.NewVec(5, 0), physics: elastic(1)}
 	b := &thing{x: 105, delta: geom.NewVec(-5, 0), physics: elastic(1)}
 
@@ -310,7 +310,7 @@ func TestDetector_Contacts_PublishedToBothSides(t *testing.T) {
 	}
 }
 
-func TestDetector_Contacts_DoNotSurviveTheNextTick(t *testing.T) {
+func TestCollisionSystem_Contacts_DoNotSurviveTheNextTick(t *testing.T) {
 	space := testSpace(t)
 	ecs := goke.New()
 	var struck goke.Comp[collision.Collider]

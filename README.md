@@ -42,9 +42,9 @@ pathfinding and mouse selection, and a game adds its own the same way. Formerly 
   and no install-order retry: a plugin that needs another takes it as a constructor argument.
 - **A Stage owns its ECS.** Each Stage gets a fresh world the moment it is entered, so a menu
   Stage sits idle with no gameplay entities until the player starts.
-- **Behaviors are plain functions.** Game logic reacting to what a plugin finds is registered on
-  that plugin and run inside its own pass; the payload type says whose it is, and a plugin
-  refuses another's, so registering in the wrong place is an error, never a silent no-op.
+- **Behaviour is rules.** Game logic reacting to what a plugin finds is a rule hooked on that
+  plugin and run inside its own pass; the moment's type says whose it is, and a plugin refuses
+  another's, so hooking in the wrong place is an error, never a silent no-op.
 - **Kinds say what an entity is.** A kind is the list of components its entities carry, each
   constant or read from the entity's own row; it also tells save files what to expect.
 - **Saves survive change.** Persisted resources are matched by name, never by position, so a
@@ -73,7 +73,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds; `Heights` for a world with heights |
 | **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
 | **Kinds** | `plugins/world/entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
-| **Collisions** | `plugins/collision` | A `CollisionSystem` over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, a `ShapeTest` to refine, `Meeting`/`Struck` for rules |
+| **Collisions** | `plugins/collision` | Collision over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, `Meeting`/`Struck` for rules |
 | **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` rules per observer; outlines shown with Shift+C; in a world with heights the eye looks over walls, forests and hills by height |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain and occupancy; `MoveOrder` paths that re-route when terrain changes |
 | **Topography** | `plugins/topography` | A map in relief over the board: the ground's heights shaped by the player and pricing every slope, the sun's light on the relief and the terrain's shadows, grounds blending, round coasts, water glinting and running, rivers and roads drawn across the cells, the clouds' shadows, less detail far off; each kind styled by name; seen from above, isometrically or in perspective, Tab goes round |
@@ -373,7 +373,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
-| [`plugins/collision`](plugins/collision/doc.go) | The `CollisionSystem` over the world's space; `Collider`, `Physics`, `ShapeTest`, `Meeting`, `Struck` |
+| [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
 | [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made hooks: `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
 | [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made hooks: `Flee`, `Chase`, `LogSightings`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |

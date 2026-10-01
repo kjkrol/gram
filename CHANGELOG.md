@@ -6,6 +6,28 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**The last of the behaviours gone: rules alone**
+- `world.Behavior` is gone: the world's `Hook` took a bare goke system and ran it before
+  movement, beside the rules and plans; no game used it. `Hook` takes rules alone now, and the
+  plans run first in each step.
+- `collision.Struck` comes only to an entity that struck something; `Struck.Hit` is gone — a rule
+  of it is `m.Apply(hit)`, with no `If`. `host.EachHost.RunWhere` runs a host's rules over the
+  entities of a chunk a moment is about.
+- Files and tests named after behaviours carry the rules' names: `collision/meeting.go` and
+  `struck.go`, `vision/sighting.go`, `plugin/host/rules.go`.
+
+**The collision tidied: the answer's arithmetic in `internal`, the engine's insides hidden**
+- The arithmetic of the answer to a contact — the impulse two sides trade, the footing that keeps
+  a side off ground that does not take it — is `collision/internal/response`; the system hands it
+  its sides. `Field` and `FieldBox` stay in `collision`.
+- Removed, as no game used them: `ShapeTest`, `Contactee`, `BoxesTouch` and
+  `Plugin.WithShapeTest` — overlapping boxes touch, the box is the shape; `hooks.ContactStats.Reset`.
+  `Physics.Weight`, `Bounce` and `Immovable` are the plugin's own now.
+- No longer public, used by tests alone: `collision.New` (the engine without a world plugin),
+  `CollisionSystem`, `NewCollisionSystem`. The collision demo's save-and-load test, which tested
+  the engine's index after a load, is collision's own now; the hooks' tests run the plugin in a
+  world, as a game does, on helpers the collision's tests share (`collision/internal/collisiontest`).
+
 **The navigation tidied: what stands alone in `internal`**
 - navigation keeps the game's types (`MoveOrder`, `Path`, `Leg`, `Goal`, `Round`, `Patrol`, the
   facts, `Touch`, `Entered`, the commands, `Spacing`, `RouteStyle`) and the systems working on

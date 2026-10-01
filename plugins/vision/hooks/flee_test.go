@@ -151,7 +151,7 @@ func TestFlee_SwitchedOffLeavesTheHeadingAlone(t *testing.T) {
 		fleeBody{x: 500, y: 500}, east, fleeBody{x: 800, y: 500})
 
 	if got != east {
-		t.Errorf("heading %v with the behavior off, want it untouched (%v)", got, east)
+		t.Errorf("heading %v with the rule off, want it untouched (%v)", got, east)
 	}
 }
 

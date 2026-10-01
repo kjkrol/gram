@@ -87,9 +87,9 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 // viewers is a tag family for the tests.
 type viewers struct{}
 
-// Composed, only the views of the observers carrying an outline are drawn; with a Viewing behavior
+// Composed, only the views of the observers carrying an outline are drawn; with a Viewing rule
 // showing the ones tagged, only theirs.
-func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) {
+func TestRenderer_ComposesTheOutlinedViewsTheViewingRulesShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	shown := tag.Tag[viewers](3)
@@ -136,7 +136,7 @@ func TestRenderer_ComposesTheOutlinedViewsTheViewingBehaviorsShow(t *testing.T) 
 	composeWith(every)
 	composeWith(tagged)
 	if drawn[every] != 2 {
-		t.Errorf("without a Viewing behavior %d views were drawn, want the two with an outline", drawn[every])
+		t.Errorf("without a Viewing rule %d views were drawn, want the two with an outline", drawn[every])
 	}
 	if drawn[tagged] != 1 {
 		t.Errorf("showing the tagged, %d views were drawn, want the one tagged", drawn[tagged])

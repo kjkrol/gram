@@ -9,11 +9,11 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// drawThroughHost runs the Drawing behaviors over one entity moving with vel and returns its layers.
-func drawThroughHost(t *testing.T, vel Velocity, behaviors ...plugin.Rule) []Appearance {
+// drawThroughHost runs the Drawing rules over one entity moving with vel and returns its layers.
+func drawThroughHost(t *testing.T, vel Velocity, rules ...plugin.Rule) []Appearance {
 	t.Helper()
 	host := &host.EachHost[Drawing]{}
-	for _, b := range behaviors {
+	for _, b := range rules {
 		if err := host.Add(b); err != nil {
 			t.Fatal(err)
 		}

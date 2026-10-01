@@ -17,7 +17,7 @@ func scaling(factor float64) plugin.Rule {
 	return host.Every(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value *= factor })
 }
 
-func TestVelocitySystem_Update_RunsTheMovingBehaviorsInOrder(t *testing.T) {
+func TestVelocitySystem_Update_RunsTheMovingRulesInOrder(t *testing.T) {
 	ecs := goke.New()
 	var baseComp goke.Comp[world.Base]
 	var q *goke.Query
@@ -51,7 +51,7 @@ func TestVelocitySystem_Update_RunsTheMovingBehaviorsInOrder(t *testing.T) {
 			continue
 		}
 		if math.Abs(bases[0].Vel.Value-12.5) > 1e-9 {
-			t.Errorf("Velocity.Value = %v, want 12.5 — each behavior scales what the one before left", bases[0].Vel.Value)
+			t.Errorf("Velocity.Value = %v, want 12.5 — each rule scales what the one before left", bases[0].Vel.Value)
 		}
 		return
 	}

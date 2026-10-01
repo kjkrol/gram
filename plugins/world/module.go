@@ -40,11 +40,9 @@ type module struct {
 
 	kinds *Kinds
 
-	behaviors         []Behavior
-	behaviorRunnables []goke.Runnable
-	leavers           *host.EachHost[Leaving]
-	movers            *host.EachHost[Moving]
-	drawers           *host.EachHost[Drawing]
+	leavers *host.EachHost[Leaving]
+	movers  *host.EachHost[Moving]
+	drawers *host.EachHost[Drawing]
 
 	steeringRunnable goke.Runnable
 	velocityRunnable goke.Runnable
@@ -63,7 +61,7 @@ type module struct {
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
-	// the entities' plans, run in every step of the simulation after the behaviors
+	// the entities' plans, run first in every step of the simulation
 	plans         *rule.Plans
 	plansRunnable goke.Runnable
 
@@ -102,9 +100,6 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
-	for _, b := range w.behaviors {
-		w.behaviorRunnables = append(w.behaviorRunnables, ecs.RegSys(b))
-	}
 	w.steeringRunnable = ecs.RegSys(steering.NewSystem())
 	velocity := NewVelocitySystem(w.movers)
 	velocity.tick = w.tick
@@ -119,9 +114,8 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 }
 
 // RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
-// move in the tactical pause too. In the simulation, every step: the decisions — the behaviors,
-// then the entities' trees — steering, the Moving rules, movement, then the leavers, then the
-// effect. The sync after movement lands
+// move in the tactical pause too. In the simulation, every step: the entities' plans, steering,
+// the Moving rules, movement, then the leavers, then the effect. The sync after movement lands
 // the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(w.clockRunnable, d)
@@ -133,10 +127,6 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // simulate is one step of the world's simulation.
 func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	clear(w.despawned)
-	for _, b := range w.behaviorRunnables {
-		ctx.Run(b, step)
-		ctx.Sync()
-	}
 	ctx.Run(w.plansRunnable, step)
 	ctx.Sync()
 	ctx.Run(w.steeringRunnable, step)
@@ -228,9 +218,6 @@ func (w *module) remapTypes(si *goke.SysInit) {
 // =================================================================
 // world-specific
 // =================================================================
-
-// Hook adds b to the decision pass that runs before movement.
-func (w *module) Hook(b Behavior) { w.behaviors = append(w.behaviors, b) }
 
 // despawn drops id from the ECS, once per tick.
 func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {

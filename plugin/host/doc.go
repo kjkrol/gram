@@ -14,7 +14,9 @@
 // [PairHost] runs pair rules: Bind its families to the host's queries once, then read what an
 // entity carries (InChunk, At) as plugin.Marks and Dispatch, DispatchEitherWay or DispatchGrouped
 // per pair or per observer. [EachHost] runs rules over entities: Bind, then Run over each
-// chunk walked with a function describing its i-th entity; rules over one component share
+// chunk walked with a function describing its i-th entity — RunWhere over those of the chunk a
+// moment is about, the others skipped (collision's Struck, for whoever struck something); rules
+// over one component share
 // its column, and [Own] shares one the host reads itself. [ListHost] runs rules of a moment of
 // the world as a whole — the clock's — once a pass, walking no entities. All refuse another payload's rule with
 // plugin.ErrUnhosted and a late one with plugin.ErrHostBuilt.

@@ -23,16 +23,10 @@ type module struct {
 	entities *host.EachHost[Struck]
 
 	system  goke.Runnable
-	shapes  ShapeTest
 	fieldOf func() Field
 	clock   *clock.Clock      // the world's; nil, run at once
 	tick    plugin.TickSource // the world's, for the rules
 	built   bool
-}
-
-// New builds the collision engine over space.
-func New(space *aabbworld.Space, ecs *goke.ECS) *module {
-	return newModule(space, ecs, &host.PairHost[Meeting]{}, &host.EachHost[Struck]{})
 }
 
 func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *host.PairHost[Meeting], entities *host.EachHost[Struck]) *module {
@@ -73,11 +67,6 @@ func (m *module) LoadComps() []goke.CompToken {
 // collision-specific
 // =================================================================
 
-// Hook hosts rules of Meeting, a pair, or of Struck.
-func (m *module) Hook(rules ...plugin.Rule) error {
-	return hostAll(m.pairs, m.entities, rules)
-}
-
 // hostAll hands each rule to whichever host takes it, stopping at the first neither does.
 func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], rules []plugin.Rule) error {
 	for _, b := range rules {
@@ -96,7 +85,7 @@ func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], rul
 }
 
 func (m *module) build() {
-	s := newCollisionSystem(m.space, m.pairs, m.entities, m.shapes, m.fieldOf)
+	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
 	s.tickOf = m.tick
 	m.system = m.ecs.RegSys(s)
 	m.built = true

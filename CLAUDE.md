@@ -453,15 +453,19 @@ the internal package its public namesake is imported as `public`.
 Systems in `internal` follow the topography's pattern: a part type whose method returns a private
 `goke.System` (`terrain.Cells.System()`, `rule.Rules.StandingSystem()`). Tests sit in the package
 whose code they test; what several packages' tests share goes to `internal/<plugin>test`
-(`board/internal/boardtest`, `topography/internal/topotest`), and a test that must read a
-package's insides uses an `export_test.go`.
+(`board/internal/boardtest`, `topography/internal/topotest`, `collision/internal/collisiontest`),
+and a test that must read a package's insides uses an `export_test.go`. A public name that only
+tests read is no API: it goes, or moves to `export_test.go` when tests need it. When tidying a
+plugin, check every public name — type, function, method, field — for a reader outside the tests.
 
 Where the machinery reads and writes the game's own types every step — navigation's systems
 query `MoveOrder`, `Path`, `Leg`, give `Touch` and the facts — it stays in the plugin's package
 with them (unexported), and `internal` takes what stands alone (`navigation/internal/pathfind`,
-`navigation/internal/routes`); moving the types to a vocabulary package or aliasing them in the
-root were both declined. `board`, `topography` and `navigation` are laid out this way; the other
-plugins follow as they grow.
+`navigation/internal/routes`, `collision/internal/response`); moving the types to a vocabulary
+package or aliasing them in the root were both declined. A package of one interface and an alias
+is no package: collision's `Field` stays in its root. Constructors and methods only tests use go
+to `export_test.go` (collision's `New`, `module.Hook`, `NewCollisionSystem`). `board`, `topography`, `navigation`
+and `collision` are laid out this way; the other plugins follow as they grow.
 
 ### Behaviour goes through rule
 
@@ -667,7 +671,7 @@ rule a pair, made in a loop).
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
   (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
-  board's field (`internal/field`) is collision's `Field` (`Solid`: the cells under a box that are `Solid` and keep out one
+  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid` and keep out one
   of the entity's layers, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by
   `Plugin.WithCollision`, and sight's `ground.Cover` (`Walk`: the cells along a ray whose `Veils`
@@ -675,48 +679,52 @@ rule a pair, made in a loop).
   `Plugin.Cover`; both read the cell entities whenever collision or sight asks, so a change counts
   from the next tick. `Solid` and `Veil` are independent. Depends on `world` and `collision`.
 - **`collision`** — optional collision detection over `world`'s space, one
-  `CollisionSystem` system a tick. An entity collides exactly while it carries `Collider` —
-  `comp.Const(collision.Collider{})`, or `Attach`/`Detach` mid-game. The `CollisionSystem`
+  `collisionSystem` a tick. An entity collides exactly while it carries `Collider` —
+  `comp.Const(collision.Collider{})`, or `Attach`/`Detach` mid-game. The `collisionSystem`
   first settles every `Collider`'s `Base.Caps` (`CanCollide`, plus `Static` for an
   immovable `Physics`, `Sensor` for none) and rebuilds the space when any changed;
   two colliders touch only where their `world.Layers` meet — a board game uses `Domain` bits —
   and a `Collider` counts from the tick it is carried.
   The tick is then one
   `collide.Engine.Tick` (`github.com/kjkrol/aabbworld/collide` holds the contract —
-  `Handler`, `Config`, `Engine`; the `CollisionSystem` builds the engine once with
+  `Handler`, `Config`, `Engine`; the `collisionSystem` builds the engine once with
   `space.CollideEngine(handler, collide.Config{Reach: world.StepReach, Iterations})`
   and is its `Handler`) over the space's items: the engine pairs up whoever carries
   `CanCollide` and may touch within a step, tests the pairs exactly, pushes the overlapping apart and reports each
-  pushed box (`Moved`), which the `CollisionSystem` writes back to `Base.Pos` by `Seek` —
+  pushed box (`Moved`), which the `collisionSystem` writes back to `Base.Pos` by `Seek` —
   whoever it pushed out through an open edge (`Left()`) is marked `world.Outside`. Every overlap first
-  passes the `CollisionSystem`'s `Touch`: both sides are resolved by `Seek`, and a side
+  passes the `collisionSystem`'s `Touch`: both sides are resolved by `Seek`, and a side
   that lost its `Collider` since the last rebuild vetoes the pair, is marked
-  `Plain`, and the space is rebuilt after the tick (so it partners nobody again); then
-  the plugin's `ShapeTest` (`WithShapeTest`; `BoxesTouch` by default, at no cost),
-  asked once per overlapping pair with both `Contactee`s, may refuse the contact (an
-  alpha mask saying the pixels miss) or refine the penetration (an SDF). An entity
+  `Plain`, and the space is rebuilt after the tick (so it partners nobody again).
+  Overlapping boxes touch: the box is the shape (a `ShapeTest` hook for finer shapes was
+  removed on 2026-10-01, no game used it). An entity
   carrying `Physics` (`Mass`, `Restitution` 0–1) is pushed out of overlaps and
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
-  split. With a world `Field` (the board's solid cells) the engine, built in `Init` with
+  split. With a `collision.Field` (the contract a board fills: the board's solid cells) the engine, built in `Init` with
   `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
-  `CollisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
+  `collisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
-  never puts a unit further over ground that does not take it (`Field.Overhang`, the board's:
+  never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:
   the area over cells whose kind allows none of its layers — any, for no layers — water to a
   walker, a hole; the user's rule, 2026-09-30): `footing` in `resolve` holds the side whose half
   push would (it bounces as the ground, `holdA`/`holdB`) and doubles the pen for the other, and
   `moved` keeps any box the tick's later passes — which the engine asks no handler about — would
-  leave worse, rebuilding the space. Ground turning under a unit is no push: it stays, fallen in.
+  leave worse, rebuilding the space. That arithmetic is `collision/internal/response`, on numbers
+  alone: `Footing`, `Worse` (over a `Ground`, which a `Field` is), the impulse `Exchange` between
+  two `Side`s (inverse mass, bounce, velocity) and `Normal`; the system hands it its sides.
+  Ground turning under a unit is no push: it stays, fallen in.
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
-  Reactions are rules hosted inside the `CollisionSystem`'s own pass: of a `Meeting` per
+  Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
   confirmed contact between two tags (`rule.Between(a, b)`, `rule.All` for every pair), of a
-  `Struck` per entity per tick, with what it struck the tick before. Ready-made rules are in the
+  `Struck` per entity that struck something the tick before, with what it struck (one that struck
+  nothing is not told: the walk over the colliders runs `EachHost.RunWhere`; the contacts lie in
+  `Collider` for good, so no component comes or goes). Ready-made rules are in the
   flat `collision/hooks` package — `Hook(hooks.CountContacts(&stats), hooks.ShowHits(hit))`,
   `LogContacts(opts…)`, and `HitOverlay(hit, with)` for the world's Hook; a game's own is
   `Hook(rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step { … }))`;
   the hit is an effect
-  (`hooks.Hit(w, d)` → `effect.Effect`, cast by `ShowHits(hit)` on a `Struck` that `Hit()`s, drawn
+  (`hooks.Hit(w, d)` → `effect.Effect`, cast by `ShowHits(hit)` at every `Struck`, drawn
   by `HitOverlay(hit, with)`, which reads its marker, `rule.Self(hit.Mark())`). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
@@ -855,8 +863,9 @@ rule a pair, made in a loop).
   giving it every tick. One type, `rule.Step`, for both; a function writing part of a rule or a
   plan takes the Moment or the Actor (`func whenBlocked(a *rule.Actor) rule.Step`); ready-made
   hooks are whole, in a plugin's `hooks` package (`chooks.CountContacts(&stats)`,
-  `bhooks.LogFalls()`). Plans run in every simulation step after the world's decision systems
-  (`rule.Plans`, made by the world). A `clock.Moment` is the clock's own entity's
+  `bhooks.LogFalls()`). Plans run first in every simulation step
+  (`rule.Plans`, made by the world); the world hosts no other decision pass (`world.Behavior`, a
+  bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
   Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
   exported, fixed-size fields). goke registers 128 component types at most — every fact is one.

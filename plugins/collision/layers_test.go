@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
@@ -31,13 +32,6 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	if err := c.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { met = true })); err != nil {
 		t.Fatal(err)
 	}
-	ctx := &installCtx{ecs: goke.New()}
-	if err := w.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
 	boxes := kind.Define[layered](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -51,19 +45,8 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
-	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		c.RunPlan(rc, d)
-		rc.Sync()
-		w.Clock().Replay(rc, d)
-	})
-	ctx.ecs.Tick(time.Second / 60)
+	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	ecs.Tick(time.Second / 60)
 
 	var lefts []float64
 	for q.All(); q.Next(); {

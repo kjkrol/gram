@@ -24,11 +24,11 @@ type body struct{ N int }
 // sighting is a made-up host's description of a pair: who looks at whom.
 type sighting struct{ from, to uid.UID64 }
 
-// hostOf builds a host with behaviors registered, a hunter, a hunted, and what each carries.
-func hostOf(t *testing.T, behaviors ...plugin.Rule) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
+// hostOf builds a host with rules registered, a hunter, a hunted, and what each carries.
+func hostOf(t *testing.T, rules ...plugin.Rule) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
 	t.Helper()
 	h = &host.PairHost[sighting]{}
-	for _, b := range behaviors {
+	for _, b := range rules {
 		if err := h.Add(b); err != nil {
 			t.Fatalf("Add: %v", err)
 		}
@@ -76,7 +76,7 @@ func TestPairHost_Dispatch_KeepsTheDirection(t *testing.T) {
 	h.Dispatch(plugin.Tick{}, huntedMarks, hunterMarks, sighting{from: pair.to, to: pair.from})
 
 	if len(got) != 1 || got[0] != pair {
-		t.Errorf("behavior ran for %+v, want just the hunter looking at the hunted: %+v", got, pair)
+		t.Errorf("the rule ran for %+v, want just the hunter looking at the hunted: %+v", got, pair)
 	}
 }
 
@@ -89,7 +89,7 @@ func TestPairHost_DispatchEitherWay_FindsTheFit(t *testing.T) {
 	h.DispatchEitherWay(plugin.Tick{}, huntedMarks, hunterMarks, reversed, pair)
 
 	if len(got) != 1 || got[0] != pair {
-		t.Errorf("behavior ran for %+v, want it handed the pair with the hunter as Self: %+v", got, pair)
+		t.Errorf("the rule ran for %+v, want it handed the pair with the hunter as Self: %+v", got, pair)
 	}
 }
 
@@ -101,7 +101,7 @@ func TestPairHost_DispatchEitherWay_SameTagRunsOnce(t *testing.T) {
 	h.DispatchEitherWay(plugin.Tick{}, hunterMarks, hunterMarks, pair, sighting{from: pair.to, to: pair.from})
 
 	if len(got) != 1 {
-		t.Errorf("behavior ran %d times, want once", len(got))
+		t.Errorf("the rule ran %d times, want once", len(got))
 	}
 }
 
@@ -113,11 +113,11 @@ func TestPairHost_Any_TakesWhateverIsThere(t *testing.T) {
 	h.Dispatch(plugin.Tick{}, hunterMarks, plugin.Marks{}, pair)
 
 	if len(got) != 1 {
-		t.Errorf("behavior ran %d times, want once: Any on the left, a hunter on the right", len(got))
+		t.Errorf("the rule ran %d times, want once: Any on the left, a hunter on the right", len(got))
 	}
 }
 
-func TestPairHost_Add_RefusesABehaviorMadeForAnotherHost(t *testing.T) {
+func TestPairHost_Add_RefusesARuleMadeForAnotherHost(t *testing.T) {
 	var h host.PairHost[sighting]
 	stranger := host.Pair(hunter, hunted, func(plugin.Tick, string) {})
 
@@ -126,7 +126,7 @@ func TestPairHost_Add_RefusesABehaviorMadeForAnotherHost(t *testing.T) {
 	}
 }
 
-// Once the host's queries exist a behavior could no longer join them.
+// Once the host's queries exist a rule could no longer join them.
 func TestPairHost_Add_RefusesOneThatComesAfterBind(t *testing.T) {
 	var got []sighting
 	h, _, _, _ := hostOf(t)
@@ -155,7 +155,7 @@ func TestPairHost_DispatchGrouped_HandsOverTheOthersThatFit(t *testing.T) {
 	h.DispatchGrouped(plugin.Tick{}, huntedMarks, []plugin.Marks{huntedMarks}, build)
 
 	if len(got) != 2 {
-		t.Fatalf("behavior ran %d times, want twice — once with prey in view, once with none", len(got))
+		t.Fatalf("the rule ran %d times, want twice — once with prey in view, once with none", len(got))
 	}
 	if len(got[0].others) != 2 || got[0].others[0] != 0 || got[0].others[1] != 2 {
 		t.Errorf("first group = %v, want others 0 and 2 — the one in between carries no tag", got[0].others)
@@ -165,7 +165,7 @@ func TestPairHost_DispatchGrouped_HandsOverTheOthersThatFit(t *testing.T) {
 	}
 }
 
-// The host reads every family its behaviors name, so a payload can ask about any of their tags.
+// The host reads every family its rules name, so a payload can ask about any of their tags.
 func TestCarries_AnswersForTheFamiliesTheHostNames(t *testing.T) {
 	h, hunterMarks, huntedMarks, _ := hostOf(t, host.Pair(hunter, tag.Any, func(plugin.Tick, sighting) {}))
 
@@ -179,7 +179,7 @@ func TestCarries_AnswersForTheFamiliesTheHostNames(t *testing.T) {
 	type other struct{}
 	defer func() {
 		if recover() == nil {
-			t.Error("Carries about a family no behavior names returned quietly, want a panic naming the fix")
+			t.Error("Carries about a family no rule names returned quietly, want a panic naming the fix")
 		}
 	}()
 	hunterMarks.Carries(tag.Tag[other](0))

@@ -238,7 +238,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 }
 
 // SquareWorldWith is SquareWorld with a rule hooked on the board.
-func SquareWorldWith(t *testing.T, behavior plugin.Rule, units ...Mover) (*World, cell.ID) {
+func SquareWorldWith(t *testing.T, rule plugin.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
 	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
@@ -247,16 +247,16 @@ func SquareWorldWith(t *testing.T, behavior plugin.Rule, units ...Mover) (*World
 			units[i].Here = cellAt(1, 7)
 		}
 	}
-	var behaviors []plugin.Rule
-	if behavior != nil {
-		behaviors = append(behaviors, behavior)
+	var rules []plugin.Rule
+	if rule != nil {
+		rules = append(rules, rule)
 	}
 	bw := NewWorld(t, grid, 6*CellSize, 16*CellSize, func(brd *board.Board) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
 			brd.Set(cellAt(3, y), Wall)
 		}
-	}, units, behaviors...)
+	}, units, rules...)
 	return bw, cellAt(3, 7)
 }
 

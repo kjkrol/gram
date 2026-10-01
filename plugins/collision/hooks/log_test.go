@@ -5,55 +5,17 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
-// collide runs the real collision engine for one tick over two elastic boxes closing head-on.
+// collide runs the world with collision for one tick over two elastic boxes closing head-on, the
+// contacts logged as opts say.
 func collide(t *testing.T, opts ...hooks.LogOption) (idA, idB uid.UID64) {
 	t.Helper()
-	space, err := aabbworld.NewSpace(aabbworld.Config{
-		Width: 1000, Height: 1000,
-		BucketSize: 64,
-	})
-	if err != nil {
-		t.Fatalf("aabbworld.NewSpace: %v", err)
-	}
-
-	ecs := goke.New()
-	engine := collision.New(space, ecs)
-	if err := engine.Hook(hooks.LogContacts(opts...)); err != nil {
-		t.Fatalf("Hook: %v", err)
-	}
-
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var base goke.Comp[world.Base]
-		var coll goke.Comp[collision.Collider]
-		var physics goke.Comp[collision.Physics]
-		f := si.NewFactory(&base, &coll, &physics)
-		f.Create(2)
-		f.Next()
-		idA, idB = f.IDs[0], f.IDs[1]
-		for i, x := range []float64{100, 105} {
-			box := plane.NewAABB(geom.NewVec(x, 100), 10, 10)
-			base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: box}
-			physics.Slice(&f.Cursor)[i] = collision.Physics{Restitution: 1}
-		}
-		base.Slice(&f.Cursor)[0].Vel.SetDelta(geom.NewVec(5, 0))
-		base.Slice(&f.Cursor)[1].Vel.SetDelta(geom.NewVec(-5, 0))
-	}})
-	engine.RegSystems(ecs)
-	ecs.SetPlan(engine.RunPlan)
-	ecs.Tick(time.Millisecond)
-	return idA, idB
+	return colliding(t, true, 1, hooks.LogContacts(opts...))
 }
 
 func TestLogContacts_LogsEachContactOnce(t *testing.T) {

@@ -1364,6 +1364,60 @@ them in `Path`s, so its own tests stayed as they were) and the GPU lines of the 
 longer public. 121 tests before and after, by name; the finder's moved with it, under helpers of
 its own (a mirror `Path`, the old method names).
 
+### collision tidied (2026-10-01)
+
+The collision is small and its system works on the game's own `Collider` and `Physics`, so it
+stays in the plugin's package, as the navigation's does. What stands alone is the arithmetic of
+the answer to a contact, on numbers alone: it went to `collision/internal/response` — `Normal`,
+`Exchange` between two `Side`s (inverse mass, bounce, velocity; was `impactOf` and the root's
+`bounce`), and `Footing` and `Worse` over a `Ground` (was `footing`, `overhangs`, `worse`). The
+system turns its `contactSide` into a `Side` or a `Body`; `Physics.inverseMass` stays in the root.
+The impulse table tests `Exchange` on its numbers; the cases of a default mass and a restitution
+past its end test `Physics` in the root; `Footing` has tests of its own. First the contract other
+plugins fill — `Field` and `FieldBox` — went to a package of its own, `collision/solid`; the user
+turned it down: a package of one interface and an alias is no package. `collision.New` (a public
+function returning the unexported `*module`), `CollisionSystem` and `NewCollisionSystem` were
+public for tests alone: they are `export_test.go`'s now. The tests outside the package that used
+`New` went where they belong: the collision demo's save-and-load cycle, which tested the engine's
+index after a load, into collision's tests; the hooks' tests onto the plugin in a world, ticked as
+a game ticks it (the impact they log, 10, is the same: it hangs on the velocities alone).
+
+Then the user found `shapes.go` public for tests alone, and every public name of `collision` and
+`collision/hooks` was checked for a reader outside the tests (games, demos, plugins, bench):
+- `ShapeTest`, `Contactee`, `BoxesTouch`, `Plugin.WithShapeTest`: no reader; `BoxesTouch` was not
+  even what the system ran. The user chose to remove the whole hook: overlapping boxes touch.
+- `module.Hook`: called by tests alone (the plugin's `Hook` calls `hostAll`); it is
+  `export_test.go`'s. The unused `CollisionSystem` alias there went.
+- `Physics.Weight`, `Bounce`, `Immovable`: read inside the plugin alone; private now.
+- `hooks.ContactStats.Reset`: no caller, not even a test; gone.
+- Kept: `Collider.Struck`/`StruckCount` and `MaxContacts` (a saved component's fields stay
+  exported, as `vision.Sighted`'s and `effect.Active`'s), `DefaultMass` (what a zero `Mass`
+  weighs), `LogContacts` and its options (a ready-made hook, as `LogFalls` and `LogSightings`).
+- The tests had three copies of one installer and the same world-with-collision set-up five times:
+  both are `collision/internal/collisiontest` now (`InstallCtx`, `Start`, `Step`). `Step` syncs
+  after the collision, as a game does; the tunnel and attach tests did not, and pass either way.
+- Test names of types long gone: `TestDetector_*` is `TestCollisionSystem_*`, `TestContacts_Update_*`
+  is `TestPairs_*` (`candidates_test.go` is `pairs_test.go`).
+
+### The last of the behaviours (2026-10-01)
+
+The user asked what `collision/behavior.go` was, now that there are rules. It was no mechanism:
+the two moments the collision hands its rules, `Meeting` and `Struck`, under the old file name, as
+`vision/behavior.go` held `Sighting` and `plugin/host/behavior.go` the rules' constructors. Those
+are `meeting.go`, `struck.go`, `sighting.go` and `rules.go` now, and the tests that still said
+"behavior" of rules say "rule". The one real survivor was `world.Behavior`: a bare goke system
+`world.Hook` ran before movement, beside the rules and plans, which no game, demo, plugin or bench
+used. It went, with its pass and its tests; the steering test that leant on it runs its asking
+system before the world's step itself.
+
+`Struck` came every tick to every collider, and every one of its readers filtered out those that
+struck nothing (`Struck.Hit`, `len(s.Contacts) > 0`). It comes now only to an entity that struck
+something: the collision walks its colliders with `EachHost.RunWhere`, a skip in the same loop,
+and `Struck.Hit` is gone. The user asked whether this should rather be a marker kept on the
+entity, so that no component comes and goes: it is so already — the contacts lie in `Collider`
+for good, and `Struck` is a view of them. A marker (a bit of `effect.States`, as `Changed`) would
+serve a plan or another plugin's rule wanting "struck this step"; nobody wants it yet.
+
 ## Questions for review
 
 

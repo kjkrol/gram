@@ -22,7 +22,7 @@ func Hit(w *world.Plugin, d time.Duration) effect.Effect {
 // on collision.
 func ShowHits(hit effect.Effect) plugin.Rule {
 	return rule.On("collision.show hits", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.If(collision.Struck.Hit, m.Apply(hit))
+		return m.Apply(hit)
 	})
 }
 

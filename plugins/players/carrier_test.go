@@ -41,7 +41,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	})
 	s.collision = collision.NewPlugin(s.world)
 	if err := s.collision.Hook(rule.On("gone when struck", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.If(collision.Struck.Hit, m.Order(world.Despawn{}))
+		return m.Order(world.Despawn{})
 	})); err != nil {
 		return err
 	}

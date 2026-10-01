@@ -109,14 +109,13 @@
 // The world keeps the tactical clock (plugins/world/clock, [Plugin.Clock]): game time is the sum
 // of the simulation's steps, Space is the tactical pause and ] and [ the tempo — the players carry
 // its commands ([Plugin.Queues], [Plugin.DefaultBindings]) — the entities' trees
-// (plugins/world/rule), run after the decision systems, and the effects
+// (plugins/world/rule), run first in each step, and the effects
 // (plugins/world/rule/effect, [Plugin.Effects]), which last in game time and fire the rules
 // of the clock's moments (clock.Moment) every step.
 //
 // [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
 // the simulation the clock replays as many times as the tempo says and not at all in the pause,
-// every registered [Behavior] (a decision system, see
-// [Plugin.Hook]), then the steering.System carries out steering.Steering requests
+// the entities' plans, then the steering.System carries out steering.Steering requests
 // (heading, and base speed for an entity with a motion profile), [VelocitySystem] runs the
 // rules of a [Moving] over every entity so they may scale that speed, then [MoveSystem] moves every box under the
 // edge rules and hands the space every Base as an aabbworld.Item — Space.Rebuild. The space keeps

@@ -177,12 +177,12 @@ func TestWeather_IsColdInWinterWarmInSummerAndSnowsWhenCold(t *testing.T) {
 	}
 }
 
-func TestWeather_TellsItsBehavioursEveryStep(t *testing.T) {
+func TestWeather_TellsItsRulesEveryStep(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Winter)
 	r.tick(time.Millisecond)
 	r.tick(time.Millisecond)
 	if len(r.heard) != 2 || r.heard[1].Season != calendar.Winter || r.heard[1].Weather != r.c.Air() {
-		t.Errorf("the behaviour heard %+v, want the world's weather and the winter, every step", r.heard)
+		t.Errorf("the rule heard %+v, want the world's weather and the winter, every step", r.heard)
 	}
 }
 
@@ -254,7 +254,7 @@ func TestWeather_BegunInWinterIsColdAtOnce(t *testing.T) {
 }
 
 // The weather goes by the steps it is given, the simulation's: a longer step moves it further, and
-// the behaviours hear the step.
+// the rules hear the step.
 func TestWeather_GoesByTheStepsOfTheSimulation(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
 	r.c.set.Add(control.Nobody, Set{Name: "cloudy"}) // a minute long

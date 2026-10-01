@@ -24,7 +24,7 @@ func (flatAtlas) White() (u, v float32)                           { return 0, 0 
 
 // drawThrough spawns one 10x10 entity per position, lets pick say which of them the View holds
 // (nil: the zero View, which sees everything), draws once and returns how many quads were drawn
-// and how many entities the Drawing behaviors were run for.
+// and how many entities the Drawing rules were run for.
 func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...geom.Vec) (drawn, visited int) {
 	t.Helper()
 	v := &view.View{}
