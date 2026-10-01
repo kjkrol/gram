@@ -1350,6 +1350,20 @@ is: `cell`, `unit`, `grid` are such vocabulary, `look` and `ground` contracts.
   refused, the view switched by its command, the keys, the cover over the relief, the slope, H).
   Shared helpers are `internal/topotest`. 122 tests before and after, by name.
 
+### navigation tidied (2026-10-01)
+
+The same order for navigation. Only games use it, and everything they use — `MoveOrder` and its
+`Path`, `Leg`, `Goal`, `Round`, the facts, `Touch`, `Entered`, the commands — is data the
+machinery reads and writes every step: an interface such as the topography's `Orders` cannot
+stand between them. Asked, the user chose to keep the types and the systems in the plugin's
+package (unexported, as they were) rather than move the types to a vocabulary package or alias
+them; `internal` took what stands alone: the route finder (`internal/pathfind`: `Find`,
+`FindAround`, `NearestFree` into a caller's buffer of steps, the plugin's `pathFinder` laying
+them in `Path`s, so its own tests stayed as they were) and the GPU lines of the routes
+(`internal/routes`). `PathRenderer`, `NewPathRenderer`, `RouteTier` and `EnteredName` are no
+longer public. 121 tests before and after, by name; the finder's moved with it, under helpers of
+its own (a mirror `Path`, the old method names).
+
 ## Questions for review
 
 

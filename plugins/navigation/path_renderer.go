@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -54,14 +55,14 @@ var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220
 // goalWidth is how wide a goal's outline is drawn: the selection's.
 const goalWidth = 2
 
-// PathRenderer draws, for every selected entity, its goals — the entity's outline where it will
+// pathRenderer draws, for every selected entity, its goals — the entity's outline where it will
 // stand, on the render.Marks tier, always — and, when the routes are shown (Routes, Shift+P), the
 // remaining route and the routes on to each queued goal. In a world with heights, through a
-// camera with Rays, a route is a render.Direct drawing on the GPU on RouteTier: laid on the ground
+// camera with Rays, a route is a render.Direct drawing on the GPU, over the ground and under what stands on it: laid on the ground
 // the frame drew, read from its depth, so it follows every rise and a hill in front hides it.
 // Otherwise it is a line over the ground on the render.Overlays tier in pieces of the ground's
 // step, each at the depth of the ground under it, so the line runs straight through any camera.
-type PathRenderer struct {
+type pathRenderer struct {
 	grid   grid.Grid
 	style  RouteStyle
 	frame  *render.Frame // the one being composed
@@ -91,59 +92,59 @@ type PathRenderer struct {
 
 	footprint []render.Corners // reused
 
-	gpu   *routes // the routes drawn on the GPU
-	onGPU bool    // this frame's
+	gpu   *routes.Lines // the routes drawn on the GPU
+	onGPU bool          // this frame's
 }
 
-var _ render.Direct = (*PathRenderer)(nil)
+var _ render.Direct = (*pathRenderer)(nil)
 
-// NewPathRenderer draws the routes and goals of the entities carrying selected, as style says.
-func NewPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *PathRenderer {
+// newPathRenderer draws the routes and goals of the entities carrying selected, as style says.
+func newPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *pathRenderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}
-	return &PathRenderer{grid: grid, style: style, selected: selected, gpu: newRoutes()}
+	return &pathRenderer{grid: grid, style: style, selected: selected, gpu: routes.New()}
 }
 
-// Tier is where the routes drawn on the GPU come: RouteTier.
-func (r *PathRenderer) Tier() render.Tier { return RouteTier }
+// Tier is where the routes drawn on the GPU come: over the ground, under what stands on it.
+func (r *pathRenderer) Tier() render.Tier { return routes.Tier }
 
 // Draw lays the routes Compose gathered on the ground, on the GPU; nothing where it composed them.
-func (r *PathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
+func (r *pathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.onGPU {
-		r.gpu.draw(t, cam, r.style.Line, r.style.Width)
+		r.gpu.Draw(t, cam, r.style.Line, r.style.Width)
 	}
 }
 
 // WithHeights has the routes and goals laid on the ground heights gives when composing starts:
 // board.Plugin.Heights; nil, level at 0.
-func (r *PathRenderer) WithHeights(heights func() ground.Heights) *PathRenderer {
+func (r *pathRenderer) WithHeights(heights func() ground.Heights) *pathRenderer {
 	r.heights = heights
 	return r
 }
 
 // WithLook has a goal outlined as look draws the entity standing there: world.Plugin.Look.
-func (r *PathRenderer) WithLook(look func() world.Look) *PathRenderer {
+func (r *pathRenderer) WithLook(look func() world.Look) *pathRenderer {
 	r.look = look
 	return r
 }
 
 // ShowRoutes has the routes drawn, or the goals alone.
-func (r *PathRenderer) ShowRoutes(shown bool) { r.routes = shown }
+func (r *pathRenderer) ShowRoutes(shown bool) { r.routes = shown }
 
 // RoutesShown reports whether the routes are drawn.
-func (r *PathRenderer) RoutesShown() bool { return r.routes }
+func (r *pathRenderer) RoutesShown() bool { return r.routes }
 
-func (r *PathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
+func (r *pathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
 
-func (r *PathRenderer) Init(si *goke.SysInit) {
+func (r *pathRenderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.cell, &r.order, &r.marks).
 		Optional(&r.mover).
 		Build()
 }
 
 // Compose hands f the goals of the selected units, and their routes when shown.
-func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
+func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
 	r.ground, r.step = nil, 0
 	if r.heights != nil {
@@ -187,7 +188,7 @@ func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 
 // goals outlines where o's entity, of size, will stand: its Target — not a step aside, which is no
 // goal — and every goal queued after it.
-func (r *PathRenderer) goals(size geom.Vec, o *MoveOrder) {
+func (r *pathRenderer) goals(size geom.Vec, o *MoveOrder) {
 	if !o.GivingWay {
 		r.goal(size, o.Target, o.Spot)
 	}
@@ -197,7 +198,7 @@ func (r *PathRenderer) goals(size geom.Vec, o *MoveOrder) {
 }
 
 // point is where a goal is: its spot, or its cell's centre.
-func (r *PathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
+func (r *pathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
 	if spot != (geom.Vec{}) {
 		return spot
 	}
@@ -206,7 +207,7 @@ func (r *PathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
 
 // drawPath draws the route from the entity through the centres of cells, ending at end, leaving
 // out the first cell's centre once the entity has passed it.
-func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
+func (r *pathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
 	from := entityCenter
 	for i, c := range cells {
 		to := r.grid.CellCenter(c)
@@ -223,7 +224,7 @@ func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, 
 
 // drawRoute draws a route between two goals: from the first through the centres of cells to the
 // second.
-func (r *PathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
+func (r *pathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 	if len(cells) == 0 {
 		r.line(from, to)
 		return
@@ -240,7 +241,7 @@ func (r *PathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 // line draws the stretch from a to b over the ground: on a wrapping world flat, the short way
 // round; else in pieces of the ground's step, each on the ground under its ends and at the depth
 // of its middle.
-func (r *PathRenderer) line(a, b geom.Vec) {
+func (r *pathRenderer) line(a, b geom.Vec) {
 	if r.space != nil && r.space.Edges != 0 {
 		dx := shortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
 		dy := shortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
@@ -250,7 +251,7 @@ func (r *PathRenderer) line(a, b geom.Vec) {
 		return
 	}
 	if r.onGPU {
-		r.gpu.add(r.camera, a, b, r.groundAt, r.step, r.style.Width)
+		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.style.Width)
 		return
 	}
 	length := math.Hypot(b.X-a.X, b.Y-a.Y)
@@ -270,7 +271,7 @@ func (r *PathRenderer) line(a, b geom.Vec) {
 }
 
 // groundAt is the height of the ground at p.
-func (r *PathRenderer) groundAt(p geom.Vec) float32 {
+func (r *pathRenderer) groundAt(p geom.Vec) float32 {
 	if r.ground == nil {
 		return 0
 	}
@@ -278,13 +279,13 @@ func (r *PathRenderer) groundAt(p geom.Vec) float32 {
 }
 
 // on is where the ground point p is drawn.
-func (r *PathRenderer) on(p geom.Vec) (float32, float32) {
+func (r *pathRenderer) on(p geom.Vec) (float32, float32) {
 	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
 }
 
 // goal outlines a box of size standing on the goal — its spot, or its cell's centre — on the
 // ground there, on the Marks tier, as the look draws it.
-func (r *PathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec) {
+func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec) {
 	at := r.point(c, spot)
 	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
 	alt := r.groundAt(at)
@@ -316,7 +317,7 @@ type preview struct {
 
 // queued is the routes from the order's Target through each queued goal, planned once per change
 // of the goals; a goal no route reaches is drawn on its own.
-func (r *PathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [][]cell.ID {
+func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [][]cell.ID {
 	if mt.Queued == 0 {
 		delete(r.previews, id)
 		return nil

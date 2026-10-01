@@ -1,4 +1,4 @@
-package navigation
+package routes
 
 import (
 	"image/color"
@@ -35,10 +35,10 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	f, _ := cam.(camera.Rays).Rays()
 	tr, _ := camera.SceneTransform(f, 256, 256)
 	screen.DrawMesh(nil, level, &render.DrawMeshOptions{Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]}})
-	g := newRoutes()
+	g := New()
 	flat := func(geom.Vec) float32 { return 0 }
-	g.add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3)
-	g.draw(render.Target{Screen: screen, Depth: depth}, cam, color.RGBA{R: 255, A: 255}, 3)
+	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3)
+	g.Draw(render.Target{Screen: screen, Depth: depth}, cam, color.RGBA{R: 255, A: 255}, 3)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	red := func(x, y int) byte { return pix[4*(y*256+x)] }

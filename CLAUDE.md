@@ -454,8 +454,14 @@ Systems in `internal` follow the topography's pattern: a part type whose method 
 `goke.System` (`terrain.Cells.System()`, `rule.Rules.StandingSystem()`). Tests sit in the package
 whose code they test; what several packages' tests share goes to `internal/<plugin>test`
 (`board/internal/boardtest`, `topography/internal/topotest`), and a test that must read a
-package's insides uses an `export_test.go`. `board` and `topography` are split this way; the
-other plugins follow as they grow.
+package's insides uses an `export_test.go`.
+
+Where the machinery reads and writes the game's own types every step — navigation's systems
+query `MoveOrder`, `Path`, `Leg`, give `Touch` and the facts — it stays in the plugin's package
+with them (unexported), and `internal` takes what stands alone (`navigation/internal/pathfind`,
+`navigation/internal/routes`); moving the types to a vocabulary package or aliasing them in the
+root were both declined. `board`, `topography` and `navigation` are laid out this way; the other
+plugins follow as they grow.
 
 ### Behaviour goes through rule
 
@@ -714,7 +720,9 @@ rule a pair, made in a loop).
   by `HitOverlay(hit, with)`, which reads its marker, `rule.Self(hit.Mark())`). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
-  `board`. `pathFinder.price` is what a step costs: the destination's `CostFor` over the step's
+  `board`. The route finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`,
+  `NearestFree` into a caller's buffer of steps; the plugin's `pathFinder` lays them in `Path`s);
+  `price` is what a step costs: the destination's `CostFor` over the step's
   length, times `Map.Climb` unless the kind is `Graded`; a slantwise step not `Along` a way is
   priced by the destination's `Bare` ground (the corner is cut beside the road) and refused where
   that ground does not admit the unit, so roads are followed round their bends and slantwise
@@ -773,7 +781,7 @@ rule a pair, made in a loop).
   A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
   by an entity for itself (`Order`), that entity alone (`LookAt` too); a
   `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
-  `WithRenderer` builds the `PathRenderer`: for every selected unit its goals (`goals`: not a
+  `WithRenderer` builds the renderer of routes (its GPU lines are `internal/routes`): for every selected unit its goals (`goals`: not a
   `GivingWay` order's Target, a step aside being no goal) as the entity's outline where it will
   stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+P,
   `ShowRoutes`), its routes as thin lines over the ground in pieces of the ground's step at the

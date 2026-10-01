@@ -41,7 +41,7 @@ type Plugin struct {
 
 	routeStyle   RouteStyle
 	routesShown  bool // the routes are drawn — see Routes
-	pathRenderer *PathRenderer
+	pathRenderer *pathRenderer
 	collision    *collision.Plugin
 	spacing      Spacing // as asked; Install decides AutoSpacing
 }
@@ -52,8 +52,8 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // command and default bindings. Entities move as their Steering profile says.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
-	if t := worldPlugin.Kinds().DefineTag[States](EnteredName); t != Entered {
-		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", EnteredName))
+	if t := worldPlugin.Kinds().DefineTag[States](enteredName); t != Entered {
+		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", enteredName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
@@ -140,10 +140,10 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	return p
 }
 
-// WithRenderer builds the PathRenderer: the goals of every selected entity, and its routes when
+// WithRenderer builds the pathRenderer: the goals of every selected entity, and its routes when
 // shown; atlas is unused, the routes are lines.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.pathRenderer = NewPathRenderer(p.board, p.routeStyle, p.selected).WithHeights(p.boardPlugin.Heights).WithLook(p.worldPlugin.Look)
+	p.pathRenderer = newPathRenderer(p.board, p.routeStyle, p.selected).WithHeights(p.boardPlugin.Heights).WithLook(p.worldPlugin.Look)
 	p.pathRenderer.BindSpace(p.worldPlugin.Space())
 	p.pathRenderer.finder = p.finder
 	p.pathRenderer.ShowRoutes(p.routesShown)

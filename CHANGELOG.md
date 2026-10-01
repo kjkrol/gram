@@ -6,6 +6,14 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**The navigation tidied: what stands alone in `internal`**
+- navigation keeps the game's types (`MoveOrder`, `Path`, `Leg`, `Goal`, `Round`, `Patrol`, the
+  facts, `Touch`, `Entered`, the commands, `Spacing`, `RouteStyle`) and the systems working on
+  them; the route finder is `internal/pathfind` and the routes' lines on the GPU, with their
+  shader, `internal/routes`. Their tests went with them.
+- No longer public, used by no game: `PathRenderer`, `NewPathRenderer` (WithRenderer builds it),
+  `RouteTier`, `EnteredName`.
+
 **The topography in parts: the game's entries at the root, the vocabulary in two packages, the rest in `internal`**
 - A plugin's code lies in three layers (CLAUDE.md, "A plugin's packages"): the plugin's package
   holds what a game constructs and drives it with — the constructor, `Config`, options, the

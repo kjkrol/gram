@@ -1,4 +1,4 @@
-package navigation
+package pathfind
 
 import "github.com/kjkrol/gram/plugins/board/cell"
 

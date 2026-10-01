@@ -13,8 +13,8 @@ type States struct{}
 // Entered is on for the step a unit's At changed: unit.At says which cell it entered.
 const Entered tag.Tag[States] = 0
 
-// EnteredName is the name Entered is defined under, as the saves know it.
-const EnteredName = "navigation.entered"
+// enteredName is the name Entered is defined under, as the saves know it.
+const enteredName = "navigation.entered"
 
 // enter has the unit at row i of states have Entered on for this step; a unit whose chunk has no
 // family is noted in lacking, to get it once the chunk's own changes are queued.

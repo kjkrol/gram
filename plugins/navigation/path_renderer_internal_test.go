@@ -47,7 +47,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	})}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
-	drawn := func(r *PathRenderer) (pieces [][]render.Vertex, depths []float32) {
+	drawn := func(r *pathRenderer) (pieces [][]render.Vertex, depths []float32) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
@@ -60,7 +60,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		})
 		return
 	}
-	r := NewPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
+	r := newPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
 	pieces, depths := drawn(r)
 	want := int(math.Ceil(64 / land.Step()))
 	if len(pieces) != want {
@@ -79,7 +79,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(land.At(mid))) {
 		t.Errorf("the last piece lies at depth %v, want the ground's under its middle", d)
 	}
-	flat := NewPathRenderer(brd, RouteStyle{}, 0)
+	flat := newPathRenderer(brd, RouteStyle{}, 0)
 	pieces, _ = drawn(flat)
 	_, _, ex, ey = ends(pieces[0])
 	if bx, by := cam.Project(112, 48, 0); len(pieces) != 1 || !near32(ex, bx) || !near32(ey, by) {
@@ -92,7 +92,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
-	r := NewPathRenderer(grid, RouteStyle{}, 0)
+	r := newPathRenderer(grid, RouteStyle{}, 0)
 	c, _ := grid.CellIndex(2, 1)
 	for _, tc := range []struct {
 		spot   geom.Vec
@@ -132,7 +132,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
-	r := NewPathRenderer(grid, RouteStyle{}, 0)
+	r := newPathRenderer(grid, RouteStyle{}, 0)
 	a, _ := grid.CellIndex(2, 1)
 	b, _ := grid.CellIndex(3, 3)
 	for _, tc := range []struct {

@@ -89,7 +89,8 @@
 // the corner beside the way, over the ground bare of it (board.Board.Bare), and costs that ground
 // — none where it does not admit the unit, the water beside a bridge: a road is followed round
 // its bend rather than cut across the grass, and a road laid slantwise is taken along its links at
-// its own price.
+// its own price. The routes are found by the plugin's own path finder (internal/pathfind); the
+// routes on the GPU are drawn by its own lines (internal/routes): neither is the game's to use.
 //
 // # Commands
 //
@@ -117,12 +118,13 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [PathRenderer], drawing, for every selected entity, its goals
+// [Plugin.WithRenderer] builds the renderer of routes, drawing, for every selected entity, its goals
 // — the entity's outline where it will stand, on the ground there, on the render.Marks tier,
 // always; a step aside is no goal — and its routes when they are shown: the remaining route and the routes on to each
 // queued goal, a thin line over the ground. In a world with heights, through a camera with Rays,
-// the PathRenderer is a render.Direct laying the routes on the GPU on [RouteTier]: every pixel near
-// a stretch finds the ground point drawn there from the frame's depth (shaders/route.wgsl), so the
+// the renderer is a render.Direct laying the routes on the GPU, over the ground and under what
+// stands on it: every pixel near a stretch finds the ground point drawn there from the frame's
+// depth (its route shader), so the
 // line follows every rise and a hill in front hides it. Otherwise it hands the frame the line in
 // pieces of the ground's step on the render.Overlays tier, each at the depth of the ground under
 // it, so the line runs straight through any camera. [Routes] (Shift+P) shows the routes

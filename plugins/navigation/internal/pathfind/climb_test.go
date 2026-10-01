@@ -1,4 +1,4 @@
-package navigation
+package pathfind
 
 import (
 	"math"

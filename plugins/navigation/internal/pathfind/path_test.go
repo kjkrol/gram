@@ -1,4 +1,4 @@
-package navigation
+package pathfind
 
 import (
 	"testing"
@@ -80,5 +80,28 @@ func TestPathFinder_FindPath_NeverCutsThroughABlockedCorner(t *testing.T) {
 				t.Errorf("step %d->%d cuts a diagonal through a blocked corner", i-1, i)
 			}
 		}
+	}
+}
+
+func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(7, 1, legCellSize)
+	terrain := openTerrain()
+	occupancy := &cell.SingleOccupancy{}
+	pf := newPathFinder(grid, terrain, nil, occupancy)
+	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+
+	const mover, other = uid.UID64(1), uid.UID64(2)
+	occupancy.Enter(at(0), mover, cell.Land)
+	occupancy.Enter(at(4), other, cell.Land)
+	terrain.Set(at(2), cell.Kind{Cost: 1, Solid: true})
+	taken := func(c cell.ID) bool { return c == at(5) }
+
+	dest, _, ok := pf.nearestFree(mover, cell.Land, at(6), at(4), taken)
+	if !ok || dest != at(6) {
+		t.Errorf("nearestFree = %v, %v, want %v (only free, reachable cell near the target)", dest, ok, at(6))
+	}
+
+	if _, _, ok := pf.nearestFree(mover, cell.Land, at(0), at(4), taken); ok {
+		t.Error("expected no result: every free cell near the target is behind the wall")
 	}
 }
