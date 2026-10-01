@@ -51,14 +51,16 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 	sys := &driveSystem{drives: &drives}
 	var owners goke.Comp[tag.Tags[owner.Family]]
 	var steer goke.Comp[steering.Steering]
+	var course goke.Comp[steering.Course]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&owners, &steer)
+		f := si.NewFactory(&owners, &steer, &course)
 		f.Create(2)
 		for f.Next() {
 			for i := range f.Cursor.IDs {
 				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(control.PlayerID(i + 1)))
-				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100, WantSpeed: 50}
+				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100}
+				course.Slice(&f.Cursor)[i] = steering.Course{WantSpeed: 50}
 			}
 		}
 	}}, sys)
@@ -69,7 +71,7 @@ func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *test
 	for sys.query.All(); sys.query.Next(); {
 		cur := sys.query.Cursor()
 		for i := range cur.IDs {
-			owned, st := sys.owners.Slice(cur)[i], sys.steer.Slice(cur)[i]
+			owned, st := sys.owners.Slice(cur)[i], sys.course.Slice(cur)[i]
 			switch {
 			case owned.Has(owner.Of(1)):
 				if st.WantSpeed != 100 || st.Want.X <= 0 || st.Want.Y <= 0 {

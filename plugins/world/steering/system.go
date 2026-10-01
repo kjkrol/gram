@@ -11,44 +11,59 @@ import (
 
 var _ goke.System = (*System)(nil)
 
-// System carries out Steering requests between the decision pass and movement: heading by at most
-// TurnRate a tick, and base speed rewritten each tick for an entity with a motion profile. The
-// world runs it in every step of its simulation, before movement.
+// System carries out the Course asked of each entity between the decision pass and movement, as
+// its Steering lets it: heading by at most TurnRate a tick, and base speed rewritten each tick for
+// an entity with a motion profile; one Halted stands. An entity without a Course gets one, steered
+// from its next step. The world runs it in every step of its simulation, before movement.
 type System struct {
-	query *goke.Query
-	steer goke.Comp[Steering]
-	base  goke.Comp[entity.Base]
+	query    *goke.Query
+	steer    goke.Comp[Steering]
+	course   goke.OptComp[Course]
+	base     goke.Comp[entity.Base]
+	courseID goke.CompID
 }
 
 // NewSystem is the steering system; the world registers it.
 func NewSystem() *System { return &System{} }
 
 func (s *System) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.steer, &s.base).Build()
+	s.query = si.NewQueryBuilder(&s.steer, &s.base).Optional(&s.course).Build()
+	s.courseID = si.RegComp[Course]()
 }
 
-func (s *System) Update(_ *goke.CmdBuf, d time.Duration) {
+func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	dt := d.Seconds()
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		steers := s.steer.Slice(cursor)
+		if !s.course.Present(cursor) {
+			for _, id := range cursor.IDs {
+				cb.AddOne(id, s.courseID, Course{})
+			}
+			continue
+		}
+		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		bases := s.base.Slice(cursor)
 
 		for i := range cursor.IDs {
-			st := &steers[i]
-			if st.Want.X != 0 || st.Want.Y != 0 {
-				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, st.Want, st.TurnRate)
+			h := Helm{Steering: &steers[i], Course: &courses[i]}
+			if h.Halted {
+				h.Speed = 0
+				bases[i].Vel.Value = 0
+				continue
 			}
-			if st.Delay > 0 {
-				st.Delay--
-				if st.Delay == 0 {
-					st.Want = st.Pending
+			if h.Want.X != 0 || h.Want.Y != 0 {
+				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, h.Want, h.TurnRate)
+			}
+			if h.Delay > 0 {
+				h.Delay--
+				if h.Delay == 0 {
+					h.Want = h.Pending
 				}
 			}
-			if st.MaxSpeed > 0 {
-				st.advance(dt)
-				bases[i].Vel.Value = st.Speed
+			if h.MaxSpeed > 0 {
+				h.advance(dt)
+				bases[i].Vel.Value = h.Speed
 			}
 		}
 	}

@@ -10,12 +10,13 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -36,7 +37,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	w.Seed(kind.Define[mover](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(m mover) world.Position { return world.Position{AABB: board.CellAABB(grid, m.cell, unitSize)} }),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(m mover) board.Cell { return board.Cell{ID: m.cell} }),
+		comp.Load(func(m mover) board.At { return board.At{Cell: m.cell} }),
 		comp.Const(board.Mover{Domain: board.Land}),
 	}).Entry(mover{cell: start}))
 	if err := w.Populate(); err != nil {
@@ -87,9 +88,7 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	start, _ := grid.CellIndex(1, 7)
 	f := newFooting()
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("hole"), Cost: 1}),
-		[]mover{{cell: start, heading: east}}, rule.On("react", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-			return m.Call(f.react)
-		}))
+		[]mover{{cell: start, heading: east}}, host.Every(f.react))
 	if walls := bw.solid(world.Layers(board.Land)); len(walls) != 0 {
 		t.Fatalf("%d solid cells, want none: a hole is not solid", len(walls))
 	}
@@ -123,9 +122,7 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	start, _ := grid.CellIndex(3, 7)
 	f := newFooting()
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}),
-		[]mover{{cell: start, domain: board.Water}}, rule.On("react", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-			return m.Call(f.react)
-		}))
+		[]mover{{cell: start, domain: board.Water}}, host.Every(f.react))
 	bw.tick()
 	id := onlyID(f)
 	if f.last[id].Kind.Name.String() != "water" || f.fell[id] {
@@ -135,9 +132,7 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 
 func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 	f := newFooting()
-	bw, _ := squareWorldWith(t, rule.On("react", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.Call(f.react)
-	}), mover{})
+	bw, _ := squareWorldWith(t, host.Every(f.react), mover{})
 	bw.tick()
 	if units := bw.snapshot(); len(f.last) != len(units) {
 		t.Fatalf("%d standings for %d units", len(f.last), len(units))
@@ -158,19 +153,13 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	brd := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
 	brd.Res.Logic.Board.SetAll(board.CellKind{Name: board.Named("hole"), Cost: 1})
 	f := newFooting()
-	if err := brd.Hook(rule.On("react", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.Call(f.react)
-	})); err != nil {
+	if err := brd.Hook(host.Every(f.react)); err != nil {
 		t.Fatal(err)
 	}
-	if err := brd.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(plugin.Tick, collision.Meeting) {})
-	})); !errors.Is(err, plugin.ErrUnhosted) {
+	if err := brd.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) {})); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Between on board: %v, want ErrUnhosted", err)
 	}
-	struck := rule.On("hook", rule.Having[board.Mover](), func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.CallOn(func(plugin.Tick, *board.Mover, collision.Struck) {})
-	})
+	struck := host.Each(func(plugin.Tick, *board.Mover, collision.Struck) {})
 	if err := brd.Hook(struck); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Each of Struck on board: %v, want ErrUnhosted", err)
 	}
@@ -184,9 +173,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 			t.Error("a land unit spawned over a hole did not fall")
 		}
 	}
-	if err := brd.Hook(rule.On("react", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.Call(f.react)
-	})); !errors.Is(err, plugin.ErrHostBuilt) {
+	if err := brd.Hook(host.Every(f.react)); !errors.Is(err, plugin.ErrHostBuilt) {
 		t.Errorf("registering after Setup: %v, want ErrHostBuilt", err)
 	}
 }
@@ -209,9 +196,7 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	start, _ := grid.CellIndex(1, 7)
 	var box geom.AABB
 	record := func(_ plugin.Tick, _ *board.Mover, st board.Standing) { box = st.Box }
-	recording := rule.On("record", rule.Having[board.Mover](), func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.CallOn(record)
-	})
+	recording := host.Each(record)
 	bw, _ := squareWorldWith(t, recording, mover{cell: start, offset: cellSize / 2})
 	bw.tick()
 	var under []board.CellID

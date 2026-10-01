@@ -36,7 +36,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 
 	cw.ecs = goke.New()
 	cw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.Cell]
+		var cell goke.Comp[board.At]
 		var pos goke.Comp[world.Base]
 		var sel goke.Comp[tag.Tags[selection.Family]]
 		var order goke.Comp[MoveOrder]
@@ -46,7 +46,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		f.Next()
 		sel.Slice(&f.Cursor)[0] = selectedMarks
 		cw.moving = f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: cw.cellAt(0)}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: cw.cellAt(0)}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(0), 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: cw.oldTarget, Path: Path{Length: 1}}
 
@@ -55,7 +55,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		g.Next()
 		sel.Slice(&g.Cursor)[0] = selectedMarks
 		cw.idle = g.Cursor.IDs[0]
-		cell.Slice(&g.Cursor)[0] = board.Cell{ID: cw.cellAt(5)}
+		cell.Slice(&g.Cursor)[0] = board.At{Cell: cw.cellAt(5)}
 		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(5), 8)}
 
 		cw.q = si.NewQueryBuilder(&cell).Optional(&cw.order).Build()

@@ -1,6 +1,7 @@
 package board
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -38,6 +39,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 	standing    host.EachHost[Standing]
+	cellRules   host.EachHost[Cell]
 	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 }
 
@@ -48,7 +50,7 @@ var _ plugin.Populator = (*Plugin)(nil)
 // It is drawn and priced by the simple map until WithMap sets another.
 func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugin {
 	terrain := NewTerrainMap()
-	kind.Require[Cell](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
+	kind.Require[At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
 		occupancy:   occupancy,
@@ -79,11 +81,13 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities and the standing report.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:    newCellSystem(p.Res.Logic.Board),
-		standing: newStandingSystem(p.Res.Logic.Board, &p.standing),
-		clock:    p.worldPlugin.Clock(),
+		cells:     newCellSystem(p.Res.Logic.Board),
+		standing:  newStandingSystem(p.Res.Logic.Board, &p.standing, p.occupancy),
+		cellRules: newCellRuleSystem(p.Res.Logic.Board, &p.cellRules),
+		clock:     p.worldPlugin.Clock(),
 	}
 	p.module.standing.tick = p.worldPlugin.Tick
+	p.module.cellRules.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -159,12 +163,16 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Standing, fired every step for every entity on the board; hook
-// them before Use.
+// Hook hosts rules (rule.On) of Standing, fired every step for every entity on the board, and of
+// Cell, fired every step for every cell; hook them before Use.
 func (p *Plugin) Hook(rules ...plugin.Rule) error {
 	for _, b := range rules {
-		if err := p.standing.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Standing", err, p.Name())
+		err := p.standing.Add(b)
+		if errors.Is(err, plugin.ErrUnhosted) {
+			err = p.cellRules.Add(b)
+		}
+		if err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of Standing or Cell", err, p.Name())
 		}
 	}
 	return nil
@@ -213,8 +221,8 @@ func (p *Plugin) CellKindDict() CellKindDict { return p.kinds }
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 
-// Populate applies the seeded Layout, kinds, ways and crossings, changing nothing and erroring on
-// an unknown kind name.
+// Populate applies the seeded Layout — kinds, the cells' tags, ways and crossings — changing nothing
+// and erroring on an unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
@@ -237,6 +245,9 @@ func (p *Plugin) Populate() error {
 	}
 	cells := make([]CellKind, len(p.seeded.Cells))
 	for i, e := range p.seeded.Cells {
+		if e.Kind == "" {
+			continue // the Default kept
+		}
 		kind, err := resolve(e.Kind)
 		if err != nil {
 			return err
@@ -266,7 +277,12 @@ func (p *Plugin) Populate() error {
 		brd.SetAll(def)
 	}
 	for i, e := range p.seeded.Cells {
-		brd.Set(e.Cell, cells[i])
+		if e.Kind != "" {
+			brd.Set(e.Cell, cells[i])
+		}
+		if e.Tags != 0 {
+			brd.tagCell(e.Cell, e.Tags)
+		}
 	}
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])

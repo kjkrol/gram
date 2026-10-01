@@ -5,8 +5,11 @@ import (
 	"testing"
 )
 
+// helm is a Helm over st and co.
+func helm(st Steering, co Course) Helm { return Helm{Steering: &st, Course: &co} }
+
 func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
-	s := Steering{MaxSpeed: 100, Accel: 60}
+	s := helm(Steering{MaxSpeed: 100, Accel: 60}, Course{})
 	s.RequestSpeed(100)
 	s.advance(0.5)
 	if s.Speed != 30 {
@@ -18,7 +21,7 @@ func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
 // backwards at V0 and speeds up to what was asked; asked on again, it brakes to a stop before
 // setting off forwards.
 func TestSteering_BacksAwayOnlyOnceStopped(t *testing.T) {
-	s := Steering{MaxSpeed: 100, Accel: 40, Brake: 80, V0: 10, Speed: 60}
+	s := helm(Steering{MaxSpeed: 100, Accel: 40, Brake: 80, V0: 10}, Course{Speed: 60})
 	s.RequestBack(30)
 	if s.WantSpeed != -30 {
 		t.Fatalf("RequestBack(30) asked for %v, want -30", s.WantSpeed)
@@ -61,7 +64,7 @@ func TestSteering_BacksAwayOnlyOnceStopped(t *testing.T) {
 // Urged on, it goes up to Sprint times its top speed, Sprint times as quickly past the top; a
 // profile without a Sprint goes no faster than its top; a plain request stays under it.
 func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
-	s := Steering{MaxSpeed: 10, Sprint: 4, Accel: 20, Speed: 10}
+	s := helm(Steering{MaxSpeed: 10, Sprint: 4, Accel: 20}, Course{Speed: 10})
 	s.RequestSprint()
 	if s.WantSpeed != 40 {
 		t.Fatalf("urged on asks %v, want 40", s.WantSpeed)
@@ -74,7 +77,7 @@ func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
 	if s.WantSpeed != 10 {
 		t.Errorf("RequestSpeed(100) asks %v, want the top speed 10", s.WantSpeed)
 	}
-	plain := Steering{MaxSpeed: 10, Accel: 20, Speed: 10}
+	plain := helm(Steering{MaxSpeed: 10, Accel: 20}, Course{Speed: 10})
 	plain.RequestSprint()
 	plain.advance(1)
 	if plain.WantSpeed != 10 || plain.Speed != 10 {

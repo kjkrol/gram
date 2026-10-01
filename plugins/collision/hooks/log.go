@@ -6,8 +6,9 @@ import (
 	"os"
 
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // LogFormatter renders one contact as a log line.
@@ -37,7 +38,5 @@ func LogContacts(opts ...LogOption) plugin.Rule {
 	for _, opt := range opts {
 		opt(c)
 	}
-	return rule.On("collision.log contacts", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(_ plugin.Tick, met collision.Meeting) { fmt.Fprintln(c.w, c.format(met)) })
-	})
+	return host.Pair(tag.Any, tag.Any, func(_ plugin.Tick, met collision.Meeting) { fmt.Fprintln(c.w, c.format(met)) })
 }

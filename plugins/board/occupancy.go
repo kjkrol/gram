@@ -1,6 +1,10 @@
 package board
 
-import "github.com/kjkrol/uid"
+import (
+	"slices"
+
+	"github.com/kjkrol/uid"
+)
 
 // Occupancy tracks who holds each cell and in which domains, gating and recording every step
 // navigation takes: a land unit and a flyer may share a cell, two land units may not.
@@ -9,6 +13,9 @@ type Occupancy interface {
 	CanEnter(c CellID, entity uid.UID64, domain Domain) bool
 	Enter(c CellID, entity uid.UID64, domain Domain)
 	Leave(c CellID, entity uid.UID64)
+	// Release lets go of every hold of an entity gone says is no more: the board calls it every
+	// step, so one despawned — fallen in, say — blocks no cell.
+	Release(gone func(uid.UID64) bool)
 }
 
 // holder is one entity on a cell and the domains it holds it in.
@@ -57,6 +64,8 @@ func (o *SingleOccupancy) Holder(c CellID, domain Domain) (uid.UID64, bool) {
 	return holderOf(o.holders[c], domain)
 }
 
+func (o *SingleOccupancy) Release(gone func(uid.UID64) bool) { release(o.holders, gone) }
+
 // MultipleOccupancy lets any number of entities share a cell — tokens on a board square. Such
 // entities carry no Physics: bodies cannot overlap. Zero-value ready — no constructor needed.
 type MultipleOccupancy struct {
@@ -87,6 +96,19 @@ func (o *MultipleOccupancy) Leave(c CellID, entity uid.UID64) {
 // Holder is the first entity holding c in a domain domain shares, if any.
 func (o *MultipleOccupancy) Holder(c CellID, domain Domain) (uid.UID64, bool) {
 	return holderOf(o.holders[c], domain)
+}
+
+func (o *MultipleOccupancy) Release(gone func(uid.UID64) bool) { release(o.holders, gone) }
+
+// release drops from every cell of holders the entities gone says are no more.
+func release(holders map[CellID][]holder, gone func(uid.UID64) bool) {
+	for c, hs := range holders {
+		if hs = slices.DeleteFunc(hs, func(h holder) bool { return gone(h.entity) }); len(hs) == 0 {
+			delete(holders, c)
+		} else {
+			holders[c] = hs
+		}
+	}
 }
 
 // holderOf is the first of holders in a domain domain shares.

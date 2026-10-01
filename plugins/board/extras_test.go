@@ -53,8 +53,8 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 	unit := kind.Define[board.CellID](plugin.Kinds(), "unit", kind.Spec{
 		comp.Const(placement.Place(0, 1)),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(c board.CellID) board.Cell { return board.Cell{ID: c} }).
-			WithEffect(func(c board.Cell, id uid.UID64) { occupancy.Enter(c.ID, id, board.Land) }),
+		comp.Load(func(c board.CellID) board.At { return board.At{Cell: c} }).
+			WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, board.Land) }),
 	})
 	plugin.Seed(unit.Entry(target))
 	if err := plugin.Populate(); err != nil {
@@ -66,7 +66,7 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var q *goke.Query
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -82,8 +82,8 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 		cells := cell.Slice(cur)
 		for i := range cur.IDs {
 			found = true
-			if cells[i].ID != target {
-				t.Errorf("Cell.ID = %v, want %v", cells[i].ID, target)
+			if cells[i].Cell != target {
+				t.Errorf("At.Cell = %v, want %v", cells[i].Cell, target)
 			}
 		}
 	}

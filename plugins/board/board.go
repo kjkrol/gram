@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -32,6 +33,8 @@ type Board struct {
 	veils        []veil
 	veilsChanges uint64
 	veilsVersion uint64
+	rings        rings                       // scratch for the cells round where someone stands
+	places       map[CellID]tag.Tags[Places] // the Layout's tags, till the cells are made
 }
 
 // cellStore is where the cells' entities are: their ids by ordinal, and a query for each of their
@@ -42,10 +45,12 @@ type cellStore struct {
 	kinds     *goke.Query
 	ways      *goke.Query
 	crossings *goke.Query
+	tagged    *goke.Query
 	plot      goke.Comp[Plot]
 	ground    goke.Comp[Ground]
 	way       goke.Comp[Way]
 	crossing  goke.Comp[Crossing]
+	places    goke.OptComp[tag.Tags[Places]]
 }
 
 var _ Terrain = (*Board)(nil)
@@ -135,6 +140,25 @@ func (b *Board) groundOf(i int) *Ground {
 		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
 	}
 	return st.ground.At(st.kinds.Cursor())
+}
+
+// placesOf are the game's tags of places cell c carries: the Layout's; none off the board.
+func (b *Board) placesOf(c CellID) tag.Tags[Places] {
+	if b.cells == nil {
+		return b.places[c]
+	}
+	i, ok := b.ordinal(c)
+	if !ok {
+		return 0
+	}
+	st := b.cells
+	if !st.tagged.SeekH(st.ids[i]) && !st.tagged.Seek(st.ids[i]) {
+		return 0
+	}
+	if p := st.places.At(st.tagged.Cursor()); p != nil {
+		return *p
+	}
+	return 0
 }
 
 // CellEntity is the entity of cell c; false off the board or before the ECS is set up.
@@ -255,8 +279,8 @@ func (b *Board) altitude(c CellID) float64 {
 	return float64(level)
 }
 
-// Cell is an entity's current position on the board.
-type Cell struct{ ID CellID }
+// At is an entity's current position on the board.
+type At struct{ Cell CellID }
 
 // CellAABB is the size x size world rectangle centred on c.
 func CellAABB(grid Grid, c CellID, size uint32) plane.AABB {

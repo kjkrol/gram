@@ -6,11 +6,12 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 type layered struct {
@@ -27,9 +28,7 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	c := collision.NewPlugin(w)
-	if err := c.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(plugin.Tick, collision.Meeting) { met = true })
-	})); err != nil {
+	if err := c.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { met = true })); err != nil {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}

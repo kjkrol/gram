@@ -80,6 +80,10 @@ func (a *Actor) Unless(e effect.Effect, step Step) Step { return newUnless(e, st
 // Under runs step while the actor is under the effect, and fails while it is not.
 func (a *Actor) Under(e effect.Effect, step Step) Step { return newUnder(e, step) }
 
+// During runs step while the world is under the effect — a state of the whole game, a lever
+// pulled, an alarm (world.Apply) — and fails while it is not.
+func (a *Actor) During(e effect.Effect, step Step) Step { return newDuring(e, step) }
+
 // Order gives the command cmd for the actor — queued for the plugin that handles its type, the
 // same command a player gives — each time it runs, and does well at once: fire and forget. What
 // comes of it the branch waits for with the Command's Until, or it stays with Stay, so that a

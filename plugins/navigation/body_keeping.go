@@ -33,6 +33,7 @@ type openOccupancy struct{}
 func (openOccupancy) CanEnter(board.CellID, uid.UID64, board.Domain) bool { return true }
 func (openOccupancy) Enter(board.CellID, uid.UID64, board.Domain)         {}
 func (openOccupancy) Leave(board.CellID, uid.UID64)                       {}
+func (openOccupancy) Release(func(uid.UID64) bool)                        {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
 // where the others stand, and goes; striking someone is a Touch, and what it does then is the
@@ -212,7 +213,7 @@ func (k *bodyKeeping) lost(m member, from board.CellID, o *MoveOrder, waited tim
 // steer asks st for dir at speed; while m steps round someone it struck, dir leans aside, never
 // back into them, and while m still faces into them it turns on the spot; with no ground aside
 // either way it waits.
-func (k *bodyKeeping) steer(m member, st *steering.Steering, dir geom.Vec, speed float64) {
+func (k *bodyKeeping) steer(m member, st steering.Helm, dir geom.Vec, speed float64) {
 	if o := m.order; o != nil && o.AsideFor > 0 {
 		if o.Aside == (geom.Vec{}) || m.facing.X*o.Struck.X+m.facing.Y*o.Struck.Y < -0.01 {
 			speed = 0

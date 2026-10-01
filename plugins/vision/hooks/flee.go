@@ -5,9 +5,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 // onCourse is the cosine of the widest angle at which one still counts as heading at the other.
@@ -27,20 +27,16 @@ func NewFlee(tags Tags) *Flee { return &Flee{skittish: tags.Skittish, threat: ta
 // SetEnabled turns the rule off and on again without unhooking it.
 func (b *Flee) SetEnabled(on bool) { b.off = !on }
 
-// Rule is the fleeing as a rule of a Sighting, for the vision plugin's Hook.
-func (b *Flee) Rule() plugin.Rule {
-	return rule.On("vision.flee", rule.Self(b.skittish), func(m *rule.Moment[vision.Sighting]) rule.Step {
-		return m.Call(b.steer)
-	})
-}
+// Rule is the fleeing as a hook of a Sighting, for the vision plugin's Hook.
+func (b *Flee) Rule() plugin.Rule { return host.Pair(b.skittish, tag.Any, b.steer) }
 
 // steer turns the observer away from what closes on it, and from any Threat in view.
 func (b *Flee) steer(_ plugin.Tick, s vision.Sighting) {
-	if b.off || s.Steering == nil {
+	if b.off || !s.Helm.Steerable() {
 		return
 	}
 	if away, ok := awayFrom(s, b.threat); ok {
-		s.Steering.Request(away)
+		s.Helm.Request(away)
 	}
 }
 

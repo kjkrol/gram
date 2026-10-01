@@ -7,12 +7,14 @@
 //
 // A [MoveOrder] on an entity commands it toward a Target cell and then through up to
 // [MaxWaypoints] queued [Goal]s ([MoveOrder.Enqueue]), passing each without stopping; the order is
-// removed when the last is reached. Where in a cell the entity stops is its Spot, zero the cell's
+// removed when the last is reached — unless it has a [Round], a patrol ([Patrol]): then, reached
+// or given up, it goes on to the round's next goal, standing its pause on each one reached, for
+// ever. A kind gives a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot, zero the cell's
 // centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
 // by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
 // [Leg] is the single step in flight. Its markers ([States], carried for good — the plugin gives
-// them to every unit the world's roster makes) have [Entered] on for the step its Cell changed:
-// the Cell says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
+// them to every unit the world's roster makes) have [Entered] on for the step its At changed:
+// the At says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
 // a heading at the lookahead point and for its own top speed, braking from the profile before the
 // goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
 //

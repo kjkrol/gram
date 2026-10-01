@@ -10,8 +10,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -22,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 const (
@@ -75,10 +74,8 @@ type mainStage struct {
 	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
 	red, blue kind.Of[unit]
-	// under is the cell each unit stood on last tick — where H opens a trapdoor.
-	under map[uid.UID64]board.CellID
-	stack game.Scenes
-	state *State
+	stack     game.Scenes
+	state     *State
 }
 
 var _ game.Stage = (*mainStage)(nil)
@@ -101,12 +98,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.registerCellKinds()
-	s.under = map[uid.UID64]board.CellID{}
-	if err := s.board.Hook(rule.On("standing", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.OneOf(
-			m.If(board.Standing.Fallen, m.Steps(m.Call(s.fell), m.Order(world.Despawn{}))),
-			m.Call(s.stands),
-		)
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -147,7 +140,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
 			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
 		}},
-		{Key: control.KeyH, Label: "Open the trapdoors", Do: func(game.Runtime, game.Composition) { s.openTrapdoors() }},
 		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
 			s.state.Saves++
 			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
@@ -176,24 +168,6 @@ func (s *mainStage) registerCellKinds() {
 		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land},
 		board.CellKind{Name: board.Named("hole"), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
 	)
-}
-
-// stands remembers where each unit stands.
-func (s *mainStage) stands(_ plugin.Tick, st board.Standing) { s.under[st.ID] = st.Cell }
-
-// fell forgets a unit that fell into a hole, as it gives itself a Despawn.
-func (s *mainStage) fell(_ plugin.Tick, st board.Standing) {
-	log.Printf("unit %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-	delete(s.under, st.ID)
-}
-
-// openTrapdoors turns the cell under every unit into a hole.
-func (s *mainStage) openTrapdoors() {
-	hole, _ := s.board.CellKindDict().Get("hole")
-	for _, c := range s.under {
-		s.board.Res.Logic.Board.Set(c, hole)
-	}
-	log.Printf("opened a hole under %d units", len(s.under))
 }
 
 func (s *mainStage) Restore(p game.Persistence) (bool, error) {

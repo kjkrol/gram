@@ -1,10 +1,21 @@
 package clock
 
-import "time"
+import (
+	"time"
+
+	"github.com/kjkrol/uid"
+)
 
 // Moment is one step of the simulation on the clock's time, from Last to Now: what a rule of
-// the clock fires on, once every step, so a loaded game goes on from where it was.
-type Moment struct{ Last, Now time.Duration }
+// the clock fires on, once every step, so a loaded game goes on from where it was. It is the
+// moment of the clock's own entity, Clock: an effect a rule applies lands there — a phase.
+type Moment struct {
+	Last, Now time.Duration
+	Clock     uid.UID64
+}
+
+// Who is the clock's entity: whose moment it is, for a rule.
+func (m Moment) Who() uid.UID64 { return m.Clock }
 
 // At holds in the step the clock's time reaches at.
 func At(at time.Duration) func(Moment) bool {

@@ -8,13 +8,13 @@ import (
 )
 
 // Sighting is one observer and everything in its view carrying the rule's second tag,
-// nearest first, possibly none. Steering is nil for an observer that cannot be steered.
+// nearest first, possibly none. Helm is the zero one for an observer that cannot be steered.
 type Sighting struct {
-	Self     uid.UID64
-	Base     *world.Base
-	Sight    *Sight
-	Steering *steering.Steering
-	Seen     []Seen
+	Self  uid.UID64
+	Base  *world.Base
+	Sight *Sight
+	Helm  steering.Helm
+	Seen  []Seen
 }
 
 // Who is the observer: whose moment it is, for a rule.

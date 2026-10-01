@@ -35,7 +35,7 @@ type keeping interface {
 	// on dest along path, or, with neither, gives up.
 	lost(m member, from board.CellID, o *MoveOrder, waited time.Duration) (dest board.CellID, path Path, wait, ok bool)
 	// steer asks st for heading dir, zero keeping the one it has, and speed, clear of the others.
-	steer(m member, st *steering.Steering, dir geom.Vec, speed float64)
+	steer(m member, st steering.Helm, dir geom.Vec, speed float64)
 	// watch follows o's headway towards want, the point of toward, marking o Bumped when it has
 	// made none for too long.
 	watch(m member, o *MoveOrder, toward board.CellID, want geom.Vec, d time.Duration)
@@ -216,7 +216,7 @@ func (k *cellKeeping) lost(m member, from board.CellID, o *MoveOrder, waited tim
 	return dest, path, false, ok
 }
 
-func (k *cellKeeping) steer(_ member, st *steering.Steering, dir geom.Vec, speed float64) {
+func (k *cellKeeping) steer(_ member, st steering.Helm, dir geom.Vec, speed float64) {
 	if dir != (geom.Vec{}) {
 		st.Request(dir)
 	}

@@ -43,13 +43,16 @@ type ScanSystem struct {
 	coverOf func() board.Cover
 	covered bool
 
-	query   *goke.Query
-	sight   goke.Comp[Sight]
-	eye     goke.Comp[world.Eye]
-	base    goke.Comp[world.Base]
-	steer   goke.OptComp[steering.Steering]
-	outline goke.OptComp[SightOutline]
-	z       goke.OptComp[world.Z]
+	query     *goke.Query
+	sight     goke.Comp[Sight]
+	sighted   goke.OptComp[Sighted]
+	sightedID goke.CompID
+	eye       goke.Comp[world.Eye]
+	base      goke.Comp[world.Base]
+	steer     goke.OptComp[steering.Steering]
+	course    goke.OptComp[steering.Course]
+	outline   goke.OptComp[SightOutline]
+	z         goke.OptComp[world.Z]
 
 	// host runs the pair rules registered with the plugin, inside this pass.
 	host *host.PairHost[Sighting]
@@ -131,10 +134,11 @@ func (c *scanner) bind(space *aabbworld.Space) {
 func (s *ScanSystem) Workers(n int) { s.count = max(n, 0) }
 
 func (s *ScanSystem) Init(si *goke.SysInit) {
-	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.outline, &s.steer, &s.z)
+	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.steer, &s.course, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.host.Bind(walk, seek)
 	s.query, s.lookup = walk.Build(), seek.Build()
+	s.sightedID = si.RegComp[Sighted]()
 	s.scanners = append(s.scanners[:0], &s.scanner)
 	for range parallel.Workers(1<<30, 1, s.count) - 1 {
 		w := &scanner{heights: s.heights, step: s.step, bend: s.bend}
@@ -242,6 +246,12 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.query.All()
 	for s.query.Next() {
 		j := s.job(s.query.Cursor())
+		if j.seens == nil {
+			for _, id := range j.ids { // scanned from the next step
+				cb.AddOne(id, s.sightedID, Sighted{})
+			}
+			continue
+		}
 		j.first = n
 		n += len(j.ids)
 		s.jobs = append(s.jobs, j)
@@ -262,7 +272,10 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		j := s.job(cursor)
-		steers := s.steer.Slice(cursor)
+		if j.seens == nil {
+			continue
+		}
+		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		for i, id := range cursor.IDs {
 			if k <= 1 {
 				j.scan(&s.scanner, i)
@@ -270,10 +283,10 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if hosting {
 				sight := &j.sights[i]
 				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
-				if i < len(steers) {
-					s.observer.Steering = &steers[i]
+				if i < len(steers) && i < len(courses) {
+					s.observer.Helm = steering.Helm{Steering: &steers[i], Course: &courses[i]}
 				}
-				s.gather(&sight.Seen)
+				s.gather(&j.seens[i])
 				s.host.DispatchGrouped(t, s.host.InChunk(walked, cursor, i), s.seenTags, s.sightingOf)
 			}
 		}
@@ -285,6 +298,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 type job struct {
 	ids      []uid.UID64
 	sights   []Sight
+	seens    []Sighted
 	eyes     []world.Eye
 	bases    []world.Base
 	zs       []world.Z
@@ -294,7 +308,7 @@ type job struct {
 
 // job is the chunk under cursor as a job.
 func (s *ScanSystem) job(cursor *goke.Cursor) job {
-	j := job{ids: cursor.IDs, sights: s.sight.Slice(cursor), eyes: s.eye.Slice(cursor), bases: s.base.Slice(cursor), zs: s.z.Slice(cursor)}
+	j := job{ids: cursor.IDs, sights: s.sight.Slice(cursor), seens: s.sighted.Slice(cursor), eyes: s.eye.Slice(cursor), bases: s.base.Slice(cursor), zs: s.z.Slice(cursor)}
 	if s.outline.Present(cursor) {
 		j.outlines = s.outline.Slice(cursor)
 	}
@@ -311,7 +325,7 @@ func (j *job) scan(c *scanner, i int) {
 	if j.outlines != nil {
 		outline = &j.outlines[i]
 	}
-	c.scan(j.ids[i], &j.sights[i], &j.bases[i], j.eyes[i], z, outline)
+	c.scan(j.ids[i], &j.sights[i], &j.seens[i], &j.bases[i], j.eyes[i], z, outline)
 }
 
 // settle reads once, here, what the scanners are about to read together: the space's index and
@@ -323,20 +337,23 @@ func (s *ScanSystem) settle(box geom.AABB) {
 	}
 }
 
-// scan fills in what the observer id sees — its Seen, and its outline where it has one — from its
-// base, the eye it sees with and its height.
-func (c *scanner) scan(id uid.UID64, sight *Sight, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {
+// scan fills in what the observer id sees — seen, and its outline where it has one — from its
+// base, the eye it sees with and its height, looking where its sight says.
+func (c *scanner) scan(id uid.UID64, s *Sight, seen *Sighted, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {
+	look := *s
+	look.Facing = s.Looking(base.Vel.Dir)
+	sight := &look
 	c.covering.blockers = sight.Blockers
 	box := base.Pos.AABB
 	c.ox, c.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 	c.covering.ox, c.covering.oy = c.ox, c.oy
 	if c.space.Scan(id, c.cone(sight, eye, z), &c.view) {
-		record(&sight.Seen, &c.view)
+		record(seen, &c.view)
 		if outline != nil {
 			c.trace(outline, sight, eye.Angle/2)
 		}
 	} else {
-		sight.Seen.Count = 0
+		seen.Count = 0
 	}
 }
 

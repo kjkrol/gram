@@ -12,13 +12,13 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -61,7 +61,7 @@ type groundWorld struct {
 	brd   *board.Plugin
 	ecs   *goke.ECS
 	base  goke.Comp[world.Base]
-	sight goke.OptComp[vision.Sight]
+	sight goke.OptComp[vision.Sighted]
 	q     *goke.Query
 }
 
@@ -111,7 +111,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 			comp.Const(world.Velocity{}),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
-			comp.Load(func(m mover) board.Cell { return board.Cell{ID: m.cell} }),
+			comp.Load(func(m mover) board.At { return board.At{Cell: m.cell} }),
 			comp.Load(func(m mover) board.Mover {
 				if m.domain == 0 {
 					return board.Mover{Domain: board.Land}
@@ -127,14 +127,14 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 		}
 		switch {
 		case u.heading != (geom.Vec{}):
-			spec = append(spec, comp.Load(func(m mover) steering.Steering {
-				return steering.Steering{Want: m.heading, WantSpeed: 64, MaxSpeed: 64}
+			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64}), comp.Load(func(m mover) steering.Course {
+				return steering.Course{Want: m.heading, WantSpeed: 64}
 			}))
 		case u.brakes:
 			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 256}))
 		}
 		if u.sight != nil {
-			spec = append(spec, comp.Const(*u.sight), comp.Const(u.eye))
+			spec = append(spec, comp.Const(*u.sight), comp.Const(vision.Sighted{}), comp.Const(u.eye))
 		}
 		name := string(rune('a' + i))
 		bw.w.Seed(kind.Define[mover](bw.w.Kinds(), name, spec).Entry(u))
@@ -199,7 +199,7 @@ func (bw *groundWorld) seen() (vision.Sighted, bool) {
 		if !bw.sight.Present(cur) {
 			continue
 		}
-		return bw.sight.Slice(cur)[0].Seen, true
+		return bw.sight.Slice(cur)[0], true
 	}
 	return vision.Sighted{}, false
 }
@@ -336,9 +336,7 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 
 func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 	var hits []collision.Contact
-	strikes := rule.On("hook", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.Call(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
-	})
+	strikes := host.Every(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
 	bw, gap := squareWorldWith(t, strikes, mover{heading: east})
 	for range 60 {
 		bw.tick()

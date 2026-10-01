@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/uid"
 )
 
@@ -71,9 +71,7 @@ func TestExit_AnEntityLeavingByAnOpenEdgeIsDespawnedByDefault(t *testing.T) {
 
 // hears is an Each of Leaving that appends every id it is told of to dst.
 func hears(dst *[]uid.UID64) plugin.Rule {
-	return rule.On("record", rule.Having[Appearance](), func(m *rule.Moment[Leaving]) rule.Step {
-		return m.CallOn(func(_ plugin.Tick, _ *Appearance, l Leaving) { *dst = append(*dst, l.ID) })
-	})
+	return host.Each(func(_ plugin.Tick, _ *Appearance, l Leaving) { *dst = append(*dst, l.ID) })
 }
 
 func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t *testing.T) {
@@ -99,13 +97,11 @@ func TestExit_ALeavingBehaviorHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t 
 
 func TestExit_ALeaverPutBackInsideLosesItsMark(t *testing.T) {
 	var heard []uid.UID64
-	back := rule.On("back", rule.Having[Appearance](), func(m *rule.Moment[Leaving]) rule.Step {
-		return m.CallOn(func(_ plugin.Tick, _ *Appearance, l Leaving) {
-			b := l.Base
-			heard = append(heard, l.ID)
-			b.Pos.AABB = plane.NewAABB(geom.NewVec(500, 500), 10, 10)
-			b.Vel.Value = 0
-		})
+	back := host.Each(func(_ plugin.Tick, _ *Appearance, l Leaving) {
+		b := l.Base
+		heard = append(heard, l.ID)
+		b.Pos.AABB = plane.NewAABB(geom.NewVec(500, 500), 10, 10)
+		b.Vel.Value = 0
 	})
 	_, ecs, query, outside := leaving(t, aabbworld.OpenX, back)
 

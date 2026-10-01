@@ -83,7 +83,7 @@ func newTalk(t *testing.T, plans ...any) *talk {
 		}
 		minds = append(minds, p.(comp.Template[rule.Mind]).Resolve(nil, 0))
 	}
-	c := rule.New(func() time.Duration { return k.now }, 0, nil, &k.toys.carrier)
+	c := rule.New(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
 	var mind goke.Comp[rule.Mind]
 	var plain goke.Comp[body]
 	k.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {

@@ -30,7 +30,7 @@ type moveCommandSystem struct {
 	grouped bool
 
 	query   *goke.Query
-	cell    goke.Comp[board.Cell]
+	cell    goke.Comp[board.At]
 	marks   goke.Comp[tag.Tags[selection.Family]]
 	owners  goke.OptComp[tag.Tags[owner.Family]]
 	order   goke.OptComp[MoveOrder]
@@ -42,7 +42,7 @@ type moveCommandSystem struct {
 
 	// self finds an entity that gives itself an order, selected or not
 	self      *goke.Query
-	selfCell  goke.Comp[board.Cell]
+	selfCell  goke.Comp[board.At]
 	selfOrder goke.OptComp[MoveOrder]
 	selfMover goke.OptComp[board.Mover]
 	selfBase  goke.OptComp[world.Base]
@@ -99,7 +99,7 @@ func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	}
 	cur := s.self.Cursor()
 	c := s.selfCell.At(cur)
-	m := member{id: by.entity, cell: c.ID, from: c.ID, domain: board.DomainAt(nil, 0)}
+	m := member{id: by.entity, cell: c.Cell, from: c.Cell, domain: board.DomainAt(nil, 0)}
 	if o := s.selfOrder.At(cur); o != nil {
 		m.order = o
 		if o.Leg.Active {
@@ -137,7 +137,7 @@ func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)
 			if !marks[i].Has(s.selected) || !owner.Obeys(owned, by) {
 				continue
 			}
-			m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: board.DomainAt(movers, i)}
+			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: board.DomainAt(movers, i)}
 			if orders != nil {
 				m.order = &orders[i]
 				if leg := orders[i].Leg; leg.Active {

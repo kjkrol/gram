@@ -15,7 +15,7 @@
 // entity carries (InChunk, At) as plugin.Marks and Dispatch, DispatchEitherWay or DispatchGrouped
 // per pair or per observer. [EachHost] runs rules over entities: Bind, then Run over each
 // chunk walked with a function describing its i-th entity; rules over one component share
-// its column, and [Own] shares one the host reads itself. [ListHost] runs rules of a moment
-// of no entity — the clock's — once a pass. All refuse another payload's rule with
+// its column, and [Own] shares one the host reads itself. [ListHost] runs rules of a moment of
+// the world as a whole — the clock's — once a pass, walking no entities. All refuse another payload's rule with
 // plugin.ErrUnhosted and a late one with plugin.ErrHostBuilt.
 package host

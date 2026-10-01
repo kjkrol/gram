@@ -2,6 +2,7 @@ package rule_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,4 +124,15 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 	if slices.Equal(a, other) {
 		t.Error("another seed drew the same: not drawn from the seed")
 	}
+}
+
+// Here and Around need a moment that is Placed: written for another, the rule is refused as it is
+// made.
+func TestRule_HereNeedsAPlacedMoment(t *testing.T) {
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "Placed") {
+			t.Errorf("panic %q, want one saying the moment must be Placed", msg)
+		}
+	}()
+	rule.On("here", rule.All, func(m *rule.Moment[nudge]) rule.Step { return m.Here(m.Order(dodge{})) })
 }

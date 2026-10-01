@@ -90,11 +90,11 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []boar
 	walkers := kind.Define[walker](w.Kinds(), "walker", kind.Spec{
 		comp.Load(func(r walker) world.Position { return r.pos }),
 		comp.Load(func(r walker) world.Velocity { return r.vel }),
-		comp.Load(func(r walker) board.Cell { return board.Cell{ID: r.cell} }),
+		comp.Load(func(r walker) board.At { return board.At{Cell: r.cell} }),
 		comp.Const(board.Mover{Domain: board.Land}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
-		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}),
+		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}), comp.Const(vision.Sighted{}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	})
 	entries := make([]kind.Entry, terrainUnits)

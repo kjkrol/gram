@@ -127,3 +127,47 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 		t.Errorf("doused: glow %v, gave way %v; want false, true", r.fx.Has(r.id, glow), r.fx.Has(r.id, gaveWay))
 	}
 }
+
+// A player's world.Apply puts an effect on the world; a rule's During runs its step while the
+// world is under it, and a plan's alike.
+func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
+	for _, plan := range []bool{false, true} {
+		var lever, open effect.Effect
+		r := newRig(t, true, func(r *rig) {
+			lever = r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
+			open = r.fx.Define("open", effect.Spec{})
+			if plan {
+				r.comps = append(r.comps, rule.Plan("open while pulled", func(a *rule.Actor) rule.Step {
+					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())
+				}))
+				return
+			}
+			if err := r.w.Hook(rule.On("open while pulled", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
+				return m.During(lever, m.Keep(open))
+			})); err != nil {
+				r.t.Fatal(err)
+			}
+		})
+		if err := r.w.Carry(r.w); err != nil {
+			t.Fatal(err)
+		}
+		r.tick()
+		r.tick()
+		if r.fx.Has(r.id, open) {
+			t.Fatalf("plan %v: open before the lever was pulled", plan)
+		}
+		r.w.Commands().Put(1, world.Apply{Effect: lever})
+		r.tick() // the lever is put on the world
+		r.tick()
+		r.tick()
+		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
+			t.Fatalf("plan %v: lever on the world %v, open %v; want both", plan, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
+		}
+		for range 6 {
+			r.tick()
+		}
+		if r.fx.Has(r.id, open) {
+			t.Errorf("plan %v: still open after the lever went back", plan)
+		}
+	}
+}

@@ -1195,6 +1195,72 @@ missing; it goes in step 2. Step 1, done:
 Fire does not yet spread over the ground: it needs a step turning to the cell a unit stands on and
 a board moment of a cell with its neighbours — for step 2's audit of moments and knobs.
 
+Committed as 58b5003.
+
+### Step 2: no Call, knobs apart, cells in rules (2026-10-01)
+
+The user chose: knobs in components of their own (as `board.Ground`), ready-made log hooks in
+place of the demos' logs, the names `Here`/`Around`, and the board's cell moment now. Done:
+
+- `Call` and `CallOn` are gone from `rule`; `Having` stays, a filter alone. Every use found its
+  place: a plugin's own hooks and the ready-made ones on `plugin/host` (`host.Each`, `Every`,
+  `Pair`), game behaviour in steps, and what was missing added.
+- What was missing, found on the way: the steps `Here`/`Around` (`rule.Placed`, the board's
+  `Standing` and new cell moment); `steering.Steering.Halted`; `vision.Sight.Ahead`; and the clock's
+  moment as its own entity's (`clock.Moment.Clock`) — rewriting the moments' test showed a clock
+  rule could cast a phase only through `Call`.
+- Knobs apart: `steering.Steering` the knobs, `steering.Course` the state, `steering.Helm` pairing
+  them for the requests (navigation, vision's hooks and the split-screen demo ask through it);
+  `vision.Sight` the knobs, `vision.Sighted` what the scan found. `Course` is a unit's default in
+  the roster and given by the steering where missing; `Sighted` only given by vision at the first
+  scan, so units without sight do not carry its ~100 bytes. Tests building raw kinds add them.
+- The cell moment was first `board.Lying` (`board.Tile` was taken); it is `board.Cell` now, the
+  unit's cell component renamed `board.At` to free the name (below).
+- `Around(n)` takes in the places stood on (ring 0); a spreading rule keeps off what already
+  burns with `Unless`, or a cell keeps itself burning (doc/rule.md says so).
+- `LogFalls` logs once an entity, `LogSightings` once a pair (each keeps a map).
+- The navigation demo's H, opening holes under the units, went the same day to a demo of its own
+  (below): finding them through the occupancy also caught the cells units were only stepping into.
+- Entity 0 is a valid id (the clock is often it); a guard I added against it was wrong and is out.
+- The host tests (collision, board, world) now probe with `host.Pair/Each/Every`; the rule
+  filters are tested through the world's rule tests with effects, which need no `Call`.
+
+### A player acts by effects (2026-10-01)
+
+Rewriting the trapdoors showed a player could not change the game's state but through Go code.
+The user set it apart: some effects a player puts on its own units, others on the board — the
+trapdoors take whoever stands on them — and asked for a demo of its own on a flat board, the
+trapdoors and the key defined in the game. Done: `selection.Apply{Effect}` (own selected units),
+`world.Apply{Effect}` (the world's own entity, the clock's; drained by the moments' system before
+the clock's rules), the step `During(e, step)` for rules and plans (`plugin.Tick.World`,
+`rule.New(now, world, …)`), and `examples/trapdoor-demo`: a strip of trapdoor cells a cell rule
+keeps open `During` the lever, wanderers with patrol plans, the player's scouts hastened by J.
+The user then asked how the effect knows its trapdoors, and why the rule's filter was
+`rule.All`: a cell's kind is a value, not a tag, so no filter could narrow to it. Now cells carry
+the game's tags of places (`board.Places`, given in the `Layout`), the rule is
+`rule.Self(trapdoor)`, and `open` turns the ground into a real pit. Many levers: a lever an effect
+each, its trapdoors a tag each, a rule a pair, made by a function in a loop (1 and 2 in the demo);
+tens fit the limits (63 effects, 64 tags a family), hundreds would want levers as entities. A unit
+pulling a lever where it stands — a pressure plate — is a demo of its own. I first had the cell
+moment count who stands on each cell (`Lying.On`, `Trodden`), a second record of "who is where"
+beside the occupancy; the user caught it, having asked earlier whether to extend the occupancy.
+Looking again: the occupancy is navigation's bookings (the cell stood on and the one stepped into),
+and it kept the holds of despawned units for good — four fallen wanderers left eight cells held,
+blocking navigation. So: `Occupancy.Release(gone)`, called by the board's standing pass every step;
+the plate goes through the unit's own moment (`Standing.Places`, the tags of the cell under it), no
+count of the cells; the cell moment is `board.Cell` (the unit's component renamed `board.At`,
+`gopls rename`), data alone — the user objected to the moments carrying a pointer to the board,
+so the board's neighbourhood comes in `plugin.Tick.Around` and `rule.Placed` is a marker.
+
+The user found the wanderers unreadable: a kind and a plan a row, the route written into the
+plan. Data and behaviour apart now: `navigation.Patrol(pause, cells...)` (StarCraft II's patrol),
+a `Round` kept beside the order's goals, which the crowd's commands do not touch; an order with a
+round never ends — reached or given up, it goes on to the next goal — and stands its pause (a
+second in the demos, the user's wish) on each goal reached. One wanderer kind, its round loaded
+per unit. Any effect may be applied today; a list of a player's effects waits for a game over a
+network. The user also asked that a rule's short condition be written inside the rule, not as a
+method of the stage; the effect demo's three were moved in.
+
 ## Questions for review
 
 

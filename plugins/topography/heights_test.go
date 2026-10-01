@@ -171,12 +171,12 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 }
 
 // flown hands fn the one entity steered by hand, between two ticks.
-func (qw *quasiWorld) flown(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering)) {
+func (qw *quasiWorld) flown(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Course)) {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
 	var mover goke.Comp[board.Mover]
 	var driven goke.Comp[steering.Driven]
-	var steer goke.Comp[steering.Steering]
+	var steer goke.Comp[steering.Course]
 	var q *goke.Query
 	qw.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z, &mover, &driven, &steer).Build() }})
 	for q.All(); q.Next(); {
@@ -204,48 +204,48 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(at.X-10, at.Y-10), 20, 20)
 		}
 	}
-	step := func(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering)) (alt, lift float64) {
+	step := func(fn func(b *world.Base, z *world.Z, m *board.Mover, d *steering.Driven, st *steering.Course)) (alt, lift float64) {
 		qw.flown(fn)
 		qw.ecs.Tick(time.Second / 60)
-		qw.flown(func(_ *world.Base, z *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+		qw.flown(func(_ *world.Base, z *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Course) {
 			alt, lift = z.Altitude, m.Lift
 		})
 		return alt, lift
 	}
 	hill := qw.topo.Relief().GroundAt(qw.grid.CellCenter(onHill))
-	if alt, _ := step(func(*world.Base, *world.Z, *board.Mover, *steering.Driven, *steering.Steering) {}); alt != 40 {
+	if alt, _ := step(func(*world.Base, *world.Z, *board.Mover, *steering.Driven, *steering.Course) {}); alt != 40 {
 		t.Fatalf("steered from nowhere it flies at %v, want its lift 40 over the grass", alt)
 	}
-	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, _ *steering.Steering) {
+	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, _ *steering.Course) {
 		*d = steering.Driven{Flown: true}
 		put(onHill)(b)
 	}); alt != 40 || lift != 40-hill {
 		t.Errorf("flown over the hill %v high: at %v, lift %v; want at 40, lift %v", hill, alt, lift, 40-hill)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *board.Mover, _ *steering.Driven, _ *steering.Course) {
 		put(onGrass)(b)
 	}); alt != 40 {
 		t.Errorf("flown back over the grass: at %v, want at 40, not falling with the ground", alt)
 	}
-	alt, _ := step(func(_ *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, st *steering.Steering) {
+	alt, _ := step(func(_ *world.Base, _ *world.Z, _ *board.Mover, d *steering.Driven, st *steering.Course) {
 		d.Climb, st.Speed, st.WantSpeed = 0.6, 10, 10
 	})
 	if want := 40 + 10*0.75/60; math.Abs(alt-want) > 1e-6 {
 		t.Errorf("flown at 10 a second at a rise of 0.6: at %v after a tick, want %v", alt, want)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, st *steering.Steering) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, st *steering.Course) {
 		d.Climb, st.Speed, st.WantSpeed, m.Clearance = 0, 0, 0, 39
 		put(onHill)(b)
 	}); alt != hill+39 {
 		t.Errorf("flown over the hill with a clearance of 39: at %v, want %v, the clearance over the ground", alt, hill+39)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Steering) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *board.Mover, _ *steering.Driven, _ *steering.Course) {
 		m.Clearance, m.Ceiling = 0, 41
 		put(onGrass)(b)
 	}); alt != 41 {
 		t.Errorf("flown under a ceiling of 41: at %v, want held down to it", alt)
 	}
-	if alt, lift := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, _ *steering.Steering) {
+	if alt, lift := step(func(b *world.Base, _ *world.Z, m *board.Mover, d *steering.Driven, _ *steering.Course) {
 		*d, m.Ceiling = steering.Driven{}, 0
 		put(onHill)(b)
 	}); alt != hill+41 || lift != 41 {

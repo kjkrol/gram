@@ -105,7 +105,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	target := at(5, 5)
 	starts := []board.CellID{at(5, 0), at(5, 4), at(5, 2)}
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var q *goke.Query
@@ -120,7 +120,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 			selected.Slice(&f.Cursor)[i] = selectedMarks
 		}
 		for i, id := range f.Cursor.IDs {
-			cell.Slice(&f.Cursor)[i] = board.Cell{ID: starts[i]}
+			cell.Slice(&f.Cursor)[i] = board.At{Cell: starts[i]}
 			occupancy.Enter(starts[i], id, board.Land)
 			if starts[i] == at(5, 4) {
 				nearest = id

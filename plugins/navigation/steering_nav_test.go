@@ -23,6 +23,7 @@ type profiledWorld struct {
 	id      uid.UID64
 	pos     goke.Comp[world.Base]
 	order   goke.OptComp[MoveOrder]
+	course  goke.OptComp[steering.Course]
 	q       *goke.Query
 }
 
@@ -39,26 +40,27 @@ func newProfiledWorld(t *testing.T, w, h uint32, start board.CellID, mt MoveOrde
 
 	pw.ecs = goke.New()
 	pw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.Cell]
+		var cell goke.Comp[board.At]
 		var pos goke.Comp[world.Base]
 		var order goke.Comp[MoveOrder]
 		var steer goke.Comp[steering.Steering]
+		var course goke.Comp[steering.Course]
 		comps := []goke.Addable{&cell, &pos, &order}
 		if withSteering {
-			comps = append(comps, &steer)
+			comps = append(comps, &steer, &course)
 		}
 		f := si.NewFactory(comps...)
 		f.Create(1)
 		f.Next()
 		pw.id = f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: start}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(pw.grid, start, legEntitySize)}
 		order.Slice(&f.Cursor)[0] = mt
 		if withSteering {
 			steer.Slice(&f.Cursor)[0] = profile
 		}
 		occupancy.Enter(start, pw.id, board.Land)
-		pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.order).Build()
+		pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.order).Optional(&pw.course).Build()
 	}})
 
 	navHandle := pw.ecs.RegSys(nav)
@@ -130,18 +132,19 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
+	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile)
+		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: at(1)}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: at(1)}
 		// past the plane through cell 2's centre (x = 25), yet 3.2 units from that centre
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(26, 8, 4)}
 		var mt MoveOrder
@@ -168,8 +171,8 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	if mt.Leg.Active {
 		t.Error("the leg onto the passed waypoint is still active")
 	}
-	if c.ID != at(2) {
-		t.Errorf("Cell = %v, want %v", c.ID, at(2))
+	if c.Cell != at(2) {
+		t.Errorf("Cell = %v, want %v", c.Cell, at(2))
 	}
 }
 
@@ -290,18 +293,19 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
+	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile)
+		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: at(1)}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: at(1)}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(26, 8, 4)} // past cell 2's centre plane, off its centre
 		mt := MoveOrder{Target: at(2), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Length = at(2), 1
@@ -336,13 +340,16 @@ func (pw *profiledWorld) heading(dir geom.Vec, speed float64) {
 	for pw.q.Next() {
 		cur := pw.q.Cursor()
 		pw.pos.Slice(cur)[0].Vel = world.Velocity{Dir: dir, Value: speed}
+		if courses := pw.course.Slice(cur); courses != nil {
+			courses[0].Speed = speed
+		}
 	}
 }
 
 func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 	pw := newProfiledWorld(t, 8, 1, board.CellID(0), MoveOrder{}, steering.Steering{}, true)
 	// under way westwards at full speed, with the goal to the east: a U-turn before anything else
-	profile := steering.Steering{MaxSpeed: 64, Accel: 400, V0: 64, TurnRate: 0.1, Speed: 64}
+	profile := steering.Steering{MaxSpeed: 64, Accel: 400, V0: 64, TurnRate: 0.1}
 	pw = newProfiledWorld(t, 8, 1, pw.cellAt(2, 0), MoveOrder{Target: pw.cellAt(7, 0)}, profile, true)
 	pw.heading(geom.NewVec(-1, 0), 64)
 
@@ -406,18 +413,19 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
+	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile)
+		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: at(2)}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: at(2)}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(27, 5, 4)} // just into cell 2, on a leg from 1
 		mt := MoveOrder{Target: at(0), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Steps[1], mt.Path.Length = at(1), at(0), 2 // the route back home
@@ -436,5 +444,53 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	_, mt := readCellAndMoveOrder(t, q, &cell, &order)
 	if !mt.Leg.Active || mt.Leg.From != at(2) || mt.Leg.To != at(1) {
 		t.Errorf("Leg = %+v, want it turned round to 2 -> 1 so the unit goes straight back", mt.Leg)
+	}
+}
+
+// A patrol walks to its goals in turn and round again, standing its pause on each, and its order
+// never ends.
+func TestNavigation_APatrolGoesRoundStandingItsPauseOnEachGoal(t *testing.T) {
+	const pause = time.Second
+	grid := board.DefaultGrids{}.Square(8, 1, legCellSize)
+	west, _ := grid.CellIndex(0, 0)
+	east, _ := grid.CellIndex(7, 0)
+	pw := newProfiledWorld(t, 8, 1, west, Patrol(pause, east, west), steering.Steering{MaxSpeed: 64, Accel: 256, V0: 32}, true)
+
+	type stay struct {
+		cell  board.CellID
+		ticks int
+	}
+	var stays []stay
+	standing := 0
+	at := board.CellID(0)
+	for range 60 * 30 {
+		vel, centre, ordered := pw.tick()
+		if !ordered {
+			t.Fatal("the patrol's order ended")
+		}
+		end, ok := grid.CellAt(centre)
+		if ok && (end == west || end == east) && vel.Value == 0 {
+			standing, at = standing+1, end
+			continue
+		}
+		if standing > 0 {
+			stays = append(stays, stay{at, standing})
+			standing = 0
+		}
+	}
+	if len(stays) < 3 {
+		t.Fatalf("stood at the ends %d times in thirty seconds, want the round walked again and again: %v", len(stays), stays)
+	}
+	for k, st := range stays {
+		want := east
+		if k%2 == 1 {
+			want = west
+		}
+		if st.cell != want {
+			t.Errorf("stay %d at cell %d, want %d: east, west, east, …", k, st.cell, want)
+		}
+		if secs := float64(st.ticks) / 60; secs < 0.9*pause.Seconds() || secs > 1.5*pause.Seconds() {
+			t.Errorf("stay %d lasted %.2f s, want about the pause, %v", k, secs, pause)
+		}
 	}
 }

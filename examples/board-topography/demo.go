@@ -38,12 +38,12 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
+	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -172,8 +172,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Isometric:   true,
 		Perspective: true,
 		Shaping:     relief.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Steps(m.Call(drowned), m.Order(world.Despawn{})))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -197,9 +197,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Hook(rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
-		return m.Call(faceTravel)
-	}), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Hook(vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -307,7 +305,7 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	// the cone of sight and the camera riding in the unit read the one Eye: at the top, 72° across
-	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	// every unit gets on among the others by navigation's Crowd, the plugin's own rules: an ally
@@ -360,20 +358,6 @@ func (s *mainStage) Spawn() error {
 	}
 	s.world.Seed(entries...)
 	return nil
-}
-
-// faceTravel points each unit's Sight where it is heading, turning in place included; a unit that
-// stops keeps its last heading, so its Sight stays where it looked.
-func faceTravel(_ plugin.Tick, s vision.Sighting) {
-	if d := s.Base.Vel.Dir; d.X != 0 || d.Y != 0 {
-		s.Sight.Facing = d
-	}
-}
-
-// drowned tells of a unit standing where its domain may not — pushed into the sea, say — as it
-// gives itself a Despawn.
-func drowned(_ plugin.Tick, st board.Standing) {
-	log.Printf("unit %d drowned in the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
 }
 
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {

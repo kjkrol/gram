@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/uid"
 )
 
 // Rule is what is done at a moment a Plugin catches in its own pass over its entities, built with
@@ -29,6 +30,11 @@ type Tick struct {
 	Commands *control.Carrier // the world's, for the commands an entity gives itself
 	Time     time.Duration    // the game time the step ends at, on the world's clock
 	Seed     uint64           // the world's seed, which a rule's Chance draws from
+	World    uid.UID64        // the world's own entity, the clock's: the game's states, for During
+	// Around tells each the places — entities of their own, a board's cells — within rings of where
+	// the moment stands, those it stands on first: its host's to say, for a rule's Here and Around;
+	// nil where there are none.
+	Around func(moment any, rings int, each func(uid.UID64))
 }
 
 // TickSource builds the Tick of a pass: the world's (world.Plugin.Tick), which a host is handed.

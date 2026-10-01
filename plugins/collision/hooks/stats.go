@@ -6,16 +6,15 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/render"
 )
 
 // CountContacts adds every contact to a ContactStats the game owns.
 func CountContacts(stats *ContactStats) plugin.Rule {
-	return rule.On("collision.count contacts", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(plugin.Tick, collision.Meeting) { stats.Counter++ })
-	})
+	return host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { stats.Counter++ })
 }
 
 // ContactStats is the running total of contacts CountContacts maintains. It only grows; Reporter

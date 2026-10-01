@@ -1,11 +1,14 @@
-// Package steering turns what an entity wants into motion, gradually: a [Steering] carries the
-// heading asked for and a motion profile — the top speed, how fast it speeds up and brakes, the
-// speed it sets off at — and the [System], run by the world in every step of its simulation before
-// movement, turns the entity's heading towards the one wanted by at most TurnRate a tick and
-// writes its base speed from the profile. [Steering.Request] asks for a heading (after Reflex
-// ticks), [Steering.RequestSpeed] for a speed, [Steering.RequestBack] to back away and
-// [Steering.RequestSprint] for Sprint times the top speed, a hand urging it on. Navigation steers
-// units through it; a game's rules may as well.
+// Package steering turns what an entity wants into motion, gradually. A [Steering] is how it may
+// be steered — how fast it turns and answers, and a motion profile: the top speed, how fast it
+// speeds up and brakes, the speed it sets off at; Halted holds it where it is. It is a knob the
+// steering only reads, which an effect may Alter. What the entity is asked and how far it has come
+// is its [Course], beside it — the world gives one to every unit, the [System] to an entity that
+// has none. Whoever steers holds both as a [Helm]: [Helm.Request] asks for a heading (after
+// Reflex ticks), [Helm.RequestSpeed] for a speed, [Helm.RequestBack] to back away and
+// [Helm.RequestSprint] for Sprint times the top speed, a hand urging it on. The System, run by the
+// world in every step of its simulation before movement, turns the entity's heading towards the
+// one wanted by at most TurnRate a tick and writes its base speed from the profile. Navigation
+// steers units through it.
 //
 // [Driven] marks an entity steered by hand — walk on, sprint or stop, turn, or turn to face a way,
 // and, flown from inside, how steeply to climb where it flies ([Driven.Slope]) — written every tick

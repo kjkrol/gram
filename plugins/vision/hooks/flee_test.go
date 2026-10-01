@@ -63,8 +63,8 @@ func fleeRunWith(t *testing.T, tune func(*hooks.Flee), runner fleeBody, facing g
 	runners := kind.Define[fleeBody](w.Kinds(), "runner", kind.Spec{
 		comp.Load(fleeAt),
 		comp.Const(world.Velocity{Dir: facing, Value: 1}),
-		comp.Const(vision.Sight{Facing: facing, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}),
-		comp.Const(steering.Steering{}),
+		comp.Const(vision.Sight{Facing: facing, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}), comp.Const(vision.Sighted{}),
+		comp.Const(steering.Steering{}), comp.Const(steering.Course{}),
 		comp.Tagged(tags.Skittish),
 	})
 	moving := func(d fleeBody) world.Velocity {

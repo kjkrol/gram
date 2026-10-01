@@ -5,30 +5,24 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
-// bumped is the Struck rule navigation hooks on collision: an entity under orders that struck
-// someone is marked Bumped, unless it is still holding the route a bump gave it.
+// bumped is the Struck hook navigation hangs on collision, its own: an entity under orders that
+// struck someone is marked Bumped, unless it is still holding the route a bump gave it.
 func bumped() plugin.Rule {
-	return rule.On("navigation.bumped", rule.Having[MoveOrder](), func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.CallOn(func(_ plugin.Tick, o *MoveOrder, s collision.Struck) {
-			if len(s.Contacts) > 0 && o.Cooldown == 0 {
-				o.Bumped = true
-			}
-		})
+	return host.Each(func(_ plugin.Tick, o *MoveOrder, s collision.Struck) {
+		if len(s.Contacts) > 0 && o.Cooldown == 0 {
+			o.Bumped = true
+		}
 	})
 }
 
-// struckBy is the Struck rule navigation hooks on collision under BodySpacing: an entity under
-// orders that struck the solid ground is marked Bumped, with the way off it, every tick it touches
-// it. Units struck are a Touch, for the rules.
-func struckBy() plugin.Rule {
-	return rule.On("navigation.struck", rule.Having[MoveOrder](), func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.CallOn(struck)
-	})
-}
+// struckBy is the Struck hook navigation hangs on collision under BodySpacing, its own: an entity
+// under orders that struck the solid ground is marked Bumped, with the way off it, every tick it
+// touches it. Units struck are a Touch, for the rules.
+func struckBy() plugin.Rule { return host.Each(struck) }
 
 // struck marks o Bumped with the way off the solid ground s struck.
 func struck(_ plugin.Tick, o *MoveOrder, s collision.Struck) {

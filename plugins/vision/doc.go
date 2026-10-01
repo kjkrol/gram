@@ -1,12 +1,13 @@
 // Package vision gives entities a narrowed view of the world: a Sight cone sees what falls
-// inside it, within range and not hidden behind something nearer. Each tick fills Sight.Seen
-// and runs pair rules of a Sighting; SightOutline gets the view drawn.
+// inside it, within range and not hidden behind something nearer. Each tick fills the entity's
+// Sighted and runs pair rules of a Sighting; SightOutline gets the view drawn.
 //
-// # Sight and Seen
+// # Sight and Sighted
 //
-// [Sight] is what an entity can take in — Facing, its own direction whichever way it moves, and
-// Radius — and what the last scan found there: [Sighted], at most [MaxSeen] entities nearest
-// first. How wide it sees, and from how high, is its world.Eye: Angle the whole field across,
+// [Sight] is what an entity can take in — Facing, its own direction whichever way it moves unless
+// Ahead has it look the way it goes, and Radius — a knob vision only reads, which an effect may
+// Alter. What the last scan found is the entity's [Sighted], beside it: at most [MaxSeen] entities
+// nearest first, given by vision to an observer without one. How wide it sees, and from how high, is its world.Eye: Angle the whole field across,
 // Height over its bottom (zero: its top) — the one Eye a camera riding in the entity looks from
 // too (plugins/topography), so the cone drawn is what the rider sees. A Sight without an Eye is
 // never scanned. The outline buffer is sized for [MaxSightRadius] and MaxHalfAngleMilli; a larger
@@ -48,10 +49,11 @@
 // # Sighting
 //
 // A rule of a [Sighting] hooked here (rule.On(name, rule.Between(a, b), …)) is
-// run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base, Sight and Steering (nil for one that cannot be
-// steered), and everything in view carrying b as [Seen] values nearest first — a directed pair,
-// grouped by observer, run even when nothing is in view. A rule tells its seen entities
-// apart with Seen.Carries, and steers only through Steering.Request. Ready-made
+// run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base, Sight and
+// Helm (the zero one for one that cannot be steered), and everything in view carrying b as [Seen]
+// values nearest first — a directed pair, grouped by observer, run even when nothing is in view. A
+// ready-made hook tells its seen entities apart with Seen.Carries, and steers only through
+// Helm.Request. Ready-made
 // ones, and their tags, are in plugins/vision/hooks.
 //
 // # SightOutline and Renderer
@@ -66,7 +68,7 @@
 // camera's lines of sight in a world without heights, again past a wrapping world's seam
 // (shaders/views.wgsl): the ground out of sight veiled in a [Shadow] ([DefaultShadow];
 // [Plugin.WithShadow] for another), the cone's edge stroked. The views drawn follow the ground and
-// the cover where the scan samples them, not the entities; what the scan found (Sight.Seen) stays
+// the cover where the scan samples them, not the entities; what the scan found (Sighted) stays
 // the truth of who sees whom.
 //
 // Otherwise — a world without heights whose observer carries a [SightOutline], its view cut by

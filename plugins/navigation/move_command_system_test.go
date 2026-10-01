@@ -28,7 +28,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var selectable goke.Comp[tag.Tags[selection.Family]]
@@ -50,7 +50,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
 		for i := range ids {
-			cells[i] = board.Cell{ID: start}
+			cells[i] = board.At{Cell: start}
 			positions[i].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 			orders[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 		}
@@ -115,7 +115,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
@@ -132,7 +132,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
-		cells[0] = board.Cell{ID: start}
+		cells[0] = board.At{Cell: start}
 		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 
 		readQuery = si.NewQueryBuilder().Optional(&order).Build()
@@ -207,7 +207,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var readQuery *goke.Query
@@ -225,7 +225,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
-		cells[0] = board.Cell{ID: start}
+		cells[0] = board.At{Cell: start}
 		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		orders[0] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 

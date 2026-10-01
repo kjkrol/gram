@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/rule"
@@ -15,9 +16,9 @@ import (
 // tick is a step of the moments' test.
 const tick = time.Second / 10
 
-// Rules of the clock's Moment, fired by the world, fire once at their time and every period after their offset, on
-// the clock's time — at any tempo and never in the pause — and an effect one casts on the clock's
-// entity switches a phase on until it ends.
+// Rules of the clock's Moment, fired by the world, fire once at their time and every period after
+// their offset, on the clock's time — at any tempo and never in the pause — and an effect one
+// applies lands on the clock's entity, switching a phase on until it ends.
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 	for _, tempo := range []float32{1, 4, 0.5} {
 		w := world.NewPlugin(world.Config{
@@ -28,18 +29,19 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		fx := w.Effects()
 		dusk := fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
 		var once, daily []time.Duration
+		at5, daily4 := clock.At(5*tick), clock.Every(4*tick, 2*tick)
 		err := w.Hook(
-			rule.On("once", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(5*tick), r.Call(func(_ plugin.Tick, m clock.Moment) { once = append(once, m.Now) }))
-			}),
-			rule.On("daily", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.Every(4*tick, 2*tick), r.Call(func(_ plugin.Tick, m clock.Moment) { daily = append(daily, m.Now) }))
+			host.Every(func(_ plugin.Tick, m clock.Moment) {
+				if at5(m) {
+					once = append(once, m.Now)
+				}
+				if daily4(m) {
+					daily = append(daily, m.Now)
+				}
 			}),
 			rule.On("dusk", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(3*tick), r.Call(func(t plugin.Tick, _ clock.Moment) { dusk.Cast(t.CmdBuf, w.Clock().Entity()) }))
+				return r.If(clock.At(3*tick), r.Apply(dusk))
 			}),
-			// of no entity: casting on it fails, and nothing is cast on entity 0
-			rule.On("nobody", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step { return r.Apply(dusk) }),
 		)
 		if err != nil {
 			t.Fatal(err)

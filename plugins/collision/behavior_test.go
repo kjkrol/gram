@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -88,9 +87,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
 }
 
 func bulletsAgainstTargets(record func(collision.Meeting)) []plugin.Rule {
-	return []plugin.Rule{rule.On("hook", rule.Between(bullet, target), func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(_ plugin.Tick, m collision.Meeting) { record(m) })
-	})}
+	return []plugin.Rule{host.Pair(bullet, target, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 }
 
 func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
@@ -129,9 +126,7 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 // A pair of the same tag would match either way round, and is still one contact.
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 	met := meet(t, func(record func(collision.Meeting)) []plugin.Rule {
-		return []plugin.Rule{rule.On("hook", rule.Between(bullet, bullet), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.Call(func(_ plugin.Tick, m collision.Meeting) { record(m) })
-		})}
+		return []plugin.Rule{host.Pair(bullet, bullet, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
 	if len(met) != 1 {
@@ -144,9 +139,7 @@ func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	shot, wall := &tagged{x: 100, bullet: true}, &tagged{x: 105}
 
 	met := meet(t, func(record func(collision.Meeting)) []plugin.Rule {
-		return []plugin.Rule{rule.On("hook", rule.Self(bullet), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.Call(func(_ plugin.Tick, m collision.Meeting) { record(m) })
-		})}
+		return []plugin.Rule{host.Pair(bullet, tag.Any, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
 	}, shot, wall)
 
 	if len(met) != 1 || met[0].Self != shot.id || met[0].Other != wall.id {
@@ -158,12 +151,8 @@ func TestBetween_BehaviorsSharingATag_BothRun(t *testing.T) {
 	var first, second int
 	met := meet(t, func(func(collision.Meeting)) []plugin.Rule {
 		return []plugin.Rule{
-			rule.On("hook", rule.Between(bullet, target), func(m *rule.Moment[collision.Meeting]) rule.Step {
-				return m.Call(func(plugin.Tick, collision.Meeting) { first++ })
-			}),
-			rule.On("hook", rule.Self(bullet), func(m *rule.Moment[collision.Meeting]) rule.Step {
-				return m.Call(func(plugin.Tick, collision.Meeting) { second++ })
-			}),
+			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { first++ }),
+			host.Pair(bullet, tag.Any, func(plugin.Tick, collision.Meeting) { second++ }),
 		}
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
@@ -203,13 +192,9 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 
 	meetWith(t, func(engine registrar) {
 		refused = engine.Hook(
-			rule.On("hook", rule.Between(bullet, target), func(m *rule.Moment[collision.Meeting]) rule.Step {
-				return m.Call(func(plugin.Tick, collision.Meeting) { before++ })
-			}),
+			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { before++ }),
 			"not a behavior at all",
-			rule.On("hook", rule.Between(bullet, target), func(m *rule.Moment[collision.Meeting]) rule.Step {
-				return m.Call(func(plugin.Tick, collision.Meeting) { after++ })
-			}),
+			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { after++ }),
 		)
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 

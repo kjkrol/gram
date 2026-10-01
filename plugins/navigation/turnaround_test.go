@@ -31,7 +31,7 @@ type turnaroundWorld struct {
 	grid  board.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[board.At]
 	base  goke.Comp[world.Base]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -83,8 +83,8 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: board.CellAABB(tw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
-			comp.Load(func(u unitRow) board.Cell { return board.Cell{ID: u.start} }).
-				WithEffect(func(c board.Cell, id uid.UID64) { occupancy.Enter(c.ID, id, board.Land) }),
+			comp.Load(func(u unitRow) board.At { return board.At{Cell: u.start} }).
+				WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, board.Land) }),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
 		}
@@ -140,7 +140,7 @@ func (tw *turnaroundWorld) blueState() (cell board.CellID, mt *MoveOrder) {
 			if id != tw.blue {
 				continue
 			}
-			cell = tw.cell.Slice(cur)[i].ID
+			cell = tw.cell.Slice(cur)[i].Cell
 			if orders := tw.order.Slice(cur); orders != nil {
 				o := orders[i]
 				mt = &o

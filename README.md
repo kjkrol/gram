@@ -1,7 +1,7 @@
 # gram
 
 <p align="center">
-  <img src=".github/docs/img/gram.png" alt="gram logo" width="300">
+  <img src=".github/docs/img/gram_logo.png" alt="gram logo" width="300">
   <br>
   <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="https://pkg.go.dev/github.com/kjkrol/gram"><img src="https://img.shields.io/badge/GoDoc-Reference-007d9c?style=flat-square&logo=go" alt="GoDoc"></a>
@@ -278,6 +278,8 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 | [`board-topography`](examples/board-topography) | The same island in relief through the topography: a range of peaks and a plateau lit by the sun, sea cliffs, streams and rivers whose water runs and falls, roads over bridges, slower up the slopes and routed round them, the ground shaped under the cursor; seen isometrically, from above or in perspective, Tab goes round, G traces the ground on the GPU from its heightmap instead of the tiles; units billboards, the hawk 40 up looking over what a walker's cone climbs and stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
 | [`board-atlas`](examples/board-atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
 | [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still and pale until it melts — all of it effects | `make demo-effect` |
+| [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a state of the game, the haste one of the scouts, the trapdoors cells tagged with their lever's group | `make demo-trapdoor` |
+| [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — whoever stands on a plate's cell presses it | `make demo-pressure-plate` |
 | [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives | `make demo-split-screen` |
 | [`vision-demo`](examples/vision-demo) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
 
@@ -311,19 +313,22 @@ plugin whose pass catches its moment:
 
 ```go
 rule.On("caught", rule.Between(predator, prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
-	return m.Call(caught)
+	return m.ForOther(m.Order(world.Despawn{}))
 })
 ```
 
-fires for every pair it meets where one entity carries tag `predator` and the other `prey`;
-`rule.All` would fire for every pair, `rule.Self(tag)` for every entity carrying a tag. A tag is a
+fires for every pair it meets where one entity carries tag `predator` and the other `prey`, and
+has the prey give itself a `Despawn`; `rule.All` would fire for every pair, `rule.Self(tag)` for
+every entity carrying a tag. A tag is a
 bit of a family — one `tag.Tags[F]` component per family, named through `Kinds.DefineTag`, given
 to a kind with `comp.Tagged` — so markers cost no component types of their own. What lasts over
 ticks is a *plan* a kind gives its entities, `rule.Plan(name, func(a *rule.Actor) rule.Step {…})`,
 of the same steps; both cast *effects* that hold for a while and give *commands* for their entity
 (`a.Order(navigation.MoveTo{…})`), and a plan waits for the *facts* a plugin tells it
-(`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). Ready-made steps
-live in `plugins/collision/hooks` and `plugins/vision/hooks`, whole rules to Hook; navigation's crowd is its own
+(`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
+the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
+`board.Ground`. Ready-made hooks live in `plugins/board/hooks`, `plugins/collision/hooks` and
+`plugins/vision/hooks`, whole, to Hook; navigation's crowd is its own
 rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to with `Hook` or
 replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
 out, rules and plans say what to do when. What a player *wants* is a
@@ -337,10 +342,10 @@ or a network issue, the world what the entities give themselves.
 `kind.Define[Row](world.Kinds(), "name", kind.Spec{...})` says what an entity is: each component
 `comp.Const(v)` (the same for all) or `comp.Load(func(row Row) T)` (read from that entity's row).
 A unit over a board is defined through `board.NewUnits[Row](brd, size, at)`:
-`units.Define(name, domain, steering, extra...)` derives `Position` and `Cell` from the one point
+`units.Define(name, domain, steering, extra...)` derives `Position` and `At` (its cell) from the one point
 `at` reads off a row and `Mover` and `Layers` from the one domain, then runs the world's roster —
 what the plugins in the game bring by default (a `Collider`, a `Physics`, a `Velocity`) and what
-they require (`Cell`, `Mover`, `Steering`), a Spec missing one panicking by plugin and reason.
+they require (`At`, `Mover`, `Steering`), a Spec missing one panicking by plugin and reason.
 `Spawn` puts entries on the world's roster with `Seed`; the engine spawns them only when
 `Restore` loaded nothing. `Attach` and `Detach` are the mid-game counterparts of `Const`. Kinds
 tell save files every component type their entities carry, so a game's own tags and state
@@ -365,14 +370,15 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/world/entity/kind`](plugins/world/entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Attach`/`Detach`, `Despawn`, the carrier of the commands entities give themselves, the entity renderer |
 | [`plugins/world/entity`](plugins/world/entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
-| [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` requests and profiles carried out by the `System` each step; `Driven` for an entity steered by hand |
+| [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`plugins/collision`](plugins/collision/doc.go) | The `CollisionSystem` over the world's space; `Collider`, `Physics`, `ShapeTest`, `Meeting`, `Struck` |
-| [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made rules: `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
-| [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Seen`; `Sighting` rules; `SightOutline` drawn |
-| [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made rules: `Flee`, `Chase`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
-| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world |
+| [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made hooks: `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
+| [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
+| [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made hooks: `Flee`, `Chase`, `LogSightings`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
+| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world; rules of `Standing` (with the tags of the place under a unit) and of a `Cell`; cells tagged with the game's tags of places (`Places`); `Occupancy` lets go of the gone every step |
+| [`plugins/board/hooks`](plugins/board/hooks/doc.go) | Ready-made hooks: `LogFalls` |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. Its parts: `relief`, `painter`, `water`, `terrain`, `hexes`, `billboards`, `cameras` |
 | [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases, the `Moment` of a step with `At` and `Every` |

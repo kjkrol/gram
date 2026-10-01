@@ -54,7 +54,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // a Populate as after a Load, so the board never depends on a spawn effect to know who stands where.
 func (m *module) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.Cell]
+		var cell goke.Comp[board.At]
 		var order goke.OptComp[MoveOrder]
 		var mover goke.OptComp[board.Mover]
 		query := si.NewQueryBuilder(&cell).Optional(&order, &mover).Build()
@@ -67,7 +67,7 @@ func (m *module) SetupSystems() []goke.System {
 			movers := mover.Slice(cursor)
 			for i, id := range cursor.IDs {
 				domain := board.DomainAt(movers, i)
-				occupancy.Enter(cells[i].ID, id, domain)
+				occupancy.Enter(cells[i].Cell, id, domain)
 				if orders != nil && orders[i].Leg.Active {
 					for _, c := range orders[i].Leg.cells() {
 						occupancy.Enter(c, id, domain)
@@ -81,7 +81,7 @@ func (m *module) SetupSystems() []goke.System {
 // LoadComps lists the component types navigation owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
-		goke.LoadComp[board.Cell](),
+		goke.LoadComp[board.At](),
 		goke.LoadComp[MoveOrder](),
 		goke.LoadComp[tag.Tags[States]](),
 		goke.LoadComp[LastOrder](),

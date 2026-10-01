@@ -12,7 +12,7 @@ func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(4, 0)
 
-	cells := navigation.PathCells(board.Cell{ID: start}, navigation.MoveOrder{Target: target})
+	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target})
 
 	assertCells(t, cells, []board.CellID{start, target})
 }
@@ -31,7 +31,7 @@ func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 	p.Length = 3
 	p.Index = 1
 
-	cells := navigation.PathCells(board.Cell{ID: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []board.CellID{start, c2, target})
 }
@@ -46,7 +46,7 @@ func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 	p.Length = 1
 	p.Index = 0
 
-	cells := navigation.PathCells(board.Cell{ID: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
 
 	if last := cells[len(cells)-1]; last != target {
 		t.Errorf("last cell = %v, want %v (Target)", last, target)
@@ -64,7 +64,7 @@ func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 	p.Length = 2
 	p.Index = 0
 
-	cells := navigation.PathCells(board.Cell{ID: mid}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(board.At{Cell: mid}, navigation.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []board.CellID{mid, target})
 }
@@ -73,7 +73,7 @@ func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, 10)
 	target, _ := grid.CellIndex(2, 0)
 
-	cells := navigation.PathCells(board.Cell{ID: target}, navigation.MoveOrder{Target: target})
+	cells := navigation.PathCells(board.At{Cell: target}, navigation.MoveOrder{Target: target})
 
 	assertCells(t, cells, []board.CellID{target})
 }

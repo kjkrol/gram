@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,11 +32,15 @@ type Marquee struct {
 // Follow is the command to follow the one selected unit with Camera, or to stop following.
 type Follow struct{ Camera camera.Camera }
 
+// Apply is the command to put Effect on every Selected unit of the player who gives it, as its
+// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from.
+type Apply struct{ Effect effect.Effect }
+
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where Select and Follow land — for the players plugin.
+// Queues are where Select, Follow and Apply land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.applies}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it

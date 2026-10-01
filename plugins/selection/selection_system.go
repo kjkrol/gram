@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -23,9 +24,11 @@ const pickReach = 160
 // SelectionSystem carries out Select commands as the Selected tag on Selectable entities — a bit
 // flipped in place, seen the same tick — the player who gave one selecting and unselecting only
 // what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
-// where the world's Look draws them through the command's camera.
+// where the world's Look draws them through the command's camera. After the Selects, an Apply puts
+// its effect on what the player has selected.
 type SelectionSystem struct {
 	selects *control.Queue[Select]
+	applies *control.Queue[Apply] // when the plugin wires them
 	space   *aabbworld.Space
 	tags    Tags
 
@@ -55,7 +58,7 @@ func (s *SelectionSystem) Init(si *goke.SysInit) {
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
 
-func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
+func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.marqueeQueue != nil {
 		s.marqueeQueue.Drain(func(i control.Issued[Marquee]) {
 			if i.Command.Camera != nil {
@@ -85,6 +88,27 @@ func (s *SelectionSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		}
 		s.applySelection(hit, cmd.Additive, i.Player)
 	})
+	if s.applies != nil {
+		s.applies.Drain(func(i control.Issued[Apply]) {
+			if i.Command.Effect != (effect.Effect{}) {
+				s.eachSelected(i.Player, func(id uid.UID64) { i.Command.Effect.Cast(cb, id) })
+			}
+		})
+	}
+}
+
+// eachSelected calls fn with every Selectable entity player by owns and has Selected.
+func (s *SelectionSystem) eachSelected(by control.PlayerID, fn func(uid.UID64)) {
+	s.query.All()
+	for s.query.Next() {
+		cursor := s.query.Cursor()
+		marks, owners := s.marks.Slice(cursor), s.owners.Slice(cursor)
+		for i, id := range cursor.IDs {
+			if marks[i].Has(s.tags.Selectable) && marks[i].Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
+				fn(id)
+			}
+		}
+	}
 }
 
 // drawnIn reports whether id is drawn into the screen rectangle, as the world's Look draws it.

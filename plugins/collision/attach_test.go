@@ -8,11 +8,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,9 +32,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	}
 
 	contacts := 0
-	if err := c.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Call(func(plugin.Tick, collision.Meeting) { contacts++ })
-	})); err != nil {
+	if err := c.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { contacts++ })); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}
 

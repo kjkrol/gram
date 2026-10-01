@@ -36,7 +36,7 @@ type roadWorld struct {
 	grid  board.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[board.At]
 	base  goke.Comp[world.Base]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -92,7 +92,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: board.CellAABB(rw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(profile),
-			comp.Load(func(u roadUnit) board.Cell { return board.Cell{ID: u.start} }),
+			comp.Load(func(u roadUnit) board.At { return board.At{Cell: u.start} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(domain)),
 			comp.Const(collision.Physics{}),
@@ -162,7 +162,7 @@ func (rw *roadWorld) state(id uid.UID64) (cell board.CellID, order *MoveOrder) {
 			if got != id {
 				continue
 			}
-			cell = rw.cell.Slice(cur)[i].ID
+			cell = rw.cell.Slice(cur)[i].Cell
 			if orders := rw.order.Slice(cur); orders != nil {
 				o := orders[i]
 				order = &o

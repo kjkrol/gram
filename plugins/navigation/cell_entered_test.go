@@ -43,12 +43,12 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, mark
 
 	var statesComp goke.OptComp[tag.Tags[States]]
 	var orderComp goke.OptComp[MoveOrder]
-	var cellComp goke.Comp[board.Cell]
+	var cellComp goke.Comp[board.At]
 	var enteredQ, orderQ *goke.Query
 
 	ew.ecs = goke.New()
 	ew.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.Cell]
+		var cell goke.Comp[board.At]
 		var pos goke.Comp[world.Base]
 		var order goke.Comp[MoveOrder]
 		var profile goke.Comp[steering.Steering]
@@ -62,7 +62,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, mark
 		f.Next()
 		ew.id = f.Cursor.IDs[0]
 		p := world.Position{AABB: board.CellAABB(ew.grid, start, legEntitySize)}
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: start}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = p
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
@@ -84,7 +84,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, mark
 			states, cells := statesComp.Slice(cur), cellComp.Slice(cur)
 			for i, id := range cur.IDs {
 				if states != nil && states[i].Has(Entered) {
-					ew.entered[id] = cells[i].ID
+					ew.entered[id] = cells[i].Cell
 				}
 			}
 		}

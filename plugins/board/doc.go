@@ -10,14 +10,21 @@
 // with its terrain, the one place to read the topology and read or write terrain. [Plugin], built
 // over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a [Layout] (a default
 // kind for every cell, per-cell overrides, and the heights) when the Stage starts fresh, and slows
-// every entity carrying a [Mover] by the terrain under it (a Moving rule it hooks on the
+// every entity carrying a [Mover] by the terrain under it (a Moving hook of its own on the
 // world). Every step it tells the rules of a [Standing] hooked on it ([Plugin.Hook]) where
-// each entity stands: the cell, its kind, the entity's box and domain — [Standing.Fallen] where
-// the domain may not be, a unit pushed into the sea.
+// each entity stands: the cell, its kind and the game's tags of its place, the entity's box and
+// domain — [Standing.Fallen] where the domain may not be, a unit pushed into the sea — and the
+// rules of a [Cell] every cell: its entity, which cell, its kind now. Both are rule.Placed, data
+// alone: the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a
+// rule's Here acts on the cells under the entity (a cell itself), its Around on the rings of
+// neighbours round them too — a witch's frost, fire spreading over the ground. A cell carries for
+// good the game's tags of places ([Places]: a trapdoor, a plate, a zone), given in the Layout
+// ([CellEntry].Tags), which rules of a Cell filter by (rule.Self) and a Standing tells
+// (Standing.Places: a plate under the unit). Ready-made hooks are in plugins/board/hooks.
 //
-// # Cell, CellKind and Terrain
+// # At, CellKind and Terrain
 //
-// A [CellID] names one cell; [Cell] is an entity's current one. A [CellKind] is a named terrain:
+// A [CellID] names one cell; [At] is an entity's current one. A [CellKind] is a named terrain:
 // its movement cost, the [Domain]s it admits, whether it is solid (a wall) or how much it veils
 // sight (a forest), and the sprite drawn for it; kinds are created
 // through the Plugin's [CellKindDict]. Cost 1 is full speed and the cheapest step — a road; above
@@ -70,8 +77,10 @@
 // navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart by
 // their boxes leave it unasked): [SingleOccupancy] lets one entity per domain into a cell (a walker and a
 // hawk share one, two walkers do not), [MultipleOccupancy] any number — tokens on a square, which
-// carry no Physics, since bodies cannot overlap. A Solid cell stops only whoever its kind keeps
-// out, so a wall admitting Air lets a flyer over.
+// carry no Physics, since bodies cannot overlap. A hold is a booking: the cell a unit stands on
+// and the one it steps into. The board lets go of the holds of whoever left the world, every step
+// (Occupancy.Release), so one fallen in blocks no cell. A Solid cell stops only whoever its kind
+// keeps out, so a wall admitting Air lets a flyer over.
 //
 // # Map and Renderer
 //

@@ -2,9 +2,9 @@ package vision
 
 import (
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -23,7 +23,9 @@ func (v Viewing) Show() { *v.shown = true }
 // ShowViewOf shows the view of every observer carrying t — the ones selected, say, which takes
 // in the one ridden in first person too.
 func ShowViewOf[F any](t tag.Tag[F]) plugin.Rule {
-	return rule.On("show the view", rule.Self(t), func(m *rule.Moment[Viewing]) rule.Step {
-		return m.Call(func(_ plugin.Tick, v Viewing) { v.Show() })
+	return host.Each(func(_ plugin.Tick, tags *tag.Tags[F], v Viewing) {
+		if tags.Has(t) {
+			v.Show()
+		}
 	})
 }

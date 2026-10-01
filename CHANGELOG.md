@@ -10,14 +10,14 @@ the topography was split into packages: its heights are `relief.Heights` now.
 - `plugins/world/rule` is how entities behave (`doc/rule.md`). Two constructors, each taking a
   function that writes the steps for a builder (Go 1.27's methods with type parameters). A
   **rule**, `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` — a `plugin.Rule` — is what
-  is done at a moment a plugin catches in its own pass — a `board.Standing`, a `vision.Sighting`, a
-  `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, a
+  is done at a moment a plugin catches in its own pass — a `board.Standing` or `Cell`, a
+  `vision.Sighting`, a `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, a
   `climate.Weathering`, a `clock.Moment`, a `navigation.Touch` — hooked on that plugin; the filter
   says whom it fires for: `rule.All`, `rule.Self(tag)`, `rule.Between(a, b)` (pairs, for a moment
-  that is `rule.Met`), `rule.Having[T]()` (the component `m.CallOn` hands its function). A
-  Moment's steps are instant (`OneOf`, `Steps`, `If` on the moment, `Not`, `Apply`, `Keep`,
-  `Dispel`, `Chance`, `Unless`, `Under`, `Order`, `ForOther`, `Call`, `CallOn`); a lasting one is
-  refused as the rule is made. A **plan**, `rule.Plan(name, func(a *rule.Actor) rule.Step)`, is the component a kind
+  that is `rule.Met`), `rule.Having[T]()` (a component). A Moment's steps are instant (`OneOf`,
+  `Steps`, `If` on the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`,
+  `Order`, `ForOther`, `Here`, `Around`); a lasting one is refused as the rule is made. There is
+  no step running Go code: `Call` and `CallOn` are gone. A **plan**, `rule.Plan(name, func(a *rule.Actor) rule.Step)`, is the component a kind
   gives its entities: what they do over time, run by the world in every step of its simulation and
   saved with the game; an Actor's steps are the same and `When[F]`/`On[F]` (branches on a fact),
   `If`, `Until`, `Wait`, `Timeout`, `Cooldown`, `Idle`, and conversation between entities — `Ask`,
@@ -47,12 +47,51 @@ the topography was split into packages: its heights are `relief.Heights` now.
   the board learns of a cell's ground so — in place of `Active.Altered`, `effect.Idle`, the
   `effect.Idling` moment and `host.EachHost.RunRows`. `Active` stays on an entity, empty when no
   effect runs; navigation's `CellEntered` is the marker `navigation.Entered` (the cell is the
-  unit's `board.Cell`); collision's hit is an effect whose marker `HitOverlay` reads:
+  unit's `board.At`); collision's hit is an effect whose marker `HitOverlay` reads:
   `hooks.Hit(w, d)` hands back the `effect.Effect`, `ShowHits(hit)` and `HitOverlay(hit, with)`
   take it. Saves made before this do not load (`Active`'s slots changed).
 - `effect.Then(next)` casts the next effect when one's time is up, not when it is dispelled. The
   world fires the clock's moments, in a system of its own just before the effects' pass; the
   `effect` package no longer knows the clock, and `effect.New` takes the namer of the markers.
+- **Knobs apart from state**: a plugin gives knobs, components it only reads and an effect's
+  `Alter` turns; what its system writes lives beside them, given where missing — an `Alter`
+  ending puts back the original, which put back stale speed and heading before. `steering.Steering`
+  is the knobs (`TurnRate`, `Reflex`, `MaxSpeed`, `Sprint`, `Accel`, `Brake`, `V0`, and `Halted`,
+  standing whatever asked); `steering.Course` the state (`Want`, `Pending`, `Delay`, `Speed`,
+  `WantSpeed`), a unit's default; `steering.Helm{*Steering, *Course}` asks (`Request`,
+  `RequestSpeed`, `RequestSprint`, `RequestBack`, `Steerable`); `vision.Sighting.Helm` in place of
+  `Steering`. `vision.Sight` loses `Seen` to the component `vision.Sighted` and gains `Ahead`, the
+  sight looking the way the entity moves (`Sight.Looking`). Saves made before this do not load.
+- `rule.Placed` moments stand on places of their own: `m.Here(step)` acts on the cells under the
+  entity, `m.Around(rings, step)` on the rings of neighbours too, each cell once — `board.Standing`
+  is one, and `board.Cell`, every cell at every step while a rule of it is hooked, the board's new
+  moment. Moments are data alone: their host tells the places round in `plugin.Tick.Around`. The
+  unit's cell component is `board.At{Cell}` (was `board.Cell{ID}`). A `clock.Moment` is the clock's own entity's (`Moment.Clock`): an effect a clock rule
+  applies lands there, a phase.
+- **A player acts by effects**: `selection.Apply{Effect}` puts an effect on the player's own
+  selected units (an ability), `world.Apply{Effect}` on the world itself — its own entity, the
+  clock's — a state of the whole game, which rules and plans read with the new step
+  `During(e, step)` (`plugin.Tick.World`; `rule.New` takes the world's entity). The new
+  `trapdoor-demo` (`make demo-trapdoor`): 1 and 2 pull two levers, each opening its own strip of
+  trapdoors under whoever stands on it; J hastens the selected scouts. Cells carry the game's tags
+  of places for good, `board.Places`, given in the `Layout` (`CellEntry.Tags`; a `CellEntry`
+  without a `Kind` keeps the default), which rules of a `Cell` filter by (`rule.Self`), and
+  `Standing.Places` are those of the cell under a unit; the `pressure-plate-demo` (`make
+  demo-pressure-plate`) opens each strip while a scout stands on its plate, whoever stands there
+  ordering `world.Apply`. The navigation demo's H, opening holes under the units, is gone.
+- navigation: a patrol, `navigation.Patrol(pause, cells...)` — a `MoveOrder` with a `Round` walks
+  to its goals in turn and round again, for ever, standing the pause on each; reached or given
+  up, it goes on. The demos' wanderers are one kind, each with its own round, in place of a kind
+  and a plan a row.
+- `board.Occupancy` lets go of whoever left the world: `Release(gone)`, called by the board every
+  step. A despawned unit — fallen in, say — kept its holds before, its cell and the one it was
+  stepping into, blocking them for good under `SingleOccupancy`.
+- A plugin's own hooks and the ready-made ones are written on `plugin/host` (`host.Each`,
+  `host.Every`, `host.Pair`): the board's terrain speed, navigation's bumps, vision's
+  `ShowViewOf`, `world.Draw.*`, collision's `CountContacts`, `LogContacts`, `HitOverlay`, vision's
+  `Flee` and `Chase`, the weathering's clock. New: `plugins/board/hooks.LogFalls()` and
+  `vision/hooks.LogSightings()`. The demos: sight follows travel (`Ahead`), a caught prey gives
+  itself a `Despawn` (`ForOther`), the witch freezes `Around(1, …)`, a frozen boat is `Halted`.
 - Needs goke 3.2.4: 3.2.3 wrote an archetype's values in one order and read them in another when a
   component type was registered before the entities' others but put on them after — values landed
   in other components' columns (a board's cells with markers, from the first save).

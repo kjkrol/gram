@@ -74,3 +74,28 @@ func TestOccupancy_HolderTellsWhoHoldsACell(t *testing.T) {
 		}
 	}
 }
+
+// Release lets go of every hold of the entities gone, the others' kept: a cell a gone entity held
+// takes another again.
+func TestOccupancy_ReleaseLetsGoOfTheGone(t *testing.T) {
+	for name, occ := range map[string]board.Occupancy{"single": &board.SingleOccupancy{}, "multiple": &board.MultipleOccupancy{}} {
+		gone, stays := uid.UID64(1), uid.UID64(2)
+		occ.Enter(10, gone, board.Land)
+		occ.Enter(11, gone, board.Land) // the cell it was stepping into
+		occ.Enter(12, stays, board.Land)
+		occ.Release(func(id uid.UID64) bool { return id == gone })
+		if !occ.CanEnter(10, 3, board.Land) || !occ.CanEnter(11, 3, board.Land) {
+			t.Errorf("%s: a cell the gone held still refuses another", name)
+		}
+		if h, ok := occ.(interface {
+			Holder(board.CellID, board.Domain) (uid.UID64, bool)
+		}); ok {
+			if id, held := h.Holder(12, board.Land); !held || id != stays {
+				t.Errorf("%s: cell 12 held by %v %v, want the one staying", name, id, held)
+			}
+			if _, held := h.Holder(10, board.Land); held {
+				t.Errorf("%s: cell 10 still held by the gone", name)
+			}
+		}
+	}
+}

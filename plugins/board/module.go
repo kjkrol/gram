@@ -11,14 +11,17 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, in the simulation, the cells — what effects changed — and the standing report.
+// module runs, in the simulation, the cells — what effects changed — the standing report and the
+// rules of the cells.
 type module struct {
-	cells    *cellSystem
-	standing *standingSystem
-	clock    *clock.Clock // the world's; nil, run at once
+	cells     *cellSystem
+	standing  *standingSystem
+	cellRules *cellRuleSystem
+	clock     *clock.Clock // the world's; nil, run at once
 
-	cellsRunnable    goke.Runnable
-	standingRunnable goke.Runnable
+	cellsRunnable     goke.Runnable
+	standingRunnable  goke.Runnable
+	cellRulesRunnable goke.Runnable
 }
 
 // =================================================================
@@ -28,6 +31,7 @@ type module struct {
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
 	m.standingRunnable = ecs.RegSys(m.standing)
+	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
 }
 
 // RunPlan hands the board's work to the simulation.
@@ -35,6 +39,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.cellsRunnable, step)
 		ctx.Run(m.standingRunnable, step)
+		ctx.Run(m.cellRulesRunnable, step)
 		ctx.Sync()
 	})
 }
@@ -46,8 +51,8 @@ func (m *module) SetupSystems() []goke.System { return nil }
 // and effects plugins — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
-		goke.LoadComp[Cell](), goke.LoadComp[Mover](),
+		goke.LoadComp[At](), goke.LoadComp[Mover](),
 		goke.LoadComp[Plot](), goke.LoadComp[Ground](), goke.LoadComp[Way](), goke.LoadComp[Crossing](),
-		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](),
+		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[Places]](),
 	}
 }

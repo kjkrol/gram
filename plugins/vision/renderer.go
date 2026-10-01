@@ -272,7 +272,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			outlined := outlines != nil && outlines[i].Count >= 2
 			if r.onGPU && (r.ground != nil || !outlined) {
 				ox, oy := centreOf(&bases[i].Pos)
-				f := sights[i].Facing
+				f := sights[i].Looking(bases[i].Vel.Dir)
 				r.gpu.look(cam, observer{X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)), Reach: float32(sights[i].Radius),
 					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2)})
 				continue
@@ -280,7 +280,9 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if !outlined || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
 				continue
 			}
-			r.cone(&bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &sights[i], &outlines[i])
+			look := sights[i]
+			look.Facing = look.Looking(bases[i].Vel.Dir)
+			r.cone(&bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &look, &outlines[i])
 		}
 	}
 }

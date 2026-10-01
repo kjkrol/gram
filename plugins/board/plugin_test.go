@@ -53,7 +53,7 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 	NewPlugin(DefaultGrids{}.Square(2, 2, 32), &MultipleOccupancy{}, w)
 	defer func() {
 		msg, _ := recover().(string)
-		for _, want := range []string{"board requires board.Cell (the cell it starts in)", "board requires board.Mover (the domains it moves in)"} {
+		for _, want := range []string{"board requires board.At (the cell it starts in)", "board requires board.Mover (the domains it moves in)"} {
 			if !strings.Contains(msg, want) {
 				t.Errorf("panic %q does not mention %q", msg, want)
 			}
@@ -61,7 +61,7 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 	}()
 
 	w.Roster().Unit.Spec(comp.Const(world.Position{}))
-	t.Error("the roster accepted a unit without a Cell and a Mover")
+	t.Error("the roster accepted a unit without an At and a Mover")
 }
 
 func TestPlugin_SeedPopulate_AppliesLayout(t *testing.T) {

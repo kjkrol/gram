@@ -10,7 +10,7 @@ import (
 // (comp.Marks); a unit without it gets it the first time it is needed.
 type States struct{}
 
-// Entered is on for the step a unit's Cell changed: board.Cell says which cell it entered.
+// Entered is on for the step a unit's At changed: board.At says which cell it entered.
 const Entered tag.Tag[States] = 0
 
 // EnteredName is the name Entered is defined under, as the saves know it.

@@ -35,7 +35,7 @@ func newRig(t *testing.T, plan comp.Template[rule.Mind]) *rig {
 	t.Helper()
 	r := &rig{t: t, ecs: goke.New(), ids: map[string]goke.CompID{}, toys: newToys()}
 	template := plan
-	c := rule.New(func() time.Duration { return r.now }, 0, nil, &r.toys.carrier)
+	c := rule.New(func() time.Duration { return r.now }, nil, 0, nil, &r.toys.carrier)
 	var mind goke.Comp[rule.Mind]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.ids["alarm"], r.ids["poke"], r.ids["mood"] = si.RegComp[alarm](), si.RegComp[poke](), si.RegComp[mood]()

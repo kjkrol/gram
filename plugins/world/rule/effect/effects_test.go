@@ -57,6 +57,7 @@ type rig struct {
 	marks   goke.OptComp[tag.Tags[moods]]
 	active  goke.OptComp[effect.Active]
 	states  goke.OptComp[tag.Tags[effect.States]]
+	course  goke.OptComp[steering.Course]
 	casting func(cb *goke.CmdBuf)
 	comps   []comp.Comp // more of the entity's kind: a plan
 }
@@ -82,6 +83,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Const(steering.Steering{MaxSpeed: 10}),
+		comp.Const(steering.Course{}),
 	}
 	if withFamily {
 		spec = append(spec, comp.Tagged[moods](), comp.Marks[effect.States]())
@@ -98,7 +100,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).Optional(&r.marks, &r.active, &r.states).Build()
+		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).Optional(&r.marks, &r.active, &r.states, &r.course).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	caster := ctx.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
@@ -429,4 +431,37 @@ func TestEffects_DefineRefusesOneEffectTooManyByName(t *testing.T) {
 		}
 	}()
 	fx.Define("last straw", effect.Spec{})
+}
+
+// withCourse hands fn the entity's Course, as a plugin steering it would write it.
+func (r *rig) withCourse(fn func(c *steering.Course)) {
+	for r.query.All(); r.query.Next(); {
+		if cs := r.course.Slice(r.query.Cursor()); cs != nil {
+			fn(&cs[0])
+		}
+	}
+}
+
+// An Alter turns the steering's knobs and puts them back when it ends, leaving the course asked
+// meanwhile as it is: the knobs and the state are components apart.
+func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
+	var haste effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(2 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+	})
+	r.cast(haste)
+	r.tick() // begins
+	north := geom.NewVec(0, 1)
+	r.withCourse(func(c *steering.Course) { c.Want, c.WantSpeed = north, 15 })
+	for range 3 {
+		r.tick() // ends: the knobs put back
+	}
+	if speed, _, _, _ := r.state(); speed != 10 {
+		t.Errorf("after the effect MaxSpeed is %v, want 10 put back", speed)
+	}
+	r.withCourse(func(c *steering.Course) {
+		if c.Want != north || c.WantSpeed != 15 {
+			t.Errorf("after the effect the course asks %v at %v, want north at 15 as asked while it ran", c.Want, c.WantSpeed)
+		}
+	})
 }

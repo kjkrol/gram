@@ -25,7 +25,7 @@
 // Const) and what they bring themselves (Role.Default: a constant the game may override with its
 // own of the same type, or leave out with comp.Without). Role.Spec builds the Spec from the defaults and
 // the game's own components and panics naming every requirement left unmet, by plugin and reason,
-// so a kind defined without its Cell hears "board requires board.Cell (the cell it starts in)".
+// so a kind defined without its At hears "board requires board.At (the cell it starts in)".
 // A plugin added to the game later brings its requirements along.
 //
 // # Registry

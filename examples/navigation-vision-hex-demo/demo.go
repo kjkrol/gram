@@ -5,7 +5,6 @@ package main
 
 import (
 	"image/color"
-	"log"
 	"math"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -22,14 +20,13 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
+	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 // The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates — see
@@ -95,7 +92,6 @@ type mainStage struct {
 	unitTag    tag.Tag[units]
 	kinds      []kind.Of[unit]
 	hawk       kind.Of[unit]
-	noticed    map[[2]uid.UID64]bool
 	stack      game.Scenes
 }
 
@@ -144,16 +140,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.noticed = map[[2]uid.UID64]bool{}
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	if err := s.vision.Hook(
-		rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
-			return m.Call(faceTravel)
-		}),
-		rule.On("noticed each other", rule.Between(s.unitTag, s.unitTag), func(m *rule.Moment[vision.Sighting]) rule.Step {
-			return m.Call(s.noticedEachOther)
-		}),
+		vhooks.LogSightings(),
 		vision.ShowViewOf(s.selection.Tags().Selected), // the views drawn are the selected units'
 	); err != nil {
 		return err
@@ -210,7 +200,7 @@ func (s *mainStage) defineKinds() {
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
 	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
@@ -294,25 +284,6 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.topography.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// faceTravel points each unit's Sight where it is heading, turning in place included; a unit that
-// stops keeps its last heading, so its Sight stays where it looked.
-func faceTravel(_ plugin.Tick, s vision.Sighting) {
-	if d := s.Base.Vel.Dir; d.X != 0 || d.Y != 0 {
-		s.Sight.Facing = d
-	}
-}
-
-// noticedEachOther logs the first time one unit sees another.
-func (s *mainStage) noticedEachOther(_ plugin.Tick, sighting vision.Sighting) {
-	for _, seen := range sighting.Seen {
-		pair := [2]uid.UID64{sighting.Self, seen.ID}
-		if !s.noticed[pair] {
-			s.noticed[pair] = true
-			log.Printf("unit %d sees unit %d at %.0f", sighting.Self, seen.ID, seen.Dist)
-		}
-	}
 }
 
 // =========================== Scene ===========================

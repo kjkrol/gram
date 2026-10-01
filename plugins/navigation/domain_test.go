@@ -68,7 +68,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &board.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var mover goke.Comp[board.Mover]
 	var selected goke.Comp[tag.Tags[selection.Family]]
@@ -81,7 +81,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 		f.Create(1)
 		f.Next()
 		selected.Slice(&f.Cursor)[0] = selectedMarks
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: start}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		mover.Slice(&f.Cursor)[0] = board.Mover{Domain: board.Land}
 		readQuery = si.NewQueryBuilder().Optional(&order).Build()

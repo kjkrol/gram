@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 )
 
@@ -137,11 +137,14 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 // one (effect.Effects.Has).
 func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
-// Rule is the weathering as a rule of the world's clock: every second of game time. Hook it on the
+// Rule is the weathering as a hook of the world's clock: every second of game time. Hook it on the
 // world.
 func (w *Weathering) Rule() plugin.Rule {
-	return rule.On("weathering", rule.All, func(m *rule.Moment[clock.Moment]) rule.Step {
-		return m.If(clock.Every(time.Second, 0), m.Call(func(tick plugin.Tick, _ clock.Moment) { w.second(tick) }))
+	second := clock.Every(time.Second, 0)
+	return host.Every(func(tick plugin.Tick, m clock.Moment) {
+		if second(m) {
+			w.second(tick)
+		}
 	})
 }
 

@@ -46,7 +46,7 @@ type fieldWorld struct {
 	ecs   *goke.ECS
 	nav   *Plugin
 	base  goke.Comp[world.Base]
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[board.At]
 	order goke.OptComp[MoveOrder]
 	coll  goke.OptComp[collision.Collider]
 	q     *goke.Query
@@ -108,7 +108,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 			}),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
-			comp.Load(func(u fieldUnit) board.Cell { c, _ := fw.grid.CellAt(u.at); return board.Cell{ID: c} }),
+			comp.Load(func(u fieldUnit) board.At { c, _ := fw.grid.CellAt(u.at); return board.At{Cell: c} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(board.Land)),
 			comp.Const(collision.Physics{}),
@@ -177,7 +177,7 @@ func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell board.CellI
 			if colls != nil {
 				c = &colls[i]
 			}
-			fn(id, &bases[i], cells[i].ID, o, c)
+			fn(id, &bases[i], cells[i].Cell, o, c)
 		}
 	}
 }

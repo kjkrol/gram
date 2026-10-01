@@ -19,7 +19,8 @@
 // (plugins/players/owner.Obeys), so another player's selection stays as it is and one Selected tag
 // serves every player. Units nobody owns belong to the virtual player control.Nobody — the game's
 // code, a script, an AI run as nobody — and only a Select nobody gave reaches them. Follow takes
-// the one selected unit of the player who asked.
+// the one selected unit of the player who asked, and an [Apply] puts its effect — an ability, a
+// sprint, a spell — on what the player who gave it has selected.
 //
 // # Followed and FollowSystem
 //

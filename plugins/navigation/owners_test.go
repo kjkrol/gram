@@ -26,7 +26,7 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var marks goke.Comp[tag.Tags[selection.Family]]
@@ -40,7 +40,7 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 		f.Next()
 		ids = append(ids, f.Cursor.IDs...)
 		for i, by := range []control.PlayerID{1, 2, control.Nobody} {
-			cell.Slice(&f.Cursor)[i] = board.Cell{ID: start}
+			cell.Slice(&f.Cursor)[i] = board.At{Cell: start}
 			pos.Slice(&f.Cursor)[i].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 			order.Slice(&f.Cursor)[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 			marks.Slice(&f.Cursor)[i] = selectedMarks

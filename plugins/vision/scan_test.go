@@ -48,6 +48,8 @@ type spawn struct {
 	z       *world.Z // heights, in a scene with heights
 	sight   *look    // nil for something that is merely seen
 	outline bool
+	heading geom.Vec // the way it moves; zero, none
+	bare    bool     // a sight without a Sighted, which vision gives it
 }
 
 // look is a Sight with the Eye it sees from: how wide, and how high in a scene with heights.
@@ -111,7 +113,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 	for i, s := range spawns {
 		spec := kind.Spec{
 			comp.Load(at),
-			comp.Const(world.Velocity{}),
+			comp.Load(func(s spawn) world.Velocity { return world.Velocity{Dir: s.heading} }),
 		}
 		if s.tau > 0 {
 			spec = append(spec, comp.Const(vision.Transparency{Value: s.tau}))
@@ -124,6 +126,9 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 		}
 		if s.sight != nil {
 			spec = append(spec, comp.Const(s.sight.Sight), comp.Const(s.sight.Eye))
+			if !s.bare {
+				spec = append(spec, comp.Const(vision.Sighted{}))
+			}
 			if s.outline {
 				spec = append(spec, comp.Const(vision.SightOutline{}))
 			}
@@ -134,7 +139,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 		t.Fatalf("Populate: %v", err)
 	}
 
-	var sightComp goke.Comp[vision.Sight]
+	var sightComp goke.Comp[vision.Sighted]
 	var outlineComp goke.OptComp[vision.SightOutline]
 	var query *goke.Query
 	var systems []goke.System
@@ -166,7 +171,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 		}
 		for i, id := range cursor.IDs {
 			ids = append(ids, id)
-			seen = append(seen, got[i].Seen)
+			seen = append(seen, got[i])
 			if outs != nil {
 				outlines = append(outlines, outs[i])
 			}
@@ -196,6 +201,37 @@ func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
 	}
 	if seen[0].Dists[0] >= seen[0].Dists[1] {
 		t.Errorf("distances %v, %v are not nearest-first", seen[0].Dists[0], seen[0].Dists[1])
+	}
+}
+
+// A Sight Ahead looks the way its entity moves, its Facing only while it has no heading.
+func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
+	ahead := eastward(math.Pi/8, 600)
+	ahead.Ahead = true
+	north := geom.NewVec(0, 1)
+	for _, c := range []struct {
+		heading geom.Vec
+		want    float32 // how far off the one it sees is
+	}{{north, 500}, {geom.Vec{}, 300}} {
+		_, seen, _ := scene(t,
+			spawn{x: 500, y: 500, sight: ahead, heading: c.heading},
+			spawn{x: 800, y: 500},  // east of it, 300 off
+			spawn{x: 500, y: 1000}, // north of it, 500 off
+		)
+		if seen[0].Count != 1 || math.Abs(float64(seen[0].Dists[0]-c.want)) > 15 {
+			t.Errorf("heading %v: saw %d, the nearest %v off; want one, %v off", c.heading, seen[0].Count, seen[0].Dists[0], c.want)
+		}
+	}
+}
+
+// An observer without a Sighted is given one at its first step and scanned from the next.
+func TestScan_GivesASightedWhereThereIsNone(t *testing.T) {
+	ids, seen, _ := scene(t,
+		spawn{x: 500, y: 500, sight: eastward(math.Pi/4, 600), bare: true},
+		spawn{x: 700, y: 500},
+	)
+	if len(ids) != 1 || seen[0].Count != 0 {
+		t.Errorf("after the first step: %d observers with a Sighted, the first seeing %v; want one given, seeing nothing yet", len(ids), seen)
 	}
 }
 

@@ -17,6 +17,7 @@ type Plugin struct {
 	selects      control.Queue[Select]
 	marqueeQueue control.Queue[Marquee]
 	follows      control.Queue[Follow]
+	applies      control.Queue[Apply]
 	marquees     marquees
 	module       *module
 	renderer     *Renderer
@@ -49,6 +50,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
+	sys.applies = &p.applies
 	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
 	return nil

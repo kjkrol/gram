@@ -48,12 +48,12 @@ func (u *Units[P]) Define(name string, mover Mover, steering steering.Steering, 
 			c := u.at(row)
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-half, c.Y-half), u.shape.Size, u.shape.Size)}
 		}),
-		comp.Load(func(row P) Cell {
+		comp.Load(func(row P) At {
 			c, ok := brd.CellAt(u.at(row))
 			if !ok {
 				panic(fmt.Sprintf("board: a %q stands off the board at %v", name, u.at(row)))
 			}
-			return Cell{ID: c}
+			return At{Cell: c}
 		}),
 		comp.Const(mover),
 		comp.Const(world.Layers(mover.Domain)),

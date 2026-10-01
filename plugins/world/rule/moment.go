@@ -2,7 +2,6 @@ package rule
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
@@ -12,8 +11,8 @@ import (
 )
 
 // About is a moment of one entity: whose it is. A host's payload — a board.Standing, a
-// vision.Sighting, a collision.Struck — is one; a clock.Moment is of no entity, and steps acting on
-// one fail on it.
+// vision.Sighting, a collision.Struck, a clock.Moment (the clock's own entity) — is one; on a moment
+// of no entity steps acting on one fail.
 type About interface{ Who() uid.UID64 }
 
 // Met is a moment of one entity with others — whom it saw, whom it struck: the host matches it in
@@ -21,6 +20,14 @@ type About interface{ Who() uid.UID64 }
 type Met interface {
 	About
 	Whom(each func(uid.UID64))
+}
+
+// Placed is a moment of an entity standing somewhere, on places that are entities of their own —
+// a board's cells — whose host tells, in the Tick, which places lie round it (plugin.Tick.Around):
+// Here and Around turn a step on them. The moment is data alone.
+type Placed interface {
+	About
+	Placed()
 }
 
 // On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
@@ -57,10 +64,9 @@ func Between[FA, FB any](a tag.Tag[FA], b tag.Tag[FB]) Filter {
 	return Filter{self: host.SideOf(a), other: host.SideOf(b), paired: true, others: true}
 }
 
-// Having lets through an entity carrying the component T, which the rule's CallOn hands its
-// function.
+// Having lets through an entity carrying the component T.
 func Having[T any]() Filter {
-	return Filter{need: &having{typ: reflect.TypeFor[T](), state: func() host.State { return host.StateOf[T]() }}}
+	return Filter{need: &having{state: func() host.State { return host.StateOf[T]() }}}
 }
 
 // side is a Self filter; on a moment that is not Met it reads the entity's tags as the rule's
@@ -71,10 +77,7 @@ type side struct {
 }
 
 // having is a Having filter.
-type having struct {
-	typ   reflect.Type
-	state func() host.State
-}
+type having struct{ state func() host.State }
 
 // Moment is the moment P a rule is written for: its methods make the steps the rule takes then,
 // each done within the plugin's pass. On hands one to the rule's body; a function writing part of
@@ -115,6 +118,10 @@ func (m *Moment[P]) Unless(e effect.Effect, step Step) Step { return newUnless(e
 // Under runs step while the entity is under the effect, and fails while it is not.
 func (m *Moment[P]) Under(e effect.Effect, step Step) Step { return newUnder(e, step) }
 
+// During runs step while the world is under the effect — a state of the whole game, a lever
+// pulled, an alarm (world.Apply) — and fails while it is not.
+func (m *Moment[P]) During(e effect.Effect, step Step) Step { return newDuring(e, step) }
+
 // Order gives the command cmd for the entity each time it fires — the same command a player gives
 // — and does well at once; one that is Aimed is told the moment's Subject, when it names one.
 func (m *Moment[P]) Order[C any](cmd C) Step { return newOrder(cmd) }
@@ -125,49 +132,39 @@ func (m *Moment[P]) ForOther(step Step) Step {
 	return composite{kids: []Step{step}, sign: "forother", make: func() exec { return forOther{} }}
 }
 
-// Call runs fn on the moment: a rule's own code, where no step says it.
-func (m *Moment[P]) Call(fn func(t plugin.Tick, about P)) Step {
-	return leaf{sign: "call", make: func() exec { return caller[P]{fn: fn} }}
-}
+// Here runs step on each place the entity stands on — the cells under it — in place of the entity:
+// an effect applied to the ground. The moment must be Placed.
+func (m *Moment[P]) Here(step Step) Step { return m.Around(0, step) }
 
-// CallOn runs fn on the moment and the entity's T, which it may change: a rule's own code over a
-// component — its filter must be Having[T].
-func (m *Moment[P]) CallOn[T any](fn func(t plugin.Tick, state *T, about P)) Step {
-	return leaf{sign: "callon", make: func() exec { return stateCaller[T, P]{fn: fn} }}
-}
-
-type caller[P any] struct {
-	basic
-	fn func(plugin.Tick, P)
-}
-
-func (caller[P]) instant() {}
-
-func (r caller[P]) tick(c *ctx, _ int, _ []int) Status {
-	if p, ok := c.payload.(*P); ok {
-		r.fn(c.tick, *p)
-		return Success
+// Around runs step on each place within rings of where the entity stands, those it stands on
+// among them, in place of the entity. The moment must be Placed.
+func (m *Moment[P]) Around(rings int, step Step) Step {
+	if _, ok := any(*new(P)).(Placed); !ok {
+		panic(fmt.Sprintf("rule: Here and Around need a moment that is Placed, not %T", *new(P)))
 	}
-	return Failure
+	return composite{kids: []Step{step}, sign: fmt.Sprintf("around(%d)", rings), make: func() exec { return around{rings: rings} }}
 }
 
-type stateCaller[T, P any] struct {
+type around struct {
 	basic
-	fn func(plugin.Tick, *T, P)
+	rings int
 }
 
-func (stateCaller[T, P]) instant() {}
+func (around) instant() {}
 
-func (r stateCaller[T, P]) needs() reflect.Type { return reflect.TypeFor[T]() }
-
-func (r stateCaller[T, P]) tick(c *ctx, _ int, _ []int) Status {
-	st, ok := c.state.(*T)
-	p, okp := c.payload.(*P)
-	if !ok || !okp {
+func (a around) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity || c.tick.Around == nil {
 		return Failure
 	}
-	r.fn(c.tick, st, *p)
-	return Success
+	self, st := c.id, Failure
+	c.tick.Around(c.payload, a.rings, func(place uid.UID64) {
+		c.id = place
+		if c.run(kids[0]) == Success {
+			st = Success
+		}
+	})
+	c.id = self
+	return st
 }
 
 type forOther struct{ basic }
@@ -204,10 +201,10 @@ type fired[P any] struct {
 	c       ctx
 }
 
-func (f *fired[P]) fire(t plugin.Tick, state any, about P) {
+func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	f.current = about
 	c := &f.c
-	c.tick, c.cb, c.state, c.prev, c.next = t, t.CmdBuf, state, StepSet{}, StepSet{}
+	c.tick, c.cb, c.prev, c.next = t, t.CmdBuf, StepSet{}, StepSet{}
 	c.id, c.entity = 0, f.about
 	if f.about {
 		c.id = any(&f.current).(About).Who() // a pointer: no copy to the heap
@@ -228,9 +225,6 @@ func build[P any](name string, filter Filter, root Step) plugin.Rule {
 	for i, n := range f.tree.nodes {
 		if _, ok := n.exec.(instantExec); !ok {
 			panic(fmt.Sprintf("rule: %q: %s lasts over ticks — it belongs to a plan", name, f.tree.signs[i]))
-		}
-		if s, ok := n.exec.(interface{ needs() reflect.Type }); ok && (filter.need == nil || filter.need.typ != s.needs()) {
-			panic(fmt.Sprintf("rule: %q calls on %v: its filter must be Having[%v]", name, s.needs(), s.needs()))
 		}
 	}
 	f.c = ctx{instant: true, tree: f.tree, mind: &f.mind, payload: &f.current}

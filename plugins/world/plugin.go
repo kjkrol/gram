@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -77,8 +78,9 @@ func NewPlugin(cfg Config) *Plugin {
 		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.ChangedName))
 	}
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
-	m.plans = rule.New(m.clock.Time, cfg.Seed, m.effects, &m.commands)
+	m.plans = rule.New(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
+	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
@@ -199,10 +201,10 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's and Despawn's — for the players plugin, which carries the world's
+// Queues are the clock's, Despawn's and Apply's — for the players plugin, which carries the world's
 // commands itself.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return append(p.module.clock.Queues(), &p.module.despawns)
+	return append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies)
 }
 
 // Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the

@@ -25,7 +25,7 @@ type altitudeSystem struct {
 	z      goke.Comp[world.Z]
 	mover  goke.Comp[board.Mover]
 	driven goke.OptComp[steering.Driven]
-	steer  goke.OptComp[steering.Steering]
+	course goke.OptComp[steering.Course]
 }
 
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, to run in every step
@@ -33,7 +33,7 @@ type altitudeSystem struct {
 func (r *Relief) AltitudeSystem() goke.System { return &altitudeSystem{relief: r} }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.steer).Build()
+	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).Build()
 }
 
 func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
@@ -41,7 +41,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		bases, zs, movers := s.base.Slice(cursor), s.z.Slice(cursor), s.mover.Slice(cursor)
-		drivens, steers := s.driven.Slice(cursor), s.steer.Slice(cursor)
+		drivens, courses := s.driven.Slice(cursor), s.course.Slice(cursor)
 		for i := range cursor.IDs {
 			m := &movers[i]
 			ground := s.relief.GroundAt(board.Center(bases[i].Pos))
@@ -49,8 +49,8 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			flown := m.Domain&board.Air != 0 && drivens != nil && drivens[i].Flown
 			if flown {
 				alt = zs[i].Altitude
-				if rise, run := drivens[i].Slope(); rise != 0 && steers != nil {
-					speed := steers[i].Speed // as far as it went along the ground this step, the world's cap included
+				if rise, run := drivens[i].Slope(); rise != 0 && courses != nil {
+					speed := courses[i].Speed // as far as it went along the ground this step, the world's cap included
 					along := math.Copysign(min(math.Abs(speed)*d.Seconds(), bases[i].Pos.MaxStep()), speed)
 					alt += along * rise / run
 				}

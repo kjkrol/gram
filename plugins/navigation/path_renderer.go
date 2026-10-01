@@ -16,13 +16,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(cell board.Cell, mt MoveOrder) []board.CellID {
-	cells := []board.CellID{cell.ID}
+func pathCells(cell board.At, mt MoveOrder) []board.CellID {
+	cells := []board.CellID{cell.Cell}
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
 		next = mt.Path.Steps[mt.Path.Index]
 	}
-	if mt.Leg.Active && mt.Leg.To != cell.ID && mt.Leg.To != next {
+	if mt.Leg.Active && mt.Leg.To != cell.Cell && mt.Leg.To != next {
 		cells = append(cells, mt.Leg.To)
 	}
 	for s := mt.Path.Index; s < mt.Path.Length; s++ {
@@ -81,7 +81,7 @@ type PathRenderer struct {
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[board.At]
 	order goke.Comp[MoveOrder]
 	marks goke.Comp[tag.Tags[selection.Family]]
 	mover goke.OptComp[board.Mover]

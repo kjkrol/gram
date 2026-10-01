@@ -142,6 +142,31 @@ func draw(seed uint64, t time.Duration, id, salt uint64) float64 {
 	return float64(x>>11) / (1 << 53)
 }
 
+func newDuring(e effect.Effect, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("during(%d)", e.ID()), make: func() exec { return during{e: e} }}
+}
+
+// during runs its step while the world — its own entity, the clock's — is under the effect.
+type during struct {
+	basic
+	e effect.Effect
+}
+
+func (during) instant() {}
+
+func (d during) tick(c *ctx, _ int, kids []int) Status {
+	on := false
+	if c.instant {
+		on = d.e.On(c.tick.World)
+	} else if c.sys.world != nil {
+		on = c.sys.effects.Has(c.sys.world(), d.e)
+	}
+	if !on {
+		return Failure
+	}
+	return c.run(kids[0])
+}
+
 func newUnless(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.ID()), make: func() exec { return under{e: e, not: true} }}
 }

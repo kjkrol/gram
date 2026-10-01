@@ -21,19 +21,22 @@
 //
 // # Rules
 //
-// [On] makes a rule of a moment a plugin catches in its own pass — a board.Standing, a
-// vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment — for the plugin's Hook:
-// board.Plugin.Hook, vision's, collision's, world's, navigation's. Its [Filter], the second
-// argument, says whom it fires for: [All], [Self] one carrying a tag — an effect's marker among
-// them — [Between] a pair whose sides carry the tags given, for a moment that is [Met], [Having]
-// one carrying a component, which CallOn hands its function. A Moment's steps — OneOf, Steps, If
-// on the moment, Not, Apply, Keep, Dispel, Chance, Unless, Under, Order, ForOther, Call, CallOn —
-// are each done within the plugin's pass; a step that lasts, made by an Actor, is refused as the
-// rule is made. A rule keeps no memory of its own: an effect's presence is its memory — "at most
-// once a while" is Unless an effect that lasts that while. A moment is [About] one entity, whom
-// the steps act for; a clock.Moment is of none, and steps acting on one fail on it. Chance draws
-// from the world's seed, the step's game time and the entity, keeping nothing: a load and a replay
-// draw alike.
+// [On] makes a rule of a moment a plugin catches in its own pass — a board.Standing or a
+// board.Cell, a vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment —
+// for the plugin's Hook: board.Plugin.Hook, vision's, collision's, world's, navigation's. Its
+// [Filter], the second argument, says whom it fires for: [All], [Self] one carrying a tag — an
+// effect's marker among them — [Between] a pair whose sides carry the tags given, for a moment
+// that is [Met], [Having] one carrying a component. A Moment's steps — OneOf, Steps, If on the
+// moment, Not, Apply, Keep, Dispel, Chance, Unless, Under, During, Order, ForOther, Here, Around
+// — are each done within the plugin's pass; a step that lasts, made by an Actor, is refused as
+// the rule is made. A rule is written in these steps alone: what they cannot say is a moment, a step or a
+// knob the plugin still lacks. A rule keeps no memory of its own: an effect's presence is its
+// memory — "at most once a while" is Unless an effect that lasts that while. A moment is [About]
+// one entity, whom the steps act for — a clock.Moment the clock's own, where an effect applied is
+// a phase; one that is [Placed] stands on places of their own, a board's cells, which its host
+// tells in the Tick (plugin.Tick.Around) and Here and Around turn a step on. Under asks the entity's effects, During the world's — a state of the whole
+// game a player put on it (world.Apply), a lever pulled. Chance draws from the world's seed, the step's game time and the entity,
+// keeping nothing: a load and a replay draw alike.
 //
 // # Plans
 //

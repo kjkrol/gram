@@ -66,6 +66,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Sight](),
+		goke.LoadComp[Sighted](),
 		goke.LoadComp[SightOutline](),
 		goke.LoadComp[Transparency](),
 	}

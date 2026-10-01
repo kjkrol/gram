@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
@@ -129,20 +128,44 @@ func runTriggers(t *testing.T, g *triggerStage, d time.Duration) {
 }
 
 // Self narrows a rule on a moment that is not a pair to the entities carrying the tag: only the
-// bullet is held still.
+// bullet is marked.
 func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
+	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		return g.world.Hook(rule.On("hold the bullet", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Call(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value = 0 })
+		marked = g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		return g.world.Hook(rule.On("mark the bullet", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
+			return m.Apply(marked)
 		}))
 	}
 	runTriggers(t, g, 300*time.Millisecond)
-	g.each(effect.Effect{}, func(_ uid.UID64, x float64, bullet bool, _ int) {
-		if moved := x != 100 && x != 500; moved == bullet {
-			t.Errorf("the bullet %v moved %v (at %v); want the bullet held, the other moving", bullet, moved, x)
+	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under int) {
+		if (under > 0) != bullet {
+			t.Errorf("the bullet %v is marked %v; want the bullet marked alone", bullet, under > 0)
 		}
 	})
+}
+
+// Having narrows a rule to the entities carrying a component: only the hit one is marked.
+func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
+	var marked effect.Effect
+	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
+	g.hook = func(g *triggerStage) error {
+		marked = g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		return g.world.Hook(rule.On("mark the colliders", rule.Having[collision.Collider](), func(m *rule.Moment[world.Moving]) rule.Step {
+			return m.Apply(marked)
+		}))
+	}
+	runTriggers(t, g, 300*time.Millisecond)
+	n := 0
+	g.each(marked, func(_ uid.UID64, _ float64, _ bool, under int) {
+		if under > 0 {
+			n++
+		}
+	})
+	if n != 2 {
+		t.Errorf("%d marked, want both: both carry a Collider", n)
+	}
 }
 
 // A pair's rule turns ToOther on whom the entity met: the bullet striking the target marks
@@ -167,16 +190,18 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 // An effect is a rule's memory: with Unless on a mark that lasts 400 ms, what it guards runs
 // about once in 400 ms.
 func TestRule_AnEffectIsItsMemory(t *testing.T) {
-	var mark effect.Effect
-	count := 0
+	var mark, tally effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 1}}}
 	g.hook = func(g *triggerStage) error {
 		mark = g.world.Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
+		tally = g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking()})
 		return g.world.Hook(rule.On("once a while", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Unless(mark, m.Steps(m.Apply(mark), m.Call(func(plugin.Tick, world.Moving) { count++ })))
+			return m.Unless(mark, m.Steps(m.Apply(mark), m.Apply(tally)))
 		}))
 	}
 	runTriggers(t, g, time.Second)
+	count := 0
+	g.each(tally, func(_ uid.UID64, _ float64, _ bool, under int) { count = under })
 	if count < 2 || count > 4 {
 		t.Errorf("in a second the guarded body ran %d times, want about once in 400 ms: 2 to 4", count)
 	}

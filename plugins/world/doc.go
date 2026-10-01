@@ -45,10 +45,10 @@
 //
 // # Steering
 //
-// Package steering is how an entity's wants become motion: a steering.Steering carries the heading
-// asked for and a motion profile, and the steering.System, run in every step before movement,
-// turns the entity's heading by at most its TurnRate a tick and writes its base speed from the
-// profile. steering.Driven marks an entity steered by hand, carried out by the plugin that moves
+// Package steering is how an entity's wants become motion: a steering.Steering is its motion
+// profile, a knob, and a steering.Course what it is asked, and the steering.System, run in every
+// step before movement, turns the entity's heading by at most its TurnRate a tick and writes its
+// base speed from the profile. steering.Driven marks an entity steered by hand, carried out by the plugin that moves
 // entities over the ground (navigation).
 //
 // # Scale
@@ -90,7 +90,9 @@
 // [Plugin.Attach] and [Plugin.Detach] are the mid-game counterparts of a kind's Const, for game
 // logic that has a plugin.Tick and no component id; [Plugin.Despawn] removes an entity at the end
 // of the tick, and an entity gives itself the command [Despawn] to go (Order in a plan or a
-// rule).
+// rule). The command [Apply] puts an effect on the world itself — its own entity, the clock's: a
+// state of the whole game, a lever pulled, an alarm — which rules and plans read with During; a
+// player gives it from a binding, a rule or a plan may Order it.
 // [Plugin.Declare] tells saves about a type only ever attached; call it in Init.
 //
 // # Commands the entities give themselves

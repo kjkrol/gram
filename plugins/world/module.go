@@ -71,6 +71,7 @@ type module struct {
 	// despawns are the world's own
 	commands control.Carrier
 	despawns control.Queue[Despawn]
+	applies  control.Queue[Apply]
 }
 
 var _ goke.Module = (*module)(nil)
@@ -81,14 +82,15 @@ func newModule(cfg Config) *module {
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
 		clock: clk}
-	w.moments = moments{clock: clk, tick: w.tick}
+	w.moments = moments{clock: clk, tick: w.tick, applies: &w.applies}
 	return w
 }
 
 // tick is the Tick of a pass over d of the simulation: the world's carrier, the game time the
 // step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
-	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed}
+	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed,
+		World: w.clock.Entity()}
 }
 
 // =================================================================
@@ -157,6 +159,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Base](),
 		goke.LoadComp[Appearance](),
 		goke.LoadComp[steering.Steering](),
+		goke.LoadComp[steering.Course](),
 		goke.LoadComp[Outside](),
 		goke.LoadComp[Layers](),
 		goke.LoadComp[Z](),

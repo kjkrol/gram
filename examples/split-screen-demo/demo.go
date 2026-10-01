@@ -243,10 +243,11 @@ type driveSystem struct {
 	query  *goke.Query
 	owners goke.Comp[tag.Tags[owner.Family]]
 	steer  goke.Comp[steering.Steering]
+	course goke.Comp[steering.Course]
 }
 
 func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.owners, &s.steer).Build()
+	s.query = si.NewQueryBuilder(&s.owners, &s.steer, &s.course).Build()
 	s.want = map[control.PlayerID]geom.Vec{}
 }
 
@@ -255,9 +256,9 @@ func (s *driveSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.drives.Drain(func(i control.Issued[Drive]) { s.want[i.Player] = s.want[i.Player].Add(i.Command.Dir) })
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
-		owners, steers := s.owners.Slice(cur), s.steer.Slice(cur)
+		owners, steers, courses := s.owners.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur)
 		for i := range cur.IDs {
-			st := &steers[i]
+			st := steering.Helm{Steering: &steers[i], Course: &courses[i]}
 			var dir geom.Vec
 			for by, want := range s.want {
 				if owner.Obeys(owners[i], by) {

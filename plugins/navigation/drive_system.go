@@ -26,9 +26,10 @@ type driveSystem struct {
 	nav *navigationSystem
 
 	query  *goke.Query
-	cell   goke.Comp[board.Cell]
+	cell   goke.Comp[board.At]
 	base   goke.Comp[world.Base]
 	steer  goke.Comp[steering.Steering]
+	course goke.Comp[steering.Course]
 	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
 	mover  goke.OptComp[board.Mover]
@@ -45,7 +46,7 @@ const driveTurn = math.Pi / 45
 const driveMargin = 2.0
 
 func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Build()
+	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Build()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.statesID = si.RegComp[tag.Tags[States]]()
 }
@@ -54,10 +55,10 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.query.All()
 	for s.query.Next() {
 		cur := s.query.Cursor()
-		cells, bases, steers, drivens := s.cell.Slice(cur), s.base.Slice(cur), s.steer.Slice(cur), s.driven.Slice(cur)
+		cells, bases, steers, courses, drivens := s.cell.Slice(cur), s.base.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur), s.driven.Slice(cur)
 		orders, movers, states := s.order.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur)
 		for i, id := range cur.IDs {
-			in, st, base := drivens[i], &steers[i], &bases[i]
+			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
 			domain := board.DomainAt(movers, i)
 			facing := in.Face.X != 0 || in.Face.Y != 0
 			if orders != nil {
@@ -66,7 +67,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				}
 				if leg := orders[i].Leg; leg.Active {
 					s.nav.releaseLeg(leg, id)
-					s.nav.occupancy.Enter(cells[i].ID, id, domain)
+					s.nav.occupancy.Enter(cells[i].Cell, id, domain)
 				}
 				cb.RemoveCompOne(id, s.orderID)
 			}
@@ -94,7 +95,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if domain&board.Air != 0 {
 				_, level = in.Slope()
 			}
-			m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}
+			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}
 			switch {
 			case in.Ahead > 0 && s.open(m, heading) && in.Sprint:
 				st.RequestSprint()
@@ -107,7 +108,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			case in.Ahead < 0 && st.Speed > 0:
 				st.RequestSpeed(0) // braking before it backs away
 			case in.Ahead < 0 && s.open(m, geom.NewVec(-heading.X, -heading.Y)):
-				st.RequestBack(backing(st))
+				st.RequestBack(backing(st.Steering))
 			case in.Ahead < 0:
 				st.RequestSpeed(0)
 				st.Speed = 0 // stopped at the edge behind it
@@ -133,14 +134,14 @@ func backing(st *steering.Steering) float64 {
 
 // follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre;
 // true when that is another cell.
-func (s *driveSystem) follow(id uid.UID64, cell *board.Cell, pos world.Position, domain board.Domain) bool {
+func (s *driveSystem) follow(id uid.UID64, cell *board.At, pos world.Position, domain board.Domain) bool {
 	actual, ok := s.nav.grid.CellAt(board.Center(pos))
-	if !ok || actual == cell.ID {
+	if !ok || actual == cell.Cell {
 		return false
 	}
-	s.nav.occupancy.Leave(cell.ID, id)
+	s.nav.occupancy.Leave(cell.Cell, id)
 	s.nav.occupancy.Enter(actual, id, domain)
-	cell.ID = actual
+	cell.Cell = actual
 	return true
 }
 

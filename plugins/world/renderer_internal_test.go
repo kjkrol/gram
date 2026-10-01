@@ -10,7 +10,6 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -30,14 +29,12 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
-	host := &host.EachHost[Drawing]{}
-	if err := host.Add(rule.On("visit", rule.All, func(m *rule.Moment[Drawing]) rule.Step {
-		return m.Call(func(plugin.Tick, Drawing) { visited++ })
-	})); err != nil {
+	drawers := &host.EachHost[Drawing]{}
+	if err := drawers.Add(host.Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
 	look := &flatLook{worldW: 1000, worldH: 1000}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, host, func() Look { return look })
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, drawers, func() Look { return look })
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]

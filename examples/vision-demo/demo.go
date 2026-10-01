@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	chooks "github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/players"
@@ -112,9 +111,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := s.vision.Hook(
 		s.avoidance.Rule(),
 		vhooks.Chase(s.tags, hunterLooksEvery),
-		rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
-			return m.Call(faceTravel)
-		}),
 	); err != nil {
 		return err
 	}
@@ -122,7 +118,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := s.collision.Hook(
 		chooks.CountContacts(&s.hits),
 		rule.On("caught", rule.Between(s.tags.Predator, s.tags.Prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.Call(s.caught)
+			return m.ForOther(m.Order(world.Despawn{})) // the hunter's prey is gone
 		}),
 	); err != nil {
 		return err
@@ -177,7 +173,7 @@ func sees() kind.Spec {
 		comp.Load(func(b body) world.Position { return b.pos }),
 		comp.Load(func(b body) world.Velocity { return b.vel }),
 		comp.Load(func(b body) vision.Sight {
-			return vision.Sight{Facing: b.vel.Dir, Radius: sightRadius}
+			return vision.Sight{Facing: b.vel.Dir, Radius: sightRadius, Ahead: true}
 		}),
 		comp.Const(world.Eye{Angle: 2 * sightHalf}),
 		comp.Const(vision.SightOutline{}),
@@ -213,18 +209,6 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// caught despawns the prey a hunter touches.
-func (s *mainStage) caught(t plugin.Tick, m collision.Meeting) {
-	s.world.Despawn(t.CmdBuf, m.Other)
-}
-
-// faceTravel points each entity's Sight where it is actually going.
-func faceTravel(_ plugin.Tick, s vision.Sighting) {
-	if d := s.Base.Vel.Dir; d.X != 0 || d.Y != 0 {
-		s.Sight.Facing = d
-	}
 }
 
 // =========================== Scene ===========================

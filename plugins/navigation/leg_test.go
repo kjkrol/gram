@@ -34,7 +34,7 @@ type legWorld struct {
 	ids       []uid.UID64
 
 	pos   goke.Comp[world.Base]
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[board.At]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
 }
@@ -52,10 +52,11 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	lw.ecs = goke.New()
 	lw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for _, u := range units {
-			var cell goke.Comp[board.Cell]
+			var cell goke.Comp[board.At]
 			var pos goke.Comp[world.Base]
 			var profile goke.Comp[steering.Steering]
-			comps := []goke.Addable{&cell, &pos, &profile}
+			var course goke.Comp[steering.Course]
+			comps := []goke.Addable{&cell, &pos, &profile, &course}
 			var order goke.Comp[MoveOrder]
 			if u.hasOrder {
 				comps = append(comps, &order)
@@ -65,7 +66,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 			f.Next()
 			id := f.Cursor.IDs[0]
 			p := world.Position{AABB: board.CellAABB(lw.grid, u.start, legEntitySize)}
-			cell.Slice(&f.Cursor)[0] = board.Cell{ID: u.start}
+			cell.Slice(&f.Cursor)[0] = board.At{Cell: u.start}
 			pos.Slice(&f.Cursor)[0].Pos = p
 			profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 			if u.hasOrder {
@@ -104,7 +105,7 @@ func (lw *legWorld) read() map[uid.UID64]legState {
 		cur := lw.q.Cursor()
 		positions, cells, orders := lw.pos.Slice(cur), lw.cell.Slice(cur), lw.order.Slice(cur)
 		for i, id := range cur.IDs {
-			st := legState{pos: positions[i].Pos, cell: cells[i].ID}
+			st := legState{pos: positions[i].Pos, cell: cells[i].Cell}
 			if orders != nil {
 				st.order, st.hasOrder = orders[i], true
 			}
@@ -264,7 +265,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	newTarget, _ := grid.CellIndex(5, 0)
 	leg := Leg{From: from, To: to, Active: true}
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var order goke.Comp[MoveOrder]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var q *goke.Query
@@ -276,7 +277,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		f.Next()
 		selected.Slice(&f.Cursor)[0] = selectedMarks
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: from}
+		cell.Slice(&f.Cursor)[0] = board.At{Cell: from}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		for _, c := range leg.cells() {
 			occupancy.Enter(c, id, board.Land)
@@ -320,12 +321,12 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 
 	goke.New().Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			var cell goke.Comp[board.Cell]
+			var cell goke.Comp[board.At]
 			var order goke.Comp[MoveOrder]
 			f := si.NewFactory(&cell, &order)
 			f.Create(1)
 			f.Next()
-			cell.Slice(&f.Cursor)[0] = board.Cell{ID: from}
+			cell.Slice(&f.Cursor)[0] = board.At{Cell: from}
 			order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		}},
 		m.SetupSystems()[0],

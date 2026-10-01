@@ -57,7 +57,7 @@ func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 		return units.Define("recruit", board.Mover{Domain: board.Water}, steering.Steering{MaxSpeed: 10})
 	})
 	var base goke.Comp[world.Base]
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[board.At]
 	var mover goke.Comp[board.Mover]
 	var layers goke.Comp[world.Layers]
 	var steer goke.Comp[steering.Steering]
@@ -73,8 +73,8 @@ func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 		for i := range cur.IDs {
 			found++
 			want, _ := grid.CellIndex(2, 1)
-			if cell.Slice(cur)[i].ID != want {
-				t.Errorf("cell = %v, want the cell under the position, %v", cell.Slice(cur)[i].ID, want)
+			if cell.Slice(cur)[i].Cell != want {
+				t.Errorf("cell = %v, want the cell under the position, %v", cell.Slice(cur)[i].Cell, want)
 			}
 			if c := board.Center(base.Slice(cur)[i].Pos); c != grid.CellCenter(want) {
 				t.Errorf("position centre = %v, want the cell's centre %v", c, grid.CellCenter(want))
@@ -121,6 +121,6 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	ctx.ecs.Setup(systems...) // Setup runs the queued spawn, where the Cell is read off the position
+	ctx.ecs.Setup(systems...) // Setup runs the queued spawn, where the At is read off the position
 	t.Error("a unit off the board spawned")
 }

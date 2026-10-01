@@ -55,8 +55,8 @@ func search(t *testing.T, lookEvery time.Duration, hunter huntBody, prey []huntB
 	hunters := kind.Define[huntBody](w.Kinds(), "hunter", kind.Spec{
 		comp.Load(huntAt),
 		comp.Const(world.Velocity{Dir: east, Value: 1}),
-		comp.Const(vision.Sight{Facing: east, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}),
-		comp.Const(steering.Steering{}),
+		comp.Const(vision.Sight{Facing: east, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}), comp.Const(vision.Sighted{}),
+		comp.Const(steering.Steering{}), comp.Const(steering.Course{}),
 		comp.Tagged(tags.Predator),
 	})
 	preyKind := kind.Define[huntBody](w.Kinds(), "prey", kind.Spec{comp.Load(huntAt), comp.Const(world.Velocity{}), comp.Tagged(tags.Prey)})
