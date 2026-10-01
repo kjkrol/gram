@@ -12,7 +12,7 @@ import (
 // moment is a made-up host's description of one entity: its place in the chunk.
 type moment struct{ i int }
 
-// Triggers over one component share its column in the host's query, the host's own among them:
+// Rules over one component share its column in the host's query, the host's own among them:
 // two over body and the host reading body itself build one query and each sees every entity.
 func TestEachHost_TriggersOverOneComponentShareItsColumn(t *testing.T) {
 	h := &host.EachHost[moment]{}
@@ -44,6 +44,6 @@ func TestEachHost_TriggersOverOneComponentShareItsColumn(t *testing.T) {
 		}
 	}})
 	if seen != [2]int{3, 3} || read != 3 {
-		t.Errorf("the triggers saw %v, the host read %d; want both triggers and the host on all 3", seen, read)
+		t.Errorf("the rules saw %v, the host read %d; want both rules and the host on all 3", seen, read)
 	}
 }

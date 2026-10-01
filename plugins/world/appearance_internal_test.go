@@ -10,7 +10,7 @@ import (
 )
 
 // drawThroughHost runs the Drawing behaviors over one entity moving with vel and returns its layers.
-func drawThroughHost(t *testing.T, vel Velocity, behaviors ...plugin.Trigger) []Appearance {
+func drawThroughHost(t *testing.T, vel Velocity, behaviors ...plugin.Rule) []Appearance {
 	t.Helper()
 	host := &host.EachHost[Drawing]{}
 	for _, b := range behaviors {

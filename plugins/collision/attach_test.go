@@ -10,9 +10,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,7 +31,9 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	}
 
 	contacts := 0
-	if err := c.Hook(act.Trigger[collision.Meeting]("hook").Runs(func(plugin.Tick, collision.Meeting) { contacts++ })); err != nil {
+	if err := c.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
+		return m.Call(func(plugin.Tick, collision.Meeting) { contacts++ })
+	})); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}
 

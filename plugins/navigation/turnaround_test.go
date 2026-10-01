@@ -59,6 +59,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		c = collision.NewPlugin(w)
 	}
 
+	if err := w.Carry(tw.nav); err != nil { // as the engine does with Use
+		t.Fatal(err)
+	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)

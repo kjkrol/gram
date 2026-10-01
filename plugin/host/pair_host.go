@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// pair is a pair trigger with its tags erased: what a host finds in Hook.
+// pair is a pair rule with its tags erased: what a host finds in Hook.
 type pair[P any] struct {
 	a, b  tagged
 	same  bool
@@ -18,8 +18,8 @@ type pair[P any] struct {
 	fa, fb int
 }
 
-// PairHost runs the pair triggers made for payload P inside a host's own pass. It reads every
-// family its triggers name off the entities it is shown and matches pairs by tag bits.
+// PairHost runs the pair rules made for payload P inside a host's own pass. It reads every
+// family its rules name off the entities it is shown and matches pairs by tag bits.
 type PairHost[P any] struct {
 	families []tagProbe
 	kinds    []reflect.Type // the families' types, in the same order, for Marks
@@ -28,8 +28,8 @@ type PairHost[P any] struct {
 	matched  []int // DispatchGrouped's scratch
 }
 
-// Add takes a pair trigger for P; ErrUnhosted for another, ErrHostBuilt after Bind.
-func (h *PairHost[P]) Add(b plugin.Trigger) error {
+// Add takes a pair rule for P; ErrUnhosted for another, ErrHostBuilt after Bind.
+func (h *PairHost[P]) Add(b plugin.Rule) error {
 	p, ok := b.(*pair[P])
 	if !ok {
 		return fmt.Errorf("%w: %T", plugin.ErrUnhosted, b)
@@ -56,7 +56,7 @@ func (h *PairHost[P]) familyOf(t tagged) int {
 		}
 	}
 	if len(h.families) == plugin.MaxFamilies {
-		panic(fmt.Sprintf("host: pair triggers name more than %d tag families", plugin.MaxFamilies))
+		panic(fmt.Sprintf("host: pair rules name more than %d tag families", plugin.MaxFamilies))
 	}
 	h.families = append(h.families, t.make())
 	h.kinds = append(h.kinds, t.family)
@@ -94,7 +94,7 @@ func fits(m plugin.Marks, f int, t tagged) bool {
 	return f < 0 || m.Word(f)&(1<<t.bit) != 0
 }
 
-// Dispatch runs every trigger whose first tag self carries and second tag other carries.
+// Dispatch runs every rule whose first tag self carries and second tag other carries.
 func (h *PairHost[P]) Dispatch(t plugin.Tick, self, other plugin.Marks, pair P) {
 	for _, b := range h.pairs {
 		if fits(self, b.fa, b.a) && fits(other, b.fb, b.b) {

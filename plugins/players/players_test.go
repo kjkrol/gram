@@ -109,7 +109,7 @@ func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 		t.Fatal("two bindings on KeyPress A were accepted")
 	}
 	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
-		t.Errorf("Shift+A beside A: %v, want accepted as a different trigger", err)
+		t.Errorf("Shift+A beside A: %v, want accepted as a different rule", err)
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
 		t.Error("a Binding not built with Command was accepted")

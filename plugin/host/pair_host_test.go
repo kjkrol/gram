@@ -25,7 +25,7 @@ type body struct{ N int }
 type sighting struct{ from, to uid.UID64 }
 
 // hostOf builds a host with behaviors registered, a hunter, a hunted, and what each carries.
-func hostOf(t *testing.T, behaviors ...plugin.Trigger) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
+func hostOf(t *testing.T, behaviors ...plugin.Rule) (h *host.PairHost[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
 	t.Helper()
 	h = &host.PairHost[sighting]{}
 	for _, b := range behaviors {
@@ -64,7 +64,7 @@ func hostOf(t *testing.T, behaviors ...plugin.Trigger) (h *host.PairHost[sightin
 	return h, hunterMarks, huntedMarks, pair
 }
 
-func recording(into *[]sighting) plugin.Trigger {
+func recording(into *[]sighting) plugin.Rule {
 	return host.Pair(hunter, hunted, func(_ plugin.Tick, s sighting) { *into = append(*into, s) })
 }
 

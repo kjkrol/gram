@@ -180,6 +180,62 @@ func (b *Board) Solid(layers world.Layers, box geom.AABB, visit func(collide.Fie
 	}
 }
 
+// Overhang is how much of box, as area, lies over ground that does not take an entity on layers
+// — cells whose kind allows none of them: water to a walker, a hole — the collision.Field
+// contract: a push never makes it more. Off the board is none of it; the world's edges keep it.
+func (b *Board) Overhang(layers world.Layers, box geom.AABB) float64 {
+	sq := b.square
+	if sq == nil {
+		return b.overhangCells(layers, box)
+	}
+	size := float64(sq.CellSize)
+	if size == 0 {
+		return 0
+	}
+	var area float64
+	x0, y0 := int64(math.Floor(box.TopLeft.X/size)), int64(math.Floor(box.TopLeft.Y/size))
+	x1, y1 := int64(math.Ceil(box.BottomRight.X/size)), int64(math.Ceil(box.BottomRight.Y/size))
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			if c, ok := b.squareCell(x, y); ok && !takes(b.kindOf(c), layers) {
+				area += overlap(box, geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size))
+			}
+		}
+	}
+	return area
+}
+
+// overhangCells is Overhang over a grid other than square: the boxes of every cell under box.
+func (b *Board) overhangCells(layers world.Layers, box geom.AABB) float64 {
+	var area float64
+	b.CellsUnder(box, func(c CellID) {
+		if takes(b.kindOf(c), layers) {
+			return
+		}
+		b.boxes = b.CellBoxes(c, b.boxes[:0])
+		for _, cb := range b.boxes {
+			area += overlap(box, cb)
+		}
+	})
+	return area
+}
+
+// takes reports whether cells of k take an entity on layers: they allow one of them — any, for
+// one on every plane (no layers).
+func takes(k *CellKind, layers world.Layers) bool {
+	return k == nil || k.Allows&Domain(layers) != 0 || layers == 0 && k.Allows != 0
+}
+
+// overlap is the area a and b share.
+func overlap(a, b geom.AABB) float64 {
+	w := min(a.BottomRight.X, b.BottomRight.X) - max(a.TopLeft.X, b.TopLeft.X)
+	h := min(a.BottomRight.Y, b.BottomRight.Y) - max(a.TopLeft.Y, b.TopLeft.Y)
+	if w <= 0 || h <= 0 {
+		return 0
+	}
+	return w * h
+}
+
 // squareCell is the cell at column x, row y of the square grid, folded across a wrapping seam.
 func (b *Board) squareCell(x, y int64) (CellID, bool) {
 	sq := b.square

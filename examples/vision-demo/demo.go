@@ -16,14 +16,14 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	ctrigger "github.com/kjkrol/gram/plugins/collision/trigger"
+	chooks "github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
-	vtrigger "github.com/kjkrol/gram/plugins/vision/trigger"
+	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -82,10 +82,10 @@ type mainStage struct {
 	hunter    kind.Of[body]
 	collision *collision.Plugin
 
-	avoidance *vtrigger.Flee
-	tags      vtrigger.Tags
+	avoidance *vhooks.Flee
+	tags      vhooks.Tags
 	avoiding  bool
-	hits      ctrigger.ContactStats
+	hits      chooks.ContactStats
 
 	players *players.Plugin
 
@@ -103,23 +103,27 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
 	})
 
-	s.tags = vtrigger.DefineTags(s.world.Kinds())
+	s.tags = vhooks.DefineTags(s.world.Kinds())
 	s.defineKinds()
 
-	s.avoidance = vtrigger.NewFlee(s.tags)
+	s.avoidance = vhooks.NewFlee(s.tags)
 
 	s.vision = vision.NewPlugin(s.world)
 	if err := s.vision.Hook(
-		act.Trigger[vision.Sighting]("steer").Self(s.tags.Skittish).Runs(s.avoidance.Steer),
-		act.Trigger[vision.Sighting]("chase").Self(s.tags.Predator).Other(s.tags.Prey).Do(vtrigger.Chase(hunterLooksEvery)),
-		act.Trigger[vision.Sighting]("face travel").Runs(faceTravel),
+		s.avoidance.Rule(),
+		vhooks.Chase(s.tags, hunterLooksEvery),
+		rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
+			return m.Call(faceTravel)
+		}),
 	); err != nil {
 		return err
 	}
 	s.collision = collision.NewPlugin(s.world)
 	if err := s.collision.Hook(
-		act.Trigger[collision.Meeting]("count contacts").Do(ctrigger.CountContacts(&s.hits)),
-		act.Trigger[collision.Meeting]("caught").Self(s.tags.Predator).Other(s.tags.Prey).Runs(s.caught),
+		chooks.CountContacts(&s.hits),
+		rule.On("caught", rule.Between(s.tags.Predator, s.tags.Prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
+			return m.Call(s.caught)
+		}),
 	); err != nil {
 		return err
 	}

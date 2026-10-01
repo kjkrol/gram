@@ -8,7 +8,7 @@
 // of any game time.
 //
 // A [Year] is [GameYear], eight days to watch go by, or [EarthYear], the 365 days and twelve months
-// as they are. For a trigger of the clock's Moment, [Calendar.Daily] and [Calendar.Yearly] give
+// as they are. For a rule of the clock's Moment, [Calendar.Daily] and [Calendar.Yearly] give
 // clock.Every the period and offset of every day at an hour or every year at a time of it, and
 // [Calendar.Seasonal] of the start of a season. [Calendar.Reporter] is two telemetry lines,
 // [Calendar.HUD] a screen layer.

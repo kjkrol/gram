@@ -94,7 +94,7 @@ type Renderer struct {
 	out     goke.OptComp[SightOutline]
 	z       goke.OptComp[world.Z]
 	viewing *host.EachHost[Viewing] // nil: every view drawn
-	shown   []bool                  // the chunk's, as its Viewing triggers say
+	shown   []bool                  // the chunk's, as its Viewing rules say
 	ids     []uid.UID64
 	bases   []world.Base
 	// groundStep is how far apart the views are draped over the ground, world units; 0, the
@@ -171,7 +171,7 @@ func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	return r
 }
 
-// WithViewing has only the views the Viewing triggers of h show drawn, where it holds any.
+// WithViewing has only the views the Viewing rules of h show drawn, where it holds any.
 func (r *Renderer) WithViewing(h *host.EachHost[Viewing]) *Renderer {
 	r.viewing = h
 	return r
@@ -204,8 +204,8 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
 }
 
-// settle has the Viewing triggers say which views of the chunk under cursor are drawn: every one
-// without any trigger.
+// settle has the Viewing rules say which views of the chunk under cursor are drawn: every one
+// without any rule.
 func (r *Renderer) settle(cursor *goke.Cursor, bases []world.Base) {
 	n := len(cursor.IDs)
 	r.shown = r.shown[:0]

@@ -15,9 +15,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/trigger"
+	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
@@ -53,7 +52,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
-	stats     trigger.ContactStats
+	stats     hooks.ContactStats
 	scenes    game.Scenes
 }
 
@@ -75,7 +74,7 @@ func (a *arena) Init(ctx game.Initializer) error {
 
 	a.collision = collision.NewPlugin(a.world)
 	if err := a.collision.Hook(
-		act.Trigger[collision.Meeting]("count contacts").Do(trigger.CountContacts(&a.stats)),
+		hooks.CountContacts(&a.stats),
 	); err != nil {
 		return err
 	}

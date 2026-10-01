@@ -17,7 +17,7 @@ var _ render.Direct = (*Renderer)(nil)
 
 // Renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
 // camera — what it sees this tick — each laid on the screen by the world's Look, running the Each
-// triggers of a Drawing over each chunk to settle their layers. A Stage that has not ticked yet
+// rules of a Drawing over each chunk to settle their layers. A Stage that has not ticked yet
 // sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
 // sprites it was handed.
 type Renderer struct {
@@ -95,7 +95,7 @@ func (s *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 }
 
-// each walks the drawn entities of the View, their Drawing triggers run, calling visit once per
+// each walks the drawn entities of the View, their Drawing rules run, calling visit once per
 // entity with its index in the chunk and its Z, nil without one.
 func (s *Renderer) each(visit func(i int, z *Z)) {
 	tick := plugin.Tick{Now: time.Now()}

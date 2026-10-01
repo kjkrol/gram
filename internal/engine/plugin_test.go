@@ -41,7 +41,7 @@ func (p *stubPlugin) WithRenderer(render.AtlasSource)    {}
 func (p *stubPlugin) Renderer() render.Layer             { return nil }
 func (p *stubPlugin) EventHandler() control.EventHandler { return nil }
 func (p *stubPlugin) Serializable() plugin.Serializable  { return p.serializable }
-func (p *stubPlugin) Hook(...plugin.Trigger) error       { return plugin.ErrUnhosted }
+func (p *stubPlugin) Hook(...plugin.Rule) error          { return plugin.ErrUnhosted }
 
 // stubStage is a minimal game.Stage for testing Engine/Initializer.
 type stubStage struct {

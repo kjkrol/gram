@@ -9,9 +9,9 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/world/act"
-	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 )
 
 // Config is what the weather does to the board: Snowy names, for each kind snow may lie on, the
@@ -137,11 +137,12 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 // one (effect.Effects.Has).
 func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
-// Trigger is the weathering as a trigger of the world's clock: every second of game time. Hook it
-// on the world.
-func (w *Weathering) Trigger() plugin.Trigger {
-	t := act.Trigger[clock.Moment]("weathering")
-	return t.Do(t.If(clock.Every(time.Second, 0), t.Run(func(tick plugin.Tick, _ clock.Moment) { w.second(tick) })))
+// Rule is the weathering as a rule of the world's clock: every second of game time. Hook it on the
+// world.
+func (w *Weathering) Rule() plugin.Rule {
+	return rule.On("weathering", rule.All, func(m *rule.Moment[clock.Moment]) rule.Step {
+		return m.If(clock.Every(time.Second, 0), m.Call(func(tick plugin.Tick, _ clock.Moment) { w.second(tick) }))
+	})
 }
 
 // second is a second of the weather on the board.

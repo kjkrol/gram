@@ -19,19 +19,19 @@ type Outside struct{}
 // Despawn is the command an entity gives itself to leave the world: gone in the step it gives it.
 type Despawn struct{}
 
-// Leaving is what a trigger hosted by world gets, every tick, for an entity carrying Outside.
+// Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside.
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base
 }
 
-// Who is the entity leaving: whose moment it is, for a trigger.
+// Who is the entity leaving: whose moment it is, for a rule.
 func (l Leaving) Who() uid.UID64 { return l.ID }
 
 var _ goke.System = (*exitSystem)(nil)
 
 // exitSystem despawns the entities that gave themselves a Despawn, and walks those carrying
-// Outside: the hosted triggers hear of them, or they are despawned when there are none; one that
+// Outside: the hosted rules hear of them, or they are despawned when there are none; one that
 // is back inside loses the mark.
 type exitSystem struct {
 	w    *module

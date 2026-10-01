@@ -10,8 +10,8 @@
 // with its terrain, the one place to read the topology and read or write terrain. [Plugin], built
 // over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a [Layout] (a default
 // kind for every cell, per-cell overrides, and the heights) when the Stage starts fresh, and slows
-// every entity carrying a [Mover] by the terrain under it (a Moving trigger it hooks on the
-// world). Every step it tells the triggers of a [Standing] hooked on it ([Plugin.Hook]) where
+// every entity carrying a [Mover] by the terrain under it (a Moving rule it hooks on the
+// world). Every step it tells the rules of a [Standing] hooked on it ([Plugin.Hook]) where
 // each entity stands: the cell, its kind, the entity's box and domain — [Standing.Fallen] where
 // the domain may not be, a unit pushed into the sea.
 //
@@ -62,7 +62,8 @@
 // The board is the ground: [Heights] is the height of the ground at a point, the Map's — a
 // topography's relief — and nil on a flat map ([Plugin.Heights]); [Cover] is what stands on the
 // board and holds sight back, the Board itself ([Plugin.Cover]); and the Solid cells are the solid
-// ground collision pushes colliders out of ([Plugin.WithCollision], collision.Field). Sight takes
+// ground collision pushes colliders out of, the cells a kind does not take ([Board.Overhang]) the
+// ground it never pushes one over ([Plugin.WithCollision], collision.Field). Sight takes
 // them with vision.Plugin.WithBoard. The world knows none of it: it knows its entities.
 //
 // [Occupancy] tracks who holds each cell and in which domains, gating and recording every step

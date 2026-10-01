@@ -6,40 +6,43 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
-**Entities behave in one vocabulary: triggers, trees, effects, commands, facts**
-- `plugins/world/act` is how entities behave (`doc/act.md`), every node made by the methods of a
-  builder (Go 1.27's methods with type parameters), no package functions. A **trigger**,
-  `act.Trigger[P](name)` — a `Reaction[P]`, narrowed with `.Self(tag)`, `.Other(tag)`,
-  `.Having[T]()` and closed with `.Do(body…)` or `.Runs(fn)`/`.RunsOn(fn)` — is a moment a plugin
-  catches in its own pass — a `board.Standing`, a `vision.Sighting`, a `collision.Meeting` or
-  `Struck`, a `world.Moving`, `Leaving` or `Drawing`, an `effect.Idling`, a
-  `climate.Weathering`, a `clock.Moment` — hooked on that plugin (pairs for a moment that is
-  `act.Met`); a Reaction makes `Instant` nodes alone (`First`, `Then`, `If` on the moment,
-  `Unless`, `IfUnder`, `Apply`, `While`, `Issue`, `ToOther`, `Run`, `RunOn`), so a lasting one is
-  refused by the compiler. A **tree** (`act.Tree`) is how a kind deliberates, run by the world in
-  every step of its simulation and saved with the game; its branches are `Branch`es —
-  `act.When[F](name)`, `act.On[F](name)`, `act.Named(name)` closed with `.Do(body)`, only the
-  root named — whose methods are `First`, `Then`, `If`, `Until`, `Wait`, `Timeout`, `Cooldown`,
-  `Invert`, `Idle`, and conversation between entities — `Ask`, `Agree`, `Refuse`, `Relay`, the
-  facts `Asked` and `Replied`, a `Chain` of at most `MaxChain`, asks dropped after `AskLife`.
-  **Effects** are cast by nodes: `Apply`, `While` (held while its branch runs, or while a trigger
-  keeps firing it), `Unless`, `IfUnder` — an effect's presence is a trigger's memory. A
-  **command** is what an entity gives itself, `Issue(cmd)`, the same command a player gives, fire
-  and forget — in a tree a `Command` whose `.Until[F](…)` or `.Stay()` gives it once in a reactive
-  branch: the world carries it (`control.Carrier`, `world.Plugin.Carry`/`Commands`; the engine
-  carries every `plugin.CommandHandler` a stage uses, `plugin.Tick.Commands` hands it to
-  triggers), the handler told who gave it (`control.Issued.Entity`, `ByEntity`;
-  `CommandQueue.PutFrom`, `Queue.AddFrom`). A **fact** is what a plugin tells an entity with a
-  `Mind`, and how a tree learns what came of its commands (`Until[F]()`, a fact come afresh, or
-  `Until(pred)`).
+**Entities behave in one vocabulary: rules, plans, effects, commands, facts**
+- `plugins/world/rule` is how entities behave (`doc/rule.md`). Two constructors, each taking a
+  function that writes the steps for a builder (Go 1.27's methods with type parameters). A
+  **rule**, `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` — a `plugin.Rule` — is what
+  is done at a moment a plugin catches in its own pass — a `board.Standing`, a `vision.Sighting`, a
+  `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, an `effect.Idling`, a
+  `climate.Weathering`, a `clock.Moment`, a `navigation.Touch` — hooked on that plugin; the filter
+  says whom it fires for: `rule.All`, `rule.Self(tag)`, `rule.Between(a, b)` (pairs, for a moment
+  that is `rule.Met`), `rule.Having[T]()` (the component `m.CallOn` hands its function). A
+  Moment's steps are instant (`OneOf`, `Steps`, `If` on the moment, `Not`, `Apply`, `Keep`,
+  `Unless`, `Under`, `Order`, `ForOther`, `Call`, `CallOn`); a lasting one is refused as the rule
+  is made. A **plan**, `rule.Plan(name, func(a *rule.Actor) rule.Step)`, is the component a kind
+  gives its entities: what they do over time, run by the world in every step of its simulation and
+  saved with the game; an Actor's steps are the same and `When[F]`/`On[F]` (branches on a fact),
+  `If`, `Until`, `Wait`, `Timeout`, `Cooldown`, `Idle`, and conversation between entities — `Ask`,
+  `Agree`, `Refuse`, `Relay`, the facts `Asked` and `Replied`, a `Chain` of at most `MaxChain`,
+  asks dropped after `AskLife`. One type, `rule.Step`, for both; a function writing part of either
+  takes the Moment or the Actor. **Effects** are cast by steps: `Apply`, `Keep` (held while its
+  branch runs, or while a rule keeps firing it), `Unless`, `Under` — an effect's presence is a
+  rule's memory. A **command** is what an entity gives itself, `Order(cmd)`, the same command a
+  player gives, fire and forget — in a plan a `Command` whose `.Until[F](…)` or `.Stay()` gives it
+  once in a reactive branch: the world carries it (`control.Carrier`,
+  `world.Plugin.Carry`/`Commands`; the engine carries every `plugin.CommandHandler` a stage uses,
+  `plugin.Tick.Commands` hands it to rules), the handler told who gave it
+  (`control.Issued.Entity`, `ByEntity`; `CommandQueue.PutFrom`, `Queue.AddFrom`); an `Aimed`
+  command is told the `Subject` of the fact it stands under or of the rule's moment. A **fact** is
+  what a plugin tells an entity with a `Mind`, and how a plan learns what came of its commands
+  (`Until[F]()`, a fact come afresh, or `Until(pred)`). `Mind{Plan, Running, Slot, Since}` holds
+  at most `MaxSteps` (128) steps.
 - **Markers**: states an entity switches on and off are bits of a plugin's family `States`
   carried for good (`comp.Marks[F]()`, the roster's defaults), never components put on and taken
   off — which moved the entity in memory, some 200 ns a time (`Benchmark_Marker_*`).
   `effect.Idle` is a marker of `effect.States` (the type `effect.Idle` component is gone) and
   `Active` stays on an entity, empty when no effect runs; navigation's `CellEntered` is the marker
   `navigation.Entered` (the cell is the unit's `board.Cell`); collision's hit grants the marker
-  `collision.hit` of `trigger.States`: `trigger.Hit(w, d)` hands back `Hits{Effect, Mark}`, which
-  `ShowHits` and `HitOverlay` take. `host.EachHost.RunRows` runs triggers for chosen rows. Saves
+  `collision.hit` of `hooks.States`: `hooks.Hit(w, d)` hands back `Hits{Effect, Mark}`, which
+  `ShowHits` and `HitOverlay` take. `host.EachHost.RunRows` runs rules for chosen rows. Saves
   made before this do not load.
 - Needs goke 3.2.4: 3.2.3 wrote an archetype's values in one order and read them in another when a
   component type was registered before the entities' others but put on them after — values landed
@@ -49,39 +52,53 @@ the topography was split into packages: its heights are `relief.Heights` now.
   empties every queue at the end of a frame — which dropped an entity's `Despawn` given after the
   world's pass, so a unit that fell in never went. A command waits for its handler's pass;
   `CommandQueue` has `Empty` in place of `Clear`.
-- Collision's hit is an effect: `trigger.Hit(fx, d)` defines it, `ShowHits(hit)` casts it on a
+- Collision's hit is an effect: `hooks.Hit(fx, d)` defines it, `ShowHits(hit)` casts it on a
   `Struck` that `Hit()`s, `HitOverlay(hit, with)` draws it — in game time; `HitMark` is gone.
-- Gone: `plugin.Behavior` (now `plugin.Trigger`), `RegisterBehavior` (now `Hook` on every
+- Gone: `plugin.Behavior` (now `plugin.Rule`), `RegisterBehavior` (now `Hook` on every
   plugin), `vision.Between`, `collision.Each`/`Between`/`Every`, `board.Each`/`Every`,
-  `world.Each`/`Every`, `effects.Each`/`Every`, `climate.Every`, `effects.Schedule` (a trigger of
+  `world.Each`/`Every`, `effects.Each`/`Every`, `climate.Every`, `effects.Schedule` (a rule of
   the clock's `clock.Moment{Last, Now}` with `clock.At(t)` or `clock.Every(period, offset)`;
-  `calendar.Daily`/`Yearly`/`Seasonal` give the period and offset; `weathering.Weathering.Trigger`
+  `calendar.Daily`/`Yearly`/`Seasonal` give the period and offset; `weathering.Weathering.Rule`
   in place of `Schedule`). `plugin/host` gains `PairOf`, `EachWith`, `StateOf`, `SideOf`,
-  `AnySide`, `ListHost` and `Own`; triggers over one component share its column.
+  `AnySide`, `ListHost` and `Own`; rules over one component share its column.
 - Packages: `plugins/world/kind` is `plugins/world/entity/kind` (and `kind/comp`); the tags
   (`plugin.Tags`, `Tag`, `Any`, `Anything`, `MaxTagsPerFamily`) are the leaf
-  `plugins/world/entity/tag`; `plugins/world/effects` is `plugins/world/act/effect` (package
+  `plugins/world/entity/tag`; `plugins/world/effects` is `plugins/world/rule/effect` (package
   `effect`), whose `Define` hands back an `effect.Effect` that casts on its own effects
   (`Cast`, `CastFor`, `Dispel`, `On`); `plugins/collision/behavior` and `plugins/vision/behavior`
-  are the packages `trigger`, their reactions nodes for a trigger's body.
+  are the packages `hooks`: ready-made rules, whole, for a plugin's Hook —
+  `hooks.CountContacts(&stats)`, `ShowHits(hit)`, `LogContacts()`, `HitOverlay(hit, with)` (for the
+  world), `Chase(tags, every)`, `NewFlee(tags).Rule()`.
 - `world.Despawn`, a command an entity gives itself to leave the world; `board.Standing` carries
   the entity's `Domain`, `Standing.Fallen()` in place of `Fell(domain)`. The demos' falls and
-  drownings are triggers issuing `Despawn`; the effect demo's ice is triggers holding `frozen` and
-  `slip` with `While`.
-- navigation's courtesy (`navigation.Courteous()`): allies asked make way and come back, leave a
-  goal for good, pass the ask on in a crowd and swap goals within a group (`MoveOrder.Group`, a
-  fresh one each `MoveTo`) when that shortens both ways; strangers are never asked and never make
-  way for strangers — a traveller goes round them at once, or steps aside when there is no way
-  round; of two on the move the lower id waits, the other way round the next time they meet. Facts
-  `Blocked` (with `WaitedOut` and `Cornered`, what came of its commands), `Room`, `Arrived` (its
-  order over); commands `Detour`, `Hold`, `StepAside`, `SwapGoals`, `Settle`, carried out for the
-  unit that gives them; a `MoveTo` or `LookAt` a unit gives itself orders it alone; asks
-  `MakeWay`, `FreeGoal`, `SwapGoals`. Units without a tree keep navigation's reflexes.
+  drownings are rules ordering `Despawn`; the effect demo's ice is rules keeping `frozen` and
+  `slip` with `Keep`.
+- collision: a push apart never puts a unit further over ground that does not take it — water to
+  a walker, a hole: the side it would put there holds as at a wall and the other goes the whole
+  way. `collision.Field` has `Overhang(layers, box)`, the board's `Board.Overhang`; ground turning
+  to water under a unit still lets it fall in.
+- navigation's crowd is rules, as in StarCraft II, its own and unexported: hooked by the plugin
+  unless a game gives its own with `WithCrowd`, and a game adds rules beside them with `Hook`. An
+  ally standing makes way and stays aside while the one on the move goes on past
+  it; one on the move stops on touching one of its order that has arrived (`MoveOrder.Group`, a
+  fresh one each `MoveTo`; `LastOrder`, which every unit carries, the group it last came to the end
+  of), so a group gathers round its point; one on the goal who does not make way — a stranger, an
+  ally with no room — has it stand beside; anyone else
+  is gone round, and with no way round it steps aside a while; of two head on the lower id waits.
+  The rules are of the moment `navigation.Touch` — two units touching, their boxes or a
+  refused step — which navigation hosts (`Plugin.Hook`, tag filters too). Commands `StepAside`,
+  `Detour`, `Pass`, `Hold`, `Settle`, `Stop`, carried out for the unit that gives them, the
+  engine's rules kept inside: a unit steps aside only where the ground takes it, no steeper than a
+  cliff, nobody standing — never into water, a hole or a wall. Facts `Blocked` (with `WaitedOut`
+  and `Cornered`) and `Arrived` for units with a plan; a `MoveTo` or `LookAt` a unit gives itself
+  orders it alone. Navigation's own
+  decisions about others are gone — its last word is the stall: a unit making no headway plans
+  afresh, then stands. A step aside draws no goal outline.
 - `players/owner.Allies`. `MoveOrder.HitUnit`: a unit struck, told from the ground — entity 0 was
   taken for the ground before.
-- The island's and the navigation demo's units are `Courteous`.
-- Saves made before this do not load: `MoveOrder` and `act.Mind` changed shape, and the
-  effects' components are of the package `effect` now.
+- The topography demo has 20 of the player's units standing on the plateau, to watch the crowd.
+- Saves made before this do not load: `MoveOrder` and `rule.Mind` changed shape, and the
+  effects' components are of the package `rule/effect` now.
 
 **Units belong to players**
 - `plugins/players/owner`: whose a unit is — `owner.Family`, a tag a player (`owner.Of(id)`, saved

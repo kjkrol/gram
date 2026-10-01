@@ -159,12 +159,12 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts triggers of Standing (act.Trigger), fired every step for every entity on the
-// board; hook them before Use.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
+// Hook hosts rules (rule.On) of Standing, fired every step for every entity on the board; hook
+// them before Use.
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
 		if err := p.standing.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a trigger of Standing", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a rule of Standing", err, p.Name())
 		}
 	}
 	return nil

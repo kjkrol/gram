@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/uid"
 )
 

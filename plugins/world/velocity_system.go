@@ -12,7 +12,7 @@ import (
 
 var _ goke.System = (*VelocitySystem)(nil)
 
-// VelocitySystem runs the triggers of a Moving over every entity, after Steering wrote the
+// VelocitySystem runs the rules of a Moving over every entity, after Steering wrote the
 // base speed and before movement, so each may scale Velocity.Value.
 type VelocitySystem struct {
 	host     *host.EachHost[Moving]

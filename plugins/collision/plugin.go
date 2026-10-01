@@ -13,7 +13,7 @@ import (
 )
 
 // Plugin wires the collision engine into a Game — optional, borrows world.Plugin's own Space.
-// Must never import collision/trigger; a game registers those with Hook.
+// Must never import collision/hooks; a game registers those with Hook.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
@@ -75,7 +75,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — collision has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts triggers (act.Trigger) of Meeting, a pair, or of Struck; call before Use.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	return hostAll(&p.pairs, &p.entities, triggers)
+// Hook hosts rules (rule.On) of Meeting, a pair, or of Struck; call before Use.
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	return hostAll(&p.pairs, &p.entities, rules)
 }

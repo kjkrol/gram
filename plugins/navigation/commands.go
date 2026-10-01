@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/uid"
 )
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
@@ -24,6 +25,42 @@ type LookAt struct {
 	At geom.Vec
 }
 
+// The commands a unit gives itself among others (Order in a rule or a plan), carried out for
+// that unit alone; those that name whom they are about are told it as they are given (rule.Aimed).
+type (
+	// StepAside has a unit standing step off the way of Of, beside, where the ground takes it and
+	// nobody stands — never into water or a hole, off a cliff or onto a step (yieldClimb) — and stay
+	// there; with nowhere to, it stands. On the move it steps aside a while, then goes on to its
+	// own goals.
+	StepAside struct{ Of uid.UID64 }
+	// Detour has a unit on the move go round Of: it steps round them a while and, when they stand,
+	// notes their cell for its routes to go round and plans afresh; Touch and Blocked say it is
+	// cornered with no way round.
+	Detour struct{ Of uid.UID64 }
+	// Pass has a unit on the move go on past Of, who makes way for it: under BodySpacing it steps
+	// round them a while, its route kept; under CellSpacing its step waits for the cell.
+	Pass struct{ Of uid.UID64 }
+	// Hold keeps a unit on the move where it stands till the way ahead clears, stallAfter at most;
+	// then Touch and Blocked say it waited out.
+	Hold struct{}
+	// Settle has a unit on the move stand beside its goal, Beside on it.
+	Settle struct{ Beside uid.UID64 }
+	// Stop ends a unit's order where it stands, as come to the end of it.
+	Stop struct{}
+)
+
+// Aim tells the command whose way it is.
+func (s *StepAside) Aim(who uid.UID64) { s.Of = who }
+
+// Aim tells the command whom to go round.
+func (d *Detour) Aim(who uid.UID64) { d.Of = who }
+
+// Aim tells the command whom to go past.
+func (p *Pass) Aim(who uid.UID64) { p.Of = who }
+
+// Aim tells the command who stands on the goal.
+func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
+
 // Routes shows the routes of the selected units drawn, or hides them: their goals are drawn always.
 // A look at the world, like the camera's turn: at once, in the pause too, not saved.
 type Routes struct{}
@@ -40,9 +77,9 @@ func dragged(c control.Context) bool {
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are where MoveTo, LookAt and Routes land — for the players plugin — and the commands a
-// unit's tree gives it among others: Detour, Hold, StepAside, SwapGoals and Settle.
+// unit gives itself among others: StepAside, Detour, Pass, Hold, Settle and Stop.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.courtesy.all()...)
+	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.given.all()...)
 }
 
 // DefaultBindings is a right click — the button up where it went down, within clickSlop — into a

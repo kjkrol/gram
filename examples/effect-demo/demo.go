@@ -24,11 +24,11 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
-	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -163,14 +163,19 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// The whole of the game's logic: reactions to where things stand, hooked before Use. The witch
 	// freezes the ground round her; one caught in the ice is frozen while it is, one fallen in
 	// where there is no ice gives itself a Despawn; one walking on ice slips while it does.
-	inIce, onIce := act.Trigger[board.Standing]("in the ice"), act.Trigger[board.Standing]("on the ice")
 	if err := s.board.Hook(
-		act.Trigger[board.Standing]("freeze").RunsOn(s.freeze),
-		inIce.Do(inIce.First(
-			inIce.If(s.caughtInIce, inIce.While(s.frozen)),
-			inIce.If(s.fellIn, inIce.Then(inIce.Run(fell), inIce.Issue(world.Despawn{}))),
-		)),
-		onIce.Do(onIce.If(s.onIce, onIce.While(s.slip))),
+		rule.On("freeze", rule.Having[witch](), func(m *rule.Moment[board.Standing]) rule.Step {
+			return m.CallOn(s.freeze)
+		}),
+		rule.On("in the ice", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+			return m.OneOf(
+				m.If(s.caughtInIce, m.Keep(s.frozen)),
+				m.If(s.fellIn, m.Steps(m.Call(fell), m.Order(world.Despawn{}))),
+			)
+		}),
+		rule.On("on the ice", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+			return m.If(s.onIce, m.Keep(s.slip))
+		}),
 	); err != nil {
 		return err
 	}
@@ -178,7 +183,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	// frozen fast: whoever carries the tag does not move
-	if err := s.world.Hook(act.Trigger[world.Moving]("frozen fast").Self(s.frozenTag).Runs(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value = 0 })); err != nil {
+	if err := s.world.Hook(rule.On("frozen fast", rule.Self(s.frozenTag), func(m *rule.Moment[world.Moving]) rule.Step {
+		return m.Call(func(_ plugin.Tick, mv world.Moving) { mv.Base.Vel.Value = 0 })
+	})); err != nil {
 		return err
 	}
 

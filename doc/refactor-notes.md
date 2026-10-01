@@ -1097,9 +1097,76 @@ was weighed and rejected: tags would lose their worth to queries).
 - `TestBodySpacing_CrowdsStandRoundThePointWithoutPushing`: 25 units from the north-east strike
   2082 ticks against a bound of 2000. Navigation is unchanged; the order the units are walked in
   changed (they no longer move between archetypes each step), and the crowd's contacts swing with
-  it — with markers from spawn another case, a column, reached 2364. Left for the user to decide.
+  it — with markers from spawn another case, a column, reached 2364. Settled by the crowd round
+  below: the test measures the longest touch of a pair.
+
+### The crowd as StarCraft II's rules, written in act (2026-09-30)
+
+The goal outlines overlapped when a player kept changing a group's target: one standing, bumped,
+got a step aside and home again, and the step aside was drawn as a goal. The user judged the
+eight ways of giving way (the `Courteous` tree, asks, relays, swaps, step aside and back, and
+navigation's own reflexes) overcomplicated, chose StarCraft II's few rules, the old ones removed
+for good ("to defaulty, nie ma sensu trzymać dwóch"), on one condition — no unit pushed where it
+falls or into a wall — and then that the rules be written in act: a plugin perceives and carries
+out, act says what to do when; gram is a library of layers (the rule is in CLAUDE.md, "Behaviour
+goes through act").
+
+- Navigation hosts the moment `Touch` (a pair: two units touching — boxes met, or a step refused),
+  with what each is doing, and carries out the commands `StepAside`, `Detour`, `Pass`, `Hold`,
+  `Settle`, `Stop`; the engine's rules live in the handlers (`open`/`aside`: ground that takes the
+  unit, no steeper than `yieldClimb`, nobody there). `Crowd` = `MakeWay`, `JoinTheGroup`,
+  `GoRound`. `LastOrder` tells which group a standing unit came to the end of.
+- Found on the way and settled as rules or perception, not branches: collision records a contact
+  on the one that struck only (each pair is felt once and handed to both); head on under cells had
+  to be seen from this tick's refusals; a mover going round an ally that steps aside met it on the
+  same side (it now goes on past it, `Pass`, and waits under cells, where the step waits anyway);
+  an ally with no room was pushed along a lane (the Touch now says `Room`); a unit stepping aside
+  was gone round under cells, re-routing into it again (cells do not route round one giving way);
+  in a corridor with a passing place the cornered one steps aside a while (`NoWayRound`).
+- The crowd test now measures the longest touch of a pair (under `stallAfter`; 57 ticks at worst)
+  instead of the sum of contacts, which swung with the storage order.
+- The demo probe (20 plateau units, clicks every 15–300 frames) counts no overlapping outlines
+  (before: up to 2 pairs).
+- The collision's push of two boxes (an even split) looked at no ground: with no rules a pushed
+  unit was shoved into water; with `Crowd` one with no room at the water's edge was nudged ~6 px,
+  its box 5 px over the water. The user chose the guard in collision (2026-10-01): a push apart
+  never puts a unit further over ground that does not take it (`Field.Overhang`); the side held
+  bounces as off the ground, the other goes the whole way. The engine (aabbworld) asks the
+  handler only on a pair's first pass, so the box written back is checked too. A unit whose goal
+  such a one stands on stands beside it (`Touch.GoalTaken`). The navigation test field now wires
+  the board into collision, as the demos do.
+
+### rule: the names (2026-10-01)
+
+The user found the effect demo's rules hard to read and "act" a poor name, and that
+`plugin.Trigger` and `act.Trigger` were two things of one name. Talked through, without code, to:
+
+- the package is `plugins/world/rule`; what is done at a moment is a **rule** (`plugin.Rule`, which
+  `Hook` takes), what an entity does over time a **plan** (the trees);
+- two constructors, each taking a function that writes the steps for a builder — the user's idea
+  to drop `Do` for a function, and to give the function's parameter a type of its own per
+  context, so good names need not clash: `rule.On(name, filter, func(m *rule.Moment[P])
+  rule.Step)` and `rule.Plan(name, func(a *rule.Actor) rule.Step)`; the Actor's `When[F]` and
+  `On[F]` open branches on a fact, and `If` is the condition everywhere;
+- the filter is the second argument, so whom a rule concerns is read before its body (Go allows an
+  optional argument only last: `rule.All` stands for none); `Self`, `Between` (one filter for a
+  pair, in place of `Self`+`Other`), `Having` (kept, as `CallOn` needs it);
+- steps renamed: `OneOf` (First), `Steps` (Then), `Not` (Invert), `Keep` (While), `Under`
+  (IfUnder), `Order` (Issue), `ForOther` (ToOther), `Call`/`CallOn` (Run/RunOn); `Runs`/`RunsOn`,
+  `Named`, `Do` and `act.Tree` gone — one way to write each thing; `Node`/`Instant` are one
+  `Step`, a lasting step in a rule refused as it is made; `Mind.Tree` is `Mind.Plan`, `MaxNodes`
+  `MaxSteps`;
+- a library shows a game only what it needs: navigation's crowd rules are unexported (CLAUDE.md
+  says so now; the earlier "ready parts" sentence was mine and wrong).
+
+The packages `collision/trigger` and `vision/trigger` are `collision/hooks` and `vision/hooks`
+(the user's name): they hold ready-made rules, whole, for a plugin's Hook —
+`collision.Hook(chooks.CountContacts(&stats), chooks.ShowHits(hit))`, `vhooks.Chase(tags, every)`,
+`vhooks.NewFlee(tags).Rule()` — where they held steps a game had to wrap in `rule.On` itself.
+Saves made before this do not load: `rule.Mind` is a new type path.
 
 ## Questions for review
+
 
 - **Determinism across tempos** holds for the simulation; the interface part (orders, selection)
   runs once a tick, so a player acting at ×4 acts every four steps rather than every step. That is

@@ -32,6 +32,6 @@ type Plugin interface {
 	// Serializable returns this plugin's persistable state, or nil if it has none.
 	Serializable() Serializable
 
-	// Hook hosts triggers in this plugin's own pass; call before Use.
-	Hook(triggers ...Trigger) error
+	// Hook hosts rules in this plugin's own pass; call before Use.
+	Hook(rules ...Rule) error
 }

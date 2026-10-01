@@ -4,26 +4,44 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
 // body is a unit as the keeping sees it this tick: its box, how it moves and whether it stands,
-// whose it is and where its order ends.
+// whose it is, where its order ends and what came of its commands.
 type body struct {
-	id       uid.UID64
-	at       geom.Vec // the middle of its box
-	half     geom.Vec // half its box
-	vel      geom.Vec // world units a second
-	domain   board.Domain
-	moving   bool // under an order
-	yielding bool // under an order to give way, lingering aside
-	owners   tag.Tags[owner.Family]
-	group    uint32       // the group its order was given to; zero, none
-	goal     board.CellID // where its order ends
-	cell     board.CellID // the cell it stands on
+	id        uid.UID64
+	at        geom.Vec // the middle of its box
+	half      geom.Vec // half its box
+	vel       geom.Vec // world units a second
+	domain    board.Domain
+	moving    bool // under an order
+	givingWay bool // under an order to give way
+	owners    tag.Tags[owner.Family]
+	// group is the MoveTo it belongs with: the one its order is from, else the last it came to the
+	// end of (LastOrder); zero, none
+	group     uint32
+	goal      board.CellID // where its order ends
+	spot      geom.Vec     // the point there it stops at
+	lastGoal  bool         // its order has no goal queued behind the one it heads for
+	waitedOut bool         // its Hold ran out, the way still closed
+	cornered  bool         // its Detour found no way round
+	minded    bool         // it has a tree (rule.Mind), told Blocked and Arrived
+	cell      board.CellID // the cell it stands on
+	facing    geom.Vec     // the way it faces, standing too
+	z         world.Z
+	lift      float64
+}
+
+// member is b as a command sees it: standing, with no order.
+func (b body) member() member {
+	return member{id: b.id, cell: b.cell, from: b.cell, domain: b.domain, pos: world.Position{AABB: plane.NewAABB(geom.NewVec(b.at.X-b.half.X, b.at.Y-b.half.Y), 2*b.half.X, 2*b.half.Y)},
+		vel: b.vel, facing: b.facing, z: b.z, lift: b.lift, owners: b.owners}
 }
 
 // bodyIndex is the tick's bodies, by id and bucketed by the cells their boxes touch: what a unit

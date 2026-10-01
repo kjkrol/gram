@@ -13,8 +13,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 func near(a, b, tolerance float32) bool { return math.Abs(float64(a-b)) <= float64(tolerance) }
@@ -34,7 +34,9 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
 	cal := calendar.New(r.clk, calendar.Config{Day: 4 * time.Minute, Season: season})
 	r.c = New(r.w, cal, cfg)
-	if err := r.c.Host(act.Trigger[Weathering]("heard").Runs(func(_ plugin.Tick, w Weathering) { r.heard = append(r.heard, w) })); err != nil {
+	if err := r.c.Host(rule.On("heard", rule.All, func(m *rule.Moment[Weathering]) rule.Step {
+		return m.Call(func(_ plugin.Tick, w Weathering) { r.heard = append(r.heard, w) })
+	})); err != nil {
 		t.Fatal(err)
 	}
 	r.sys = r.c.System().(*weatherSystem)

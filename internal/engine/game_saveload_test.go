@@ -50,7 +50,7 @@ func (a *ecsAccessor) WithRenderer(render.AtlasSource)    {}
 func (a *ecsAccessor) Renderer() render.Layer             { return nil }
 func (a *ecsAccessor) EventHandler() control.EventHandler { return nil }
 func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
-func (a *ecsAccessor) Hook(...plugin.Trigger) error       { return plugin.ErrUnhosted }
+func (a *ecsAccessor) Hook(...plugin.Rule) error          { return plugin.ErrUnhosted }
 
 // saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {

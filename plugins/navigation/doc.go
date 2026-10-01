@@ -27,31 +27,19 @@
 //     Leg holds every cell its step touches until it reaches the next centre, a group sent to one
 //     cell spreads a unit to a cell each, and every unit stands at its cell's centre. A unit routes
 //     over the ground alone, not knowing where the others stand, and learns of them only when a
-//     step is refused, the cell held: it waits, asks the one standing there off it, and after
-//     stallAfter of no headway notes the cell for its routes to go round and plans afresh; a
-//     corner of a slantwise step held is gone round square at once. One standing, asked off its
-//     cell, gives way where it can: to a free cell square off the way the other comes, else beside
-//     them, never ahead of them — a GivingWay order aside with Linger, then home — and nobody gives
-//     way to one giving way. Two coming at each other's cells: the one with the greater id goes
-//     round, the other waits. Someone standing on a unit's goal is waited targetWaitTimeout for,
-//     then the unit settles on the nearest free cell; someone passing over it is waited for. One
-//     that struck someone bodily (a Struck trigger navigation registers on the board's collision
-//     plugin) stops, plans again from where it stands and keeps that route for a while whatever
-//     bumps follow — MoveOrder.Bumped and Cooldown. Occupancy is seeded from every entity's Cell
-//     and Mover when the Stage is set up, fresh or loaded. Board games and units a cell large.
+//     step is refused, the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
+//     whatever the rules do, it notes the cell for its routes to go round and plans afresh; a
+//     corner of a slantwise step held is gone round square at once. One that struck someone bodily
+//     (a Struck rule navigation registers on the board's collision plugin) stops, plans again
+//     from where it stands and keeps that route for a while whatever bumps follow —
+//     MoveOrder.Bumped and Cooldown. Occupancy is seeded from every entity's Cell and Mover when the
+//     Stage is set up, fresh or loaded. Board games and units a cell large.
 //   - [BodySpacing] keeps units apart by their boxes, several standing in one cell, and does not
 //     ask the board's Occupancy. A unit routes over the ground alone, not knowing where the others
 //     stand, and goes from cell centre to cell centre; it learns of the others only by striking
-//     them (WithCollision). Striking someone, it steps round them towards its goal, never back
-//     into them nor onto ground its domain may not take — with no ground aside it waits; one it
-//     struck standing has its cell noted for the routes to go round, and when that one stands on
-//     its spot it stands elsewhere round the same point. One standing, struck by one on the move,
-//     gives way: it steps just off the line between them, to the side it stands on, where the
-//     ground takes it, lingers there a second (MoveOrder.Linger) and goes back to where it stood,
-//     facing as it did — an order marked GivingWay, to which nobody gives way in turn. Coming no
-//     nearer the cell it heads for, or striking again one it knew stands there, is a stall: after
-//     a few it stands where it is, as it does when it strikes a second one standing close by its
-//     spot, among its group.
+//     them (WithCollision): a [Touch]. It steps round the solid ground it strikes; coming no nearer
+//     the cell it heads for is a stall, answered by a fresh route, and after a few it stands where
+//     it is.
 //   - [AutoSpacing], the default, is BodySpacing when the world's largest box is at most a third of
 //     a cell's shorter side, CellSpacing otherwise.
 //
@@ -62,35 +50,33 @@
 // top under its middle; the rows furthest along the way the group comes going to the units
 // furthest on, so none passes one of its group standing already.
 //
-// # Courtesy
+// # Crowd
 //
-// A unit whose kind gives it a tree (plugins/world/act) decides for itself what to do about
-// those in its way; navigation perceives and carries out. It tells such a unit the fact [Blocked]
-// while a step is refused it or it strikes someone, and a moment after: whom, whether a stranger
-// or an ally (players/owner.Allies), one of its group — the units a MoveTo sent together
-// ([MoveOrder].Group) — on the move or idle, on its goal, whether swapping goals would shorten
-// both ways, and, of two on the move, whether it is the one to wait first (the lower id, the
-// other way round when the two met before). A unit standing that an ally asks to make way or to
-// free its goal is told the fact [Room]: somewhere free to step to — no farther than beside, no
-// steeper than yieldClimb — or the ally standing where it could, to ask on. The commands its tree
-// gives it (Issue in an act.Branch) are carried out here, for it alone: [Detour] plans a way round the one
-// in the way — Blocked says it is cornered with none; [Hold] keeps the unit where it stands until
-// the way ahead clears — Blocked says it waited out after a while; [StepAside] steps off the
-// asker's way and back home, or, on the move, aside a while and on; [SwapGoals] swaps goals with
-// one of its group; [Settle] stands it beside a goal someone stands on. A [MoveTo] or [LookAt] it
-// gives itself orders it alone, and once its order is over it is told the fact [Arrived] until
-// the next. The asks are [MakeWay], [FreeGoal] and [SwapGoals].
+// How units get on among others is rules: rules of the moment [Touch], which the plugin hosts
+// ([Plugin.Hook], rule.On over a Touch). Navigation perceives and carries out; the rules decide. A
+// Touch is two units touching, handed to each of the two every tick they do: whether each is on
+// the move or giving way, whether they are allies (players/owner.Allies) or of one MoveTo — the
+// order each is under ([MoveOrder].Group), or the last it came to the end of ([LastOrder]) —
+// whether the other stands on the unit's goal, whether the two come head on, whether the one
+// standing has room to step aside. A rule's commands (Order, aimed at the other) are carried out
+// for the unit alone: [StepAside] steps it off the other's way where the ground takes it — never
+// into water or a hole, off a cliff (no steeper than yieldClimb) or into a wall — and it stays
+// there, or, on the move, a while and on; [Detour] goes round the other — Touch and Blocked say it
+// is cornered with no way round; [Pass] goes on past one making way; [Hold] waits for the way
+// ahead to clear, a while at most; [Settle] stands beside the goal; [Stop] ends the order where
+// the unit stands, as come to the end of it.
 //
-// [Courteous] is the ready tree: allies asked make way and come back, leave a goal for good, pass
-// the ask on to an ally beside when there is no room, and swap goals; blocked, a unit asks a
-// groupmate to swap when that shortens both ways, an idle ally on its goal to free it — else it
-// stands beside — an idle ally in the way to make way — else it goes round; a stranger on its goal
-// has it stand beside at once; of two on the move the first waits and the other goes round —
-// strangers are never asked and never make way for strangers — one that waited out goes round,
-// and with no way round it steps aside until the other has passed; one giving way itself only
-// waits or goes round. Its branches
-// ([MakeWayWhenAsked], [LeaveTheGoalWhenAsked], [SwapWhenAsked], [WhenBlocked]) are for a game to
-// take one by one. A unit with no tree keeps the reflexes above.
+// The crowd's rules, the plugin's own, are StarCraft II's, hooked unless a game gives its own
+// ([Plugin.WithCrowd]): an ally standing makes way and stays aside while the one on the move goes
+// on past it; one on the move stops on touching one of its order that has arrived, so a group
+// gathers round its point and nobody fights for its exact spot; one on the goal who does not make
+// way — a stranger, an ally with no room — has the unit stand beside it; anyone else in the way is
+// gone round — with no way round, the unit steps aside a while; of two head on the first waits. A
+// game's own rules of Touch — narrowed by tags as any rule's — go beside them ([Plugin.Hook]).
+// Whatever the rules, navigation keeps the last word: a unit making no headway plans afresh and,
+// after a few stalls, stands where it is. A unit with a plan (plugins/world/rule) is told the facts
+// [Blocked] while someone blocks it and, once its order
+// is over, [Arrived]; a [MoveTo] or [LookAt] it gives itself orders it alone.
 //
 // # The price of a step
 //
@@ -131,7 +117,7 @@
 //
 // [Plugin.WithRenderer] builds the [PathRenderer], drawing, for every selected entity, its goals
 // — the entity's outline where it will stand, on the ground there, on the render.Marks tier,
-// always — and its routes when they are shown: the remaining route and the routes on to each
+// always; a step aside is no goal — and its routes when they are shown: the remaining route and the routes on to each
 // queued goal, a thin line over the ground. In a world with heights, through a camera with Rays,
 // the PathRenderer is a render.Direct laying the routes on the GPU on [RouteTier]: every pixel near
 // a stretch finds the ground point drawn there from the frame's depth (shaders/route.wgsl), so the

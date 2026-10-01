@@ -26,7 +26,7 @@ type moveCommandSystem struct {
 	selected tag.Tag[selection.Family]
 	kind     func(board.CellID) board.CellKind
 
-	group   uint32 // the last group a MoveTo was given; found in the orders at the first
+	group   uint32 // the last group a MoveTo was given; found in the orders and LastOrders at the first
 	grouped bool
 
 	query   *goke.Query
@@ -48,6 +48,7 @@ type moveCommandSystem struct {
 	selfBase  goke.OptComp[world.Base]
 	selfZ     goke.OptComp[world.Z]
 	selfSteer goke.OptComp[steering.Steering]
+	selfLast  goke.OptComp[LastOrder]
 }
 
 // issuer is who gave a command: a player, or an entity for itself.
@@ -78,7 +79,7 @@ func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Build()
+	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Build()
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -181,13 +182,17 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 	})
 }
 
-// nextGroup is a group no order has: one past the highest found in the orders at the first — a
-// loaded game's too.
+// nextGroup is a group no order has, nor any unit came to the end of: one past the highest found in
+// the orders and the LastOrders at the first — a loaded game's too.
 func (s *moveCommandSystem) nextGroup() uint32 {
 	if !s.grouped {
-		for s.query.All(); s.query.Next(); {
-			for _, o := range s.order.Slice(s.query.Cursor()) {
+		for s.self.All(); s.self.Next(); {
+			cursor := s.self.Cursor()
+			for _, o := range s.selfOrder.Slice(cursor) {
 				s.group = max(s.group, o.Group)
+			}
+			for _, l := range s.selfLast.Slice(cursor) {
+				s.group = max(s.group, l.Group)
 			}
 		}
 		s.grouped = true

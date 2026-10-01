@@ -251,9 +251,9 @@ func (o ownCameras) Persisted() []any {
 	return out
 }
 
-// Hook reports ErrUnhosted — players host no triggers; they carry commands.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
+// Hook reports ErrUnhosted — players host no rules; they carry commands.
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
 		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil

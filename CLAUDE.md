@@ -70,29 +70,30 @@ on Go 1.27.0.
 
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`,
 `WithRenderer`, `Renderer`, `EventHandler`, `Serializable`,
-`Hook` — is the one extension point. A trigger (`act.Trigger[P](name).Do(body)`,
-`plugins/world/act`) is hooked on the plugin it concerns and run inside that plugin's own
-pass: `.Self(a)`/`.Other(b)` narrow to tags (a pair for a payload that is `act.Met`),
-`.Having[T]()` to entities carrying `T`, none to every entity — so a game
-never imports `plugin/host`; the tag families join the host's queries as optional components,
-so a trigger costs no query, and triggers over one component share its column
-(`host.Own` shares the host's own). The payload type — `collision.Meeting`, `collision.Struck`,
+`Hook` — is the one extension point. A rule (`rule.On(name, filter, func(m *rule.Moment[P])
+rule.Step {…})`, `plugins/world/rule`, a `plugin.Rule`) is hooked on the plugin it concerns and run
+inside that plugin's own pass; its filter, the second argument, says whom it fires for:
+`rule.All`, `rule.Self(a)` one carrying a tag, `rule.Between(a, b)` a pair (a moment that is
+`rule.Met`), `rule.Having[T]()` one carrying `T` (handed to `m.CallOn`) — so a game never imports
+`plugin/host`; the tag families join the host's queries as optional components, so a rule costs
+no query, and rules over one component share its column (`host.Own` shares the host's own). The
+moment's type — `collision.Meeting`, `collision.Struck`,
 `vision.Sighting`, `board.Standing`, `world.Moving`, `clock.Moment` — is what says whose it is: a
 host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
 error, never a silent no-op. A plugin author runs them with `host.PairHost[P]`/`host.EachHost[P]`/
 `host.ListHost[P]` from `plugin/host`. Tags are bits of a family, not component types
 (`plugins/world/entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
 family `F` (an empty type a plugin or a game names the family by: `selection.Family`,
-`trigger.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
+`hooks.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
 to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
 flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` answers
-`marks.Carries(tag)` for the families the host's triggers name. This keeps goke's 128-component
+`marks.Carries(tag)` for the families the host's rules name. This keeps goke's 128-component
 budget for data. The bits serve two ways (`entity/tag` doc): **tags** are groups a kind gives
 (`comp.Tagged`); **markers** are states switched on and off — a plugin's family `States`, carried
 for good (`comp.Marks[F]()` in a kind, `Roster().Unit.Default` for every unit, attached once where
 missing), each marker a constant bit defined by name like the owners (`effect.Idle`,
-`navigation.Entered`, `trigger.States` "collision.hit"). Putting a component on or off moves the
+`navigation.Entered`, `hooks.States` "collision.hit"). Putting a component on or off moves the
 entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
 often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
 `Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
@@ -130,7 +131,7 @@ what its entities carry and are drawn from. `kind` never imports `world`
 `world.Kinds`, sits behind the `kind.Registry` interface; it also issues atlas
 slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
 every component type its kinds carry (`Kinds.LoadComps`), so a game's own tags
-and state (`trigger.Predator`, a game's own component) survive a save without being registered
+and state (`hooks.Predator`, a game's own component) survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKindDict().Create`.
 
@@ -347,7 +348,7 @@ the day, and `State.Warmth`, the day the calendar's), what falls coming down as 
 `snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
 `air.Weather`; `atmosphere.Plugin.Air()`; `Climate.SetRunning` leaves out what is stopped) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
-tactical pause stops it. It hosts triggers of `Weathering` (`host.EachHost`, fired every step
+tactical pause stops it. It hosts rules of `Weathering` (`host.EachHost`, fired every step
 with the weather and season; `atmosphere.Plugin.Hook`). `Change`
 (Shift+W) and `Set{Name}`. `atmosphere/precipitation` is what falls (screen-space streaks and
 flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, depth +∞);
@@ -383,7 +384,7 @@ look's GPU sprites through). A flat board without an atmosphere is drawn as it i
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
-their data (queries, `View`, `Drawing` triggers, the cells) and ask the Look only for geometry;
+their data (queries, `View`, `Drawing` rules, the cells) and ask the Look only for geometry;
 selection picks and outlines through the world's Look, navigation lays routes on the ground through
 the camera. Heights (`Heights`) are the model and work in either view. `plugin`
 (root) — `Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`, the extension
@@ -423,6 +424,22 @@ Each `plugin.go`/`module.go` groups methods under banner comments — contract
 methods first, then everything plugin/module-specific — so a file's shape
 shows how much of it is boilerplate vs. real behavior.
 
+### Behaviour goes through rule
+
+gram is a library: whatever a game may want to change is written in the rule
+formalism (`plugins/world/rule`), never as a policy inside a plugin's system. A
+plugin **perceives** — moments its pass catches, for rules (`board.Standing`,
+`collision.Meeting`, `navigation.Touch`), and facts, for plans — and **carries out**
+commands (`navigation.StepAside`, `world.Despawn`), keeping the engine's own rules
+inside the handler (a unit is never stepped into water, off a cliff or into a wall).
+**Effects** hold state and a rule's memory. What to do when is **rules** (`rule.On`)
+and **plans** (`rule.Plan`). A plugin hooks its own defaults itself, unexported
+(navigation's crowd); a game adds its own with `Hook` or replaces them where the
+plugin offers it (`navigation.Plugin.WithCrowd`). Export only what a game needs: the
+public API is small. A new behaviour adds a moment, a fact or a command where
+perception or an action is missing, and writes the rule with `rule`; it never adds a
+branch to a system.
+
 ### Built-in plugins (`plugins/`)
 
 - **`world`** — foundation a Stage installs by calling
@@ -433,12 +450,12 @@ shows how much of it is boilerplate vs. real behavior.
   axis by default: a box stops whole at a closed edge, wraps at a wrapping one,
   and may leave by an open one. An entity wholly past an open edge carries
   `world.Outside`, put on by whoever moved it there (`MoveSystem`, collision's
-  solver); every tick it does, triggers of a `world.Leaving`
+  solver); every tick it does, rules of a `world.Leaving`
   hooked on the world hear of it, and with none it is despawned; back inside
-  it loses the mark. An entity gives itself `world.Despawn{}` (`Issue` in its tree or a trigger) to go; the world
+  it loses the mark. An entity gives itself `world.Despawn{}` (`Order` in its plan or a rule) to go; the world
   carries the commands entities give themselves (`control.Carrier`, `world.Plugin.Carry`/`Commands`;
   the engine carries every `plugin.CommandHandler` a stage uses, and a host's `plugin.Tick.Commands`
-  hands the carrier to its triggers).
+  hands the carrier to its rules).
   `world.Roster()` is what the plugins in the game ask of a unit's kind, gathered as the plugins
   are made: `kind.Require[T](&roster.Unit, by, why)` names what the game must supply (world:
   `Position`; board: `Cell`, `Mover`; navigation: `steering.Steering`), `roster.Unit.Default(comp.Const(v))`
@@ -468,7 +485,7 @@ shows how much of it is boilerplate vs. real behavior.
   sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
   root package `camera` is only the contract and the projections; the cameras, with their window
   arithmetic — wrapping on a wrapping axis, held inside the world on any other — live in
-  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts triggers of five payloads, all through
+  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts rules of five moments, all through
   `Hook`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
   board's terrain speed is one), a `Leaving` (every tick an entity is `Outside`) and a
   `Drawing` (every entity about to be drawn; `world.Draw.Overlay[T]`, `Draw.As[T]`,
@@ -488,7 +505,7 @@ shows how much of it is boilerplate vs. real behavior.
   (`Land`, `Water`, `Air`, a game's own bits), whether it is `Solid` (a wall), how much it
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
-  `CostFor(domain)` is what a unit pays in the planner and in the Moving trigger board
+  `CostFor(domain)` is what a unit pays in the planner and in the Moving rule board
   registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road, a
   bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
   to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
@@ -496,7 +513,7 @@ shows how much of it is boilerplate vs. real behavior.
   cost too, through the board's Map — `relief.Climbing{Up, Down, Ease, Steep, Free}`
   (`topography.Config.Climbing`, `relief.DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
-  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving trigger along the
+  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving rule along the
   heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
   takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
   relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
@@ -546,9 +563,9 @@ shows how much of it is boilerplate vs. real behavior.
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
-  box and the `Mover`'s domain) to the triggers hooked on the board; `Standing.Fallen()` is a land
+  box and the `Mover`'s domain) to the rules hooked on the board; `Standing.Fallen()` is a land
   unit in water or in a hole, and the reaction is the game's (the demos:
-  `t.Do(t.If(board.Standing.Fallen, t.Issue(world.Despawn{})))` with `t := act.Trigger[board.Standing](…)`).
+  `rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step { return m.If(board.Standing.Fallen, m.Order(world.Despawn{})) })`).
   A `board.Effect` (`Tick(brd, d) alive`) is what the board does to itself over time by writing
   terrain — `Plugin.Cast`/`Dispel`, ticked first each tick; `board/effect` ships `Timed` (terrain
   that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Terrain is never an entity in
@@ -585,16 +602,24 @@ shows how much of it is boilerplate vs. real behavior.
   split. With a world `Field` (the board's solid cells) the engine, built in `Init` with
   `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
   `CollisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
-  recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities).
-  Reactions are triggers hosted inside the `CollisionSystem`'s own pass: of a `Meeting` per
-  confirmed contact between two tags (`Self`/`Other` of the trigger, none for either side), of a
-  `Struck` per entity per tick, with what it struck the tick before. Ready-made nodes are in the
-  flat `collision/trigger` package (`CountContacts`, `LogContacts`, `ShowHits`, `HitOverlay`) —
-  the tags they run between are named where the trigger is made,
-  `Hook(act.Trigger[collision.Meeting](name).Self(a).Other(b).Do(node))`; the hit is an effect
-  (`trigger.Hit(w, d)` → `Hits{Effect, Mark}`: the effect grants the marker `collision.hit` of
-  `trigger.States`; cast by `ShowHits(h)` on a `Struck` that `Hit()`s, drawn by `HitOverlay(h,
-  with)`, which reads the marker, `.Self(h.Mark)`). `Collider` is the plugin's one
+  recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
+  never puts a unit further over ground that does not take it (`Field.Overhang`, the board's:
+  the area over cells whose kind allows none of its layers — any, for no layers — water to a
+  walker, a hole; the user's rule, 2026-09-30): `footing` in `resolve` holds the side whose half
+  push would (it bounces as the ground, `holdA`/`holdB`) and doubles the pen for the other, and
+  `moved` keeps any box the tick's later passes — which the engine asks no handler about — would
+  leave worse, rebuilding the space. Ground turning under a unit is no push: it stays, fallen in.
+  A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
+  Reactions are rules hosted inside the `CollisionSystem`'s own pass: of a `Meeting` per
+  confirmed contact between two tags (`rule.Between(a, b)`, `rule.All` for every pair), of a
+  `Struck` per entity per tick, with what it struck the tick before. Ready-made rules are in the
+  flat `collision/hooks` package — `Hook(hooks.CountContacts(&stats), hooks.ShowHits(hit))`,
+  `LogContacts(opts…)`, and `HitOverlay(hit, with)` for the world's Hook; a game's own is
+  `Hook(rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step { … }))`;
+  the hit is an effect
+  (`hooks.Hit(w, d)` → `Hits{Effect, Mark}`: the effect grants the marker `collision.hit` of
+  `hooks.States`; cast by `ShowHits(h)` on a `Struck` that `Hit()`s, drawn by `HitOverlay(h,
+  with)`, which reads the marker, `rule.Self(h.Mark)`). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. `pathFinder.price` is what a step costs: the destination's `CostFor` over the step's
@@ -614,52 +639,54 @@ shows how much of it is boilerplate vs. real behavior.
   against a cell, a third or less keeping boxes) is how units keep apart, through the internal
   `keeping` seam (`cellKeeping`, `bodyKeeping`), one `navigationSystem.Update` loop for both.
   Both plan routes blind to the others (the `pathFinder` gets `openOccupancy`); the keeping
-  holds what it holds. `CellSpacing`: the board's occupancy gates each step (`reserveLeg`,
-  a `refusal` says which cell and whether a corner); a refused step goes to `keeping.blocked`,
-  which counts the stall (`MoveOrder.Stalled`, `Toward`), names the holder
-  (`board.SingleOccupancy.Holder`, the `holders` seam) and after `stallAfter` marks the order
-  `Bumped` and `Held` for `bump` to learn the cell (`Avoid`) and plan round it — `giveUp` after
-  `maxStalls`; a held corner is learnt at once and gone round square; a goal someone stands on is
-  waited `targetWaitTimeout` for, then settled beside (`nearestFree` with the real occupancy),
-  a passer-by waited for; head on, the greater id goes round (`member.pressedBy`). The system
-  keeps `wanted`/`wanting` maps (who came at whom, swapped each tick) and `giveWay` turns them,
-  and bodies' collision contacts, into `press`es for `keeping.yield`: `cellKeeping.yield` steps to
-  a free cell square off the way, else beside, never ahead, `GivingWay` with `Linger` then home.
-  Struck bodily (`bumped()`, a `Struck` trigger on `c`) a unit stops, re-plans and holds that
-  route for `bumpInterval`. Occupancy is seeded from `Cell` + `Mover` at Setup.
-  `BodySpacing`: the occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the
-  ground alone and reacts only to what it strikes (`struckBy`: step aside, note a standing one's
-  cell, re-place when it stands on the spot, stalls, give up); a group gets its spots from
-  `bodyKeeping.place` (lattice round `MoveTo.At`, a box's width apart, far rows first) and goes
-  cell centre to cell centre (lanes were tried and dropped at the user's word). One standing,
-  struck by one on the move, gives way (`bodyKeeping.yield`, `navigationSystem.giveWay`: a
-  `GivingWay` order aside with `Linger`, then home). Never make a unit see the others ahead: the
-  user asked for it to learn by striking. A `MoveTo{Cell, At, Append}` command orders
-  every `Selected` entity the player owns — or, given by an entity for itself (`Issue` in a tree),
-  that entity alone (`LookAt` too); a `plugin.CommandHandler`, its `DefaultBindings()` make a right click one,
-  Shift appends. `WithRenderer` builds the `PathRenderer`: for every selected unit its goals as
-  the entity's outline where it will stand (`world.Look.Footprint` on the ground, `Marks` tier,
-  always) and, on `Routes{}` (Shift+P, `ShowRoutes`), its routes as thin lines over the ground
-  in pieces of the ground's step at the ground's depth (`Overlays`), straight through any camera
-  (sprites were interpolated affinely in perspective and wobbled); `RouteStyle` via
-  `WithRouteStyle`. Depends on `board`, `world` and `selection` (its `Selected` tag picks whom a
-  command orders).
-  Courtesy: a unit whose kind gives it `act.Tree(navigation.Courteous())` decides for itself
-  (`plugins/world/act`); navigation writes it the facts `Blocked` (whom it struck or whose cell
-  refused its step: stranger or ally by `owner.Allies`, groupmate by `MoveOrder.Group` — each
-  `MoveTo` a fresh group, counted on from the orders after a load — moving or idle, on its goal,
-  whether a swap `Shortens` both ways, `First` of two on the move to wait: lower id, flipped when
-  they `Met` before; `Yielding` while giving way itself; `WaitedOut`/`Cornered`, what came of its
-  `Hold`/`Detour`; held `blockedLasts` after the last contact), `Room` (a standing unit asked
-  `MakeWay`/`FreeGoal` by an ally: free place beside, no steeper than `yieldClimb` by `Map.Climb`,
-  or the ally standing there, `Beside`) and `Arrived` (its order over, until the next), and carries
-  out the commands its tree gives it (`Issue`, in `Plugin.Queues`, drained into `told` by
-  unit): `Detour` (with no way round, `MoveOrder.Cornered`), `Hold` (until `mayStep` ahead, at most
-  `stallAfter`, then `MoveOrder.WaitedOut`; both reset on the next step), `StepAside` (standing:
-  aside and home; moving: aside a while, its goals queued after), `SwapGoals`, `Settle`. Conducted units skip navigation's own decisions (asking a holder
-  off, learning and replanning, `placeAgain`, the press-based `yield`) but keep the aside reflex
-  and the stall safety (`treeGrace` for a refused step; `member.minded` is a unit with a tree). `MoveOrder.HitUnit` tells a unit
-  struck from the ground (entity ids start at 0: never use 0 as "nobody").
+  holds what it holds. What a unit does about another is not the keeping's: it is rules
+  (`rule.On`) of the moment `Touch` navigation hosts (`Plugin.Hook`, a `host.PairHost[Touch]` whose
+  tag families read on a query of their own, `marksOf`); `crowd()` (StarCraft II's, unexported) is hooked at
+  Install unless `WithCrowd(rules...)` gave others, none too. A `Touch` is two units touching —
+  `BodySpacing`: the Collider's contacts (`feel`, each pair once: collision records a contact on
+  the one that struck), dispatched before the chunks so their commands land the same tick;
+  `CellSpacing`: a step refused (`touching.refused`), dispatched after them — handed to each of
+  the two from the per-tick `bodyIndex`: moving, `GivingWay`, `LastGoal`, `Ally`, `Groupmate`
+  (the order's `Group`, else `LastOrder.Group`, which every unit carries for good — roster
+  default, attached where missing — written as an order of a group ends; `nextGroup` counts past
+  it too), `OnMyGoal`, `HeadOn` (bodies: velocities; cells: the two refused into each other's cells
+  this tick or the last, `wanted`/`wanting`), `Room` (the one standing could `stepAside`),
+  `WaitedOut`/`Cornered`. The rules' commands (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`,
+  `Stop`; `Aimed` at the other — `rule` aims a rule's command at its moment's `Subject`) land
+  in `Plugin.Queues`, drained into `told` by unit, and are carried out for that unit alone:
+  standing ones in `standing` (`StepAside` only), ones under orders in `carryOut`. The keeping
+  carries them out and keeps the engine's rules there: `stepAside` goes where `open`/`aside` say
+  the ground takes the unit, no steeper than `yieldClimb`, nobody standing — never into water, a
+  hole, off a cliff or into a wall — and stays (`GivingWay`, no home queued); on the move a while
+  (`Linger`), its goals queued after. `bodyKeeping.detour` steps round square off the box's side
+  (`wayOff`, `stepRound`) and notes a standing one's cell (`Avoid`, `Met`); `cellKeeping.detour`
+  learns the refused cell and plans round it (`Cornered` with no way), not round one giving way.
+  `pass` steps round without touching the route (cells: nothing, the step waits). The last word
+  stays navigation's whatever the rules: `CellSpacing` refused `stallAfter` marks the order
+  `Bumped` and `Held` for `bump` to learn the cell and plan round it, `giveUp` after `maxStalls`;
+  a held corner is learnt at once and gone round square; `BodySpacing` stalls (`watch`) re-plan
+  and give up the same way, and the solid ground struck (`struckBy`, terrain only) is stepped
+  round. Struck bodily under cells (`bumped()`) a unit stops, re-plans and holds that route for
+  `bumpInterval`. Occupancy is seeded from `Cell` + `Mover` at Setup. `BodySpacing`: the
+  occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
+  learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
+  round `MoveTo.At`, a box's width apart, far rows first) and goes cell centre to cell centre
+  (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
+  user asked for it to learn by striking. Pushes are collision's and keep units on their ground
+  whatever the rules (see collision).
+  A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
+  by an entity for itself (`Order`), that entity alone (`LookAt` too); a
+  `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
+  `WithRenderer` builds the `PathRenderer`: for every selected unit its goals (`goals`: not a
+  `GivingWay` order's Target, a step aside being no goal) as the entity's outline where it will
+  stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+P,
+  `ShowRoutes`), its routes as thin lines over the ground in pieces of the ground's step at the
+  ground's depth (`Overlays`), straight through any camera (sprites were interpolated affinely in
+  perspective and wobbled); `RouteStyle` via `WithRouteStyle`. Depends on `board`, `world` and
+  `selection` (its `Selected` tag picks whom a command orders). A unit with a tree is told the
+  facts `Blocked` (from its touches while on the move, held `blockedLasts` after the last) and
+  `Arrived` (its order over, until the next); `MoveOrder.HitUnit` tells a unit struck from the
+  ground (entity ids start at 0: never use 0 as "nobody").
 - **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
   from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike. A
@@ -695,32 +722,32 @@ shows how much of it is boilerplate vs. real behavior.
   clock's `Shown` through `render.Clocked` (the world's renderer): game time past the last tick by
   the real time the engine holds toward the next (`Clock.Pending`, every frame) at the tempo, so
   animations move every frame, not in the ticks' steps.
-- **`world/act`** — how entities behave, one vocabulary (`doc/act.md`; the package was `conduct`):
-  triggers, trees, effects, commands, facts, all built with the methods of a builder (Go 1.27's
-  methods with type parameters), no package functions for nodes. `act.Trigger[P](name)` is a
-  `Reaction[P]`: `.Self(tag)`/`.Other(tag)`/`.Having[T]()` narrow it, its methods make `Instant`
-  nodes alone (a lasting one is not to be had — the compiler refuses it), `.Do(body...)` is the
-  `plugin.Trigger` for the host's `Hook` (built on `plugin/host`), `.Runs(fn)`/`.RunsOn(fn)` one
-  of a function alone; payloads are `act.About` (`Who()`), pairs `act.Met` (`Whom`); `Run`/`RunOn`
-  a trigger's own code, `ToOther` acts on whom it met. A tree's branch is a `Branch`:
-  `act.When[F](name)`, `act.On[F](name)` (latches for one-tick facts) or `act.Named(name)` (a
-  root), closed with `.Do(body)` — only the root is named. Trees a kind gives its entities
-  (`act.Tree(root)`, a `comp.Template[Mind]`; registered by the root's name hashed, one name one
-  tree) run in every simulation step after the world's decision systems (`act.Trees`, made by the
-  world). A Branch's nodes: `First` (reactive selector), `Then` (sequence with memory), `If[F]`
-  over a fact, `Until[F]` (a fact coming afresh, or coming to hold a condition), `Wait`,
-  `Timeout`, `Cooldown`, `Invert`, `Idle`; `Apply`/`While`/`Unless`/`IfUnder` over effects (an
-  effect's presence is state: a trigger's memory); `Issue(cmd)` gives a command for the entity —
-  fire and forget, the handler told `control.Issued{Entity, ByEntity}` (`Aimed` commands get the
-  subject) — and hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch
-  from giving it every tick; a branch is a value, usable in several places; conversation
-  `Ask`/`Agree`/`Refuse`/`Relay` with facts `Asked[W]`/`Replied[W]`, delivered a tick later,
-  `Chain` ≤ `MaxChain`, dropped after `AskLife`; a fact's `Subject() (id, ok)` is whom
-  Ask/Relay/Aimed speak to. A node acting on an entity fails on a moment of none (`clock.Moment`).
-  `Mind` holds per-node slots in fixed arrays (`MaxNodes` 128, `Running` a `Nodes` bit set; goke
-  needs exported, fixed-size fields). goke registers 128 component types at most — every fact is
-  one.
-- **`world/act/effect`** — temporary changes to entities, cast from anywhere, made and
+- **`world/rule`** — how entities behave, one vocabulary (`doc/rule.md`; the package was `act`,
+  before it `conduct`): rules, plans, effects, commands, facts. Two constructors, each taking a
+  function that writes the steps for a builder (Go 1.27's methods with type parameters):
+  `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `plugin.Rule` for the host's
+  `Hook` (built on `plugin/host`); `rule.Plan(name, func(a *rule.Actor) rule.Step)` is the
+  `comp.Template[Mind]` a kind gives its entities (registered by its name hashed, one name one
+  plan). Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side),
+  `Having[T]()` (required by `CallOn[T]`). Moments are `rule.About` (`Who()`), pairs `rule.Met`
+  (`Whom`). A Moment's steps: `OneOf`, `Steps`, `If` (on the moment), `Not`, `Apply`, `Keep`,
+  `Unless`, `Under`, `Order`, `ForOther`, `Call`, `CallOn` — all instant; a lasting step in a rule
+  is refused as it is made (`build`). An Actor's: the same plus `When[F](name, func…)` and
+  `On[F](name, func…)` (branches on a fact; On latches for one-tick facts), `If[F]` over a fact,
+  `Until[F]` (a fact coming afresh, or coming to hold a condition), `Wait`, `Timeout`, `Cooldown`,
+  `Idle`, conversation `Ask`/`Agree`/`Refuse`/`Relay` with facts `Asked[W]`/`Replied[W]`,
+  delivered a tick later, `Chain` ≤ `MaxChain`, dropped after `AskLife`. `Order(cmd)` gives a
+  command for the entity — fire and forget, the handler told `control.Issued{Entity, ByEntity}`;
+  an `Aimed` command gets the subject of the fact it stands under or of the rule's moment — and in
+  a plan hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch from
+  giving it every tick. One type, `rule.Step`, for both; a function writing part of a rule or a
+  plan takes the Moment or the Actor (`func whenBlocked(a *rule.Actor) rule.Step`); ready-made
+  rules are whole, in a plugin's `hooks` package (`chooks.CountContacts(&stats)`). Plans run in every
+  simulation step after the world's decision systems (`rule.Plans`, made by the world). A step
+  acting on an entity fails on a moment of none (`clock.Moment`). `Mind{Plan, Running, Slot,
+  Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
+  exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
+- **`world/rule/effect`** — temporary changes to entities, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
   Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
   (`Cast`/`CastFor`/`Dispel`/`On`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active` slots
@@ -728,11 +755,11 @@ shows how much of it is boilerplate vs. real behavior.
   last in game time. `Active` stays on an entity once an effect came (empty when none runs — a
   marker's second form); the entity's `effect.States` markers (the world gives them to every unit,
   the board to every cell) have `effect.Idle` on for the step after its last effect ended, and
-  triggers of an `effect.Idling` hooked on the world hear of it once (`host.EachHost.RunRows`
+  rules of an `effect.Idling` hooked on the world hear of it once (`host.EachHost.RunRows`
   runs them for those rows alone). A cast before the effects'
-  pass lands the same step. The effects fire the triggers of a `clock.Moment{Last, Now}` every
-  step (a `host.ListHost`): what happens when is a trigger of `clock.Moment` holding
-  `t.If(clock.Every(period, offset), …)` or `clock.At(t)` (`calendar.Daily/Yearly/Seasonal`
+  pass lands the same step. The effects fire the rules of a `clock.Moment{Last, Now}` every
+  step (a `host.ListHost`): what happens when is a rule of `clock.Moment` holding
+  `m.If(clock.Every(period, offset), …)` or `clock.At(t)` (`calendar.Daily/Yearly/Seasonal`
   give the period and offset), fired by clock time, never again after a load; it casts effects
   or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
@@ -805,14 +832,13 @@ shows how much of it is boilerplate vs. real behavior.
   `WithGroundStep` (default: a sixteenth of the radius; the renderer drapes the shadows in the
   same step), and a hawk 40 up looks over the wall, the forest and the hill a walker's cone stops
   at; `Blockers` are refused there, `Eye.Height` in a flat world. It
-  hosts triggers of a `Sighting` inside the scan's own pass: once
-  a tick per observer carrying `a` (the trigger's `Self`), with everything in view carrying `b`
-  (`Other`) — a directed pair, grouped by observer, empty included. A trigger tells its
+  hosts rules of a `Sighting` inside the scan's own pass: once
+  a tick per observer carrying `a` (`rule.Between(a, b)`), with everything in view carrying `b`
+  — a directed pair, grouped by observer, empty included. A rule tells its
   seen entities apart with `seen.Carries(tag)`, and steers only
-  through `Steering.Request`. Ready-made ones live in the flat `vision/trigger`
-  package (`trigger.DefineTags`, `Flee.Steer`, `Chase`); a file using both plugins'
-  triggers imports them as `ctrigger`/`vtrigger` — who flees or hunts
-  whom is the trigger's to say. A `plugin.CommandHandler`: the views start hidden and
+  through `Steering.Request`. Ready-made ones live in the flat `vision/hooks`
+  package (`hooks.DefineTags`, `NewFlee(tags).Rule()` for the Skittish, `Chase(tags, every)`
+  between Predator and Prey); a file using both plugins' hooks imports them as `chooks`/`vhooks`. A `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.

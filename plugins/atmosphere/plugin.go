@@ -110,7 +110,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
 	if p.weathering != nil {
-		return p.worldPlugin.Hook(p.weathering.Trigger())
+		return p.worldPlugin.Hook(p.weathering.Rule())
 	}
 	return nil
 }
@@ -156,10 +156,10 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts triggers (act.Trigger) of climate.Weathering, fired every step with the
+// Hook hosts rules (rule.On) of climate.Weathering, fired every step with the
 // weather; call before Use.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
 		if err := p.climate.Host(b); err != nil {
 			return fmt.Errorf("%w in %s", err, p.Name())
 		}

@@ -24,13 +24,13 @@ var _ collide.FieldHandler = (*handler)(nil)
 const solverIterations = 16
 
 // CollisionSystem runs one tick of collisions: what each entity struck last tick, who really
-// overlaps now, the bounce, the push apart, and the contacts left behind for triggers.
+// overlaps now, the bounce, the push apart, and the contacts left behind for rules.
 type CollisionSystem struct {
 	space    *aabbworld.Space
 	engine   collide.Engine
-	commands *control.Carrier // the world's, for the triggers
+	commands *control.Carrier // the world's, for the rules
 
-	// walk is the pass over every Collider: its triggers and its capabilities.
+	// walk is the pass over every Collider: its rules and its capabilities.
 	walk     *goke.Query
 	base     goke.Comp[world.Base]
 	collider goke.Comp[Collider]
@@ -103,7 +103,7 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 	}
 }
 
-// sought is the one query the system offers its hosted triggers.
+// sought is the one query the system offers its hosted rules.
 const sought = 0
 
 // NewCollisionSystem builds the collision system over space.
@@ -164,7 +164,7 @@ func (d *CollisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-// mark runs the triggers over every Collider and settles its capabilities; true if changed.
+// mark runs the rules over every Collider and settles its capabilities; true if changed.
 func (d *CollisionSystem) mark() bool {
 	changed := false
 	d.walk.All()
@@ -204,7 +204,7 @@ func (d *CollisionSystem) rebuild() {
 	d.space.Rebuild(d.items)
 }
 
-// struck is what the hosted triggers are told about the i-th entity of the chunk being walked.
+// struck is what the hosted rules are told about the i-th entity of the chunk being walked.
 func (d *CollisionSystem) struck(i int) Struck {
 	return Struck{ID: d.walking.ids[i], Contacts: d.walking.colliders[i].Contacts()}
 }
@@ -216,6 +216,9 @@ type pairSides struct {
 
 	impact float64
 	normal geom.Vec
+	// holdA and holdB say a side stays where it is: the push would put it over ground that does
+	// not take it
+	holdA, holdB bool
 }
 
 // detectOnly reports a pair in which either side takes no part in the physical world.
@@ -245,10 +248,40 @@ func (d *CollisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool)
 		return pen, false
 	}
 	d.pair = pairSides{A: sideA, B: sideB, tagsA: tagsA, tagsB: tagsB}
-	if d.shapes == nil {
-		return pen, true
+	if d.shapes != nil {
+		var ok bool
+		if pen, ok = d.shapes(d.tick, Contactee{ID: a, Base: sideA.Base}, Contactee{ID: b, Base: sideB.Base}, pen); !ok {
+			return pen, false
+		}
 	}
-	return d.shapes(d.tick, Contactee{ID: a, Base: sideA.Base}, Contactee{ID: b, Base: sideB.Base}, pen)
+	return d.footing(pen), true
+}
+
+// footing keeps the pair's sides on their ground: a side the push apart — half pen, A along it
+// and B against it — would put further over ground that does not take it holds where it is (moved
+// keeps it there) and bounces as the ground does, and the other one, movable, goes the whole way.
+func (d *CollisionSystem) footing(pen geom.Vec) geom.Vec {
+	p := &d.pair
+	if d.field.field == nil || p.detectOnly() {
+		return pen
+	}
+	half := geom.NewVec(pen.X/2, pen.Y/2)
+	p.holdA = d.overhangs(p.A, half)
+	p.holdB = d.overhangs(p.B, geom.NewVec(-half.X, -half.Y))
+	if p.holdA != p.holdB && !p.A.Physics.Immovable() && !p.B.Physics.Immovable() {
+		return geom.NewVec(2*pen.X, 2*pen.Y) // the half the one held does not take, the other does
+	}
+	return pen
+}
+
+// overhangs reports whether s pushed by push would lie further over ground that does not take it.
+func (d *CollisionSystem) overhangs(s contactSide, push geom.Vec) bool {
+	if s.Physics.Immovable() {
+		return false
+	}
+	box := s.Base.Pos.AABB.AABB
+	moved := geom.NewAABBAt(geom.NewVec(box.TopLeft.X+push.X, box.TopLeft.Y+push.Y), box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)
+	return d.worse(s.Layers, box, moved)
 }
 
 // side looks one entity up, refusing one that no longer carries a Collider.
@@ -283,7 +316,14 @@ func (d *CollisionSystem) contact(pen geom.Vec) {
 	normal, aligned := normalOf(pen)
 	var impact float64
 	if aligned && !sides.detectOnly() {
-		impact = bounce(sides.A, sides.B, normal)
+		a, b := sides.A, sides.B
+		if sides.holdA { // held, it bounces as the ground does
+			a.Physics = &d.ground.physics
+		}
+		if sides.holdB {
+			b.Physics = &d.ground.physics
+		}
+		impact = bounce(a, b, normal)
 	}
 	sides.impact, sides.normal = impact, normal
 
@@ -308,11 +348,26 @@ func (d *CollisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	self.Collider.add(Contact{Impact: impact, Normal: normal, Terrain: true, Cell: cell})
 }
 
-// moved writes a box the engine pushed back to its entity.
+// moved writes a box the engine pushed back to its entity — unless the tick's pushes, the later
+// passes' too, which the handler is not asked about, would leave it further over ground that does
+// not take it: it stays, and the space, which has it pushed, is built again after the tick.
 func (d *CollisionSystem) moved(id uid.UID64, box plane.AABB) {
-	if d.seek(id) {
-		d.lookupBase.At(d.lookup.Cursor()).Pos.AABB = box
+	if !d.seek(id) {
+		return
 	}
+	cur := d.lookup.Cursor()
+	base := d.lookupBase.At(cur)
+	if d.field.field != nil && d.worse(world.LayersOf(d.lookupLayers.At(cur)), base.Pos.AABB.AABB, box.AABB) {
+		d.stale = true
+		return
+	}
+	base.Pos.AABB = box
+}
+
+// worse reports whether to lies further over ground that does not take an entity on layers than
+// from.
+func (d *CollisionSystem) worse(layers world.Layers, from, to geom.AABB) bool {
+	return d.field.field.Overhang(layers, to) > d.field.field.Overhang(layers, from)+1e-9
 }
 
 // bounce trades the contact's impulse between two physical sides and returns it.

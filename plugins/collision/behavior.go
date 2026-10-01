@@ -13,20 +13,20 @@ type Meeting struct {
 	Normal      geom.Vec
 }
 
-// Who is the entity that met the other: whose moment it is, for a trigger.
+// Who is the entity that met the other: whose moment it is, for a rule.
 func (m Meeting) Who() uid.UID64 { return m.Self }
 
 // Whom tells each the other one.
 func (m Meeting) Whom(each func(uid.UID64)) { each(m.Other) }
 
-// Struck is what a trigger hosted here is told about an entity:
+// Struck is what a rule hosted here is told about an entity:
 // which it is, and what it struck the tick before.
 type Struck struct {
 	ID       uid.UID64
 	Contacts []Contact
 }
 
-// Who is the entity that struck: whose moment it is, for a trigger.
+// Who is the entity that struck: whose moment it is, for a rule.
 func (s Struck) Who() uid.UID64 { return s.ID }
 
 // Hit reports whether the entity struck anything the tick before.

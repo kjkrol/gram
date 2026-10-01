@@ -38,7 +38,7 @@
 // [Plugin.Local] adds a player at this keyboard, looking through the world's camera; [Plugin.Add]
 // one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
-// bindings on one trigger holding in one camera mode are refused at Bind; a binding whose command
+// bindings on one rule holding in one camera mode are refused at Bind; a binding whose command
 // nobody defines is refused when the Stage is set up. [Player.Bindings] is the list a help screen
 // draws. A binding may hold in some camera modes only (control.Binding.In, camera.ModeOf): the
 // camera's own WASD, middle drag and edge scroll hold while the camera is Free, and a camera riding
@@ -53,10 +53,10 @@
 // [Plugin.EventHandler] is the layer between the device and the game. The Scene hands it each
 // pass's control.InputEvents; it keeps, per local player, what it has seen of the keys and buttons
 // (the cursor in the player's part of the screen, the buttons down and where they went down, the
-// keys held), matches the events against the player's bindings' control.Triggers, builds each
+// keys held), matches the events against the player's bindings' control.Rules, builds each
 // matching binding's command from a control.Context (Binding.Build) and hands it to [Plugin.Issue],
 // which puts it in the queue of the handler that defined its type. A control.KeyHeld is the one
-// trigger fired from [Plugin.RunPlan] instead, once a tick while its key is down.
+// rule fired from [Plugin.RunPlan] instead, once a tick while its key is down.
 //
 // # Split screen
 //
@@ -73,7 +73,7 @@
 // The active Scene hands the tick's input to [Plugin.EventHandler], which runs every local
 // player's bindings and fills the queues; the command handlers drain theirs in their RunPlan;
 // [Plugin.RunPlan], called last, carries out Pan and Zoom. Nothing is dropped: a command given
-// after its handler's pass — by an entity's trigger in a later plugin's — waits for the next
+// after its handler's pass — by an entity's rule in a later plugin's — waits for the next
 // frame's.
 //
 // # Scene keys and the shortcuts
@@ -83,6 +83,6 @@
 // HandleEvents. [Plugin.Shortcuts] is a ready scene listing every key of the game — the local
 // players' bindings, grouped by the plugin whose command each issues, and the scene's keys under
 // "Game" — over the dimmed screen, the game held in the engine's pause while it is up; a game adds
-// it to its stack, opens it on K ([Shortcuts.Open]) and Esc or K closes it. [Written] is a trigger
+// it to its stack, opens it on K ([Shortcuts.Open]) and Esc or K closes it. [Written] is a rule
 // as such a list writes it.
 package players

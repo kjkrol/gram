@@ -20,15 +20,15 @@
 // ([Clock.Simulate]): movement, collisions, effects, sight, the weather. The clock replays those
 // pieces after the game's Update, in the order they came, so the order the game laid out holds in
 // every step. Selecting, the camera and orders therefore work in the tactical pause and never speed
-// up; a trigger runs where the system hosting it runs, which for every host there is means the
+// up; a rule runs where the system hosting it runs, which for every host there is means the
 // simulation.
 //
 // # Commands, phases and the display
 //
 // Space toggles the tactical pause, ] and [ move the tempo ([Clock.DefaultBindings]); the players
 // plugin carries them through the world. The clock's entity carries a family of [Phase] tags that
-// effects cast on it switch on and off — a trigger asks [Clock.In] whether a phase holds. A
-// trigger of the clock's [Moment] fires once every step of the simulation; [At] and [Every] hold
+// effects cast on it switch on and off — a rule asks [Clock.In] whether a phase holds. A
+// rule of the clock's [Moment] fires once every step of the simulation; [At] and [Every] hold
 // in the steps reaching a time.
 // [Clock.Reporter] is a telemetry line, [Clock.HUD] a screen layer showing the game time.
 package clock

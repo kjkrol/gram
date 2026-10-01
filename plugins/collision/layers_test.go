@@ -8,9 +8,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 type layered struct {
@@ -27,7 +27,9 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	c := collision.NewPlugin(w)
-	if err := c.Hook(act.Trigger[collision.Meeting]("hook").Runs(func(plugin.Tick, collision.Meeting) { met = true })); err != nil {
+	if err := c.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
+		return m.Call(func(plugin.Tick, collision.Meeting) { met = true })
+	})); err != nil {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}

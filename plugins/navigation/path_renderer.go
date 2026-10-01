@@ -166,11 +166,7 @@ func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			o := &orders[i]
-			size := bases[i].Pos.Size
-			r.goal(size, o.Target, o.Spot)
-			for k := range o.Waypoints[:o.Queued] {
-				r.goal(size, o.Waypoints[k].Cell, o.Waypoints[k].Spot)
-			}
+			r.goals(bases[i].Pos.Size, o)
 			if !r.routes {
 				continue
 			}
@@ -183,6 +179,17 @@ func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 				from = to
 			}
 		}
+	}
+}
+
+// goals outlines where o's entity, of size, will stand: its Target — not a step aside, which is no
+// goal — and every goal queued after it.
+func (r *PathRenderer) goals(size geom.Vec, o *MoveOrder) {
+	if !o.GivingWay {
+		r.goal(size, o.Target, o.Spot)
+	}
+	for k := range o.Waypoints[:o.Queued] {
+		r.goal(size, o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 	}
 }
 

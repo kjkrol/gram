@@ -15,10 +15,9 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/trigger"
+	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
@@ -98,10 +97,10 @@ type mainStage struct {
 	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
 	kinds     [entityColors][entityShapes]kind.Of[body]
 	hitSprite render.SpriteID
-	hit       trigger.Hits
+	hit       hooks.Hits
 
 	state          *State
-	collisionStats trigger.ContactStats
+	collisionStats hooks.ContactStats
 
 	players *players.Plugin
 
@@ -119,17 +118,17 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
-	s.hit = trigger.Hit(s.world, hitDuration)
+	s.hit = hooks.Hit(s.world, hitDuration)
 	s.defineKinds()
 	s.hitSprite = s.world.Kinds().NewSprite()
-	if err := s.world.Hook(trigger.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
+	if err := s.world.Hook(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
 		return err
 	}
 
 	s.collision = collision.NewPlugin(s.world)
 	if err := s.collision.Hook(
-		act.Trigger[collision.Meeting]("count contacts").Do(trigger.CountContacts(&s.collisionStats)),
-		act.Trigger[collision.Struck]("show hits").Do(trigger.ShowHits(s.hit)),
+		hooks.CountContacts(&s.collisionStats),
+		hooks.ShowHits(s.hit),
 	); err != nil {
 		return err
 	}
@@ -183,7 +182,7 @@ func (s *mainStage) defineKinds() {
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{Restitution: 1}),
-				comp.Marks[trigger.States](), // the hit's marker, for good
+				comp.Marks[hooks.States](), // the hit's marker, for good
 			})
 		}
 	}

@@ -14,7 +14,7 @@ import (
 
 // Standing is where an entity on the board stands this tick: the cell under its centre, that
 // cell's kind, its box (Grid.CellsUnder lists every cell it touches) and the domains it moves in
-// (its Mover's; Land without one). Board hosts triggers of it.
+// (its Mover's; Land without one). Board hosts rules of it.
 type Standing struct {
 	ID     uid.UID64
 	Cell   CellID
@@ -23,7 +23,7 @@ type Standing struct {
 	Domain Domain
 }
 
-// Who is the entity standing: whose moment it is, for a trigger.
+// Who is the entity standing: whose moment it is, for a rule.
 func (s Standing) Who() uid.UID64 { return s.ID }
 
 // Fallen reports whether the entity stands where its domain may not be: in a hole, in water on
@@ -32,7 +32,7 @@ func (s Standing) Fallen() bool { return !s.Kind.Admits(s.Domain) }
 
 var _ goke.System = (*standingSystem)(nil)
 
-// standingSystem tells every trigger where each entity carrying Cell stands, after movement and
+// standingSystem tells every rule where each entity carrying Cell stands, after movement and
 // collisions have had their say.
 type standingSystem struct {
 	brd      *Board

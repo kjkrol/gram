@@ -16,9 +16,9 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -49,6 +49,7 @@ type mover struct {
 	eye     world.Eye // how wide the sight sees, with it
 	domain  board.Domain
 	offset  float64 // shifts the box right, to straddle two cells
+	brakes  bool    // standing, it brakes to rest as a unit does
 }
 
 const unitSize = 22
@@ -64,7 +65,7 @@ type groundWorld struct {
 	q     *goke.Query
 }
 
-func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain func(*board.Board), units []mover, behaviors ...plugin.Trigger) *groundWorld {
+func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain func(*board.Board), units []mover, behaviors ...plugin.Rule) *groundWorld {
 	t.Helper()
 	bw := &groundWorld{t: t}
 	bw.w = world.NewPlugin(world.Config{
@@ -117,11 +118,20 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 				}
 				return board.Mover{Domain: m.domain}
 			}),
+			comp.Load(func(m mover) world.Layers { // as board.NewUnits gives them
+				if m.domain == 0 {
+					return world.Layers(board.Land)
+				}
+				return world.Layers(m.domain)
+			}),
 		}
-		if u.heading != (geom.Vec{}) {
+		switch {
+		case u.heading != (geom.Vec{}):
 			spec = append(spec, comp.Load(func(m mover) steering.Steering {
 				return steering.Steering{Want: m.heading, WantSpeed: 64, MaxSpeed: 64}
 			}))
+		case u.brakes:
+			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 256}))
 		}
 		if u.sight != nil {
 			spec = append(spec, comp.Const(*u.sight), comp.Const(u.eye))
@@ -220,7 +230,7 @@ func squareWorld(t *testing.T, units ...mover) (*groundWorld, board.CellID) {
 }
 
 // squareWorldWith is squareWorld with a behavior registered on the board.
-func squareWorldWith(t *testing.T, behavior plugin.Trigger, units ...mover) (*groundWorld, board.CellID) {
+func squareWorldWith(t *testing.T, behavior plugin.Rule, units ...mover) (*groundWorld, board.CellID) {
 	t.Helper()
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
@@ -229,7 +239,7 @@ func squareWorldWith(t *testing.T, behavior plugin.Trigger, units ...mover) (*gr
 			units[i].cell = cell(1, 7)
 		}
 	}
-	var behaviors []plugin.Trigger
+	var behaviors []plugin.Rule
 	if behavior != nil {
 		behaviors = append(behaviors, behavior)
 	}
@@ -326,7 +336,9 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 
 func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 	var hits []collision.Contact
-	strikes := act.Trigger[collision.Struck]("hook").Runs(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
+	strikes := rule.On("hook", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
+		return m.Call(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
+	})
 	bw, gap := squareWorldWith(t, strikes, mover{heading: east})
 	for range 60 {
 		bw.tick()
@@ -555,5 +567,68 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	}
 	if n := look(0.2); n != 1 {
 		t.Errorf("saw %d through a thin veil, want the target", n)
+	}
+}
+
+// water is ground a walker does not stand on and nothing stops: not solid.
+var water = board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}
+
+// Overhang is the area of a box over ground that does not take an entity on the layers given — the
+// land to a swimmer too — off the board none.
+func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(4, 4, cellSize)
+	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	brd := board.NewBoard(grid, board.NewTerrainMap())
+	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	brd.Set(cell(2, 1), water)
+	edge := float64(2 * cellSize)
+	box := geom.NewAABBAt(geom.NewVec(edge-6, cellSize+2), 10, 10) // 4 of its 10 across over the water
+	for _, c := range []struct {
+		layers world.Layers
+		want   float64
+	}{{world.Layers(board.Land), 40}, {world.Layers(board.Water), 60}, {world.Layers(board.Land | board.Water), 0}, {0, 0}} { // no layers: every plane
+		if got := brd.Overhang(c.layers, box); math.Abs(got-c.want) > 1e-9 {
+			t.Errorf("layers %v: overhang %v, want %v", c.layers, got, c.want)
+		}
+	}
+	if got := brd.Overhang(world.Layers(board.Land), geom.NewAABBAt(geom.NewVec(-5, -5), 10, 10)); got != 0 {
+		t.Errorf("off the board the overhang is %v, want none", got)
+	}
+}
+
+// A unit pushed by another towards water holds at the shore as at a wall: a push apart never puts
+// it over ground that does not take it, and the one pushing is stopped as by the ground. Ground
+// turning to water under a unit is no push: it stays there, nothing moves it out.
+func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
+	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, func(brd *board.Board) {
+		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		for y := range uint32(16) {
+			brd.Set(cell(3, y), water)
+		}
+	}, []mover{{cell: cell(2, 7), brakes: true}, {cell: cell(1, 7), heading: east}, {cell: cell(1, 12), brakes: true}})
+	shore := float64(3 * cellSize)
+	for tick := range 120 {
+		bw.tick()
+		if units := bw.snapshot(); units[0].BottomRight.X > shore+1e-6 {
+			t.Fatalf("tick %d: the one pushed reaches %v, over the water from %v", tick, units[0].BottomRight.X, shore)
+		}
+	}
+	units := bw.snapshot()
+	if units[0].BottomRight.X < shore-1 {
+		t.Errorf("the one pushed stands at %v, want pushed up to the shore at %v", units[0], shore)
+	}
+	if units[1].BottomRight.X > units[0].TopLeft.X+1 {
+		t.Errorf("the pusher at %v is into the one it pushes at %v, want it stopped by it", units[1], units[0])
+	}
+
+	still := units[2]
+	bw.brd.Res.Logic.Board.Set(cell(1, 12), water)
+	for range 30 {
+		bw.tick()
+	}
+	if got := bw.snapshot()[2]; got != still {
+		t.Errorf("the ground turned to water under a unit standing still, and it moved from %v to %v; want it left there", still, got)
 	}
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 type shaped struct{ x float64 }
@@ -27,8 +27,10 @@ func shapesRun(t *testing.T, test collision.ShapeTest) (meetings []collision.Mee
 	if test != nil {
 		c.WithShapeTest(test)
 	}
-	if err := c.Hook(act.Trigger[collision.Meeting]("hook").Runs(func(_ plugin.Tick, m collision.Meeting) {
-		meetings = append(meetings, m)
+	if err := c.Hook(rule.On("hook", rule.All, func(m *rule.Moment[collision.Meeting]) rule.Step {
+		return m.Call(func(_ plugin.Tick, m collision.Meeting) {
+			meetings = append(meetings, m)
+		})
 	})); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}

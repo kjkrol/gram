@@ -32,9 +32,9 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -120,8 +120,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKindDict().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
-	drown := act.Trigger[board.Standing]("drown")
-	if err := s.board.Hook(drown.Do(drown.If(board.Standing.Fallen, drown.Then(drown.Run(drowned), drown.Issue(world.Despawn{}))))); err != nil {
+	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+		return m.If(board.Standing.Fallen, m.Steps(m.Call(drowned), m.Order(world.Despawn{})))
+	})); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -137,7 +138,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Hook(act.Trigger[vision.Sighting]("face travel").Runs(faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Hook(rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
+		return m.Call(faceTravel)
+	}), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {

@@ -334,9 +334,9 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // with the world.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook refuses every trigger: the topography hosts none.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
+// Hook refuses every rule: the topography hosts none.
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
 		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
 	}
 	return nil

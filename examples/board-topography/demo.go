@@ -52,9 +52,9 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
@@ -172,8 +172,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Isometric:   true,
 		Perspective: true,
 		Shaping:     relief.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	drown := act.Trigger[board.Standing]("drown")
-	if err := s.board.Hook(drown.Do(drown.If(board.Standing.Fallen, drown.Then(drown.Run(drowned), drown.Issue(world.Despawn{}))))); err != nil {
+	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+		return m.If(board.Standing.Fallen, m.Steps(m.Call(drowned), m.Order(world.Despawn{})))
+	})); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -196,7 +197,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Hook(act.Trigger[vision.Sighting]("face travel").Runs(faceTravel), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Hook(rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
+		return m.Call(faceTravel)
+	}), vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -307,22 +310,21 @@ func (s *mainStage) defineKinds() {
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
-	// every unit acts by navigation's Courteous: allies make way for each other and swap
-	// goals within a group, strangers are gone round
-	courteous := act.Tree(navigation.Courteous())
+	// every unit gets on among the others by navigation's Crowd, the plugin's own rules: an ally
+	// standing makes way, a group gathers round its point, strangers are gone round
 	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
-		sight, eye, courteous,
+		sight, eye,
 	)
 	// The crowd on the plateau: the player's walkers standing, under no order and not selected.
 	s.plateau = units.Define("plateau", board.Mover{Domain: board.Land}, walker,
 		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
-		sight, eye, courteous,
+		sight, eye,
 	)
 	// The rival's walkers are the same giants, the player's to meet, not to command.
 	s.rivals = units.Define("rival", board.Mover{Domain: board.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
-		sight, eye, courteous,
+		sight, eye,
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
 	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
@@ -330,7 +332,7 @@ func (s *mainStage) defineKinds() {
 	// ground than its own height nor higher than 100 m under the clouds.
 	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
-		sight, eye, courteous,
+		sight, eye,
 	)
 }
 

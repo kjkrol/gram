@@ -14,10 +14,10 @@ import (
 	"github.com/kjkrol/gram/control"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -198,7 +198,7 @@ func (p *Plugin) Queues() []control.CommandQueue {
 	return append(p.module.clock.Queues(), &p.module.despawns)
 }
 
-// Carry has the world take commands — its players', its entities' (Issue in a tree) — to the
+// Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the
 // queues of handlers; the engine carries every plugin.CommandHandler it is given with Use.
 func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	for _, h := range handlers {
@@ -237,25 +237,25 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // Hook adds world.Behaviors to the decision pass run before movement, in order, and hosts
-// triggers (act.Trigger) of a Moving (every entity, before it moves), a Leaving (every tick
+// rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
 // an entity is Outside an open edge), a Drawing (every entity about to be drawn), an
 // effect.Idling (an entity whose last effect ended) and a clock.Moment (every step). Call before
 // Use.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
 		if system, ok := b.(Behavior); ok {
 			p.module.Hook(system)
 			continue
 		}
 		var err error
-		hosts := []func(plugin.Trigger) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
+		hosts := []func(plugin.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.effects.Host}
 		for _, add := range hosts {
 			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
 				break
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a world.Behavior or a trigger of Moving, Leaving, Drawing, Idling or clock.Moment", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a world.Behavior or a rule of Moving, Leaving, Drawing, Idling or clock.Moment", err, p.Name())
 		}
 	}
 	return nil

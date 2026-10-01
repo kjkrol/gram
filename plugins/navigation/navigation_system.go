@@ -8,12 +8,15 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -59,8 +62,8 @@ type MoveOrder struct {
 	Stalls        uint8
 	Held          bool
 	// Linger is how long the entity stands on its Target before it goes on to the next queued goal;
-	// zero passes it. GivingWay marks an order to give way to one on the move — to linger aside,
-	// then go home — whom nobody gives way to in turn.
+	// zero passes it. GivingWay marks an order to give way (StepAside), whom nobody gives way to in
+	// turn and whose Target is drawn as no goal.
 	Linger    time.Duration
 	GivingWay bool
 	// Holding is how long more a Hold keeps the entity where it stands, the way ahead closed;
@@ -164,11 +167,10 @@ type navigationSystem struct {
 	pathFinder *pathFinder
 	keep       keeping
 	bodies     []body // every unit this tick, for the keeping; reused
-	// wanted is who came at each standing unit last tick, by a step into its cell refused, and
-	// wanting who does this tick: swapped at the end of the tick, so the standing are asked a
-	// tick later whatever order the chunks come in
-	wanted, wanting map[uid.UID64]press
-	presses         []press // reused
+	// wanted is who came at each unit last tick, by a step into its cell refused, and wanting who
+	// does this tick: swapped at the end of the tick, so two coming at each other's cells know it
+	// whatever order the chunks come in
+	wanted, wanting map[uid.UID64]uid.UID64
 
 	query *goke.Query
 	cell  goke.Comp[board.Cell]
@@ -181,24 +183,31 @@ type navigationSystem struct {
 	hand  goke.OptComp[steering.Driven]
 	route []geom.Vec // the centres ahead, unwrapped, reused each entity
 
-	// the units with a tree (plugins/world/act): their minds, whose they are, the
-	// facts navigation tells them, the asks they are given and the commands they give themselves
-	mind      goke.OptComp[act.Mind]
-	owners    goke.OptComp[tag.Tags[owner.Family]]
-	blocked   goke.OptComp[Blocked]
-	room      goke.OptComp[Room]
-	askedWay  goke.OptComp[act.Asked[MakeWay]]
-	askedGoal goke.OptComp[act.Asked[FreeGoal]]
-	arrived   goke.OptComp[Arrived]
-	blockedID goke.CompID
-	roomID    goke.CompID
-	arrivedID goke.CompID
-	blocking  map[uid.UID64]Blocked // who each unit was blocked by this tick
-	courtesy  *courtesyQueues
-	told      map[uid.UID64]told // what each unit commanded itself this tick
-	arrivals  []arrival          // the units with a tree whose order is over this tick
-	lookup    *goke.Query        // another unit's order, for a swap
-	theirs    goke.Comp[MoveOrder]
+	// whose the units are, the group each came to the end of last, and for the units with a tree
+	// (plugins/world/rule) their minds and the facts navigation tells them
+	owners      goke.OptComp[tag.Tags[owner.Family]]
+	lastOrder   goke.OptComp[LastOrder]
+	lastOrderID goke.CompID
+	lastLacking []LastOrder // the units lacking LastOrder whose order is over this chunk, by Group
+	lastIDs     []uid.UID64
+	mind        goke.OptComp[rule.Mind]
+	blocked     goke.OptComp[Blocked]
+	arrived     goke.OptComp[Arrived]
+	blockedID   goke.CompID
+	arrivedID   goke.CompID
+	blocking    map[uid.UID64]Blocked // who each unit with a tree was blocked by this tick
+	arrivals    []arrival             // the units with a tree whose order is over this tick
+
+	// the commands units give themselves, what each did this tick, and the touches this tick
+	// handed to the rules navigation hosts, whose tag families a query of its own reads
+	given    *givenQueues
+	told     map[uid.UID64]told
+	touched  []touching
+	felt     map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
+	touches  *host.PairHost[Touch]
+	marks    *goke.Query
+	markCell goke.Comp[board.Cell]
+	commands *control.Carrier
 
 	orderID goke.CompID
 
@@ -217,7 +226,8 @@ type navigationSystem struct {
 
 var _ goke.System = (*navigationSystem)(nil)
 
-// targetWaitTimeout is how long an entity waits for an occupied target before settling nearby.
+// targetWaitTimeout is how long an entity waits for a target no route reaches before settling
+// nearby.
 const targetWaitTimeout = 500 * time.Millisecond
 
 // bumpInterval is how long after a bump an entity keeps its new route, deaf to further bumps.
@@ -247,36 +257,51 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 		Optional(&s.z).
 		Optional(&s.coll).
 		Optional(&s.hand).
-		Optional(&s.mind, &s.owners, &s.blocked, &s.room, &s.askedWay, &s.askedGoal, &s.arrived).
+		Optional(&s.owners, &s.lastOrder).
+		Optional(&s.mind, &s.blocked, &s.arrived).
 		Optional(&s.states).
 		Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.blockedID, s.roomID, s.arrivedID = si.RegComp[Blocked](), si.RegComp[Room](), si.RegComp[Arrived]()
-	s.lookup = si.NewQueryBuilder(&s.theirs).Build()
+	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
 	s.statesID = si.RegComp[tag.Tags[States]]()
+	if s.touches != nil {
+		marks := si.NewQueryBuilder(&s.markCell)
+		s.touches.Bind(marks)
+		s.marks = marks.Build()
+	}
 }
 
 func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.clearEntered()
-	if s.courtesy != nil {
-		if s.told == nil {
-			s.told = map[uid.UID64]told{}
-		}
-		s.courtesy.drain(s.told)
-	}
 	changed := false
 	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
 		s.terrainSeen, changed = v.Version(), true
 	}
 	s.keep.begin(s.gather)
+	s.touched = s.touched[:0]
+	if s.felt == nil {
+		s.felt = map[[2]uid.UID64]bool{}
+	}
+	if s.keep.byContact() {
+		// the boxes that met: their rules' commands are carried out this very tick
+		s.feel()
+		s.touch(cb, d)
+		s.touched = s.touched[:0]
+	}
+	if s.given != nil {
+		if s.told == nil {
+			s.told = map[uid.UID64]told{}
+		}
+		s.given.drain(s.told)
+	}
 
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		orders := s.order.Slice(cursor)
 		if orders == nil {
-			s.giveWay(cb, cursor)
+			s.standing(cb, cursor)
 			continue
 		}
 
@@ -289,7 +314,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		steers := s.steer.Slice(cursor)
 		movers := s.mover.Slice(cursor)
 		zs := s.z.Slice(cursor)
-		minds, owned, arrived := s.mind.Slice(cursor), s.owners.Slice(cursor), s.arrived.Slice(cursor)
+		minds, owned, arrived, lasts := s.mind.Slice(cursor), s.owners.Slice(cursor), s.arrived.Slice(cursor), s.lastOrder.Slice(cursor)
 		dt := d.Seconds()
 
 		for i, id := range cursor.IDs {
@@ -311,12 +336,8 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				m.lift = movers[i].Lift
 			}
 			m.brake = st.Braking()
-			if p, ok := s.wanted[id]; ok {
-				m.pressedBy, m.pressed = p.other, true
-			}
-			var mind *act.Mind
-			if minds != nil {
-				mind, m.minded = &minds[i], true
+			if by, ok := s.wanted[id]; ok {
+				m.pressedBy, m.pressed = by, true
 			}
 			if owned != nil {
 				m.owners = owned[i]
@@ -326,7 +347,14 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			arrive := func() {
 				arrivedIDs = append(arrivedIDs, id)
-				if mind != nil {
+				switch {
+				case o.Group == 0: // an order to give way, or to look: the group stays
+				case lasts != nil:
+					lasts[i].Group = o.Group
+				default:
+					s.lastIDs, s.lastLacking = append(s.lastIDs, id), append(s.lastLacking, LastOrder{Group: o.Group})
+				}
+				if minds != nil {
 					s.arrivals = append(s.arrivals, arrival{id: id, cell: cells[i].ID})
 				}
 			}
@@ -348,9 +376,6 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 
 			o.Cooldown = max(o.Cooldown-d, 0)
-			if m.minded && o.Bumped && o.HitUnit {
-				s.note(m, o, o.Hit, 0, false)
-			}
 			if o.Bumped {
 				o.Bumped = false
 				answer := s.keep.bump(m, o)
@@ -409,8 +434,20 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 
-			if mind != nil && s.act(cursor, i, m, o, st, d) {
-				continue // held where it stands by its tree
+			stop, held := s.carryOut(m, o, st, d)
+			if stop {
+				st.RequestSpeed(0) // stands where it is
+				if leg.Active {
+					s.releaseLeg(*leg, id)
+					s.occupancy.Enter(actual, id, domain)
+					moveTo(actual)
+					*leg = Leg{}
+				}
+				arrive()
+				continue
+			}
+			if held {
+				continue // held where it stands by its own command
 			}
 
 			s.keep.ready(m, o)
@@ -460,16 +497,14 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 						o.learn(why.cell)
 						p.Length = 0
 					default:
-						// someone holds the cell: wait, and ask them off it
-						holder, known, asks := s.keep.blocked(m, o, why.cell, d)
-						if m.minded && known {
-							s.note(m, o, holder, why.cell, true)
-						}
-						if asks {
+						// someone holds the cell: the two touch, as a refused step tells
+						if holder, known := s.keep.blocked(m, o, why.cell, d); known {
+							s.touched = append(s.touched, touching{self: id, other: holder, way: s.wayBetween(why.cell, cells[i].ID),
+								cell: why.cell, from: cells[i].ID, headOn: m.pressed && m.pressedBy == holder, refused: true})
 							if s.wanting == nil {
-								s.wanting = map[uid.UID64]press{}
+								s.wanting = map[uid.UID64]uid.UID64{}
 							}
-							s.wanting[holder] = press{other: id, cell: cells[i].ID, way: s.wayBetween(cells[i].ID, why.cell), givingWay: o.GivingWay}
+							s.wanting[holder] = id
 						}
 					}
 					continue
@@ -614,7 +649,12 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Entered))
 		}
 		s.lacking = s.lacking[:0]
+		for k, id := range s.lastIDs {
+			cb.AddOne(id, s.lastOrderID, s.lastLacking[k])
+		}
+		s.lastIDs, s.lastLacking = s.lastIDs[:0], s.lastLacking[:0]
 	}
+	s.touch(cb, d)
 	s.tell(cb, d)
 	for _, a := range s.arrivals {
 		cb.AddOne(a.id, s.arrivedID, Arrived{Cell: a.cell})
@@ -642,19 +682,22 @@ func (s *navigationSystem) wayBetween(a, b board.CellID) geom.Vec {
 	return d
 }
 
-// giveWay has every unit standing in cursor's chunk, no hand on it, that one on the move came at
-// — striking it, or refused a step into its cell — give way as the keeping says; one with a tree is told instead whether it has room when asked, and steps aside when its tree says so.
-func (s *navigationSystem) giveWay(cb *goke.CmdBuf, cursor *goke.Cursor) {
-	colls, minds := s.coll.Slice(cursor), s.mind.Slice(cursor)
-	if colls == nil && minds == nil && len(s.wanted) == 0 {
+// standing carries out the StepAside every unit standing in cursor's chunk, no hand on it, gave
+// itself: an order aside, where the keeping finds it safe.
+func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
+	if len(s.told) == 0 || s.hand.Slice(cursor) != nil {
 		return
 	}
-	cells, bases, movers, zs, hands := s.cell.Slice(cursor), s.base.Slice(cursor), s.mover.Slice(cursor), s.z.Slice(cursor), s.hand.Slice(cursor)
-	if hands != nil {
-		return
-	}
-	owned := s.owners.Slice(cursor)
+	cells, bases, movers, zs := s.cell.Slice(cursor), s.base.Slice(cursor), s.mover.Slice(cursor), s.z.Slice(cursor)
 	for i, id := range cursor.IDs {
+		t, ok := s.told[id]
+		if !ok || !t.aside {
+			continue
+		}
+		of, ok := s.keep.other(t.asideOf)
+		if !ok {
+			continue
+		}
 		m := member{id: id, cell: cells[i].ID, from: cells[i].ID, domain: board.DomainAt(movers, i), pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir}
 		if zs != nil {
 			m.z = zs[i]
@@ -662,100 +705,118 @@ func (s *navigationSystem) giveWay(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if movers != nil {
 			m.lift = movers[i].Lift
 		}
-		if owned != nil {
-			m.owners = owned[i]
-		}
-		if minds != nil {
-			m.minded = true
-			s.standing(cb, cursor, i, m)
-			continue
-		}
-		s.presses = s.presses[:0]
-		if colls != nil {
-			for _, c := range colls[i].Contacts() {
-				if !c.Terrain {
-					s.presses = append(s.presses, press{other: c.Other, way: c.Normal})
-				}
-			}
-		}
-		if p, ok := s.wanted[id]; ok {
-			s.presses = append(s.presses, p)
-		}
-		if len(s.presses) == 0 {
-			continue
-		}
-		if order, ok := s.keep.yield(m, s.presses); ok {
+		if order, ok := s.keep.stepAside(m, of); ok {
 			cb.AddOne(id, s.orderID, order)
 		}
 	}
 }
 
-// standing tells m, standing, with a tree, whether it has room when an ally asks it to
-// make way or to free its goal, and carries out the StepAside it gives itself.
-func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor, i int, m member) {
-	var asker uid.UID64
-	asked := false
-	if a := s.askedWay.Slice(cursor); a != nil {
-		asker, asked = a[i].From, true
-	} else if a := s.askedGoal.Slice(cursor); a != nil {
-		asker, asked = a[i].From, true
-	}
-	if t, ok := s.told[m.id]; ok && t.aside {
-		if b, ok := s.keep.other(t.stepAside.Of); ok {
-			if order, ok := s.keep.stepAside(m, b, t.stepAside.Return); ok {
-				cb.AddOne(m.id, s.orderID, order)
-				return
+// touching is two units touching this tick, a touch of both: self leaving other along way; refused,
+// self was refused a step from its cell from into cell, which other holds.
+type touching struct {
+	self, other uid.UID64
+	way         geom.Vec
+	cell, from  board.CellID
+	headOn      bool
+	refused     bool
+}
+
+// feel lists the units touching this tick: the contacts their Colliders recorded, each pair once —
+// the collision records a contact on the one that struck, or on both.
+func (s *navigationSystem) feel() {
+	clear(s.felt)
+	for s.query.All(); s.query.Next(); {
+		cursor := s.query.Cursor()
+		colls := s.coll.Slice(cursor)
+		if colls == nil {
+			continue
+		}
+		for i, id := range cursor.IDs {
+			for _, c := range colls[i].Contacts() {
+				if c.Terrain || c.Other == 0 {
+					continue
+				}
+				pair := [2]uid.UID64{min(id, c.Other), max(id, c.Other)}
+				if !s.felt[pair] {
+					s.felt[pair] = true
+					s.touched = append(s.touched, touching{self: id, other: c.Other, way: c.Normal})
+				}
 			}
 		}
 	}
-	rooms := s.room.Slice(cursor)
-	if !asked {
-		if rooms != nil {
-			cb.RemoveCompOne(m.id, s.roomID)
+}
+
+// touch hands every touch of this tick to the rules of Touch, seen from each of the two, and
+// notes what blocks every unit on the move with a tree.
+func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
+	hosted := s.touches != nil && !s.touches.Empty()
+	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: s.commands}
+	clear(s.felt)
+	for _, t := range s.touched {
+		if t.refused {
+			s.felt[[2]uid.UID64{t.self, t.other}] = true
 		}
-		return
 	}
-	var r Room
-	if b, ok := s.keep.other(asker); !ok || !owner.Allies(m.owners, b.owners) {
-		r.Stranger = true
-	} else {
-		r.Free, r.Ally, r.Beside = s.keep.room(m, b)
-	}
-	if rooms == nil || rooms[i] != r {
-		cb.AddOne(m.id, s.roomID, r)
+	for _, t := range s.touched {
+		self, ok := s.keep.other(t.self)
+		other, found := s.keep.other(t.other)
+		if !ok || !found || self.domain&other.domain == 0 {
+			continue
+		}
+		cell, from := other.cell, self.cell
+		if t.refused {
+			cell, from = t.cell, t.from
+		}
+		head := t.headOn || t.refused && s.felt[[2]uid.UID64{t.other, t.self}] || !t.refused && headOn(self, other, t.way)
+		s.fire(tick, hosted, self, other, t.way, cell, head)
+		s.fire(tick, hosted, other, self, geom.NewVec(-t.way.X, -t.way.Y), from, head)
 	}
 }
 
-// note has m, with a tree, blocked this tick by who — in cell when inCell, else where they
-// stand — for tell to put on it.
-func (s *navigationSystem) note(m member, o *MoveOrder, who uid.UID64, cell board.CellID, inCell bool) {
-	other, ok := s.keep.other(who)
-	if !ok {
-		return
+// fire hands the Touch of self by other, holding cell, to the rules, and notes it for self when
+// it has a tree.
+func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body, way geom.Vec, cell board.CellID, head bool) {
+	t := Touch{Self: self.id, Other: other.id, Way: way, Moving: self.moving, OtherMoving: other.moving,
+		GivingWay: self.givingWay, OtherGivingWay: other.givingWay, LastGoal: self.lastGoal,
+		Ally: owner.Allies(self.owners, other.owners), Groupmate: self.group != 0 && self.group == other.group,
+		HeadOn: head && self.moving && other.moving, WaitedOut: self.waitedOut, Cornered: self.cornered}
+	if self.moving {
+		t.OnMyGoal = s.keep.onGoal(self, other)
+		if !other.moving {
+			_, t.Room = s.keep.stepAside(other.member(), self)
+		}
+		if self.minded {
+			if s.blocking == nil {
+				s.blocking = map[uid.UID64]Blocked{}
+			}
+			s.blocking[self.id] = blockedOf(t, cell)
+		}
 	}
-	if !inCell {
-		cell = other.cell
+	if hosted {
+		s.touches.Dispatch(tick, s.marksOf(self.id), s.marksOf(other.id), t)
 	}
-	b := Blocked{By: who, Cell: cell, Stranger: !owner.Allies(m.owners, other.owners), Moving: other.moving,
-		Groupmate: o.Group != 0 && other.group == o.Group, OnMyGoal: s.keep.onGoal(m, o, other), Yielding: o.GivingWay,
-		WaitedOut: o.WaitedOut, Cornered: o.Cornered, Lasts: blockedLasts}
-	b.First = (m.id < who) != slices.Contains(o.Met[:o.Mets], who)
-	if b.Groupmate {
-		g := s.grid
-		b.Shortens = g.Distance(m.cell, other.goal)+g.Distance(other.cell, o.Target) < g.Distance(m.cell, o.Target)+g.Distance(other.cell, other.goal)-0.5
-	}
-	if s.blocking == nil {
-		s.blocking = map[uid.UID64]Blocked{}
-	}
-	s.blocking[m.id] = b
 }
 
-// blockedLasts is how long Blocked stays on a unit with nobody struck: contacts come and go.
-const blockedLasts = 400 * time.Millisecond
+// marksOf is what id carries of the tag families the rules of Touch name.
+func (s *navigationSystem) marksOf(id uid.UID64) plugin.Marks {
+	if !s.marks.Seek(id) {
+		return plugin.Marks{}
+	}
+	return s.touches.At(0, s.marks.Cursor())
+}
 
-// tell puts on every unit with a tree what blocked it this tick, and takes Blocked off
-// one no longer blocked once its hold is up — two that were on the move then count as having met,
-// so the next time they meet the other one waits.
+// headOn reports whether a and b, both on the move, come at each other: a towards b against way,
+// the way a leaves b, and b towards a along it.
+func headOn(a, b body, way geom.Vec) bool {
+	towards := func(v, dir geom.Vec) bool {
+		l := math.Hypot(v.X, v.Y)
+		return l > 1e-9 && (v.X*dir.X+v.Y*dir.Y)/l > 0.5
+	}
+	return a.moving && b.moving && towards(a.vel, geom.NewVec(-way.X, -way.Y)) && towards(b.vel, way)
+}
+
+// tell puts on every unit with a tree what blocked it this tick, and takes Blocked off one no
+// longer blocked once its hold is up.
 func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
@@ -775,65 +836,57 @@ func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
 			if f.Lasts -= d; f.Lasts > 0 && orders != nil {
 				continue
 			}
-			if orders != nil && f.Moving {
-				orders[i].meet(f.By)
-			}
 			cb.RemoveCompOne(id, s.blockedID)
 		}
 	}
 	clear(s.blocking)
 }
 
-// act carries out what m's tree commanded it this tick: a detour is planned — Cornered with no
-// way round the one in the way — a swap of goals made, a place beside the goal found, a step aside
-// taken before going on, each at once; a Hold keeps m where it stands, true, until the way ahead
-// clears or it has held stallAfter — WaitedOut then — while it is blocked.
-func (s *navigationSystem) act(cursor *goke.Cursor, i int, m member, o *MoveOrder, st *steering.Steering, d time.Duration) bool {
-	facts := s.blocked.Slice(cursor)
-	var by Blocked
-	if facts != nil {
-		by = facts[i]
-	}
+// carryOut does what m, under o, commanded itself this tick: a Stop ends the order — stop — a step
+// aside, a detour and a place beside the goal are taken at once, a detour that makes no headway
+// ends the order too; a Hold keeps m where it stands — held — until the way ahead clears or it has
+// held stallAfter, WaitedOut then.
+func (s *navigationSystem) carryOut(m member, o *MoveOrder, st *steering.Steering, d time.Duration) (stop, held bool) {
 	if t, ok := s.told[m.id]; ok {
 		switch {
-		case t.detour && facts != nil:
-			if by.Cell != o.Target && by.Cell != m.cell {
-				o.learn(by.Cell)
+		case t.stop:
+			return true, false
+		case t.aside:
+			s.stepAside(m, o, t.asideOf)
+		case t.detour:
+			if other, ok := s.keep.other(t.detourOf); ok && s.keep.detour(m, o, other) == giveUp {
+				return true, false
 			}
-			path, ok := s.keep.route(m, m.from, o)
-			o.Holding, o.Cornered = 0, !ok || slices.Contains(path.Steps[path.Index:path.Length], by.Cell)
-			if !o.Cornered {
-				o.Path = path
+		case t.pass:
+			if other, ok := s.keep.other(t.passOf); ok {
+				s.keep.pass(m, o, other)
 			}
 		case t.hold:
-			o.Holding, o.WaitedOut = stallAfter, false
-		case t.swap:
-			s.swap(o, t.swapWith)
+			if o.Holding <= 0 && !o.WaitedOut {
+				o.Holding = stallAfter
+			}
 		case t.settle:
 			if other, ok := s.keep.other(t.settleBeside); ok {
 				s.keep.settle(m, o, other)
 			}
-		case t.aside:
-			s.stepAside(m, o, t.stepAside.Of)
 		}
 	}
 	if o.Holding <= 0 {
-		return false
+		return false, false
 	}
 	next := o.Target
 	if o.Path.Index < o.Path.Length {
 		next = o.Path.Steps[o.Path.Index]
 	}
-	if facts == nil || s.keep.mayStep(m, next, s.wayTo(m, next)) {
+	if s.keep.mayStep(m, next, s.wayTo(m, next)) {
 		o.Holding = 0 // the way ahead is clear
-		return false
+		return false, false
 	}
 	st.RequestSpeed(0)
 	if o.Holding -= d; o.Holding <= 0 {
 		o.Holding, o.WaitedOut = 0, true
 	}
-	s.note(m, o, by.By, by.Cell, true) // still blocked: the fact holds
-	return true
+	return false, true
 }
 
 // stepAside has m, on the move, step off the way of of a while, then go on to its own goals as they
@@ -843,7 +896,7 @@ func (s *navigationSystem) stepAside(m member, o *MoveOrder, of uid.UID64) {
 	if !ok {
 		return
 	}
-	aside, ok := s.keep.stepAside(m, other, false)
+	aside, ok := s.keep.stepAside(m, other)
 	if !ok {
 		return
 	}
@@ -869,34 +922,34 @@ func (s *navigationSystem) wayTo(m member, c board.CellID) geom.Vec {
 	return d
 }
 
-// swap swaps o's goal with with's, both of one group; false otherwise.
-func (s *navigationSystem) swap(o *MoveOrder, with uid.UID64) bool {
-	if o.Group == 0 || !s.lookup.Seek(with) {
-		return false
-	}
-	t := s.theirs.At(s.lookup.Cursor())
-	if t == nil || t.Group != o.Group {
-		return false
-	}
-	o.Target, t.Target = t.Target, o.Target
-	o.Spot, t.Spot = t.Spot, o.Spot
-	o.At, t.At = t.At, o.At
-	o.Path, t.Path = Path{}, Path{}
-	return true
-}
-
 // gather appends every unit as it stands to dst.
 func (s *navigationSystem) gather(dst []body) []body {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
-		cells, owned := s.cell.Slice(cursor), s.owners.Slice(cursor)
+		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
+		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
-			b := body{id: id, at: board.Center(pos), half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), vel: bases[i].Vel.Delta(), domain: board.DomainAt(movers, i), moving: orders != nil, cell: cells[i].ID}
+			b := body{id: id, at: board.Center(pos), half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), vel: bases[i].Vel.Delta(), domain: board.DomainAt(movers, i),
+				moving: orders != nil, cell: cells[i].ID, minded: minded, facing: bases[i].Vel.Dir}
+			if zs != nil {
+				b.z = zs[i]
+			}
+			if movers != nil {
+				b.lift = movers[i].Lift
+			}
+			if lasts != nil {
+				b.group = lasts[i].Group
+			}
 			if orders != nil {
-				b.yielding, b.group, b.goal = orders[i].GivingWay, orders[i].Group, orders[i].Target
+				o := &orders[i]
+				b.givingWay, b.goal, b.spot, b.lastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
+				b.waitedOut, b.cornered = o.WaitedOut, o.Cornered
+				if o.Group != 0 {
+					b.group = o.Group
+				}
 			}
 			if owned != nil {
 				b.owners = owned[i]

@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -36,9 +35,9 @@ func (openOccupancy) Enter(board.CellID, uid.UID64, board.Domain)         {}
 func (openOccupancy) Leave(board.CellID, uid.UID64)                       {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
-// where the others stand, and goes; striking someone, it steps round them towards its goal, notes
-// the cell of one standing for its routes to go round, and stands elsewhere round its point when
-// the one struck stands on its spot. A group is given its spots round the point it is sent to.
+// where the others stand, and goes; striking someone is a Touch, and what it does then is the
+// rules' (Crowd): its Detour steps round them towards its goal and notes the cell of one
+// standing for its routes to go round. A group is given its spots round the point it is sent to.
 type bodyKeeping struct {
 	finder  *pathFinder
 	grid    board.Grid
@@ -260,45 +259,74 @@ func (k *bodyKeeping) watch(m member, o *MoveOrder, toward board.CellID, want ge
 	}
 }
 
-// bump answers a stall with a fresh route, and gives up after maxStalls; and it answers someone
-// struck — Struck the way off them, Hit who — by stepping round them towards m's goal: the side
-// the goal lies, and head on the one to the left of the way off, so two meeting head on pass. One
-// struck standing has its cell noted, the route planned afresh round it when it lies on the way,
-// and m placed again round its point when it stands on m's spot; m, within two spacings of its
-// spot, striking a second one standing stands where it is: it has come among its group. Striking
-// again one it knew stands there counts as a stall. A unit with a tree only steps round:
-// its tree decides whom to ask, when to go round and where to stand instead.
+// bump answers a stall with a fresh route, and gives up after maxStalls; and it answers the solid
+// ground struck — Struck the way off it — by stepping round it towards m's goal.
 func (k *bodyKeeping) bump(m member, o *MoveOrder) bumpAnswer {
-	n := o.Struck
-	if n == (geom.Vec{}) {
+	if o.Struck == (geom.Vec{}) {
 		if o.Stalls++; o.Stalls > maxStalls {
 			return giveUp
 		}
 		o.Path, o.Leg, o.Closest = Path{}, Leg{}, math.Inf(1)
 		return carryOn
 	}
-	if other, ok := k.index.of(o.Hit); ok && o.HitUnit && !m.minded && !other.moving && other.domain&m.domain != 0 {
+	k.stepRound(m, o, o.Struck)
+	return carryOn
+}
+
+// detour has m step round other towards its goal. One standing is noted met — its spot kept clear
+// of when m stands elsewhere — and its cell for the routes to go round, the route planned afresh
+// when it runs through it; going round again one it knew stands there, the last step round over,
+// is no headway: a stall, giving up past maxStalls.
+func (k *bodyKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
+	if !other.moving && other.domain&m.domain != 0 {
 		if slices.Contains(o.Met[:o.Mets], other.id) && o.AsideFor == 0 {
-			// struck again, one it knew stands there: no headway, as a stall
 			if o.Stalls++; o.Stalls > maxStalls {
 				return giveUp
 			}
 		}
 		o.meet(other.id)
-		spacing := 2 * max(half(m).X, half(m).Y) * (1 + spacingGap)
-		if d := k.delta(m.centre(), k.goalOf(o)); o.Queued == 0 && o.Mets >= 2 && math.Hypot(d.X, d.Y) < 2*spacing {
-			return giveUp // come to its spot among others standing: it stands where it is
-		}
 		if c, ok := k.grid.CellAt(other.at); ok && c != o.Target && c != m.cell {
 			o.learn(c)
-			if slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) || o.Leg.Active && o.Leg.To == c {
+			if o.Path.Index < o.Path.Length && slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) || o.Leg.Active && o.Leg.To == c {
 				o.Path, o.Leg = Path{}, Leg{}
 			}
 		}
-		if o.Queued == 0 && o.Spot != (geom.Vec{}) && !apart(k.delta(o.Spot, other.at), half(m), other.half, gapFor(half(m))) {
-			k.placeAgain(m, o, k.met(o))
-		}
 	}
+	if n := k.wayOff(m, other); n != (geom.Vec{}) {
+		k.stepRound(m, o, n)
+	}
+	return carryOn
+}
+
+// pass has m step round other a while, its route kept: other makes way for it.
+func (k *bodyKeeping) pass(m member, o *MoveOrder, other body) {
+	if n := k.wayOff(m, other); n != (geom.Vec{}) {
+		k.stepRound(m, o, n)
+	}
+}
+
+// wayOff is the way m leaves other as the collision parts two boxes: square off the side of other
+// it is least into; zero on top of each other.
+func (k *bodyKeeping) wayOff(m member, other body) geom.Vec {
+	d := k.delta(other.at, m.centre())
+	h := half(m)
+	intoX := h.X + other.half.X - math.Abs(d.X)
+	intoY := h.Y + other.half.Y - math.Abs(d.Y)
+	switch {
+	case d == (geom.Vec{}):
+		return geom.Vec{}
+	case intoX < intoY:
+		return geom.NewVec(math.Copysign(1, d.X), 0)
+	default:
+		return geom.NewVec(0, math.Copysign(1, d.Y))
+	}
+}
+
+// stepRound has m step round whatever it struck, n the way off it, for asideTime: to the side its
+// goal lies — head on, the left of the way off, so two meeting head on pass — where the ground a
+// step along takes it, no steeper than yieldClimb, never back into it; with no ground aside either
+// way it is only kept from backing in.
+func (k *bodyKeeping) stepRound(m member, o *MoveOrder, n geom.Vec) {
 	goal := k.delta(m.centre(), k.goalOf(o))
 	aside := geom.NewVec(-n.Y, n.X)
 	if l := math.Hypot(goal.X, goal.Y); l > 1e-9 && (aside.X*goal.X+aside.Y*goal.Y)/l < -0.2 {
@@ -307,22 +335,23 @@ func (k *bodyKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 	if !k.takes(m, aside) {
 		aside = geom.NewVec(-aside.X, -aside.Y)
 		if !k.takes(m, aside) {
-			aside = geom.Vec{} // no ground aside either way: only kept from backing into them
+			aside = geom.Vec{}
 		}
 	}
-	o.Aside, o.AsideFor = aside, asideTime
-	return carryOn
+	o.Struck, o.Aside, o.AsideFor = n, aside, asideTime
 }
 
 // takes reports whether the ground a step along dir from m, its box clear past its own edge,
-// takes m.
+// takes m, no steeper than yieldClimb from where it stands.
 func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
 	h := half(m)
 	reach := 2*max(h.X, h.Y) + gapFor(h)
 	c := m.centre()
 	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
 	ok := true
-	k.grid.CellsUnder(boxAt(at, h), func(cell board.CellID) { ok = ok && k.terrain.Kind(cell).Admits(m.domain) })
+	k.grid.CellsUnder(boxAt(at, h), func(cell board.CellID) {
+		ok = ok && k.terrain.Kind(cell).Admits(m.domain) && k.finder.climb(m.cell, cell, m.domain) <= yieldClimb
+	})
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
 			ok = false
@@ -350,63 +379,15 @@ func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
 	return k.grid.CellCenter(o.Target)
 }
 
-// yieldLinger is how long a unit that gave way stands aside before it goes back.
+// yieldLinger is how long a unit stepping aside on the move stands there before it goes on.
 const yieldLinger = time.Second
 
 // blocked is never called: the open occupancy refuses nobody.
-func (k *bodyKeeping) blocked(member, *MoveOrder, board.CellID, time.Duration) (uid.UID64, bool, bool) {
-	return 0, false, false
+func (k *bodyKeeping) blocked(member, *MoveOrder, board.CellID, time.Duration) (uid.UID64, bool) {
+	return 0, false
 }
 
-// yield has m, standing, step off the way of the first one on the move that struck it — not one
-// giving way itself — square to the line between them, to the side m stands, as far as the two
-// boxes and a gap need; or to the other side when the ground there does not take m. It stands
-// there yieldLinger, then goes back to where it stood, facing as it did. Where the ground takes it
-// on neither side it holds.
-func (k *bodyKeeping) yield(m member, presses []press) (MoveOrder, bool) {
-	here, h := m.centre(), half(m)
-	for _, c := range presses {
-		b, ok := k.index.of(c.other)
-		if !ok || !b.moving || b.yielding || b.domain&m.domain == 0 {
-			continue
-		}
-		way := c.way // the way m leaves it: the line it came along, struck head on
-		if l := math.Hypot(way.X, way.Y); l > 1e-9 {
-			way = geom.NewVec(way.X/l, way.Y/l)
-		} else {
-			continue
-		}
-		across := geom.NewVec(-way.Y, way.X)
-		off := k.delta(b.at, here)
-		side := off.X*across.X + off.Y*across.Y
-		sign := 1.0
-		if side < 0 {
-			sign = -1
-		}
-		// the two boxes' halves across the line, and a quarter gap: just off the way it comes
-		reach := func(half geom.Vec) float64 { return half.X*math.Abs(across.X) + half.Y*math.Abs(across.Y) }
-		clear := reach(b.half) + reach(h) + gapFor(h)/4
-		for _, step := range [2]float64{sign * (clear - math.Abs(side)), -sign * (clear + math.Abs(side))} {
-			if math.Abs(step) < gapFor(h)/4 {
-				step = math.Copysign(gapFor(h)/4, step)
-			}
-			aside := k.fold(geom.NewVec(here.X+across.X*step, here.Y+across.Y*step))
-			cell, in := k.grid.CellAt(aside)
-			if !in || !k.fits(m, aside, nil) {
-				continue
-			}
-			home, _ := k.grid.CellAt(here)
-			o := MoveOrder{Target: cell, Spot: aside, At: aside, Linger: yieldLinger, GivingWay: true}
-			o.Enqueue(Goal{Cell: home, Spot: here, At: here})
-			if m.facing != (geom.Vec{}) {
-				o.Face = geom.NewVec(here.X+m.facing.X*16, here.Y+m.facing.Y*16)
-			}
-			return o, true
-		}
-		return MoveOrder{}, false
-	}
-	return MoveOrder{}, false
-}
+func (k *bodyKeeping) byContact() bool { return true }
 
 // within is a quarter of m's shorter side, at most arrivalEpsilon: arriving it is put on its spot.
 func (k *bodyKeeping) within(m member) float64 {
@@ -480,47 +461,26 @@ func (k *bodyKeeping) open(m member, p geom.Vec) (ground bool, in uid.UID64, tak
 	return true, in, taken
 }
 
-func (k *bodyKeeping) room(m member, asker body) (bool, uid.UID64, bool) {
-	var ally uid.UID64
-	beside := false
-	for _, p := range k.asides(m, asker) {
-		ground, in, taken := k.open(m, p)
-		if !ground || taken && in == asker.id {
-			continue
-		}
-		if !taken {
-			return true, 0, false
-		}
-		if b, ok := k.index.of(in); ok && !beside && !b.moving && owner.Allies(m.owners, b.owners) {
-			ally, beside = in, true
-		}
-	}
-	return false, ally, beside
-}
-
-func (k *bodyKeeping) stepAside(m member, asker body, back bool) (MoveOrder, bool) {
-	here := m.centre()
-	for _, p := range k.asides(m, asker) {
+// stepAside has m step just off of's way, square to the line between them — to the side m stands
+// first — where open says it may stand, facing as it did; with neither side open it has no order.
+func (k *bodyKeeping) stepAside(m member, of body) (MoveOrder, bool) {
+	for _, p := range k.asides(m, of) {
 		if ground, _, taken := k.open(m, p); !ground || taken {
 			continue
 		}
 		cell, _ := k.grid.CellAt(p)
 		o := MoveOrder{Target: cell, Spot: p, At: p, GivingWay: true}
-		if back {
-			home, _ := k.grid.CellAt(here)
-			o.Linger = yieldLinger
-			o.Enqueue(Goal{Cell: home, Spot: here, At: here})
-			if m.facing != (geom.Vec{}) {
-				o.Face = geom.NewVec(here.X+m.facing.X*16, here.Y+m.facing.Y*16)
-			}
+		if m.facing != (geom.Vec{}) {
+			here := m.centre()
+			o.Face = geom.NewVec(here.X+m.facing.X*16, here.Y+m.facing.Y*16)
 		}
 		return o, true
 	}
 	return MoveOrder{}, false
 }
 
-func (k *bodyKeeping) onGoal(m member, o *MoveOrder, other body) bool {
-	return !apart(k.delta(k.goalOf(o), other.at), half(m), other.half, gapFor(half(m)))
+func (k *bodyKeeping) onGoal(self, other body) bool {
+	return !apart(k.delta(self.spot, other.at), self.half, other.half, gapFor(self.half))
 }
 
 func (k *bodyKeeping) settle(m member, o *MoveOrder, other body) bool {

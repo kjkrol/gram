@@ -21,7 +21,7 @@ type State struct {
 }
 
 // Phase is the family of the clock's tags: what effects cast on the clock switch on and off —
-// night, winter — for a trigger to run only while it holds (Clock.In). A game defines its phases with
+// night, winter — for a rule to run only while it holds (Clock.In). A game defines its phases with
 // world.Kinds.DefineTag[clock.Phase].
 type Phase struct{}
 

@@ -1,6 +1,6 @@
 // Package vision gives entities a narrowed view of the world: a Sight cone sees what falls
 // inside it, within range and not hidden behind something nearer. Each tick fills Sight.Seen
-// and runs pair triggers of a Sighting; SightOutline gets the view drawn.
+// and runs pair rules of a Sighting; SightOutline gets the view drawn.
 //
 // # Sight and Seen
 //
@@ -13,7 +13,7 @@
 // Sight still sees, its outline is only coarser. The [ScanSystem] scans every Sight against the
 // world's space through aabbworld's line-of-sight scan, once a tick — observers enough at a time
 // on several goroutines at once, as many as there are CPUs unless told otherwise
-// ([Plugin.WithWorkers]), each with a scanner of its own; the triggers then run one observer at
+// ([Plugin.WithWorkers]), each with a scanner of its own; the rules then run one observer at
 // a time, in order.
 //
 // # Transparency
@@ -47,12 +47,12 @@
 //
 // # Sighting
 //
-// A trigger of a [Sighting] hooked here (act.Trigger[Sighting](name).Self(a).Other(b)) is
+// A rule of a [Sighting] hooked here (rule.On(name, rule.Between(a, b), …)) is
 // run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base, Sight and Steering (nil for one that cannot be
 // steered), and everything in view carrying b as [Seen] values nearest first — a directed pair,
-// grouped by observer, run even when nothing is in view. A trigger tells its seen entities
+// grouped by observer, run even when nothing is in view. A rule tells its seen entities
 // apart with Seen.Carries, and steers only through Steering.Request. Ready-made
-// ones, and their tags, are in plugins/vision/trigger.
+// ones, and their tags, are in plugins/vision/hooks.
 //
 // # SightOutline and Renderer
 //

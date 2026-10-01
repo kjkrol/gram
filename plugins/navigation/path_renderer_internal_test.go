@@ -117,6 +117,31 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	}
 }
 
+// A step aside is no goal: an order to give way outlines only the goals queued after it.
+func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
+	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	cam := isoCamera(128, 128, camera.Config{})
+	r := NewPathRenderer(grid, RouteStyle{}, 0)
+	a, _ := grid.CellIndex(2, 1)
+	b, _ := grid.CellIndex(3, 3)
+	for _, tc := range []struct {
+		givingWay bool
+		lines     int
+	}{{false, 8}, {true, 4}} {
+		o := MoveOrder{Target: a, GivingWay: tc.givingWay}
+		o.Enqueue(Goal{Cell: b})
+		var f render.Frame
+		f.Reset(cam)
+		r.Compose(&f, cam)
+		r.goals(geom.NewVec(10, 10), &o)
+		n := 0
+		f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
+		if n != tc.lines {
+			t.Errorf("giving way %v: %d lines, want %d: 4 an outline", tc.givingWay, n, tc.lines)
+		}
+	}
+}
+
 // isoCamera is a camera of a width x height world put in the isometric view.
 func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 	w := world.NewPlugin(world.Config{

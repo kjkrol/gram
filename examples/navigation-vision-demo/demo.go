@@ -23,10 +23,10 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -141,8 +141,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	if err := s.vision.Hook(
-		act.Trigger[vision.Sighting]("face travel").Runs(faceTravel),
-		act.Trigger[vision.Sighting]("noticed each other").Self(s.unitTag).Other(s.unitTag).Runs(s.noticedEachOther),
+		rule.On("face travel", rule.All, func(m *rule.Moment[vision.Sighting]) rule.Step {
+			return m.Call(faceTravel)
+		}),
+		rule.On("noticed each other", rule.Between(s.unitTag, s.unitTag), func(m *rule.Moment[vision.Sighting]) rule.Step {
+			return m.Call(s.noticedEachOther)
+		}),
 		vision.ShowViewOf(s.selection.Tags().Selected), // the views drawn are the selected units'
 	); err != nil {
 		return err

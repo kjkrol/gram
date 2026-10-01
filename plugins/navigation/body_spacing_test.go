@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -31,7 +30,6 @@ type fieldUnit struct {
 	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
 	owner    control.PlayerID // who owns it; nobody for Nobody
-	courtly  bool             // it acts by Courteous
 }
 
 // standAt is the order to stand at p, as a click on p with the unit alone selected gives.
@@ -60,6 +58,12 @@ const fieldCell = 32
 // newFieldWorld builds the field, lays its kinds and puts units on it.
 func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) board.CellID), units []fieldUnit) *fieldWorld {
 	t.Helper()
+	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
+}
+
+// newFieldWorldWith is newFieldWorld with navigation set up by configure before it is used.
+func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) board.CellID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
+	t.Helper()
 	fw := &fieldWorld{t: t, grid: board.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
 	for _, u := range units {
@@ -70,13 +74,16 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 1, MaxSize: largest},
 	})
 	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(fw.grid, &board.SingleOccupancy{}, w)
+	brd := board.NewPlugin(fw.grid, &board.SingleOccupancy{}, w).WithCollision(c)
 	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
 	if lay != nil {
 		lay(brd.Res.Logic.Board, fw.at)
 	}
 	sel := selection.NewPlugin(w)
 	fw.nav = NewPlugin(brd, w, sel).WithCollision(c).WithSpacing(spacing)
+	if configure != nil {
+		configure(fw.nav)
+	}
 	if err := w.Carry(fw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
@@ -118,9 +125,6 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
-		}
-		if u.courtly {
-			s = append(s, act.Tree(Courteous()))
 		}
 		k := kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		kinds[i] = k.ID()
@@ -197,20 +201,42 @@ func (fw *fieldWorld) centre(i int) (geom.Vec, *MoveOrder) {
 // run ticks until no unit has an order, or limit; it reports whether they all settled, and how
 // many contacts were struck on the way.
 func (fw *fieldWorld) run(limit time.Duration) (settled bool, contacts int) {
+	settled, contacts, _ = fw.runLongest(limit)
+	return settled, contacts
+}
+
+// runLongest is run, and the most ticks any two units touched on end.
+func (fw *fieldWorld) runLongest(limit time.Duration) (settled bool, contacts, longest int) {
+	touching := map[[2]uid.UID64]int{}
 	for tick := 0; time.Duration(tick)*time.Second/60 < limit; tick++ {
 		fw.ecs.Tick(time.Second / 60)
 		busy := false
-		fw.each(func(_ uid.UID64, _ *world.Base, _ board.CellID, o *MoveOrder, c *collision.Collider) {
+		now := map[[2]uid.UID64]bool{}
+		fw.each(func(id uid.UID64, _ *world.Base, _ board.CellID, o *MoveOrder, c *collision.Collider) {
 			busy = busy || o != nil
 			if c != nil {
 				contacts += len(c.Contacts())
+				for _, k := range c.Contacts() {
+					if !k.Terrain {
+						now[[2]uid.UID64{min(id, k.Other), max(id, k.Other)}] = true
+					}
+				}
 			}
 		})
+		for pair := range touching {
+			if !now[pair] {
+				delete(touching, pair)
+			}
+		}
+		for pair := range now {
+			touching[pair]++
+			longest = max(longest, touching[pair])
+		}
 		if !busy {
-			return true, contacts
+			return true, contacts, longest
 		}
 	}
-	return false, contacts
+	return false, contacts, longest
 }
 
 // overlaps lists the pairs of units whose boxes overlap.
@@ -246,6 +272,8 @@ func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
 	}
 }
 
+// A group sent to a point gathers round it: one on it, the others stopping short of their spots
+// where they touch one of the group that has arrived.
 func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 	var units []fieldUnit
 	for i := range 6 {
@@ -260,18 +288,16 @@ func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 	if !settled {
 		t.Fatal("the group has not settled")
 	}
-	atPoint := 0
+	nearest := math.Inf(1)
 	for i := range units {
 		at, _ := fw.centre(i)
-		if math.Hypot(at.X-point.X, at.Y-point.Y) < 1e-6 {
-			atPoint++
-		}
+		nearest = min(nearest, math.Hypot(at.X-point.X, at.Y-point.Y))
 		if math.Hypot(at.X-point.X, at.Y-point.Y) > fieldCell {
 			t.Errorf("unit %d stands at %v, more than a cell from the point %v", i, at, point)
 		}
 	}
-	if atPoint != 1 {
-		t.Errorf("%d units stand on the point clicked, want one", atPoint)
+	if nearest > 4 {
+		t.Errorf("the nearest unit stands %v from the point clicked, want one on it, within its side", nearest)
 	}
 	for range 30 {
 		fw.ecs.Tick(time.Second / 60)
@@ -307,11 +333,11 @@ func TestBodySpacing_TwoHeadOnPassEachOtherAndOneWalksPastAStandingOne(t *testin
 	}
 }
 
-// crowd orders n units side a side, laid out as layout says on a 12 x 8 field, to a point off the
-// middle of the cell (6, 4), and runs them until they stand; it reports whether they did, how many
-// contacts were struck on the way, the pairs overlapping at the end and the furthest any stands
-// from the point.
-func crowd(t *testing.T, n int, layout string, side float64) (settled bool, contacts, overlaps int, spread float64) {
+// sendCrowd orders n units side a side, laid out as layout says on a 12 x 8 field, to a point off the
+// middle of the cell (6, 4), and runs them until they stand; it reports whether they did, the most
+// ticks two touched on end, the pairs overlapping at the end and the furthest any stands from the
+// point.
+func sendCrowd(t *testing.T, n int, layout string, side float64) (settled bool, longest, overlaps int, spread float64) {
 	t.Helper()
 	var units []fieldUnit
 	for i := range n {
@@ -332,7 +358,7 @@ func crowd(t *testing.T, n int, layout string, side float64) (settled bool, cont
 	c := fw.grid.CellCenter(fw.at(6, 4))
 	point := geom.NewVec(c.X+5, c.Y-3)
 	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(6, 4), At: point})
-	settled, contacts = fw.run(30 * time.Second)
+	settled, _, longest = fw.runLongest(30 * time.Second)
 	for range 30 { // the last to stop are let settle
 		fw.ecs.Tick(time.Second / 60)
 	}
@@ -340,17 +366,18 @@ func crowd(t *testing.T, n int, layout string, side float64) (settled bool, cont
 		at, _ := fw.centre(i)
 		spread = max(spread, math.Hypot(at.X-point.X, at.Y-point.Y))
 	}
-	return settled, contacts, len(fw.overlaps()), spread
+	return settled, longest, len(fw.overlaps()), spread
 }
 
 // Groups of every size and from every side stand round the point with nothing overlapping: units a
-// tenth of a cell, a fifth, and all but a third. Nobody knows where the others are, so they strike
-// each other on the way and at the end, but only in passing, never pushing for long.
+// tenth of a cell, a fifth, and all but a third. Nobody knows where the others are, so they touch
+// on the way and at the end, but only in passing: no two press on each other for as long as
+// navigation takes for a stall.
 func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 	for _, n := range []int{4, 9, 16, 25} {
 		for _, layout := range []string{"column from the west", "block from the south", "scattered", "from the north-east"} {
 			for _, side := range []float64{3, 6, 10} {
-				settled, contacts, overlaps, spread := crowd(t, n, layout, side)
+				settled, longest, overlaps, spread := sendCrowd(t, n, layout, side)
 				spacing := side * (1 + spacingGap)
 				if !settled || overlaps > 0 {
 					t.Errorf("%d units %v a side, %s: settled %v, %d pairs overlapping", n, side, layout, settled, overlaps)
@@ -358,8 +385,8 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 				if limit := spacing * (2 + math.Sqrt(float64(n))) * 1.5; spread > limit {
 					t.Errorf("%d units %v a side, %s: one stands %.0f off the point, want within %.0f", n, side, layout, spread, limit)
 				}
-				if contacts > 80*n {
-					t.Errorf("%d units %v a side, %s: %d ticks of contact on the way, want at most %d: a few strikes each", n, side, layout, contacts, 80*n)
+				if limit := int(stallAfter / (time.Second / 60)); longest >= limit {
+					t.Errorf("%d units %v a side, %s: two touched for %d ticks on end, want under %d: in passing", n, side, layout, longest, limit)
 				}
 			}
 		}
@@ -543,9 +570,9 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	}
 }
 
-// One standing in the way of one on the move, struck by it, steps off its way, lets it pass and
-// goes back to where it stood; one giving way is not given way to in turn.
-func TestBodySpacing_OneStandingGivesWayAndGoesBack(t *testing.T) {
+// One standing in the way of one on the move, struck by it, steps off its way — square to it, not
+// pushed along it — lets it pass and stays there.
+func TestBodySpacing_OneStandingStepsAsideAndStays(t *testing.T) {
 	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	fw := newFieldWorld(t, 10, 5, BodySpacing, nil, []fieldUnit{
@@ -565,7 +592,7 @@ func TestBodySpacing_OneStandingGivesWayAndGoesBack(t *testing.T) {
 	if at, o := fw.centre(0); o != nil || at != goal {
 		t.Errorf("the one on the move stands at %v with order %v, want at %v", at, o, goal)
 	}
-	if at, o := fw.centre(1); o != nil || math.Hypot(at.X-home.X, at.Y-home.Y) > 1 {
-		t.Errorf("the one that gave way stands at %v with order %v, want back home at %v", at, o, home)
+	if at, o := fw.centre(1); o != nil || math.Abs(at.Y-home.Y) < 6 || math.Abs(at.X-home.X) > 3 {
+		t.Errorf("the one that gave way stands at %v with order %v, want aside of %v, square off the way", at, o, home)
 	}
 }

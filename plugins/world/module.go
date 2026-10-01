@@ -8,12 +8,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/world/act"
-	"github.com/kjkrol/gram/plugins/world/act/effect"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/uid"
@@ -61,7 +61,7 @@ type module struct {
 	clockRunnable goke.Runnable
 
 	// the entities' trees, run in every step of the simulation after the behaviors
-	trees         *act.Trees
+	trees         *rule.Plans
 	treesRunnable goke.Runnable
 
 	// commands takes the commands the entities give themselves to the plugins that handle them;
@@ -79,7 +79,7 @@ func newModule(cfg Config) *module {
 		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
 		clock: clk}
 	w.effects = effect.New(clk, &w.commands)
-	w.trees = act.New(clk.Time, w.effects, &w.commands)
+	w.trees = rule.New(clk.Time, w.effects, &w.commands)
 	return w
 }
 
@@ -109,7 +109,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 
 // RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
 // move in the tactical pause too. In the simulation, every step: the decisions — the behaviors,
-// then the entities' trees — steering, the Moving triggers, movement, then the leavers, then the
+// then the entities' trees — steering, the Moving rules, movement, then the leavers, then the
 // effect. The sync after movement lands
 // the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {

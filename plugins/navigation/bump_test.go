@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -28,8 +27,7 @@ type roadUnit struct {
 	wide          bool             // the hawk's profile: faster, turning slower, looking further ahead
 	selected      bool             // Selectable and Selected, for the commands of a player
 	owner         control.PlayerID // who owns it; nobody for Nobody
-	courteous     bool             // it acts by Courteous
-	tree          act.Node         // or by this tree
+	plan          comp.Comp        // it acts by this plan
 	group         uint32           // the group of its order
 }
 
@@ -109,11 +107,8 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
-		switch {
-		case u.tree != nil:
-			s = append(s, act.Tree(u.tree))
-		case u.courteous:
-			s = append(s, act.Tree(Courteous()))
+		if u.plan != nil {
+			s = append(s, u.plan)
 		}
 		return s
 	}
@@ -242,11 +237,12 @@ func TestBump_ThreeInARowUntangle(t *testing.T) {
 	}
 }
 
-func TestBump_ATargetSomeoneStandsOnIsSettledBeside(t *testing.T) {
+// A stranger standing on a unit's target never makes way: the unit stands beside it.
+func TestBump_ATargetAStrangerStandsOnIsSettledBeside(t *testing.T) {
 	rw := newRoadWorld(t, 6, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
-		{start: rw.at(0, 1), target: rw.at(4, 1), ordered: true},
-		{start: rw.at(4, 1)}, // standing on the target, going nowhere
+		{start: rw.at(0, 1), target: rw.at(4, 1), ordered: true, owner: 1},
+		{start: rw.at(4, 1), owner: 2}, // standing on the target, going nowhere
 	}
 	rw = newRoadWorld(t, 6, units)
 	for tick := range 60 * 4 {

@@ -12,14 +12,14 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 // carrierStage is a world with collision and the players, and a leaver whose tree gives itself a
 // Despawn after a wait; with boxes, two boxes striking each other that give themselves one from a
-// trigger of collision's — a pass after the world's, which drains Despawn.
+// rule of collision's — a pass after the world's, which drains Despawn.
 type carrierStage struct {
 	boxes     bool
 	world     *world.Plugin
@@ -40,18 +40,20 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	struck := act.Trigger[collision.Struck]("gone when struck")
-	if err := s.collision.Hook(struck.Do(struck.If(collision.Struck.Hit, struck.Issue(world.Despawn{})))); err != nil {
+	if err := s.collision.Hook(rule.On("gone when struck", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
+		return m.If(collision.Struck.Hit, m.Order(world.Despawn{}))
+	})); err != nil {
 		return err
 	}
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
-	c := act.Named("leaver")
 	s.leaver = kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		act.Tree(c.Do(c.Then(c.Wait(100*time.Millisecond), c.Issue(world.Despawn{})))),
+		rule.Plan("leaver", func(a *rule.Actor) rule.Step {
+			return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
+		}),
 	})
 	s.box = kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
 		comp.Load(at),

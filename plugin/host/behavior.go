@@ -8,9 +8,9 @@ import (
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
-// Pair is a trigger for every pair a host meets where one entity carries a and the other b;
+// Pair is a rule for every pair a host meets where one entity carries a and the other b;
 // tag.Any on a side takes whatever is there. A plugin wraps it as its own Between.
-func Pair[FA, FB, P any](a tag.Tag[FA], b tag.Tag[FB], react func(t plugin.Tick, pair P)) plugin.Trigger {
+func Pair[FA, FB, P any](a tag.Tag[FA], b tag.Tag[FB], react func(t plugin.Tick, pair P)) plugin.Rule {
 	return &pair[P]{
 		a: tagOf(a), b: tagOf(b),
 		same:  reflect.TypeFor[FA]() == reflect.TypeFor[FB]() && uint8(a) == uint8(b),
@@ -18,14 +18,14 @@ func Pair[FA, FB, P any](a tag.Tag[FA], b tag.Tag[FB], react func(t plugin.Tick,
 	}
 }
 
-// Each is a trigger run on every entity a host visits that carries T; T must not be a component
+// Each is a rule run on every entity a host visits that carries T; T must not be a component
 // the host already requires of every entity — Every is for those. A plugin wraps it as its own Each.
-func Each[T, P any](react func(t plugin.Tick, state *T, about P)) plugin.Trigger {
+func Each[T, P any](react func(t plugin.Tick, state *T, about P)) plugin.Rule {
 	return &each[T, P]{react: react}
 }
 
-// Every is a trigger run on every entity a host visits, with no state component of its own.
-func Every[P any](react func(t plugin.Tick, about P)) plugin.Trigger {
+// Every is a rule run on every entity a host visits, with no state component of its own.
+func Every[P any](react func(t plugin.Tick, about P)) plugin.Rule {
 	return &every[P]{react: react}
 }
 

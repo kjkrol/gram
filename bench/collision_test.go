@@ -10,9 +10,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/trigger"
+	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
@@ -52,7 +51,7 @@ func randomVelocity(rng *rand.Rand) world.Velocity {
 
 // benchCollision installs a world and a collision plugin counting every contact, spawns the
 // scene on a grid with seeded random velocities, and runs 120 ticks so the boxes have spread.
-func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *trigger.ContactStats) {
+func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *hooks.ContactStats) {
 	b.Helper()
 	count := countFor(rect, percent)
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
@@ -63,8 +62,8 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 		Entities: world.EntitiesCfg{MaxCount: count, MinSize: rect, MaxSize: rect},
 	})
 	c := collision.NewPlugin(w)
-	stats := &trigger.ContactStats{}
-	if err := c.Hook(act.Trigger[collision.Meeting]("count contacts").Do(trigger.CountContacts(stats))); err != nil {
+	stats := &hooks.ContactStats{}
+	if err := c.Hook(hooks.CountContacts(stats)); err != nil {
 		b.Fatal(err)
 	}
 	if err := ctx.Use(c); err != nil {

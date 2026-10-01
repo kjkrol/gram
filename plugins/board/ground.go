@@ -39,8 +39,8 @@ func (p *Plugin) Heights() Heights { return p.mapping.Heights() }
 // Cover is what stands on the board and holds sight back: the Board itself.
 func (p *Plugin) Cover() Cover { return p.Res.Logic.Board }
 
-// WithCollision makes the board's Solid cells the solid ground c pushes colliders out of; call
-// before Use.
+// WithCollision makes the board's Solid cells the solid ground c pushes colliders out of, and the
+// ground a kind does not take (Overhang) what c never pushes one over; call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	c.WithField(p.Res.Logic.Board)
 	return p

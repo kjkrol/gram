@@ -2,7 +2,7 @@ package clock
 
 import "time"
 
-// Moment is one step of the simulation on the clock's time, from Last to Now: what a trigger of
+// Moment is one step of the simulation on the clock's time, from Last to Now: what a rule of
 // the clock fires on, once every step, so a loaded game goes on from where it was.
 type Moment struct{ Last, Now time.Duration }
 

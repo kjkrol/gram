@@ -84,8 +84,8 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[board.Cell](),
 		goke.LoadComp[MoveOrder](),
 		goke.LoadComp[tag.Tags[States]](),
+		goke.LoadComp[LastOrder](),
 		goke.LoadComp[Blocked](),
-		goke.LoadComp[Room](),
 		goke.LoadComp[Arrived](),
 	}
 }

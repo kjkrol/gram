@@ -34,7 +34,7 @@ func CloudShadow() render.MaterialID { return cloudShadow }
 // Celsius; Drift, how far the wind has carried the clouds so far; Visibility, how far one sees
 // through the air, world units, 0 without end. The zero Weather is a calm, clear day at 0°. The
 // climate makes it; the renderers draw it — the clouds' shadows, what sways, the haze — and a
-// game's triggers read it.
+// game's rules read it.
 type Weather struct {
 	Wind        [2]float32
 	Clouds      float32

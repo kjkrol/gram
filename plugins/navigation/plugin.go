@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -28,11 +29,15 @@ type Plugin struct {
 	board  *board.Board
 	module *module
 
-	moves    control.Queue[MoveTo]
-	looks    control.Queue[LookAt]
-	routes   control.Queue[Routes]
-	courtesy courtesyQueues
-	finder   *pathFinder
+	moves  control.Queue[MoveTo]
+	looks  control.Queue[LookAt]
+	routes control.Queue[Routes]
+	given  givenQueues
+	finder *pathFinder
+
+	touches  host.PairHost[Touch]
+	crowd    []plugin.Rule // the rules of the crowd, Crowd unless crowdSet
+	crowdSet bool
 
 	routeStyle   RouteStyle
 	routesShown  bool // the routes are drawn — see Routes
@@ -51,6 +56,7 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", EnteredName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
+	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
 	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
@@ -79,9 +85,16 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.pathRenderer != nil {
 		p.pathRenderer.finder = finder
 	}
+	rules := p.crowd
+	if !p.crowdSet {
+		rules = crowd()
+	}
+	if err := p.Hook(rules...); err != nil {
+		return err
+	}
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
-	navSys.courtesy = &p.courtesy
+	navSys.given, navSys.touches, navSys.commands = &p.given, &p.touches, p.worldPlugin.Commands()
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	if p.collision != nil {
@@ -117,8 +130,8 @@ func (p *Plugin) WithSpacing(s Spacing) *Plugin {
 // decided.
 func (p *Plugin) Spacing() Spacing { return p.spacing }
 
-// WithCollision marks an entity under orders that strikes someone, or the solid ground, Bumped,
-// so it looks for a way round; call before Use.
+// WithCollision has navigation learn what the units strike: a Touch of every unit struck, under
+// BodySpacing, and the solid ground stepped round; call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	if c == nil {
 		panic("navigation: WithCollision needs the collision plugin")
@@ -150,10 +163,13 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — navigation has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook reports ErrUnhosted — navigation hosts no triggers.
-func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
-	for _, b := range triggers {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
+// Hook hosts rules (rule.On) of Touch, a pair, beside the rules of the crowd; call before
+// Use.
+func (p *Plugin) Hook(rules ...plugin.Rule) error {
+	for _, b := range rules {
+		if err := p.touches.Add(b); err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
+		}
 	}
 	return nil
 }
@@ -161,6 +177,14 @@ func (p *Plugin) Hook(triggers ...plugin.Trigger) error {
 // =================================================================
 // navigation-specific
 // =================================================================
+
+// WithCrowd has the units get on among others by rules, rules of Touch, in place of Crowd;
+// none leaves them to navigation's own last word — stalled, they plan afresh, and give up. Call
+// before Use.
+func (p *Plugin) WithCrowd(rules ...plugin.Rule) *Plugin {
+	p.crowd, p.crowdSet = rules, true
+	return p
+}
 
 // WithRouteStyle sets how routes and goals are drawn, in place of DefaultRouteStyle; call before
 // Use.

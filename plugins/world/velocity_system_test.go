@@ -10,12 +10,14 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/act"
+	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 // scaling is a Moving behavior scaling every entity's speed by a fixed factor.
-func scaling(factor float64) plugin.Trigger {
-	return act.Trigger[world.Moving]("scaling").Runs(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value *= factor })
+func scaling(factor float64) plugin.Rule {
+	return rule.On("scaling", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
+		return m.Call(func(_ plugin.Tick, m world.Moving) { m.Base.Vel.Value *= factor })
+	})
 }
 
 func TestVelocitySystem_Update_RunsTheMovingBehaviorsInOrder(t *testing.T) {
@@ -31,7 +33,7 @@ func TestVelocitySystem_Update_RunsTheMovingBehaviorsInOrder(t *testing.T) {
 	}})
 
 	host := &host.EachHost[world.Moving]{}
-	for _, b := range []plugin.Trigger{scaling(0.5), scaling(0.25)} {
+	for _, b := range []plugin.Rule{scaling(0.5), scaling(0.25)} {
 		if err := host.Add(b); err != nil {
 			t.Fatal(err)
 		}

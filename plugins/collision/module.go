@@ -27,7 +27,7 @@ type module struct {
 	shapes   ShapeTest
 	fieldOf  func() Field
 	clock    *clock.Clock     // the world's; nil, run at once
-	commands *control.Carrier // the world's, for the triggers
+	commands *control.Carrier // the world's, for the rules
 	built    bool
 }
 
@@ -74,20 +74,20 @@ func (m *module) LoadComps() []goke.CompToken {
 // collision-specific
 // =================================================================
 
-// Hook hosts triggers of Meeting, a pair, or of Struck.
-func (m *module) Hook(triggers ...plugin.Trigger) error {
-	return hostAll(m.pairs, m.entities, triggers)
+// Hook hosts rules of Meeting, a pair, or of Struck.
+func (m *module) Hook(rules ...plugin.Rule) error {
+	return hostAll(m.pairs, m.entities, rules)
 }
 
-// hostAll hands each trigger to whichever host takes it, stopping at the first neither does.
-func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], triggers []plugin.Trigger) error {
-	for _, b := range triggers {
+// hostAll hands each rule to whichever host takes it, stopping at the first neither does.
+func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], rules []plugin.Rule) error {
+	for _, b := range rules {
 		err := pairs.Add(b)
 		if errors.Is(err, plugin.ErrUnhosted) {
 			err = entities.Add(b)
 		}
 		if errors.Is(err, plugin.ErrUnhosted) {
-			return fmt.Errorf("%w in collision — it takes a trigger of Meeting or of Struck", err)
+			return fmt.Errorf("%w in collision — it takes a rule of Meeting or of Struck", err)
 		}
 		if err != nil {
 			return err
