@@ -2,7 +2,7 @@
 // water on them, drawn on the GPU, and the views of it — from above, isometric and in perspective.
 //
 // [NewPlugin] takes the world, the board and the [Config] — the views' sizes and reach, whether a
-// fresh game begins isometric, how the ground is shaped (relief.Shaping) and what its slopes cost
+// fresh game begins isometric, how the ground is shaped ([Shaping]) and what its slopes cost
 // (relief.Climbing) — and puts the board in relief at once: it is the board's Map
 // (board.Plugin.WithMap) — its Look, its Dressing, its heights and its costs — the world's Ground
 // and Look, and the maker of the world's cameras. The world must have heights
@@ -10,23 +10,26 @@
 //
 // # Packages
 //
-// The plugin composes its subpackages, none of which imports it; it registers their systems,
-// gathers their commands' queues ([Plugin.Queues]) and keys ([Plugin.DefaultBindings]) and hands
-// them its sky:
+// What a game constructs and drives the plugin with is this package: [NewPlugin], [Config], the
+// options, [Plugin.Relief], the commands. What a game and the other plugins both name is in two
+// small packages: relief (Climbing, DefaultClimbing, MeanOfCells) and painter (Style). The rest
+// is the plugin's own, in plugins/topography/internal, which nothing outside it imports; the
+// plugin registers its systems, gathers the commands' queues ([Plugin.Queues]) and keys
+// ([Plugin.DefaultBindings]) and hands it its sky:
 //
-//   - relief: the heights, what climbing them costs, their shaping (Raise, Lower, Level), their
-//     entity saved with the game and every mover's altitude;
-//   - painter: the board's Dressing in relief and the board painted flat for the GPU — the Styles
-//     of the kinds, their blends and coasts, the ways and the bridges;
+//   - relief: the heights, their entity saved with the game, every mover's altitude, the ground
+//     lifted and flattened, the slopes priced;
+//   - painter: the board's Dressing in relief and the board painted flat for the GPU — the kinds'
+//     styles, their blends and coasts, the ways and the bridges;
 //   - water: the sea's and the running water's materials and how the water is painted;
 //   - terrain: the ground over a square grid, a mesh of the relief's lattice;
 //   - hexes: the ground over a hex grid, a prism a cell;
 //   - billboards: the world's entities standing on the relief, and their shadows;
-//   - cameras: the views, their cameras and their control.
+//   - cameras: the views, their cameras and their control, reading the commands as Orders.
 //
 // # Relief
 //
-// The ground's heights are the plugin's relief.Relief ([Plugin.Relief]); [Plugin.Seed] raises it
+// The ground's heights are the plugin's [Relief] ([Plugin.Relief]); [Plugin.Seed] raises it
 // to a function when a game starts fresh (relief.MeanOfCells builds one from a height per cell).
 // Every step the topography puts every unit at the ground under it plus its Mover's Lift, so a unit
 // never declares where it stands in height and a hawk declares only how high it flies. A kind's
@@ -52,7 +55,7 @@
 // ([Plugin.WithShadows] turns them off; [CoarseShadows], H, or [Plugin.WithCoarseShadows] bakes
 // them half as fine a side, softer, for about half the GPU's work). The world's entities are lit
 // by the sun on level ground, lean with the wind and cast their shadows on the relief away from the
-// sun, from above as in relief (plugins/topography/billboards).
+// sun, from above as in relief.
 //
 // # The ground on the GPU
 //
@@ -62,10 +65,10 @@
 //
 // # Commands
 //
-// The plugin is a plugin.CommandHandler: the cameras' commands (cameras.View, Turn, Tilt, LookOut,
-// Look, Follow, Drive, LookFrom, LookAt), carrying the camera of whoever gave them, given the
-// selection by [Plugin.WithSelection]; the relief's (relief.Raise and relief.Lower, = and - under
-// the cursor, relief.Level, a left drag with L held — at once, in the tactical pause too); and
+// The plugin is a plugin.CommandHandler: the cameras' commands ([View], [Turn], [Tilt], [LookOut],
+// [Look], [Follow], [Drive], [LookFrom], [LookAt]), carrying the camera of whoever gave them, given
+// the selection by [Plugin.WithSelection]; the relief's ([Raise] and [Lower], = and - under the
+// cursor, [Level], a left drag with L held — at once, in the tactical pause too); and
 // [CoarseShadows] (H), which switches the shadows' detail. Call [Plugin.RunPlan] after the world
 // has moved and before the players' RunPlan.
 package topography

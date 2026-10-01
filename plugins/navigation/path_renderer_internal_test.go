@@ -23,6 +23,15 @@ func ends(v []render.Vertex) (x0, y0, x1, y1 float32) {
 
 func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
 
+// sampled is ground of a height function, sampled step apart: a ground.Heights of the test's own.
+type sampled struct {
+	at   func(p geom.Vec) float64
+	step float64
+}
+
+func (s sampled) At(p geom.Vec) float64 { return s.at(p) }
+func (s sampled) Step() float64         { return s.step }
+
 // A route lies on the ground as the board's heights have it, in pieces of the ground's step, each
 // on the Overlays tier at the depth of the ground under its middle; without heights, one piece on
 // the ground at 0.
@@ -30,13 +39,12 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	land := relief.New(brd)
-	land.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
+	land := sampled{step: 32, at: relief.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10
 		}
 		return 0
-	}))
+	})}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
 	drawn := func(r *PathRenderer) (pieces [][]render.Vertex, depths []float32) {
@@ -60,7 +68,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	}
 	sx, sy, _, _ := ends(pieces[0])
 	if ax, ay := cam.Project(48, 48, float32(land.At(a))); !near32(sx, ax) || !near32(sy, ay) {
-		t.Errorf("the route starts at (%v, %v), want (%v, %v): on the land at its start", sx, sy, ax, ay)
+		t.Errorf("the route starts at (%v, %v), want (%v, %v): on the ground at its start", sx, sy, ax, ay)
 	}
 	last := pieces[len(pieces)-1]
 	_, _, ex, ey := ends(last)
@@ -69,7 +77,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	}
 	mid := geom.NewVec(112-32.0/2, 48)
 	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(land.At(mid))) {
-		t.Errorf("the last piece lies at depth %v, want the land's under its middle", d)
+		t.Errorf("the last piece lies at depth %v, want the ground's under its middle", d)
 	}
 	flat := NewPathRenderer(brd, RouteStyle{}, 0)
 	pieces, _ = drawn(flat)

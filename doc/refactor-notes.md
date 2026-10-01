@@ -1323,6 +1323,33 @@ machinery in `plugins/board/internal` (the same for the other plugins later). Th
   `board.MeanOfCells`/`board.Relief`, CLAUDE.md's `board.Effect`.
 - The demos' row type `unit` clashed with the package: it is `unitRow`.
 
+### topography in parts, and the three layers (2026-10-01)
+
+The user had the topography split as the board was, and set the rule for every plugin while at
+it: what a game constructs and drives a plugin with is in the plugin's own package; public
+subpackages are for what other plugins need — the vocabulary a game and the plugins both name,
+the contracts — and the rest is `internal`. Asked how the board fits, they chose to keep it as it
+is: `cell`, `unit`, `grid` are such vocabulary, `look` and `ground` contracts.
+
+- Go's import graph decides much: the plugin's package imports `internal`, so a type the
+  machinery needs cannot live there. `relief.Climbing` and `painter.Style` are vocabulary, kept in
+  thin public packages; the internal namesakes import them as `public`, and files that import both
+  give the internal one an `i` prefix (`irelief`, `ipainter`, `icameras`).
+- The commands moved to the root, as `navigation.MoveTo` lives in navigation's: the cameras'
+  (`View`, `Turn`, …) and the shaping's (`Raise`, `Lower`, `Level`, `Shaping`). The camera system
+  still drains them in its own order, through `icameras.Orders` — one method per command, the
+  plugin's `cameraQueues` implementing it; the camera tests keep their own queues of mirror types
+  behind a `queued` adapter. The shaping is the root's own system now (`shaping.go`).
+- `Plugin.Relief()` was `*relief.Relief`, whose `HeightsSystem()`, `AltitudeSystem()`,
+  `Lattice()` and the like were public; it is a small interface now (`At`, `Step`, `Altitude`,
+  `SetHeights`). navigation's path renderer test, which built a relief, has heights of its own.
+- `billboards`, `hexes`, `terrain`, `water` moved as they were: nothing outside used them.
+- Tests: the altitude and heights tests went to `internal/relief`, the GPU ground's to
+  `internal/terrain`, the cameras' isometric making and picking to `internal/cameras`, the
+  Climbing test to the public `relief`; the root keeps the plugin's (flat or wrapping worlds
+  refused, the view switched by its command, the keys, the cover over the relief, the slope, H).
+  Shared helpers are `internal/topotest`. 122 tests before and after, by name.
+
 ## Questions for review
 
 

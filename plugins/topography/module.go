@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/topography/relief"
+	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -45,5 +45,5 @@ func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the heights' component — see goke.CompProvider.
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[relief.Heights]()}
+	return []goke.CompToken{goke.LoadComp[irelief.Heights]()}
 }

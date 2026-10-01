@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
-	"github.com/kjkrol/gram/plugins/topography/cameras"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
@@ -68,7 +67,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	for b.Loop() {
 		for i := range 64 {
 			d := float64(i) * size / 4
-			sum += ground.GroundAt(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
+			sum += ground.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
 	_ = sum
@@ -285,8 +284,8 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
 	if view == "persp" { // Tab once, from the isometric view
 		for _, q := range topo.Queues() {
-			if q.Accepts() == reflect.TypeFor[cameras.View]() {
-				q.Put(control.Nobody, cameras.View{Camera: ctx.world.Camera()})
+			if q.Accepts() == reflect.TypeFor[topography.View]() {
+				q.Put(control.Nobody, topography.View{Camera: ctx.world.Camera()})
 			}
 		}
 		ecs.Tick(step)

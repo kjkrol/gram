@@ -14,7 +14,7 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/selection"
-	"github.com/kjkrol/gram/plugins/topography/cameras"
+	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -39,13 +39,13 @@ func (s *shooter) cmd(c any) {
 	for _, q := range s.d.stage.topography.Queues() {
 		if q.Accepts() == reflect.TypeOf(c) {
 			switch v := c.(type) {
-			case cameras.View:
+			case topography.View:
 				v.Camera = cam
 				q.Put(s.d.stage.player.ID, v)
-			case cameras.LookOut:
+			case topography.LookOut:
 				v.Camera = cam
 				q.Put(s.d.stage.player.ID, v)
-			case cameras.Look:
+			case topography.Look:
 				v.Camera = cam
 				q.Put(s.d.stage.player.ID, v)
 			}
@@ -96,7 +96,7 @@ func (s *shooter) Update() error {
 	case 120:
 		s.shot = "2-iso-far"
 	case 121:
-		s.cmd(cameras.View{})
+		s.cmd(topography.View{})
 	case 180:
 		s.shot = "3-tab"
 	case 181:
@@ -104,21 +104,21 @@ func (s *shooter) Update() error {
 	case 240:
 		s.shot = "4-tab-far"
 	case 241:
-		s.cmd(cameras.View{})
+		s.cmd(topography.View{})
 	case 300:
 		s.shot = "5-tab-tab"
 	case 301:
-		s.cmd(cameras.View{})
+		s.cmd(topography.View{})
 	case 360:
 		s.shot = "6-tab3"
 	case 361:
-		s.cmd(cameras.View{})
+		s.cmd(topography.View{})
 	case 420:
 		s.shot = "7-tab4"
 	case 421:
-		s.cmd(cameras.LookOut{}) // first person, in the selected unit
+		s.cmd(topography.LookOut{}) // first person, in the selected unit
 	case 422:
-		s.cmd(cameras.Look{Dy: -80}) // the head raised: most lines of sight go up
+		s.cmd(topography.Look{Dy: -80}) // the head raised: most lines of sight go up
 	case 480:
 		s.shot = "8-first-person"
 	case 500:

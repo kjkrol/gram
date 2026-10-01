@@ -6,6 +6,23 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**The topography in parts: the game's entries at the root, the vocabulary in two packages, the rest in `internal`**
+- A plugin's code lies in three layers (CLAUDE.md, "A plugin's packages"): the plugin's package
+  holds what a game constructs and drives it with — the constructor, `Config`, options, the
+  commands it handles; public subpackages hold the vocabulary a game and other plugins share and
+  the contracts plugins read; `internal` holds the machinery.
+- `topography` holds the cameras' commands — `View`, `LookFrom`, `LookAt`, `Look`, `LookOut`,
+  `Turn`, `Tilt`, `Follow`, `Drive`, `TurnStep`, `TiltStep` (were `cameras.…`) — and the shaping —
+  `Raise`, `Lower`, `Level`, `Shaping` (were `relief.…`), carried out by a system of its own.
+  `Plugin.Relief()` is a `topography.Relief`: `At`, `Step`, `Altitude`, `SetHeights` (was
+  `*relief.Relief`; `GroundAt` is `At`).
+- `topography/relief` keeps `Climbing`, `DefaultClimbing` and `MeanOfCells`; `topography/painter`
+  keeps `Style`. `cameras`, `billboards`, `hexes`, `terrain`, `water` and the rest of `relief` and
+  `painter` are in `plugins/topography/internal`; the cameras read their commands through
+  `icameras.Orders`, which the plugin implements over its queues.
+- Tests sit in the package whose code they test; what they share is `internal/topotest`.
+- Saves made before this do not load: the heights' component (`relief.Heights`) moved.
+
 **The board in parts: an API in packages, its machinery in `internal`**
 - `plugins/board` keeps the `Plugin`, the `Board` (the terrain read and written: `Kind`, `Bare`,
   `Set`, `SetAll`, `Way`, `SetWay`, `Crossing`, `SetCrossing`, `Along`, the versions, `Touch`),

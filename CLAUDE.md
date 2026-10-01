@@ -183,29 +183,29 @@ and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `C
 board's own atlas of the kinds), the ways and crossings as plain bands (`internal/draw.Bands`), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
-the world and the board, sets the world's camera factory (`world.SetCameras(cameras.Maker(…))`;
+the world and the board, sets the world's camera factory (`world.SetCameras(icameras.Maker(…))`;
 `camera.Config` has no projection), its Look (`billboards.Look`: billboards in relief, the world's
 `FlatLook` from above, all drawn on the GPU), the board's Map (its Look `look.Nothing`: the ground is drawn on the GPU) and
 the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
 the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
-`topography/terrain` — the relief's lattice as a mesh (every corner a vertex, heights in an R32F
+`topography/internal/terrain` — the relief's lattice as a mesh (every corner a vertex, heights in an R32F
 image), a depth prepass, the board painted flat by the painter (albedo and water sheets, `Painted`)
 sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves (`shade.wgsl`),
 the clouds' cover baked (`cover.wgsl`), water on wet cells only, the grid, fog, and a skirt of
 level ground round the world to the horizon (`skirtRings`, `skirtReach`); over a hex grid
-`topography/hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
+`topography/internal/hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
 from the tiles composed once from above (a `render.Still` through `look.NewRenderer` with the
 flat look and the painter) and drawn every frame into a world image. The painter only paints: its
 tiles are dressed in white without clouds (`tile.Light` even, `sunlit` full), into the sheets or
 the hexes' still; there is no per-frame tile path in relief any more. The world's entities are
-billboards drawn on the GPU (`topography/billboards`: `sprites`, instanced, tested against the ground's depth, their
+billboards drawn on the GPU (`topography/internal/billboards`: `sprites`, instanced, tested against the ground's depth, their
 shadows `sky.Sun.ShadowOf` patches draped over the terrain by `terrain.DrawShadows`, over the hex
 prisms laid from the frame's depth by `shades`); from above
 the flat look's sprites on the GPU and the same shadows. The cameras' `camera.Rays` (a
 `RayField`: origin and direction affine in the screen point; the perspective's from its eye, the
 isometric and flat views' parallel) give `camera.SceneTransform` for every GPU source. One camera,
-three views (`topography/cameras`): `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
-sorting), the isometric and, given `Config.Perspective`, the perspective; `cameras.View{Camera}` (Tab) goes
+three views (`topography/internal/cameras`): `projection.flat` is the view from above (screen x, y the world's, no height drawn, no
+sorting), the isometric and, given `Config.Perspective`, the perspective; `topography.View{Camera}` (Tab) goes
 round them keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
 screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
@@ -222,8 +222,9 @@ cursor stays put (`aim`), the eye flying on towards it where the pitch floor hol
 (heading saved with the camera): the projection turns the ground frame from the 2:1 view, Depth is
 how far down the screen the middle of the cell lies (every point of a cell ties with its tile),
 Toward follows the heading. The plugin is a CommandHandler with a RunPlan (after the world, before
-players; the cameras and the shaping at once, the altitudes in the simulation), gathering the
-queues and keys of `cameras.Control` and `relief.Shaper`: `Turn{Camera,
+players; the cameras and the shaping at once, the altitudes in the simulation), keeping the
+queues and keys of its commands — the cameras read theirs as `icameras.Orders`, the shaping is its
+own system: `Turn{Camera,
 Angle}` (Q/E held, `TurnStep` 2° a tick), `Tilt{Camera, Angle}` (R/F held, 1° a tick; the
 projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scaling the ground down
 the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
@@ -248,7 +249,7 @@ V, writes the keys every tick, writes a stop and detaches it on letting go; navi
 `driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
 admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
 just ahead under `BodySpacing` — stops dead otherwise, removes a MoveOrder a hand touches and
-keeps Cell, occupancy and the `Entered` marker with the unit) and `relief.Raise`/`Lower`/`Level` (=, -, L-drag).
+keeps Cell, occupancy and the `Entered` marker with the unit) and `Raise`/`Lower`/`Level` (=, -, L-drag).
 Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
 players; which camera is fastened to what is the camera system's state, cameras being no entities.
 The topography's parts are packages none of which imports the plugin (it composes them, registers
@@ -321,7 +322,7 @@ stars and the moon of it through `backdrop.Renderer.WithShown`). The atmosphere'
 shaders and draws nothing itself: every part — `calendar`, `sky`, `celestial`, `climate`, `air`,
 `precipitation`, `weathering`, `backdrop`, `overcast` — is a package that never imports it.
 `cell.Kind.Shine` (0–1) makes a kind glint, per pixel in the topography's materials
-(`plugins/topography/water/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
+(`plugins/topography/internal/water/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
 `render.RegisterMaterials` joins the composer's library and every mesh shader built on it): the
 painter paints the wet cells' shine and flow into the water sheet, and the terrain's shader calls
 `SeaGlintAt(p, shine, lit, shore, pixel, toward)` and `RunningWater` over the wet cells. The sea
@@ -426,17 +427,35 @@ Each `plugin.go`/`module.go` groups methods under banner comments — contract
 methods first, then everything plugin/module-specific — so a file's shape
 shows how much of it is boilerplate vs. real behavior.
 
-### API in packages, machinery in internal
+### A plugin's packages: entries, vocabulary, internal
 
-A plugin split into packages keeps what a game or another plugin uses — contracts, entry
-points, facts — in its normal packages, and the machinery its own packages share — stores,
-systems, implementations — in `plugins/<plugin>/internal/...`, which only the plugin's own
-packages may import. Names exported inside `internal` are not API; a type from `internal`
-never appears in a public signature, and tests outside the plugin cannot use it (a test that
-must read a package's insides uses an `export_test.go`). A system in `internal` follows the
-topography's pattern: a part type whose method returns a private `goke.System`
-(`terrain.Cells.System()`, `rule.Rules.StandingSystem()`). `plugins/board` is split this way;
-the other plugins follow as they are split.
+A plugin's code lies in three layers:
+
+- **The plugin's own package — the entries**: what a game constructs and drives the plugin with:
+  `NewPlugin`, `Config`, the `With…` options, `Seed`, `Hook`, the `Plugin`'s methods and the
+  commands the plugin handles itself (`navigation.MoveTo`, `topography.View`, `topography.Raise`).
+- **Public subpackages — the vocabulary and the contracts**: the types a game and other plugins
+  both name (`cell.Kind`, `unit.Mover`, `grid.Grid`, `relief.Climbing`, `painter.Style`), and the
+  contracts other plugins read or implement (`board/look`, `board/ground`). Nothing else.
+- **`plugins/<plugin>/internal/...` — the machinery**: systems, stores, implementations the
+  plugin's packages share; only the plugin's own packages may import it. Names exported inside
+  `internal` are not API; a type from `internal` never appears in a public signature
+  (`topography.Plugin.Relief()` hands a small interface, not the relief).
+
+The plugin's package imports `internal`, so `internal` cannot import it: a type the machinery
+needs cannot be defined there. It goes to a vocabulary package; a command the machinery carries
+out is defined in the plugin's package, its queue kept there, and reaches the machinery through
+an interface the plugin implements over that queue (`icameras.Orders`), or the plugin's own
+system carries it out (`topography`'s shaping). Where a file imports a public package and its
+internal namesake, the internal one gets an `i` prefix (`irelief`, `ipainter`, `icameras`); inside
+the internal package its public namesake is imported as `public`.
+
+Systems in `internal` follow the topography's pattern: a part type whose method returns a private
+`goke.System` (`terrain.Cells.System()`, `rule.Rules.StandingSystem()`). Tests sit in the package
+whose code they test; what several packages' tests share goes to `internal/<plugin>test`
+(`board/internal/boardtest`, `topography/internal/topotest`), and a test that must read a
+package's insides uses an `export_test.go`. `board` and `topography` are split this way; the
+other plugins follow as they grow.
 
 ### Behaviour goes through rule
 
@@ -607,14 +626,14 @@ rule a pair, made in a loop).
   writes them, or the seed before Setup and on a board no ECS runs. `Version` and `CellVersion`
   count every change: writes through the board, effects on cell entities (`effect.Changed` on
   the cells), and `Board.Touch(c)` by whoever changes a cell beyond the board.
-  The board is flat: the ground's heights are the topography's `relief.Relief` — on a square grid a
+  The board is flat: the ground's heights are the topography's relief (`internal/relief.Relief`; a game gets `topography.Relief`: `At`, `Step`, `Altitude`, `SetHeights`) — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
   (`relief.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
-  `relief.Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
+  `Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
   the relief takes, so the ECS keeps them in its own memory — written when the relief's version
   changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
-  (`relief.Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the relief's
+  (`topography.Raise`, `Lower`, `Level`, `Shaping`). The relief is the world's `Ground`; the relief's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
   world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
