@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -20,15 +21,15 @@ func newSquareGrid(width, height, cellSize uint32) *squareGrid {
 	return &squareGrid{Width: width, Height: height, CellSize: cellSize}
 }
 
-func (g *squareGrid) idAt(x, y uint32) CellID {
-	return CellID(uint64(y)*uint64(g.Width) + uint64(x))
+func (g *squareGrid) idAt(x, y uint32) cell.ID {
+	return cell.ID(uint64(y)*uint64(g.Width) + uint64(x))
 }
 
-func (g *squareGrid) cellXY(c CellID) (x, y uint32) {
+func (g *squareGrid) cellXY(c cell.ID) (x, y uint32) {
 	return uint32(uint64(c) % uint64(g.Width)), uint32(uint64(c) / uint64(g.Width))
 }
 
-func (g *squareGrid) Contains(c CellID) bool {
+func (g *squareGrid) Contains(c cell.ID) bool {
 	if g.WrapX && g.WrapY {
 		return true
 	}
@@ -41,9 +42,9 @@ var squareDirs = [8][2]int64{
 	{-1, -1}, {1, -1}, {-1, 1}, {1, 1}, // diagonal
 }
 
-func (g *squareGrid) Neighbors(c CellID) []CellID {
+func (g *squareGrid) Neighbors(c cell.ID) []cell.ID {
 	x, y := g.cellXY(c)
-	out := make([]CellID, 0, 8)
+	out := make([]cell.ID, 0, 8)
 	for _, d := range squareDirs {
 		nx, okX := foldAxis(int64(x)+d[0], int64(g.Width), g.WrapX)
 		ny, okY := foldAxis(int64(y)+d[1], int64(g.Height), g.WrapY)
@@ -55,13 +56,13 @@ func (g *squareGrid) Neighbors(c CellID) []CellID {
 	return out
 }
 
-func (g *squareGrid) CellCenter(c CellID) geom.Vec {
+func (g *squareGrid) CellCenter(c cell.ID) geom.Vec {
 	x, y := g.cellXY(c)
 	half := float64(g.CellSize) / 2
 	return geom.NewVec(float64(x)*float64(g.CellSize)+half, float64(y)*float64(g.CellSize)+half)
 }
 
-func (g *squareGrid) CellAt(pos geom.Vec) (CellID, bool) {
+func (g *squareGrid) CellAt(pos geom.Vec) (cell.ID, bool) {
 	if g.CellSize == 0 {
 		return 0, false
 	}
@@ -77,7 +78,7 @@ func (g *squareGrid) CellSpan() float32 { return float32(g.CellSize) }
 
 func (g *squareGrid) CellBounds() (w, h float64) { return float64(g.CellSize), float64(g.CellSize) }
 
-func (g *squareGrid) CellOutline(c CellID, dst []geom.Vec) []geom.Vec {
+func (g *squareGrid) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 	x, y := g.cellXY(c)
 	size := float64(g.CellSize)
 	x0, y0 := float64(x)*size, float64(y)*size
@@ -86,7 +87,7 @@ func (g *squareGrid) CellOutline(c CellID, dst []geom.Vec) []geom.Vec {
 
 // CellsUnder walks the columns and rows the box touches, edges included, each cell once however
 // far the box reaches round a wrapping axis.
-func (g *squareGrid) CellsUnder(box geom.AABB, fn func(c CellID)) {
+func (g *squareGrid) CellsUnder(box geom.AABB, fn func(c cell.ID)) {
 	if g.CellSize == 0 {
 		return
 	}
@@ -118,14 +119,14 @@ func spanOf(a, b, size float64, n uint32, wraps bool) (lo, hi int64, ok bool) {
 }
 
 // CellBoxes is the cell's own square.
-func (g *squareGrid) CellBoxes(c CellID, dst []geom.AABB) []geom.AABB {
+func (g *squareGrid) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 	x, y := g.cellXY(c)
 	size := float64(g.CellSize)
 	topLeft := geom.NewVec(float64(x)*size, float64(y)*size)
 	return append(dst, geom.NewAABB(topLeft, geom.NewVec(topLeft.X+size, topLeft.Y+size)))
 }
 
-func (g *squareGrid) EachCell(fn func(c CellID)) {
+func (g *squareGrid) EachCell(fn func(c cell.ID)) {
 	for y := uint32(0); y < g.Height; y++ {
 		for x := uint32(0); x < g.Width; x++ {
 			fn(g.idAt(x, y))
@@ -135,7 +136,7 @@ func (g *squareGrid) EachCell(fn func(c CellID)) {
 
 func (g *squareGrid) SetWrap(x, y bool) { g.WrapX, g.WrapY = x, y }
 
-func (g *squareGrid) Ordinal(c CellID) (int, bool) {
+func (g *squareGrid) Ordinal(c cell.ID) (int, bool) {
 	x, y := g.cellXY(c)
 	if x >= g.Width || y >= g.Height {
 		return 0, false
@@ -145,12 +146,12 @@ func (g *squareGrid) Ordinal(c CellID) (int, bool) {
 
 func (g *squareGrid) CellCount() int { return int(g.Width) * int(g.Height) }
 
-func (g *squareGrid) Coords(c CellID) (uint32, uint32, bool) {
+func (g *squareGrid) Coords(c cell.ID) (uint32, uint32, bool) {
 	x, y := g.cellXY(c)
 	return x, y, x < g.Width && y < g.Height
 }
 
-func (g *squareGrid) CellIndex(col, row uint32) (CellID, bool) {
+func (g *squareGrid) CellIndex(col, row uint32) (cell.ID, bool) {
 	x, okX := foldAxis(int64(col), int64(g.Width), g.WrapX)
 	y, okY := foldAxis(int64(row), int64(g.Height), g.WrapY)
 	if !okX || !okY {
@@ -160,7 +161,7 @@ func (g *squareGrid) CellIndex(col, row uint32) (CellID, bool) {
 }
 
 // dxdy returns the wrap-aware column/row gap between a and b.
-func (g *squareGrid) dxdy(a, b CellID) (dx, dy float64) {
+func (g *squareGrid) dxdy(a, b cell.ID) (dx, dy float64) {
 	ax, ay := g.cellXY(a)
 	bx, by := g.cellXY(b)
 	width, height := uint32(0), uint32(0)
@@ -174,13 +175,13 @@ func (g *squareGrid) dxdy(a, b CellID) (dx, dy float64) {
 }
 
 // NeighborCost is 1 for an orthogonal step, √2 for a diagonal one.
-func (g *squareGrid) NeighborCost(a, b CellID) float64 {
+func (g *squareGrid) NeighborCost(a, b cell.ID) float64 {
 	dx, dy := g.dxdy(a, b)
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
 // Distance is octile distance.
-func (g *squareGrid) Distance(a, b CellID) float64 {
+func (g *squareGrid) Distance(a, b cell.ID) float64 {
 	dx, dy := g.dxdy(a, b)
 	if dx < dy {
 		dx, dy = dy, dx
@@ -189,7 +190,7 @@ func (g *squareGrid) Distance(a, b CellID) float64 {
 }
 
 // DiagonalNeighbors returns the two cells flanking the corner between a and its diagonal b.
-func (g *squareGrid) DiagonalNeighbors(a, b CellID) (c1, c2 CellID, ok bool) {
+func (g *squareGrid) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	ax, ay := g.cellXY(a)
 	bx, by := g.cellXY(b)
 	dx := axisDelta(ax, bx, g.Width, g.WrapX)

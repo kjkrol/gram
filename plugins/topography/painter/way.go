@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -41,7 +42,7 @@ type WayPiece struct {
 	MixShine  float32
 }
 
-// Way is the tile's board.Way cut into the pieces it is drawn in, its water shining as far as its
+// Way is the tile's cell.Way cut into the pieces it is drawn in, its water shining as far as its
 // wayDetail. Each way out ends halfway to the
 // neighbour it runs on to, as wide there as the mean of the two ways; the two out to the widest
 // neighbours are one band curving from the one end to the other round the cell's middle, and any
@@ -55,7 +56,7 @@ type WayPiece struct {
 // call; nothing where no way runs.
 func (t *tile) Way() []WayPiece { return t.lanePieces(false) }
 
-// Crossing is the tile's board.Crossing cut into pieces as its Way is. Good until the next call;
+// Crossing is the tile's cell.Crossing cut into pieces as its Way is. Good until the next call;
 // nothing where nothing crosses.
 func (t *tile) Crossing() []WayPiece { return t.lanePieces(true) }
 
@@ -102,7 +103,7 @@ func (t *tile) wayDetail() float32 {
 	return min(max((t.px()-bakeCell)/(bakeCell/2), 0), 1)
 }
 
-// wayAnew works out the tile's board.Way into out, or its board.Crossing where cross, in no light;
+// wayAnew works out the tile's cell.Way into out, or its cell.Crossing where cross, in no light;
 // its curves in fewer pieces unless fine.
 func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 	r := t.r
@@ -296,7 +297,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 
 // partner is what runs across nb that c's way or crossing running on to it meets: whichever of its
 // Way and Crossing runs back to c, its Way where neither does; false where nothing runs there.
-func (l *Painter) partner(c, nb board.CellID) (board.Way, bool) {
+func (l *Painter) partner(c, nb cell.ID) (cell.Way, bool) {
 	top := l.topOf(nb)
 	if back, ok := board.Link(l.board, nb, c); ok && top.way.Links&back == 0 && top.cross.Links&back != 0 {
 		return top.cross.Way, true
@@ -341,7 +342,7 @@ const stillFall = 0.01
 
 // toward is the way from the middle of the tile to halfway to its neighbour n, the grid's i-th
 // direction.
-func (t *tile) toward(n board.CellID, i int) (float32, float32) {
+func (t *tile) toward(n cell.ID, i int) (float32, float32) {
 	if t.r.square {
 		return float32(squareDirs[i][0]) * (t.X1 - t.X0) / 2, float32(squareDirs[i][1]) * (t.Y1 - t.Y0) / 2
 	}

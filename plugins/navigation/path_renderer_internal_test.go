@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
@@ -26,9 +27,9 @@ func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
 func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	ground := relief.New(brd)
-	ground.SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 { // a ridge down the right half
+	ground.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10
 		}

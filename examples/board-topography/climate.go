@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 )
 
@@ -51,18 +51,18 @@ var (
 // and stand on, another look, in the snow's and the ice's colours — and says how the weather lies
 // on the island; call it after the island's own kinds.
 func (s *mainStage) defineClimate() weathering.Config {
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	snowy := map[string]string{}
 	for name, col := range snowyColors {
 		k, _ := kinds.Get(name)
-		k.Name, k.Color = board.Named("snowy "+name), col
+		k.Name, k.Color = cell.Named("snowy "+name), col
 		kinds.Create(k)
 		s.topography.Style("snowy "+name, s.topography.StyleOf(name))
 		snowy[name] = "snowy " + name
 	}
-	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 5, Allows: board.Land | board.Air, Color: iceColor}.Costing(board.Air, 1))
+	kinds.Create(cell.Kind{Name: cell.Named("ice"), Cost: 5, Allows: cell.Land | cell.Air, Color: iceColor}.Costing(cell.Air, 1))
 	s.topography.Style("ice", painter.Style{Under: true, Shine: 0.3})
 	ground := s.topography.Relief()
 	return weathering.Config{Snowy: snowy, Ice: "ice", Sway: []string{"forest", "snowy forest"},
-		High: func(c board.CellID) bool { return ground.Altitude(c) >= scale.Units(highSnow) }}
+		High: func(c cell.ID) bool { return ground.Altitude(c) >= scale.Units(highSnow) }}
 }

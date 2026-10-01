@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -31,7 +32,7 @@ func newWorld(edges aabbworld.Edges) *world.Plugin {
 func levelBoard(w *world.Plugin) (*board.Plugin, board.Grid) {
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return b, grid
 }
 
@@ -215,7 +216,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		b, grid := levelBoard(w)
 		topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: perspective})
 		wall, _ := grid.CellIndex(2, 1)
-		b.Res.Logic.Board.Set(wall, board.CellKind{Name: board.Named("wall"), Cost: 1, Height: 30})
+		b.Res.Logic.Board.Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
 		cam := w.Camera()
 		picker, ok := cam.(camera.Picker)
 		if !ok {

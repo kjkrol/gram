@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/network"
 	"github.com/kjkrol/gram/plugins/board/water"
 )
@@ -19,8 +20,8 @@ import (
 // bridges over what they cross (plugins/board/network). What is high and what is low is the heights
 // alone; the ground is earth, sand or rock as they and the coast say — see soil. It gives the
 // board's Layout, the heights for a topography to seed, and the stops.
-func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.CellID) {
-	cell := func(x, y int) board.CellID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
+func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
+	cellAt := func(x, y int) cell.ID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
 	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy) goes
 	edge := func(dx, dy float64) float64 {
@@ -33,11 +34,11 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 		return (dx*dx)/(islandRX*islandRX)+(dy*dy)/(islandRY*islandRY) <= r*r
 	}
 
-	land := map[board.CellID]bool{}
+	land := map[cell.ID]bool{}
 	for y := range GridHeight {
 		for x := range GridWidth {
 			if within(float64(x)+0.5, float64(y)+0.5) {
-				land[cell(x, y)] = true
+				land[cellAt(x, y)] = true
 			}
 		}
 	}
@@ -45,11 +46,11 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 	var shore []geom.Vec
 	for y := range GridHeight {
 		for x := range GridWidth {
-			if land[cell(x, y)] {
+			if land[cellAt(x, y)] {
 				continue
 			}
 			for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-				if land[cell(x+d[0], y+d[1])] {
+				if land[cellAt(x+d[0], y+d[1])] {
 					shore = append(shore, geom.NewVec(float64(x)+0.5, float64(y)+0.5))
 					break
 				}
@@ -113,7 +114,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 		return h*(1-top) + max(h, landHeight+plateauHeight)*top
 	}
 	// the rain runs off it to the sea in streams and rivers, cutting their channels
-	rivers, err := water.Drain(grid, ground, func(c board.CellID) bool { return !land[c] }, water.Config{
+	rivers, err := water.Drain(grid, ground, func(c cell.ID) bool { return !land[c] }, water.Config{
 		BrookAt: brookAt, StreamAt: streamAt, RiverAt: riverAt,
 		Rain:       func(level float64) float64 { return 1 + level/100 }, // more on the heights
 		BrookDepth: 1, StreamDepth: 2, RiverDepth: 5, FordEvery: fordEvery, FordSlope: 0.15,
@@ -125,11 +126,11 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 	heights := rivers.Carved(ground)
 
 	var cells []board.CellEntry
-	soils := map[board.CellID]string{}
-	levels := map[board.CellID]float64{} // the mean of each land cell's corners
+	soils := map[cell.ID]string{}
+	levels := map[cell.ID]float64{} // the mean of each land cell's corners
 	for y := range GridHeight {
 		for x := range GridWidth {
-			if !land[cell(x, y)] {
+			if !land[cellAt(x, y)] {
 				continue
 			}
 			var hs [4]float64
@@ -137,7 +138,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 				hs[k] = heights(geom.NewVec(float64(x+d[0])*cw, float64(y+d[1])*ch))
 			}
 			fx, fy := float64(x)+0.5, float64(y)+0.5
-			c := cell(x, y)
+			c := cellAt(x, y)
 			soils[c] = soil(hs, cw, inland(fx, fy), fx, fy)
 			levels[c] = (hs[0] + hs[1] + hs[2] + hs[3]) / 4
 			cells = append(cells, board.CellEntry{Kind: soils[c], Cell: c})
@@ -149,7 +150,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 
 	// The stops: a hexagon on the lowland, none at the ends of the range, each opposite one across
 	// it, each on the nearest ground that is neither rock nor water.
-	var stops []board.CellID
+	var stops []cell.ID
 	for k := range Stops {
 		a := (float64(k) + 0.5) * 2 * math.Pi / Stops
 		dx, dy := math.Cos(a)*islandRX, math.Sin(a)*islandRY
@@ -159,7 +160,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 		for ring := 0; ring < 8; ring++ {
 			for oy := -ring; oy <= ring; oy++ {
 				for ox := -ring; ox <= ring; ox++ {
-					at := cell(sx+ox, sy+oy)
+					at := cellAt(sx+ox, sy+oy)
 					if s := soils[at]; (s == "earth" || s == "sand") && rivers.Courses[at] == water.Dry {
 						sx, sy = sx+ox, sy+oy
 						break search
@@ -167,7 +168,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 				}
 			}
 		}
-		stops = append(stops, cell(sx, sy))
+		stops = append(stops, cellAt(sx, sy))
 	}
 
 	// Roads run from stop to stop round the hexagon, the cheapest way over the ground: along the
@@ -175,8 +176,8 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 	// road laid already rather than beside it; a bridge carries a road over whatever water runs
 	// across it.
 	roads := network.New(grid)
-	passable := func(c board.CellID) bool { return land[c] }
-	cost := func(a, b board.CellID) float64 {
+	passable := func(c cell.ID) bool { return land[c] }
+	cost := func(a, b cell.ID) float64 {
 		if !passable(b) {
 			return math.Inf(1)
 		}
@@ -186,7 +187,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []board.Cell
 		if ax != bx && ay != by {
 			// slantwise only between two cells a road may take, and never past water: a road
 			// crosses it square, over a bridge
-			l, r := cell(int(ax), int(by)), cell(int(bx), int(ay))
+			l, r := cellAt(int(ax), int(by)), cellAt(int(bx), int(ay))
 			if !passable(l) || !passable(r) || rivers.Courses[l] != water.Dry || rivers.Courses[r] != water.Dry {
 				return math.Inf(1)
 			}
@@ -273,10 +274,10 @@ func plateau(x, y float64) float64 {
 
 // Plateau is the cells of the plateau's flat top, nearest its middle first: high ground with a
 // steep, ragged edge all round, at the range's western end.
-func Plateau(grid board.Grid) []board.CellID {
+func Plateau(grid board.Grid) []cell.ID {
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
 	type at struct {
-		c board.CellID
+		c cell.ID
 		d float64
 	}
 	var top []at
@@ -292,7 +293,7 @@ func Plateau(grid board.Grid) []board.CellID {
 		}
 	}
 	slices.SortStableFunc(top, func(a, b at) int { return cmp.Compare(a.d, b.d) })
-	cells := make([]board.CellID, len(top))
+	cells := make([]cell.ID, len(top))
 	for i, t := range top {
 		cells[i] = t.c
 	}

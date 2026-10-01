@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -30,7 +31,7 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	})
 	grid := board.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	b.WithRenderer(litSheet{})
 	cam := w.Camera()
 	even := func() render.Light {

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 )
@@ -26,7 +27,7 @@ type Config struct {
 	Water   string
 	Sway    []string
 	Swaying float64
-	High    func(c board.CellID) bool
+	High    func(c cell.ID) bool
 	Seed    uint64
 }
 
@@ -76,11 +77,11 @@ type Weathering struct {
 	calendar *calendar.Calendar
 
 	snow, ice, sway effect.Effect
-	snowy           map[board.Name]board.CellKind
-	frozen          board.CellKind
-	water           board.Name
-	swaying         map[board.Name]bool
-	cells           []board.CellID // every cell of the board, to pick from
+	snowy           map[cell.Name]cell.Kind
+	frozen          cell.Kind
+	water           cell.Name
+	swaying         map[cell.Name]bool
+	cells           []cell.ID // every cell of the board, to pick from
 	dice            uint64
 	laid            bool // the first second has laid what a winter begun lies under
 	still           bool // the weather works nothing on the board (SetRunning)
@@ -98,15 +99,15 @@ func (w *Weathering) Running() bool { return !w.still }
 // up; it defines the effects at once.
 func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
-	kinds := brd.CellKindDict()
+	kinds := brd.CellKinds()
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
-		snowy: map[board.Name]board.CellKind{}, water: board.Named(cfg.Water), swaying: map[board.Name]bool{}}
+		snowy: map[cell.Name]cell.Kind{}, water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{}}
 	for name, under := range cfg.Snowy {
 		k, ok := kinds.Get(under)
 		if !ok {
 			return nil, fmt.Errorf("weathering: no kind %q for %q under snow", under, name)
 		}
-		ww.snowy[board.Named(name)] = k
+		ww.snowy[cell.Named(name)] = k
 	}
 	if cfg.Ice != "" {
 		k, ok := kinds.Get(cfg.Ice)
@@ -116,20 +117,20 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 		ww.frozen = k
 	}
 	for _, name := range cfg.Sway {
-		ww.swaying[board.Named(name)] = true
+		ww.swaying[cell.Named(name)] = true
 	}
-	ww.snow = fx.Define("snow", effect.Spec{effect.Alter(func(g *board.Ground) {
+	ww.snow = fx.Define("snow", effect.Spec{effect.Alter(func(g *cell.Ground) {
 		if under, ok := ww.snowy[g.Kind.Name]; ok {
 			under.Sway = g.Kind.Sway // what sways goes on swaying under snow
 			g.Kind = under
 		}
 	})})
-	ww.ice = fx.Define("ice", effect.Spec{effect.Alter(func(g *board.Ground) {
+	ww.ice = fx.Define("ice", effect.Spec{effect.Alter(func(g *cell.Ground) {
 		if g.Kind.Name == ww.water && ww.cfg.Ice != "" {
 			g.Kind = ww.frozen
 		}
 	})})
-	ww.sway = fx.Define("sway", effect.Spec{effect.Alter(func(g *board.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
+	ww.sway = fx.Define("sway", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
 	return ww, nil
 }
 
@@ -171,7 +172,7 @@ func (w *Weathering) second(t plugin.Tick) {
 		case air.Temperature < iceBelow:
 			w.scatter(t, iceSets*(iceBelow-air.Temperature), w.ice, w.freezes)
 		case air.Temperature > 0:
-			w.clear(iceThaws*air.Temperature, w.ice, func(board.CellID) bool { return true })
+			w.clear(iceThaws*air.Temperature, w.ice, func(cell.ID) bool { return true })
 		}
 	}
 	w.blow(t, float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))))
@@ -188,17 +189,17 @@ func (w *Weathering) roll() float32 {
 }
 
 // pick is a cell of the board thrown at random, on any grid.
-func (w *Weathering) pick() board.CellID {
+func (w *Weathering) pick() cell.ID {
 	if w.cells == nil {
 		brd := w.board.Res.Logic.Board
-		w.cells = make([]board.CellID, 0, brd.CellCount())
-		brd.EachCell(func(c board.CellID) { w.cells = append(w.cells, c) })
+		w.cells = make([]cell.ID, 0, brd.CellCount())
+		brd.EachCell(func(c cell.ID) { w.cells = append(w.cells, c) })
 	}
 	return w.cells[min(int(w.roll()*float32(len(w.cells))), len(w.cells)-1)]
 }
 
 // scatter casts fx on about share of the board's cells picked at random, those may takes.
-func (w *Weathering) scatter(t plugin.Tick, share float32, fx effect.Effect, may func(c board.CellID) bool) {
+func (w *Weathering) scatter(t plugin.Tick, share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
@@ -208,7 +209,7 @@ func (w *Weathering) scatter(t plugin.Tick, share float32, fx effect.Effect, may
 }
 
 // clear takes fx off about share of the board's cells picked at random, those may lets go.
-func (w *Weathering) clear(share float32, fx effect.Effect, may func(c board.CellID) bool) {
+func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && fx.On(id) && may(c) {
@@ -220,7 +221,7 @@ func (w *Weathering) clear(share float32, fx effect.Effect, may func(c board.Cel
 // winter lays what a winter begun lies under: snow in drifts over most of the board, ice along
 // its shores.
 func (w *Weathering) winter(t plugin.Tick) {
-	w.board.Res.Logic.Board.EachCell(func(c board.CellID) {
+	w.board.Res.Logic.Board.EachCell(func(c cell.ID) {
 		id, ok := w.board.CellEntity(c)
 		if !ok {
 			return
@@ -235,14 +236,14 @@ func (w *Weathering) winter(t plugin.Tick) {
 }
 
 // takesSnow reports whether snow may lie on c at all: a kind that has a snowy one.
-func (w *Weathering) takesSnow(c board.CellID) bool {
+func (w *Weathering) takesSnow(c cell.ID) bool {
 	_, ok := w.snowy[w.board.Res.Logic.Board.Kind(c).Name]
 	return ok
 }
 
 // snowLies reports whether falling snow settles on c now: ground that takes it, high, or next to
 // snow lying already, or one of the drifts' seeds — so snow lies in patches that grow.
-func (w *Weathering) snowLies(c board.CellID) bool {
+func (w *Weathering) snowLies(c cell.ID) bool {
 	if !w.takesSnow(c) {
 		return false
 	}
@@ -252,7 +253,7 @@ func (w *Weathering) snowLies(c board.CellID) bool {
 // snowEdge reports whether the snow on c melts now: the lonelier it lies — the fewer of its
 // neighbours under snow — and the later it lay in the drifts' pattern, the likelier, so the
 // patches shrink whole and what lay first lies longest.
-func (w *Weathering) snowEdge(c board.CellID) bool {
+func (w *Weathering) snowEdge(c cell.ID) bool {
 	neighbours := w.board.Res.Logic.Board.Neighbors(c)
 	under := 0
 	for _, n := range neighbours {
@@ -265,7 +266,7 @@ func (w *Weathering) snowEdge(c board.CellID) bool {
 }
 
 // nextTo reports whether a neighbour of c lies under snow.
-func (w *Weathering) nextTo(c board.CellID) bool {
+func (w *Weathering) nextTo(c cell.ID) bool {
 	for _, n := range w.board.Res.Logic.Board.Neighbors(c) {
 		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
 			return true
@@ -276,7 +277,7 @@ func (w *Weathering) nextTo(c board.CellID) bool {
 
 // drift is the drifts' pattern at c, 0 to 1, smooth over driftSize cells: where it is low, snow
 // lies first and longest.
-func (w *Weathering) drift(c board.CellID) float32 {
+func (w *Weathering) drift(c cell.ID) float32 {
 	x, y, _ := w.board.Res.Logic.Board.Coords(c)
 	fx, fy := float64(x)/driftSize, float64(y)/driftSize
 	ix, iy := math.Floor(fx), math.Floor(fy)
@@ -298,7 +299,7 @@ func cellHash(x, y int) float64 {
 
 // freezes reports whether c is water that may freeze now: next to land or to ice already, so the
 // ice grows from the shore out.
-func (w *Weathering) freezes(c board.CellID) bool {
+func (w *Weathering) freezes(c cell.ID) bool {
 	brd := w.board.Res.Logic.Board
 	if brd.Kind(c).Name != w.water {
 		return false
@@ -318,7 +319,7 @@ func (w *Weathering) blow(t plugin.Tick, wind float32) {
 		return
 	}
 	brd := w.board.Res.Logic.Board
-	brd.EachCell(func(c board.CellID) {
+	brd.EachCell(func(c cell.ID) {
 		if !w.swaying[brd.Kind(c).Name] {
 			return
 		}

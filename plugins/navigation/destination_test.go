@@ -7,12 +7,13 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
-func chebyshev(grid board.Grid, a, b board.CellID) float64 {
+func chebyshev(grid board.Grid, a, b cell.ID) float64 {
 	ca, cb := grid.CellCenter(a), grid.CellCenter(b)
 	return max(abs(ca.X-cb.X), abs(ca.Y-cb.Y)) / float64(grid.CellSpan())
 }
@@ -26,17 +27,17 @@ func abs(v float64) float64 {
 
 func openTerrain() *board.TerrainMap {
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return terrain
 }
 
 func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
 	start, _ := grid.CellIndex(2, 2)
-	all := func(board.CellID) bool { return true }
+	all := func(cell.ID) bool { return true }
 
-	var order []board.CellID
-	record := func(c board.CellID) bool { order = append(order, c); return false }
+	var order []cell.ID
+	record := func(c cell.ID) bool { order = append(order, c); return false }
 	if _, ok := breadthFirst(start, grid.Neighbors, all, record, 100); ok {
 		t.Fatal("match never accepts, expected no result")
 	}
@@ -55,9 +56,9 @@ func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
 	start, _ := grid.CellIndex(0, 0)
 	wall, _ := grid.CellIndex(1, 0)
 	beyond, _ := grid.CellIndex(3, 0)
-	notWall := func(c board.CellID) bool { return c != wall }
+	notWall := func(c cell.ID) bool { return c != wall }
 
-	if _, ok := breadthFirst(start, grid.Neighbors, notWall, func(c board.CellID) bool { return c == beyond }, 100); ok {
+	if _, ok := breadthFirst(start, grid.Neighbors, notWall, func(c cell.ID) bool { return c == beyond }, 100); ok {
 		t.Error("found a cell behind a rejected one")
 	}
 }
@@ -66,9 +67,9 @@ func TestBreadthFirst_RespectsMaxVisited(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	next, _ := grid.CellIndex(1, 0)
-	all := func(board.CellID) bool { return true }
+	all := func(cell.ID) bool { return true }
 
-	if _, ok := breadthFirst(start, grid.Neighbors, all, func(c board.CellID) bool { return c == next }, 1); ok {
+	if _, ok := breadthFirst(start, grid.Neighbors, all, func(c cell.ID) bool { return c == next }, 1); ok {
 		t.Error("found a cell beyond maxVisited=1")
 	}
 }
@@ -78,20 +79,20 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	terrain := openTerrain()
 	occupancy := &board.SingleOccupancy{}
 	pf := newPathFinder(grid, terrain, nil, occupancy)
-	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
 
 	const mover, other = uid.UID64(1), uid.UID64(2)
-	occupancy.Enter(at(0), mover, board.Land)
-	occupancy.Enter(at(4), other, board.Land)
-	terrain.Set(at(2), board.CellKind{Cost: 1, Solid: true})
-	taken := func(c board.CellID) bool { return c == at(5) }
+	occupancy.Enter(at(0), mover, cell.Land)
+	occupancy.Enter(at(4), other, cell.Land)
+	terrain.Set(at(2), cell.Kind{Cost: 1, Solid: true})
+	taken := func(c cell.ID) bool { return c == at(5) }
 
-	dest, _, ok := pf.nearestFree(mover, board.Land, at(6), at(4), taken)
+	dest, _, ok := pf.nearestFree(mover, cell.Land, at(6), at(4), taken)
 	if !ok || dest != at(6) {
 		t.Errorf("nearestFree = %v, %v, want %v (only free, reachable cell near the target)", dest, ok, at(6))
 	}
 
-	if _, _, ok := pf.nearestFree(mover, board.Land, at(0), at(4), taken); ok {
+	if _, _, ok := pf.nearestFree(mover, cell.Land, at(0), at(4), taken); ok {
 		t.Error("expected no result: every free cell near the target is behind the wall")
 	}
 }
@@ -101,11 +102,11 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	occupancy := &board.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(5, 5)
-	starts := []board.CellID{at(5, 0), at(5, 4), at(5, 2)}
+	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
 
-	var cell goke.Comp[board.At]
+	var here goke.Comp[board.At]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var q *goke.Query
@@ -113,20 +114,20 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &selected)
+		f := si.NewFactory(&here, &selected)
 		f.Create(len(starts))
 		f.Next()
 		for i := range f.Cursor.IDs {
 			selected.Slice(&f.Cursor)[i] = selectedMarks
 		}
 		for i, id := range f.Cursor.IDs {
-			cell.Slice(&f.Cursor)[i] = board.At{Cell: starts[i]}
-			occupancy.Enter(starts[i], id, board.Land)
+			here.Slice(&f.Cursor)[i] = board.At{Cell: starts[i]}
+			occupancy.Enter(starts[i], id, cell.Land)
 			if starts[i] == at(5, 4) {
 				nearest = id
 			}
 		}
-		q = si.NewQueryBuilder(&cell).Optional(&order).Build()
+		q = si.NewQueryBuilder(&here).Optional(&order).Build()
 		cmds.Init(si)
 	}})
 	cmdHandle := ecs.RegSys(cmds)
@@ -138,7 +139,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	moves.Add(control.Nobody, MoveTo{Cell: target})
 	ecs.Tick(time.Second)
 
-	seen := make(map[board.CellID]bool)
+	seen := make(map[cell.ID]bool)
 	q.All()
 	for q.Next() {
 		cur := q.Cursor()
@@ -164,7 +165,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 
 func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(4, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: target, hasOrder: true},
@@ -192,7 +193,7 @@ func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 
 func TestNavigation_OccupiedUnreachableTarget_GivesUp(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
-	at := func(x uint32) board.CellID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
 	lw := newLegWorld(t, 5, 1,
 		legUnit{start: at(0), target: at(3), hasOrder: true},
 		legUnit{start: at(3)},

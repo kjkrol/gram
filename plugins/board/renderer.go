@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"image/color"
 	"math"
 
@@ -38,7 +39,7 @@ type Renderer struct {
 	tile    Tile
 	// cells are the frame's visible cells in the order they are drawn, and workers the goroutines
 	// sharing them, at most count: 0 as many as there are CPUs, 1 none
-	cells   []CellID
+	cells   []cell.ID
 	workers []*tileWorker
 	count   int
 	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
@@ -227,11 +228,11 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	par, ok := d.(Parallel)
 	pl, okLook := look.(ParallelLook)
 	if !ok || !okLook || l.count == 1 {
-		l.eachVisible(func(c CellID) { l.outline = l.cell(f, look, &l.tile, c, l.outline) })
+		l.eachVisible(func(c cell.ID) { l.outline = l.cell(f, look, &l.tile, c, l.outline) })
 		return
 	}
 	l.cells = l.cells[:0]
-	l.eachVisible(func(c CellID) {
+	l.eachVisible(func(c cell.ID) {
 		l.topOf(c)
 		l.place(&l.tile, c)
 		par.Warm(&l.tile)
@@ -268,7 +269,7 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 }
 
 // place makes t cell c: its id and its box, whose centre it gives.
-func (l *Renderer) place(t *Tile, c CellID) geom.Vec {
+func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 	center := l.board.CellCenter(c)
 	t.ID = c
 	t.X0, t.Y0 = float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
@@ -278,7 +279,7 @@ func (l *Renderer) place(t *Tile, c CellID) geom.Vec {
 
 // cell hands look cell c as tile t, and draws its grid lines where the grid is on and the tile is
 // not outlined by the look, with outline as scratch; it gives the scratch back.
-func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c CellID, outline []geom.Vec) []geom.Vec {
+func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec) []geom.Vec {
 	center := l.place(t, c)
 	grid := l.gridShown(c, center)
 	t.Outlined = grid && l.square
@@ -291,7 +292,7 @@ func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c CellID, outline [
 
 // gridShown reports whether the grid is on and cell c, its centre at center, is large enough on
 // screen to read it: where it is drawn, as the camera draws a world unit there.
-func (l *Renderer) gridShown(c CellID, center geom.Vec) bool {
+func (l *Renderer) gridShown(c cell.ID, center geom.Vec) bool {
 	if !l.state.ShowGridLines || l.white { // a still's grid is drawn over it on the GPU
 		return false
 	}
@@ -305,7 +306,7 @@ func (l *Renderer) gridShown(c CellID, center geom.Vec) bool {
 // outlineLines draws c's outline on the ground at its level, leaving out an edge that straddles a
 // wrap seam — the cells either side draw its images — each edge at the depth of its nearer end;
 // outline is its scratch, given back.
-func (l *Renderer) outlineLines(f *render.Frame, c CellID, outline []geom.Vec) []geom.Vec {
+func (l *Renderer) outlineLines(f *render.Frame, c cell.ID, outline []geom.Vec) []geom.Vec {
 	alt := l.topOf(c).alt
 	outline = l.board.CellOutline(c, outline[:0])
 	reach := float32(l.cellW+l.cellH) * l.camera.Zoom()
@@ -330,7 +331,7 @@ func (l *Renderer) nextTops() {
 }
 
 // topOf is c as the board has it, read anew only when the cell has changed (Board.CellVersion).
-func (l *Renderer) topOf(c CellID) *cellTop {
+func (l *Renderer) topOf(c cell.ID) *cellTop {
 	i, _ := l.board.ordinal(c)
 	t := &l.tops[i]
 	if t.ver != 0 && t.seen == l.board.changes { // nothing on the board has changed since
@@ -350,7 +351,7 @@ func (l *Renderer) topOf(c CellID) *cellTop {
 // onScreen reports whether any of cell c — from the ground, or sea level below it, up to what stands
 // on it — is drawn within the viewport, with room for a top leaning in the wind: in a view with
 // depth the world rectangle under the screen holds cells beside it too.
-func (l *Renderer) onScreen(c CellID) bool {
+func (l *Renderer) onScreen(c cell.ID) bool {
 	top := l.topOf(c)
 	center := l.board.CellCenter(c)
 	x0, y0 := float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
@@ -378,13 +379,13 @@ const offScreen = 48
 
 // eachVisible calls fn once for every cell under the camera's bounds: on a square grid straight
 // from the rows and columns, on any other by sampling every half cell.
-func (l *Renderer) eachVisible(fn func(c CellID)) {
+func (l *Renderer) eachVisible(fn func(c cell.ID)) {
 	bounds := l.camera.Bounds()
 	if l.board.square != nil {
 		if l.camera.Projection().Sorts() {
 			// a view with depth: the bounds are the rectangle round the screen's diamond, twice
 			// the cells on it
-			l.board.CellsUnder(bounds, func(c CellID) {
+			l.board.CellsUnder(bounds, func(c cell.ID) {
 				if l.onScreen(c) {
 					fn(c)
 				}

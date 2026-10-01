@@ -25,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -118,7 +119,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.board.CellKindDict().Create(island.Kinds(0)...)
+	s.board.CellKinds().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
 	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
 		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
@@ -207,14 +208,14 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unit struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored: walkers with sight cones.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	s.unit = units.Define("unit", board.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
 	)

@@ -5,14 +5,15 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Route is the cheapest way over grid from one cell to another, stepping from a cell to a
 // neighbour at what cost says — +Inf where the step may not be taken: the cells in order, from
 // and to included; false where no way gets there.
-func Route(grid board.Grid, from, to board.CellID, cost func(a, b board.CellID) float64) ([]board.CellID, bool) {
-	dist := map[board.CellID]float64{from: 0}
-	prev := map[board.CellID]board.CellID{}
+func Route(grid board.Grid, from, to cell.ID, cost func(a, b cell.ID) float64) ([]cell.ID, bool) {
+	dist := map[cell.ID]float64{from: 0}
+	prev := map[cell.ID]cell.ID{}
 	q := &frontier{}
 	heap.Push(q, step{from, 0})
 	for q.Len() > 0 {
@@ -21,7 +22,7 @@ func Route(grid board.Grid, from, to board.CellID, cost func(a, b board.CellID) 
 			continue // reached cheaper since
 		}
 		if s.cell == to {
-			path := []board.CellID{to}
+			path := []cell.ID{to}
 			for c := to; c != from; {
 				c = prev[c]
 				path = append(path, c)
@@ -46,7 +47,7 @@ func Route(grid board.Grid, from, to board.CellID, cost func(a, b board.CellID) 
 }
 
 // Path has the network run along cells, each a node as given, each linked to the next.
-func (n *Network) Path(cells []board.CellID, node Node) {
+func (n *Network) Path(cells []cell.ID, node Node) {
 	for i, c := range cells {
 		n.Set(c, node)
 		if i > 0 {
@@ -71,7 +72,7 @@ func (n *Network) Across(o *Network, kind string) (ways, crossings []board.WayEn
 
 // step is a cell on Route's frontier and what reaching it has cost.
 type step struct {
-	cell board.CellID
+	cell cell.ID
 	at   float64
 }
 

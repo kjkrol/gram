@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -92,7 +93,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
 			level := 1.0 // a flyer steered up or down goes the less along the ground, the more steeply
-			if domain&board.Air != 0 {
+			if domain&cell.Air != 0 {
 				_, level = in.Slope()
 			}
 			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: domain, pos: base.Pos, vel: base.Vel.Delta(), facing: base.Vel.Dir}
@@ -134,7 +135,7 @@ func backing(st *steering.Steering) float64 {
 
 // follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre;
 // true when that is another cell.
-func (s *driveSystem) follow(id uid.UID64, cell *board.At, pos world.Position, domain board.Domain) bool {
+func (s *driveSystem) follow(id uid.UID64, cell *board.At, pos world.Position, domain cell.Domain) bool {
 	actual, ok := s.nav.grid.CellAt(board.Center(pos))
 	if !ok || actual == cell.Cell {
 		return false

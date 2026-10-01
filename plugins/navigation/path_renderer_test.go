@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/navigation"
 )
 
@@ -14,7 +15,7 @@ func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
 
 	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target})
 
-	assertCells(t, cells, []board.CellID{start, target})
+	assertCells(t, cells, []cell.ID{start, target})
 }
 
 func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
@@ -33,7 +34,7 @@ func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 
 	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
 
-	assertCells(t, cells, []board.CellID{start, c2, target})
+	assertCells(t, cells, []cell.ID{start, c2, target})
 }
 
 func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
@@ -66,7 +67,7 @@ func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 
 	cells := navigation.PathCells(board.At{Cell: mid}, navigation.MoveOrder{Target: target, Path: p})
 
-	assertCells(t, cells, []board.CellID{mid, target})
+	assertCells(t, cells, []cell.ID{mid, target})
 }
 
 func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
@@ -75,10 +76,10 @@ func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
 
 	cells := navigation.PathCells(board.At{Cell: target}, navigation.MoveOrder{Target: target})
 
-	assertCells(t, cells, []board.CellID{target})
+	assertCells(t, cells, []cell.ID{target})
 }
 
-func assertCells(t *testing.T, got, want []board.CellID) {
+func assertCells(t *testing.T, got, want []cell.ID) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("pathCells returned %d cells, want %d: got=%v want=%v", len(got), len(want), got, want)

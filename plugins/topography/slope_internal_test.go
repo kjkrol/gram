@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -22,18 +23,18 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 	for _, c := range []struct {
 		x    float64
 		dir  geom.Vec
-		d    board.Domain
+		d    cell.Domain
 		want float64
 	}{
-		{15, east, board.Land, 1 + 10*0.2},
-		{25, west, board.Land, 1 - 0.3 + 5*(0.2-0.1)},
-		{35, east, board.Air, 1},
+		{15, east, cell.Land, 1 + 10*0.2},
+		{25, west, cell.Land, 1 - 0.3 + 5*(0.2-0.1)},
+		{35, east, cell.Air, 1},
 	} {
 		if got := p.Slope(geom.NewVec(c.x, 5), c.dir, c.d); math.Abs(got-c.want) > 1e-6 {
 			t.Errorf("at x %v going %v in %v: ×%v as long, want ×%v", c.x, c.dir, c.d, got, c.want)
 		}
 	}
-	if got := b.Map().Slope(geom.NewVec(15, 5), east, board.Land); math.Abs(got-3) > 1e-6 {
+	if got := b.Map().Slope(geom.NewVec(15, 5), east, cell.Land); math.Abs(got-3) > 1e-6 {
 		t.Errorf("the board's map prices the climb ×%v, want the topography's ×3", got)
 	}
 }

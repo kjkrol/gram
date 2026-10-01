@@ -3,7 +3,7 @@ package navigation
 import (
 	"time"
 
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,7 +14,7 @@ import (
 // Hold it waited out, a Detour with no way round. A rule learns the same from a Touch.
 type Blocked struct {
 	By        uid.UID64
-	Cell      board.CellID
+	Cell      cell.ID
 	Stranger  bool
 	Groupmate bool
 	Moving    bool
@@ -43,7 +43,7 @@ func (b Blocked) IdleAlly() bool { return !b.Stranger && !b.Moving }
 func (b Blocked) StrangerOnMyGoal() bool { return b.Stranger && !b.Moving && b.OnMyGoal }
 
 // blockedOf is what t tells a unit with a tree, the other standing in cell.
-func blockedOf(t Touch, cell board.CellID) Blocked {
+func blockedOf(t Touch, cell cell.ID) Blocked {
 	return Blocked{By: t.Other, Cell: cell, Stranger: !t.Ally, Groupmate: t.Groupmate, Moving: t.OtherMoving,
 		OnMyGoal: t.OnMyGoal, WaitedOut: t.WaitedOut, Cornered: t.Cornered, Lasts: blockedLasts}
 }
@@ -53,7 +53,7 @@ const blockedLasts = 400 * time.Millisecond
 
 // Arrived is what navigation tells a unit with a tree once its order is over, until the next: it
 // stands on Cell, its goal or as near as it could come.
-type Arrived struct{ Cell board.CellID }
+type Arrived struct{ Cell cell.ID }
 
 // LastOrder is what every unit carries for good: the group of the last MoveTo it came to the end
 // of — reached its goal, stopped short or gave up — zero for none. An order to give way leaves it

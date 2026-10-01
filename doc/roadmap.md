@@ -59,4 +59,4 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   fix: measure again on an idle machine, alternately against a baseline.
 - **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
 - **The next tag, v0.3.0** — once this state has been reviewed; note that saves written before
-  tag families, the cell entities and the crossings (`board.Crossing`) do not load.
+  tag families, the cell entities and the crossings (`cell.Crossing`) do not load.

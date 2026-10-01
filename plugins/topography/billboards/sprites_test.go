@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
@@ -51,9 +52,9 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	})
 	grid := board.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	p.Relief().SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 {
+	p.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
 			return 90
 		}
@@ -145,7 +146,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	})
 	grid := board.DefaultGrids{}.Hex(6, 6, 16)
 	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land, SpriteID: 1})
+	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	tiles := render.NewAtlas()
 	tiles.RegisterAt(1, 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
 	tiles.Close()

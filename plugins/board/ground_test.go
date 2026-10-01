@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -43,11 +44,11 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 // mover is a unit's row: where it starts, where it keeps driving when heading is set, what it
 // sees, and how it moves (zero: Land).
 type mover struct {
-	cell    board.CellID
+	here    cell.ID
 	heading geom.Vec
 	sight   *vision.Sight
 	eye     world.Eye // how wide the sight sees, with it
-	domain  board.Domain
+	domain  cell.Domain
 	offset  float64 // shifts the box right, to straddle two cells
 	brakes  bool    // standing, it brakes to rest as a unit does
 }
@@ -103,7 +104,7 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 	for i, u := range units {
 		spec := kind.Spec{
 			comp.Load(func(m mover) world.Position {
-				box := board.CellAABB(grid, m.cell, unitSize)
+				box := board.CellAABB(grid, m.here, unitSize)
 				box.TopLeft.X += m.offset
 				box.BottomRight.X += m.offset
 				return world.Position{AABB: box}
@@ -111,16 +112,16 @@ func newGroundWorld(t *testing.T, grid board.Grid, width, height uint32, terrain
 			comp.Const(world.Velocity{}),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
-			comp.Load(func(m mover) board.At { return board.At{Cell: m.cell} }),
+			comp.Load(func(m mover) board.At { return board.At{Cell: m.here} }),
 			comp.Load(func(m mover) board.Mover {
 				if m.domain == 0 {
-					return board.Mover{Domain: board.Land}
+					return board.Mover{Domain: cell.Land}
 				}
 				return board.Mover{Domain: m.domain}
 			}),
 			comp.Load(func(m mover) world.Layers { // as board.NewUnits gives them
 				if m.domain == 0 {
-					return world.Layers(board.Land)
+					return world.Layers(cell.Land)
 				}
 				return world.Layers(m.domain)
 			}),
@@ -224,19 +225,19 @@ func (bw *groundWorld) assertClear(tick int, units, walls []geom.AABB) {
 
 const cellSize = 32
 
-func squareWorld(t *testing.T, units ...mover) (*groundWorld, board.CellID) {
+func squareWorld(t *testing.T, units ...mover) (*groundWorld, cell.ID) {
 	t.Helper()
 	return squareWorldWith(t, nil, units...)
 }
 
 // squareWorldWith is squareWorld with a behavior registered on the board.
-func squareWorldWith(t *testing.T, behavior plugin.Rule, units ...mover) (*groundWorld, board.CellID) {
+func squareWorldWith(t *testing.T, behavior plugin.Rule, units ...mover) (*groundWorld, cell.ID) {
 	t.Helper()
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	for i := range units {
-		if units[i].cell == 0 {
-			units[i].cell = cell(1, 7)
+		if units[i].here == 0 {
+			units[i].here = cellAt(1, 7)
 		}
 	}
 	var behaviors []plugin.Rule
@@ -244,22 +245,22 @@ func squareWorldWith(t *testing.T, behavior plugin.Rule, units ...mover) (*groun
 		behaviors = append(behaviors, behavior)
 	}
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
-			brd.Set(cell(3, y), wall)
+			brd.Set(cellAt(3, y), wall)
 		}
 	}, units, behaviors...)
-	return bw, cell(3, 7)
+	return bw, cellAt(3, 7)
 }
 
 var east = geom.NewVec(1, 0)
 
 // wall is a solid kind that also cuts sight, as a wall of stone does.
-var wall = board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Veil: 1}
+var wall = cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1}
 
 func TestGround_AWallColumnIsSolidAndAUnitCannotEnterIt(t *testing.T) {
 	bw, _ := squareWorld(t, mover{heading: east})
-	walls := bw.solid(world.Layers(board.Land))
+	walls := bw.solid(world.Layers(cell.Land))
 	if len(walls) != 14 {
 		t.Fatalf("%d solid cells, want the 14 of the wall", len(walls))
 	}
@@ -276,9 +277,9 @@ func TestGround_AWallColumnIsSolidAndAUnitCannotEnterIt(t *testing.T) {
 
 func TestGround_AUnitPushedByAnotherStaysOutOfTheWall(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	bw, _ := squareWorld(t, mover{cell: cell(2, 7)}, mover{cell: cell(1, 7), heading: east})
-	walls := bw.solid(world.Layers(board.Land))
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	bw, _ := squareWorld(t, mover{here: cellAt(2, 7)}, mover{here: cellAt(1, 7), heading: east})
+	walls := bw.solid(world.Layers(cell.Land))
 	for tick := range 120 {
 		bw.tick()
 		bw.assertClear(tick, bw.snapshot(), walls)
@@ -294,10 +295,10 @@ func TestGround_AHexIsCoveredAndKeepsAUnitOut(t *testing.T) {
 	hex, _ := grid.CellIndex(1, 1)
 	start, _ := grid.CellAt(geom.NewVec(20, grid.CellCenter(hex).Y))
 	bw := newGroundWorld(t, grid, 320, 256, func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
-		brd.Set(hex, board.CellKind{Name: board.Named("rock"), Solid: true})
-	}, []mover{{cell: start, heading: east}})
-	walls := bw.solid(world.Layers(board.Land))
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.Set(hex, cell.Kind{Name: cell.Named("rock"), Solid: true})
+	}, []mover{{here: start, heading: east}})
+	walls := bw.solid(world.Layers(cell.Land))
 	if len(walls) != 2*board.HexCapStrips+1 {
 		t.Fatalf("%d solid boxes for one hex, want %d", len(walls), 2*board.HexCapStrips+1)
 	}
@@ -315,12 +316,12 @@ func TestGround_AHexIsCoveredAndKeepsAUnitOut(t *testing.T) {
 // Knocking a cell out of the wall opens it on the next tick, and the world gains no entity.
 func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	bw, gap := squareWorld(t, mover{cell: cell(1, 7), heading: east})
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	bw, gap := squareWorld(t, mover{here: cellAt(1, 7), heading: east})
 	bw.tick()
 	before := bw.w.Res.Telemetry.Count
-	bw.brd.Res.Logic.Board.Set(gap, board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
-	if got := len(bw.solid(world.Layers(board.Land))); got != 13 {
+	bw.brd.Res.Logic.Board.Set(gap, cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	if got := len(bw.solid(world.Layers(cell.Land))); got != 13 {
 		t.Fatalf("%d solid cells after knocking one out, want 13", got)
 	}
 	for range 90 {
@@ -352,9 +353,9 @@ func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 
 func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
-	target := mover{cell: cell(5, 7)}
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	observer := mover{here: cellAt(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
+	target := mover{here: cellAt(5, 7)}
 
 	bw, _ := squareWorld(t, observer, target)
 	bw.tick()
@@ -363,7 +364,7 @@ func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 	}
 
 	open := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	}, []mover{observer, target})
 	open.tick()
 	if seen, ok := open.seen(); !ok || seen.Count != 1 {
@@ -374,50 +375,50 @@ func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 // Solid and Veil are apart: a fence stops walkers and hides nothing.
 func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	fence := func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
-			brd.Set(cell(3, y), board.CellKind{Name: board.Named("fence"), Cost: 1, Solid: true})
+			brd.Set(cellAt(3, y), cell.Kind{Name: cell.Named("fence"), Cost: 1, Solid: true})
 		}
 	}
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
-	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, fence, []mover{observer, {cell: cell(5, 7)}})
+	observer := mover{here: cellAt(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, fence, []mover{observer, {here: cellAt(5, 7)}})
 	bw.tick()
 	if seen, ok := bw.seen(); !ok || seen.Count != 1 {
 		t.Errorf("saw %d across the fence, want the target", seen.Count)
 	}
-	if got := len(bw.solid(world.Layers(board.Land))); got != 14 {
+	if got := len(bw.solid(world.Layers(cell.Land))); got != 14 {
 		t.Errorf("%d solid fence cells, want 14", got)
 	}
 }
 
 // forestColumn is grass with a forest down column 3, veiling sight by veil, solid when solid.
 func forestColumn(grid board.Grid, veil float64, solid bool) func(*board.Board) {
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	return func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
-			brd.Set(cell(3, y), board.CellKind{Name: board.Named("forest"), Cost: 1, Allows: board.Land, Solid: solid, Veil: veil, Veils: board.Land})
+			brd.Set(cellAt(3, y), cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Solid: solid, Veil: veil, Veils: cell.Land})
 		}
 	}
 }
 
 func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	forest := forestColumn(grid, 1, false)
-	observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
-	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{observer, {cell: cell(5, 7)}})
+	observer := mover{here: cellAt(1, 7), sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{observer, {here: cellAt(5, 7)}})
 	bw.tick()
 	if seen, ok := bw.seen(); !ok || seen.Count != 0 {
 		t.Errorf("saw %v through the forest, want nobody", seen.IDs[:seen.Count])
 	}
-	if got := len(bw.solid(world.Layers(board.Land))); got != 0 {
+	if got := len(bw.solid(world.Layers(cell.Land))); got != 0 {
 		t.Errorf("%d solid forest cells, want none", got)
 	}
 
-	walker := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{{cell: cell(1, 7), heading: east}})
+	walker := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{{here: cellAt(1, 7), heading: east}})
 	for range 90 {
 		walker.tick()
 	}
@@ -430,11 +431,11 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 // is 165 away in budget terms and 117 as the crow flies.
 func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	forest := forestColumn(grid, 0.6, false)
-	target := mover{cell: cell(5, 7)}
+	target := mover{here: cellAt(5, 7)}
 	look := func(radius float64, blockers world.Layers) uint8 {
-		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
+		observer := mover{here: cellAt(1, 7), sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
 		bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forest, []mover{observer, target})
 		bw.tick()
 		seen, ok := bw.seen()
@@ -450,7 +451,7 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	if n := look(170, 0); n != 1 {
 		t.Errorf("at 170 through the forest saw %d, want the target", n)
 	}
-	if n := look(160, world.Layers(board.Air)); n != 1 {
+	if n := look(160, world.Layers(cell.Air)); n != 1 {
 		t.Errorf("at 160 looking over the forest from Air saw %d, want the target", n)
 	}
 }
@@ -459,11 +460,11 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 // lets both through on the next tick.
 func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	observer := mover{cell: cell(1, 3), sight: &vision.Sight{Facing: east, Radius: 160}, eye: world.Eye{Angle: 2 * math.Pi / 16}}
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	observer := mover{here: cellAt(1, 3), sight: &vision.Sight{Facing: east, Radius: 160}, eye: world.Eye{Angle: 2 * math.Pi / 16}}
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, forestColumn(grid, 0.6, true),
-		[]mover{observer, {cell: cell(5, 3)}, {cell: cell(1, 9), heading: east}})
-	walls := bw.solid(world.Layers(board.Land))
+		[]mover{observer, {here: cellAt(5, 3)}, {here: cellAt(1, 9), heading: east}})
+	walls := bw.solid(world.Layers(cell.Land))
 	for tick := range 60 {
 		bw.tick()
 		bw.assertClear(tick, bw.snapshot(), walls)
@@ -473,7 +474,7 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 	}
 
 	for y := uint32(1); y <= 14; y++ {
-		bw.brd.Res.Logic.Board.Set(cell(3, y), board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		bw.brd.Res.Logic.Board.Set(cellAt(3, y), cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	}
 	for range 90 {
 		bw.tick()
@@ -489,10 +490,10 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 // The wall veils every layer, so it cuts sight whatever the Blockers.
 func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	for _, blockers := range []world.Layers{0, world.Layers(board.Land), world.Layers(board.Air)} {
-		observer := mover{cell: cell(1, 7), sight: &vision.Sight{Facing: east, Radius: 300, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
-		bw, _ := squareWorld(t, observer, mover{cell: cell(5, 7)})
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	for _, blockers := range []world.Layers{0, world.Layers(cell.Land), world.Layers(cell.Air)} {
+		observer := mover{here: cellAt(1, 7), sight: &vision.Sight{Facing: east, Radius: 300, Blockers: blockers}, eye: world.Eye{Angle: 2 * math.Pi / 8}}
+		bw, _ := squareWorld(t, observer, mover{here: cellAt(5, 7)})
 		bw.tick()
 		if seen, ok := bw.seen(); !ok || seen.Count != 0 {
 			t.Errorf("blockers %08b: saw %v through the wall, want nobody", blockers, seen.IDs[:seen.Count])
@@ -503,20 +504,20 @@ func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 // A solid kind admitting Air keeps Land and Water out: it is solid for every layer but Air.
 func TestGround_IsSolidForTheLayersItsKindKeepsOut(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
-		brd.Set(cell(3, 3), board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air})
-		brd.Set(cell(3, 8), board.CellKind{Name: board.Named("rock"), Cost: 1, Solid: true})
-	}, []mover{{cell: cell(1, 1)}})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.Set(cellAt(3, 3), cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Allows: cell.Air})
+		brd.Set(cellAt(3, 8), cell.Kind{Name: cell.Named("rock"), Cost: 1, Solid: true})
+	}, []mover{{here: cellAt(1, 1)}})
 
 	for _, c := range []struct {
 		layers world.Layers
 		want   int
 	}{
-		{world.Layers(board.Land), 2},
-		{world.Layers(board.Water), 2},
-		{world.Layers(board.Air), 1},
+		{world.Layers(cell.Land), 2},
+		{world.Layers(cell.Water), 2},
+		{world.Layers(cell.Air), 1},
 		{0, 2},
 	} {
 		if got := len(bw.solid(c.layers)); got != c.want {
@@ -531,7 +532,7 @@ func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := squareWorld(t, mover{})
 	w := bw.w.Res.Config.Space.Width
 	var mid collision.FieldBox
-	bw.brd.Res.Logic.Board.Solid(world.Layers(board.Land), geom.NewAABBAt(geom.NewVec(0, 7*cellSize), float64(w), cellSize), func(fb collision.FieldBox) bool {
+	bw.brd.Res.Logic.Board.Solid(world.Layers(cell.Land), geom.NewAABBAt(geom.NewVec(0, 7*cellSize), float64(w), cellSize), func(fb collision.FieldBox) bool {
 		if fb.Cell == uint64(gap) {
 			mid = fb
 		}
@@ -547,12 +548,12 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	hex, _ := grid.CellIndex(2, 1)
 	from, _ := grid.CellIndex(0, 1)
 	to, _ := grid.CellIndex(4, 1)
-	observer := mover{cell: from, sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 32}}
+	observer := mover{here: from, sight: &vision.Sight{Facing: east, Radius: 300}, eye: world.Eye{Angle: 2 * math.Pi / 32}}
 	look := func(veil float64) uint8 {
 		bw := newGroundWorld(t, grid, 400, 200, func(brd *board.Board) {
-			brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
-			brd.Set(hex, board.CellKind{Name: board.Named("forest"), Cost: 1, Allows: board.Land, Veil: veil})
-		}, []mover{observer, {cell: to}})
+			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+			brd.Set(hex, cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: veil})
+		}, []mover{observer, {here: to}})
 		bw.tick()
 		seen, _ := bw.seen()
 		return seen.Count
@@ -569,27 +570,27 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 }
 
 // water is ground a walker does not stand on and nothing stops: not solid.
-var water = board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}
+var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 
 // Overhang is the area of a box over ground that does not take an entity on the layers given — the
 // land to a swimmer too — off the board none.
 func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(4, 4, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	brd := board.NewBoard(grid, board.NewTerrainMap())
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	brd.Set(cell(2, 1), water)
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Set(cellAt(2, 1), water)
 	edge := float64(2 * cellSize)
 	box := geom.NewAABBAt(geom.NewVec(edge-6, cellSize+2), 10, 10) // 4 of its 10 across over the water
 	for _, c := range []struct {
 		layers world.Layers
 		want   float64
-	}{{world.Layers(board.Land), 40}, {world.Layers(board.Water), 60}, {world.Layers(board.Land | board.Water), 0}, {0, 0}} { // no layers: every plane
+	}{{world.Layers(cell.Land), 40}, {world.Layers(cell.Water), 60}, {world.Layers(cell.Land | cell.Water), 0}, {0, 0}} { // no layers: every plane
 		if got := brd.Overhang(c.layers, box); math.Abs(got-c.want) > 1e-9 {
 			t.Errorf("layers %v: overhang %v, want %v", c.layers, got, c.want)
 		}
 	}
-	if got := brd.Overhang(world.Layers(board.Land), geom.NewAABBAt(geom.NewVec(-5, -5), 10, 10)); got != 0 {
+	if got := brd.Overhang(world.Layers(cell.Land), geom.NewAABBAt(geom.NewVec(-5, -5), 10, 10)); got != 0 {
 		t.Errorf("off the board the overhang is %v, want none", got)
 	}
 }
@@ -599,13 +600,13 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 // turning to water under a unit is no push: it stays there, nothing moves it out.
 func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
-	cell := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := range uint32(16) {
-			brd.Set(cell(3, y), water)
+			brd.Set(cellAt(3, y), water)
 		}
-	}, []mover{{cell: cell(2, 7), brakes: true}, {cell: cell(1, 7), heading: east}, {cell: cell(1, 12), brakes: true}})
+	}, []mover{{here: cellAt(2, 7), brakes: true}, {here: cellAt(1, 7), heading: east}, {here: cellAt(1, 12), brakes: true}})
 	shore := float64(3 * cellSize)
 	for tick := range 120 {
 		bw.tick()
@@ -622,7 +623,7 @@ func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 	}
 
 	still := units[2]
-	bw.brd.Res.Logic.Board.Set(cell(1, 12), water)
+	bw.brd.Res.Logic.Board.Set(cellAt(1, 12), water)
 	for range 30 {
 		bw.tick()
 	}

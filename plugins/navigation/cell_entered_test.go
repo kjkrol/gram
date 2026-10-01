@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -19,22 +20,22 @@ type enteredWorld struct {
 	grid board.Grid
 
 	// per-tick observations, refreshed by the observer system
-	entered  map[uid.UID64]board.CellID
+	entered  map[uid.UID64]cell.ID
 	hasOrder map[uid.UID64]bool
 }
 
 // newEnteredWorld makes the world; with marks the entity carries its markers from the start, else it
 // gets them at the first cell it enters.
-func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, marks bool) *enteredWorld {
+func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks bool) *enteredWorld {
 	t.Helper()
 	ew := &enteredWorld{
 		grid:     board.DefaultGrids{}.Square(w, h, legCellSize),
-		entered:  map[uid.UID64]board.CellID{},
+		entered:  map[uid.UID64]cell.ID{},
 		hasOrder: map[uid.UID64]bool{},
 	}
 	occupancy := &board.SingleOccupancy{}
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 
 	steer := newNavigationSystem(
 		newPathFinder(ew.grid, terrain, nil, occupancy), ew.grid, terrain, occupancy)
@@ -48,25 +49,25 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, mark
 
 	ew.ecs = goke.New()
 	ew.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.At]
+		var at goke.Comp[board.At]
 		var pos goke.Comp[world.Base]
 		var order goke.Comp[MoveOrder]
 		var profile goke.Comp[steering.Steering]
 
 		var states goke.Comp[tag.Tags[States]]
-		f := si.NewFactory(&cell, &pos, &order, &profile)
+		f := si.NewFactory(&at, &pos, &order, &profile)
 		if marks {
-			f = si.NewFactory(&cell, &pos, &order, &profile, &states)
+			f = si.NewFactory(&at, &pos, &order, &profile, &states)
 		}
 		f.Create(1)
 		f.Next()
 		ew.id = f.Cursor.IDs[0]
 		p := world.Position{AABB: board.CellAABB(ew.grid, start, legEntitySize)}
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = p
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
-		occupancy.Enter(start, ew.id, board.Land)
+		occupancy.Enter(start, ew.id, cell.Land)
 
 		enteredQ = si.NewQueryBuilder(&cellComp).Optional(&statesComp).Build()
 		orderQ = si.NewQueryBuilder(&cellComp).Optional(&orderComp).Build()
@@ -109,7 +110,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target board.CellID, mark
 	return ew
 }
 
-func (ew *enteredWorld) cellAt(x, y uint32) board.CellID {
+func (ew *enteredWorld) cellAt(x, y uint32) cell.ID {
 	c, _ := ew.grid.CellIndex(x, y)
 	return c
 }
@@ -131,14 +132,14 @@ func enteredOnTheWay(t *testing.T, marks bool) {
 	ew := newEnteredWorld(t, 6, 1, start, target, marks)
 
 	const maxTicks = 600
-	var reported []board.CellID
+	var reported []cell.ID
 	for tick := range maxTicks {
 		ew.ecs.Tick(time.Second / 60)
 		if c, ok := ew.entered[ew.id]; ok {
 			reported = append(reported, c)
 		}
 		if !ew.hasOrder[ew.id] {
-			want := []board.CellID{}
+			want := []cell.ID{}
 			for x := uint32(1); x <= 3; x++ {
 				c, _ := grid.CellIndex(x, 0)
 				want = append(want, c)

@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestSquareGrid_Toroidal_EdgeWrapsNeighborsAndDistance(t *testing.T) {
 		t.Errorf("Distance(col 0, col Width-1) = %v, want 1 (wrap-around, not %d)", d, g.Width-1)
 	}
 
-	if !g.Contains(CellID(999999)) {
+	if !g.Contains(cell.ID(999999)) {
 		t.Error("expected Contains to always be true on a toroidal grid")
 	}
 }
@@ -56,7 +57,7 @@ func TestSquareGrid_Toroidal_CellAtWrapsNegativePositions(t *testing.T) {
 	}
 }
 
-func cellAtXY(g *squareGrid, x, y uint32) CellID {
+func cellAtXY(g *squareGrid, x, y uint32) cell.ID {
 	c, _ := g.CellIndex(x, y)
 	return c
 }
@@ -120,11 +121,11 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	g := &squareGrid{Width: 4, Height: 4, CellSize: 10, WrapX: true}
 	corner := g.idAt(0, 0)
 
-	got := map[CellID]bool{}
+	got := map[cell.ID]bool{}
 	for _, n := range g.Neighbors(corner) {
 		got[n] = true
 	}
-	want := []CellID{g.idAt(1, 0), g.idAt(3, 0), g.idAt(0, 1), g.idAt(1, 1), g.idAt(3, 1)}
+	want := []cell.ID{g.idAt(1, 0), g.idAt(3, 0), g.idAt(0, 1), g.idAt(1, 1), g.idAt(3, 1)}
 	if len(got) != len(want) {
 		t.Fatalf("corner has %d neighbors, want %d: across the X seam but not the top", len(got), len(want))
 	}

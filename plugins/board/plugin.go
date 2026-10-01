@@ -3,6 +3,7 @@ package board
 import (
 	"errors"
 	"fmt"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 	"time"
 
@@ -39,7 +40,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 	standing    host.EachHost[Standing]
-	cellRules   host.EachHost[Cell]
+	cellRules   host.EachHost[cell.Now]
 	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 }
 
@@ -96,7 +97,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // stands; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the board renderer, drawing each cell's CellKind.SpriteID from atlas — or,
+// WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
 // given nil, from the board's own atlas of the kinds' Colors and drawn sprites (DefaultAtlas).
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if atlas == nil {
@@ -128,7 +129,7 @@ func (p *Plugin) Atlas() render.AtlasSource {
 }
 
 // DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
-// (CellKindDict.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
+// (cell.Kinds.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
 // created.
 func (p *Plugin) DefaultAtlas() render.AtlasSource {
 	w, h := p.Res.Logic.Board.CellBounds()
@@ -195,28 +196,28 @@ func (p *Plugin) Map() Map { return p.mapping }
 
 // Top is the Map's: the height of c's corners as drawn and of its ground, for whoever lays
 // something on the tiles.
-func (p *Plugin) Top(c CellID) (corners [4]float32, level float32) { return p.mapping.Top(c) }
+func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) { return p.mapping.Top(c) }
 
 // Climb is the Map's: how many times as long the step from one cell to its neighbour takes
 // whoever moves in d as on the flat.
-func (p *Plugin) Climb(from, to CellID, d Domain) float64 { return p.mapping.Climb(from, to, d) }
+func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mapping.Climb(from, to, d) }
 
 // Least is the Map's: the smallest Climb for d.
-func (p *Plugin) Least(d Domain) float64 { return p.mapping.Least(d) }
+func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
 
 // Slope is the Map's: how many times as long moving at at towards dir takes whoever moves in d.
-func (p *Plugin) Slope(at, dir geom.Vec, d Domain) float64 { return p.mapping.Slope(at, dir, d) }
+func (p *Plugin) Slope(at, dir geom.Vec, d cell.Domain) float64 { return p.mapping.Slope(at, dir, d) }
 
 // CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
 // long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
 // the board or before Setup.
-func (p *Plugin) CellEntity(c CellID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
+func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
 
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() Occupancy { return p.occupancy }
 
-// CellKindDict returns this Plugin's registered CellKinds.
-func (p *Plugin) CellKindDict() CellKindDict { return p.kinds }
+// CellKinds are this Plugin's registered kinds of cells.
+func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
@@ -227,15 +228,15 @@ func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
 	}
-	resolve := func(name string) (CellKind, error) {
+	resolve := func(name string) (cell.Kind, error) {
 		kind, ok := p.kinds.Get(name)
 		if !ok {
-			return CellKind{}, fmt.Errorf("board: unknown CellKind %q", name)
+			return cell.Kind{}, fmt.Errorf("board: unknown cell kind %q", name)
 		}
 		return kind, nil
 	}
 
-	var def CellKind
+	var def cell.Kind
 	if p.seeded.Default != "" {
 		kind, err := resolve(p.seeded.Default)
 		if err != nil {
@@ -243,7 +244,7 @@ func (p *Plugin) Populate() error {
 		}
 		def = kind
 	}
-	cells := make([]CellKind, len(p.seeded.Cells))
+	cells := make([]cell.Kind, len(p.seeded.Cells))
 	for i, e := range p.seeded.Cells {
 		if e.Kind == "" {
 			continue // the Default kept
@@ -255,21 +256,21 @@ func (p *Plugin) Populate() error {
 		cells[i] = kind
 	}
 
-	ways := make([]Way, len(p.seeded.Ways))
+	ways := make([]cell.Way, len(p.seeded.Ways))
 	for i, e := range p.seeded.Ways {
 		kind, err := resolve(e.Kind)
 		if err != nil {
 			return err
 		}
-		ways[i] = Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
+		ways[i] = cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
-	crossings := make([]Crossing, len(p.seeded.Crossings))
+	crossings := make([]cell.Crossing, len(p.seeded.Crossings))
 	for i, e := range p.seeded.Crossings {
 		kind, err := resolve(e.Kind)
 		if err != nil {
 			return err
 		}
-		crossings[i] = Crossing{Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
+		crossings[i] = cell.Crossing{Way: cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
 	}
 
 	brd := p.Res.Logic.Board

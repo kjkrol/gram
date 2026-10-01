@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/water"
 )
 
@@ -14,7 +15,7 @@ const size = 10
 
 // valley is a slope falling south into a sea along the bottom rows, a valley down its middle and a
 // hollow halfway down it.
-func valley() (board.Grid, func(geom.Vec) float64, func(board.CellID) bool) {
+func valley() (board.Grid, func(geom.Vec) float64, func(cell.ID) bool) {
 	grid := board.DefaultGrids{}.Square(12, 24, size)
 	heights := func(p geom.Vec) float64 {
 		if p.Y >= 20*size {
@@ -26,7 +27,7 @@ func valley() (board.Grid, func(geom.Vec) float64, func(board.CellID) bool) {
 		}
 		return h
 	}
-	sea := func(c board.CellID) bool { _, y, _ := grid.Coords(c); return y >= 20 }
+	sea := func(c cell.ID) bool { _, y, _ := grid.Coords(c); return y >= 20 }
 	return grid, heights, sea
 }
 
@@ -42,7 +43,7 @@ func TestDrain_EveryCellDrainsToTheSeaAndTheValleyGathersARiver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grid.EachCell(func(c board.CellID) {
+	grid.EachCell(func(c cell.ID) {
 		if sea(c) {
 			return
 		}
@@ -76,7 +77,7 @@ func TestCarved_CutsABedFallingToTheSea(t *testing.T) {
 	grid, heights, sea := valley()
 	n, _ := water.Drain(grid, heights, sea, cfg)
 	carved := n.Carved(heights)
-	level := func(c board.CellID) float64 {
+	level := func(c cell.ID) float64 {
 		x, y, _ := grid.Coords(c)
 		sum := 0.0
 		for _, d := range [4][2]float64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
@@ -129,7 +130,7 @@ func TestDrain_FordsCrossTheRiverWhereItIsGentle(t *testing.T) {
 
 func TestDrain_RefusesAGridOtherThanSquare(t *testing.T) {
 	grid := board.DefaultGrids{}.Hex(6, 6, size)
-	if _, err := water.Drain(grid, func(geom.Vec) float64 { return 1 }, func(board.CellID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
+	if _, err := water.Drain(grid, func(geom.Vec) float64 { return 1 }, func(cell.ID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
 		t.Errorf("Drain over a hex grid: %v, want ErrNotSquare", err)
 	}
 }
@@ -144,7 +145,7 @@ func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 		}
 		return 8 + 0.4*(34*size-p.X-p.Y) + 0.6*math.Abs(p.X-p.Y)
 	}
-	sea := func(c board.CellID) bool { x, y, _ := grid.Coords(c); return x+y >= 33 }
+	sea := func(c cell.ID) bool { x, y, _ := grid.Coords(c); return x+y >= 33 }
 	n, err := water.Drain(grid, heights, sea, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -196,8 +197,8 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 	if kinds[water.Brook] == 0 || kinds[water.Stream] == 0 || kinds[water.River]+kinds[water.Ford] == 0 {
 		t.Errorf("courses %v, want brooks, streams and a river", kinds)
 	}
-	var dry board.CellID
-	grid.EachCell(func(c board.CellID) {
+	var dry cell.ID
+	grid.EachCell(func(c cell.ID) {
 		if _, wet := n.Courses[c]; !wet && !sea(c) {
 			dry = c
 		}
@@ -214,7 +215,7 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	plume := cfg
 	plume.Plume = 0.5
 	n, _ := water.Drain(grid, heights, sea, plume)
-	var mouths []board.CellID
+	var mouths []cell.ID
 	for c, k := range n.Courses {
 		if k == water.Mouth {
 			mouths = append(mouths, c)
@@ -228,7 +229,7 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	}
 	net := n.Net(names)
 	for _, c := range mouths {
-		up := board.CellID(0)
+		up := cell.ID(0)
 		for m, k := range n.Courses {
 			if k != water.Dry && n.Down[m] == c {
 				up = m

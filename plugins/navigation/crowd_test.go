@@ -9,13 +9,14 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/rule"
 )
 
 // wall is ground nobody walks.
-var wall = board.CellKind{Cost: 1, Solid: true}
+var wall = cell.Kind{Cost: 1, Solid: true}
 
 // walls builds walls on the cells given as x, y pairs.
 func (rw *roadWorld) walls(xy ...uint32) {
@@ -45,7 +46,7 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 		{start: rw.at(5, 1), owner: 2},
 	})
 	traveller, stranger := rw.byRow[0], rw.byRow[1]
-	stood, last := 0, board.CellID(0)
+	stood, last := 0, cell.ID(0)
 	arrived := rw.watch(8*time.Second, func(int) bool {
 		if c, o := rw.state(stranger); c != rw.at(5, 1) || o != nil {
 			t.Fatalf("the stranger moved to %v with %+v; want it standing: nobody asks a stranger", c, o)
@@ -76,7 +77,7 @@ func TestCrowd_AnAllyStandingMakesWayAndStaysAside(t *testing.T) {
 		{start: rw.at(5, 1), owner: 1},
 	})
 	traveller, ally := rw.byRow[0], rw.byRow[1]
-	aside := board.CellID(0)
+	aside := cell.ID(0)
 	done := rw.watch(10*time.Second, func(int) bool {
 		if c, _ := rw.state(ally); c != rw.at(5, 1) {
 			aside = c
@@ -223,7 +224,7 @@ func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 		{start: rw.at(0, 0), owner: 1, selected: true},
 	})
 	walker, bystander := rw.byRow[0], rw.byRow[1]
-	var reached []board.CellID
+	var reached []cell.ID
 	rw.watch(20*time.Second, func(int) bool {
 		if c, o := rw.state(bystander); c != rw.at(0, 0) || o != nil {
 			t.Fatalf("the bystander stands at %v with %+v; want it never sent: the patrol orders itself alone", c, o)
@@ -240,30 +241,30 @@ func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 }
 
 // cliffs are the cells a step into is a cliff, steeper than yieldClimb.
-type cliffs map[board.CellID]bool
+type cliffs map[cell.ID]bool
 
-func (c cliffs) Climb(_, to board.CellID, _ board.Domain) float64 {
+func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
 	if c[to] {
 		return 2 * yieldClimb
 	}
 	return 1
 }
-func (cliffs) Least(board.Domain) float64 { return 1 }
+func (cliffs) Least(cell.Domain) float64 { return 1 }
 
 // One standing is never stepped aside into water or a hole, down a cliff or into a wall, under
 // either spacing: with such ground on every side off the way of the one coming, it has no order
 // and stays; with one side open, it steps there.
 func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 5, 32)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	land := board.CellKind{Cost: 1, Allows: board.Land}
-	hazards := map[string]board.CellKind{
-		"water": {Cost: 1, Allows: board.Water},
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	land := cell.Kind{Cost: 1, Allows: cell.Land}
+	hazards := map[string]cell.Kind{
+		"water": {Cost: 1, Allows: cell.Water},
 		"hole":  {Cost: 1},
 		"wall":  {Cost: 1, Solid: true},
 		"cliff": land,
 	}
-	aside := []board.CellID{at(2, 1), at(2, 3), at(1, 1), at(1, 3)} // off the way of one coming from (1,2)
+	aside := []cell.ID{at(2, 1), at(2, 3), at(1, 1), at(1, 3)} // off the way of one coming from (1,2)
 	for name, hazard := range hazards {
 		for _, open := range []bool{false, true} {
 			terrain := board.NewTerrainMap()
@@ -279,10 +280,10 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 				}
 			}
 			finder := newPathFinder(grid, terrain, steep, openOccupancy{})
-			coming := body{id: 3, at: grid.CellCenter(at(1, 2)), half: geom.NewVec(3, 3), cell: at(1, 2), moving: true, domain: board.Land}
+			coming := body{id: 3, at: grid.CellCenter(at(1, 2)), half: geom.NewVec(3, 3), cell: at(1, 2), moving: true, domain: cell.Land}
 
 			cells := newCellKeeping(finder, &board.SingleOccupancy{})
-			m := member{id: 7, cell: at(2, 2), from: at(2, 2), domain: board.Land, pos: posAt(grid, at(2, 2))}
+			m := member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land, pos: posAt(grid, at(2, 2))}
 			if o, ok := cells.stepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
 			}
@@ -290,7 +291,7 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 			bodies := newBodyKeeping(finder, nil, nil)
 			bodies.begin(func(dst []body) []body { return dst })
 			c := grid.CellCenter(at(2, 2))
-			m = member{id: 7, cell: at(2, 2), from: at(2, 2), domain: board.Land,
+			m = member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land,
 				pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
 			o, ok := bodies.stepAside(m, coming)
 			if ok != open {
@@ -404,13 +405,13 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 // ground as at a wall. With the rules the one coming for its place stands beside it.
 func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
-	lay := func(b *board.Board, at func(x, y uint32) board.CellID) {
+	lay := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
-			b.Set(at(x, 3), board.CellKind{Cost: 1, Allows: board.Water})
-			b.Set(at(x, 4), board.CellKind{Cost: 1, Allows: board.Water})
+			b.Set(at(x, 3), cell.Kind{Cost: 1, Allows: cell.Water})
+			b.Set(at(x, 4), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
-		b.Set(at(4, 2), board.CellKind{Cost: 1, Solid: true})
-		b.Set(at(6, 2), board.CellKind{Cost: 1, Solid: true})
+		b.Set(at(4, 2), cell.Kind{Cost: 1, Solid: true})
+		b.Set(at(6, 2), cell.Kind{Cost: 1, Solid: true})
 	}
 	shore := float64(3 * fieldCell)
 	stander := geom.NewVec(5*fieldCell+16, shore-15) // a box 28 a side, a pixel off the water

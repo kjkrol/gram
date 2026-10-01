@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/network"
 )
 
@@ -47,13 +48,13 @@ type Config struct {
 // where every land cell's water goes and how much has gathered in it. Net is it as a
 // network.Network, to lay on a board.
 type Network struct {
-	Courses  map[board.CellID]Course
-	Down     map[board.CellID]board.CellID
-	Gathered map[board.CellID]float64
+	Courses  map[cell.ID]Course
+	Down     map[cell.ID]cell.ID
+	Gathered map[cell.ID]float64
 
 	grid    board.Grid
-	perRoot float64                // WidthPerRoot
-	mouths  map[board.CellID]mouth // the cells of the sea a course runs out into
+	perRoot float64           // WidthPerRoot
+	mouths  map[cell.ID]mouth // the cells of the sea a course runs out into
 
 	cw, ch       float64
 	width        int64
@@ -66,18 +67,18 @@ type Network struct {
 var ErrNotSquare = errors.New("water: drains a square grid alone")
 
 // Drain works out the network over grid for heights, water leaving where sea says.
-func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellID) bool, cfg Config) (*Network, error) {
-	var any board.CellID
-	grid.EachCell(func(c board.CellID) { any = c })
+func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(cell.ID) bool, cfg Config) (*Network, error) {
+	var any cell.ID
+	grid.EachCell(func(c cell.ID) { any = c })
 	if len(grid.CellOutline(any, nil)) != 4 {
 		return nil, ErrNotSquare
 	}
 	cw, ch := grid.CellBounds()
 	n := &Network{
-		Courses: map[board.CellID]Course{}, Down: map[board.CellID]board.CellID{}, Gathered: map[board.CellID]float64{},
-		grid: grid, cw: cw, ch: ch, beds: map[[2]int64]float64{}, perRoot: cfg.WidthPerRoot, mouths: map[board.CellID]mouth{},
+		Courses: map[cell.ID]Course{}, Down: map[cell.ID]cell.ID{}, Gathered: map[cell.ID]float64{},
+		grid: grid, cw: cw, ch: ch, beds: map[[2]int64]float64{}, perRoot: cfg.WidthPerRoot, mouths: map[cell.ID]mouth{},
 	}
-	grid.EachCell(func(c board.CellID) {
+	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
 		n.width, n.height = max(n.width, int64(x)+1), max(n.height, int64(y)+1)
 	})
@@ -85,8 +86,8 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	_, n.wrapY = grid.CellIndex(0, uint32(n.height))
 
 	shore := stepsFromSea(grid, sea)
-	level := map[board.CellID]float64{}
-	grid.EachCell(func(c board.CellID) {
+	level := map[cell.ID]float64{}
+	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
 		sum := 0.0
 		for _, d := range corners {
@@ -97,18 +98,18 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 	})
 
 	// Flood from the sea up, the lowest first: each cell drains to the one that reached it.
-	filled := map[board.CellID]float64{}
+	filled := map[cell.ID]float64{}
 	var q queue
-	grid.EachCell(func(c board.CellID) {
+	grid.EachCell(func(c cell.ID) {
 		if sea(c) {
 			filled[c] = level[c]
-			heap.Push(&q, cell{c, level[c], q.seq})
+			heap.Push(&q, flooded{c, level[c], q.seq})
 			q.seq++
 		}
 	})
-	var order []board.CellID
+	var order []cell.ID
 	for q.Len() > 0 {
-		c := heap.Pop(&q).(cell)
+		c := heap.Pop(&q).(flooded)
 		for _, m := range grid.Neighbors(c.id) {
 			if _, seen := filled[m]; seen {
 				continue
@@ -116,7 +117,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 			filled[m] = max(level[m], c.at+1)
 			n.Down[m] = c.id
 			order = append(order, m)
-			heap.Push(&q, cell{m, filled[m], q.seq})
+			heap.Push(&q, flooded{m, filled[m], q.seq})
 			q.seq++
 		}
 	}
@@ -134,7 +135,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 		}
 	}
 
-	bed := map[board.CellID]float64{}
+	bed := map[cell.ID]float64{}
 	for _, c := range order {
 		switch g := n.Gathered[c]; {
 		case g >= cfg.RiverAt:
@@ -165,16 +166,16 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(board.CellI
 const calmNear = 4
 
 // stepsFromSea is how many steps between neighbours each cell lies from the sea, 0 the sea's own.
-func stepsFromSea(grid board.Grid, sea func(board.CellID) bool) map[board.CellID]int {
-	steps := map[board.CellID]int{}
-	var ring []board.CellID
-	grid.EachCell(func(c board.CellID) {
+func stepsFromSea(grid board.Grid, sea func(cell.ID) bool) map[cell.ID]int {
+	steps := map[cell.ID]int{}
+	var ring []cell.ID
+	grid.EachCell(func(c cell.ID) {
 		if sea(c) {
 			steps[c], ring = 0, append(ring, c)
 		}
 	})
 	for len(ring) > 0 {
-		var next []board.CellID
+		var next []cell.ID
 		for _, c := range ring {
 			for _, m := range grid.Neighbors(c) {
 				if _, ok := steps[m]; !ok {
@@ -189,13 +190,13 @@ func stepsFromSea(grid board.Grid, sea func(board.CellID) bool) map[board.CellID
 
 // ford lays a ford on every river cell FordEvery cells up from the mouth where the river runs no
 // steeper than FordSlope, across the whole river there.
-func (n *Network) ford(cfg Config, level map[board.CellID]float64, sea func(board.CellID) bool) {
+func (n *Network) ford(cfg Config, level map[cell.ID]float64, sea func(cell.ID) bool) {
 	if cfg.FordEvery <= 0 {
 		return
 	}
-	mouth := map[board.CellID]int{}
-	var from func(c board.CellID) int
-	from = func(c board.CellID) int {
+	mouth := map[cell.ID]int{}
+	var from func(c cell.ID) int
+	from = func(c cell.ID) int {
 		if v, ok := mouth[c]; ok {
 			return v
 		}
@@ -207,7 +208,7 @@ func (n *Network) ford(cfg Config, level map[board.CellID]float64, sea func(boar
 		mouth[c] = v
 		return v
 	}
-	var fords []board.CellID
+	var fords []cell.ID
 	for c, k := range n.Courses {
 		if k != River || from(c)%cfg.FordEvery != cfg.FordEvery/2 {
 			continue
@@ -225,25 +226,25 @@ func (n *Network) ford(cfg Config, level map[board.CellID]float64, sea func(boar
 // mouth is a cell of the sea a course runs out into: the course's last cell ashore, how many cells
 // out it lies and how many the mouth runs.
 type mouth struct {
-	from       board.CellID
+	from       cell.ID
 	out, reach int
 }
 
 // plume runs every course reaching the sea on out into it, on the way of its last step, over sea
 // no other mouth has taken: Plume by the square root of its water cells, each wider and more
 // faded than the last.
-func (n *Network) plume(grid board.Grid, cfg Config, sea func(board.CellID) bool) {
+func (n *Network) plume(grid board.Grid, cfg Config, sea func(cell.ID) bool) {
 	if cfg.Plume <= 0 {
 		return
 	}
 	// the biggest first, so a river's mouth takes the sea before a brook's
-	var reaching []board.CellID
+	var reaching []cell.ID
 	for c, k := range n.Courses {
 		if k != Dry && sea(n.Down[c]) {
 			reaching = append(reaching, c)
 		}
 	}
-	slices.SortFunc(reaching, func(a, b board.CellID) int {
+	slices.SortFunc(reaching, func(a, b cell.ID) int {
 		if d := cmp.Compare(n.Gathered[b], n.Gathered[a]); d != 0 {
 			return d
 		}
@@ -278,7 +279,7 @@ func (n *Network) plume(grid board.Grid, cfg Config, sea func(board.CellID) bool
 
 // Fade is how far c's course has faded out: 0 ashore, and out at sea from a little beyond the mouth
 // to nearly all at the last cell a course reaches.
-func (n *Network) Fade(c board.CellID) float64 {
+func (n *Network) Fade(c cell.ID) float64 {
 	m, ok := n.mouths[c]
 	if !ok {
 		return 0
@@ -307,7 +308,7 @@ func (n *Network) Net(kinds map[Course]string) *network.Network {
 // Width is how wide c's course runs, cell wide at most: WidthPerRoot by the square root of the
 // water gathered in it, so a brook is a thread and a river fills its cell.
 // Out at sea a course widens as it runs out, by more than a half again each cell.
-func (n *Network) Width(c board.CellID, cell float64) float64 {
+func (n *Network) Width(c cell.ID, cell float64) float64 {
 	if n.Courses[c] == Dry {
 		return 0
 	}
@@ -349,7 +350,7 @@ func (n *Network) key(x, y int64) [2]int64 {
 }
 
 // nudge is a fixed number in [0, 1) for c.
-func nudge(c board.CellID) float64 {
+func nudge(c cell.ID) float64 {
 	h := uint64(c)*0x9E3779B97F4A7C15 + 0x632BE59BD9B4E019
 	h ^= h >> 31
 	h *= 0xBF58476D1CE4E5B9
@@ -360,16 +361,16 @@ func nudge(c board.CellID) float64 {
 // corners are a cell's corners from its top-left, in board.Relief's order.
 var corners = [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
-// cell is a cell on the flood's queue, at the level it was filled to, seq keeping ties in the
+// flooded is a cell on the flood's queue, at the level it was filled to, seq keeping ties in the
 // order they came.
-type cell struct {
-	id  board.CellID
+type flooded struct {
+	id  cell.ID
 	at  float64
 	seq int
 }
 
 type queue struct {
-	cells []cell
+	cells []flooded
 	seq   int
 }
 
@@ -379,7 +380,7 @@ func (q *queue) Less(i, j int) bool {
 	return a.at < b.at || a.at == b.at && a.seq < b.seq
 }
 func (q *queue) Swap(i, j int) { q.cells[i], q.cells[j] = q.cells[j], q.cells[i] }
-func (q *queue) Push(x any)    { q.cells = append(q.cells, x.(cell)) }
+func (q *queue) Push(x any)    { q.cells = append(q.cells, x.(flooded)) }
 func (q *queue) Pop() any {
 	c := q.cells[len(q.cells)-1]
 	q.cells = q.cells[:len(q.cells)-1]

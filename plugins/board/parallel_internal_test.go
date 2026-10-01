@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"image/color"
 	"sync/atomic"
 	"testing"
@@ -67,7 +68,7 @@ func piecesOf(r *Renderer, cam camera.Camera) (out [][]render.Vertex, n int) {
 func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	grid := DefaultGrids{}.Square(16, 16, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cam := icamera.NewFromSpace(512, 512, 0)
 	one, many := &stripes{}, &stripes{}
 	serial := newRenderer(brd, flatAtlas{}, &RenderState{ShowGridLines: true}, func() Map { return stripedMap{lookMap{flatLook{}}, one} })
@@ -98,7 +99,7 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	grid := DefaultGrids{}.Square(16, 16, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	seen := 0
 	look := lookFn(func(f *render.Frame, cam camera.Camera, tile *Tile) {
@@ -115,13 +116,13 @@ func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 func TestBoard_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 	grid := DefaultGrids{}.Square(8, 1, 10)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
-	forest := CellKind{Cost: 1, Allows: Land, Veil: 0.5, Veils: Land}
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 	c3, _ := grid.CellIndex(3, 0)
 	c6, _ := grid.CellIndex(6, 0)
 	brd.Set(c3, forest)
 	walk := func() (stretches [][2]float64) {
-		brd.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(Land), func(near, far, _, _, tau float64) bool {
+		brd.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float64) bool {
 			stretches = append(stretches, [2]float64{near, far})
 			return true
 		})
@@ -141,7 +142,7 @@ func TestBoard_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	r := newRenderer(brd, flatAtlas{}, &RenderState{ShowGridLines: true}, func() Map { return stripedMap{lookMap{Nothing}, d} })
 	if _, n := piecesOf(r, icamera.NewFromSpace(128, 128, 0)); n != 0 || len(d.dressed) != 0 || d.warmed.Load() != 0 {

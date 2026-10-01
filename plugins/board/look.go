@@ -2,6 +2,7 @@ package board
 
 import (
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -71,7 +72,7 @@ type ParallelLook interface {
 
 // Tile is one visible cell as the board's renderer hands it to a Look, good for that call.
 type Tile struct {
-	ID             CellID
+	ID             cell.ID
 	X0, Y0, X1, Y1 float32 // its box in the world
 	Atlas          render.AtlasSource
 	// Outlined asks the Look to outline the tile along its own edges: the grid is on.
@@ -94,7 +95,7 @@ func (t *Tile) Base() render.SpriteID {
 }
 
 // Kind is the cell's kind as whoever crosses it meets it.
-func (t *Tile) Kind() CellKind { return t.r.board.Kind(t.ID) }
+func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
 
 // Light is the light on the tile's top at its corners: the Dressing's; even without one.
 func (t *Tile) Light() render.Shade {

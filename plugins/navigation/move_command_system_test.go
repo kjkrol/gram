@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -16,7 +17,7 @@ import (
 func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(10, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
@@ -104,7 +105,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(10, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
@@ -194,13 +195,13 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(10, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	oldTarget, _ := grid.CellIndex(3, 0)
 	wall, _ := grid.CellIndex(8, 0)
-	terrain.Set(wall, board.CellKind{Cost: 1, Solid: true})
+	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)

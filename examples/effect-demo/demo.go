@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -46,7 +47,7 @@ const (
 	lakeTop, lakeBottom uint32 = 4, 11
 
 	// Frost is the witch's own way of moving: snow and ice price it low.
-	Frost = board.Domain(1 << 3)
+	Frost = cell.Domain(1 << 3)
 	// thawAfter is how long the witch's frost holds where she stood: five seconds at most.
 	thawAfter = 5 * time.Second
 )
@@ -79,7 +80,7 @@ type witch struct{}
 
 // unit is the row every kind spawns from: where it starts and, if ordered, where it heads.
 type unit struct {
-	start, target board.CellID
+	start, target cell.ID
 	ordered       bool
 }
 
@@ -94,7 +95,7 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 	effects   *effect.Effects
-	snow, ice board.CellKind
+	snow, ice cell.Kind
 
 	frost, frozen, slip effect.Effect
 	paleSprite          render.SpriteID
@@ -125,15 +126,15 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// A frozen boat holds its cell, so the planner goes round.
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land},
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water},
-		board.CellKind{Name: board.Named("snow"), Cost: 3, Allows: board.Land | Frost}.Costing(Frost, 0.5),
-		board.CellKind{Name: board.Named("ice"), Cost: 2, Allows: board.Land | Frost}.Costing(Frost, 0.5),
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water},
+		cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land | Frost}.Costing(Frost, 0.5),
+		cell.Kind{Name: cell.Named("ice"), Cost: 2, Allows: cell.Land | Frost}.Costing(Frost, 0.5),
 	)
-	s.snow, _ = s.board.CellKindDict().Get("snow")
-	s.ice, _ = s.board.CellKindDict().Get("ice")
+	s.snow, _ = s.board.CellKinds().Get("snow")
+	s.ice, _ = s.board.CellKinds().Get("ice")
 
 	// Three effects, each turning the knobs of a plugin: frost the ground of a cell, for a while;
 	// frozen the look, the weight and the steering of whoever is caught in the ice, and slip the
@@ -141,7 +142,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.paleSprite = s.world.Kinds().NewSprite()
 	s.frost = s.effects.Define("frost", effect.Spec{
 		effect.Lasts(thawAfter),
-		effect.Alter(func(g *board.Ground) { g.Kind = s.frozenKind(g.Kind) }),
+		effect.Alter(func(g *cell.Ground) { g.Kind = s.frozenKind(g.Kind) }),
 	})
 	s.frozen = s.effects.Define("frozen", effect.Spec{
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
@@ -220,7 +221,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // frozenKind is what the witch's frost makes of a kind of ground.
-func (s *mainStage) frozenKind(k board.CellKind) board.CellKind {
+func (s *mainStage) frozenKind(k cell.Kind) cell.Kind {
 	switch k.Name.String() {
 	case "grass", "road":
 		return s.snow
@@ -240,14 +241,14 @@ func (s *mainStage) defineKinds() {
 	sel := comp.Tagged(s.selection.Tags().Selectable)
 	mine := comp.Tagged(s.player.Owner())
 	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.witch = units.Define("witch", board.Mover{Domain: board.Land | board.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, comp.Const(witch{}))
-	s.walker = units.Define("walker", board.Mover{Domain: board.Land}, profile(UnitSpeed*4), sel, mine)
-	s.boat = units.Define("boat", board.Mover{Domain: board.Water}, profile(UnitSpeed/4), sel, mine, order)
+	s.witch = units.Define("witch", board.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, comp.Const(witch{}))
+	s.walker = units.Define("walker", board.Mover{Domain: cell.Land}, profile(UnitSpeed*4), sel, mine)
+	s.boat = units.Define("boat", board.Mover{Domain: cell.Water}, profile(UnitSpeed/4), sel, mine, order)
 }
 
 // Spawn lays the lake and the road and puts the three of them in place.
 func (s *mainStage) Spawn() error {
-	cell := func(x, y uint32) board.CellID { c, _ := s.brd.CellIndex(x, y); return c }
+	cell := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 	var cells []board.CellEntry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
@@ -299,7 +300,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass": {R: 60, G: 95, B: 60, A: 255},

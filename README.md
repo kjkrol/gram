@@ -327,7 +327,7 @@ of the same steps; both cast *effects* that hold for a while and give *commands*
 (`a.Order(navigation.MoveTo{…})`), and a plan waits for the *facts* a plugin tells it
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
-`board.Ground`. Ready-made hooks live in `plugins/board/hooks`, `plugins/collision/hooks` and
+`cell.Ground`. Ready-made hooks live in `plugins/board/hooks`, `plugins/collision/hooks` and
 `plugins/vision/hooks`, whole, to Hook; navigation's crowd is its own
 rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to with `Hook` or
 replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
@@ -377,7 +377,8 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made hooks: `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
 | [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made hooks: `Flee`, `Chase`, `LogSightings`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
-| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world; rules of `Standing` (with the tags of the place under a unit) and of a `Cell`; cells tagged with the game's tags of places (`Places`); `Occupancy` lets go of the gone every step |
+| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world; rules of `Standing` (with the tags of the place under a unit) and of a cell (`cell.Now`); `Occupancy` lets go of the gone every step |
+| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), the game's tags of places (`Family`, `Tag`, `Tags`), `Ground`, `Way`, `Crossing`, and the moment `Now` |
 | [`plugins/board/hooks`](plugins/board/hooks/doc.go) | Ready-made hooks: `LogFalls` |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. Its parts: `relief`, `painter`, `water`, `terrain`, `hexes`, `billboards`, `cameras` |

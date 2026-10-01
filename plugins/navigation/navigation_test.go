@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
@@ -29,7 +30,7 @@ func testSpace(t *testing.T) *aabbworld.Space {
 // pushOnce jumps every entity's Position to a fixed cell the first time it is armed and run.
 type pushOnce struct {
 	grid  board.Grid
-	to    board.CellID
+	to    cell.ID
 	size  uint32
 	armed bool
 
@@ -56,7 +57,7 @@ func (p *pushOnce) Update(_ *goke.CmdBuf, _ time.Duration) {
 func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	pusher := &pushOnce{grid: grid, size: 8}
@@ -66,7 +67,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	pushed, _ := grid.CellIndex(3, 0)
 	pusher.to = pushed
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -75,17 +76,17 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(start, id, board.Land)
+		occupancy.Enter(start, id, cell.Land)
 
-		q = si.NewQueryBuilder(&cell, &order).Build()
+		q = si.NewQueryBuilder(&at, &order).Build()
 	}})
 
 	pusherHandle := ecs.RegSys(pusher)
@@ -100,7 +101,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	ecs.Tick(time.Second)
 
-	c, mt := readCellAndMoveOrder(t, q, &cell, &order)
+	c, mt := readCellAndMoveOrder(t, q, &at, &order)
 	if mt.Path.Length == 0 {
 		t.Fatal("expected a path to have been computed on the first tick")
 	}
@@ -115,7 +116,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	pusher.armed = true
 	ecs.Tick(time.Second)
 
-	c, mt = readCellAndMoveOrder(t, q, &cell, &order)
+	c, mt = readCellAndMoveOrder(t, q, &at, &order)
 	if c.Cell != pushed {
 		t.Errorf("At.Cell = %v, want %v (deviation should resync bookkeeping to the actual cell)", c.Cell, pushed)
 	}
@@ -130,14 +131,14 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 5, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
 	previous, _ := grid.CellIndex(0, 1)
 	expected, _ := grid.CellIndex(1, 0)
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -146,11 +147,11 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: previous}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: previous}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(11, 11), 8, 8)}
 		var mt MoveOrder
 		mt.Target = expected
@@ -161,10 +162,10 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
-			occupancy.Enter(c, id, board.Land)
+			occupancy.Enter(c, id, cell.Land)
 		}
 
-		q = si.NewQueryBuilder(&cell, &order).Build()
+		q = si.NewQueryBuilder(&at, &order).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
@@ -177,7 +178,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 
 	ecs.Tick(time.Second)
 
-	c, mt := readCellAndMoveOrder(t, q, &cell, &order)
+	c, mt := readCellAndMoveOrder(t, q, &at, &order)
 	if c.Cell != previous {
 		t.Fatalf("At.Cell = %v, want %v (bookkeeping should ignore a transient flanker read, not just tolerate it)", c.Cell, previous)
 	}
@@ -189,14 +190,14 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
 	start, _ := grid.CellIndex(2, 0)
 	target := start
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -205,18 +206,18 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
 		pos.Slice(&f.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 50}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(start, id, board.Land)
+		occupancy.Enter(start, id, cell.Land)
 
-		q = si.NewQueryBuilder(&cell, &pos).Build()
+		q = si.NewQueryBuilder(&at, &pos).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
@@ -249,7 +250,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	space := testSpace(t)
@@ -258,7 +259,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	target, _ := grid.CellIndex(2, 0)
 	offCenter := world.Position{AABB: plane.NewAABB(geom.NewVec(20, 1), 8, 8)}
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -267,15 +268,15 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: target}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: target}
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(target, id, board.Land)
+		occupancy.Enter(target, id, cell.Land)
 
 		q = si.NewQueryBuilder(&pos).Build()
 	}})
@@ -314,7 +315,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(5, 1, 10)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &board.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	space := testSpace(t)
@@ -323,7 +324,7 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	target, _ := grid.CellIndex(2, 0)
 	offCenter := world.Position{AABB: plane.NewAABB(geom.NewVec(17, 1), 8, 8)}
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -332,15 +333,15 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: target}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: target}
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(target, id, board.Land)
+		occupancy.Enter(target, id, cell.Land)
 
 		q = si.NewQueryBuilder(&pos).Build()
 	}})
@@ -400,13 +401,13 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	)
 	grid := board.DefaultGrids{}.Square(gridWidth, gridHeight, cellSize)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	var wallCells []board.CellID
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	var wallCells []cell.ID
 	for y := uint32(2); y < gridHeight; y++ {
 		c, _ := grid.CellIndex(wallCol, y)
 		wallCells = append(wallCells, c)
 	}
-	terrain.SetMany(wallCells, board.CellKind{Cost: 1, Solid: true})
+	terrain.SetMany(wallCells, cell.Kind{Cost: 1, Solid: true})
 	occupancy := &board.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(2, 4)
@@ -417,7 +418,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	space := testSpace(t)
 	steer.BindSpace(space)
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
@@ -426,18 +427,18 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &order, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
 		startPos := world.Position{AABB: board.CellAABB(grid, start, entitySize)}
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
+		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = startPos
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: speed}
-		occupancy.Enter(start, id, board.Land)
+		occupancy.Enter(start, id, cell.Land)
 
-		q = si.NewQueryBuilder(&cell, &pos, &order).Build()
+		q = si.NewQueryBuilder(&at, &pos, &order).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
@@ -451,9 +452,9 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	})
 
 	dt := time.Second / 60
-	var lastSteps []board.CellID
-	var prevCellID board.CellID
-	var prevExpected board.CellID
+	var lastSteps []cell.ID
+	var prevCellID cell.ID
+	var prevExpected cell.ID
 	var havePrev bool
 	replans := 0
 	for tick := 0; tick < 60*15; tick++ {
@@ -462,15 +463,15 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 		q.All()
 		for q.Next() {
 			cur := q.Cursor()
-			cells := cell.Slice(cur)
+			cells := at.Slice(cur)
 			positions := pos.Slice(cur)
 			orders := order.Slice(cur)
 			for i := range cur.IDs {
-				if !terrain.Kind(cells[i].Cell).Admits(board.Land) {
+				if !terrain.Kind(cells[i].Cell).Admits(cell.Land) {
 					t.Fatalf("tick %d: entity's logical Cell is inside impassable terrain: %v", tick, cells[i].Cell)
 				}
 				path := orders[i].Path
-				steps := append([]board.CellID(nil), path.Steps[:path.Length]...)
+				steps := append([]cell.ID(nil), path.Steps[:path.Length]...)
 				if !equalSteps(steps, lastSteps) {
 					replans++
 					if havePrev {
@@ -517,7 +518,7 @@ func TestShortestAxisDelta(t *testing.T) {
 	}
 }
 
-func equalSteps(a, b []board.CellID) bool {
+func equalSteps(a, b []cell.ID) bool {
 	if len(a) != len(b) {
 		return false
 	}

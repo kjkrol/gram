@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -30,10 +31,10 @@ const asideGoal = 0.5
 // boxes meet as they meet.
 type openOccupancy struct{}
 
-func (openOccupancy) CanEnter(board.CellID, uid.UID64, board.Domain) bool { return true }
-func (openOccupancy) Enter(board.CellID, uid.UID64, board.Domain)         {}
-func (openOccupancy) Leave(board.CellID, uid.UID64)                       {}
-func (openOccupancy) Release(func(uid.UID64) bool)                        {}
+func (openOccupancy) CanEnter(cell.ID, uid.UID64, cell.Domain) bool { return true }
+func (openOccupancy) Enter(cell.ID, uid.UID64, cell.Domain)         {}
+func (openOccupancy) Leave(cell.ID, uid.UID64)                      {}
+func (openOccupancy) Release(func(uid.UID64) bool)                  {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
 // where the others stand, and goes; striking someone is a Touch, and what it does then is the
@@ -130,7 +131,7 @@ func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 }
 
 // reaches reports whether any route over the ground takes m to c.
-func (k *bodyKeeping) reaches(m member, c board.CellID) bool {
+func (k *bodyKeeping) reaches(m member, c cell.ID) bool {
 	_, ok := k.finder.findPath(m.id, m.domain, m.from, c)
 	return ok
 }
@@ -181,10 +182,10 @@ func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
 }
 
 // route is the way over the ground to o's Target, round the cells m found someone standing in.
-func (k *bodyKeeping) route(m member, from board.CellID, o *MoveOrder) (Path, bool) {
+func (k *bodyKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
-		blocked := func(c board.CellID) bool { return c != o.Target && slices.Contains(known, c) }
+		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
 		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
 			return p, true
 		}
@@ -194,7 +195,7 @@ func (k *bodyKeeping) route(m member, from board.CellID, o *MoveOrder) (Path, bo
 
 // lost waits targetWaitTimeout for the ground to change, then stands round the point on a cell a
 // route reaches, or gives up.
-func (k *bodyKeeping) lost(m member, from board.CellID, o *MoveOrder, waited time.Duration) (board.CellID, Path, bool, bool) {
+func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
 	}
@@ -238,7 +239,7 @@ func (k *bodyKeeping) steer(m member, st steering.Helm, dir geom.Vec, speed floa
 // watch ends a step round someone once its time is up, and marks o Bumped once m has come no
 // nearer toward's point want by a quarter of its size for stallAfter; heading for another cell
 // starts afresh, and reaching the one it headed for forgets the stalls.
-func (k *bodyKeeping) watch(m member, o *MoveOrder, toward board.CellID, want geom.Vec, d time.Duration) {
+func (k *bodyKeeping) watch(m member, o *MoveOrder, toward cell.ID, want geom.Vec, d time.Duration) {
 	if o.AsideFor = max(o.AsideFor-d, 0); o.AsideFor == 0 {
 		o.Aside, o.Struck = geom.Vec{}, geom.Vec{}
 	}
@@ -350,7 +351,7 @@ func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
 	c := m.centre()
 	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
 	ok := true
-	k.grid.CellsUnder(boxAt(at, h), func(cell board.CellID) {
+	k.grid.CellsUnder(boxAt(at, h), func(cell cell.ID) {
 		ok = ok && k.terrain.Kind(cell).Admits(m.domain) && k.finder.climb(m.cell, cell, m.domain) <= yieldClimb
 	})
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
@@ -384,7 +385,7 @@ func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
 const yieldLinger = time.Second
 
 // blocked is never called: the open occupancy refuses nobody.
-func (k *bodyKeeping) blocked(member, *MoveOrder, board.CellID, time.Duration) (uid.UID64, bool) {
+func (k *bodyKeeping) blocked(member, *MoveOrder, cell.ID, time.Duration) (uid.UID64, bool) {
 	return 0, false
 }
 
@@ -397,7 +398,7 @@ func (k *bodyKeeping) within(m member) float64 {
 
 // mayStep lets m on unless it all but touches someone just ahead along heading: walked by hand, it
 // stops at whoever it walks into.
-func (k *bodyKeeping) mayStep(m member, _ board.CellID, heading geom.Vec) bool {
+func (k *bodyKeeping) mayStep(m member, _ cell.ID, heading geom.Vec) bool {
 	c, h := m.centre(), half(m)
 	feel := gapFor(h) / 4
 	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)

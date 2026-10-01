@@ -3,7 +3,7 @@ package island
 import (
 	"image/color"
 
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 )
@@ -30,19 +30,19 @@ var Colors = map[string]color.RGBA{
 // roads and the bridges carrying them over the water; and the forest, which nothing plants yet.
 // Only a world with heights takes what stands on a cell: forest is how tall the forest stands, in
 // world units, 0 on a flat map.
-func Kinds(forest float64) []board.CellKind {
-	trees := board.CellKind{Name: board.Named("forest"), Cost: 7.5, Allows: board.Land | board.Air, Veil: 0.6, Height: forest}.Costing(board.Air, 1)
-	kinds := []board.CellKind{
-		{Name: board.Named("water"), Cost: 1, Allows: board.Water | board.Air},
-		board.CellKind{Name: board.Named("earth"), Cost: 2.5, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("sand"), Cost: 4, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("rock"), Cost: 3.25, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("brook"), Cost: 3.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		board.CellKind{Name: board.Named("stream"), Cost: 5, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air},
-		board.CellKind{Name: board.Named("ford"), Cost: 6.25, Allows: board.Land | board.Water | board.Air}.Costing(board.Water|board.Air, 1),
-		{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air, Graded: true},
-		{Name: board.Named("bridge"), Cost: 1, Allows: board.Land | board.Air, Graded: true},
+func Kinds(forest float64) []cell.Kind {
+	trees := cell.Kind{Name: cell.Named("forest"), Cost: 7.5, Allows: cell.Land | cell.Air, Veil: 0.6, Height: forest}.Costing(cell.Air, 1)
+	kinds := []cell.Kind{
+		{Name: cell.Named("water"), Cost: 1, Allows: cell.Water | cell.Air},
+		cell.Kind{Name: cell.Named("earth"), Cost: 2.5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("sand"), Cost: 4, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("rock"), Cost: 3.25, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("brook"), Cost: 3.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		cell.Kind{Name: cell.Named("stream"), Cost: 5, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		{Name: cell.Named("river"), Cost: 1, Allows: cell.Water | cell.Air},
+		cell.Kind{Name: cell.Named("ford"), Cost: 6.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		{Name: cell.Named("road"), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
+		{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
 		trees,
 	}
 	for i := range kinds {

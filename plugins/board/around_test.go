@@ -7,10 +7,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 )
@@ -23,7 +23,7 @@ type placeWorld struct {
 	brd      *board.Plugin
 	fx       *effect.Effects
 	scorched effect.Effect
-	middle   board.CellID
+	middle   cell.ID
 	casting  func(cb *goke.CmdBuf)
 }
 
@@ -38,7 +38,7 @@ func newPlaceWorld(t *testing.T, grid board.Grid, unit bool, hook func(pw *place
 	pw.w, pw.fx = w, w.Effects()
 	pw.scorched = pw.fx.Define("scorched", effect.Spec{})
 	pw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	pw.brd.Res.Logic.Board.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+	pw.brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	if err := pw.brd.Hook(hook(pw)...); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func newPlaceWorld(t *testing.T, grid board.Grid, unit bool, hook func(pw *place
 			comp.Const(world.Position{AABB: board.CellAABB(grid, pw.middle, 8)}),
 			comp.Const(world.Velocity{}),
 			comp.Const(board.At{Cell: pw.middle}),
-			comp.Const(board.Mover{Domain: board.Land}),
+			comp.Const(board.Mover{Domain: cell.Land}),
 		})
 		w.Seed(k.Entry(struct{}{}))
 		if err := w.Populate(); err != nil {
@@ -94,9 +94,9 @@ func (pw *placeWorld) tick(n int) {
 }
 
 // under is the set of cells whose entity is under e.
-func (pw *placeWorld) under(e effect.Effect) map[board.CellID]bool {
-	out := map[board.CellID]bool{}
-	pw.brd.Res.Logic.Board.EachCell(func(c board.CellID) {
+func (pw *placeWorld) under(e effect.Effect) map[cell.ID]bool {
+	out := map[cell.ID]bool{}
+	pw.brd.Res.Logic.Board.EachCell(func(c cell.ID) {
 		if id, ok := pw.brd.CellEntity(c); ok && pw.fx.Has(id, e) {
 			out[c] = true
 		}
@@ -105,14 +105,14 @@ func (pw *placeWorld) under(e effect.Effect) map[board.CellID]bool {
 }
 
 // within is every cell n neighbours or fewer from the seed cells, by a walk of the grid's own.
-func within(grid board.Grid, seed []board.CellID, n int) map[board.CellID]bool {
-	out := map[board.CellID]bool{}
+func within(grid board.Grid, seed []cell.ID, n int) map[cell.ID]bool {
+	out := map[cell.ID]bool{}
 	edge := seed
 	for _, c := range seed {
 		out[c] = true
 	}
 	for range n {
-		var next []board.CellID
+		var next []cell.ID
 		for _, c := range edge {
 			for _, nb := range grid.Neighbors(c) {
 				if !out[nb] {
@@ -126,7 +126,7 @@ func within(grid board.Grid, seed []board.CellID, n int) map[board.CellID]bool {
 	return out
 }
 
-func sameCells(a, b map[board.CellID]bool) bool {
+func sameCells(a, b map[cell.ID]bool) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -159,8 +159,8 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 				})}
 			})
 			pw.tick(3)
-			var seed []board.CellID
-			grid.CellsUnder(board.CellAABB(grid, pw.middle, 8).AABB, func(c board.CellID) { seed = append(seed, c) })
+			var seed []cell.ID
+			grid.CellsUnder(board.CellAABB(grid, pw.middle, 8).AABB, func(c cell.ID) { seed = append(seed, c) })
 			if got, want := pw.under(pw.scorched), within(grid, seed, rings); !sameCells(got, want) {
 				t.Errorf("%s, %d rings: scorched %v, want %v", name, rings, got, want)
 			}
@@ -172,7 +172,7 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 func TestCell_FiresForEveryCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []plugin.Rule {
-			return []plugin.Rule{rule.On("scorch all", rule.All, func(m *rule.Moment[board.Cell]) rule.Step {
+			return []plugin.Rule{rule.On("scorch all", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
 				return m.Apply(pw.scorched)
 			})}
 		})
@@ -188,7 +188,7 @@ func TestCell_FiresForEveryCell(t *testing.T) {
 func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []plugin.Rule {
-			return []plugin.Rule{rule.On("fire spreads", rule.Self(pw.scorched.Mark()), func(m *rule.Moment[board.Cell]) rule.Step {
+			return []plugin.Rule{rule.On("fire spreads", rule.Self(pw.scorched.Mark()), func(m *rule.Moment[cell.Now]) rule.Step {
 				return m.Around(1, m.Apply(pw.scorched))
 			})}
 		})
@@ -199,7 +199,7 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 			pw.tick(1)
 			burning := pw.under(pw.scorched)
 			for c := range burning {
-				if !within(grid, []board.CellID{pw.middle}, tick)[c] {
+				if !within(grid, []cell.ID{pw.middle}, tick)[c] {
 					t.Fatalf("%s, tick %d: cell %d burns, further than %d rings from the start", name, tick, c, tick)
 				}
 			}
@@ -221,15 +221,15 @@ func TestPlaces_ARuleOfACellFiltersCellsByTheirTags(t *testing.T) {
 	a, _ := grid.CellIndex(1, 1)
 	b, _ := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []plugin.Rule {
-		marked := pw.w.Kinds().DefineTag[board.Places]("marked")
-		tags := tag.Tags[board.Places](0).With(marked)
+		marked := pw.w.Kinds().DefineTag[cell.Family]("marked")
+		tags := cell.Tags(0).With(marked)
 		pw.brd.Seed(board.Layout{Cells: []board.CellEntry{{Cell: a, Tags: tags}, {Cell: b, Tags: tags}}})
-		return []plugin.Rule{rule.On("scorch the marked", rule.Self(marked), func(m *rule.Moment[board.Cell]) rule.Step {
+		return []plugin.Rule{rule.On("scorch the marked", rule.Self(marked), func(m *rule.Moment[cell.Now]) rule.Step {
 			return m.Apply(pw.scorched)
 		})}
 	})
 	pw.tick(3)
-	if got := pw.under(pw.scorched); !sameCells(got, map[board.CellID]bool{a: true, b: true}) {
+	if got := pw.under(pw.scorched); !sameCells(got, map[cell.ID]bool{a: true, b: true}) {
 		t.Errorf("scorched %v, want the two marked cells %d and %d alone", got, a, b)
 	}
 	if k := pw.brd.Res.Logic.Board.Kind(a); k.Name.String() != "grass" {
@@ -242,10 +242,10 @@ func TestPlaces_ARuleOfACellFiltersCellsByTheirTags(t *testing.T) {
 func TestStanding_TellsTheTagsOfThePlaceUnderTheUnit(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(7, 7, cellSize)
 	middle, _ := grid.CellIndex(3, 3)
-	var plate tag.Tag[board.Places]
+	var plate cell.Tag
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []plugin.Rule {
-		plate = pw.w.Kinds().DefineTag[board.Places]("plate")
-		pw.brd.Seed(board.Layout{Cells: []board.CellEntry{{Cell: middle, Tags: tag.Tags[board.Places](0).With(plate)}}})
+		plate = pw.w.Kinds().DefineTag[cell.Family]("plate")
+		pw.brd.Seed(board.Layout{Cells: []board.CellEntry{{Cell: middle, Tags: cell.Tags(0).With(plate)}}})
 		return []plugin.Rule{rule.On("press", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
 			return m.If(func(st board.Standing) bool { return st.Places.Has(plate) }, m.Here(m.Apply(pw.scorched)))
 		})}

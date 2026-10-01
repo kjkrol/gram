@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/render"
 )
@@ -17,8 +18,8 @@ type Painter struct {
 	board   *board.Board
 	relief  *relief.Relief
 	sky     Sky
-	styles  map[board.Name]Style
-	kinds   board.CellKindDict // for the kinds Styles name
+	styles  map[cell.Name]Style
+	kinds   cell.Kinds // for the kinds Styles name
 	heights bool
 	square  bool
 	sq      board.SquareShape
@@ -69,23 +70,23 @@ type Sky interface {
 
 // New is the painter of b over ground under the sky, the kinds looking as styles has them; heights
 // says whether the ground stands in relief, lit and shaded by its slopes.
-func New(b *board.Board, ground *relief.Relief, sky Sky, heights bool, styles map[board.Name]Style) *Painter {
+func New(b *board.Board, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
 	sq, square := b.Square()
 	return &Painter{board: b, relief: ground, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h}
 }
 
 // WithKinds has the painter find the kinds its Styles name in kinds.
-func (l *Painter) WithKinds(kinds board.CellKindDict) *Painter {
+func (l *Painter) WithKinds(kinds cell.Kinds) *Painter {
 	l.kinds = kinds
 	return l
 }
 
 // Style sets how the kind named name looks in relief beyond its sprite (Style).
-func (l *Painter) Style(name string, s Style) { l.styles[board.Named(name)] = s }
+func (l *Painter) Style(name string, s Style) { l.styles[cell.Named(name)] = s }
 
 // StyleOf is how the kind named name looks, as Style set it.
-func (l *Painter) StyleOf(name string) Style { return l.styles[board.Named(name)] }
+func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)] }
 
 // version counts the changes to the terrain and the relief together: what the light and the
 // shores depend on.
@@ -107,7 +108,7 @@ func (l *Painter) beside(t *board.Tile, dx, dy int) [4]float32 {
 type tile struct {
 	*board.Tile
 	r    *Painter
-	id   board.CellID
+	id   cell.ID
 	memo tileMemo
 	// pixels is how many pixels a cell spans where the tile is drawn, read once: pixelsRead
 	pixels     float32
@@ -233,7 +234,7 @@ func (l *Painter) tileOf(t *board.Tile) *tile {
 // topOf is c as the board and the relief have it, read anew only when the cell has changed
 // (Board.CellVersion): the ground's corners on a square grid, its level everywhere on another,
 // raised by its kind's Height.
-func (l *Painter) topOf(c board.CellID) *cellTop {
+func (l *Painter) topOf(c cell.ID) *cellTop {
 	i, _ := l.ordinal(c)
 	t := &l.tops[i]
 	changes := l.board.Changes()
@@ -265,7 +266,7 @@ func (l *Painter) topOf(c board.CellID) *cellTop {
 // lane is what runs across a cell as the landscape draws it: a Way, and its kind's Style — how its
 // water shines and runs — and the kind it turns into, where it mixes, and how that one shines.
 type lane struct {
-	board.Way
+	cell.Way
 	shine, flow float32
 	mix         render.SpriteID
 	mixes       bool
@@ -273,7 +274,7 @@ type lane struct {
 }
 
 // laneOf is w with its kind's Style.
-func (l *Painter) laneOf(w board.Way) lane {
+func (l *Painter) laneOf(w cell.Way) lane {
 	s := l.styles[w.Kind.Name]
 	ln := lane{Way: w, shine: s.Shine, flow: s.Flow}
 	if s.MixWith != "" && l.kinds != nil {
@@ -285,16 +286,16 @@ func (l *Painter) laneOf(w board.Way) lane {
 }
 
 // ordinal is c's slot in a table of one per cell.
-func (l *Painter) ordinal(c board.CellID) (int, bool) { return l.board.Ordinal(c) }
+func (l *Painter) ordinal(c cell.ID) (int, bool) { return l.board.Ordinal(c) }
 
 // xy is c's column and row on a square grid.
-func (l *Painter) xy(c board.CellID) (x, y uint32) {
+func (l *Painter) xy(c cell.ID) (x, y uint32) {
 	x, y, _ = l.board.Coords(c)
 	return x, y
 }
 
 // cellAt is the square grid's cell at column x, row y, folded where the grid wraps; false off it.
-func (l *Painter) cellAt(x, y int64) (board.CellID, bool) {
+func (l *Painter) cellAt(x, y int64) (cell.ID, bool) {
 	fx, okX := fold(x, int64(l.sq.Cols), l.sq.WrapX)
 	fy, okY := fold(y, int64(l.sq.Rows), l.sq.WrapY)
 	if !okX || !okY {
@@ -311,6 +312,6 @@ func fold(v, n int64, wrap bool) (int64, bool) {
 	return v, v >= 0 && v < n
 }
 
-// squareDirs are a square grid's directions in board.Links's order: north, south, west, east,
+// squareDirs are a square grid's directions in cell.Links's order: north, south, west, east,
 // north-west, north-east, south-west, south-east.
 var squareDirs = [8][2]float32{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}

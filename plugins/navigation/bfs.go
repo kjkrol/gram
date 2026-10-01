@@ -1,12 +1,12 @@
 package navigation
 
-import "github.com/kjkrol/gram/plugins/board"
+import "github.com/kjkrol/gram/plugins/board/cell"
 
 // breadthFirst returns the first cell match accepts, ring by ring from start through expand.
-func breadthFirst(start board.CellID, neighbors func(board.CellID) []board.CellID,
-	expand, match func(board.CellID) bool, maxVisited int) (board.CellID, bool) {
-	queue := []board.CellID{start}
-	visited := map[board.CellID]bool{start: true}
+func breadthFirst(start cell.ID, neighbors func(cell.ID) []cell.ID,
+	expand, match func(cell.ID) bool, maxVisited int) (cell.ID, bool) {
+	queue := []cell.ID{start}
+	visited := map[cell.ID]bool{start: true}
 	for len(queue) > 0 && maxVisited > 0 {
 		c := queue[0]
 		queue = queue[1:]

@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -19,21 +20,21 @@ type body struct {
 	at        geom.Vec // the middle of its box
 	half      geom.Vec // half its box
 	vel       geom.Vec // world units a second
-	domain    board.Domain
+	domain    cell.Domain
 	moving    bool // under an order
 	givingWay bool // under an order to give way
 	owners    tag.Tags[owner.Family]
 	// group is the MoveTo it belongs with: the one its order is from, else the last it came to the
 	// end of (LastOrder); zero, none
 	group     uint32
-	goal      board.CellID // where its order ends
-	spot      geom.Vec     // the point there it stops at
-	lastGoal  bool         // its order has no goal queued behind the one it heads for
-	waitedOut bool         // its Hold ran out, the way still closed
-	cornered  bool         // its Detour found no way round
-	minded    bool         // it has a tree (rule.Mind), told Blocked and Arrived
-	cell      board.CellID // the cell it stands on
-	facing    geom.Vec     // the way it faces, standing too
+	goal      cell.ID  // where its order ends
+	spot      geom.Vec // the point there it stops at
+	lastGoal  bool     // its order has no goal queued behind the one it heads for
+	waitedOut bool     // its Hold ran out, the way still closed
+	cornered  bool     // its Detour found no way round
+	minded    bool     // it has a tree (rule.Mind), told Blocked and Arrived
+	cell      cell.ID  // the cell it stands on
+	facing    geom.Vec // the way it faces, standing too
 	z         world.Z
 	lift      float64
 }
@@ -74,7 +75,7 @@ func (x *bodyIndex) build(bodies []body) {
 	for i, b := range x.bodies {
 		x.byID[b.id] = i
 		x.largest = max(x.largest, b.half.X, b.half.Y)
-		x.grid.CellsUnder(boxAt(b.at, b.half), func(c board.CellID) {
+		x.grid.CellsUnder(boxAt(b.at, b.half), func(c cell.ID) {
 			if o, ok := x.grid.Ordinal(c); ok {
 				if len(x.boxes[o]) == 0 {
 					x.touched = append(x.touched, o)
@@ -105,7 +106,7 @@ func (x *bodyIndex) near(box geom.AABB, fn func(b *body)) {
 		clear(x.seen)
 		x.stamp = 1
 	}
-	x.grid.CellsUnder(box, func(c board.CellID) {
+	x.grid.CellsUnder(box, func(c cell.ID) {
 		if o, ok := x.grid.Ordinal(c); ok {
 			for _, i := range x.boxes[o] {
 				if x.seen[i] != x.stamp {

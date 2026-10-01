@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"image/color"
 	"os"
 	"testing"
@@ -20,9 +21,9 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
 	}
-	grass := CellKind{SpriteID: 1, Cost: 1, Allows: Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
-	water := CellKind{SpriteID: 2, Cost: 1, Allows: Water, Color: color.RGBA{R: 40, G: 80, B: 200, A: 255}}
-	road := CellKind{Cost: 1, Allows: Land, Color: color.RGBA{R: 150, G: 120, B: 80, A: 255}}
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
+	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 40, G: 80, B: 200, A: 255}}
+	road := cell.Kind{Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 150, G: 120, B: 80, A: 255}}
 	grid := DefaultGrids{}.Square(8, 8, 32)
 	brd := NewBoard(grid, NewTerrainMap())
 	brd.SetAll(grass)
@@ -30,10 +31,10 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 		c, _ := grid.CellIndex(i, 3)
 		brd.Set(c, water)
 		c, _ = grid.CellIndex(5, i)
-		brd.SetWay(c, Way{Kind: road, Width: 8, Links: 0xff})
+		brd.SetWay(c, cell.Way{Kind: road, Width: 8, Links: 0xff})
 	}
 	atlas := render.NewAtlas()
-	for _, k := range []CellKind{grass, water} {
+	for _, k := range []cell.Kind{grass, water} {
 		atlas.RegisterAt(k.SpriteID, 4, render.Solid(k.Color))
 	}
 	atlas.Close()
@@ -91,7 +92,7 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
 	}
-	grass := CellKind{SpriteID: 1, Cost: 1, Allows: Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(1, 4, render.Solid(grass.Color))
 	atlas.Close()

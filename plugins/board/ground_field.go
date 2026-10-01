@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 
 	"github.com/kjkrol/aabbworld/collide"
@@ -21,7 +22,7 @@ func (b *Board) Walk(origin, dir geom.Vec, length float64, blockers world.Layers
 }
 
 // covers is the cover c puts on the ray for blockers: its band and τ, or false for none.
-func (b *Board) covers(c CellID, blockers world.Layers) (bottom, top, tau float64, ok bool) {
+func (b *Board) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float64, ok bool) {
 	i, ok := b.ordinal(c)
 	if !ok {
 		return 0, 0, 0, false
@@ -53,7 +54,7 @@ func (b *Board) Ready() {
 		b.veils = make([]veil, n)
 	}
 	b.veilsChanges, b.veilsVersion = b.Changes(), b.Version()
-	b.Grid.EachCell(func(c CellID) {
+	b.Grid.EachCell(func(c cell.ID) {
 		i, ok := b.ordinal(c)
 		if !ok {
 			return
@@ -116,7 +117,7 @@ func (b *Board) walkSteps(origin, dir geom.Vec, length float64, blockers world.L
 	if step <= 0 {
 		return
 	}
-	var cur CellID
+	var cur cell.ID
 	have, start := false, 0.0
 	emit := func(end float64) bool {
 		if !have {
@@ -208,7 +209,7 @@ func (b *Board) Overhang(layers world.Layers, box geom.AABB) float64 {
 // overhangCells is Overhang over a grid other than square: the boxes of every cell under box.
 func (b *Board) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	var area float64
-	b.CellsUnder(box, func(c CellID) {
+	b.CellsUnder(box, func(c cell.ID) {
 		if takes(b.kindOf(c), layers) {
 			return
 		}
@@ -222,8 +223,8 @@ func (b *Board) overhangCells(layers world.Layers, box geom.AABB) float64 {
 
 // takes reports whether cells of k take an entity on layers: they allow one of them — any, for
 // one on every plane (no layers).
-func takes(k *CellKind, layers world.Layers) bool {
-	return k == nil || k.Allows&Domain(layers) != 0 || layers == 0 && k.Allows != 0
+func takes(k *cell.Kind, layers world.Layers) bool {
+	return k == nil || k.Allows&cell.Domain(layers) != 0 || layers == 0 && k.Allows != 0
 }
 
 // overlap is the area a and b share.
@@ -237,7 +238,7 @@ func overlap(a, b geom.AABB) float64 {
 }
 
 // squareCell is the cell at column x, row y of the square grid, folded across a wrapping seam.
-func (b *Board) squareCell(x, y int64) (CellID, bool) {
+func (b *Board) squareCell(x, y int64) (cell.ID, bool) {
 	sq := b.square
 	fx, okX := foldAxis(x, int64(sq.Width), sq.WrapX)
 	fy, okY := foldAxis(y, int64(sq.Height), sq.WrapY)
@@ -251,7 +252,7 @@ func (b *Board) squareCell(x, y int64) (CellID, bool) {
 func (b *Board) solidCells(layers world.Layers, box geom.AABB, visit func(collide.FieldBox) bool) {
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
-	b.CellsUnder(box, func(c CellID) {
+	b.CellsUnder(box, func(c cell.ID) {
 		if done || !solidFor(b.kindOf(c), layers) {
 			return
 		}
@@ -266,12 +267,12 @@ func (b *Board) solidCells(layers world.Layers, box geom.AABB, visit func(collid
 }
 
 // solidFor reports whether cells of k stop an entity on layers: Solid, keeping out a layer it is on.
-func solidFor(k *CellKind, layers world.Layers) bool {
+func solidFor(k *cell.Kind, layers world.Layers) bool {
 	return k != nil && k.Solid && world.Layers(^uint8(k.Allows)).Meets(layers)
 }
 
 // kindOf is Kind without the copy, nil off the board; the pointer is good until the cells change.
-func (b *Board) kindOf(c CellID) *CellKind {
+func (b *Board) kindOf(c cell.ID) *cell.Kind {
 	if b.cells == nil {
 		k := b.seed.Kind(c)
 		return &k

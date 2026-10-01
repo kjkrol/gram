@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -20,8 +21,8 @@ import (
 // The scene of the reported bug: a wall column on the left, a red unit standing still, a blue
 // unit above it ordered below it and, on its way past, ordered back to where it started.
 type unitRow struct {
-	start   board.CellID
-	target  board.CellID
+	start   cell.ID
+	target  cell.ID
 	ordered bool
 }
 
@@ -48,9 +49,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	})
 	occupancy := &board.SingleOccupancy{}
 	brd := board.NewPlugin(tw.grid, occupancy, w)
-	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 2, Allows: board.Land}) // grass, as in the demo
+	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
-		brd.Res.Logic.Board.Set(tw.at(0, y), board.CellKind{Cost: 1, Solid: true})
+		brd.Res.Logic.Board.Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
 	tw.nav = NewPlugin(brd, w, sel)
@@ -84,7 +85,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
 			comp.Load(func(u unitRow) board.At { return board.At{Cell: u.start} }).
-				WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, board.Land) }),
+				WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, cell.Land) }),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
 		}
@@ -130,10 +131,10 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	return tw
 }
 
-func (tw *turnaroundWorld) at(x, y uint32) board.CellID { c, _ := tw.grid.CellIndex(x, y); return c }
+func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c, _ := tw.grid.CellIndex(x, y); return c }
 
 // blueState is the blue unit's cell, its order if any, and its route.
-func (tw *turnaroundWorld) blueState() (cell board.CellID, mt *MoveOrder) {
+func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 	for tw.q.All(); tw.q.Next(); {
 		cur := tw.q.Cursor()
 		for i, id := range cur.IDs {
@@ -163,17 +164,17 @@ func runTurnaround(t *testing.T, collide bool, after int) (replans int, err stri
 		return 0, "done" // already arrived below red: nothing to turn around from
 	}
 	tw.nav.moves.Add(control.Nobody, MoveTo{Cell: a})
-	var last []board.CellID
+	var last []cell.ID
 	for tick := range 60 * 10 {
 		tw.ecs.Tick(time.Second / 60)
-		cell, mt := tw.blueState()
+		here, mt := tw.blueState()
 		if mt == nil {
-			if cell != a {
-				return replans, fmt.Sprintf("tick %d: order done at %v, want %v", tick, cell, a)
+			if here != a {
+				return replans, fmt.Sprintf("tick %d: order done at %v, want %v", tick, here, a)
 			}
 			return replans, ""
 		}
-		steps := append([]board.CellID(nil), mt.Path.Steps[:mt.Path.Length]...)
+		steps := append([]cell.ID(nil), mt.Path.Steps[:mt.Path.Length]...)
 		if !equalSteps(steps, last) {
 			replans++
 			last = steps

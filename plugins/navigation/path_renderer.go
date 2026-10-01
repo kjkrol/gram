@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -16,13 +17,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(cell board.At, mt MoveOrder) []board.CellID {
-	cells := []board.CellID{cell.Cell}
+func pathCells(at board.At, mt MoveOrder) []cell.ID {
+	cells := []cell.ID{at.Cell}
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
 		next = mt.Path.Steps[mt.Path.Index]
 	}
-	if mt.Leg.Active && mt.Leg.To != cell.Cell && mt.Leg.To != next {
+	if mt.Leg.Active && mt.Leg.To != at.Cell && mt.Leg.To != next {
 		cells = append(cells, mt.Leg.To)
 	}
 	for s := mt.Path.Index; s < mt.Path.Length; s++ {
@@ -194,7 +195,7 @@ func (r *PathRenderer) goals(size geom.Vec, o *MoveOrder) {
 }
 
 // point is where a goal is: its spot, or its cell's centre.
-func (r *PathRenderer) point(c board.CellID, spot geom.Vec) geom.Vec {
+func (r *PathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
 	if spot != (geom.Vec{}) {
 		return spot
 	}
@@ -203,7 +204,7 @@ func (r *PathRenderer) point(c board.CellID, spot geom.Vec) geom.Vec {
 
 // drawPath draws the route from the entity through the centres of cells, ending at end, leaving
 // out the first cell's centre once the entity has passed it.
-func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []board.CellID, end geom.Vec) {
+func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
 	from := entityCenter
 	for i, c := range cells {
 		to := r.grid.CellCenter(c)
@@ -220,7 +221,7 @@ func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []board.Cel
 
 // drawRoute draws a route between two goals: from the first through the centres of cells to the
 // second.
-func (r *PathRenderer) drawRoute(cells []board.CellID, from, to geom.Vec) {
+func (r *PathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 	if len(cells) == 0 {
 		r.line(from, to)
 		return
@@ -281,7 +282,7 @@ func (r *PathRenderer) on(p geom.Vec) (float32, float32) {
 
 // goal outlines a box of size standing on the goal — its spot, or its cell's centre — on the
 // ground there, on the Marks tier, as the look draws it.
-func (r *PathRenderer) goal(size geom.Vec, c board.CellID, spot geom.Vec) {
+func (r *PathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec) {
 	at := r.point(c, spot)
 	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
 	alt := r.groundAt(at)
@@ -306,19 +307,19 @@ func (r *PathRenderer) goal(size geom.Vec, c board.CellID, spot geom.Vec) {
 
 // preview is the routes between one order's queued goals, kept until the goals change.
 type preview struct {
-	goals  [MaxWaypoints + 1]board.CellID
+	goals  [MaxWaypoints + 1]cell.ID
 	queued uint8
-	routes [][]board.CellID
+	routes [][]cell.ID
 }
 
 // queued is the routes from the order's Target through each queued goal, planned once per change
 // of the goals; a goal no route reaches is drawn on its own.
-func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) [][]board.CellID {
+func (r *PathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [][]cell.ID {
 	if mt.Queued == 0 {
 		delete(r.previews, id)
 		return nil
 	}
-	var goals [MaxWaypoints + 1]board.CellID
+	var goals [MaxWaypoints + 1]cell.ID
 	goals[0] = mt.Target
 	for k, g := range mt.Waypoints[:mt.Queued] {
 		goals[k+1] = g.Cell
@@ -329,7 +330,7 @@ func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) 
 	pv := &preview{goals: goals, queued: mt.Queued}
 	for k := 0; k < int(mt.Queued); k++ {
 		from, to := goals[k], goals[k+1]
-		route := []board.CellID{from}
+		route := []cell.ID{from}
 		if r.finder != nil {
 			if path, ok := r.finder.findPath(id, domain, from, to); ok {
 				for _, step := range path.Steps[:path.Length] {

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/cameras"
@@ -51,9 +52,9 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	ground := topo.Relief()
-	ground.SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 {
+	ground.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -93,8 +94,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
-	brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c board.CellID) float64 {
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
@@ -149,9 +150,9 @@ func Benchmark_Board_Shores(b *testing.B) {
 		b.Fatal(err)
 	}
 	brd := p.Res.Logic.Board
-	sea := board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water}
+	sea := cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water}
 	brd.SetAll(sea)
-	land := board.CellKind{Cost: 1, Allows: board.Land}
+	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
 			if c, _ := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
@@ -209,14 +210,14 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	grid := board.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
-	kinds := p.CellKindDict()
+	kinds := p.CellKinds()
 	kinds.Create(
-		board.CellKind{Name: board.Named("sea"), Cost: 1, Allows: board.Water},
-		board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("sand"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("rock"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land | board.Water},
-		board.CellKind{Name: board.Named("estuary"), Cost: 1, Allows: board.Water},
+		cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water},
+		cell.Kind{Name: cell.Named("earth"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("sand"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("rock"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land | cell.Water},
+		cell.Kind{Name: cell.Named("estuary"), Cost: 1, Allows: cell.Water},
 	)
 	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
 		Style("earth", painter.Style{Spread: 0.3}).
@@ -234,8 +235,8 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		dx, dy := (x-w/2)/34, (y-h/2)/22
 		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
 	}
-	land := map[board.CellID]bool{}
-	grid.EachCell(func(c board.CellID) {
+	land := map[cell.ID]bool{}
+	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
 		land[c] = inside(float64(x)+0.5, float64(y)+0.5) > 0
 	})
@@ -249,7 +250,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		in := inside(x, y)
 		return 8 + 160*in*in*(0.7+0.3*math.Sin(x/3)*math.Cos(y/4)) + 10*math.Sin(x/2+y/3)
 	}
-	rivers, err := water.Drain(grid, heights, func(c board.CellID) bool { return !land[c] }, water.Config{
+	rivers, err := water.Drain(grid, heights, func(c cell.ID) bool { return !land[c] }, water.Config{
 		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,
 		WidthPerRoot: 1.4, Meander: 6, Plume: 0.25,
 	})
@@ -258,7 +259,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	}
 	layout := board.Layout{Default: "sea"}
 	topo.Seed(rivers.Carved(heights))
-	grid.EachCell(func(c board.CellID) {
+	grid.EachCell(func(c cell.ID) {
 		if land[c] {
 			at := grid.CellCenter(c)
 			kind := "earth"

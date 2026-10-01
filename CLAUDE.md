@@ -79,7 +79,7 @@ plugin's own hooks and the ready-made ones in its `hooks` package are written st
 `plugin/host` (`host.Each`, `host.Every`, `host.Pair`), Go code a game never writes; the tag
 families join the host's queries as optional components, so a rule costs no query, and rules
 over one component share its column (`host.Own` shares the host's own). The moment's type —
-`collision.Meeting`, `collision.Struck`, `vision.Sighting`, `board.Standing`, `board.Cell`,
+`collision.Meeting`, `collision.Struck`, `vision.Sighting`, `board.Standing`, `cell.Now`,
 `world.Moving`, `clock.Moment` — is what says whose it is: a
 host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
 error, never a silent no-op. A plugin author runs them with `host.PairHost[P]`/`host.EachHost[P]`/
@@ -135,7 +135,7 @@ slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
 every component type its kinds carry (`Kinds.LoadComps`), so a game's own tags
 and state (`hooks.Predator`, a game's own component) survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
-kinds go through `board.Plugin.CellKindDict().Create`.
+kinds go through `board.Plugin.CellKinds().Create`.
 
 A `render.Atlas` sizes nothing up front: `Register(size, draw)`/`RegisterAt(id,
 size, draw)` only record sprites, each at a texture size of its own (the drawn
@@ -179,7 +179,7 @@ it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, h
 `board.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
 and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `Climb`, `Least`,
 `Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
-`CellKind.Color` or drawn sprite (`CellKindDict.Draw`; `WithRenderer(nil)` draws from
+`cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from
 `DefaultAtlas`), the ways and crossings as plain bands (`simpleDressing`), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
@@ -320,7 +320,7 @@ the weathering, the stars and the moon, all on by default, not saved (the backdr
 stars and the moon of it through `backdrop.Renderer.WithShown`). The atmosphere's root keeps no
 shaders and draws nothing itself: every part — `calendar`, `sky`, `celestial`, `climate`, `air`,
 `precipitation`, `weathering`, `backdrop`, `overcast` — is a package that never imports it.
-`CellKind.Shine` (0–1) makes a kind glint, per pixel in the topography's materials
+`cell.Kind.Shine` (0–1) makes a kind glint, per pixel in the topography's materials
 (`plugins/topography/water/shaders/sea.wgsl`, `stream.wgsl`; every material a plugin registers with
 `render.RegisterMaterials` joins the composer's library and every mesh shader built on it): the
 painter paints the wet cells' shine and flow into the water sheet, and the terrain's shader calls
@@ -357,7 +357,7 @@ flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, dept
 `atmosphere.Plugin.Precipitation()`. `atmosphere/weathering` is what the weather does to a board:
 `weathering.Config{Snowy, Ice, Water, Sway, Swaying, High, Seed}` names the game's own kinds — a
 kind's snowy twin, what water freezes into, what sways — and `New` defines three effects
-(`effects.Alter[board.Ground]`: snow swaps the kind for its snowy one, ice water for ice, sway sets
+(`effects.Alter[cell.Ground]`: snow swaps the kind for its snowy one, ice water for ice, sway sets
 `Sway`), laid on the world's schedule once a second of game time: snow settling in drifts (`High`
 ground, a noise's seeds, next to snow) while it snows in the frost, melting lonely and late cells
 first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
@@ -456,7 +456,7 @@ a rule (`doc/rule.md`, "A game: states as effects"). A **player acts** the same 
 putting an effect on something with a command from a binding: `selection.Apply{Effect}` on
 its own selected units (an ability), `world.Apply{Effect}` on the world itself (a state of
 the whole game, a lever pulled), which rules and plans read with `During` (the trapdoor
-demo: a lever an effect each, its trapdoors cells tagged with a tag of `board.Places` each, a
+demo: a lever an effect each, its trapdoors cells tagged with a tag of `cell.Family` each, a
 rule a pair, made in a loop).
 
 ### Built-in plugins (`plugins/`)
@@ -525,7 +525,13 @@ rule a pair, made in a loop).
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
-  following the world's `Edges` (`SetWrap(x, y)`). A `CellKind` says which `Domain`s it admits
+  following the world's `Edges` (`SetWrap(x, y)`). What is said of one cell is the subpackage
+  **`board/cell`**: `cell.ID`, `cell.Kind` and the board's `cell.Kinds` (`board.Plugin.CellKinds()`),
+  `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`, the cell entity's `cell.Plot`
+  and `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the game's tags of places (`cell.Family`,
+  `cell.Tag`, `cell.Tags`) and the moment `cell.Now`; the board keeps the grid, its `Board`,
+  `Layout`/`CellEntry`, `Terrain`, `Occupancy`, `Mover`, `At`, `Standing`, `Link`/`Toward`. A
+  `cell.Kind` says which `cell.Domain`s it admits
   (`Land`, `Water`, `Air`, a game's own bits), whether it is `Solid` (a wall), how much it
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
@@ -546,7 +552,7 @@ rule a pair, made in a loop).
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
   down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`, over
-  rivers as `board.Crossing`s by `Across`), laid as a `board.Way` — a
+  rivers as `cell.Crossing`s by `Across`), laid as a `cell.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
@@ -582,8 +588,8 @@ rule a pair, made in a loop).
   (`relief.Raise`, `Lower`, `Level`, `Shaping`). The `Relief` is the world's `Ground`; the relief's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
-  world with heights a `CellKind` has a `Height` (what stands on it); a flat world refuses what stands
-  at a height at the first sight (`CellKindDict.Create`, `NewUnits`, `Units.Define`,
+  world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
+  at a height at the first sight (`cell.Kinds.Create`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
@@ -597,12 +603,12 @@ rule a pair, made in a loop).
   too, each cell once (`Board.around`, a scratch of passes, not reentrant) — the effect demo's
   witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `Cell`.
   `Plugin.Hook` routes by the moment's type. Every cell carries for good the game's tags of
-  places, `tag.Tags[board.Places]` (defined by name through the world's kinds, given in the
+  places, `cell.Tags` (defined by name through the world's kinds, given in the
   `Layout` as `CellEntry.Tags` before the cells are made — `Board.tagCell` panics after): a rule
   of a `Cell` filters cells with `rule.Self(tag)` (the trapdoor demo's strips), and
   `Standing.Places` are those of the cell under a unit (the pressure plate demo: whoever stands
   on a plate orders `world.Apply`). The unit's own cell component is `board.At{Cell}` (was
-  `board.Cell`). The standing pass also has the `Occupancy` let go of whoever left the world,
+  `cell.Now`). The standing pass also has the `Occupancy` let go of whoever left the world,
   every step (`Occupancy.Release`): a despawned unit kept its holds before, blocking cells.
   A `board.Effect` (`Tick(brd, d) alive`) is what the board does to itself over time by writing
   terrain — `Plugin.Cast`/`Dispel`, ticked first each tick; `board/effect` ships `Timed` (terrain
@@ -775,7 +781,7 @@ rule a pair, made in a loop).
   plan). Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side),
   `Having[T]()`. Moments are `rule.About` (`Who()`), pairs `rule.Met` (`Whom`), standing on places
   of their own `rule.Placed` (a marker, `Placed()`; the host tells the places round in
-  `plugin.Tick.Around`: `board.Standing`, `board.Cell`). A Moment's
+  `plugin.Tick.Around`: `board.Standing`, `cell.Now`). A Moment's
   steps: `OneOf`, `Steps`, `If` (on the moment), `Not`, `Apply`, `Keep`, `Dispel`, `Chance`,
   `Unless`, `Under`, `During` (the world's effects), `Order`, `ForOther`, `Here`, `Around` — all
   instant; a lasting step in a rule
@@ -815,7 +821,7 @@ rule a pair, made in a loop).
   (`calendar.Daily/Yearly/Seasonal` give the period and offset), fired by clock time, never again
   after a load; it casts effects or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
-  `Alter[board.Ground]` is a temporary change of terrain.
+  `Alter[cell.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
   `Plugin.Tags()` (a kind's choice via `comp.Tagged`); a bit flip, seen

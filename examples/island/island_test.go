@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
@@ -15,7 +16,7 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 		t.Errorf("default kind %q, want water round the island", layout.Default)
 	}
 	count := map[string]int{}
-	kinds := map[board.CellID]string{}
+	kinds := map[cell.ID]string{}
 	for _, e := range layout.Cells {
 		count[e.Kind]++
 		kinds[e.Cell] = e.Kind
@@ -46,7 +47,7 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
-	land, wet := map[board.CellID]bool{}, map[[2]int]bool{}
+	land, wet := map[cell.ID]bool{}, map[[2]int]bool{}
 	for _, e := range layout.Cells {
 		land[e.Cell] = true
 	}
@@ -94,7 +95,7 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
-	kinds := map[board.CellID]string{}
+	kinds := map[cell.ID]string{}
 	for _, e := range layout.Cells {
 		kinds[e.Cell] = e.Kind
 	}
@@ -182,7 +183,7 @@ func TestIslandLayout_PutsEachSoilWhereItBelongs(t *testing.T) {
 func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
-	walk := map[board.CellID]bool{}
+	walk := map[cell.ID]bool{}
 	for _, e := range layout.Cells {
 		walk[e.Cell] = true
 	}
@@ -191,8 +192,8 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 			walk[w.Cell] = w.Kind != "river"
 		}
 	}
-	seen := map[board.CellID]bool{stops[0]: true}
-	queue := []board.CellID{stops[0]}
+	seen := map[cell.ID]bool{stops[0]: true}
+	queue := []cell.ID{stops[0]}
 	for len(queue) > 0 {
 		c := queue[0]
 		queue = queue[1:]
@@ -257,7 +258,7 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, _ := Layout(grid)
-	land := map[board.CellID]bool{}
+	land := map[cell.ID]bool{}
 	for _, e := range layout.Cells {
 		land[e.Cell] = true
 	}
@@ -291,12 +292,12 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
-	soil := map[board.CellID]string{}
+	soil := map[cell.ID]string{}
 	for _, e := range layout.Cells {
 		soil[e.Cell] = e.Kind
 	}
-	road := map[board.CellID]board.Links{}
-	course := map[board.CellID]board.WayEntry{}
+	road := map[cell.ID]cell.Links{}
+	course := map[cell.ID]board.WayEntry{}
 	for _, w := range layout.Ways {
 		if w.Kind == "road" {
 			road[w.Cell] = w.Links
@@ -332,8 +333,8 @@ func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 		t.Errorf("%d of %d cells of road on rock, want the roads round it where they can", rock, len(road))
 	}
 	// every stop on the one network: walk the links from the first
-	seen := map[board.CellID]bool{stops[0]: true}
-	for queue := []board.CellID{stops[0]}; len(queue) > 0; queue = queue[1:] {
+	seen := map[cell.ID]bool{stops[0]: true}
+	for queue := []cell.ID{stops[0]}; len(queue) > 0; queue = queue[1:] {
 		c := queue[0]
 		for i := range 8 {
 			if road[c]&(1<<i) == 0 {

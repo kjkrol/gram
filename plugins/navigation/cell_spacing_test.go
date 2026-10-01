@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -69,7 +70,7 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 		{start: rw.at(5, 1)},
 	}
 	rw = newRoadWorld(t, 10, units)
-	wall := board.CellKind{Cost: 1, Solid: true}
+	wall := cell.Kind{Cost: 1, Solid: true}
 	for _, x := range []uint32{4, 5, 6} {
 		rw.nav.board.Set(rw.at(x, 0), wall)
 		rw.nav.board.Set(rw.at(x, 2), wall)
@@ -98,24 +99,24 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	}
 	grid := board.DefaultGrids{}.Square(3, 3, 32)
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occ := &board.SingleOccupancy{}
 	k := newCellKeeping(newPathFinder(grid, terrain, nil, openOccupancy{}), occ)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
-	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: board.Land, pos: posAt(grid, at(1, 1))}
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: cell.Land, pos: posAt(grid, at(1, 1))}
 	coming := body{id: 3, at: grid.CellCenter(at(0, 1)), cell: at(0, 1), moving: true}
 	o, ok := k.stepAside(m, coming)
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {
 		t.Errorf("stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and nothing after", o, ok)
 	}
-	occ.Enter(at(1, 0), uid.UID64(4), board.Land)
-	occ.Enter(at(1, 2), uid.UID64(5), board.Land)
+	occ.Enter(at(1, 0), uid.UID64(4), cell.Land)
+	occ.Enter(at(1, 2), uid.UID64(5), cell.Land)
 	if o, ok := k.stepAside(m, coming); !ok || o.Target != at(0, 0) && o.Target != at(0, 2) {
 		t.Errorf("with the cells across held it stepped aside to %v %v, want slantwise beside the one coming, never ahead of it", o.Target, ok)
 	}
 }
 
 // posAt is a 22-unit box on c.
-func posAt(grid board.Grid, c board.CellID) world.Position {
+func posAt(grid board.Grid, c cell.ID) world.Position {
 	return world.Position{AABB: board.CellAABB(grid, c, 22)}
 }

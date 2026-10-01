@@ -4,7 +4,7 @@
 // own scouts too. The scouts are clicked about as anywhere; J hastens the selected ones for a
 // while, to get off a strip in time. A lever pulled is a state of the whole game, put on the world
 // (world.Apply); the haste a state of the scouts, put on the selected (selection.Apply); a
-// trapdoor a cell tagged with its lever's group (board.Places), which a rule keeps open while that
+// trapdoor a cell tagged with its lever's group (cell.Family), which a rule keeps open while that
 // lever is pulled. All of it is defined here, in the game.
 package main
 
@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -25,7 +26,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -87,7 +87,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // unit is the row every kind spawns from: where it starts and, for a wanderer, the other end of
 // its walk.
-type unit struct{ start, to board.CellID }
+type unit struct{ start, to cell.ID }
 
 type mainStage struct {
 	world     *world.Plugin
@@ -101,7 +101,7 @@ type mainStage struct {
 	brd       *board.Board
 
 	pulled      []effect.Effect // each lever's, in the order of levers
-	trapdoors   []tag.Tag[board.Places]
+	trapdoors   []cell.Tag
 	haste       effect.Effect
 	hasteSprite render.SpriteID
 
@@ -130,17 +130,17 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("boards"), Cost: 1, Allows: board.Land}, // a trapdoor shut
-		board.CellKind{Name: board.Named("pit"), Cost: 1},                        // holds nobody
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("boards"), Cost: 1, Allows: cell.Land}, // a trapdoor shut
+		cell.Kind{Name: cell.Named("pit"), Cost: 1},                       // holds nobody
 	)
-	pit, _ := s.board.CellKindDict().Get("pit")
+	pit, _ := s.board.CellKinds().Get("pit")
 
 	// The states, each an effect: a trapdoor open, a pit; a scout hastened, twice as fast and drawn
 	// bright; and a lever pulled for each lever, below.
 	fx := s.world.Effects()
-	open := fx.Define("open", effect.Spec{effect.Alter(func(g *board.Ground) { g.Kind = pit })})
+	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
 	s.haste = fx.Define("haste", effect.Spec{
@@ -159,8 +159,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// pulled; its key comes with the player's, below.
 	for _, l := range levers {
 		pulled := fx.Define("lever "+l.name, effect.Spec{effect.Lasts(leverHeld)})
-		trapdoor := s.world.Kinds().DefineTag[board.Places]("trapdoor " + l.name)
-		if err := s.board.Hook(rule.On("trapdoors "+l.name, rule.Self(trapdoor), func(m *rule.Moment[board.Cell]) rule.Step {
+		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + l.name)
+		if err := s.board.Hook(rule.On("trapdoors "+l.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
 			return m.During(pulled, m.Keep(open))
 		})); err != nil {
 			return err
@@ -229,7 +229,7 @@ func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil 
 func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
-	land := board.Mover{Domain: board.Land}
+	land := board.Mover{Domain: cell.Land}
 	s.scout = units.Define("scout", land, profile, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile,
@@ -239,23 +239,23 @@ func (s *mainStage) defineKinds() {
 // Spawn lays the strips of trapdoors, each cell tagged with its lever's, and puts the scouts and
 // the wanderers in place.
 func (s *mainStage) Spawn() error {
-	cell := func(x, y uint32) board.CellID { c, _ := s.brd.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 	var cells []board.CellEntry
 	for i, l := range levers {
-		tags := tag.Tags[board.Places](0).With(s.trapdoors[i])
+		tags := cell.Tags(0).With(s.trapdoors[i])
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := l.left; x <= l.left+1; x++ {
-				cells = append(cells, board.CellEntry{Kind: "boards", Cell: cell(x, y), Tags: tags})
+				cells = append(cells, board.CellEntry{Kind: "boards", Cell: cellAt(x, y), Tags: tags})
 			}
 		}
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unit{start: cell(3+2*i, GridHeight-2)}))
+		s.world.Seed(s.scout.Entry(unit{start: cellAt(3+2*i, GridHeight-2)}))
 	}
 	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unit{start: cell(2, row), to: cell(GridWidth-3, row)}))
+		s.world.Seed(s.wanderer.Entry(unit{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
 	}
 	return nil
 }
@@ -291,7 +291,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass":  {R: 60, G: 95, B: 60, A: 255},

@@ -8,7 +8,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Raise lifts the ground at At by one Shaping.Step: the nearest corner on a square grid, the cell
@@ -88,7 +88,7 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 	var set []vertex
 	if !r.square {
 		lo, hi := geom.NewVec(min(from.X, to.X), min(from.Y, to.Y)), geom.NewVec(max(from.X, to.X), max(from.Y, to.Y))
-		r.grid.CellsUnder(geom.NewAABB(lo, hi), func(c board.CellID) {
+		r.grid.CellsUnder(geom.NewAABB(lo, hi), func(c cell.ID) {
 			if i, ok := r.grid.Ordinal(c); ok {
 				if v := (vertex{x: i}); r.setValue(v, h) {
 					set = append(set, v)
@@ -164,17 +164,17 @@ func (r *Relief) heightAt(v vertex) float64 { return float64(r.values[r.index(v)
 // vertexNeighbours lists the vertices one edge away from v.
 func (r *Relief) vertexNeighbours(v vertex, dst []vertex) []vertex {
 	if !r.square {
-		var cell board.CellID
+		var here cell.ID
 		found := false
-		r.grid.EachCell(func(c board.CellID) {
+		r.grid.EachCell(func(c cell.ID) {
 			if i, ok := r.grid.Ordinal(c); ok && i == v.x {
-				cell, found = c, true
+				here, found = c, true
 			}
 		})
 		if !found {
 			return dst
 		}
-		for _, n := range r.grid.Neighbors(cell) {
+		for _, n := range r.grid.Neighbors(here) {
 			if i, ok := r.grid.Ordinal(n); ok {
 				dst = append(dst, vertex{x: i})
 			}

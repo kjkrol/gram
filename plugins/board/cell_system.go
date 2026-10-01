@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -20,14 +21,14 @@ type cellSystem struct {
 
 	active      *goke.Query // cells an effect was ever on
 	activeComp  goke.Comp[effect.Active]
-	activePlot  goke.Comp[Plot]
+	activePlot  goke.Comp[cell.Plot]
 	activeMarks goke.OptComp[tag.Tags[effect.States]]
-	spawnPlot   goke.Comp[Plot]
-	spawnGround goke.Comp[Ground]
-	spawnWay    goke.Comp[Way]
-	spawnCross  goke.Comp[Crossing]
+	spawnPlot   goke.Comp[cell.Plot]
+	spawnGround goke.Comp[cell.Ground]
+	spawnWay    goke.Comp[cell.Way]
+	spawnCross  goke.Comp[cell.Crossing]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
-	spawnPlaces goke.Comp[tag.Tags[Places]]
+	spawnPlaces goke.Comp[tag.Tags[cell.Family]]
 }
 
 func newCellSystem(brd *Board) *cellSystem { return &cellSystem{brd: brd} }
@@ -64,8 +65,8 @@ func (s *cellSystem) Init(si *goke.SysInit) {
 
 // spawn makes an entity for every cell out of the board's seed.
 func (s *cellSystem) spawn(si *goke.SysInit, ids []uid.UID64) {
-	cells := make([]CellID, len(ids))
-	s.brd.EachCell(func(c CellID) {
+	cells := make([]cell.ID, len(ids))
+	s.brd.EachCell(func(c cell.ID) {
 		if o, ok := s.brd.Ordinal(c); ok {
 			cells[o] = c
 		}
@@ -79,9 +80,9 @@ func (s *cellSystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		crossings, places := s.spawnCross.Slice(&factory.Cursor), s.spawnPlaces.Slice(&factory.Cursor)
 		for i, id := range factory.IDs {
 			c := cells[o]
-			plots[i] = Plot{Cell: c}
+			plots[i] = cell.Plot{Cell: c}
 			places[i] = s.brd.places[c]
-			grounds[i] = Ground{Kind: s.brd.seed.Kind(c)}
+			grounds[i] = cell.Ground{Kind: s.brd.seed.Kind(c)}
 			ways[i] = s.brd.Way(c)
 			crossings[i] = s.brd.Crossing(c)
 			ids[o] = id

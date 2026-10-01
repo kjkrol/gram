@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -27,7 +28,7 @@ const MaxWaypoints = 8
 // MoveOrder commands an entity to path toward Target, then through each queued goal in turn;
 // navigationSystem removes it once the last is reached.
 type MoveOrder struct {
-	Target board.CellID
+	Target cell.ID
 	// Spot is where in Target the entity's centre stops, zero the centre; At is the point the order
 	// was given for, round which a group stands. Only BodySpacing sets them.
 	Spot, At  geom.Vec
@@ -54,10 +55,10 @@ type MoveOrder struct {
 	AsideFor      time.Duration
 	Met           [4]uid.UID64
 	Mets          uint8
-	Avoid         [4]board.CellID
+	Avoid         [4]cell.ID
 	Avoids        uint8
 	Stalled       time.Duration
-	Toward        board.CellID
+	Toward        cell.ID
 	Closest       float64
 	Stalls        uint8
 	Held          bool
@@ -84,7 +85,7 @@ type MoveOrder struct {
 // Round is a patrol: Goals walked to in turn and round again, for ever, Pause stood on each one
 // reached; Next is the goal after the Target, Stood how long the entity has stood on it.
 type Round struct {
-	Goals       [MaxWaypoints]board.CellID
+	Goals       [MaxWaypoints]cell.ID
 	Count, Next uint8
 	Pause       time.Duration
 	Stood       time.Duration
@@ -92,7 +93,7 @@ type Round struct {
 
 // Patrol is the order to walk to cells in turn and round again, for ever, standing pause on each:
 // a guard's round, a wanderer's walk. A kind gives it its units (comp.Load), each its own round.
-func Patrol(pause time.Duration, cells ...board.CellID) MoveOrder {
+func Patrol(pause time.Duration, cells ...cell.ID) MoveOrder {
 	if len(cells) == 0 || len(cells) > MaxWaypoints {
 		panic(fmt.Sprintf("navigation: a patrol of %d goals, want 1 to %d", len(cells), MaxWaypoints))
 	}
@@ -115,7 +116,7 @@ func (m *MoveOrder) goOn() bool {
 // Goal is a goal queued behind a MoveOrder's Target: its Cell, where in it the entity stops
 // (Spot; zero, the centre) and the point it was given for (At).
 type Goal struct {
-	Cell     board.CellID
+	Cell     cell.ID
 	Spot, At geom.Vec
 }
 
@@ -159,7 +160,7 @@ func (m *MoveOrder) meet(id uid.UID64) {
 }
 
 // learn notes c as a cell someone stands in, for the routes to go round; the oldest goes first.
-func (m *MoveOrder) learn(c board.CellID) {
+func (m *MoveOrder) learn(c cell.ID) {
 	for _, known := range m.Avoid[:m.Avoids] {
 		if known == c {
 			return
@@ -177,18 +178,18 @@ func (m *MoveOrder) learn(c board.CellID) {
 // Leg is the single step an entity is travelling: every cell it holds in
 // Occupancy until it reaches To's center.
 type Leg struct {
-	From, To board.CellID
-	C1, C2   board.CellID
+	From, To cell.ID
+	C1, C2   cell.ID
 	Diagonal bool
 	Active   bool
 }
 
 // cells lists every cell leg holds: From, To, and both corners of a diagonal step.
-func (l Leg) cells() []board.CellID {
+func (l Leg) cells() []cell.ID {
 	if l.Diagonal {
-		return []board.CellID{l.From, l.To, l.C1, l.C2}
+		return []cell.ID{l.From, l.To, l.C1, l.C2}
 	}
-	return []board.CellID{l.From, l.To}
+	return []cell.ID{l.From, l.To}
 }
 
 // navigationSystem paths MoveOrder-commanded entities toward their target, asking their Steering
@@ -398,7 +399,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 
 			entered := false
-			moveTo := func(c board.CellID) {
+			moveTo := func(c cell.ID) {
 				if c == cells[i].Cell {
 					return
 				}
@@ -710,11 +711,11 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 // arrival is a unit with a tree whose order is over, standing on cell.
 type arrival struct {
 	id   uid.UID64
-	cell board.CellID
+	cell cell.ID
 }
 
 // wayBetween is the way from cell a's centre to cell b's, a unit vector, the short way round.
-func (s *navigationSystem) wayBetween(a, b board.CellID) geom.Vec {
+func (s *navigationSystem) wayBetween(a, b cell.ID) geom.Vec {
 	from := s.grid.CellCenter(a)
 	to := s.unwrap(from, s.grid.CellCenter(b))
 	d := geom.NewVec(to.X-from.X, to.Y-from.Y)
@@ -758,7 +759,7 @@ func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 type touching struct {
 	self, other uid.UID64
 	way         geom.Vec
-	cell, from  board.CellID
+	cell, from  cell.ID
 	headOn      bool
 	refused     bool
 }
@@ -817,7 +818,7 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 
 // fire hands the Touch of self by other, holding cell, to the rules, and notes it for self when
 // it has a tree.
-func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body, way geom.Vec, cell board.CellID, head bool) {
+func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
 	t := Touch{Self: self.id, Other: other.id, Way: way, Moving: self.moving, OtherMoving: other.moving,
 		GivingWay: self.givingWay, OtherGivingWay: other.givingWay, LastGoal: self.lastGoal,
 		Ally: owner.Allies(self.owners, other.owners), Groupmate: self.group != 0 && self.group == other.group,
@@ -954,7 +955,7 @@ func (s *navigationSystem) stepAside(m member, o *MoveOrder, of uid.UID64) {
 }
 
 // wayTo is the way from m towards cell c's centre, a unit vector.
-func (s *navigationSystem) wayTo(m member, c board.CellID) geom.Vec {
+func (s *navigationSystem) wayTo(m member, c cell.ID) geom.Vec {
 	have := m.centre()
 	to := s.unwrap(have, s.grid.CellCenter(c))
 	d := geom.NewVec(to.X-have.X, to.Y-have.Y)
@@ -1003,7 +1004,7 @@ func (s *navigationSystem) gather(dst []body) []body {
 }
 
 // goal is where in c an entity stops: spot, or the centre where spot is zero.
-func (s *navigationSystem) goal(c board.CellID, spot geom.Vec) geom.Vec {
+func (s *navigationSystem) goal(c cell.ID, spot geom.Vec) geom.Vec {
 	if spot == (geom.Vec{}) {
 		return s.grid.CellCenter(c)
 	}
@@ -1023,7 +1024,7 @@ func (s *navigationSystem) unwrap(have, to geom.Vec) geom.Vec {
 
 // ahead is the route to steer by: want, then the centres of the steps after waypoint, up to
 // target, which ends at end.
-func (s *navigationSystem) ahead(have, want geom.Vec, p *Path, waypoint, target board.CellID, end geom.Vec) []geom.Vec {
+func (s *navigationSystem) ahead(have, want geom.Vec, p *Path, waypoint, target cell.ID, end geom.Vec) []geom.Vec {
 	s.route = append(s.route[:0], want)
 	if waypoint == target {
 		return s.route
@@ -1130,12 +1131,12 @@ func approach(st steering.Helm, dist, within float64) float64 {
 // refusal is why a step could not be reserved: the ground, or a cell someone holds — the step's
 // own cell, or a corner of a slantwise one.
 type refusal struct {
-	cell         board.CellID
+	cell         cell.ID
 	held, corner bool
 }
 
 // reserveLeg claims every cell a step from→to can touch, or none of them: an inactive Leg and why.
-func (s *navigationSystem) reserveLeg(from, to board.CellID, id uid.UID64, domain board.Domain) (Leg, refusal) {
+func (s *navigationSystem) reserveLeg(from, to cell.ID, id uid.UID64, domain cell.Domain) (Leg, refusal) {
 	leg := Leg{From: from, To: to, Active: true}
 	if c1, c2, diag := s.grid.DiagonalNeighbors(from, to); diag {
 		leg.C1, leg.C2, leg.Diagonal = c1, c2, true
@@ -1155,7 +1156,7 @@ func (s *navigationSystem) reserveLeg(from, to board.CellID, id uid.UID64, domai
 }
 
 // admitsAll reports whether every cell still admits domain.
-func (s *navigationSystem) admitsAll(cells []board.CellID, domain board.Domain) bool {
+func (s *navigationSystem) admitsAll(cells []cell.ID, domain cell.Domain) bool {
 	for _, c := range cells {
 		if !s.terrain.Kind(c).Admits(domain) {
 			return false

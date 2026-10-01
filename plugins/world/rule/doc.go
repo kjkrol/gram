@@ -22,7 +22,7 @@
 // # Rules
 //
 // [On] makes a rule of a moment a plugin catches in its own pass — a board.Standing or a
-// board.Cell, a vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment —
+// cell.Now, a vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment —
 // for the plugin's Hook: board.Plugin.Hook, vision's, collision's, world's, navigation's. Its
 // [Filter], the second argument, says whom it fires for: [All], [Self] one carrying a tag — an
 // effect's marker among them — [Between] a pair whose sides carry the tags given, for a moment

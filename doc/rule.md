@@ -50,8 +50,8 @@ The second argument of `rule.On` says whom the rule fires for, read before its s
 
 - `rule.All` — every entity the plugin shows it, every pair for a moment of two;
 - `rule.Self(tag)` — an entity carrying the tag, an effect's marker among them:
-  `rule.Self(frozen.Mark())`; a cell carries the game's tags of places (`board.Places`, given in
-  the board's `Layout`) — `rule.Self(trapdoor)` on a `board.Cell`;
+  `rule.Self(frozen.Mark())`; a cell carries the game's tags of places (`cell.Tag`, of the family
+  `cell.Family`, given in the board's `Layout`) — `rule.Self(trapdoor)` on a `cell.Now`;
 - `rule.Between(a, b)` — a pair whose entity carries `a` and whose other carries `b` (`tag.Any`
   for either side), for a moment that is `rule.Met`: a collision's `Meeting`, a `Sighting`, a
   navigation `Touch`;
@@ -62,7 +62,7 @@ costs nothing for it.
 
 ## The five words
 
-- **Rule** — a moment a plugin catches: a `board.Standing` or a `board.Cell`, a
+- **Rule** — a moment a plugin catches: a `board.Standing` or a `cell.Now`, a
   `vision.Sighting`, a `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Drawing`, a
   `clock.Moment`, a `navigation.Touch`. A Moment's steps are instant — `OneOf`, `Steps`, `If` on
   the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`,
@@ -113,7 +113,7 @@ costs nothing for it.
   a clock rule applies lands there — `m.If(clock.At(dusk), m.Apply(night))`, a phase that
   `clock.Clock.In` reads.
 - **Where one stands.** On a moment that is `rule.Placed` — a `board.Standing`, a cell's
-  `board.Cell` — `m.Here(step)` runs the step on the cells under the entity (for a cell, on
+  `cell.Now` — `m.Here(step)` runs the step on the cells under the entity (for a cell, on
   itself) and `m.Around(rings, step)` on those and the rings of neighbours round them, each cell
   once, on square and hex boards alike: an effect applied to the ground.
 - **Now and then.** `m.Chance(p, step)` runs the step with likelihood `p`, drawn afresh at every
@@ -138,12 +138,12 @@ trapdoors, every lever a state of the game, every group of trapdoors a tag of pl
 a pair:
 
 ```go
-open := fx.Define("open", effect.Spec{effect.Alter(func(g *board.Ground) { g.Kind = pit })})
+open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 
 wire := func(name string, key control.Key) {
 	pulled := fx.Define("lever "+name, effect.Spec{effect.Lasts(2 * time.Second)})
-	trapdoor := kinds.DefineTag[board.Places]("trapdoor " + name) // given to cells in the Layout
-	brd.Hook(rule.On("trapdoors "+name, rule.Self(trapdoor), func(m *rule.Moment[board.Cell]) rule.Step {
+	trapdoor := kinds.DefineTag[cell.Family]("trapdoor " + name) // given to cells in the Layout
+	brd.Hook(rule.On("trapdoors "+name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
 		return m.During(pulled, m.Keep(open))
 	}))
 	player.Bind(control.Command(control.KeyPress{Key: key}, "Pull the "+name+" lever",
@@ -180,7 +180,7 @@ open while someone stands there and a second after.
 ## Knobs
 
 A plugin gives a game **knobs**: components it only reads, which an effect's `Alter` turns and
-puts back when it ends — a cell's `board.Ground`, `steering.Steering` (how fast an entity goes,
+puts back when it ends — a cell's `cell.Ground`, `steering.Steering` (how fast an entity goes,
 speeds up, brakes; `Halted` holds it), `vision.Sight` (how far, which way; `Ahead` looks the way
 it moves), `collision.Physics`, `world.Appearance`. What a plugin's system writes lives beside
 the knob in a component of its own — `steering.Course` beside `Steering`, `vision.Sighted` beside
@@ -290,7 +290,7 @@ burning := fx.Define("burning", effect.Spec{
 	effect.Then(smouldering),                                    // burnt out, it smoulders
 	effect.Alter(func(a *world.Appearance) { a.SpriteID = flames }), // a unit drawn burning,
 	effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 1.5 }),  // running about;
-	effect.Alter(func(g *board.Ground) { g.Kind = embers }),         // a cell's ground aflame
+	effect.Alter(func(g *cell.Ground) { g.Kind = embers }),         // a cell's ground aflame
 })
 doused := fx.Define("doused", effect.Spec{effect.Lasts(10 * time.Second)})
 
@@ -310,12 +310,12 @@ brd.Hook(
 		)
 	}),
 	// burning ground sets the cells round it alight now and then — not one burning or burnt out
-	rule.On("fire spreads over the ground", rule.Self(burning.Mark()), func(m *rule.Moment[board.Cell]) rule.Step {
+	rule.On("fire spreads over the ground", rule.Self(burning.Mark()), func(m *rule.Moment[cell.Now]) rule.Step {
 		return m.Around(1, m.Unless(burning, m.Unless(smouldering, m.Chance(0.05, m.Apply(burning)))))
 	}),
 )
 
-func inWater(s board.Standing) bool { return s.Kind.Admits(board.Water) }
+func inWater(s board.Standing) bool { return s.Kind.Admits(cell.Water) }
 ```
 
 One effect serves units and cells: an `Alter` of a component the entity does not carry is passed
@@ -327,7 +327,7 @@ Another plugin, added later, adds its own rules for fire — vision's units flee
 
 Where a rule cannot say what the game needs, a moment, a step or a knob is missing; it is added
 to the plugin, not written as code in a rule. Fire showed three, added on 2026-10-01: the steps
-`Here` and `Around`, a board moment of a cell (`board.Cell`), and the clock's moment as its own
+`Here` and `Around`, a board moment of a cell (`cell.Now`), and the clock's moment as its own
 entity's, so that a clock rule casts a phase.
 
 ## Later

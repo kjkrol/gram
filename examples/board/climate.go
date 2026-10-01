@@ -4,7 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // snowyColors is how each kind snow may lie on looks under it; iceColor, water frozen.
@@ -22,14 +22,14 @@ var (
 // and stand on, another colour — and says how the weather lies on the island; on the flat map snow
 // lies nowhere first.
 func (s *mainStage) defineClimate() weathering.Config {
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	snowy := map[string]string{}
 	for name, col := range snowyColors {
 		k, _ := kinds.Get(name)
-		k.Name, k.Color = board.Named("snowy "+name), col
+		k.Name, k.Color = cell.Named("snowy "+name), col
 		kinds.Create(k)
 		snowy[name] = "snowy " + name
 	}
-	kinds.Create(board.CellKind{Name: board.Named("ice"), Cost: 5, Allows: board.Land | board.Air, Color: iceColor}.Costing(board.Air, 1))
+	kinds.Create(cell.Kind{Name: cell.Named("ice"), Cost: 5, Allows: cell.Land | cell.Air, Color: iceColor}.Costing(cell.Air, 1))
 	return weathering.Config{Snowy: snowy, Ice: "ice", Sway: []string{"forest", "snowy forest"}}
 }

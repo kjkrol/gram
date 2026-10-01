@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -18,11 +19,11 @@ import (
 // rules of it.
 type Standing struct {
 	ID     uid.UID64
-	Cell   CellID
-	Kind   CellKind
-	Places tag.Tags[Places] // the game's tags of the cell's place: a plate, a zone
+	Cell   cell.ID
+	Kind   cell.Kind
+	Places tag.Tags[cell.Family] // the game's tags of the cell's place: a plate, a zone
 	Box    geom.AABB
-	Domain Domain
+	Domain cell.Domain
 }
 
 // Who is the entity standing: whose moment it is, for a rule.

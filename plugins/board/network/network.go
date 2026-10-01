@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Node is a cell a network runs through: the board kind its way is laid of, named, how wide it
@@ -19,32 +20,32 @@ type Node struct {
 // running from cell to cell towards where it leaves the network, the sea.
 type Network struct {
 	grid  board.Grid
-	nodes map[board.CellID]Node
-	links map[board.CellID]board.Links
-	down  map[board.CellID]board.CellID
-	up    map[board.CellID][]board.CellID
-	runs  map[board.CellID][2]int // Along's: how many cells above and below, worked out once
+	nodes map[cell.ID]Node
+	links map[cell.ID]cell.Links
+	down  map[cell.ID]cell.ID
+	up    map[cell.ID][]cell.ID
+	runs  map[cell.ID][2]int // Along's: how many cells above and below, worked out once
 }
 
 // New is an empty network over grid.
 func New(grid board.Grid) *Network {
-	return &Network{grid: grid, nodes: map[board.CellID]Node{}, links: map[board.CellID]board.Links{},
-		down: map[board.CellID]board.CellID{}, up: map[board.CellID][]board.CellID{}}
+	return &Network{grid: grid, nodes: map[cell.ID]Node{}, links: map[cell.ID]cell.Links{},
+		down: map[cell.ID]cell.ID{}, up: map[cell.ID][]cell.ID{}}
 }
 
 // Set has the network run through c as node says.
-func (n *Network) Set(c board.CellID, node Node) {
+func (n *Network) Set(c cell.ID, node Node) {
 	n.nodes[c], n.runs = node, nil
 }
 
 // Node is what runs through c; false where nothing does.
-func (n *Network) Node(c board.CellID) (Node, bool) {
+func (n *Network) Node(c cell.ID) (Node, bool) {
 	node, ok := n.nodes[c]
 	return node, ok
 }
 
 // Link has a and b, neighbours, run on to each other; false where they are no neighbours.
-func (n *Network) Link(a, b board.CellID) bool {
+func (n *Network) Link(a, b cell.ID) bool {
 	ab, ok := board.Link(n.grid, a, b)
 	ba, back := board.Link(n.grid, b, a)
 	if !ok || !back {
@@ -58,7 +59,7 @@ func (n *Network) Link(a, b board.CellID) bool {
 // Flow has from run down on to its neighbour to: linked to it, and to linked back where the
 // network runs through it — a river's last cell runs on to the sea it leaves by, which is no
 // part of it. False where they are no neighbours.
-func (n *Network) Flow(from, to board.CellID) bool {
+func (n *Network) Flow(from, to cell.ID) bool {
 	l, ok := board.Link(n.grid, from, to)
 	if !ok {
 		return false
@@ -76,7 +77,7 @@ func (n *Network) Flow(from, to board.CellID) bool {
 }
 
 // Links is which of c's neighbours the network runs on to from it; none where it does not run.
-func (n *Network) Links(c board.CellID) board.Links {
+func (n *Network) Links(c cell.ID) cell.Links {
 	if _, runs := n.nodes[c]; !runs {
 		return 0
 	}
@@ -84,7 +85,7 @@ func (n *Network) Links(c board.CellID) board.Links {
 }
 
 // Down is where c runs down on to, Flow's; false where it flows nowhere.
-func (n *Network) Down(c board.CellID) (board.CellID, bool) {
+func (n *Network) Down(c cell.ID) (cell.ID, bool) {
 	d, ok := n.down[c]
 	return d, ok
 }
@@ -92,7 +93,7 @@ func (n *Network) Down(c board.CellID) (board.CellID, bool) {
 // Along is how far down its flow c lies: 0 at the head of the longest flow running into it, 1 at
 // the last cell before it leaves the network, by the cells above and below it; 0 where the network
 // does not run, or does not flow.
-func (n *Network) Along(c board.CellID) float64 {
+func (n *Network) Along(c cell.ID) float64 {
 	if _, runs := n.nodes[c]; !runs {
 		return 0
 	}
@@ -108,12 +109,12 @@ func (n *Network) Along(c board.CellID) float64 {
 
 // run is how many cells lie above c, along the longest flow into it, and below it on to where it
 // leaves the network.
-func (n *Network) run(c board.CellID) [2]int {
+func (n *Network) run(c cell.ID) [2]int {
 	if r, ok := n.runs[c]; ok {
 		return r
 	}
 	if n.runs == nil {
-		n.runs = map[board.CellID][2]int{}
+		n.runs = map[cell.ID][2]int{}
 	}
 	var r [2]int
 	for _, u := range n.up[c] {
@@ -131,8 +132,8 @@ func (n *Network) run(c board.CellID) [2]int {
 }
 
 // Cells is every cell the network runs through, in order.
-func (n *Network) Cells() []board.CellID {
-	cells := make([]board.CellID, 0, len(n.nodes))
+func (n *Network) Cells() []cell.ID {
+	cells := make([]cell.ID, 0, len(n.nodes))
 	for c := range n.nodes {
 		cells = append(cells, c)
 	}
@@ -142,8 +143,8 @@ func (n *Network) Cells() []board.CellID {
 
 // Crossings is every cell both n and o run through: where a road meets a river, a ford or a
 // bridge.
-func (n *Network) Crossings(o *Network) []board.CellID {
-	var out []board.CellID
+func (n *Network) Crossings(o *Network) []cell.ID {
+	var out []cell.ID
 	for _, c := range n.Cells() {
 		if _, both := o.nodes[c]; both {
 			out = append(out, c)

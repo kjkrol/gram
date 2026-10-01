@@ -39,7 +39,7 @@
 //
 // # Ways
 //
-// A board.Way is drawn as a band through its cell: each way out ends halfway to its neighbour, as
+// A cell.Way is drawn as a band through its cell: each way out ends halfway to its neighbour, as
 // wide as the mean of the two ways there; the two out to the widest neighbours are one band curving
 // round the cell's middle, any other joins it curving in, so a winding stream bends smoothly; a way
 // out to one neighbour alone ends square across itself. A way whose kind shines is water running
@@ -47,7 +47,7 @@
 // as its Mix, the other sprite glazed over its own and blended along the band (render.Frame.Glaze)
 // — a river turning into the sea's colour towards its mouth; a way's Fade has it show the less the
 // further it has faded, down to nothing where it ends, its water running on level ground the way
-// it fades: a river running out into the sea. A board.Crossing — a bridge — is cut into bands as a
+// it fades: a river running out into the sea. A cell.Crossing — a bridge — is cut into bands as a
 // way is, on a tier over the ways, each band meeting whichever of its neighbour's way and crossing
 // runs back to it: a road meets its bridge, not the river under it. A way running out into water no
 // way runs across runs on to its middle under it: the water lies over a way as it lies over the

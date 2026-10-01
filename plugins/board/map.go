@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"image/color"
 	"math"
 
@@ -24,15 +25,15 @@ type Map interface {
 	Dressing() Dressing
 	// Top is the height of c's corners as drawn — top-left, top-right, bottom-left, bottom-right —
 	// and of its ground: zero on a flat map.
-	Top(c CellID) (corners [4]float32, level float32)
+	Top(c cell.ID) (corners [4]float32, level float32)
 	// Climb is how many times as long the step from one cell to its neighbour takes whoever moves
 	// in d as it would on the flat: the slope's; 1 on a flat map.
-	Climb(from, to CellID, d Domain) float64
+	Climb(from, to cell.ID, d cell.Domain) float64
 	// Least is the smallest Climb for d — the planner's estimate counts on it; 1 on a flat map.
-	Least(d Domain) float64
+	Least(d cell.Domain) float64
 	// Slope is how many times as long moving at p towards dir takes whoever moves in d: the slope
 	// under the entity; 1 on a flat map.
-	Slope(p, dir geom.Vec, d Domain) float64
+	Slope(p, dir geom.Vec, d cell.Domain) float64
 }
 
 // simpleMap is the board's own Map: flat, from above, plain bands for the ways.
@@ -46,13 +47,13 @@ func newSimpleMap(brd *Board) *simpleMap {
 	return &simpleMap{dressing: simpleDressing{board: brd}}
 }
 
-func (m *simpleMap) Look() Look                                   { return m.look }
-func (*simpleMap) Heights() Heights                               { return nil }
-func (m *simpleMap) Dressing() Dressing                           { return &m.dressing }
-func (*simpleMap) Top(CellID) (corners [4]float32, level float32) { return corners, 0 }
-func (*simpleMap) Climb(CellID, CellID, Domain) float64           { return 1 }
-func (*simpleMap) Least(Domain) float64                           { return 1 }
-func (*simpleMap) Slope(geom.Vec, geom.Vec, Domain) float64       { return 1 }
+func (m *simpleMap) Look() Look                                    { return m.look }
+func (*simpleMap) Heights() Heights                                { return nil }
+func (m *simpleMap) Dressing() Dressing                            { return &m.dressing }
+func (*simpleMap) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
+func (*simpleMap) Climb(cell.ID, cell.ID, cell.Domain) float64     { return 1 }
+func (*simpleMap) Least(cell.Domain) float64                       { return 1 }
+func (*simpleMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
 
 // bandTier puts the ways' bands over the tiles and under the grid's lines.
 const bandTier = render.Ground + 5
@@ -89,7 +90,7 @@ func (d *simpleDressing) Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, 
 }
 
 // bands lays w's bands over t: a hub at the cell's middle and a band out to each neighbour's edge.
-func (d *simpleDressing) bands(f *render.Frame, cam camera.Camera, t *Tile, w Way, depth float32) {
+func (d *simpleDressing) bands(f *render.Frame, cam camera.Camera, t *Tile, w cell.Way, depth float32) {
 	c := w.Kind.Color
 	if c.A == 0 {
 		c = color.RGBA{R: 128, G: 128, B: 128, A: 255} // a kind of no colour: grey

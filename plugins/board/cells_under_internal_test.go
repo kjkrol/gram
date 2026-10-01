@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -25,8 +26,8 @@ func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 			boxes = append(boxes, geom.NewAABBAt(geom.NewVec(rng.Float64()*120-30, rng.Float64()*90-20), rng.Float64()*40, rng.Float64()*40))
 		}
 		for _, box := range boxes {
-			var got, want []CellID
-			g.CellsUnder(box, func(c CellID) { got = append(got, c) })
+			var got, want []cell.ID
+			g.CellsUnder(box, func(c cell.ID) { got = append(got, c) })
 			want = latticeUnder(g, box)
 			slices.Sort(got)
 			if !slices.Equal(got, want) {
@@ -37,7 +38,7 @@ func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 }
 
 // latticeUnder is every cell cellsUnder finds under box or any image of it a whole lap away.
-func latticeUnder(g *squareGrid, box geom.AABB) []CellID {
+func latticeUnder(g *squareGrid, box geom.AABB) []cell.ID {
 	laps := func(wraps bool) int {
 		if wraps {
 			return 4
@@ -45,12 +46,12 @@ func latticeUnder(g *squareGrid, box geom.AABB) []CellID {
 		return 0
 	}
 	w, h := float64(g.Width*g.CellSize), float64(g.Height*g.CellSize)
-	var out []CellID
+	var out []cell.ID
 	for sy := -laps(g.WrapY); sy <= laps(g.WrapY); sy++ {
 		for sx := -laps(g.WrapX); sx <= laps(g.WrapX); sx++ {
 			shift := geom.NewVec(float64(sx)*w, float64(sy)*h)
 			image := geom.NewAABB(box.TopLeft.Add(shift), box.BottomRight.Add(shift))
-			cellsUnder(g, image, func(c CellID) {
+			cellsUnder(g, image, func(c cell.ID) {
 				if !slices.Contains(out, c) {
 					out = append(out, c)
 				}

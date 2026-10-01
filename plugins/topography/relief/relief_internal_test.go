@@ -8,13 +8,14 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-var hill = board.CellKind{Name: board.Named("hill"), Cost: 1, Allows: board.Land | board.Air}
+var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
 
 // raiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
-func raiseHills(r *Relief, grid board.Grid, hills ...board.CellID) {
-	r.SetHeights(MeanOfCells(grid, func(c board.CellID) float64 {
+func raiseHills(r *Relief, grid board.Grid, hills ...cell.ID) {
+	r.SetHeights(MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
 			if h == c {
 				return 12
@@ -71,7 +72,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 6, 32)
 	r := New(board.NewBoard(grid, board.NewTerrainMap()))
-	var hills []board.CellID
+	var hills []cell.ID
 	for y := uint32(2); y <= 4; y++ {
 		for x := uint32(2); x <= 4; x++ {
 			c, _ := grid.CellIndex(x, y)

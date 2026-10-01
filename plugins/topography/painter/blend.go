@@ -3,7 +3,7 @@ package painter
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -133,7 +133,7 @@ func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 
 // base is what c's top is drawn in first: a kind Under it round it where c's own kind spreads, else
 // its own.
-func (l *Painter) base(c board.CellID) *cellTop {
+func (l *Painter) base(c cell.ID) *cellTop {
 	mine := l.topOf(c)
 	if !l.square || mine.under || mine.raised || mine.spread <= 0 {
 		return mine
@@ -148,7 +148,7 @@ func (l *Painter) base(c board.CellID) *cellTop {
 }
 
 // around is the cells round c, c's own standing in for any off the board.
-func (l *Painter) around(c board.CellID) [3][3]*cellTop {
+func (l *Painter) around(c cell.ID) [3][3]*cellTop {
 	x, y := l.xy(c)
 	mine := l.topOf(c)
 	var near [3][3]*cellTop

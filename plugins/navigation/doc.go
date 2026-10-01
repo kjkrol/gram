@@ -84,7 +84,7 @@
 //
 // A route is the cheapest way over the cells: a step costs the destination kind's CostFor the
 // unit's domain over the step's length (√2 slantwise on a square grid), times the slope the board's
-// Map prices (topography's Climbing) unless the kind is Graded (board.CellKind.Graded: a road cut
+// Map prices (topography's Climbing) unless the kind is Graded (cell.Kind.Graded: a road cut
 // into the slope costs its Cost alone). A slantwise step not along a way (board.Board.Along) cuts
 // the corner beside the way, over the ground bare of it (board.Board.Bare), and costs that ground
 // — none where it does not admit the unit, the water beside a bridge: a road is followed round

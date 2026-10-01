@@ -6,6 +6,15 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
+**A cell is a package of its own**
+- `plugins/board/cell` is what is said of one cell: `cell.ID` (was `board.CellID`), `cell.Kind`
+  (`CellKind`), `cell.Kinds` (`CellKindDict`; `board.Plugin.CellKinds()` in place of
+  `CellKindDict()`), `cell.Name`/`Named`, `cell.Domain` with `cell.Land`, `Water`, `Air`, the cell
+  entity's `cell.Plot` and `cell.Ground`, `cell.Way`, `Crossing`, `Links`, the game's tags of places
+  (`cell.Family`, `cell.Tag`, `cell.Tags`, was `board.Places`) and the moment of a cell, `cell.Now`
+  (was `board.Cell`). The board keeps the grid, `Board`, `Layout`, `Terrain`, `Occupancy`, `Mover`,
+  `At`, `Standing`. Saves made before this do not load: the components' type names changed.
+
 **Entities behave in one vocabulary: rules, plans, effects, commands, facts**
 - `plugins/world/rule` is how entities behave (`doc/rule.md`). Two constructors, each taking a
   function that writes the steps for a builder (Go 1.27's methods with type parameters). A

@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -21,13 +22,13 @@ func (flatAtlas) White() (u, v float32) { return 0, 0 }
 // lookMap is a flat Map drawing by a Look alone: nothing over the tiles, level ground.
 type lookMap struct{ l Look }
 
-func (m lookMap) Look() Look                                   { return m.l }
-func (lookMap) Dressing() Dressing                             { return nil }
-func (lookMap) Top(CellID) (corners [4]float32, level float32) { return corners, 0 }
-func (lookMap) Climb(CellID, CellID, Domain) float64           { return 1 }
-func (lookMap) Least(Domain) float64                           { return 1 }
-func (lookMap) Heights() Heights                               { return nil }
-func (lookMap) Slope(geom.Vec, geom.Vec, Domain) float64       { return 1 }
+func (m lookMap) Look() Look                                    { return m.l }
+func (lookMap) Dressing() Dressing                              { return nil }
+func (lookMap) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
+func (lookMap) Climb(cell.ID, cell.ID, cell.Domain) float64     { return 1 }
+func (lookMap) Least(cell.Domain) float64                       { return 1 }
+func (lookMap) Heights() Heights                                { return nil }
+func (lookMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
 
 // mapOf is a Map drawing by look.
 func mapOf(look Look) func() Map { return func() Map { return lookMap{look} } }
@@ -67,7 +68,7 @@ func outlinedTiles(r *Renderer, cam camera.Camera) (tiles, outlined int) {
 func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land, Height: 0})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
 	if got := compose(flatRenderer(brd, &RenderState{}), icamera.NewFromSpace(128, 128, 0)); len(got) != 1 || got[render.Ground] != 16 {
 		t.Errorf("composed %v, want the 16 cells on the ground and nothing else", got)
 	}
@@ -76,7 +77,7 @@ func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, &RenderState{ShowGridLines: true})
 
 	cam := icamera.NewFromSpace(128, 128, 0)
@@ -96,7 +97,7 @@ func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.
 func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
 	grid := DefaultGrids{}.Hex(3, 3, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	got := compose(flatRenderer(brd, &RenderState{ShowGridLines: true}), icamera.NewFromSpace(256, 256, 0))
 	if got[gridTier] == 0 || got[render.Ground] != 9 {
 		t.Errorf("composed %v, want the nine hexes and the lines round them", got)
@@ -107,10 +108,10 @@ func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
 func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	brd.heights = true
 	wood, _ := grid.CellIndex(1, 1)
-	brd.Set(wood, CellKind{Cost: 1, Allows: Land, Height: 8, Sway: 1})
+	brd.Set(wood, cell.Kind{Cost: 1, Allows: cell.Land, Height: 8, Sway: 1})
 	var seen int
 	var amount, rise float32
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) {
@@ -134,7 +135,7 @@ func (fn lookFn) Cell(f *render.Frame, cam camera.Camera, t *Tile) { fn(f, cam, 
 func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	grid := DefaultGrids{}.Square(2, 2, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	var got render.Shade
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *Tile) { got = t.Light() })
 	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(look))
@@ -149,7 +150,7 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	grid := DefaultGrids{}.Square(2, 2, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := newRenderer(brd, flatAtlas{}, &RenderState{}, mapOf(flatLook{}))
 	var f render.Frame
 	cam := icamera.NewFromSpace(64, 64, 0)
@@ -178,7 +179,7 @@ func (scaledCam) ScaleAt(_, y, _ float32) float32 {
 func TestRenderer_Compose_OutlinesEachCellAsLargeAsItIsDrawn(t *testing.T) {
 	grid := DefaultGrids{}.Square(4, 4, 32)
 	brd := NewBoard(grid, NewTerrainMap())
-	brd.SetAll(CellKind{Cost: 1, Allows: Land})
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, &RenderState{ShowGridLines: true})
 	var f render.Frame
 	cam := scaledCam{icamera.NewFromSpace(128, 128, 0)}

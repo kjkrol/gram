@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Corners is a cell's ground height at its corners: top-left, top-right, bottom-left, bottom-right.
@@ -42,7 +43,7 @@ type Relief struct {
 	values []float32
 	// version counts the changes; touched is told of every cell whose corners changed, nil none
 	version uint64
-	touched func(c board.CellID)
+	touched func(c cell.ID)
 	// low and high are the relief's lowest ground, sea level at most, and its highest, as of the
 	// version extentAt, one more than the version counted; 0 not read yet
 	low, high float32
@@ -168,7 +169,7 @@ func (r *Relief) corner(x, y int64) (vertex, bool) {
 }
 
 // corners is the vertices at c's four corners on a square grid, or its one on any other.
-func (r *Relief) corners(c board.CellID) (vs [4]vertex, n int, ok bool) {
+func (r *Relief) corners(c cell.ID) (vs [4]vertex, n int, ok bool) {
 	if !r.square {
 		i, ok := r.grid.Ordinal(c)
 		if !ok {
@@ -188,7 +189,7 @@ func (r *Relief) corners(c board.CellID) (vs [4]vertex, n int, ok bool) {
 }
 
 // Corners is the ground height at c's corners; zero off the board.
-func (r *Relief) Corners(c board.CellID) Corners {
+func (r *Relief) Corners(c cell.ID) Corners {
 	vs, n, ok := r.corners(c)
 	if !ok {
 		return Corners{}
@@ -206,7 +207,7 @@ func (r *Relief) Corners(c board.CellID) Corners {
 
 // SetCorners puts c's corners at k's heights — the neighbours' corners meeting them go with them,
 // the ground has no vertical walls — or a hex cell level at k's first.
-func (r *Relief) SetCorners(c board.CellID, k Corners) {
+func (r *Relief) SetCorners(c cell.ID, k Corners) {
 	vs, n, ok := r.corners(c)
 	if !ok {
 		return
@@ -228,13 +229,13 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 	}
 	r.values[i] = h
 	if r.touched != nil {
-		r.touching(v, func(c board.CellID, _ int) { r.touched(c) })
+		r.touching(v, func(c cell.ID, _ int) { r.touched(c) })
 	}
 	return true
 }
 
 // Altitude is c's ground level, the mean of its corners.
-func (r *Relief) Altitude(c board.CellID) float64 { return r.Corners(c).Level() }
+func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
 // SetHeights raises the ground to heights: sampled at every corner on a square grid, at every
 // cell's centre on any other.
@@ -248,7 +249,7 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 			}
 		}
 	} else {
-		r.grid.EachCell(func(c board.CellID) {
+		r.grid.EachCell(func(c cell.ID) {
 			if i, ok := r.grid.Ordinal(c); ok {
 				changed = r.setValue(vertex{x: i}, float32(heights(r.grid.CellCenter(c)))) || changed
 			}
@@ -328,7 +329,7 @@ func (r *Relief) Step() float64 {
 
 // Top is c's corners with its kind's height standing on them, and its level: the board.Map
 // contract, for kind's Height.
-func (r *Relief) Top(c board.CellID, height float64) (corners [4]float32, level float32) {
+func (r *Relief) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
 	k := r.Corners(c)
 	for i := range k {
 		k[i] += float32(height)
@@ -338,9 +339,9 @@ func (r *Relief) Top(c board.CellID, height float64) (corners [4]float32, level 
 
 // touching calls fn with every cell meeting at v and the index of v among its corners, -1 for a
 // hex cell, which is v itself.
-func (r *Relief) touching(v vertex, fn func(c board.CellID, k int)) {
+func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
 	if !r.square {
-		r.grid.EachCell(func(c board.CellID) { // rare: the shaping of a hex cell
+		r.grid.EachCell(func(c cell.ID) { // rare: the shaping of a hex cell
 			if i, ok := r.grid.Ordinal(c); ok && i == v.x {
 				fn(c, -1)
 			}
@@ -360,10 +361,10 @@ func (r *Relief) touching(v vertex, fn func(c board.CellID, k int)) {
 
 // MeanOfCells is a height function for SetHeights built from one height per cell: a point inside
 // a cell is at its height, a point where cells meet at the mean of theirs.
-func MeanOfCells(grid board.Grid, height func(c board.CellID) float64) func(p geom.Vec) float64 {
+func MeanOfCells(grid board.Grid, height func(c cell.ID) float64) func(p geom.Vec) float64 {
 	const eps = 1e-6
 	return func(p geom.Vec) float64 {
-		var seen [4]board.CellID
+		var seen [4]cell.ID
 		n, sum := 0, 0.0
 	next:
 		for _, d := range [4][2]float64{{-eps, -eps}, {eps, -eps}, {-eps, eps}, {eps, eps}} {

@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -120,9 +121,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.MultipleOccupancy{}, s.world).WithCollision(s.collision)
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("floor"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("floor"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
 	)
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -172,15 +173,15 @@ func driveKeys(up, down, left, right control.Key) []control.Binding {
 }
 
 // block is the row a block spawns from: where it starts.
-type block struct{ start board.CellID }
+type block struct{ start cell.ID }
 
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
 	// each block is its player's: it takes that player's Drive alone
-	s.redBlock = units.Define("red", board.Mover{Domain: board.Land}, profile, comp.Tagged(s.redPlayer.Owner()))
-	s.blueBlock = units.Define("blue", board.Mover{Domain: board.Land}, profile, comp.Tagged(s.bluePlayer.Owner()))
+	s.redBlock = units.Define("red", board.Mover{Domain: cell.Land}, profile, comp.Tagged(s.redPlayer.Owner()))
+	s.blueBlock = units.Define("blue", board.Mover{Domain: cell.Land}, profile, comp.Tagged(s.bluePlayer.Owner()))
 }
 
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
@@ -189,7 +190,7 @@ func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil 
 // each player in opposite corners.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	cell := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 	var cells []board.CellEntry
 	wall := func(x, y uint32) { cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(x, y)}) }
 	for x := uint32(0); x < GridWidth; x++ {
@@ -333,8 +334,8 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	floor, _ := s.board.CellKindDict().Get("floor")
-	wall, _ := s.board.CellKindDict().Get("wall")
+	floor, _ := s.board.CellKinds().Get("floor")
+	wall, _ := s.board.CellKinds().Get("wall")
 	boardAtlas := render.NewAtlas()
 	boardAtlas.RegisterAt(floor.SpriteID, CellSize, render.Solid(colorFloor))
 	boardAtlas.RegisterAt(wall.SpriteID, CellSize, render.Solid(colorWall))

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -122,7 +123,7 @@ func (s *stage) strip(i int) map[uid.UID64]bool {
 // holds reports whether the top trapdoor of group i holds a walker.
 func (s *stage) holds(i int) bool {
 	c, _ := s.brd.CellIndex(groups[i].left, stripTop)
-	return s.brd.Kind(c).Admits(board.Land)
+	return s.brd.Kind(c).Admits(cell.Land)
 }
 
 func (s *stage) alive() map[uid.UID64]bool {
@@ -151,7 +152,7 @@ func (s *stage) scout() uid.UID64 {
 }
 
 // put moves the unit id onto cell c.
-func (s *stage) put(id uid.UID64, c board.CellID) {
+func (s *stage) put(id uid.UID64, c cell.ID) {
 	to := board.CellAABB(s.brd, c, EntitySize).TopLeft
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()

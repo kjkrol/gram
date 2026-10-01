@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -153,7 +154,7 @@ func (h *Ground) refresh() bool {
 	h.cells = h.cells[:0]
 	low, _ := h.relief.Extent()
 	inradius := float64(h.size) * math.Sqrt(3) / 2
-	h.grid.EachCell(func(c board.CellID) {
+	h.grid.EachCell(func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
 		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0], 0)

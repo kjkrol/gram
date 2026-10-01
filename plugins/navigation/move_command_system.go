@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -24,7 +25,7 @@ type moveCommandSystem struct {
 	moves    *control.Queue[MoveTo]
 	looks    *control.Queue[LookAt]
 	selected tag.Tag[selection.Family]
-	kind     func(board.CellID) board.CellKind
+	kind     func(cell.ID) cell.Kind
 
 	group   uint32 // the last group a MoveTo was given; found in the orders and LastOrders at the first
 	grouped bool

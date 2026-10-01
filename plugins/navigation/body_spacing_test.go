@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -56,13 +57,13 @@ type fieldWorld struct {
 const fieldCell = 32
 
 // newFieldWorld builds the field, lays its kinds and puts units on it.
-func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) board.CellID), units []fieldUnit) *fieldWorld {
+func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
 	t.Helper()
 	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
 }
 
 // newFieldWorldWith is newFieldWorld with navigation set up by configure before it is used.
-func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) board.CellID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
+func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
 	t.Helper()
 	fw := &fieldWorld{t: t, grid: board.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
@@ -75,7 +76,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	})
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(fw.grid, &board.SingleOccupancy{}, w).WithCollision(c)
-	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
 		lay(brd.Res.Logic.Board, fw.at)
 	}
@@ -110,9 +111,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
 			comp.Load(func(u fieldUnit) board.At { c, _ := fw.grid.CellAt(u.at); return board.At{Cell: c} }),
 			comp.Const(collision.Collider{}),
-			comp.Const(world.Layers(board.Land)),
+			comp.Const(world.Layers(cell.Land)),
 			comp.Const(collision.Physics{}),
-			comp.Const(board.Mover{Domain: board.Land}),
+			comp.Const(board.Mover{Domain: cell.Land}),
 		}
 		if u.selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
@@ -151,7 +152,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	})
 	fw.ecs = ctx.ecs
 	fw.ids = make([]uid.UID64, len(units))
-	fw.each(func(id uid.UID64, b *world.Base, _ board.CellID, _ *MoveOrder, _ *collision.Collider) {
+	fw.each(func(id uid.UID64, b *world.Base, _ cell.ID, _ *MoveOrder, _ *collision.Collider) {
 		for i, k := range kinds {
 			if b.TypeID == k {
 				fw.ids[i] = id
@@ -161,10 +162,10 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	return fw
 }
 
-func (fw *fieldWorld) at(x, y uint32) board.CellID { c, _ := fw.grid.CellIndex(x, y); return c }
+func (fw *fieldWorld) at(x, y uint32) cell.ID { c, _ := fw.grid.CellIndex(x, y); return c }
 
 // each calls fn with every unit.
-func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell board.CellID, o *MoveOrder, c *collision.Collider)) {
+func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {
 	for fw.q.All(); fw.q.Next(); {
 		cur := fw.q.Cursor()
 		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.order.Slice(cur), fw.coll.Slice(cur)
@@ -186,7 +187,7 @@ func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell board.CellI
 func (fw *fieldWorld) centre(i int) (geom.Vec, *MoveOrder) {
 	var at geom.Vec
 	var order *MoveOrder
-	fw.each(func(id uid.UID64, b *world.Base, _ board.CellID, o *MoveOrder, _ *collision.Collider) {
+	fw.each(func(id uid.UID64, b *world.Base, _ cell.ID, o *MoveOrder, _ *collision.Collider) {
 		if id == fw.ids[i] {
 			at = board.Center(b.Pos)
 			if o != nil {
@@ -212,7 +213,7 @@ func (fw *fieldWorld) runLongest(limit time.Duration) (settled bool, contacts, l
 		fw.ecs.Tick(time.Second / 60)
 		busy := false
 		now := map[[2]uid.UID64]bool{}
-		fw.each(func(id uid.UID64, _ *world.Base, _ board.CellID, o *MoveOrder, c *collision.Collider) {
+		fw.each(func(id uid.UID64, _ *world.Base, _ cell.ID, o *MoveOrder, c *collision.Collider) {
 			busy = busy || o != nil
 			if c != nil {
 				contacts += len(c.Contacts())
@@ -246,7 +247,7 @@ func (fw *fieldWorld) overlaps() []string {
 		box geom.AABB
 	}
 	var boxes []box
-	fw.each(func(id uid.UID64, b *world.Base, _ board.CellID, _ *MoveOrder, _ *collision.Collider) {
+	fw.each(func(id uid.UID64, b *world.Base, _ cell.ID, _ *MoveOrder, _ *collision.Collider) {
 		boxes = append(boxes, box{id, geom.NewAABBAt(b.Pos.TopLeft, b.Pos.Size.X, b.Pos.Size.Y)})
 	})
 	var out []string
@@ -397,10 +398,10 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 // standing on the road leaves no room to pass, so the unit on its way east goes round by the north.
 func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStands(t *testing.T) {
 	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(9, 3, fieldCell)}
-	road := func(b *board.Board, at func(x, y uint32) board.CellID) {
+	road := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 9; x++ {
-			b.Set(at(x, 0), board.CellKind{Cost: 3, Allows: board.Land})
-			b.Set(at(x, 2), board.CellKind{Cost: 1, Allows: board.Water})
+			b.Set(at(x, 0), cell.Kind{Cost: 3, Allows: cell.Land})
+			b.Set(at(x, 2), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 	}
 	from, goal := probe.grid.CellCenter(probe.at(0, 1)), probe.grid.CellCenter(probe.at(8, 1))
@@ -514,7 +515,7 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 		fw.ecs.Tick(time.Second / 60)
 	}
 	var heading geom.Vec
-	fw.each(func(id uid.UID64, b *world.Base, _ board.CellID, _ *MoveOrder, _ *collision.Collider) {
+	fw.each(func(id uid.UID64, b *world.Base, _ cell.ID, _ *MoveOrder, _ *collision.Collider) {
 		heading = b.Vel.Dir
 	})
 	if heading.Y < 0.9 {
@@ -544,9 +545,9 @@ func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 // Walking along the shore into one standing in its way, a unit steps round it by the land, never
 // over the water: the demo drowns whoever stands where its domain may not.
 func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
-	shore := func(b *board.Board, at func(x, y uint32) board.CellID) {
+	shore := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
-			b.Set(at(x, 0), board.CellKind{Cost: 1, Allows: board.Water})
+			b.Set(at(x, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 	}
 	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 3, fieldCell)}

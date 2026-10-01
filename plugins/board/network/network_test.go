@@ -5,18 +5,19 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/network"
 )
 
 var grid = board.DefaultGrids{}.Square(5, 5, 10)
 
-func at(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+func at(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 
 const (
-	north = board.Links(1 << 0)
-	south = board.Links(1 << 1)
-	west  = board.Links(1 << 2)
-	east  = board.Links(1 << 3)
+	north = cell.Links(1 << 0)
+	south = cell.Links(1 << 1)
+	west  = cell.Links(1 << 2)
+	east  = cell.Links(1 << 3)
 )
 
 // A road links its cells both ways, only neighbours, and does not flow.
@@ -116,8 +117,8 @@ func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
 // A route is the cheapest way from cell to cell, round what may not be crossed; none where
 // nothing gets there.
 func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
-	wall := map[board.CellID]bool{at(2, 0): true, at(2, 1): true, at(2, 2): true, at(2, 3): true}
-	cost := func(a, b board.CellID) float64 {
+	wall := map[cell.ID]bool{at(2, 0): true, at(2, 1): true, at(2, 2): true, at(2, 3): true}
+	cost := func(a, b cell.ID) float64 {
 		if wall[b] {
 			return math.Inf(1)
 		}
@@ -148,7 +149,7 @@ func TestNetwork_ARoadAcrossARiverBridgesIt(t *testing.T) {
 	for y := range uint32(5) {
 		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
 	}
-	road.Path([]board.CellID{at(1, 2), at(2, 2), at(3, 2)}, network.Node{Kind: "road", Width: 4})
+	road.Path([]cell.ID{at(1, 2), at(2, 2), at(3, 2)}, network.Node{Kind: "road", Width: 4})
 	ways, crossings := road.Across(river, "bridge")
 	if len(ways) != 2 || len(crossings) != 1 {
 		t.Fatalf("%d ways and %d crossings, want the road's 2 ends and a bridge", len(ways), len(crossings))

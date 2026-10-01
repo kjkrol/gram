@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -137,7 +138,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
 		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
-			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
+			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
 			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
 		}},
 		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
@@ -162,11 +163,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 // registerCellKinds defines every terrain kind the board can hold.
 func (s *mainStage) registerCellKinds() {
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land},
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("hole"), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
+		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("hole"), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
 	)
 }
 
@@ -186,7 +187,7 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unit struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
@@ -197,14 +198,14 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 	}
-	s.red = units.Define("red", board.Mover{Domain: board.Land}, profile, own...)
-	s.blue = units.Define("blue", board.Mover{Domain: board.Land}, profile, own...)
+	s.red = units.Define("red", board.Mover{Domain: cell.Land}, profile, own...)
+	s.blue = units.Define("blue", board.Mover{Domain: cell.Land}, profile, own...)
 }
 
 // Spawn says who is there when the game starts fresh.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	cell := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
@@ -258,7 +259,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	grass, _ := kinds.Get("grass")
 	wall, _ := kinds.Get("wall")
 	road, _ := kinds.Get("road")
@@ -299,7 +300,7 @@ const (
 )
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
-func buildShortcut(brd *board.Board, kinds board.CellKindDict) {
+func buildShortcut(brd *board.Board, kinds cell.Kinds) {
 	road, _ := kinds.Get("road")
 	for x := roadLeft + 1; x < roadRight; x++ {
 		c, _ := brd.CellIndex(x, shortcutRow)

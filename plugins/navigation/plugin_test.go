@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -39,7 +40,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
@@ -100,7 +101,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	if err := pl.Local("tester").Bind(navPlugin.DefaultBindings()...); err != nil {

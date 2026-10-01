@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -13,12 +14,12 @@ import (
 // steepMap is a Map whose every slope takes twice as long.
 type steepMap struct{ Map }
 
-func (steepMap) Slope(geom.Vec, geom.Vec, Domain) float64 { return 2 }
+func (steepMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64 { return 2 }
 
 // uphillMap climbs to the east: twice as long that way, half as long the other.
 type uphillMap struct{ Map }
 
-func (uphillMap) Slope(_ geom.Vec, dir geom.Vec, _ Domain) float64 {
+func (uphillMap) Slope(_ geom.Vec, dir geom.Vec, _ cell.Domain) float64 {
 	if dir.X > 0 {
 		return 2
 	}
@@ -30,7 +31,7 @@ func TestTerrainSpeed_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 	grid := DefaultGrids{}.Square(1, 1, 10)
 	terrain := NewTerrainMap()
 	c, _ := grid.CellIndex(0, 0)
-	terrain.Set(c, CellKind{Cost: 1, Allows: Land})
+	terrain.Set(c, cell.Kind{Cost: 1, Allows: cell.Land})
 	brd := NewBoard(grid, terrain)
 	brd.mapping = uphillMap{brd.Map()}
 	got := speeds(t, brd, func(si *goke.SysInit, base *goke.Comp[world.Base]) {
@@ -39,7 +40,7 @@ func TestTerrainSpeed_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 		f.Create(1)
 		for f.Next() {
 			base.Slice(&f.Cursor)[0] = world.Base{Pos: world.Position{AABB: CellAABB(grid, c, 4)}, Vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: -1}}
-			mover.Slice(&f.Cursor)[0] = Mover{Domain: Land}
+			mover.Slice(&f.Cursor)[0] = Mover{Domain: cell.Land}
 		}
 	})
 	if v := got[CellAABB(grid, c, 4).TopLeft.X]; v != -2 {
@@ -51,9 +52,9 @@ func TestTerrainSpeed_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 func TestTerrainSpeed_SparesAGradedKindTheSlope(t *testing.T) {
 	grid := DefaultGrids{}.Square(2, 1, 10)
 	terrain := NewTerrainMap()
-	at := func(x uint32) CellID { c, _ := grid.CellIndex(x, 0); return c }
-	terrain.Set(at(0), CellKind{Cost: 1, Allows: Land})
-	terrain.Set(at(1), CellKind{Cost: 1, Allows: Land, Graded: true})
+	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	terrain.Set(at(0), cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.Set(at(1), cell.Kind{Cost: 1, Allows: cell.Land, Graded: true})
 	brd := NewBoard(grid, terrain)
 	brd.mapping = steepMap{brd.Map()}
 
@@ -65,7 +66,7 @@ func TestTerrainSpeed_SparesAGradedKindTheSlope(t *testing.T) {
 		for f.Next() {
 			for i := range f.Cursor.IDs {
 				base.Slice(&f.Cursor)[i] = world.Base{Pos: world.Position{AABB: CellAABB(grid, at(x), 4)}, Vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: 1}}
-				mover.Slice(&f.Cursor)[i] = Mover{Domain: Land}
+				mover.Slice(&f.Cursor)[i] = Mover{Domain: cell.Land}
 				x++
 			}
 		}
@@ -108,11 +109,11 @@ func speeds(t *testing.T, brd *Board, place func(si *goke.SysInit, base *goke.Co
 func TestTerrainSpeed_ScalesByOneOverCost(t *testing.T) {
 	grid := DefaultGrids{}.Square(3, 1, 10)
 	terrain := NewTerrainMap()
-	terrain.SetAll(CellKind{Cost: 1, Allows: Land})
-	at := func(x uint32) CellID { c, _ := grid.CellIndex(x, 0); return c }
-	terrain.Set(at(0), CellKind{Cost: 2, Allows: Land})   // slow
-	terrain.Set(at(1), CellKind{Cost: 0.5, Allows: Land}) // a boost, if a game wants one
-	terrain.Set(at(2), CellKind{Cost: 0, Allows: Land})   // no cost: no effect
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	terrain.Set(at(0), cell.Kind{Cost: 2, Allows: cell.Land})   // slow
+	terrain.Set(at(1), cell.Kind{Cost: 0.5, Allows: cell.Land}) // a boost, if a game wants one
+	terrain.Set(at(2), cell.Kind{Cost: 0, Allows: cell.Land})   // no cost: no effect
 
 	got := speeds(t, NewBoard(grid, terrain), func(si *goke.SysInit, base *goke.Comp[world.Base]) {
 		var mover goke.Comp[Mover]
@@ -122,7 +123,7 @@ func TestTerrainSpeed_ScalesByOneOverCost(t *testing.T) {
 		for f.Next() {
 			for i := range f.Cursor.IDs {
 				base.Slice(&f.Cursor)[i] = world.Base{Pos: world.Position{AABB: CellAABB(grid, at(x), 4)}, Vel: world.Velocity{Value: 1}}
-				mover.Slice(&f.Cursor)[i] = Mover{Domain: Land}
+				mover.Slice(&f.Cursor)[i] = Mover{Domain: cell.Land}
 				x++
 			}
 		}
@@ -136,11 +137,11 @@ func TestTerrainSpeed_ScalesByOneOverCost(t *testing.T) {
 }
 
 func TestTerrainSpeed_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
-	const frost = Domain(1 << 3)
+	const frost = cell.Domain(1 << 3)
 	grid := DefaultGrids{}.Square(1, 1, 10)
 	terrain := NewTerrainMap()
 	c, _ := grid.CellIndex(0, 0)
-	terrain.Set(c, CellKind{Name: Named("snow"), Cost: 4, Allows: Land | frost}.Costing(frost, 0.5))
+	terrain.Set(c, cell.Kind{Name: cell.Named("snow"), Cost: 4, Allows: cell.Land | frost}.Costing(frost, 0.5))
 
 	// Three entities on the snow, told apart by a one-unit offset: on foot, frost-born, no Mover.
 	got := speeds(t, NewBoard(grid, terrain), func(si *goke.SysInit, base *goke.Comp[world.Base]) {
@@ -148,7 +149,7 @@ func TestTerrainSpeed_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing
 		box := CellAABB(grid, c, 4)
 		f := si.NewFactory(base, &mover)
 		f.Create(2)
-		domains := []Domain{Land, Land | frost}
+		domains := []cell.Domain{cell.Land, cell.Land | frost}
 		for f.Next() {
 			for i := range f.Cursor.IDs {
 				b := box

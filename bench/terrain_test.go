@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -30,12 +31,12 @@ const (
 type walker struct {
 	pos  world.Position
 	vel  world.Velocity
-	cell board.CellID
+	cell cell.ID
 }
 
 // roughCells is a quarter of the board's cells: one square block, or scattered at random.
-func roughCells(grid board.Grid, scattered bool) []board.CellID {
-	var out []board.CellID
+func roughCells(grid board.Grid, scattered bool) []cell.ID {
+	var out []cell.ID
 	if !scattered {
 		for y := range uint32(terrainSide / 2) {
 			for x := range uint32(terrainSide / 2) {
@@ -54,7 +55,7 @@ func roughCells(grid board.Grid, scattered bool) []board.CellID {
 }
 
 // benchTerrain builds the scene over the rough ground laid out as asked and runs 60 ticks.
-func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []board.CellID) {
+func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell.ID) {
 	b.Helper()
 	const side = terrainSide * terrainCell
 	ctx := newHeadless()
@@ -76,10 +77,10 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []boar
 		b.Fatal(err)
 	}
 	terrain := brd.Res.Logic.Board
-	terrain.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
-	rough := [2]board.CellKind{
-		{Name: board.Named("forest"), Cost: 1, Allows: board.Land, Veil: 0.6},
-		{Name: board.Named("rock"), Cost: 1, Solid: true, Veil: 1},
+	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	rough := [2]cell.Kind{
+		{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6},
+		{Name: cell.Named("rock"), Cost: 1, Solid: true, Veil: 1},
 	}
 	cells := roughCells(grid, scattered)
 	for i, cell := range cells {
@@ -91,7 +92,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []boar
 		comp.Load(func(r walker) world.Position { return r.pos }),
 		comp.Load(func(r walker) world.Velocity { return r.vel }),
 		comp.Load(func(r walker) board.At { return board.At{Cell: r.cell} }),
-		comp.Const(board.Mover{Domain: board.Land}),
+		comp.Const(board.Mover{Domain: cell.Land}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}), comp.Const(vision.Sighted{}),
@@ -122,8 +123,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []boar
 // read straight from the cells, laid out in one block or scattered; with felling, one forest
 // cell a tick is cut down and the next grows back, as a woodcutter and a spell might.
 func Benchmark_Board_Terrain(b *testing.B) {
-	grass := board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land}
-	forest := board.CellKind{Name: board.Named("forest"), Cost: 1, Allows: board.Land, Veil: 0.6}
+	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
+	forest := cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6}
 	for _, sc := range []struct {
 		name            string
 		scattered, fell bool

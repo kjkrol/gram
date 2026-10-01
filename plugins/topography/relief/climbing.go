@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Climbing is what slopes do to whoever goes over them, by the slope: rise over run. A climb takes
@@ -15,12 +15,12 @@ import (
 type Climbing struct {
 	Up, Down    float64
 	Ease, Steep float64
-	Free        board.Domain
+	Free        cell.Domain
 }
 
 // DefaultClimbing has a climb of 1 in 10 take twice as long as the flat, a descent of 1 in 10 the
 // quickest, 0.7 as long, one of 1 in 5 slower than the flat, and Air fly over.
-var DefaultClimbing = Climbing{Up: 10, Down: 0.3, Ease: 0.1, Steep: 5, Free: board.Air}
+var DefaultClimbing = Climbing{Up: 10, Down: 0.3, Ease: 0.1, Steep: 5, Free: cell.Air}
 
 // Factor is how many times as long a step over slope takes as one on the flat.
 func (c Climbing) Factor(slope float64) float64 {
@@ -46,13 +46,13 @@ func (c Climbing) Least() float64 {
 }
 
 // Feels reports whether an entity moving in d climbs: none of its domains is Free.
-func (c Climbing) Feels(d board.Domain) bool { return d&c.Free == 0 }
+func (c Climbing) Feels(d cell.Domain) bool { return d&c.Free == 0 }
 
 // Climb is how many times as long the step from a to its neighbour to takes an entity moving in d
 // as it would on the flat, as climbing says: on a square grid the slope of to's ground the way the
 // step goes, read off its corners; on a hex grid, whose cells are level, the rise between the two
 // over the way between their middles.
-func (r *Relief) Climb(from, to board.CellID, d board.Domain, climbing Climbing) float64 {
+func (r *Relief) Climb(from, to cell.ID, d cell.Domain, climbing Climbing) float64 {
 	if !climbing.Feels(d) {
 		return 1
 	}

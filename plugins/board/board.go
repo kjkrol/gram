@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/board/cell"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -33,8 +34,8 @@ type Board struct {
 	veils        []veil
 	veilsChanges uint64
 	veilsVersion uint64
-	rings        rings                       // scratch for the cells round where someone stands
-	places       map[CellID]tag.Tags[Places] // the Layout's tags, till the cells are made
+	rings        rings                             // scratch for the cells round where someone stands
+	places       map[cell.ID]tag.Tags[cell.Family] // the Layout's tags, till the cells are made
 }
 
 // cellStore is where the cells' entities are: their ids by ordinal, and a query for each of their
@@ -46,11 +47,11 @@ type cellStore struct {
 	ways      *goke.Query
 	crossings *goke.Query
 	tagged    *goke.Query
-	plot      goke.Comp[Plot]
-	ground    goke.Comp[Ground]
-	way       goke.Comp[Way]
-	crossing  goke.Comp[Crossing]
-	places    goke.OptComp[tag.Tags[Places]]
+	plot      goke.Comp[cell.Plot]
+	ground    goke.Comp[cell.Ground]
+	way       goke.Comp[cell.Way]
+	crossing  goke.Comp[cell.Crossing]
+	places    goke.OptComp[tag.Tags[cell.Family]]
 }
 
 var _ Terrain = (*Board)(nil)
@@ -64,7 +65,7 @@ func NewBoard(grid Grid, terrain *TerrainMap) *Board {
 // CellVersion counts the changes to c — its kind, its way, its heights, through the board or by an
 // effect on its entity — so whoever keeps something worked out of a cell knows when it is stale;
 // it only grows, and changes to other cells leave it as it is.
-func (b *Board) CellVersion(c CellID) uint64 {
+func (b *Board) CellVersion(c cell.ID) uint64 {
 	i, ok := b.ordinal(c)
 	if !ok || i >= len(b.stamps) {
 		return b.everyone
@@ -95,13 +96,13 @@ func (b *Board) Square() (SquareShape, bool) {
 
 // Touch counts a change to c made beyond the board — its heights shaped by a topography — so
 // whoever keeps something worked out of the cell reads it anew (CellVersion, Version).
-func (b *Board) Touch(c CellID) {
+func (b *Board) Touch(c cell.ID) {
 	b.touch(c)
 	b.version++
 }
 
 // touch counts a change to c.
-func (b *Board) touch(c CellID) {
+func (b *Board) touch(c cell.ID) {
 	if i, ok := b.ordinal(c); ok && i < len(b.stamps) {
 		b.changes++
 		b.stamps[i] = b.changes
@@ -123,10 +124,10 @@ func (b *Board) bind(st *cellStore) {
 
 // Ordinal is Grid.Ordinal, straight from the id on a square grid: c's slot in a table of one per
 // cell.
-func (b *Board) Ordinal(c CellID) (int, bool) { return b.ordinal(c) }
+func (b *Board) Ordinal(c cell.ID) (int, bool) { return b.ordinal(c) }
 
 // ordinal is Grid.Ordinal, straight from the id on a square grid, whose ids count row by row.
-func (b *Board) ordinal(c CellID) (int, bool) {
+func (b *Board) ordinal(c cell.ID) (int, bool) {
 	if sq := b.square; sq != nil {
 		return int(c), uint64(c) < uint64(sq.Width)*uint64(sq.Height)
 	}
@@ -134,7 +135,7 @@ func (b *Board) ordinal(c CellID) (int, bool) {
 }
 
 // groundOf is the i-th cell's Ground, in place.
-func (b *Board) groundOf(i int) *Ground {
+func (b *Board) groundOf(i int) *cell.Ground {
 	st := b.cells
 	if !st.kinds.SeekH(st.ids[i]) && !st.kinds.Seek(st.ids[i]) {
 		panic(fmt.Sprintf("board: cell entity %d is gone", st.ids[i]))
@@ -143,7 +144,7 @@ func (b *Board) groundOf(i int) *Ground {
 }
 
 // placesOf are the game's tags of places cell c carries: the Layout's; none off the board.
-func (b *Board) placesOf(c CellID) tag.Tags[Places] {
+func (b *Board) placesOf(c cell.ID) tag.Tags[cell.Family] {
 	if b.cells == nil {
 		return b.places[c]
 	}
@@ -162,7 +163,7 @@ func (b *Board) placesOf(c CellID) tag.Tags[Places] {
 }
 
 // CellEntity is the entity of cell c; false off the board or before the ECS is set up.
-func (b *Board) CellEntity(c CellID) (uid.UID64, bool) {
+func (b *Board) CellEntity(c cell.ID) (uid.UID64, bool) {
 	i, ok := b.ordinal(c)
 	if !ok || b.cells == nil {
 		return 0, false
@@ -173,39 +174,39 @@ func (b *Board) CellEntity(c CellID) (uid.UID64, bool) {
 // Kind is c's terrain kind as whoever crosses it meets it: its ground's, with a Way running across
 // it deciding who may and what it costs (Way.Over), and a Crossing over that letting whoever it
 // admits over too (Crossing.Over); off the board, the zero kind admitting nobody.
-func (b *Board) Kind(c CellID) CellKind {
+func (b *Board) Kind(c cell.ID) cell.Kind {
 	if b.cells == nil {
 		return b.seed.Crossings[c].Over(b.seed.Ways[c].Over(b.seed.Kind(c)))
 	}
 	i, ok := b.ordinal(c)
 	if !ok {
-		return CellKind{}
+		return cell.Kind{}
 	}
 	return b.crossingOf(i).Over(b.wayOf(i).Over(b.groundOf(i).Kind))
 }
 
 // Bare is c's kind bare of what runs across it: the ground a step beside the way crosses; off the
 // board, the zero kind.
-func (b *Board) Bare(c CellID) CellKind {
+func (b *Board) Bare(c cell.ID) cell.Kind {
 	if b.cells == nil {
 		return b.seed.Kind(c)
 	}
 	i, ok := b.ordinal(c)
 	if !ok {
-		return CellKind{}
+		return cell.Kind{}
 	}
 	return b.groundOf(i).Kind
 }
 
 // Set assigns c's terrain kind, taking effect immediately.
-func (b *Board) Set(c CellID, kind CellKind) {
+func (b *Board) Set(c cell.ID, kind cell.Kind) {
 	if b.set(c, kind) {
 		b.version++
 	}
 }
 
 // SetMany assigns kind to every cell in cells in one call.
-func (b *Board) SetMany(cells []CellID, kind CellKind) {
+func (b *Board) SetMany(cells []cell.ID, kind cell.Kind) {
 	changed := false
 	for _, c := range cells {
 		changed = b.set(c, kind) || changed
@@ -215,7 +216,7 @@ func (b *Board) SetMany(cells []CellID, kind CellKind) {
 	}
 }
 
-func (b *Board) set(c CellID, kind CellKind) bool {
+func (b *Board) set(c cell.ID, kind cell.Kind) bool {
 	if b.cells == nil {
 		before := b.seed.Version()
 		b.seed.Set(c, kind)
@@ -239,7 +240,7 @@ func (b *Board) set(c CellID, kind CellKind) bool {
 }
 
 // SetAll resets every cell's terrain kind to kind.
-func (b *Board) SetAll(kind CellKind) {
+func (b *Board) SetAll(kind cell.Kind) {
 	b.touchAll()
 	if b.cells == nil {
 		b.seed.SetAll(kind)
@@ -274,16 +275,16 @@ func (b *Board) Map() Map {
 }
 
 // altitude is c's ground level as the Map has it.
-func (b *Board) altitude(c CellID) float64 {
+func (b *Board) altitude(c cell.ID) float64 {
 	_, level := b.Map().Top(c)
 	return float64(level)
 }
 
 // At is an entity's current position on the board.
-type At struct{ Cell CellID }
+type At struct{ Cell cell.ID }
 
 // CellAABB is the size x size world rectangle centred on c.
-func CellAABB(grid Grid, c CellID, size uint32) plane.AABB {
+func CellAABB(grid Grid, c cell.ID, size uint32) plane.AABB {
 	center := grid.CellCenter(c)
 	half := float64(size) / 2
 	topLeft := geom.NewVec(center.X-half, center.Y-half)

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -67,8 +68,8 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 	grid := board.DefaultGrids{}.Square(5, 5, 10)
-	wall := board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true}
-	cell, ok := grid.CellAt(geom.NewVec(21.0, 21.0))
+	wall := cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true}
+	here, ok := grid.CellAt(geom.NewVec(21.0, 21.0))
 	if !ok {
 		t.Fatal("expected (21,21) to land inside the 5x5 grid")
 	}
@@ -78,10 +79,10 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	stage.boardPlugin.Res.Logic.Board.Set(cell, wall)
-	way := board.Way{Kind: board.CellKind{Name: board.Named("stream"), Cost: 2, Allows: board.Land}, Width: 5, Links: 1 << 3}
-	stage.boardPlugin.Res.Logic.Board.SetWay(cell, way)
-	id, _ := stage.boardPlugin.CellEntity(cell)
+	stage.boardPlugin.Res.Logic.Board.Set(here, wall)
+	way := cell.Way{Kind: cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land}, Width: 5, Links: 1 << 3}
+	stage.boardPlugin.Res.Logic.Board.SetWay(here, way)
+	id, _ := stage.boardPlugin.CellEntity(here)
 
 	if err := eng.Persistence().Save(basePath, ""); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -93,13 +94,13 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	if got := game2.boardPlugin.Res.Logic.Board.Kind(cell); got != way.Over(wall) {
+	if got := game2.boardPlugin.Res.Logic.Board.Kind(here); got != way.Over(wall) {
 		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, way.Over(wall))
 	}
-	if got := game2.boardPlugin.Res.Logic.Board.Way(cell); got != way {
+	if got := game2.boardPlugin.Res.Logic.Board.Way(here); got != way {
 		t.Errorf("Way(cell) after Load = %+v, want %+v", got, way)
 	}
-	if got, _ := game2.boardPlugin.CellEntity(cell); got != id {
+	if got, _ := game2.boardPlugin.CellEntity(here); got != id {
 		t.Errorf("the cell's entity after Load is %d, want %d, the one saved — none spawned anew", got, id)
 	}
 }

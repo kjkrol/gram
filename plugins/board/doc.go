@@ -14,35 +14,36 @@
 // world). Every step it tells the rules of a [Standing] hooked on it ([Plugin.Hook]) where
 // each entity stands: the cell, its kind and the game's tags of its place, the entity's box and
 // domain — [Standing.Fallen] where the domain may not be, a unit pushed into the sea — and the
-// rules of a [Cell] every cell: its entity, which cell, its kind now. Both are rule.Placed, data
+// rules of a cell.Now every cell: its entity, which cell, its kind now. Both are rule.Placed, data
 // alone: the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a
 // rule's Here acts on the cells under the entity (a cell itself), its Around on the rings of
 // neighbours round them too — a witch's frost, fire spreading over the ground. A cell carries for
-// good the game's tags of places ([Places]: a trapdoor, a plate, a zone), given in the Layout
-// ([CellEntry].Tags), which rules of a Cell filter by (rule.Self) and a Standing tells
+// good the game's tags of places (cell.Tag: a trapdoor, a plate, a zone), given in the Layout
+// ([CellEntry].Tags), which rules of a cell.Now filter by (rule.Self) and a Standing tells
 // (Standing.Places: a plate under the unit). Ready-made hooks are in plugins/board/hooks.
 //
-// # At, CellKind and Terrain
+// # Cells, At and Terrain
 //
-// A [CellID] names one cell; [At] is an entity's current one. A [CellKind] is a named terrain:
-// its movement cost, the [Domain]s it admits, whether it is solid (a wall) or how much it veils
-// sight (a forest), and the sprite drawn for it; kinds are created
-// through the Plugin's [CellKindDict]. Cost 1 is full speed and the cheapest step — a road; above
-// 1 slows and costs more to plan through — the ground off a road, the islands' at 2.5.
-// [CellKind.Costing] prices a kind differently for some domains — elves through a forest, a
-// witch over snow — and [CellKind.CostFor] is what an entity pays: the cheapest of its domains
-// the kind admits and prices, else Cost. A Graded kind — a road, a bridge, built up and cut into
+// What is said of one cell — its cell.ID, its cell.Kind, the cell.Domain values it admits, its
+// tags, the way across it — is the subpackage cell (plugins/board/cell); the board lays the grid of
+// them. [At] is an entity's current cell. A kind is a named terrain: its movement cost, whom it
+// admits, whether it is solid (a wall) or how much it veils sight (a forest), and the sprite
+// drawn for it; kinds are created through [Plugin.CellKinds]. Cost 1 is full speed
+// and the cheapest step — a road; above 1 slows and costs more to plan through — the ground off a
+// road, the islands' at 2.5. cell.Kind.Costing prices a kind differently for some domains —
+// elves through a forest, a witch over snow — and cell.Kind.CostFor is what an entity pays: the
+// cheapest of its domains the kind admits and prices, else Cost. A Graded kind — a road, a bridge, built up and cut into
 // the slope — is not slowed by the slope under it, nor priced by it in a route: its Cost is the
 // whole price. [Terrain] is what a cell answers about itself.
 //
 // # Ways
 //
-// A [Way] is what runs across a cell over its ground — a brook, a river, a road: a band Width wide
-// from the cell's middle out towards each neighbour its [Links] name, a bit for each of the grid's
+// A cell.Way is what runs across a cell over its ground — a brook, a river, a road: a band Width
+// wide from the cell's middle out towards each neighbour its cell.Links name, a bit for each of the grid's
 // directions ([Link] finds the bit for a neighbour, [Toward] the neighbour for a bit). Every cell
 // entity carries one beside its Plot and Ground, the zero Way where nothing runs, so it is saved
 // with the cell and an effect may alter it — a stream freezing over. Its kind decides who may cross
-// the cell and what it costs there ([Way.Over]; [Board.Kind] is the ground as whoever crosses it
+// the cell and what it costs there (cell.Way.Over; [Board.Kind] is the ground as whoever crosses it
 // meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
 // [Board.SetWay] read and write it, [Layout.Ways] seeds it; [Board.Along] tells a step along a way
 // — the way links the two cells — from one over the ground beside it, and [Board.Bare] is that
@@ -58,7 +59,7 @@
 // the ground's heights, shapes them, prices every slope and lights the tiles by them, and the
 // board asks it — [Map.Top] for a cell's corners and level, [Map.Climb], [Map.Least] and
 // [Map.Slope] for what a step and the speed cost beyond the kind's ([Plugin.Top], [Plugin.Climb],
-// [Plugin.Least], [Plugin.Slope] delegate). A [CellKind]'s Height is what stands on the cell — a
+// [Plugin.Least], [Plugin.Slope] delegate). A cell.Kind's Height is what stands on the cell — a
 // wall, a forest — in a world with heights (world.Config.Heights); a flat world refuses one, and its
 // units carry no Z. Whoever changes a cell beyond the board — the topography shaping its corners
 // — says so with [Board.Touch], so the cell's version moves and whatever was worked out of it is
@@ -91,7 +92,7 @@
 // in their kinds' colours, a step at its kind's cost times the distance. [Plugin.WithMap] puts
 // another in — plugins/topography, a map in relief — and [Plugin.Map] is the one in use.
 //
-// How a kind looks is its [CellKind.Color], or a sprite drawn for it ([CellKindDict.Draw]), or
+// How a kind looks is its Color, or a sprite drawn for it (cell.Kinds.Draw), or
 // whatever the game's own atlas has at its SpriteID: [Plugin.WithRenderer] takes the atlas, and
 // given nil draws from the board's own ([Plugin.DefaultAtlas]), a cell's size each.
 //

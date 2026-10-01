@@ -1,41 +1,41 @@
 package board
 
-import "github.com/kjkrol/aabbworld/geom"
-
-// CellID identifies one cell of a Grid — encoding is topology-specific.
-type CellID uint64
+import (
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/plugins/board/cell"
+)
 
 // Grid abstracts a board's topology (square, hex, ...) behind neighbor,
 // coordinate, and distance queries.
 type Grid interface {
-	Neighbors(c CellID) []CellID
-	Contains(c CellID) bool
-	CellCenter(c CellID) geom.Vec
-	CellAt(pos geom.Vec) (CellID, bool)
-	// CellIndex returns the CellID at grid coordinates (col,row or axial q,r), if within bounds.
-	CellIndex(a, b uint32) (CellID, bool)
+	Neighbors(c cell.ID) []cell.ID
+	Contains(c cell.ID) bool
+	CellCenter(c cell.ID) geom.Vec
+	CellAt(pos geom.Vec) (cell.ID, bool)
+	// CellIndex returns the cell at grid coordinates (col,row or axial q,r), if within bounds.
+	CellIndex(a, b uint32) (cell.ID, bool)
 	// NeighborCost is the geometric step cost from a to its neighbor b.
-	NeighborCost(a, b CellID) float64
+	NeighborCost(a, b cell.ID) float64
 	// DiagonalNeighbors returns the two cells flanking the corner between a and its diagonal b.
-	DiagonalNeighbors(a, b CellID) (c1, c2 CellID, ok bool)
+	DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool)
 	// Distance must never overestimate the true cost — it's the pathfinding heuristic.
-	Distance(a, b CellID) float64
+	Distance(a, b cell.ID) float64
 	// CellSpan is the world-space side length of one cell — the renderer's cell-quad size.
 	CellSpan() float32
 	// CellBounds is the width and height of the rectangle round one cell — the drawn quad.
 	CellBounds() (w, h float64)
 	// CellOutline appends to dst the corners of c, in order round the cell.
-	CellOutline(c CellID, dst []geom.Vec) []geom.Vec
+	CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec
 	// CellBoxes appends to dst boxes that together cover c, exactly or from outside.
-	CellBoxes(c CellID, dst []geom.AABB) []geom.AABB
+	CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB
 	// CellsUnder calls fn for every cell the box touches, each once.
-	CellsUnder(box geom.AABB, fn func(c CellID))
+	CellsUnder(box geom.AABB, fn func(c cell.ID))
 	// EachCell calls fn for every cell of the grid.
-	EachCell(fn func(c CellID))
+	EachCell(fn func(c cell.ID))
 	// Ordinal is c's index in a table with one slot per cell, below CellCount; false for no cell.
-	Ordinal(c CellID) (int, bool)
+	Ordinal(c cell.ID) (int, bool)
 	// Coords inverts CellIndex: c's grid coordinates (col, row or axial q, r).
-	Coords(c CellID) (a, b uint32, ok bool)
+	Coords(c cell.ID) (a, b uint32, ok bool)
 	// CellCount is how many cells the grid has.
 	CellCount() int
 }
@@ -46,13 +46,13 @@ type wrapSetter interface {
 
 // cellsUnder is CellsUnder for any grid: candidates from CellAt on a lattice over the box grown by
 // half a cell, kept when their outline meets the box.
-func cellsUnder(g Grid, box geom.AABB, fn func(c CellID)) {
+func cellsUnder(g Grid, box geom.AABB, fn func(c cell.ID)) {
 	w, h := g.CellBounds()
 	step := min(w, h) / 2
 	if step <= 0 {
 		return
 	}
-	seen := map[CellID]struct{}{}
+	seen := map[cell.ID]struct{}{}
 	var outline []geom.Vec
 	for y := box.TopLeft.Y - h/2; y <= box.BottomRight.Y+h/2; y += step {
 		for x := box.TopLeft.X - w/2; x <= box.BottomRight.X+w/2; x += step {

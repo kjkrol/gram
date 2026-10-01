@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestNewPlugin_SetsEachGridAxisFromTheWorldsEdges(t *testing.T) {
 	}
 }
 
-func newSeedTestPlugin(t *testing.T) (*Plugin, CellID) {
+func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 	t.Helper()
 	grid := DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
@@ -40,9 +41,9 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, CellID) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	p := NewPlugin(grid, &SingleOccupancy{}, worldPlugin)
-	p.CellKindDict().Create(
-		CellKind{Name: Named("grass"), Cost: 1, Allows: Land},
-		CellKind{Name: Named("wall"), Cost: 1, Solid: true},
+	p.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
 	)
 	cell, _ := grid.CellIndex(2, 2)
 	return p, cell

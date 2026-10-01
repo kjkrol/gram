@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
@@ -35,11 +36,11 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	}
 	start, _ := grid.CellIndex(1, 1)
 	w.Seed(kind.Define[mover](w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(m mover) world.Position { return world.Position{AABB: board.CellAABB(grid, m.cell, unitSize)} }),
+		comp.Load(func(m mover) world.Position { return world.Position{AABB: board.CellAABB(grid, m.here, unitSize)} }),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(m mover) board.At { return board.At{Cell: m.cell} }),
-		comp.Const(board.Mover{Domain: board.Land}),
-	}).Entry(mover{cell: start}))
+		comp.Load(func(m mover) board.At { return board.At{Cell: m.here} }),
+		comp.Const(board.Mover{Domain: cell.Land}),
+	}).Entry(mover{here: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,9 +74,9 @@ func (f *footing) react(_ plugin.Tick, st board.Standing) {
 }
 
 // pitBoard is grass with a pit of kind pit down column 3.
-func pitBoard(grid board.Grid, pit board.CellKind) func(*board.Board) {
+func pitBoard(grid board.Grid, pit cell.Kind) func(*board.Board) {
 	return func(brd *board.Board) {
-		brd.SetAll(board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
 			c, _ := grid.CellIndex(3, y)
 			brd.Set(c, pit)
@@ -87,9 +88,9 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	start, _ := grid.CellIndex(1, 7)
 	f := newFooting()
-	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("hole"), Cost: 1}),
-		[]mover{{cell: start, heading: east}}, host.Every(f.react))
-	if walls := bw.solid(world.Layers(board.Land)); len(walls) != 0 {
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, cell.Kind{Name: cell.Named("hole"), Cost: 1}),
+		[]mover{{here: start, heading: east}}, host.Every(f.react))
+	if walls := bw.solid(world.Layers(cell.Land)); len(walls) != 0 {
 		t.Fatalf("%d solid cells, want none: a hole is not solid", len(walls))
 	}
 
@@ -121,8 +122,8 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(6, 16, cellSize)
 	start, _ := grid.CellIndex(3, 7)
 	f := newFooting()
-	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, board.CellKind{Name: board.Named("water"), Cost: 1, Allows: board.Water}),
-		[]mover{{cell: start, domain: board.Water}}, host.Every(f.react))
+	bw := newGroundWorld(t, grid, 6*cellSize, 16*cellSize, pitBoard(grid, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}),
+		[]mover{{here: start, domain: cell.Water}}, host.Every(f.react))
 	bw.tick()
 	id := onlyID(f)
 	if f.last[id].Kind.Name.String() != "water" || f.fell[id] {
@@ -151,7 +152,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: unitSize, MaxSize: unitSize},
 	})
 	brd := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	brd.Res.Logic.Board.SetAll(board.CellKind{Name: board.Named("hole"), Cost: 1})
+	brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("hole"), Cost: 1})
 	f := newFooting()
 	if err := brd.Hook(host.Every(f.react)); err != nil {
 		t.Fatal(err)
@@ -197,10 +198,10 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	var box geom.AABB
 	record := func(_ plugin.Tick, _ *board.Mover, st board.Standing) { box = st.Box }
 	recording := host.Each(record)
-	bw, _ := squareWorldWith(t, recording, mover{cell: start, offset: cellSize / 2})
+	bw, _ := squareWorldWith(t, recording, mover{here: start, offset: cellSize / 2})
 	bw.tick()
-	var under []board.CellID
-	grid.CellsUnder(box, func(c board.CellID) { under = append(under, c) })
+	var under []cell.ID
+	grid.CellsUnder(box, func(c cell.ID) { under = append(under, c) })
 	right, _ := grid.CellIndex(2, 7)
 	if len(under) != 2 || !slices.Contains(under, start) || !slices.Contains(under, right) {
 		t.Errorf("a box straddling two cells is under %v, want %v and %v", under, start, right)

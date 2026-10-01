@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -52,7 +53,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[At](), goke.LoadComp[Mover](),
-		goke.LoadComp[Plot](), goke.LoadComp[Ground](), goke.LoadComp[Way](), goke.LoadComp[Crossing](),
-		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[Places]](),
+		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
+		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[cell.Family]](),
 	}
 }

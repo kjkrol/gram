@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/billboards"
 	"github.com/kjkrol/gram/plugins/topography/cameras"
@@ -118,7 +119,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	}
 	p.relief = relief.New(brd)
 	p.shaper = relief.NewShaper(p.relief, shaping)
-	p.painter = painter.New(brd, p.relief, liveSky{p}, true, map[board.Name]painter.Style{}).WithKinds(boardPlugin.CellKindDict())
+	p.painter = painter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
 	boardPlugin.WithMap(p)
 	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
 	extent := func() (float32, float32) {
@@ -255,18 +256,18 @@ func (p *Plugin) Dressing() board.Dressing { return p.painter }
 func (p *Plugin) Heights() board.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
-func (p *Plugin) Top(c board.CellID) (corners [4]float32, level float32) {
+func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) {
 	return p.relief.Top(c, p.boardPlugin.Res.Logic.Board.Kind(c).Height)
 }
 
 // Climb is how many times as long the step from one cell to its neighbour takes whoever moves in
 // d as on the flat: the slope's, as relief.Climbing says.
-func (p *Plugin) Climb(from, to board.CellID, d board.Domain) float64 {
+func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 {
 	return p.relief.Climb(from, to, d, p.climbing)
 }
 
 // Least is the smallest Climb for d: the quickest descent's.
-func (p *Plugin) Least(d board.Domain) float64 {
+func (p *Plugin) Least(d cell.Domain) float64 {
 	if !p.climbing.Feels(d) {
 		return 1
 	}
@@ -275,7 +276,7 @@ func (p *Plugin) Least(d board.Domain) float64 {
 
 // Slope is how many times as long moving at at towards dir takes whoever moves in d: the slope
 // under the entity, as relief.Climbing says.
-func (p *Plugin) Slope(at, dir geom.Vec, d board.Domain) float64 {
+func (p *Plugin) Slope(at, dir geom.Vec, d cell.Domain) float64 {
 	if !p.climbing.Feels(d) {
 		return 1
 	}

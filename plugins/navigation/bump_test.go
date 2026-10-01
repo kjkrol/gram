@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -21,9 +22,9 @@ import (
 // A road one cell wide through a field, SingleOccupancy and collision as the board demos have them: the
 // scene of the reported deadlock, where units pushed each other for ever.
 type roadUnit struct {
-	start, target board.CellID
+	start, target cell.ID
 	ordered       bool
-	domain        board.Domain     // zero: Land
+	domain        cell.Domain      // zero: Land
 	wide          bool             // the hawk's profile: faster, turning slower, looking further ahead
 	selected      bool             // Selectable and Selected, for the commands of a player
 	owner         control.PlayerID // who owns it; nobody for Nobody
@@ -56,9 +57,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	occupancy := &board.SingleOccupancy{}
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(rw.grid, occupancy, w)
-	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 2, Allows: board.Land | board.Air}) // field
+	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}) // field
 	for x := uint32(0); x < width; x++ {
-		brd.Res.Logic.Board.Set(rw.at(x, 1), board.CellKind{Cost: 1, Allows: board.Land | board.Air}) // the road
+		brd.Res.Logic.Board.Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
 	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
@@ -80,9 +81,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 
-	spec := func(ordered bool, domain board.Domain, wide, selected bool, u roadUnit) kind.Spec {
+	spec := func(ordered bool, domain cell.Domain, wide, selected bool, u roadUnit) kind.Spec {
 		if domain == 0 {
-			domain = board.Land
+			domain = cell.Land
 		}
 		profile := steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}
 		if wide {
@@ -152,10 +153,10 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	return rw
 }
 
-func (rw *roadWorld) at(x, y uint32) board.CellID { c, _ := rw.grid.CellIndex(x, y); return c }
+func (rw *roadWorld) at(x, y uint32) cell.ID { c, _ := rw.grid.CellIndex(x, y); return c }
 
 // state is one unit's cell and order, if it still has one.
-func (rw *roadWorld) state(id uid.UID64) (cell board.CellID, order *MoveOrder) {
+func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 	for rw.q.All(); rw.q.Next(); {
 		cur := rw.q.Cursor()
 		for i, got := range cur.IDs {
@@ -176,7 +177,7 @@ func (rw *roadWorld) state(id uid.UID64) (cell board.CellID, order *MoveOrder) {
 // there — or the time is up; it reports the ticks taken and how many times each unit's route changed.
 func (rw *roadWorld) run(units []roadUnit, limit time.Duration) (ticks int, replans map[uid.UID64]int) {
 	replans = map[uid.UID64]int{}
-	last := map[uid.UID64][]board.CellID{}
+	last := map[uid.UID64][]cell.ID{}
 	for ticks = 0; time.Duration(ticks)*time.Second/60 < limit; ticks++ {
 		rw.ecs.Tick(time.Second / 60)
 		done := true
@@ -185,15 +186,15 @@ func (rw *roadWorld) run(units []roadUnit, limit time.Duration) (ticks int, repl
 				continue
 			}
 			id := rw.byRow[row]
-			cell, o := rw.state(id)
+			here, o := rw.state(id)
 			if o == nil {
-				if cell != u.target && rw.grid.Distance(cell, u.target) > 1.5 {
-					rw.t.Fatalf("unit %d lost its order at %v, neither on nor beside its target %v", id, cell, u.target)
+				if here != u.target && rw.grid.Distance(here, u.target) > 1.5 {
+					rw.t.Fatalf("unit %d lost its order at %v, neither on nor beside its target %v", id, here, u.target)
 				}
 				continue
 			}
 			done = false
-			steps := append([]board.CellID(nil), o.Path.Steps[:o.Path.Length]...)
+			steps := append([]cell.ID(nil), o.Path.Steps[:o.Path.Length]...)
 			if !equalSteps(steps, last[id]) {
 				replans[id]++
 				last[id] = steps
@@ -263,7 +264,7 @@ func TestBump_ATargetAStrangerStandsOnIsSettledBeside(t *testing.T) {
 func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 	rw := newRoadWorld(t, 8, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
-		{start: rw.at(0, 1), target: rw.at(7, 1), ordered: true, domain: board.Air},
+		{start: rw.at(0, 1), target: rw.at(7, 1), ordered: true, domain: cell.Air},
 		{start: rw.at(3, 1)}, // walkers parked across the road
 		{start: rw.at(4, 1)},
 		{start: rw.at(5, 1)},
@@ -293,7 +294,7 @@ func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 // than find itself short of its cell every step and plan again.
 func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 	rw := newRoadWorld(t, 24, []roadUnit{{start: 0, ordered: true}})
-	units := []roadUnit{{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: board.Air, wide: true}}
+	units := []roadUnit{{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: cell.Air, wide: true}}
 	rw = newRoadWorld(t, 24, units)
 	hawk := rw.byRow[0]
 	ticks, replans := rw.run(units, 10*time.Second)

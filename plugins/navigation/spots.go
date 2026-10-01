@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // placeCells is how many cells round its target a group looks over for spots.
@@ -22,7 +22,7 @@ func gapFor(half geom.Vec) float64 { return 2 * max(half.X, half.Y) * spacingGap
 // placed is where one unit of a group stands: spot, in cell; ok false where none was found.
 type placed struct {
 	spot geom.Vec
-	cell board.CellID
+	cell cell.ID
 	ok   bool
 }
 
@@ -32,7 +32,7 @@ type spotSearch struct {
 	k     *bodyKeeping
 	at    geom.Vec
 	step  geom.Vec // the lattice's spacing: the largest box and a gap
-	tiles []board.CellID
+	tiles []cell.ID
 	next  int
 	cands []placed
 	dist  []float64
@@ -51,7 +51,7 @@ func (s *spotSearch) get(i int) (placed, bool) {
 }
 
 // expand adds the lattice points inside c, nearest the point first.
-func (s *spotSearch) expand(c board.CellID) {
+func (s *spotSearch) expand(c cell.ID) {
 	k := s.k
 	centre := k.grid.CellCenter(c)
 	d := k.delta(s.at, centre)
@@ -87,18 +87,18 @@ func (s *spotSearch) expand(c board.CellID) {
 // the spots are then dealt far side first, the unit furthest on along the way going deepest, so
 // none has to pass one of its group standing already. The way the group comes is the second
 // result.
-func (k *bodyKeeping) place(units []member, at geom.Vec, target board.CellID) (out []placed, way geom.Vec) {
+func (k *bodyKeeping) place(units []member, at geom.Vec, target cell.ID) (out []placed, way geom.Vec) {
 	return k.placeClearOf(units, at, target, nil)
 }
 
 // placeClearOf is place with no spot where struck stand.
-func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target board.CellID, struck []body) (out []placed, way geom.Vec) {
+func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, struck []body) (out []placed, way geom.Vec) {
 	out = make([]placed, len(units))
 	if len(units) == 0 {
 		return out, way
 	}
 	var half geom.Vec
-	var dom board.Domain
+	var dom cell.Domain
 	for _, u := range units {
 		half = geom.NewVec(max(half.X, u.pos.Size.X/2), max(half.Y, u.pos.Size.Y/2))
 		dom |= u.domain
@@ -161,7 +161,7 @@ func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, w
 	}
 	type alike struct {
 		size   geom.Vec
-		domain board.Domain
+		domain cell.Domain
 		lift   float64
 		height float64
 	}
@@ -209,15 +209,15 @@ func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, w
 
 // tilesRound is up to placeCells cells taking dom round target, the cheapest to reach first,
 // priced for costs as a route is.
-func (k *bodyKeeping) tilesRound(target board.CellID, dom, costs board.Domain) []board.CellID {
+func (k *bodyKeeping) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.ID {
 	type reach struct {
-		c    board.CellID
+		c    cell.ID
 		cost float64
 	}
-	best := map[board.CellID]float64{target: 0}
-	done := map[board.CellID]bool{}
+	best := map[cell.ID]float64{target: 0}
+	done := map[cell.ID]bool{}
 	frontier := []reach{{target, 0}}
-	var out []board.CellID
+	var out []cell.ID
 	for len(frontier) > 0 && len(out) < placeCells {
 		n := 0
 		for i := range frontier {
@@ -262,7 +262,7 @@ func (k *bodyKeeping) fits(u member, p geom.Vec, struck []body) bool {
 		}
 	}
 	admitted := true
-	k.grid.CellsUnder(boxAt(p, in), func(c board.CellID) {
+	k.grid.CellsUnder(boxAt(p, in), func(c cell.ID) {
 		admitted = admitted && k.terrain.Kind(c).Admits(u.domain)
 	})
 	if !admitted || !k.level(u, p, in) {

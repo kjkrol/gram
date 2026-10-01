@@ -6,7 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,7 +14,7 @@ import (
 // the orders they already have; given by an entity for itself, it sends that entity alone. At is the world point clicked: under BodySpacing where the group
 // stands round, under CellSpacing where one standing on Cell turns instead of going anywhere.
 type MoveTo struct {
-	Cell   board.CellID
+	Cell   cell.ID
 	At     geom.Vec
 	Append bool
 }

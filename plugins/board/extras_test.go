@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
@@ -50,11 +51,11 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 	}
 	plugin := world.NewPlugin(cfg)
 	placement := world.NewGridPlacement(50, 50, 8)
-	unit := kind.Define[board.CellID](plugin.Kinds(), "unit", kind.Spec{
+	unit := kind.Define[cell.ID](plugin.Kinds(), "unit", kind.Spec{
 		comp.Const(placement.Place(0, 1)),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(c board.CellID) board.At { return board.At{Cell: c} }).
-			WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, board.Land) }),
+		comp.Load(func(c cell.ID) board.At { return board.At{Cell: c} }).
+			WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, cell.Land) }),
 	})
 	plugin.Seed(unit.Entry(target))
 	if err := plugin.Populate(); err != nil {
@@ -66,11 +67,11 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var q *goke.Query
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			q = si.NewQueryBuilder(&cell).Build()
+			q = si.NewQueryBuilder(&at).Build()
 		}}}
 	})
 	ctx.flush()
@@ -79,7 +80,7 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 	found := false
 	for q.Next() {
 		cur := q.Cursor()
-		cells := cell.Slice(cur)
+		cells := at.Slice(cur)
 		for i := range cur.IDs {
 			found = true
 			if cells[i].Cell != target {
@@ -90,7 +91,7 @@ func TestKind_LoadWithEffect_EntersOccupancyOnSpawn(t *testing.T) {
 	if !found {
 		t.Fatal("expected the spawned entity to exist")
 	}
-	if occupancy.CanEnter(target, uid.UID64(999), board.Land) {
+	if occupancy.CanEnter(target, uid.UID64(999), cell.Land) {
 		t.Error("expected occupancy.Enter to have claimed the target cell for the spawned entity")
 	}
 }

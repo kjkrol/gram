@@ -1261,6 +1261,17 @@ per unit. Any effect may be applied today; a list of a player's effects waits fo
 network. The user also asked that a rule's short condition be written inside the rule, not as a
 method of the stage; the effect demo's three were moved in.
 
+### board/cell (2026-10-01)
+
+The user asked for everything of a cell in a subpackage. Their choices: `cell` (singular), the
+tags as `cell.Family` with `cell.Tag`/`cell.Tags` as other families are, `cell.Domain` and its
+bits in `cell`, the moment of a cell in `cell` as `cell.Now`, the dictionary `cell.Kinds`
+(`board.Plugin.CellKinds()`, not `Kinds()`, which would read as the world's kinds of units).
+Done by a script over the qualified names (it also hit fields named `board`, `d.board.Way`,
+put back), the compiler's "undefined" positions inside `board`, and `gopls rename` for local
+variables named `cell` that shadowed the package (`cellAt` for the demos' helpers, `at` for
+`goke.Comp[board.At]`, `here` for the rest); `water`'s queue item type `cell` is `flooded`.
+
 ## Questions for review
 
 

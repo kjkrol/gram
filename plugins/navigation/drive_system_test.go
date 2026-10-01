@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -39,13 +40,13 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 	t.Helper()
 	r := &driveRig{t: t, ecs: goke.New(), grid: board.DefaultGrids{}.Square(10, 1, 10), occupancy: &board.SingleOccupancy{}}
 	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	water, _ := r.grid.CellIndex(6, 0)
-	terrain.Set(water, board.CellKind{Cost: 1, Allows: board.Water})
+	terrain.Set(water, cell.Kind{Cost: 1, Allows: cell.Water})
 	nav := newNavigationSystem(newPathFinder(r.grid, terrain, nil, r.occupancy), r.grid, terrain, r.occupancy)
 	sys := &driveSystem{nav: nav}
 
-	var cell goke.Comp[board.At]
+	var at goke.Comp[board.At]
 	var base goke.Comp[world.Base]
 	var steer goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
@@ -54,7 +55,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 	var mov goke.Comp[board.Mover]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.course, &r.driven).Optional(&r.order).Optional(&r.states).Optional(&r.mover).Build()
-		comps := []goke.Addable{&cell, &base, &steer, &course, &driven}
+		comps := []goke.Addable{&at, &base, &steer, &course, &driven}
 		if order != nil {
 			comps = append(comps, &ord)
 		}
@@ -66,12 +67,12 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 		for f.Next() {
 			r.walker = f.Cursor.IDs[0]
 			start, _ := r.grid.CellIndex(2, 0)
-			cell.Slice(&f.Cursor)[0] = board.At{Cell: start}
+			at.Slice(&f.Cursor)[0] = board.At{Cell: start}
 			b := &base.Slice(&f.Cursor)[0]
 			b.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(23, 3), 4, 4)}
 			b.Vel.Dir = geom.NewVec(1, 0)
 			steer.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-			r.occupancy.Enter(start, r.walker, board.Land)
+			r.occupancy.Enter(start, r.walker, cell.Land)
 			if order != nil {
 				ord.Slice(&f.Cursor)[0] = *order
 			}
@@ -151,7 +152,7 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 	}
 	stranger := uid.UID64(99)
 	next, _ := r.grid.CellIndex(5, 0)
-	r.occupancy.Enter(next, stranger, board.Land)
+	r.occupancy.Enter(next, stranger, cell.Land)
 	r.place(47)
 	r.drive(steering.Driven{Ahead: 1})
 	if st := r.steering(); st.WantSpeed != 0 {
@@ -170,7 +171,7 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)
 		}
 	})
-	if !r.occupancy.CanEnter(cell2, uid.UID64(99), board.Land) || r.occupancy.CanEnter(cell3, uid.UID64(99), board.Land) {
+	if !r.occupancy.CanEnter(cell2, uid.UID64(99), cell.Land) || r.occupancy.CanEnter(cell3, uid.UID64(99), cell.Land) {
 		t.Error("the occupancy did not follow the walker from cell 2 to cell 3")
 	}
 }
@@ -196,12 +197,12 @@ func TestDrive_AHandGivesUpTheCellsTheOrdersStepHeld(t *testing.T) {
 	cell2, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(2, 0)
 	cell3, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(3, 0)
 	r := newDriveRig(t, &MoveOrder{Target: 8, Leg: Leg{From: cell2, To: cell3, Active: true}})
-	r.occupancy.Enter(cell3, r.walker, board.Land)
+	r.occupancy.Enter(cell3, r.walker, cell.Land)
 	r.drive(steering.Driven{Turn: 1})
-	if !r.occupancy.CanEnter(cell3, uid.UID64(99), board.Land) {
+	if !r.occupancy.CanEnter(cell3, uid.UID64(99), cell.Land) {
 		t.Error("the cell the order's step was heading into is still held")
 	}
-	if r.occupancy.CanEnter(cell2, uid.UID64(99), board.Land) {
+	if r.occupancy.CanEnter(cell2, uid.UID64(99), cell.Land) {
 		t.Error("the cell the walker stands on is no longer held")
 	}
 }
@@ -294,7 +295,7 @@ func TestDrive_SprintsWhereUrged(t *testing.T) {
 // or not; its height is the topography's to change, so the drive leaves its Lift be. Neither a
 // flyer steered from behind nor a walker slows for the look.
 func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
-	r := newDriveRig(t, nil, board.Mover{Domain: board.Land | board.Air, Lift: 10}) // over the rig's land
+	r := newDriveRig(t, nil, board.Mover{Domain: cell.Land | cell.Air, Lift: 10}) // over the rig's land
 	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st.Sprint, st.Speed = 4, 20
 	})
@@ -314,7 +315,7 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	if st := r.steering(); st.WantSpeed != 20 {
 		t.Errorf("steered from behind: asks %v, want its top speed", st.WantSpeed)
 	}
-	w := newDriveRig(t, nil, board.Mover{Domain: board.Land})
+	w := newDriveRig(t, nil, board.Mover{Domain: cell.Land})
 	w.place(35)
 	w.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
 	if st := w.steering(); st.WantSpeed != 20 {

@@ -4,27 +4,28 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 var (
-	earth = board.CellKind{Name: board.Named("earth"), Cost: 1, Allows: board.Land | board.Air, Veil: 0.2}
-	river = board.CellKind{Name: board.Named("river"), Cost: 1, Allows: board.Water | board.Air}
+	earth = cell.Kind{Name: cell.Named("earth"), Cost: 1, Allows: cell.Land | cell.Air, Veil: 0.2}
+	river = cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water | cell.Air}
 )
 
 // A way decides who may cross its cell and what it costs; the ground keeps the rest.
 func TestWay_OverTakesWhoMayCrossAndTheCostFromTheWay(t *testing.T) {
-	got := board.Way{Kind: river, Width: 8}.Over(earth)
+	got := cell.Way{Kind: river, Width: 8}.Over(earth)
 	if got.Allows != river.Allows || got.Name != earth.Name || got.Veil != earth.Veil {
 		t.Errorf("a river over earth is %+v, want the river's Allows, the rest the earth's", got)
 	}
-	if got := (board.Way{Kind: river}).Over(earth); got != earth {
+	if got := (cell.Way{Kind: river}).Over(earth); got != earth {
 		t.Errorf("a way of no width over earth is %+v, want the earth as it is", got)
 	}
-	road := board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land, Graded: true}
-	if got := (board.Way{Kind: road, Width: 4}).Over(earth); !got.Graded {
+	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land, Graded: true}
+	if got := (cell.Way{Kind: road, Width: 4}).Over(earth); !got.Graded {
 		t.Error("a graded road over earth is not graded")
 	}
-	if got := (board.Crossing{Way: board.Way{Kind: road, Width: 4}}).Over(earth); !got.Graded {
+	if got := (cell.Crossing{Way: cell.Way{Kind: road, Width: 4}}).Over(earth); !got.Graded {
 		t.Error("a graded bridge over earth is not graded")
 	}
 }
@@ -35,7 +36,7 @@ func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	c, _ := grid.CellIndex(1, 1)
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(earth)
-	brd.SetWay(c, board.Way{Kind: river, Width: 6})
+	brd.SetWay(c, cell.Way{Kind: river, Width: 6})
 	if brd.Kind(c).Allows != river.Allows || brd.Bare(c) != earth {
 		t.Errorf("under the river the cell is %+v, bare %+v; want the river over the earth, the earth bare", brd.Kind(c), brd.Bare(c))
 	}
@@ -44,15 +45,15 @@ func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 // A step goes along a way where the way, or a crossing, links the two cells either way round.
 func TestBoard_AlongFollowsTheLinksOfWaysAndCrossings(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	brd := board.NewBoard(grid, board.NewTerrainMap())
 	brd.SetAll(earth)
 	east, _ := board.Link(grid, at(1, 1), at(2, 1))
-	brd.SetWay(at(1, 1), board.Way{Kind: river, Width: 4, Links: east})
+	brd.SetWay(at(1, 1), cell.Way{Kind: river, Width: 4, Links: east})
 	south, _ := board.Link(grid, at(1, 1), at(1, 2))
-	brd.SetCrossing(at(1, 1), board.Crossing{Way: board.Way{Kind: earth, Width: 4, Links: south}})
+	brd.SetCrossing(at(1, 1), cell.Crossing{Way: cell.Way{Kind: earth, Width: 4, Links: south}})
 	for _, c := range []struct {
-		from, to board.CellID
+		from, to cell.ID
 		want     bool
 	}{
 		{at(1, 1), at(2, 1), true}, {at(2, 1), at(1, 1), true}, // the way, and back along it
@@ -107,7 +108,7 @@ func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
 func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	grid := board.DefaultGrids{}.Square(3, 3, 10)
 	c, _ := grid.CellIndex(1, 1)
-	way := board.Way{Kind: river, Width: 6, Links: 1<<0 | 1<<1}
+	way := cell.Way{Kind: river, Width: 6, Links: 1<<0 | 1<<1}
 
 	seeded := board.NewBoard(grid, board.NewTerrainMap())
 	seeded.SetAll(earth)
@@ -132,7 +133,7 @@ func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	if brd.Version() != v {
 		t.Error("laying the same way again counted as a change")
 	}
-	brd.SetWay(cw.target, board.Way{})
+	brd.SetWay(cw.target, cell.Way{})
 	if brd.Kind(cw.target) != earth {
 		t.Errorf("with the way taken away the cell is %+v, want the earth", brd.Kind(cw.target))
 	}

@@ -1,21 +1,21 @@
-package board
+package cell
 
 import (
 	"bytes"
 	"fmt"
 )
 
-// MaxNameLen is the longest CellKind name, in bytes.
+// MaxNameLen is the longest Kind name, in bytes.
 const MaxNameLen = 16
 
-// Name is a CellKind's name as fixed-size bytes, so a Ground component stays contiguous in memory.
+// Name is a Kind's name as fixed-size bytes, so a Ground component stays contiguous in memory.
 type Name [MaxNameLen]byte
 
 // Named is the Name for s; it panics past MaxNameLen.
 func Named(s string) Name {
 	n, ok := nameOf(s)
 	if !ok {
-		panic(fmt.Sprintf("board: kind name %q is longer than %d bytes", s, MaxNameLen))
+		panic(fmt.Sprintf("cell: kind name %q is longer than %d bytes", s, MaxNameLen))
 	}
 	return n
 }

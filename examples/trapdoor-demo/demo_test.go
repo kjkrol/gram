@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -124,7 +125,7 @@ func (s *stage) onStrip(i int) map[uid.UID64]bool {
 // holds reports whether the top trapdoor of lever i holds a walker.
 func (s *stage) holds(i int) bool {
 	c, _ := s.brd.CellIndex(levers[i].left, stripTop)
-	return s.brd.Kind(c).Admits(board.Land)
+	return s.brd.Kind(c).Admits(cell.Land)
 }
 
 func (s *stage) alive() map[uid.UID64]bool {
@@ -167,8 +168,8 @@ func TestLever_OpensItsTrapdoorsUnderWhoeverStandsOnThem(t *testing.T) {
 		t.Error("a west trapdoor still open after its lever went back")
 	}
 	held, alive := s.board.Occupancy().(*board.SingleOccupancy), s.alive()
-	s.brd.EachCell(func(c board.CellID) {
-		if id, ok := held.Holder(c, board.Land); ok && !alive[id] {
+	s.brd.EachCell(func(c cell.ID) {
+		if id, ok := held.Holder(c, cell.Land); ok && !alive[id] {
 			t.Errorf("cell %d is still held by %d, fallen in and gone", c, id)
 		}
 	})

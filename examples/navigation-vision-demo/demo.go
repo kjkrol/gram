@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -109,12 +110,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize}) // the hills in relief, seen from above
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air, Veil: 1, Height: 10},
-		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Height: 8}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
-		board.CellKind{Name: board.Named("hill"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
+		cell.Kind{Name: cell.Named("forest"), Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land | cell.Air},
+		cell.Kind{Name: cell.Named("hill"), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
 	)
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -177,7 +178,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unit struct{ start, target cell.ID }
 
 var unitColors = []color.RGBA{
 	{R: 220, G: 90, B: 90, A: 255},
@@ -197,14 +198,14 @@ func (s *mainStage) defineKinds() {
 	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
-		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: board.Land}, scout, order,
+		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: cell.Land}, scout, order,
 			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 			sight, eye(1.5), comp.Tagged(s.unitTag)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
-	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: 40}, flyer, order,
+	s.hawk = units.Define("hawk", board.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
 		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye(1), comp.Tagged(s.unitTag))
 }
@@ -212,7 +213,7 @@ func (s *mainStage) defineKinds() {
 // Spawn says who is there when the game starts fresh.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 
 	// A wall down column 12 with a gap at row 8, a forest either side of the gap, and a road
 	// along row 1 with both flanks.
@@ -221,32 +222,32 @@ func (s *mainStage) Spawn() error {
 		if y == gapRow {
 			continue
 		}
-		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(wallCol, y)})
+		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cellAt(wallCol, y)})
 	}
 	for _, f := range [][2]uint32{{6, 6}, {17, 10}} {
 		for dy := uint32(0); dy < 3; dy++ {
 			for dx := uint32(0); dx < 4; dx++ {
-				cells = append(cells, board.CellEntry{Kind: "forest", Cell: cell(f[0]+dx, f[1]+dy)})
+				cells = append(cells, board.CellEntry{Kind: "forest", Cell: cellAt(f[0]+dx, f[1]+dy)})
 			}
 		}
 	}
 	// A hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over.
 	for dy := uint32(3); dy <= 5; dy++ {
 		for dx := uint32(7); dx <= 9; dx++ {
-			cells = append(cells, board.CellEntry{Kind: "hill", Cell: cell(dx, dy)})
+			cells = append(cells, board.CellEntry{Kind: "hill", Cell: cellAt(dx, dy)})
 		}
 	}
 	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(x, roadTop)})
+		cells = append(cells, board.CellEntry{Kind: "road", Cell: cellAt(x, roadTop)})
 	}
 	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(roadLeft, y)}, board.CellEntry{Kind: "road", Cell: cell(roadRight, y)})
+		cells = append(cells, board.CellEntry{Kind: "road", Cell: cellAt(roadLeft, y)}, board.CellEntry{Kind: "road", Cell: cellAt(roadRight, y)})
 	}
-	hills := map[board.CellID]bool{}
+	hills := map[cell.ID]bool{}
 	for _, e := range cells {
 		hills[e.Cell] = e.Kind == "hill"
 	}
-	heights := relief.MeanOfCells(s.board.Res.Logic.Board, func(c board.CellID) float64 {
+	heights := relief.MeanOfCells(s.board.Res.Logic.Board, func(c cell.ID) float64 {
 		if hills[c] {
 			return hillHeight
 		}
@@ -256,11 +257,11 @@ func (s *mainStage) Spawn() error {
 	s.topography.Seed(heights)
 
 	s.world.Seed(
-		s.kinds[0].Entry(unit{start: cell(2, 4), target: cell(GridWidth-3, 4)}),
-		s.kinds[1].Entry(unit{start: cell(2, 12), target: cell(GridWidth-3, 12)}),
-		s.kinds[2].Entry(unit{start: cell(GridWidth-3, gapRow), target: cell(2, gapRow)}),
+		s.kinds[0].Entry(unit{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}),
+		s.kinds[1].Entry(unit{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}),
+		s.kinds[2].Entry(unit{start: cellAt(GridWidth-3, gapRow), target: cellAt(2, gapRow)}),
 		// The hawk crosses the wall and the second forest head-on.
-		s.hawk.Entry(unit{start: cell(1, 11), target: cell(GridWidth-2, 11)}),
+		s.hawk.Entry(unit{start: cellAt(1, 11), target: cellAt(GridWidth-2, 11)}),
 	)
 	return nil
 }
@@ -299,7 +300,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass":  {R: 60, G: 95, B: 60, A: 255},

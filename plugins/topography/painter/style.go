@@ -8,7 +8,7 @@ package painter
 // along a line their cells draw; 0 keeps its cells square. Under has it lie under the kinds round
 // it — water: a tile that spreads next to it is drawn as it, glinting and all, its own kind laid
 // over along the line, so a coast runs round. A way's kind is styled the same way, and MixWith
-// names the kind whose look a way of it turns into as far as its board.Way.Mix says: a river
+// names the kind whose look a way of it turns into as far as its cell.Way.Mix says: a river
 // taking on the sea's colour towards its mouth.
 type Style struct {
 	Shine   float32

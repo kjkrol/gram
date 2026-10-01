@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -21,7 +22,7 @@ type placeRig struct {
 
 func newPlaceRig() *placeRig {
 	r := &placeRig{grid: board.DefaultGrids{}.Square(7, 5, 32), terrain: board.NewTerrainMap()}
-	r.terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
+	r.terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() board.Heights {
 		if r.heights == nil {
 			return nil
@@ -38,7 +39,7 @@ type groundFunc func(p geom.Vec) float64
 func (g groundFunc) At(p geom.Vec) float64 { return g(p) }
 func (g groundFunc) Step() float64         { return 1 }
 
-func (r *placeRig) at(x, y uint32) board.CellID { c, _ := r.grid.CellIndex(x, y); return c }
+func (r *placeRig) at(x, y uint32) cell.ID { c, _ := r.grid.CellIndex(x, y); return c }
 
 // units is n land units side a side, the i-th standing in the cell (0, i % 5), 20 each nearer the
 // point than the one before.
@@ -47,7 +48,7 @@ func (r *placeRig) units(n int, side float64) []member {
 	for i := range n {
 		c := r.grid.CellCenter(r.at(0, uint32(i%5)))
 		pos := world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float64(i%3), c.Y-side/2), side, side)}
-		out = append(out, member{id: uid.UID64(i + 1), cell: r.at(0, uint32(i%5)), from: r.at(0, uint32(i%5)), domain: board.Land, pos: pos, z: world.Z{Height: 6}})
+		out = append(out, member{id: uid.UID64(i + 1), cell: r.at(0, uint32(i%5)), from: r.at(0, uint32(i%5)), domain: cell.Land, pos: pos, z: world.Z{Height: 6}})
 	}
 	return out
 }
@@ -69,9 +70,9 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 	r := newPlaceRig()
 	target := r.at(3, 2)
 	for _, c := range r.grid.Neighbors(target) {
-		r.terrain.Set(c, board.CellKind{Cost: 5, Allows: board.Land})
+		r.terrain.Set(c, cell.Kind{Cost: 5, Allows: cell.Land})
 	}
-	r.terrain.Set(r.at(2, 2), board.CellKind{Cost: 1, Allows: board.Land}) // the cheap way west
+	r.terrain.Set(r.at(2, 2), cell.Kind{Cost: 1, Allows: cell.Land}) // the cheap way west
 	at := r.grid.CellCenter(target)
 	units := r.units(12, 6) // 12 apart with the gap: 3 x 3 in a 32 cell round its middle
 	got, _ := r.keep.place(units, at, target)
@@ -106,7 +107,7 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	r := newPlaceRig()
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
-	cells := map[board.CellID]bool{}
+	cells := map[cell.ID]bool{}
 	big, _ := r.keep.place(r.units(3, 28), centre, target)
 	for _, p := range big {
 		if !p.ok {
@@ -131,8 +132,8 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	r := newPlaceRig()
 	target := r.at(3, 2)
-	r.terrain.Set(r.at(4, 2), board.CellKind{Cost: 1, Allows: board.Water})            // water east
-	r.terrain.Set(r.at(3, 1), board.CellKind{Cost: 1, Allows: board.Land, Height: 10}) // a rock north
+	r.terrain.Set(r.at(4, 2), cell.Kind{Cost: 1, Allows: cell.Water})            // water east
+	r.terrain.Set(r.at(3, 1), cell.Kind{Cost: 1, Allows: cell.Land, Height: 10}) // a rock north
 	centre := r.grid.CellCenter(target)
 	r.heights = func(geom.Vec) float64 { return 0 }
 	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock
@@ -143,7 +144,7 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 		}
 		box := boxAt(p.spot, geom.NewVec(4*0.999, 4*0.999))
 		rock, off := false, false
-		r.grid.CellsUnder(box, func(c board.CellID) {
+		r.grid.CellsUnder(box, func(c cell.ID) {
 			if c == r.at(4, 2) {
 				t.Errorf("spot %v hangs over the water", p.spot)
 			}
@@ -164,13 +165,13 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
 	h := geom.NewVec(5, 5)
-	standing := body{id: 100, at: centre, half: h, domain: board.Land}
+	standing := body{id: 100, at: centre, half: h, domain: cell.Land}
 	r.keep.begin(func(b []body) []body { return append(b, standing) })
 	spots, _ := r.keep.place(r.units(1, 10), centre, target)
 	if spots[0].spot != centre {
 		t.Errorf("the unit stands at %v, want the point %v: nobody told it of the one standing there", spots[0].spot, centre)
 	}
-	flyer := body{id: 101, at: geom.NewVec(centre.X-20, centre.Y), half: h, domain: board.Air}
+	flyer := body{id: 101, at: geom.NewVec(centre.X-20, centre.Y), half: h, domain: cell.Air}
 	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, []body{standing, flyer})
 	got := spots[0]
 	if !got.ok || got.spot == centre {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/rule/effect"
@@ -19,13 +20,13 @@ type cellWorld struct {
 	brd     *board.Plugin
 	fx      *effect.Effects
 	frost   effect.Effect
-	target  board.CellID
-	grass   board.CellKind
-	snow    board.CellKind
+	target  cell.ID
+	grass   cell.Kind
+	snow    cell.Kind
 	casting func(cb *goke.CmdBuf)
 
 	plots *goke.Query
-	plot  goke.Comp[board.Plot]
+	plot  goke.Comp[cell.Plot]
 	marks goke.OptComp[tag.Tags[effect.States]]
 }
 
@@ -42,11 +43,11 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	})
 	cw.fx = w.Effects()
 	cw.brd = board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
-	cw.grass = board.CellKind{Name: board.Named("grass"), Cost: 1, Allows: board.Land}
-	cw.snow = board.CellKind{Name: board.Named("snow"), Cost: 3, Allows: board.Land}
+	cw.grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
+	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
 	cw.brd.Res.Logic.Board.SetAll(cw.grass)
 	snow := cw.snow
-	cw.frost = cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *board.Ground) { g.Kind = snow })})
+	cw.frost = cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})
 
 	ctx := &installCtx{ecs: goke.New()}
 	for _, install := range []func() error{
@@ -91,7 +92,7 @@ func (cw *cellWorld) castFrost() uid.UID64 {
 
 func (cw *cellWorld) board() *board.Board { return cw.brd.Res.Logic.Board }
 
-func (cw *cellWorld) kind() board.CellKind { return cw.board().Kind(cw.target) }
+func (cw *cellWorld) kind() cell.Kind { return cw.board().Kind(cw.target) }
 
 // cells counts the cell entities and how many of them still have Changed on.
 func (cw *cellWorld) cells() (n, changed int) {
@@ -112,8 +113,8 @@ func TestCells_EveryCellIsAnEntityForGood(t *testing.T) {
 	if n, _ := cw.cells(); n != 16 {
 		t.Fatalf("%d cell entities, want one per cell, 16", n)
 	}
-	seen := map[uid.UID64]board.CellID{}
-	cw.board().EachCell(func(c board.CellID) {
+	seen := map[uid.UID64]cell.ID{}
+	cw.board().EachCell(func(c cell.ID) {
 		id, ok := cw.brd.CellEntity(c)
 		if !ok {
 			t.Errorf("cell %d has no entity", c)
@@ -199,7 +200,7 @@ func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 		}
 	}
 	step("kind", func() { brd.Set(cw.target, cw.snow) })
-	step("way", func() { brd.SetWay(cw.target, board.Way{Kind: cw.grass, Width: 3, Links: 1}) })
+	step("way", func() { brd.SetWay(cw.target, cell.Way{Kind: cw.grass, Width: 3, Links: 1}) })
 	step("heights, shaped beyond the board", func() { brd.Touch(cw.target) })
 	brd.Set(cw.target, cw.grass)
 	v = brd.CellVersion(cw.target)

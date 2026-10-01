@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -20,11 +21,11 @@ func newHexGrid(width, height uint32, size float64) *hexGrid {
 	return &hexGrid{Width: width, Height: height, Size: size}
 }
 
-func packAxial(q, r int32) CellID {
-	return CellID(uint64(uint32(q))<<32 | uint64(uint32(r)))
+func packAxial(q, r int32) cell.ID {
+	return cell.ID(uint64(uint32(q))<<32 | uint64(uint32(r)))
 }
 
-func unpackAxial(c CellID) (q, r int32) {
+func unpackAxial(c cell.ID) (q, r int32) {
 	return int32(uint32(c >> 32)), int32(uint32(c))
 }
 
@@ -36,16 +37,16 @@ func (g *hexGrid) foldAxial(q, r int32) (int32, int32, bool) {
 }
 
 // Contains is always true on a wrapping axis — every coordinate maps to some cell once wrapped.
-func (g *hexGrid) Contains(c CellID) bool {
+func (g *hexGrid) Contains(c cell.ID) bool {
 	_, _, ok := g.foldAxial(unpackAxial(c))
 	return ok
 }
 
 var hexDirs = [6][2]int32{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}
 
-func (g *hexGrid) Neighbors(c CellID) []CellID {
+func (g *hexGrid) Neighbors(c cell.ID) []cell.ID {
 	q, r := unpackAxial(c)
-	out := make([]CellID, 0, 6)
+	out := make([]cell.ID, 0, 6)
 	for _, d := range hexDirs {
 		if nq, nr, ok := g.foldAxial(q+d[0], r+d[1]); ok {
 			out = append(out, packAxial(nq, nr))
@@ -55,14 +56,14 @@ func (g *hexGrid) Neighbors(c CellID) []CellID {
 }
 
 // CellCenter is the world position of c's centre, with cell (0,0) fully in positive space.
-func (g *hexGrid) CellCenter(c CellID) geom.Vec {
+func (g *hexGrid) CellCenter(c cell.ID) geom.Vec {
 	q, r := unpackAxial(c)
 	x := g.Size*(math.Sqrt(3)*float64(q)+math.Sqrt(3)/2*float64(r)) + g.Size
 	y := g.Size*(1.5*float64(r)) + g.Size
 	return geom.NewVec(x, y)
 }
 
-func (g *hexGrid) CellAt(pos geom.Vec) (CellID, bool) {
+func (g *hexGrid) CellAt(pos geom.Vec) (cell.ID, bool) {
 	if g.Size == 0 {
 		return 0, false
 	}
@@ -83,7 +84,7 @@ func (g *hexGrid) CellSpan() float32 { return float32(g.Size) }
 func (g *hexGrid) CellBounds() (w, h float64) { return math.Sqrt(3) * g.Size, 2 * g.Size }
 
 // CellOutline is the six corners of a pointy-top hex, clockwise from the top.
-func (g *hexGrid) CellOutline(c CellID, dst []geom.Vec) []geom.Vec {
+func (g *hexGrid) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 	center := g.CellCenter(c)
 	for i := range 6 {
 		a := -math.Pi/2 + float64(i)*math.Pi/3
@@ -92,14 +93,14 @@ func (g *hexGrid) CellOutline(c CellID, dst []geom.Vec) []geom.Vec {
 	return dst
 }
 
-func (g *hexGrid) CellsUnder(box geom.AABB, fn func(c CellID)) { cellsUnder(g, box, fn) }
+func (g *hexGrid) CellsUnder(box geom.AABB, fn func(c cell.ID)) { cellsUnder(g, box, fn) }
 
 // HexCapStrips is how many boxes cover each pointed end of a hex; more is a closer fit.
 const HexCapStrips = 3
 
 // CellBoxes covers the hex from outside: its middle band, then strips over each cap as wide as
 // the hex is at the strip's wider edge.
-func (g *hexGrid) CellBoxes(c CellID, dst []geom.AABB) []geom.AABB {
+func (g *hexGrid) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 	center := g.CellCenter(c)
 	s := g.Size
 	halfW := math.Sqrt(3) / 2 * s
@@ -115,7 +116,7 @@ func (g *hexGrid) CellBoxes(c CellID, dst []geom.AABB) []geom.AABB {
 	return dst
 }
 
-func (g *hexGrid) EachCell(fn func(c CellID)) {
+func (g *hexGrid) EachCell(fn func(c cell.ID)) {
 	for r := int32(0); r < int32(g.Height); r++ {
 		for q := int32(0); q < int32(g.Width); q++ {
 			fn(packAxial(q, r))
@@ -125,7 +126,7 @@ func (g *hexGrid) EachCell(fn func(c CellID)) {
 
 func (g *hexGrid) SetWrap(x, y bool) { g.WrapX, g.WrapY = x, y }
 
-func (g *hexGrid) Ordinal(c CellID) (int, bool) {
+func (g *hexGrid) Ordinal(c cell.ID) (int, bool) {
 	q, r := unpackAxial(c)
 	if q < 0 || r < 0 || q >= int32(g.Width) || r >= int32(g.Height) {
 		return 0, false
@@ -135,12 +136,12 @@ func (g *hexGrid) Ordinal(c CellID) (int, bool) {
 
 func (g *hexGrid) CellCount() int { return int(g.Width) * int(g.Height) }
 
-func (g *hexGrid) Coords(c CellID) (uint32, uint32, bool) {
+func (g *hexGrid) Coords(c cell.ID) (uint32, uint32, bool) {
 	q, r := unpackAxial(c)
 	return uint32(q), uint32(r), q >= 0 && r >= 0 && q < int32(g.Width) && r < int32(g.Height)
 }
 
-func (g *hexGrid) CellIndex(q, r uint32) (CellID, bool) {
+func (g *hexGrid) CellIndex(q, r uint32) (cell.ID, bool) {
 	fq, fr, ok := g.foldAxial(int32(q), int32(r))
 	if !ok {
 		return 0, false
@@ -149,10 +150,10 @@ func (g *hexGrid) CellIndex(q, r uint32) (CellID, bool) {
 }
 
 // NeighborCost is always 1 — every hex neighbor is equidistant in this axial model.
-func (g *hexGrid) NeighborCost(a, b CellID) float64 { return 1 }
+func (g *hexGrid) NeighborCost(a, b cell.ID) float64 { return 1 }
 
 // DiagonalNeighbors always returns ok=false: hex neighbors share an edge, never a corner.
-func (g *hexGrid) DiagonalNeighbors(a, b CellID) (c1, c2 CellID, ok bool) {
+func (g *hexGrid) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	return 0, 0, false
 }
 
@@ -161,7 +162,7 @@ func hexCubeDistance(dq, dr int32) float64 {
 }
 
 // Distance is hex (cube) distance, the shortest across every wrap period when toroidal.
-func (g *hexGrid) Distance(a, b CellID) float64 {
+func (g *hexGrid) Distance(a, b cell.ID) float64 {
 	aq, ar := unpackAxial(a)
 	bq, br := unpackAxial(b)
 	dq, dr := aq-bq, ar-br

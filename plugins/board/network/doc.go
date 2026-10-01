@@ -6,14 +6,14 @@
 //
 // A network is a way to make a board's layout, not a plugin: a game works one out — by hand, or
 // as plugins/board/water drains a relief — and lays it on the board as its [Network.Ways], a
-// board.Way across every cell it runs through, running on as [Network.Links] says. Down a flow,
+// cell.Way across every cell it runs through, running on as [Network.Links] says. Down a flow,
 // [Network.Along] is how far a cell lies, 0 at the head of the longest flow into it to 1 at the
-// last cell before it leaves: a river taking on the sea's look as it nears it (board.Way.Mix).
+// last cell before it leaves: a river taking on the sea's look as it nears it (cell.Way.Mix).
 // Where two networks run through the same cells ([Network.Crossings]) a road meets a river: a
 // ford, a bridge.
 //
 // A road is found over the grid ([Route]: the cheapest way from cell to cell at a cost a game
 // says, round what may not be crossed) and laid along its cells ([Network.Path]). Laid over a
 // river ([Network.Across]) it is a way of its own where the river does not run and a
-// board.Crossing — a bridge — over the river's way where it does.
+// cell.Crossing — a bridge — over the river's way where it does.
 package network

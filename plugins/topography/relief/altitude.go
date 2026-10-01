@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
@@ -46,7 +47,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			m := &movers[i]
 			ground := s.relief.GroundAt(board.Center(bases[i].Pos))
 			alt := ground + m.Lift
-			flown := m.Domain&board.Air != 0 && drivens != nil && drivens[i].Flown
+			flown := m.Domain&cell.Air != 0 && drivens != nil && drivens[i].Flown
 			if flown {
 				alt = zs[i].Altitude
 				if rise, run := drivens[i].Slope(); rise != 0 && courses != nil {

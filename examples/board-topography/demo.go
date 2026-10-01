@@ -43,6 +43,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -162,7 +163,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.board.CellKindDict().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
+	s.board.CellKinds().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
 	// glinting under the land's blended grounds, the running water running
@@ -295,7 +296,7 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unit struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
@@ -310,17 +311,17 @@ func (s *mainStage) defineKinds() {
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	// every unit gets on among the others by navigation's Crowd, the plugin's own rules: an ally
 	// standing makes way, a group gathers round its point, strangers are gone round
-	s.unit = units.Define("unit", board.Mover{Domain: board.Land}, walker,
+	s.unit = units.Define("unit", board.Mover{Domain: cell.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 	// The crowd on the plateau: the player's walkers standing, under no order and not selected.
-	s.plateau = units.Define("plateau", board.Mover{Domain: board.Land}, walker,
+	s.plateau = units.Define("plateau", board.Mover{Domain: cell.Land}, walker,
 		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 	// The rival's walkers are the same giants, the player's to meet, not to command.
-	s.rivals = units.Define("rival", board.Mover{Domain: board.Land}, walker,
+	s.rivals = units.Define("rival", board.Mover{Domain: cell.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
 		sight, eye,
 	)
@@ -328,7 +329,7 @@ func (s *mainStage) defineKinds() {
 	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
 	// its height over the sea and climbs and dives the way the rider looks, never nearer the
 	// ground than its own height nor higher than 100 m under the clouds.
-	s.hawk = units.Define("hawk", board.Mover{Domain: board.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
+	s.hawk = units.Define("hawk", board.Mover{Domain: cell.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)

@@ -1,6 +1,9 @@
 package board
 
-import "testing"
+import (
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"testing"
+)
 
 // around tells each cell once, its seed first, ring by ring, on square and hex grids alike.
 func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
@@ -11,9 +14,9 @@ func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
 		brd := NewBoard(grid, NewTerrainMap())
 		middle, _ := grid.CellIndex(4, 4)
 		for rings := range 4 {
-			told := map[CellID]int{}
-			var order []CellID
-			brd.around(func(add func(CellID)) { add(middle) }, rings, func(c CellID) {
+			told := map[cell.ID]int{}
+			var order []cell.ID
+			brd.around(func(add func(cell.ID)) { add(middle) }, rings, func(c cell.ID) {
 				told[c]++
 				order = append(order, c)
 			})

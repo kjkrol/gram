@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -14,24 +15,24 @@ import (
 func BenchmarkPathFinder_Terrain(b *testing.B) {
 	const side, size = 128, 16
 	grid := board.DefaultGrids{}.Square(side, side, size)
-	at := func(x, y uint32) board.CellID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	from, to := at(0, 0), at(side-1, side-1)
 	lay := func(brd *board.Board) {
 		rng := rand.New(rand.NewPCG(3, 5))
-		brd.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-		brd.EachCell(func(c board.CellID) {
+		brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.EachCell(func(c cell.ID) {
 			if c != from && c != to && rng.IntN(4) == 0 {
-				brd.Set(c, board.CellKind{Cost: 1, Solid: true})
+				brd.Set(c, cell.Kind{Cost: 1, Solid: true})
 			}
 		})
 	}
 	run := func(b *testing.B, terrain board.Terrain) {
 		pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
-		if _, ok := pf.findPath(1, board.Land, from, to); !ok {
+		if _, ok := pf.findPath(1, cell.Land, from, to); !ok {
 			b.Fatal("no route across the board")
 		}
 		for b.Loop() {
-			pf.findPath(1, board.Land, from, to)
+			pf.findPath(1, cell.Land, from, to)
 		}
 	}
 
