@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -20,7 +19,7 @@ import (
 // holds cells, bodyKeeping keeps boxes apart. The systems ask it where the two differ.
 type keeping interface {
 	// occupancy is what steps and routes hold and ask.
-	occupancy() board.Occupancy
+	occupancy() cell.Occupancy
 	// begin readies a tick; gather lists every unit as it stands, for a keeping that needs them.
 	begin(gather func([]body) []body)
 	// orders gives the members their orders towards cmd: issue hands a fresh one, and an appended
@@ -111,7 +110,7 @@ type member struct {
 }
 
 // centre is the middle of m's box.
-func (m member) centre() geom.Vec { return board.Center(m.pos) }
+func (m member) centre() geom.Vec { return m.pos.Center() }
 
 // cellKeeping gives a unit a cell to itself per domain, as the board's Occupancy says: a unit
 // routes over the ground alone, not knowing where the others stand, and learns of them only when a
@@ -119,7 +118,7 @@ func (m member) centre() geom.Vec { return board.Center(m.pos) }
 // (Crowd); refused stallAfter, navigation routes round the cell itself, whatever they do.
 type cellKeeping struct {
 	finder *pathFinder
-	occ    board.Occupancy
+	occ    cell.Occupancy
 	who    holders   // occ, when it tells who holds a cell; nil, nobody is asked off one
 	index  bodyIndex // the tick's units: whether whoever holds a cell stands or passes
 }
@@ -128,13 +127,13 @@ var _ keeping = (*cellKeeping)(nil)
 
 // newCellKeeping holds cells in occ; finder plans the routes, blind to the others when its own
 // occupancy is open.
-func newCellKeeping(finder *pathFinder, occ board.Occupancy) *cellKeeping {
+func newCellKeeping(finder *pathFinder, occ cell.Occupancy) *cellKeeping {
 	k := &cellKeeping{finder: finder, occ: occ, index: bodyIndex{grid: finder.grid}}
 	k.who, _ = occ.(holders)
 	return k
 }
 
-func (k *cellKeeping) occupancy() board.Occupancy { return k.occ }
+func (k *cellKeeping) occupancy() cell.Occupancy { return k.occ }
 
 func (k *cellKeeping) begin(gather func([]body) []body) {
 	k.index.build(gather(k.index.bodies[:0]))

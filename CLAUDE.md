@@ -79,7 +79,7 @@ plugin's own hooks and the ready-made ones in its `hooks` package are written st
 `plugin/host` (`host.Each`, `host.Every`, `host.Pair`), Go code a game never writes; the tag
 families join the host's queries as optional components, so a rule costs no query, and rules
 over one component share its column (`host.Own` shares the host's own). The moment's type —
-`collision.Meeting`, `collision.Struck`, `vision.Sighting`, `board.Standing`, `cell.Now`,
+`collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
 `world.Moving`, `clock.Moment` — is what says whose it is: a
 host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
 error, never a silent no-op. A plugin author runs them with `host.PairHost[P]`/`host.EachHost[P]`/
@@ -167,7 +167,7 @@ per-frame CPU work of the island at 2560x1440 is under 0.5 ms. A `render.Still` 
 unit a pixel) and kept on the GPU run by run (`gpu.Kept`), drawn every frame scaled and moved
 (`gpu.Draw.Place`) and lit (`gpu.Draw.Tint`, plain colours only) as a camera from above shows it:
 the board's renderer is a `render.Direct` at `Ground` that composes a flat map under a
-`board.EvenLit` dressing (the simple map's, the atmosphere's `litDressing`) into one, anew only
+`look.EvenLit` dressing (the simple map's, the atmosphere's `litDressing`) into one, anew only
 when the board changes (`Board.Changes`), draws it in `EvenLight` — copies across a wrapping seam
 — and the grid over it on the GPU (`shaders/grid.wgsl`: a square grid's tiles darkened along
 their edges, a hex grid's edges); anything else keeps composing its tiles every frame. The
@@ -175,17 +175,17 @@ clouds' shadows over a flat world (`atmosphere.Plugin.Clouds`, `atmosphere/overc
 worked out every 8 pixels of a mesh on the GPU.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite, where
-it is drawn for picking, its footprint for outlines) and `board.Look` (a cell, handed as a
-`board.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
+it is drawn for picking, its footprint for outlines) and `look.Look` (a cell, handed as a
+`look.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
 and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `Climb`, `Least`,
 `Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
-`cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from
-`DefaultAtlas`), the ways and crossings as plain bands (`simpleDressing`), a step at its kind's
+`cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from the
+board's own atlas of the kinds), the ways and crossings as plain bands (`internal/draw.Bands`), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
 the world and the board, sets the world's camera factory (`world.SetCameras(cameras.Maker(…))`;
 `camera.Config` has no projection), its Look (`billboards.Look`: billboards in relief, the world's
-`FlatLook` from above, all drawn on the GPU), the board's Map (its Look `board.Nothing`: the ground is drawn on the GPU) and
+`FlatLook` from above, all drawn on the GPU), the board's Map (its Look `look.Nothing`: the ground is drawn on the GPU) and
 the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
 the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
 `topography/terrain` — the relief's lattice as a mesh (every corner a vertex, heights in an R32F
@@ -194,7 +194,7 @@ sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves
 the clouds' cover baked (`cover.wgsl`), water on wet cells only, the grid, fog, and a skirt of
 level ground round the world to the horizon (`skirtRings`, `skirtReach`); over a hex grid
 `topography/hexes` — every cell a prism instance to its top, a face down to each lower neighbour, coloured
-from the tiles composed once from above (a `render.Still` through `board.NewRenderer` with the
+from the tiles composed once from above (a `render.Still` through `look.NewRenderer` with the
 flat look and the painter) and drawn every frame into a world image. The painter only paints: its
 tiles are dressed in white without clouds (`tile.Light` even, `sunlit` full), into the sheets or
 the hexes' still; there is no per-frame tile path in relief any more. The world's entities are
@@ -263,8 +263,8 @@ that is the view and nothing else — the projection, the camera, the billboard,
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the plain top-down camera of a world without a topography. `world.Z`, relief and `Heights` are not the view but the world's heights: sight
 over walls and hills reads them in a top-down game too (navigation-vision-demo); the scan runs
-observers on every CPU, a `scanner` per goroutine (`vision.Plugin.WithWorkers`), after `Board.Ready`
-has read the cells' cover (`board.Readied`) and one query has settled the space's index. **Layering: the
+observers on every CPU, a `scanner` per goroutine (`vision.Plugin.WithWorkers`), after the board's
+cover has read the cells' (`ground.Readied`) and one query has settled the space's index. **Layering: the
 world knows its entities and nothing else; the ground is the board's, the sky the atmosphere's,
 `render` generic.** A relief is lit by the sun of its `topography.Atmosphere`
 (`WithAtmosphere(atmospherePlugin)`; without one `sky.DefaultSun` in still clear air): `sky.Sun`
@@ -379,7 +379,7 @@ waves steepen with `Wind` (`calmSea`..`stormSea`), water reflects `overcastSky()
 takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (`overcast.Renderer`, tier `Objects+50`, a Direct: a mesh
 over the viewport, the noise at its corners every 8 pixels where the camera's lines of sight meet
 the ground, the shadow per pixel) and its light by the hour through
-`atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `board.EvenLit`:
+`atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `look.EvenLit`:
 the sun on level ground, one light for every tile, so the board is composed once and tinted on the
 GPU) and the world's Look (`litLook`: sprites lit, what sways leaning on the CPU, handing the flat
 look's GPU sprites through). A flat board without an atmosphere is drawn as it is.
@@ -415,7 +415,7 @@ directly — per-tick logic lives in its own dedicated type/file (e.g.
 ### Systems stay inside their plugin
 
 A type implementing `goke.System` is named with the `System` suffix
-(`ScanSystem`, `cellSystem`, `altitudeSystem`) and never leaks out of
+(`ScanSystem`, `entitySystem`, `altitudeSystem`) and never leaks out of
 its plugin: no `Plugin` method hands out a system's state, and no plugin takes a
 callback from the game that reaches into another plugin's system. A system
 keeps no table beside the ECS — what it knows about an entity is a component on
@@ -426,11 +426,23 @@ Each `plugin.go`/`module.go` groups methods under banner comments — contract
 methods first, then everything plugin/module-specific — so a file's shape
 shows how much of it is boilerplate vs. real behavior.
 
+### API in packages, machinery in internal
+
+A plugin split into packages keeps what a game or another plugin uses — contracts, entry
+points, facts — in its normal packages, and the machinery its own packages share — stores,
+systems, implementations — in `plugins/<plugin>/internal/...`, which only the plugin's own
+packages may import. Names exported inside `internal` are not API; a type from `internal`
+never appears in a public signature, and tests outside the plugin cannot use it (a test that
+must read a package's insides uses an `export_test.go`). A system in `internal` follows the
+topography's pattern: a part type whose method returns a private `goke.System`
+(`terrain.Cells.System()`, `rule.Rules.StandingSystem()`). `plugins/board` is split this way;
+the other plugins follow as they are split.
+
 ### Behaviour goes through rule
 
 gram is a library: whatever a game may want to change is written in the rule
 formalism (`plugins/world/rule`), never as a policy inside a plugin's system. A
-plugin **perceives** — moments its pass catches, for rules (`board.Standing`,
+plugin **perceives** — moments its pass catches, for rules (`unit.Standing`,
 `collision.Meeting`, `navigation.Touch`), and facts, for plans — and **carries out**
 commands (`navigation.StepAside`, `world.Despawn`), keeping the engine's own rules
 inside the handler (a unit is never stepped into water, off a cliff or into a wall).
@@ -525,13 +537,30 @@ rule a pair, made in a loop).
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
-  following the world's `Edges` (`SetWrap(x, y)`). What is said of one cell is the subpackage
-  **`board/cell`**: `cell.ID`, `cell.Kind` and the board's `cell.Kinds` (`board.Plugin.CellKinds()`),
-  `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`, the cell entity's `cell.Plot`
-  and `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the game's tags of places (`cell.Family`,
-  `cell.Tag`, `cell.Tags`) and the moment `cell.Now`; the board keeps the grid, its `Board`,
-  `Layout`/`CellEntry`, `Terrain`, `Occupancy`, `Mover`, `At`, `Standing`, `Link`/`Toward`. A
-  `cell.Kind` says which `cell.Domain`s it admits
+  following the world's `Edges`. The root keeps the `Plugin`, the `Board` (the terrain's façade:
+  `Kind`, `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Crossing`, `SetCrossing`, `Along`,
+  `CellVersion`, `Changes`, `Version`, `Touch`, `Shape`), the `Layout`, the `Map` contract and
+  `NewUnits`; the ground the others meet is its field's (`Plugin.Cover`, `WithCollision`). Public
+  subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
+  (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the game's tags of
+  places (`cell.Family`, `cell.Tag`, `cell.Tags`), the moment `cell.Now`, the Layout's entries
+  (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
+  board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
+  `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
+  `unit.Standing`; **`board/grid`** — `grid.Grid` (with `Toward`), `grid.DefaultGrids`,
+  `grid.Link`, `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
+  `Parallel`, `ParallelLook`, `Tile`, `FlatLook`, `Nothing`, `Map` (the drawing part of
+  `board.Map`), `Renderer`/`NewRenderer` (reading the board as a `look.Board`), `RenderState`,
+  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Cover`, `Readied`. The machinery is in
+  **`board/internal`**, importable only inside the board: `internal/terrain` (the cells' state —
+  seed or entities, `Cells`, the entity system, the counts of changes, the kinds' dictionary),
+  `internal/rule` (`Rules`: the hosts of `unit.Standing` and `cell.Now`, their systems, `Around`,
+  `TerrainSpeed`), `internal/field` (the ground's cover and solid field), `internal/grids` (the
+  square and hex grids' types), `internal/draw` (the simple map's bands), `internal/occupancy`
+  (the release of the gone), `internal/boardtest` (what the board's tests share: an installer, a
+  world of world, collision, board and vision, a game of one stage; tests sit in the package whose
+  code they test). A `cell.Kind` says which `cell.Domain`s it admits
   (`Land`, `Water`, `Air`, a game's own bits), whether it is `Solid` (a wall), how much it
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
@@ -568,16 +597,16 @@ rule a pair, made in a loop).
   `Mover` says which domains it moves in (none: `Land`) and, in a world with heights, how high it
   flies (`Lift`), the least it keeps over the ground (`Clearance`) and how high over sea level it
   may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
-  its units: `units.Define(name, board.Mover{…}, steering, extra...)` derives `Position` and
+  its units: `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and
   `At` (its cell) from the one point `at` reads off a row, `Layers` from the domain, in a world with heights a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
   cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
-  `Crossing`, made by the `cellSystem` at Setup or found after a load; the `Board` reads and
-  writes them, keeping only the cells' entity ids by ordinal, and a seed (`TerrainMap`) before
-  Setup or on a board no ECS runs. `Version` and `CellVersion` count every change: writes through
-  the board, effects on cell entities, which the `cellSystem` learns from `effect.Changed` on the
-  cells, and `Board.Touch(c)` by whoever changes a cell beyond the board.
+  `Crossing`, made at Setup by the entity system of `internal/terrain` out of the seed (a
+  `cell.TerrainMap`, the Layout's tags included) or found after a load; `terrain.Cells` reads and
+  writes them, or the seed before Setup and on a board no ECS runs. `Version` and `CellVersion`
+  count every change: writes through the board, effects on cell entities (`effect.Changed` on
+  the cells), and `Board.Touch(c)` by whoever changes a cell beyond the board.
   The board is flat: the ground's heights are the topography's `relief.Relief` — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
@@ -595,30 +624,31 @@ rule a pair, made in a loop).
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
   box and the `Mover`'s domain) to the rules hooked on the board; `Standing.Fallen()` is a land
   unit in water or in a hole, and the reaction is the game's (the demos:
-  `rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step { return m.If(board.Standing.Fallen, m.Order(world.Despawn{})) })`,
-  `bhooks.LogFalls()` beside it). Then, while a rule of it is hooked, every cell as a `Cell` (its
-  entity, which cell, its kind now). Both moments are data alone and `rule.Placed`: the board puts
-  `placesAround` into their `plugin.Tick.Around`, and `m.Here(step)` runs the step on the entities
-  of the cells under the box (a `Cell`'s own), `m.Around(rings, step)` on the rings of neighbours
-  too, each cell once (`Board.around`, a scratch of passes, not reentrant) — the effect demo's
-  witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `Cell`.
+  `rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step { return m.If(unit.Standing.Fallen, m.Order(world.Despawn{})) })`,
+  `bhooks.LogFalls()` beside it). Then, while a rule of it is hooked, every cell as a `cell.Now`
+  (its entity, which cell, its kind now). Both moments are data alone and `rule.Placed`: the
+  board's `internal/rule.Rules` put their `around` into the `plugin.Tick.Around`, and
+  `m.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own),
+  `m.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
+  reentrant) — the effect demo's
+  witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
   `Plugin.Hook` routes by the moment's type. Every cell carries for good the game's tags of
   places, `cell.Tags` (defined by name through the world's kinds, given in the
-  `Layout` as `CellEntry.Tags` before the cells are made — `Board.tagCell` panics after): a rule
-  of a `Cell` filters cells with `rule.Self(tag)` (the trapdoor demo's strips), and
+  `Layout` as `cell.Entry.Tags` before the cells are made — tagging panics after): a rule
+  of a `cell.Now` filters cells with `rule.Self(tag)` (the trapdoor demo's strips), and
   `Standing.Places` are those of the cell under a unit (the pressure plate demo: whoever stands
-  on a plate orders `world.Apply`). The unit's own cell component is `board.At{Cell}` (was
-  `cell.Now`). The standing pass also has the `Occupancy` let go of whoever left the world,
-  every step (`Occupancy.Release`): a despawned unit kept its holds before, blocking cells.
-  A `board.Effect` (`Tick(brd, d) alive`) is what the board does to itself over time by writing
-  terrain — `Plugin.Cast`/`Dispel`, ticked first each tick; `board/effect` ships `Timed` (terrain
-  that reverts), `Cycle` (phases turning kinds, seasons) and `Once`. Terrain is never an entity in
-  the space: the `Board` is the world's `Field` (`Solid`: the cells under a box that are `Solid`
-  and keep out one of the entity's layers, sides open towards open ground; a hex gives the boxes
-  of `Grid.CellBoxes`) and `Cover` (`Walk`: the cells along a ray whose `Veils` meet the
-  observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`), set on the
-  world in `NewPlugin` and read from the cell entities whenever collision or sight asks, so a
-  change counts from the next tick. `Solid` and `Veil` are independent. Depends on `world` alone.
+  on a plate orders `world.Apply`). The unit's own cell component is `unit.At{Cell}` (was
+  `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
+  whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
+  blocking cells. What the board does to its terrain over time is effects on the cells' entities
+  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
+  board's field (`internal/field`) is collision's `Field` (`Solid`: the cells under a box that are `Solid` and keep out one
+  of the entity's layers, sides open towards open ground; a hex gives the boxes of
+  `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by
+  `Plugin.WithCollision`, and sight's `ground.Cover` (`Walk`: the cells along a ray whose `Veils`
+  meet the observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`),
+  `Plugin.Cover`; both read the cell entities whenever collision or sight asks, so a change counts
+  from the next tick. `Solid` and `Veil` are independent. Depends on `world` and `collision`.
 - **`collision`** — optional collision detection over `world`'s space, one
   `CollisionSystem` system a tick. An entity collides exactly while it carries `Collider` —
   `comp.Const(collision.Collider{})`, or `Attach`/`Detach` mid-game. The `CollisionSystem`
@@ -781,7 +811,7 @@ rule a pair, made in a loop).
   plan). Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side),
   `Having[T]()`. Moments are `rule.About` (`Who()`), pairs `rule.Met` (`Whom`), standing on places
   of their own `rule.Placed` (a marker, `Placed()`; the host tells the places round in
-  `plugin.Tick.Around`: `board.Standing`, `cell.Now`). A Moment's
+  `plugin.Tick.Around`: `unit.Standing`, `cell.Now`). A Moment's
   steps: `OneOf`, `Steps`, `If` (on the moment), `Not`, `Apply`, `Keep`, `Dispel`, `Chance`,
   `Unless`, `Under`, `During` (the world's effects), `Order`, `ForOther`, `Here`, `Around` — all
   instant; a lasting step in a rule

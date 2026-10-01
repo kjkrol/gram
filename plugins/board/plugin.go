@@ -1,9 +1,7 @@
 package board
 
 import (
-	"errors"
 	"fmt"
-	"github.com/kjkrol/gram/plugins/board/cell"
 	"math"
 	"time"
 
@@ -11,7 +9,15 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/internal/occupancy"
+	"github.com/kjkrol/gram/plugins/board/internal/rule"
+	"github.com/kjkrol/gram/plugins/board/internal/terrain"
+	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/render"
@@ -24,50 +30,51 @@ type Resources struct {
 	Logic struct {
 		Board *Board
 	}
-	Render *RenderState
+	Render *look.RenderState
 }
 
 // Plugin wires a Board into a Game; it depends on world, and hands collision its solid ground.
 type Plugin struct {
 	Res Resources
 
-	occupancy Occupancy
-	renderer  *Renderer
-	kinds     *cellKindDict
+	occupancy cell.Occupancy
+	renderer  *look.Renderer
+	atlas     render.AtlasSource // the renderer's
+	kinds     *terrain.Kinds
 	seeded    *Layout
 	mapping   Map
 
 	worldPlugin *world.Plugin
 	module      *module
-	standing    host.EachHost[Standing]
-	cellRules   host.EachHost[cell.Now]
+	rules       *rule.Rules
 	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 
-// NewPlugin builds a board over grid with the given occupancy cap, slowing worldPlugin's entities.
+// NewPlugin builds a board over g with the given occupancy cap, slowing worldPlugin's entities.
 // It is drawn and priced by the simple map until WithMap sets another.
-func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugin {
-	terrain := NewTerrainMap()
-	kind.Require[At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
-	kind.Require[Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
+func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin) *Plugin {
+	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
+	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
-		kinds:       newCellKindDict(worldPlugin.HasHeights()),
+		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
-	brd := NewBoard(grid, terrain)
+	brd := NewBoard(g)
 	p.Res.Logic.Board = brd
-	brd.heights = worldPlugin.HasHeights()
+	brd.setHeights(worldPlugin.HasHeights())
 	p.mapping = newSimpleMap(brd)
 	brd.mapping = p.mapping
-	if ws, ok := p.Res.Logic.Board.Grid.(wrapSetter); ok {
+	if ws, ok := p.Res.Logic.Board.Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	if err := worldPlugin.Hook(terrainSpeed(p.Res.Logic.Board)); err != nil {
+	p.rules = rule.New(brd.Grid, brd.cells, worldPlugin.Tick)
+	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
+	if err := worldPlugin.Hook(rule.TerrainSpeed(brd.Grid, brd.cells, slope)); err != nil {
 		panic(err)
 	}
 	return p
@@ -79,16 +86,15 @@ func NewPlugin(grid Grid, occupancy Occupancy, worldPlugin *world.Plugin) *Plugi
 
 func (p *Plugin) Name() string { return "gram.board" }
 
-// Install wires the cell entities and the standing report.
+// Install wires the cell entities, the occupancy's upkeep and the rules.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     newCellSystem(p.Res.Logic.Board),
-		standing:  newStandingSystem(p.Res.Logic.Board, &p.standing, p.occupancy),
-		cellRules: newCellRuleSystem(p.Res.Logic.Board, &p.cellRules),
+		cells:     p.Res.Logic.Board.cells.System(),
+		release:   occupancy.ReleaseSystem(p.occupancy),
+		standing:  p.rules.StandingSystem(),
+		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),
 	}
-	p.module.standing.tick = p.worldPlugin.Tick
-	p.module.cellRules.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -98,14 +104,15 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
-// given nil, from the board's own atlas of the kinds' Colors and drawn sprites (DefaultAtlas).
+// given nil, from the board's own atlas of the kinds' Colors and drawn sprites.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if atlas == nil {
-		atlas = p.DefaultAtlas()
+		atlas = p.defaultAtlas()
 	}
-	p.Res.Render = &RenderState{ShowGridLines: true}
-	p.renderer = newRenderer(p.Res.Logic.Board, atlas, p.Res.Render, p.Map)
-	p.renderer.space = p.worldPlugin.Res.Config.Space
+	p.atlas = atlas
+	p.renderer = look.NewRenderer(p.Res.Logic.Board, atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
+	p.Res.Render = p.renderer.State()
+	p.Res.Render.ShowGridLines = true
 	p.renderer.Workers(p.workers)
 }
 
@@ -121,22 +128,17 @@ func (p *Plugin) WithWorkers(n int) *Plugin {
 
 // Atlas is the sprite sheet the board's renderer draws the cells from, WithRenderer's; nil before
 // it.
-func (p *Plugin) Atlas() render.AtlasSource {
-	if p.renderer == nil {
-		return nil
-	}
-	return p.renderer.atlas
-}
+func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
 
-// DefaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
+// defaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
 // (cell.Kinds.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
 // created.
-func (p *Plugin) DefaultAtlas() render.AtlasSource {
+func (p *Plugin) defaultAtlas() render.AtlasSource {
 	w, h := p.Res.Logic.Board.CellBounds()
 	size := int(math.Ceil(max(w, h)))
 	atlas := render.NewAtlas()
 	for _, k := range p.kinds.All() {
-		if draw, ok := p.kinds.drawers[k.Name]; ok {
+		if draw, ok := p.kinds.Drawer(k.Name); ok {
 			atlas.RegisterAt(k.SpriteID, size, draw)
 			continue
 		}
@@ -164,16 +166,12 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Standing, fired every step for every entity on the board, and of
-// Cell, fired every step for every cell; hook them before Use.
+// Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
+// and of a cell.Now, fired every step for every cell; hook them before Use.
 func (p *Plugin) Hook(rules ...plugin.Rule) error {
-	for _, b := range rules {
-		err := p.standing.Add(b)
-		if errors.Is(err, plugin.ErrUnhosted) {
-			err = p.cellRules.Add(b)
-		}
-		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Standing or Cell", err, p.Name())
+	for _, r := range rules {
+		if err := p.rules.Hook(r); err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of unit.Standing or cell.Now", err, p.Name())
 		}
 	}
 	return nil
@@ -194,10 +192,6 @@ func (p *Plugin) WithMap(m Map) *Plugin {
 // Map is what the board is drawn and priced by: the simple map unless WithMap set another.
 func (p *Plugin) Map() Map { return p.mapping }
 
-// Top is the Map's: the height of c's corners as drawn and of its ground, for whoever lays
-// something on the tiles.
-func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) { return p.mapping.Top(c) }
-
 // Climb is the Map's: how many times as long the step from one cell to its neighbour takes
 // whoever moves in d as on the flat.
 func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mapping.Climb(from, to, d) }
@@ -205,16 +199,13 @@ func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mappi
 // Least is the Map's: the smallest Climb for d.
 func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
 
-// Slope is the Map's: how many times as long moving at at towards dir takes whoever moves in d.
-func (p *Plugin) Slope(at, dir geom.Vec, d cell.Domain) float64 { return p.mapping.Slope(at, dir, d) }
-
 // CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
 // long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
 // the board or before Setup.
 func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
 
 // Occupancy returns the occupancy tracker this plugin was built with.
-func (p *Plugin) Occupancy() Occupancy { return p.occupancy }
+func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
 
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
@@ -282,7 +273,7 @@ func (p *Plugin) Populate() error {
 			brd.Set(e.Cell, cells[i])
 		}
 		if e.Tags != 0 {
-			brd.tagCell(e.Cell, e.Tags)
+			brd.cells.Tag(e.Cell, e.Tags)
 		}
 	}
 	for i, e := range p.seeded.Ways {
@@ -293,4 +284,22 @@ func (p *Plugin) Populate() error {
 	}
 	p.seeded = nil
 	return nil
+}
+
+// =================================================================
+// the ground the others meet
+// =================================================================
+
+// Heights is the board's ground heights: its Map's, nil on a flat map.
+func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
+
+// Cover is what stands on the board and holds sight back — walls, forests — walked along a ray;
+// it is a ground.Readied too.
+func (p *Plugin) Cover() ground.Cover { return p.Res.Logic.Board.field }
+
+// WithCollision makes the board's Solid cells the solid ground c pushes colliders out of, and the
+// ground a kind does not take (Overhang) what c never pushes one over; call before Use.
+func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
+	c.WithField(p.Res.Logic.Board.field)
+	return p
 }

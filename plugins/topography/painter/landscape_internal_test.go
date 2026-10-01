@@ -12,8 +12,12 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/topography/water"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -32,13 +36,13 @@ type dressedLook struct {
 	fn lookFn
 }
 
-func (l dressedLook) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
+func (l dressedLook) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 	l.fn(f, cam, l.d.tileOf(t))
 }
 
-// dressed is a renderer of brd's cells dressed by d, handing look each tile.
-func dressed(brd *board.Board, d *Painter, look lookFn) *board.Renderer {
-	return board.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, look}, d: d})
+// dressed is a renderer of brd's cells dressed by d, handing fn each tile.
+func dressed(brd *board.Board, d *Painter, fn lookFn) *look.Renderer {
+	return look.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, fn}, d: d}, world.SpaceCfg{})
 }
 
 // testSky is an Atmosphere of a fixed sun and weather.
@@ -61,13 +65,13 @@ func (*movingSky) Air() air.Weather { return air.Weather{} }
 
 // testMap is a board.Map of a Painter and a Look, level where the Painter has no heights.
 type testMap struct {
-	look board.Look
+	look look.Look
 	d    *Painter
 }
 
-func (m testMap) Look() board.Look         { return m.look }
-func (m testMap) Dressing() board.Dressing { return m.d }
-func (m testMap) Heights() board.Heights   { return m.d.relief }
+func (m testMap) Look() look.Look         { return m.look }
+func (m testMap) Dressing() look.Dressing { return m.d }
+func (m testMap) Heights() ground.Heights { return m.d.relief }
 func (m testMap) Top(c cell.ID) (corners [4]float32, level float32) {
 	t := m.d.topOf(c)
 	return t.z, t.alt
@@ -91,7 +95,7 @@ func reliefFor(brd *board.Board) *relief.Relief {
 }
 
 // compose composes r through cam.
-func compose(r *board.Renderer, cam camera.Camera) {
+func compose(r *look.Renderer, cam camera.Camera) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
@@ -108,8 +112,8 @@ func styled(st map[cell.Name]Style, k cell.Kind, s Style) cell.Kind {
 // not run.
 func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	for y := range uint32(3) {
@@ -172,8 +176,8 @@ func near2(a, b [2]float32) bool {
 // of it and its neighbour there, the water running down it.
 func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 20 - 0.5*p.X }) // falling east
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
@@ -218,8 +222,8 @@ func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 // between the middles of the cells at each side.
 func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	c, _ := grid.CellIndex(1, 1)
 	brd.SetWay(c, cell.Way{Kind: cell.Kind{Allows: cell.Land}, Width: 4, Links: 1<<2 | 1<<1}) // west and south
@@ -247,8 +251,8 @@ func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 // way it fades.
 func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 1, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(4, 1, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
 	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
 	river := styled(st, cell.Kind{Name: cell.Named("k4"), Allows: cell.Water}, Style{Shine: 1, Flow: 40})
@@ -282,8 +286,8 @@ func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 // itself half as far behind the middle as it is wide.
 func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	c, _ := grid.CellIndex(1, 1)
 	brd.SetWay(c, cell.Way{Kind: cell.Kind{Allows: cell.Land}, Width: 2, Links: 1 << 7}) // south-east
@@ -314,8 +318,8 @@ func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T
 // over its ground.
 func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	earth := styled(st, cell.Kind{Name: cell.Named("k5"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.2})
 	sand := styled(st, cell.Kind{Name: cell.Named("k6"), Allows: cell.Land, SpriteID: 2}, Style{Spread: 0.4})
 	brd.SetAll(earth)
@@ -365,8 +369,8 @@ func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 // of land round it; the sea tile has that land laid over it the same way, so the coast runs round.
 func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	earth := styled(st, cell.Kind{Name: cell.Named("k7"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.25})
 	sea := styled(st, cell.Kind{Name: cell.Named("k8"), Allows: cell.Water, SpriteID: 4}, Style{Under: true})
 	brd.SetAll(earth)
@@ -407,8 +411,8 @@ func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 // A tile's bake is worked out anew when a cell round it changes, and kept when one further off does.
 func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(6, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(6, 3, 10)
+	brd := board.NewBoard(grid)
 	earth := styled(st, cell.Kind{Name: cell.Named("k9"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
 	sand := styled(st, cell.Kind{Name: cell.Named("k10"), Allows: cell.Land, SpriteID: 2}, Style{Spread: 0.3})
 	brd.SetAll(earth)
@@ -445,8 +449,8 @@ func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 // between, it glints the less the further off it is.
 func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
 	brd.SetAll(styled(st, cell.Kind{Name: cell.Named("k11"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 0.8}))
 	land, _ := grid.CellIndex(0, 0)
 	brd.Set(land, cell.Kind{Allows: cell.Land, SpriteID: 2})
@@ -498,8 +502,8 @@ func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
 // overlay marked with its material and the sun reaching it.
 func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd := board.NewBoard(grid)
 	brd.SetAll(styled(st, cell.Kind{Name: cell.Named("k12"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 1}))
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 30 - p.X/10 })
 	c, _ := grid.CellIndex(1, 1)
@@ -539,8 +543,8 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 // shadows — and nothing else shines; in a flat world nothing does.
 func TestTile_AShinyCellShines(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sea, _ := grid.CellIndex(1, 1)
 	grass, _ := grid.CellIndex(3, 3)
@@ -576,8 +580,8 @@ func TestTile_AShinyCellShines(t *testing.T) {
 
 func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(10, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(10, 4, 32)
+	brd := board.NewBoard(grid)
 	brd.SetAll(styled(st, cell.Kind{Name: cell.Named("k15"), Cost: 1, Allows: cell.Water}, Style{Shine: 1}))
 	for y := range uint32(4) {
 		land, _ := grid.CellIndex(0, y)
@@ -637,8 +641,8 @@ func (k kindsOf) Get(name string) (cell.Kind, bool) {
 // each corner, the mean of its cell's Mix and its neighbour's where a band meets it.
 func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sea := cell.Kind{Name: cell.Named("k44"), Allows: cell.Water, SpriteID: 7}
 	stream := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Land | cell.Water, SpriteID: 3}, Style{MixWith: "k44"})
@@ -674,8 +678,8 @@ func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 // the land does, as the grounds round the coast are laid over the water, none at the water's middle.
 func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3}))
 	sea := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Water, SpriteID: 4}, Style{Under: true})
 	stream := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Land | cell.Water, SpriteID: 5}, Style{})
@@ -712,8 +716,8 @@ func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 // bridge, not the river under it.
 func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	river := cell.Kind{Name: cell.Named("k52"), Allows: cell.Water, SpriteID: 4}
 	road := cell.Kind{Name: cell.Named("k53"), Allows: cell.Land, SpriteID: 6}
@@ -761,8 +765,8 @@ func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
 // and left alone while nothing does.
 func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
 	land := styled(st, cell.Kind{Name: cell.Named("k44"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
 	sea := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Water, SpriteID: 2}, Style{Under: true})
 	road := styled(st, cell.Kind{Name: cell.Named("k46"), Allows: cell.Land, SpriteID: 0}, Style{})
@@ -809,8 +813,8 @@ func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 // coast, the coast's grounds covering it, a river's flow down its slope and its shine where it runs.
 func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
 	land := styled(st, cell.Kind{Name: cell.Named("k47"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
 	sea := styled(st, cell.Kind{Name: cell.Named("k48"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
 	river := styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land | cell.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
@@ -854,8 +858,8 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 // rest is dry, and a cell turned to water wets it and the cells round it.
 func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(8, 6, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(8, 6, 32)
+	brd := board.NewBoard(grid)
 	land := styled(st, cell.Kind{Name: cell.Named("k60"), Allows: cell.Land, SpriteID: 1}, Style{})
 	sea := styled(st, cell.Kind{Name: cell.Named("k61"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
 	river := styled(st, cell.Kind{Name: cell.Named("k62"), Allows: cell.Land | cell.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
@@ -891,8 +895,8 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 // leaves it be, a cell turned to water moves it.
 func TestPainter_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := board.DefaultGrids{}.Square(10, 8, 32)
-	brd := board.NewBoard(grid, board.NewTerrainMap())
+	grid := grid.DefaultGrids{}.Square(10, 8, 32)
+	brd := board.NewBoard(grid)
 	land := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Land, SpriteID: 1}, Style{})
 	sea := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
 	brd.SetAll(sea)

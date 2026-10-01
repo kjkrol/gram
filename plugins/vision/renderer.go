@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -81,8 +81,8 @@ type Renderer struct {
 
 	// groundOf finds the world's Ground when composing starts; a view is draped over it in pieces
 	// of step.
-	groundOf func() board.Heights
-	ground   board.Heights
+	groundOf func() ground.Heights
+	ground   ground.Heights
 	step     float32
 	grounded bool
 
@@ -107,8 +107,8 @@ type Renderer struct {
 	// per d², whether a ConeStyle of one's own asks for the views composed instead
 	gpu     *views
 	onGPU   bool // this frame's
-	coverOf func() board.Cover
-	cover   board.Cover
+	coverOf func() ground.Cover
+	cover   ground.Cover
 	bend    float64
 	custom  bool
 	wrap    [2]bool // which axes of the world wrap
@@ -125,7 +125,7 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 }
 
 // WithCover has the views drawn on the GPU dimmed by the cover coverOf gives when composing starts.
-func (r *Renderer) WithCover(coverOf func() board.Cover) *Renderer {
+func (r *Renderer) WithCover(coverOf func() ground.Cover) *Renderer {
 	r.coverOf = coverOf
 	return r
 }
@@ -137,7 +137,7 @@ func (r *Renderer) WithScale(scale world.Scale) *Renderer {
 }
 
 // WithGround has the views follow the ground heights groundOf gives when composing starts.
-func (r *Renderer) WithGround(groundOf func() board.Heights) *Renderer {
+func (r *Renderer) WithGround(groundOf func() ground.Heights) *Renderer {
 	r.groundOf = groundOf
 	return r
 }

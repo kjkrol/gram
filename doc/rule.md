@@ -19,10 +19,10 @@ steps it returns, all of one type, `rule.Step`. Go 1.27's methods with type para
 
 ```go
 // a rule: at a moment, for whom, what to do
-rule.On("in the ice", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+rule.On("in the ice", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 	return m.OneOf(
 		m.If(caughtInIce, m.Keep(frozen)),
-		m.If(board.Standing.Fallen, m.Order(world.Despawn{})),
+		m.If(unit.Standing.Fallen, m.Order(world.Despawn{})),
 	)
 })
 
@@ -62,7 +62,7 @@ costs nothing for it.
 
 ## The five words
 
-- **Rule** — a moment a plugin catches: a `board.Standing` or a `cell.Now`, a
+- **Rule** — a moment a plugin catches: a `unit.Standing` or a `cell.Now`, a
   `vision.Sighting`, a `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Drawing`, a
   `clock.Moment`, a `navigation.Touch`. A Moment's steps are instant — `OneOf`, `Steps`, `If` on
   the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`,
@@ -112,7 +112,7 @@ costs nothing for it.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
   a clock rule applies lands there — `m.If(clock.At(dusk), m.Apply(night))`, a phase that
   `clock.Clock.In` reads.
-- **Where one stands.** On a moment that is `rule.Placed` — a `board.Standing`, a cell's
+- **Where one stands.** On a moment that is `rule.Placed` — a `unit.Standing`, a cell's
   `cell.Now` — `m.Here(step)` runs the step on the cells under the entity (for a cell, on
   itself) and `m.Around(rings, step)` on those and the rings of neighbours round them, each cell
   once, on square and hex boards alike: an effect applied to the ground.
@@ -153,8 +153,8 @@ wire("west", control.Key1)
 wire("east", control.Key2)
 
 // whoever stands where nothing holds it falls in
-brd.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-	return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+brd.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 }))
 ```
 
@@ -169,8 +169,8 @@ stands there. The unit's `Standing` tells the tags of the place under it, and a 
 world's command too:
 
 ```go
-rule.On("plate "+name, rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-	return m.If(func(st board.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
+rule.On("plate "+name, rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	return m.If(func(st unit.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
 })
 ```
 
@@ -303,7 +303,7 @@ coll.Hook(rule.On("fire spreads", rule.Between(burning.Mark(), tag.Any),
 brd.Hook(
 	// water puts a burning one out — nothing smoulders then — and the wet do not catch fire for a
 	// while; one on dry ground sets it alight now and then
-	rule.On("where it burns", rule.Self(burning.Mark()), func(m *rule.Moment[board.Standing]) rule.Step {
+	rule.On("where it burns", rule.Self(burning.Mark()), func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.OneOf(
 			m.If(inWater, m.Steps(m.Apply(doused), m.Dispel(burning))),
 			m.Here(m.Chance(0.1, m.Apply(burning))),
@@ -315,7 +315,7 @@ brd.Hook(
 	}),
 )
 
-func inWater(s board.Standing) bool { return s.Kind.Admits(cell.Water) }
+func inWater(s unit.Standing) bool { return s.Kind.Admits(cell.Water) }
 ```
 
 One effect serves units and cells: an `Alter` of a component the entity does not carry is passed

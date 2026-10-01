@@ -5,8 +5,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -146,7 +146,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 		if w.Links&(1<<i) == 0 {
 			continue
 		}
-		nb, ok := board.Toward(r.board, t.ID, i)
+		nb, ok := r.board.Toward(t.ID, i)
 		if !ok {
 			continue
 		}
@@ -299,7 +299,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 // Way and Crossing runs back to c, its Way where neither does; false where nothing runs there.
 func (l *Painter) partner(c, nb cell.ID) (cell.Way, bool) {
 	top := l.topOf(nb)
-	if back, ok := board.Link(l.board, nb, c); ok && top.way.Links&back == 0 && top.cross.Links&back != 0 {
+	if back, ok := grid.Link(l.board, nb, c); ok && top.way.Links&back == 0 && top.cross.Links&back != 0 {
 		return top.cross.Way, true
 	}
 	return top.way.Way, top.way.Runs()
@@ -465,7 +465,7 @@ func (l *Painter) bakeOf(t *tile) *cellBake {
 	b.seen = l.board.Changes()
 	v := l.board.CellVersion(t.ID)
 	for d := range 8 {
-		if n, ok := board.Toward(l.board, t.ID, d); ok {
+		if n, ok := l.board.Toward(t.ID, d); ok {
 			v = max(v, l.board.CellVersion(n))
 		}
 	}

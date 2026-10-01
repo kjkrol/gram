@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/rule"
@@ -156,7 +157,7 @@ func TestCrowd_TwoStrangersHeadOnInACorridorBothGetThrough(t *testing.T) {
 // Under BodySpacing a stranger standing in the way never makes way: the traveller goes round it;
 // an ally makes way and stays aside.
 func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	for _, c := range []struct {
 		owner  control.PlayerID
@@ -192,7 +193,7 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 
 // Under BodySpacing two strangers head on pass each other and both arrive.
 func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	goal0, goal1 := geom.NewVec(9*fieldCell+16, 80), geom.NewVec(16, 80)
 	fw := newFieldWorld(t, 10, 5, BodySpacing, nil, []fieldUnit{
 		{at: goal1, side: 6, order: probe.standAt(goal0), owner: 1},
@@ -255,7 +256,7 @@ func (cliffs) Least(cell.Domain) float64 { return 1 }
 // either spacing: with such ground on every side off the way of the one coming, it has no order
 // and stays; with one side open, it steps there.
 func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 32)
+	grid := grid.DefaultGrids{}.Square(5, 5, 32)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	hazards := map[string]cell.Kind{
@@ -267,7 +268,7 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	aside := []cell.ID{at(2, 1), at(2, 3), at(1, 1), at(1, 3)} // off the way of one coming from (1,2)
 	for name, hazard := range hazards {
 		for _, open := range []bool{false, true} {
-			terrain := board.NewTerrainMap()
+			terrain := cell.NewTerrainMap()
 			terrain.SetAll(land)
 			steep := cliffs{}
 			for _, c := range aside {
@@ -282,7 +283,7 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 			finder := newPathFinder(grid, terrain, steep, openOccupancy{})
 			coming := body{id: 3, at: grid.CellCenter(at(1, 2)), half: geom.NewVec(3, 3), cell: at(1, 2), moving: true, domain: cell.Land}
 
-			cells := newCellKeeping(finder, &board.SingleOccupancy{})
+			cells := newCellKeeping(finder, &cell.SingleOccupancy{})
 			m := member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land, pos: posAt(grid, at(2, 2))}
 			if o, ok := cells.stepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
@@ -350,7 +351,7 @@ func with(t Touch, fn func(*Touch)) Touch {
 // A game gives its own rules in place of the crowd's, narrowed by tags as any rule: here player 2's
 // units make way for anyone on the move, strangers too, and nobody else makes way at all.
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	forAll := rule.On("player 2 makes way for all", rule.Self(owner.Of(2)), func(m *rule.Moment[Touch]) rule.Step {
 		return m.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, m.Order(StepAside{}))
@@ -382,7 +383,7 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 // With no rules at all nobody makes way and nobody is gone round on purpose: the one on the move
 // is left to navigation's last word — stalled, it plans afresh, and it ends its order.
 func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	fw := newFieldWorldWith(t, 10, 5, BodySpacing, nil, []fieldUnit{
 		{at: from, side: 6, order: probe.standAt(goal)},
@@ -404,7 +405,7 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 // pushed over the water, with the rules of the crowd or with none: the collision holds it on its
 // ground as at a wall. With the rules the one coming for its place stands beside it.
 func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	lay := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
 			b.Set(at(x, 3), cell.Kind{Cost: 1, Allows: cell.Water})

@@ -8,6 +8,8 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -21,7 +23,7 @@ func isoCamera(width, height uint32, cfg camera.Config, heights func(geom.Vec) f
 		Camera:   cfg,
 		Heights:  true,
 	})
-	b := board.NewPlugin(board.DefaultGrids{}.Square(width/32, height/32, 32), &board.MultipleOccupancy{}, w)
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
 	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2, Isometric: true})
 	topo.Relief().SetHeights(heights)
 	return w.Camera()

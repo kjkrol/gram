@@ -11,8 +11,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -195,9 +196,9 @@ func (l Leg) cells() []cell.ID {
 // navigationSystem paths MoveOrder-commanded entities toward their target, asking their Steering
 // for a heading at the lookahead point and a speed from their profile.
 type navigationSystem struct {
-	grid       board.Grid
-	terrain    board.Terrain
-	occupancy  board.Occupancy
+	grid       grid.Grid
+	terrain    cell.Terrain
+	occupancy  cell.Occupancy
 	space      *aabbworld.Space
 	pathFinder *pathFinder
 	keep       keeping
@@ -208,12 +209,12 @@ type navigationSystem struct {
 	wanted, wanting map[uid.UID64]uid.UID64
 
 	query  *goke.Query
-	cell   goke.Comp[board.At]
+	cell   goke.Comp[unit.At]
 	base   goke.Comp[world.Base]
 	steer  goke.Comp[steering.Steering]
 	course goke.Comp[steering.Course]
 	order  goke.OptComp[MoveOrder]
-	mover  goke.OptComp[board.Mover]
+	mover  goke.OptComp[unit.Mover]
 	z      goke.OptComp[world.Z]
 	coll   goke.OptComp[collision.Collider]
 	hand   goke.OptComp[steering.Driven]
@@ -242,7 +243,7 @@ type navigationSystem struct {
 	felt     map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
 	touches  *host.PairHost[Touch]
 	marks    *goke.Query
-	markCell goke.Comp[board.At]
+	markCell goke.Comp[unit.At]
 	tick     plugin.TickSource // the world's, for the rules
 
 	orderID goke.CompID
@@ -273,7 +274,7 @@ const bumpInterval = 500 * time.Millisecond
 const arrivalEpsilon = 2.0
 
 // newNavigationSystem builds a navigationSystem over grid; entities move at their Steering profile.
-func newNavigationSystem(pathFinder *pathFinder, grid board.Grid, terrain board.Terrain, occupancy board.Occupancy) *navigationSystem {
+func newNavigationSystem(pathFinder *pathFinder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *navigationSystem {
 	return &navigationSystem{grid: grid, terrain: terrain, occupancy: occupancy, pathFinder: pathFinder, keep: newCellKeeping(pathFinder, occupancy)}
 }
 
@@ -354,13 +355,13 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		dt := d.Seconds()
 
 		for i, id := range cursor.IDs {
-			domain := board.DomainAt(movers, i)
+			domain := unit.DomainAt(movers, i)
 			o := &orders[i]
 			p := &o.Path
 			leg := &o.Leg
 			st := steering.Helm{Steering: &steers[i], Course: &courses[i]}
 			current := cells[i].Cell
-			actual, ok := s.grid.CellAt(board.Center(bases[i].Pos))
+			actual, ok := s.grid.CellAt(bases[i].Pos.Center())
 			if !ok {
 				actual = current
 			}
@@ -552,7 +553,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				o.Holding, o.WaitedOut, o.Cornered = 0, false, false // stepping on
 			}
 
-			have := board.Center(bases[i].Pos)
+			have := bases[i].Pos.Center()
 			end := s.goal(target, o.Spot)
 			want := s.unwrap(have, s.grid.CellCenter(waypoint))
 			if waypoint == target {
@@ -741,7 +742,7 @@ func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if !ok {
 			continue
 		}
-		m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: board.DomainAt(movers, i), pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir}
+		m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: unit.DomainAt(movers, i), pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir}
 		if zs != nil {
 			m.z = zs[i]
 		}
@@ -975,7 +976,7 @@ func (s *navigationSystem) gather(dst []body) []body {
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
-			b := body{id: id, at: board.Center(pos), half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), vel: bases[i].Vel.Delta(), domain: board.DomainAt(movers, i),
+			b := body{id: id, at: pos.Center(), half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), vel: bases[i].Vel.Delta(), domain: unit.DomainAt(movers, i),
 				moving: orders != nil, cell: cells[i].Cell, minded: minded, facing: bases[i].Vel.Dir}
 			if zs != nil {
 				b.z = zs[i]

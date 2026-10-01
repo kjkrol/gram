@@ -18,7 +18,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -79,7 +81,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type witch struct{}
 
 // unit is the row every kind spawns from: where it starts and, if ordered, where it heads.
-type unit struct {
+type unitRow struct {
 	start, target cell.ID
 	ordered       bool
 }
@@ -100,7 +102,7 @@ type mainStage struct {
 	frost, frozen, slip effect.Effect
 	paleSprite          render.SpriteID
 
-	witch, walker, boat kind.Of[unit]
+	witch, walker, boat kind.Of[unitRow]
 	stack               game.Scenes
 }
 
@@ -121,10 +123,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.effects = s.world.Effects()
 	// A frozen boat holds its cell, so the planner goes round.
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
@@ -161,17 +163,17 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	ice := s.ice
 	if err := s.board.Hook(
 		bhooks.LogFalls(),
-		rule.On("freeze", rule.Having[witch](), func(m *rule.Moment[board.Standing]) rule.Step {
+		rule.On("freeze", rule.Having[witch](), func(m *rule.Moment[unit.Standing]) rule.Step {
 			return m.Around(1, m.Apply(s.frost))
 		}),
-		rule.On("in the ice", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
+		rule.On("in the ice", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 			return m.OneOf(
-				m.If(func(st board.Standing) bool { return st.Fallen() && st.Kind == ice }, m.Keep(s.frozen)),
-				m.If(func(st board.Standing) bool { return st.Fallen() && st.Kind != ice }, m.Order(world.Despawn{})),
+				m.If(func(st unit.Standing) bool { return st.Fallen() && st.Kind == ice }, m.Keep(s.frozen)),
+				m.If(func(st unit.Standing) bool { return st.Fallen() && st.Kind != ice }, m.Order(world.Despawn{})),
 			)
 		}),
-		rule.On("on the ice", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-			return m.If(func(st board.Standing) bool { return !st.Fallen() && st.Kind == ice }, m.Keep(s.slip))
+		rule.On("on the ice", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+			return m.If(func(st unit.Standing) bool { return !st.Fallen() && st.Kind == ice }, m.Keep(s.slip))
 		}),
 	); err != nil {
 		return err
@@ -234,36 +236,36 @@ func (s *mainStage) frozenKind(k cell.Kind) cell.Kind {
 // defineKinds says what this game's entities are: the witch walks on land and water, the walker
 // on land, the boat on water.
 func (s *mainStage) defineKinds() {
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return s.brd.CellCenter(u.start) })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := func(brake float64) steering.Steering {
 		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
 	}
 	sel := comp.Tagged(s.selection.Tags().Selectable)
 	mine := comp.Tagged(s.player.Owner())
-	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.witch = units.Define("witch", board.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, comp.Const(witch{}))
-	s.walker = units.Define("walker", board.Mover{Domain: cell.Land}, profile(UnitSpeed*4), sel, mine)
-	s.boat = units.Define("boat", board.Mover{Domain: cell.Water}, profile(UnitSpeed/4), sel, mine, order)
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	s.witch = units.Define("witch", unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, comp.Const(witch{}))
+	s.walker = units.Define("walker", unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), sel, mine)
+	s.boat = units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), sel, mine, order)
 }
 
 // Spawn lays the lake and the road and puts the three of them in place.
 func (s *mainStage) Spawn() error {
-	cell := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
-	var cells []board.CellEntry
+	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, board.CellEntry{Kind: "water", Cell: cell(x, y)})
+			cells = append(cells, cell.Entry{Kind: "water", Cell: cellAt(x, y)})
 		}
 	}
 	for x := uint32(1); x < GridWidth-1; x++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(x, 1)}, board.CellEntry{Kind: "road", Cell: cell(x, GridHeight-2)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, 1)}, cell.Entry{Kind: "road", Cell: cellAt(x, GridHeight-2)})
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.witch.Entry(unit{start: cell(2, 8), target: cell(GridWidth-3, 8)}),
-		s.walker.Entry(unit{start: cell(2, 10)}),
-		s.boat.Entry(unit{start: cell(lakeRight, 8), target: cell(lakeLeft, 8)}), // head-on into the witch's trail
+		s.witch.Entry(unitRow{start: cellAt(2, 8), target: cellAt(GridWidth-3, 8)}),
+		s.walker.Entry(unitRow{start: cellAt(2, 10)}),
+		s.boat.Entry(unitRow{start: cellAt(lakeRight, 8), target: cellAt(lakeLeft, 8)}), // head-on into the witch's trail
 	)
 	return nil
 }

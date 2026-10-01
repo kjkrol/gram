@@ -4,14 +4,14 @@ import (
 	"container/heap"
 	"math"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 // Route is the cheapest way over grid from one cell to another, stepping from a cell to a
 // neighbour at what cost says — +Inf where the step may not be taken: the cells in order, from
 // and to included; false where no way gets there.
-func Route(grid board.Grid, from, to cell.ID, cost func(a, b cell.ID) float64) ([]cell.ID, bool) {
+func Route(grid grid.Grid, from, to cell.ID, cost func(a, b cell.ID) float64) ([]cell.ID, bool) {
 	dist := map[cell.ID]float64{from: 0}
 	prev := map[cell.ID]cell.ID{}
 	q := &frontier{}
@@ -58,7 +58,7 @@ func (n *Network) Path(cells []cell.ID, node Node) {
 
 // Across is the network laid on a board over o — a road over a river: a Way of its own on every
 // cell o does not run through, and a Crossing of kind, over o's way, on every cell it does.
-func (n *Network) Across(o *Network, kind string) (ways, crossings []board.WayEntry) {
+func (n *Network) Across(o *Network, kind string) (ways, crossings []cell.WayEntry) {
 	for _, w := range n.Ways() {
 		if _, both := o.nodes[w.Cell]; both {
 			w.Kind = kind

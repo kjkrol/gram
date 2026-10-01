@@ -9,6 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -29,13 +31,13 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 	})
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	b.WithRenderer(litSheet{})
 	cam := w.Camera()
 	even := func() render.Light {
-		l, ok := b.Map().Dressing().(board.EvenLit).EvenLight()
+		l, ok := b.Map().Dressing().(look.EvenLit).EvenLight()
 		if !ok {
 			t.Fatal("a flat board's dressing does not light its tiles alike")
 		}

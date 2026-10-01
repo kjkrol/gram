@@ -9,6 +9,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -29,10 +31,10 @@ type unitRow struct {
 // turnaroundWorld is world + collision + board + navigation over a 3x4 board, as the demo runs them.
 type turnaroundWorld struct {
 	t     *testing.T
-	grid  board.Grid
+	grid  grid.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
-	cell  goke.Comp[board.At]
+	cell  goke.Comp[unit.At]
 	base  goke.Comp[world.Base]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -42,12 +44,12 @@ type turnaroundWorld struct {
 func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	t.Helper()
 	const size = 32
-	tw := &turnaroundWorld{t: t, grid: board.DefaultGrids{}.Square(3, 4, size)}
+	tw := &turnaroundWorld{t: t, grid: grid.DefaultGrids{}.Square(3, 4, size)}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 3 * size, Height: 4 * size},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 22, MaxSize: 22},
 	})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	brd := board.NewPlugin(tw.grid, occupancy, w)
 	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
@@ -81,11 +83,11 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 
 	spec := func(ordered bool) kind.Spec {
 		s := kind.Spec{
-			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: board.CellAABB(tw.grid, u.start, 22)} }),
+			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: cellBox(tw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
-			comp.Load(func(u unitRow) board.At { return board.At{Cell: u.start} }).
-				WithEffect(func(c board.At, id uid.UID64) { occupancy.Enter(c.Cell, id, cell.Land) }),
+			comp.Load(func(u unitRow) unit.At { return unit.At{Cell: u.start} }).
+				WithEffect(func(c unit.At, id uid.UID64) { occupancy.Enter(c.Cell, id, cell.Land) }),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
 		}

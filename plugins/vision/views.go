@@ -7,7 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -91,7 +91,7 @@ func (v *views) look(cam camera.Camera, o observer) {
 // draw bakes the frame's views and draws them into the target through cam, over ground — nil,
 // level at 0 — and cover, the world w by h wrapping along the axes wrap says, the ground copied
 // every step; shadow veils the ground out of sight, bend sinks it under an eye's level per d².
-func (v *views) draw(t render.Target, cam camera.Camera, ground board.Heights, cover board.Cover, w, h, step float32, wrap [2]bool, bend float64, shadow Shadow) {
+func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool, bend float64, shadow Shadow) {
 	defer func() { v.observers = v.observers[:0] }()
 	if t.Screen == nil || t.Depth == nil || len(v.observers) == 0 || step <= 0 {
 		return
@@ -258,7 +258,7 @@ func set(u map[string]any, own map[string][]float32, name string, vals ...float3
 // copy copies the ground — nil, level at 0 — and its cover into images, a texel every step over
 // the world w by h, the last on its far edge or, along an axis that wraps, a step short of it, anew
 // where either has changed since — or every frame for one that does not count its changes.
-func (v *views) copy(ground board.Heights, cover board.Cover, w, h, step float32, wrap [2]bool) {
+func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool) {
 	count := func(size float32, wraps bool) int {
 		if wraps {
 			return min(max(int(size/step+0.5), 1), maxGround)

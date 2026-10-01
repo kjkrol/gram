@@ -6,8 +6,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -31,11 +31,11 @@ type moveCommandSystem struct {
 	grouped bool
 
 	query   *goke.Query
-	cell    goke.Comp[board.At]
+	cell    goke.Comp[unit.At]
 	marks   goke.Comp[tag.Tags[selection.Family]]
 	owners  goke.OptComp[tag.Tags[owner.Family]]
 	order   goke.OptComp[MoveOrder]
-	mover   goke.OptComp[board.Mover]
+	mover   goke.OptComp[unit.Mover]
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
 	steer   goke.OptComp[steering.Steering]
@@ -43,9 +43,9 @@ type moveCommandSystem struct {
 
 	// self finds an entity that gives itself an order, selected or not
 	self      *goke.Query
-	selfCell  goke.Comp[board.At]
+	selfCell  goke.Comp[unit.At]
 	selfOrder goke.OptComp[MoveOrder]
-	selfMover goke.OptComp[board.Mover]
+	selfMover goke.OptComp[unit.Mover]
 	selfBase  goke.OptComp[world.Base]
 	selfZ     goke.OptComp[world.Z]
 	selfSteer goke.OptComp[steering.Steering]
@@ -100,7 +100,7 @@ func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	}
 	cur := s.self.Cursor()
 	c := s.selfCell.At(cur)
-	m := member{id: by.entity, cell: c.Cell, from: c.Cell, domain: board.DomainAt(nil, 0)}
+	m := member{id: by.entity, cell: c.Cell, from: c.Cell, domain: unit.DomainAt(nil, 0)}
 	if o := s.selfOrder.At(cur); o != nil {
 		m.order = o
 		if o.Leg.Active {
@@ -138,7 +138,7 @@ func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)
 			if !marks[i].Has(s.selected) || !owner.Obeys(owned, by) {
 				continue
 			}
-			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: board.DomainAt(movers, i)}
+			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: unit.DomainAt(movers, i)}
 			if orders != nil {
 				m.order = &orders[i]
 				if leg := orders[i].Leg; leg.Active {

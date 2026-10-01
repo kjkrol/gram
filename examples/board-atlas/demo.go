@@ -18,6 +18,8 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -74,7 +76,7 @@ type mainStage struct {
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
-	unit      kind.Of[unit]
+	unit      kind.Of[unitRow]
 	stack     game.Scenes
 }
 
@@ -94,8 +96,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := ctx.Use(s.collision); err != nil {
 		return err
 	}
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	// the kinds carry colours too, for a board drawn without an atlas of the game's
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}},
@@ -143,30 +145,30 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
-type unit struct{ start, target cell.ID }
+type unitRow struct{ start, target cell.ID }
 
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.unit = units.Define("unit", board.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()))
 }
 
 // Spawn lays the meadow out: a pond in the middle, a wood in the north-east, a road round the pond
 // from corner to corner as a way over the grass, and a unit in every corner bound for the opposite one.
 func (s *mainStage) Spawn() error {
-	grid := s.board.Res.Logic.Board
-	at := func(x, y int) cell.ID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
+	brd := s.board.Res.Logic.Board
+	at := func(x, y int) cell.ID { c, _ := brd.CellIndex(uint32(x), uint32(y)); return c }
 	layout := board.Layout{Default: "grass"}
 	for y := 5; y < 11; y++ {
 		for x := 9; x < 15; x++ {
-			layout.Cells = append(layout.Cells, board.CellEntry{Kind: "water", Cell: at(x, y)})
+			layout.Cells = append(layout.Cells, cell.Entry{Kind: "water", Cell: at(x, y)})
 		}
 	}
 	for y := 1; y < 6; y++ {
 		for x := 16; x < 22; x++ {
-			layout.Cells = append(layout.Cells, board.CellEntry{Kind: "wood", Cell: at(x, y)})
+			layout.Cells = append(layout.Cells, cell.Entry{Kind: "wood", Cell: at(x, y)})
 		}
 	}
 	// the road: a ring round the pond, and spurs out to the corners
@@ -185,11 +187,11 @@ func (s *mainStage) Spawn() error {
 	}
 	road, _ := s.board.CellKinds().Get("road")
 	link := func(a, b cell.ID) {
-		if bit, ok := board.Link(grid, a, b); ok {
+		if bit, ok := grid.Link(brd, a, b); ok {
 			w := layoutWay(&layout, a, road)
 			w.Links |= bit
 		}
-		if bit, ok := board.Link(grid, b, a); ok {
+		if bit, ok := grid.Link(brd, b, a); ok {
 			w := layoutWay(&layout, b, road)
 			w.Links |= bit
 		}
@@ -216,7 +218,7 @@ func (s *mainStage) Spawn() error {
 	var entries []kind.Entry
 	for k, c := range corners {
 		o := corners[(k+2)%4]
-		entries = append(entries, s.unit.Entry(unit{start: at(c[0], c[1]), target: at(o[0], o[1])}))
+		entries = append(entries, s.unit.Entry(unitRow{start: at(c[0], c[1]), target: at(o[0], o[1])}))
 	}
 	s.world.Seed(entries...)
 	return nil
@@ -230,13 +232,13 @@ func sign(v int) int {
 }
 
 // layoutWay is the way of kind across c in layout, added if none runs there yet.
-func layoutWay(layout *board.Layout, c cell.ID, kind cell.Kind) *board.WayEntry {
+func layoutWay(layout *board.Layout, c cell.ID, kind cell.Kind) *cell.WayEntry {
 	for i := range layout.Ways {
 		if layout.Ways[i].Cell == c {
 			return &layout.Ways[i]
 		}
 	}
-	layout.Ways = append(layout.Ways, board.WayEntry{Kind: kind.Name.String(), Cell: c, Width: 14})
+	layout.Ways = append(layout.Ways, cell.WayEntry{Kind: kind.Name.String(), Cell: c, Width: 14})
 	return &layout.Ways[len(layout.Ways)-1]
 }
 

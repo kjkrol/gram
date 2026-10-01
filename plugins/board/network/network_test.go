@@ -4,14 +4,14 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/network"
 )
 
-var grid = board.DefaultGrids{}.Square(5, 5, 10)
+var g = grid.DefaultGrids{}.Square(5, 5, 10)
 
-func at(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+func at(x, y uint32) cell.ID { c, _ := g.CellIndex(x, y); return c }
 
 const (
 	north = cell.Links(1 << 0)
@@ -22,7 +22,7 @@ const (
 
 // A road links its cells both ways, only neighbours, and does not flow.
 func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
-	road := network.New(grid)
+	road := network.New(g)
 	for x := range uint32(3) {
 		road.Set(at(x, 1), network.Node{Kind: "road", Width: 4})
 	}
@@ -49,7 +49,7 @@ func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
 // there, and nothing links back. Along it the way down grows from 0 at the head of the longest
 // flow in to 1 at the last cell.
 func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
-	river := network.New(grid)
+	river := network.New(g)
 	for y := range uint32(4) {
 		river.Set(at(2, y), network.Node{Kind: "river", Width: 2 + float64(y)})
 	}
@@ -80,7 +80,7 @@ func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
 // Laid on a board, a network is a Way across every cell it runs through, of its node's kind, as
 // wide, running on as it links, its look turned as far down its flow as it lies.
 func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
-	river := network.New(grid)
+	river := network.New(g)
 	river.Set(at(0, 0), network.Node{Kind: "brook", Width: 2})
 	river.Set(at(0, 1), network.Node{Kind: "river", Width: 5, Fade: 0.5})
 	river.Flow(at(0, 0), at(0, 1))
@@ -89,7 +89,7 @@ func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
 	if len(ways) != 2 {
 		t.Fatalf("%d ways, want one on each cell", len(ways))
 	}
-	want := []board.WayEntry{
+	want := []cell.WayEntry{
 		{Kind: "brook", Cell: at(0, 0), Width: 2, Links: south, Mix: 0},
 		{Kind: "river", Cell: at(0, 1), Width: 5, Links: north | south, Fade: 0.5, Mix: 1},
 	}
@@ -102,7 +102,7 @@ func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
 
 // Two networks cross where both run through a cell: a road over a river.
 func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
-	river, road := network.New(grid), network.New(grid)
+	river, road := network.New(g), network.New(g)
 	for y := range uint32(5) {
 		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
 	}
@@ -124,7 +124,7 @@ func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
 		}
 		return 1
 	}
-	path, ok := network.Route(grid, at(0, 0), at(4, 0), cost)
+	path, ok := network.Route(g, at(0, 0), at(4, 0), cost)
 	if !ok || path[0] != at(0, 0) || path[len(path)-1] != at(4, 0) {
 		t.Fatalf("route %v, %v; want one from (0, 0) to (4, 0)", path, ok)
 	}
@@ -137,15 +137,15 @@ func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
 		t.Errorf("the route is %d cells, want 9: down round the wall's end and back up", len(path))
 	}
 	wall[at(2, 4)] = true
-	if _, ok := network.Route(grid, at(0, 0), at(4, 0), cost); ok {
-		t.Error("a route through a wall across the whole grid")
+	if _, ok := network.Route(g, at(0, 0), at(4, 0), cost); ok {
+		t.Error("a route through a wall across the whole g")
 	}
 }
 
 // A road laid over a river is its own way where the river does not run, and a crossing of the
 // kind given where it does: a bridge.
 func TestNetwork_ARoadAcrossARiverBridgesIt(t *testing.T) {
-	river, road := network.New(grid), network.New(grid)
+	river, road := network.New(g), network.New(g)
 	for y := range uint32(5) {
 		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
 	}

@@ -4,8 +4,8 @@ import (
 	"image"
 	"slices"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -195,7 +195,7 @@ func (l *Painter) around8(i int, fn func(j int)) {
 // cellTile is the tile of cell c as the board's renderer would hand it, for working out its bake.
 func (l *Painter) cellTile(c cell.ID) *tile {
 	center := l.board.CellCenter(c)
-	l.scratch = board.Tile{ID: c,
+	l.scratch = look.Tile{ID: c,
 		X0: float32(center.X - l.cellW/2), Y0: float32(center.Y - l.cellH/2),
 		X1: float32(center.X + l.cellW/2), Y1: float32(center.Y + l.cellH/2)}
 	l.bakeTile = tile{Tile: &l.scratch, r: l, id: c}

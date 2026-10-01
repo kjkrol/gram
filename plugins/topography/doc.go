@@ -57,7 +57,7 @@
 // # The ground on the GPU
 //
 // [Plugin.Renderer] draws the ground, a render.Direct at the Ground tier for the scene's composer
-// beside the board's and the world's, and the board's tiles lay nothing (board.Nothing): over a
+// beside the board's and the world's, and the board's tiles lay nothing (look.Nothing): over a
 // square grid the terrain's mesh, over a hex grid the hexes' prisms.
 //
 // # Commands

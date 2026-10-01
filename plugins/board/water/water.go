@@ -8,8 +8,8 @@ import (
 	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/network"
 )
 
@@ -52,7 +52,7 @@ type Network struct {
 	Down     map[cell.ID]cell.ID
 	Gathered map[cell.ID]float64
 
-	grid    board.Grid
+	grid    grid.Grid
 	perRoot float64           // WidthPerRoot
 	mouths  map[cell.ID]mouth // the cells of the sea a course runs out into
 
@@ -67,7 +67,7 @@ type Network struct {
 var ErrNotSquare = errors.New("water: drains a square grid alone")
 
 // Drain works out the network over grid for heights, water leaving where sea says.
-func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(cell.ID) bool, cfg Config) (*Network, error) {
+func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) bool, cfg Config) (*Network, error) {
 	var any cell.ID
 	grid.EachCell(func(c cell.ID) { any = c })
 	if len(grid.CellOutline(any, nil)) != 4 {
@@ -166,7 +166,7 @@ func Drain(grid board.Grid, heights func(geom.Vec) float64, sea func(cell.ID) bo
 const calmNear = 4
 
 // stepsFromSea is how many steps between neighbours each cell lies from the sea, 0 the sea's own.
-func stepsFromSea(grid board.Grid, sea func(cell.ID) bool) map[cell.ID]int {
+func stepsFromSea(grid grid.Grid, sea func(cell.ID) bool) map[cell.ID]int {
 	steps := map[cell.ID]int{}
 	var ring []cell.ID
 	grid.EachCell(func(c cell.ID) {
@@ -233,7 +233,7 @@ type mouth struct {
 // plume runs every course reaching the sea on out into it, on the way of its last step, over sea
 // no other mouth has taken: Plume by the square root of its water cells, each wider and more
 // faded than the last.
-func (n *Network) plume(grid board.Grid, cfg Config, sea func(cell.ID) bool) {
+func (n *Network) plume(grid grid.Grid, cfg Config, sea func(cell.ID) bool) {
 	if cfg.Plume <= 0 {
 		return
 	}
@@ -253,7 +253,7 @@ func (n *Network) plume(grid board.Grid, cfg Config, sea func(cell.ID) bool) {
 	for _, c := range reaching {
 		way := -1
 		for i := range 8 {
-			if d, ok := board.Toward(grid, c, i); ok && d == n.Down[c] {
+			if d, ok := grid.Toward(c, i); ok && d == n.Down[c] {
 				way = i
 			}
 		}
@@ -268,7 +268,7 @@ func (n *Network) plume(grid board.Grid, cfg Config, sea func(cell.ID) bool) {
 			if prev != c {
 				n.Down[prev] = at
 			}
-			next, ok := board.Toward(grid, at, way)
+			next, ok := grid.Toward(at, way)
 			if !ok {
 				break
 			}
@@ -358,7 +358,7 @@ func nudge(c cell.ID) float64 {
 	return float64(h>>11) / (1 << 53)
 }
 
-// corners are a cell's corners from its top-left, in board.Relief's order.
+// corners are a cell's corners from its top-left, in relief.Relief's order.
 var corners = [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
 // flooded is a cell on the flood's queue, at the level it was filled to, seq keeping ties in the

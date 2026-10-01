@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world/clock"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
@@ -50,23 +50,23 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems seeds board.Occupancy from every entity's Cell, Mover and in-progress Leg — after
+// SetupSystems seeds the board's cell.Occupancy from every entity's Cell, Mover and in-progress Leg — after
 // a Populate as after a Load, so the board never depends on a spawn effect to know who stands where.
 func (m *module) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.At]
+		var at goke.Comp[unit.At]
 		var order goke.OptComp[MoveOrder]
-		var mover goke.OptComp[board.Mover]
-		query := si.NewQueryBuilder(&cell).Optional(&order, &mover).Build()
+		var mover goke.OptComp[unit.Mover]
+		query := si.NewQueryBuilder(&at).Optional(&order, &mover).Build()
 		occupancy := m.navigationSystem.occupancy
 		query.All()
 		for query.Next() {
 			cursor := query.Cursor()
-			cells := cell.Slice(cursor)
+			cells := at.Slice(cursor)
 			orders := order.Slice(cursor)
 			movers := mover.Slice(cursor)
 			for i, id := range cursor.IDs {
-				domain := board.DomainAt(movers, i)
+				domain := unit.DomainAt(movers, i)
 				occupancy.Enter(cells[i].Cell, id, domain)
 				if orders != nil && orders[i].Leg.Active {
 					for _, c := range orders[i].Leg.cells() {
@@ -81,7 +81,7 @@ func (m *module) SetupSystems() []goke.System {
 // LoadComps lists the component types navigation owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
-		goke.LoadComp[board.At](),
+		goke.LoadComp[unit.At](),
 		goke.LoadComp[MoveOrder](),
 		goke.LoadComp[tag.Tags[States]](),
 		goke.LoadComp[LastOrder](),

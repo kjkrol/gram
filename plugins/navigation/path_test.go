@@ -3,16 +3,16 @@ package navigation
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
 )
 
 func TestPathFinder_FindPath_UnreachableTarget_ReportsNotFound(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 
 	from, _ := grid.CellIndex(0, 0)
 	to, _ := grid.CellIndex(2, 2)
@@ -27,10 +27,10 @@ func TestPathFinder_FindPath_UnreachableTarget_ReportsNotFound(t *testing.T) {
 }
 
 func TestPathFinder_FindPath_ReusesSolverAcrossCalls(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	entity := uid.UID64(1)
 
 	pf := newPathFinder(grid, terrain, nil, occupancy)
@@ -57,15 +57,15 @@ func TestPathFinder_FindPath_ReusesSolverAcrossCalls(t *testing.T) {
 }
 
 func TestPathFinder_FindPath_NeverCutsThroughABlockedCorner(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	wall := cell.Kind{Cost: 1, Solid: true}
 	for _, y := range []uint32{1, 2, 3, 4} {
 		c, _ := grid.CellIndex(2, y)
 		terrain.Set(c, wall)
 	}
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 
 	from, _ := grid.CellIndex(1, 2)
 	to, _ := grid.CellIndex(3, 2)

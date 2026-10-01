@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
@@ -60,7 +60,7 @@ type look struct {
 
 // relief is what a scene with heights stands on: nil for flat ground at 0.
 type relief struct {
-	ground board.Heights
+	ground ground.Heights
 	step   float64
 	scale  world.Scale
 }
@@ -98,8 +98,8 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 	})
 	v := vision.NewPlugin(w).WithWorkers(workers)
 	if r != nil {
-		ground := r.ground
-		v.WithHeights(func() board.Heights { return ground }).WithGroundStep(r.step)
+		heights := r.ground
+		v.WithHeights(func() ground.Heights { return heights }).WithGroundStep(r.step)
 	}
 
 	ctx := &installCtx{ecs: goke.New()}

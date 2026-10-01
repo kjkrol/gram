@@ -8,8 +8,8 @@
 // A rule and a plan are written by a function: [On] hands it the [Moment] a rule is for, [Plan]
 // the [Actor] a plan is for, and their methods make the steps it returns.
 //
-//	rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-//		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+//	rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+//		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 //	})
 //
 //	rule.Plan("patrol", func(a *rule.Actor) rule.Step {
@@ -21,7 +21,7 @@
 //
 // # Rules
 //
-// [On] makes a rule of a moment a plugin catches in its own pass — a board.Standing or a
+// [On] makes a rule of a moment a plugin catches in its own pass — a unit.Standing or a
 // cell.Now, a vision.Sighting, a collision.Meeting, a world.Moving, a clock.Moment —
 // for the plugin's Hook: board.Plugin.Hook, vision's, collision's, world's, navigation's. Its
 // [Filter], the second argument, says whom it fires for: [All], [Self] one carrying a tag — an

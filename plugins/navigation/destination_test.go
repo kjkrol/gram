@@ -6,14 +6,15 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
-func chebyshev(grid board.Grid, a, b cell.ID) float64 {
+func chebyshev(grid grid.Grid, a, b cell.ID) float64 {
 	ca, cb := grid.CellCenter(a), grid.CellCenter(b)
 	return max(abs(ca.X-cb.X), abs(ca.Y-cb.Y)) / float64(grid.CellSpan())
 }
@@ -25,14 +26,14 @@ func abs(v float64) float64 {
 	return v
 }
 
-func openTerrain() *board.TerrainMap {
-	terrain := board.NewTerrainMap()
+func openTerrain() *cell.TerrainMap {
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return terrain
 }
 
 func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
 	start, _ := grid.CellIndex(2, 2)
 	all := func(cell.ID) bool { return true }
 
@@ -52,7 +53,7 @@ func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 }
 
 func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	wall, _ := grid.CellIndex(1, 0)
 	beyond, _ := grid.CellIndex(3, 0)
@@ -64,7 +65,7 @@ func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
 }
 
 func TestBreadthFirst_RespectsMaxVisited(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	next, _ := grid.CellIndex(1, 0)
 	all := func(cell.ID) bool { return true }
@@ -75,9 +76,9 @@ func TestBreadthFirst_RespectsMaxVisited(t *testing.T) {
 }
 
 func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(7, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(7, 1, legCellSize)
 	terrain := openTerrain()
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	pf := newPathFinder(grid, terrain, nil, occupancy)
 	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
 
@@ -98,15 +99,15 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 }
 
 func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 10, legCellSize)
-	occupancy := &board.SingleOccupancy{}
+	grid := grid.DefaultGrids{}.Square(10, 10, legCellSize)
+	occupancy := &cell.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(5, 5)
 	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
 
-	var here goke.Comp[board.At]
+	var here goke.Comp[unit.At]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var q *goke.Query
@@ -121,7 +122,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 			selected.Slice(&f.Cursor)[i] = selectedMarks
 		}
 		for i, id := range f.Cursor.IDs {
-			here.Slice(&f.Cursor)[i] = board.At{Cell: starts[i]}
+			here.Slice(&f.Cursor)[i] = unit.At{Cell: starts[i]}
 			occupancy.Enter(starts[i], id, cell.Land)
 			if starts[i] == at(5, 4) {
 				nearest = id
@@ -164,7 +165,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 }
 
 func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	target := at(4, 2)
 	lw := newLegWorld(t, 5, 5,
@@ -192,7 +193,7 @@ func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 }
 
 func TestNavigation_OccupiedUnreachableTarget_GivesUp(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
 	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
 	lw := newLegWorld(t, 5, 1,
 		legUnit{start: at(0), target: at(3), hasOrder: true},

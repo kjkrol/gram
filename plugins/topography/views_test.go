@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -29,15 +30,15 @@ func newWorld(edges aabbworld.Edges) *world.Plugin {
 }
 
 // levelBoard is a 4x4 board of level grass over w.
-func levelBoard(w *world.Plugin) (*board.Plugin, board.Grid) {
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	b := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+func levelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return b, grid
 }
 
 // isometricIsland is a world with a level board in relief, seen isometrically.
-func isometricIsland() (*world.Plugin, *board.Plugin, board.Grid, *topography.Plugin) {
+func isometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plugin) {
 	w := newWorld(0)
 	b, grid := levelBoard(w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
@@ -77,7 +78,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
-	b := board.NewPlugin(board.DefaultGrids{}.Square(64, 64, 32), &board.MultipleOccupancy{}, w)
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
 	cam := w.Camera()
 	if cam.Projection().Sorts() {

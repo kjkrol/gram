@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
@@ -24,7 +24,7 @@ type altitudeSystem struct {
 	query  *goke.Query
 	base   goke.Comp[world.Base]
 	z      goke.Comp[world.Z]
-	mover  goke.Comp[board.Mover]
+	mover  goke.Comp[unit.Mover]
 	driven goke.OptComp[steering.Driven]
 	course goke.OptComp[steering.Course]
 }
@@ -45,7 +45,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		drivens, courses := s.driven.Slice(cursor), s.course.Slice(cursor)
 		for i := range cursor.IDs {
 			m := &movers[i]
-			ground := s.relief.GroundAt(board.Center(bases[i].Pos))
+			ground := s.relief.GroundAt(bases[i].Pos.Center())
 			alt := ground + m.Lift
 			flown := m.Domain&cell.Air != 0 && drivens != nil && drivens[i].Flown
 			if flown {
@@ -65,7 +65,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 }
 
 // held is alt kept under m's Ceiling and at least its Clearance over ground, the ground winning.
-func held(m *board.Mover, alt, ground float64) float64 {
+func held(m *unit.Mover, alt, ground float64) float64 {
 	if m.Ceiling > 0 {
 		alt = min(alt, m.Ceiling)
 	}

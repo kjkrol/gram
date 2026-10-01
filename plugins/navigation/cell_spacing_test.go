@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -97,10 +97,10 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	if (Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}).PushedByAlly() {
 		t.Error("made way for one giving way")
 	}
-	grid := board.DefaultGrids{}.Square(3, 3, 32)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(3, 3, 32)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occ := &board.SingleOccupancy{}
+	occ := &cell.SingleOccupancy{}
 	k := newCellKeeping(newPathFinder(grid, terrain, nil, openOccupancy{}), occ)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: cell.Land, pos: posAt(grid, at(1, 1))}
@@ -117,6 +117,6 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 }
 
 // posAt is a 22-unit box on c.
-func posAt(grid board.Grid, c cell.ID) world.Position {
-	return world.Position{AABB: board.CellAABB(grid, c, 22)}
+func posAt(grid grid.Grid, c cell.ID) world.Position {
+	return world.Position{AABB: cellBox(grid, c, 22)}
 }

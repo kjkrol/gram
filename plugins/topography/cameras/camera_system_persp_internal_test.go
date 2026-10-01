@@ -8,14 +8,14 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 )
 
 // ridged gives the rig's camera system and camera a relief over a 20 x 20 board of 32-unit cells
 // with a ridge 400 high along x0 to x1, or level ground with none.
 func (r *followRig) ridged(x0, x1 float64) *relief.Relief {
-	relief := relief.New(board.DefaultGrids{}.Square(20, 20, 32))
+	relief := relief.New(grid.DefaultGrids{}.Square(20, 20, 32))
 	relief.SetHeights(func(p geom.Vec) float64 {
 		if p.X >= x0 && p.X <= x1 {
 			return 400

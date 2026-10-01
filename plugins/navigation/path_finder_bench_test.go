@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -14,7 +15,7 @@ import (
 // of its cells walls, reading the terrain from a plain TerrainMap and from the board's cell entities.
 func BenchmarkPathFinder_Terrain(b *testing.B) {
 	const side, size = 128, 16
-	grid := board.DefaultGrids{}.Square(side, side, size)
+	grid := grid.DefaultGrids{}.Square(side, side, size)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	from, to := at(0, 0), at(side-1, side-1)
 	lay := func(brd *board.Board) {
@@ -26,8 +27,8 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 			}
 		})
 	}
-	run := func(b *testing.B, terrain board.Terrain) {
-		pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
+	run := func(b *testing.B, terrain cell.Terrain) {
+		pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 		if _, ok := pf.findPath(1, cell.Land, from, to); !ok {
 			b.Fatal("no route across the board")
 		}
@@ -37,16 +38,16 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 	}
 
 	b.Run("map", func(b *testing.B) {
-		terrain := board.NewTerrainMap()
-		lay(board.NewBoard(grid, terrain))
-		run(b, terrain)
+		brd := board.NewBoard(grid) // no ECS: the board reads its seed
+		lay(brd)
+		run(b, brd)
 	})
 	b.Run("cells", func(b *testing.B) {
 		w := world.NewPlugin(world.Config{
 			Space:    world.SpaceCfg{Width: side * size, Height: side * size},
 			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		})
-		brd := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+		brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 		lay(brd.Res.Logic.Board)
 		ctx := &stubInstallCtx{ecs: goke.New()}
 		if err := w.Install(ctx); err != nil {

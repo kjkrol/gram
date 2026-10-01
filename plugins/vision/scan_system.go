@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
@@ -34,13 +34,13 @@ type ScanSystem struct {
 	// In a world with heights the cone has heights: groundOf resolves the world's Ground at first
 	// use, grounded once it has.
 	heights  bool
-	groundOf func() board.Heights
+	groundOf func() ground.Heights
 	step     float64
 	grounded bool
 	bend     float64
 
 	// coverOf resolves the world's Cover at first use, covered once it has.
-	coverOf func() board.Cover
+	coverOf func() ground.Cover
 	covered bool
 
 	query     *goke.Query
@@ -332,7 +332,7 @@ func (j *job) scan(c *scanner, i int) {
 // the cover, which read the world as they are first asked and would else do so all at once.
 func (s *ScanSystem) settle(box geom.AABB) {
 	s.space.Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
-	if r, ok := s.covering.cover.(board.Readied); ok {
+	if r, ok := s.covering.cover.(ground.Readied); ok {
 		r.Ready()
 	}
 }
@@ -414,7 +414,7 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 
 // covering is the world's Cover as the cone asks for it: walked for one observer's Blockers.
 type covering struct {
-	cover    board.Cover
+	cover    ground.Cover
 	blockers world.Layers
 	// bend sinks the cover under the observer's level at ox, oy as far off as it stands: visit is
 	// the walk's own, sunk the step handed to the cover in its place

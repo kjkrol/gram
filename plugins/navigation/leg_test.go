@@ -6,8 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -28,22 +29,22 @@ type legUnit struct {
 
 // legWorld is a real navigation + movement ECS over an open grid, for Leg reservation tests.
 type legWorld struct {
-	grid      board.Grid
-	terrain   *board.TerrainMap
-	occupancy *board.SingleOccupancy
+	grid      grid.Grid
+	terrain   *cell.TerrainMap
+	occupancy *cell.SingleOccupancy
 	ecs       *goke.ECS
 	ids       []uid.UID64
 
 	pos   goke.Comp[world.Base]
-	cell  goke.Comp[board.At]
+	cell  goke.Comp[unit.At]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
 }
 
 func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	t.Helper()
-	lw := &legWorld{grid: board.DefaultGrids{}.Square(w, h, legCellSize), occupancy: &board.SingleOccupancy{}}
-	terrain := board.NewTerrainMap()
+	lw := &legWorld{grid: grid.DefaultGrids{}.Square(w, h, legCellSize), occupancy: &cell.SingleOccupancy{}}
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	lw.terrain = terrain
 	steer := newNavigationSystem(newPathFinder(lw.grid, terrain, nil, lw.occupancy), lw.grid, terrain, lw.occupancy)
@@ -53,7 +54,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	lw.ecs = goke.New()
 	lw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for _, u := range units {
-			var at goke.Comp[board.At]
+			var at goke.Comp[unit.At]
 			var pos goke.Comp[world.Base]
 			var profile goke.Comp[steering.Steering]
 			var course goke.Comp[steering.Course]
@@ -66,8 +67,8 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 			f.Create(1)
 			f.Next()
 			id := f.Cursor.IDs[0]
-			p := world.Position{AABB: board.CellAABB(lw.grid, u.start, legEntitySize)}
-			at.Slice(&f.Cursor)[0] = board.At{Cell: u.start}
+			p := world.Position{AABB: cellBox(lw.grid, u.start, legEntitySize)}
+			at.Slice(&f.Cursor)[0] = unit.At{Cell: u.start}
 			pos.Slice(&f.Cursor)[0].Pos = p
 			profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 			if u.hasOrder {
@@ -141,7 +142,7 @@ func overlaps(a, b world.Position) bool {
 const otherEntity = uid.UID64(1 << 40)
 
 func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(2, 1), target: at(2, 4), hasOrder: true},
@@ -165,7 +166,7 @@ func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
 }
 
 func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	blocker := at(1, 2)
 	lw := newLegWorld(t, 5, 5,
@@ -193,7 +194,7 @@ func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T)
 }
 
 func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(1, 0)
 	lw := newLegWorld(t, 5, 1, legUnit{start: start, target: target, hasOrder: true})
@@ -223,7 +224,7 @@ func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 }
 
 func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(3, 3, legCellSize)
+	grid := grid.DefaultGrids{}.Square(3, 3, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(1, 1)
 	c1, c2, diag := grid.DiagonalNeighbors(start, target)
@@ -254,10 +255,10 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 }
 
 func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, legCellSize)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, legCellSize)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
@@ -266,7 +267,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	newTarget, _ := grid.CellIndex(5, 0)
 	leg := Leg{From: from, To: to, Active: true}
 
-	var at goke.Comp[board.At]
+	var at goke.Comp[unit.At]
 	var order goke.Comp[MoveOrder]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var q *goke.Query
@@ -278,7 +279,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		f.Next()
 		selected.Slice(&f.Cursor)[0] = selectedMarks
 		id := f.Cursor.IDs[0]
-		at.Slice(&f.Cursor)[0] = board.At{Cell: from}
+		at.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		for _, c := range leg.cells() {
 			occupancy.Enter(c, id, cell.Land)
@@ -309,10 +310,10 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 }
 
 func TestModule_Setup_RestoresLegCells(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(3, 3, legCellSize)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(3, 3, legCellSize)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
 	from, _ := grid.CellIndex(0, 0)
@@ -322,12 +323,12 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 
 	goke.New().Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			var cell goke.Comp[board.At]
+			var cell goke.Comp[unit.At]
 			var order goke.Comp[MoveOrder]
 			f := si.NewFactory(&cell, &order)
 			f.Create(1)
 			f.Next()
-			cell.Slice(&f.Cursor)[0] = board.At{Cell: from}
+			cell.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 			order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		}},
 		m.SetupSystems()[0],

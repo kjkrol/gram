@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -27,20 +28,20 @@ type litMap struct {
 	sky *Plugin
 }
 
-func (m *litMap) Look() board.Look { return litCells{Look: m.Map.Look(), sky: m.sky} }
+func (m *litMap) Look() look.Look { return litCells{Look: m.Map.Look(), sky: m.sky} }
 
-func (m *litMap) Dressing() board.Dressing {
+func (m *litMap) Dressing() look.Dressing {
 	return &litDressing{Dressing: m.Map.Dressing(), sky: m.sky}
 }
 
 // litCells lays the cells as the map's Look does, what sways leaning with the wind: seen from above
 // by its top, which moves as far as it stands high.
 type litCells struct {
-	board.Look
+	look.Look
 	sky *Plugin
 }
 
-func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
+func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 	if amount, rise := t.Sway(); amount > 0 {
 		leaning := *t
 		lx, ly := l.sky.Air().Sway(f.Time(), (t.X0+t.X1)/2, (t.Y0+t.Y1)/2, amount)
@@ -55,7 +56,7 @@ func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *board.Tile) {
 // litDressing is the map's Dressing with the tiles lit by the sun on level ground, the frame handed
 // the sky's uniforms; without a dressing under it, that alone.
 type litDressing struct {
-	board.Dressing
+	look.Dressing
 	sky *Plugin
 }
 
@@ -68,7 +69,7 @@ func (d *litDressing) Begin(f *render.Frame, cam camera.Camera) {
 	}
 }
 
-func (d *litDressing) Light(*board.Tile) render.Shade {
+func (d *litDressing) Light(*look.Tile) render.Shade {
 	return render.Lit(d.sky.Sun().Light(0, 0, 1))
 }
 
@@ -76,7 +77,7 @@ func (d *litDressing) Light(*board.Tile) render.Shade {
 // under it dresses every tile the same frame after frame; false where it does not.
 func (d *litDressing) EvenLight() (render.Light, bool) {
 	if d.Dressing != nil {
-		e, ok := d.Dressing.(board.EvenLit)
+		e, ok := d.Dressing.(look.EvenLit)
 		if !ok {
 			return render.Light{}, false
 		}
@@ -94,23 +95,23 @@ func (d *litDressing) Sheet(atlas render.AtlasSource) render.AtlasSource {
 	return d.Dressing.Sheet(atlas)
 }
 
-func (d *litDressing) Base(t *board.Tile) render.SpriteID {
+func (d *litDressing) Base(t *look.Tile) render.SpriteID {
 	if d.Dressing == nil {
 		return t.Sprite()
 	}
 	return d.Dressing.Base(t)
 }
 
-func (d *litDressing) FaceLight(t *board.Tile, dx, dy int) render.Light {
+func (d *litDressing) FaceLight(t *look.Tile, dx, dy int) render.Light {
 	if d.Dressing == nil {
 		return render.Light{1, 1, 1}
 	}
 	return d.Dressing.FaceLight(t, dx, dy)
 }
 
-func (d *litDressing) Covers(t *board.Tile) bool { return d.Dressing != nil && d.Dressing.Covers(t) }
+func (d *litDressing) Covers(t *look.Tile) bool { return d.Dressing != nil && d.Dressing.Covers(t) }
 
-func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y0, x1, y1, depth float32) {
+func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
 	if d.Dressing != nil {
 		d.Dressing.Dress(f, cam, t, x0, y0, x1, y1, depth)
 	}

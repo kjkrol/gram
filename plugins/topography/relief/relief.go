@@ -6,6 +6,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
 // Corners is a cell's ground height at its corners: top-left, top-right, bottom-left, bottom-right.
@@ -35,8 +37,8 @@ type Heights struct {
 // vertical walls; on any other grid a cell is level. It is the world's Ground. Not safe for
 // concurrent use.
 type Relief struct {
-	grid   board.Grid
-	sq     board.SquareShape
+	grid   grid.Grid
+	sq     grid.Shape
 	square bool
 	cols   int // corners along x on a square grid
 	rows   int // corners along y
@@ -50,19 +52,17 @@ type Relief struct {
 	extentAt  uint64
 }
 
-// New is level ground at 0 over grid; over a board, every change to a cell's corners is
-// counted on the board too (board.Board.Touch), so whatever was worked out of the cell is read
-// anew.
-func New(grid board.Grid) *Relief {
-	r := &Relief{grid: grid}
-	if b, ok := grid.(*board.Board); ok {
-		r.sq, r.square = b.Square()
+// New is level ground at 0 over g; over a board, every change to a cell's corners is counted on
+// the board too (board.Board.Touch), so whatever was worked out of the cell is read anew.
+func New(g grid.Grid) *Relief {
+	r := &Relief{grid: g}
+	if b, ok := g.(*board.Board); ok {
+		r.sq, r.square = b.Shape()
 		r.touched = b.Touch
-	} else if sq, ok := grid.(interface {
-		Square() (board.SquareShape, bool)
-	}); ok {
-		r.sq, r.square = sq.Square()
+	} else {
+		r.sq, r.square = grid.ShapeOf(g)
 	}
+	r.square = r.square && !r.sq.Hex
 	if r.square {
 		r.cols, r.rows = int(r.sq.Cols)+1, int(r.sq.Rows)+1
 		if r.sq.WrapX {
@@ -73,7 +73,7 @@ func New(grid board.Grid) *Relief {
 		}
 		r.values = make([]float32, r.cols*r.rows)
 	} else {
-		r.values = make([]float32, grid.CellCount())
+		r.values = make([]float32, g.CellCount())
 	}
 	return r
 }
@@ -316,9 +316,9 @@ func foldAxis(v, n int64, wraps bool) (int64, bool) {
 	return v, v >= 0 && v < n
 }
 
-var _ board.Heights = (*Relief)(nil)
+var _ ground.Heights = (*Relief)(nil)
 
-// At is GroundAt — the board.Heights contract.
+// At is GroundAt — the ground.Heights contract.
 func (r *Relief) At(p geom.Vec) float64 { return r.GroundAt(p) }
 
 // Step is how far apart sight samples the ground: the shorter side of a cell.
@@ -361,7 +361,7 @@ func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
 
 // MeanOfCells is a height function for SetHeights built from one height per cell: a point inside
 // a cell is at its height, a point where cells meet at the mean of theirs.
-func MeanOfCells(grid board.Grid, height func(c cell.ID) float64) func(p geom.Vec) float64 {
+func MeanOfCells(grid grid.Grid, height func(c cell.ID) float64) func(p geom.Vec) float64 {
 	const eps = 1e-6
 	return func(p geom.Vec) float64 {
 		var seen [4]cell.ID

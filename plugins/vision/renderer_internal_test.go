@@ -12,6 +12,9 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -347,7 +350,7 @@ func (slope) Step() float64         { return 10 }
 // isoRenderer is a renderer over a 1000x1000 world of slope, through an isometric camera.
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() board.Heights { return slope{} })
+	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() ground.Heights { return slope{} })
 	r.camera = isoCamera(1000, 1000, camera.Config{ViewportWidth: 800, ViewportHeight: 600})
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
@@ -427,7 +430,7 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Camera:   cfg,
 		Heights:  true,
 	})
-	b := board.NewPlugin(board.DefaultGrids{}.Square(width/32, height/32, 32), &board.MultipleOccupancy{}, w)
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
 	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	return w.Camera()
 }

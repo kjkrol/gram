@@ -5,7 +5,7 @@
 // corners ([Corners]) — or at every cell of a hex one; [Relief.GroundAt] is the ground at any point,
 // drawn between the corners as the terrain's mesh draws it, [Relief.Altitude] a cell's mean,
 // [Relief.SetHeights] seeds it from a function ([MeanOfCells] from one of the cells), and it is the
-// board's heights (board.Heights: At, Step, Top). A board that wraps folds its corners across the
+// board's heights (ground.Heights: At, Step, Top). A board that wraps folds its corners across the
 // seam. [Relief.Climb] prices a step from cell to cell by how steep it is as [Climbing] says
 // ([DefaultClimbing]: up costly, down gently, steep down again; free for the domains that fly);
 // [Relief.SlopeAt] is the slope at a point along a way.

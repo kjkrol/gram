@@ -44,7 +44,9 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -131,10 +133,10 @@ type mainStage struct {
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	unit       kind.Of[unit]
-	rivals     kind.Of[unit]
-	plateau    kind.Of[unit]
-	hawk       kind.Of[unit]
+	unit       kind.Of[unitRow]
+	rivals     kind.Of[unitRow]
+	plateau    kind.Of[unitRow]
+	hawk       kind.Of[unitRow]
 	stack      game.Scenes
 	state      *State
 }
@@ -161,8 +163,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKinds().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
@@ -173,8 +175,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Isometric:   true,
 		Perspective: true,
 		Shaping:     relief.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -296,32 +298,32 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target cell.ID }
+type unitRow struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	// Every unit is a giant, about 9.4 m across and 20 m tall, looking from its top: from a slope's
 	// edge an eye sees the rim, not the valley below. The board writes where a unit stands in height.
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	// the cone of sight and the camera riding in the unit read the one Eye: at the top, 72° across
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
 	eye := comp.Const(world.Eye{Angle: eyeAngle})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	// every unit gets on among the others by navigation's Crowd, the plugin's own rules: an ally
 	// standing makes way, a group gathers round its point, strangers are gone round
-	s.unit = units.Define("unit", board.Mover{Domain: cell.Land}, walker,
+	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 	// The crowd on the plateau: the player's walkers standing, under no order and not selected.
-	s.plateau = units.Define("plateau", board.Mover{Domain: cell.Land}, walker,
+	s.plateau = units.Define("plateau", unit.Mover{Domain: cell.Land}, walker,
 		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 	// The rival's walkers are the same giants, the player's to meet, not to command.
-	s.rivals = units.Define("rival", board.Mover{Domain: cell.Land}, walker,
+	s.rivals = units.Define("rival", unit.Mover{Domain: cell.Land}, walker,
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
 		sight, eye,
 	)
@@ -329,7 +331,7 @@ func (s *mainStage) defineKinds() {
 	// walker's cone climbs and stops at, and it flies over them as over the flat. Ridden, it holds
 	// its height over the sea and climbs and dives the way the rider looks, never nearer the
 	// ground than its own height nor higher than 100 m under the clouds.
-	s.hawk = units.Define("hawk", board.Mover{Domain: cell.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
+	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
 		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
@@ -349,13 +351,13 @@ func (s *mainStage) Spawn() error {
 		if i%2 == 0 { // every other stop the rival's
 			walkers = s.rivals
 		}
-		entries = append(entries, walkers.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
+		entries = append(entries, walkers.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
 	}
 	// The hawk crosses the island from the first stop to the one across the range.
-	entries = append(entries, s.hawk.Entry(unit{start: stops[0], target: stops[len(stops)/2]}))
+	entries = append(entries, s.hawk.Entry(unitRow{start: stops[0], target: stops[len(stops)/2]}))
 	// The crowd stands on the plateau's top, a cell each, nearest its middle.
 	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
-		entries = append(entries, s.plateau.Entry(unit{start: c, target: c}))
+		entries = append(entries, s.plateau.Entry(unitRow{start: c, target: c}))
 	}
 	s.world.Seed(entries...)
 	return nil

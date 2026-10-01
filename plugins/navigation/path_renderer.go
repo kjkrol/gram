@@ -8,8 +8,10 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -17,7 +19,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(at board.At, mt MoveOrder) []cell.ID {
+func pathCells(at unit.At, mt MoveOrder) []cell.ID {
 	cells := []cell.ID{at.Cell}
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
@@ -60,15 +62,15 @@ const goalWidth = 2
 // Otherwise it is a line over the ground on the render.Overlays tier in pieces of the ground's
 // step, each at the depth of the ground under it, so the line runs straight through any camera.
 type PathRenderer struct {
-	grid   board.Grid
+	grid   grid.Grid
 	style  RouteStyle
 	frame  *render.Frame // the one being composed
 	camera camera.Camera // the one of the frame being composed
 	space  *aabbworld.Space
 	// heights is the ground the routes and goals lie on, read when composing starts; nil, level
 	// at 0.
-	heights func() board.Heights
-	ground  board.Heights
+	heights func() ground.Heights
+	ground  ground.Heights
 	step    float64
 	// look lays a goal's outline as the world draws the entity; nil, the box as it lies.
 	look   func() world.Look
@@ -82,10 +84,10 @@ type PathRenderer struct {
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
-	cell  goke.Comp[board.At]
+	cell  goke.Comp[unit.At]
 	order goke.Comp[MoveOrder]
 	marks goke.Comp[tag.Tags[selection.Family]]
-	mover goke.OptComp[board.Mover]
+	mover goke.OptComp[unit.Mover]
 
 	footprint []render.Corners // reused
 
@@ -96,7 +98,7 @@ type PathRenderer struct {
 var _ render.Direct = (*PathRenderer)(nil)
 
 // NewPathRenderer draws the routes and goals of the entities carrying selected, as style says.
-func NewPathRenderer(grid board.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *PathRenderer {
+func NewPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *PathRenderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}
@@ -115,7 +117,7 @@ func (r *PathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniform
 
 // WithHeights has the routes and goals laid on the ground heights gives when composing starts:
 // board.Plugin.Heights; nil, level at 0.
-func (r *PathRenderer) WithHeights(heights func() board.Heights) *PathRenderer {
+func (r *PathRenderer) WithHeights(heights func() ground.Heights) *PathRenderer {
 	r.heights = heights
 	return r
 }
@@ -171,10 +173,10 @@ func (r *PathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			if !r.routes {
 				continue
 			}
-			center := board.Center(bases[i].Pos)
+			center := bases[i].Pos.Center()
 			r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], *o), r.point(o.Target, o.Spot))
 			from := r.point(o.Target, o.Spot)
-			for k, route := range r.queued(cursor.IDs[i], board.DomainAt(movers, i), o) {
+			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), o) {
 				to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 				r.drawRoute(route, from, to)
 				from = to

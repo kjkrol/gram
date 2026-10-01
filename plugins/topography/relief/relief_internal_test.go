@@ -9,12 +9,13 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
 
 // raiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
-func raiseHills(r *Relief, grid board.Grid, hills ...cell.ID) {
+func raiseHills(r *Relief, grid grid.Grid, hills ...cell.ID) {
 	r.SetHeights(MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
 			if h == c {
@@ -26,12 +27,12 @@ func raiseHills(r *Relief, grid board.Grid, hills ...cell.ID) {
 }
 
 func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
-	for name, grid := range map[string]board.Grid{
-		"square": board.DefaultGrids{}.Square(4, 4, 32),
-		"hex":    board.DefaultGrids{}.Hex(4, 4, 16),
+	for name, grid := range map[string]grid.Grid{
+		"square": grid.DefaultGrids{}.Square(4, 4, 32),
+		"hex":    grid.DefaultGrids{}.Hex(4, 4, 16),
 	} {
 		t.Run(name, func(t *testing.T) {
-			brd := board.NewBoard(grid, board.NewTerrainMap())
+			brd := board.NewBoard(grid)
 			r := New(brd)
 			c, _ := grid.CellIndex(2, 1)
 			raiseHills(r, grid, c)
@@ -70,8 +71,8 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 }
 
 func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(6, 6, 32)
-	r := New(board.NewBoard(grid, board.NewTerrainMap()))
+	grid := grid.DefaultGrids{}.Square(6, 6, 32)
+	r := New(board.NewBoard(grid))
 	var hills []cell.ID
 	for y := uint32(2); y <= 4; y++ {
 		for x := uint32(2); x <= 4; x++ {
@@ -106,9 +107,9 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 
 // A wrapping board's lattice folds: the corners along the seam are one.
 func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	grid.(interface{ SetWrap(x, y bool) }).SetWrap(true, false)
-	r := New(board.NewBoard(grid, board.NewTerrainMap()))
+	r := New(board.NewBoard(grid))
 	west, _ := grid.CellIndex(0, 1)
 	east, _ := grid.CellIndex(3, 1)
 	r.SetCorners(west, Corners{5, 0, 5, 0})
@@ -140,8 +141,8 @@ func TestHeights_ARunGoesThroughASave(t *testing.T) {
 // relief.Heights over more corners than a run holds go over several, from one another's end, all of
 // them; the ground takes them back only when they are all there.
 func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(40, 40, 32)
-	r := New(board.NewBoard(grid, board.NewTerrainMap()))
+	grid := grid.DefaultGrids{}.Square(40, 40, 32)
+	r := New(board.NewBoard(grid))
 	c, _ := grid.CellIndex(39, 39)
 	r.SetCorners(c, Corners{1, 2, 3, 4})
 	runs := make([]Heights, r.Runs())
@@ -152,7 +153,7 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	if len(runs) != 2 || runs[0].Count != HeightsRun || runs[1].Count != 41*41-HeightsRun {
 		t.Fatalf("%d runs of %d and %d, want two: 1024 and the other %d of 1681 corners", len(runs), runs[0].Count, runs[1].Count, 41*41-HeightsRun)
 	}
-	back := New(board.NewBoard(grid, board.NewTerrainMap()))
+	back := New(board.NewBoard(grid))
 	if back.adopt(runs[:1]) {
 		t.Error("the ground took back one run of two")
 	}
@@ -167,8 +168,8 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 // The ground under a point is the ground drawn: the cell's top split into two flat triangles along
 // the diagonal whose corners stand nearer in height, as render.Frame.Fold draws it.
 func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(2, 2, 32)
-	r := New(board.NewBoard(grid, board.NewTerrainMap()))
+	grid := grid.DefaultGrids{}.Square(2, 2, 32)
+	r := New(board.NewBoard(grid))
 	c, _ := grid.CellIndex(0, 0)
 	// corners 0, 20, 24 and 2: the 0 and the 2 stand nearer, so the top is split along 0–3
 	r.SetCorners(c, Corners{0, 20, 24, 2})

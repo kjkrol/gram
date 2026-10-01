@@ -18,7 +18,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -87,7 +89,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // unit is the row every kind spawns from: where it starts and, for a wanderer, the other end of
 // its walk.
-type unit struct{ start, to cell.ID }
+type unitRow struct{ start, to cell.ID }
 
 type mainStage struct {
 	world     *world.Plugin
@@ -105,8 +107,8 @@ type mainStage struct {
 	haste       effect.Effect
 	hasteSprite render.SpriteID
 
-	scout    kind.Of[unit]
-	wanderer kind.Of[unit]
+	scout    kind.Of[unitRow]
+	wanderer kind.Of[unitRow]
 	stack    game.Scenes
 }
 
@@ -127,8 +129,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
@@ -150,8 +152,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	})
 
 	// Whoever stands where nothing holds it falls in.
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -227,35 +229,35 @@ func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil 
 // nobody's, each walking its row from one side of the meadow to the other and back, over both
 // strips.
 func (s *mainStage) defineKinds() {
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return s.brd.CellCenter(u.start) })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
-	land := board.Mover{Domain: cell.Land}
+	land := unit.Mover{Domain: cell.Land}
 	s.scout = units.Define("scout", land, profile, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile,
-		comp.Load(func(u unit) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
 // Spawn lays the strips of trapdoors, each cell tagged with its lever's, and puts the scouts and
 // the wanderers in place.
 func (s *mainStage) Spawn() error {
 	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for i, l := range levers {
 		tags := cell.Tags(0).With(s.trapdoors[i])
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := l.left; x <= l.left+1; x++ {
-				cells = append(cells, board.CellEntry{Kind: "boards", Cell: cellAt(x, y), Tags: tags})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Tags: tags})
 			}
 		}
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unit{start: cellAt(3+2*i, GridHeight-2)}))
+		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(3+2*i, GridHeight-2)}))
 	}
 	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unit{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
+		s.world.Seed(s.wanderer.Entry(unitRow{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
 	}
 	return nil
 }

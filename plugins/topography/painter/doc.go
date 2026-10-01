@@ -2,7 +2,7 @@
 // tiles and what lies on them, worked out of the board, its relief, the Styles of its kinds and
 // the sky's sun and weather — and the board painted flat for the ground drawn on the GPU.
 //
-// A [Painter] ([New]) dresses the board's tiles as board.Dressing asks and paints them once into
+// A [Painter] ([New]) dresses the board's tiles as look.Dressing asks and paints them once into
 // sheets ([Painter.Surface]): the board's albedo, 16 pixels a cell, and its water in layers
 // (water.Layers) beside it; [Painter.Wet] is where water may lie, [Painter.Coast] the way to the
 // shore from every corner of a square grid.

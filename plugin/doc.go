@@ -22,7 +22,7 @@
 // A [Rule] is what is done at a moment a plugin catches in its own pass, built with rule.On
 // (plugins/world/rule) and hooked with the plugin's Hook: rule.On[vision.Sighting](name,
 // rule.Between(a, b), body) fires for every observer carrying tag a and what it sees carrying b;
-// rule.On[board.Standing](name, rule.All, body) for every entity on the board. The moment's type —
+// rule.On[unit.Standing](name, rule.All, body) for every entity on the board. The moment's type —
 // a Sighting, a Standing, a Moving — is what says which plugin hosts it; a host refuses another's
 // with [ErrUnhosted], and one hooked after the host's queries were built with [ErrHostBuilt]. Hook
 // before Use. The hosts behind rules are in plugin/host, a plugin author's package. A rule is

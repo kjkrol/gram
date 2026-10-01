@@ -7,6 +7,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/render"
 )
@@ -22,7 +24,7 @@ type Painter struct {
 	kinds   cell.Kinds // for the kinds Styles name
 	heights bool
 	square  bool
-	sq      board.SquareShape
+	sq      grid.Shape
 
 	lighted sky.Sun       // the sun of the frame being drawn
 	weather air.Weather   // the weather of the frame being drawn
@@ -53,13 +55,13 @@ type Painter struct {
 	newest    []uint64
 	unpainted []int
 	canvas    render.Frame
-	scratch   board.Tile
+	scratch   look.Tile
 	bakeTile  tile
 	// coast is the way to the shore from every corner for the ground traced on the GPU (Coast)
 	coast coast
 }
 
-var _ board.Dressing = (*Painter)(nil)
+var _ look.Dressing = (*Painter)(nil)
 
 // Sky is the sky over the board as the painter reads it, whenever it paints: the sun that lights
 // the tiles and the weather — what sways leans in its wind.
@@ -72,7 +74,8 @@ type Sky interface {
 // says whether the ground stands in relief, lit and shaded by its slopes.
 func New(b *board.Board, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
-	sq, square := b.Square()
+	sq, square := b.Shape()
+	square = square && !sq.Hex
 	return &Painter{board: b, relief: ground, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h}
 }
 
@@ -94,7 +97,7 @@ func (l *Painter) version() uint64 { return l.board.Version() + l.relief.Version
 
 // beside is the top of the cell dx, dy cells away from t, with its kind standing on it; sea level
 // 0 off the board.
-func (l *Painter) beside(t *board.Tile, dx, dy int) [4]float32 {
+func (l *Painter) beside(t *look.Tile, dx, dy int) [4]float32 {
 	w, h := t.X1-t.X0, t.Y1-t.Y0
 	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
 	c, ok := l.board.CellAt(geom.NewVec(float64(x), float64(y)))
@@ -104,9 +107,9 @@ func (l *Painter) beside(t *board.Tile, dx, dy int) [4]float32 {
 	return l.topOf(c).z
 }
 
-// tile is a board.Tile as the landscape dresses it, and what it has worked out of it already.
+// tile is a look.Tile as the landscape dresses it, and what it has worked out of it already.
 type tile struct {
-	*board.Tile
+	*look.Tile
 	r    *Painter
 	id   cell.ID
 	memo tileMemo
@@ -192,19 +195,19 @@ func (l *Painter) tables() {
 }
 
 // Base is the sprite t's top is drawn in first: its own kind's, or the kind Under it round it.
-func (l *Painter) Base(t *board.Tile) render.SpriteID { return l.tileOf(t).baseTop().sprite }
+func (l *Painter) Base(t *look.Tile) render.SpriteID { return l.tileOf(t).baseTop().sprite }
 
 // Light is the light on t's top at its corners.
-func (l *Painter) Light(t *board.Tile) render.Shade { return l.tileOf(t).Light() }
+func (l *Painter) Light(t *look.Tile) render.Shade { return l.tileOf(t).Light() }
 
 // FaceLight is the light on t's upright face looking dx, dy cells away.
-func (l *Painter) FaceLight(t *board.Tile, dx, dy int) render.Light {
+func (l *Painter) FaceLight(t *look.Tile, dx, dy int) render.Light {
 	return l.tileOf(t).FaceLight(dx, dy)
 }
 
 // Covers reports whether Dress lays over t's top the grounds round it or a way — from far a piece
 // of the ground sheet — which would hide its outline.
-func (l *Painter) Covers(t *board.Tile) bool {
+func (l *Painter) Covers(t *look.Tile) bool {
 	b := l.bakeOf(l.tileOf(t))
 	return len(b.blends) > 0 || len(b.ways) > 0 || len(b.crossings) > 0
 }
@@ -213,7 +216,7 @@ func (l *Painter) Covers(t *board.Tile) bool {
 // the grounds round it running in — from far with its way as one piece of the ground sheet — the
 // clouds' shadows and, where it Covers an Outlined top, its outline over them, and then the way
 // across it: laid in the order the frame draws them, so it needs no sorting.
-func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y0, x1, y1, depth float32) {
+func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
 	d, top := l.tileOf(t), f.Last()
 	d.DrawSurface(f, x0, y0, x1, y1)
 	d.DrawBlends(f, cam, depth)
@@ -224,7 +227,7 @@ func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *board.Tile, x0, y
 }
 
 // tileOf is t as the Painter dresses it, what it worked out of it kept while it is the same cell.
-func (l *Painter) tileOf(t *board.Tile) *tile {
+func (l *Painter) tileOf(t *look.Tile) *tile {
 	if l.tile.Tile != t || l.tile.id != t.ID {
 		l.tile = tile{Tile: t, r: l, id: t.ID}
 	}

@@ -3,23 +3,24 @@ package navigation_test
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/navigation"
 )
 
 func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, 10)
+	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(4, 0)
 
-	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target})
+	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target})
 
 	assertCells(t, cells, []cell.ID{start, target})
 }
 
 func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, 10)
+	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	start, _ := grid.CellIndex(0, 0)
 	c1, _ := grid.CellIndex(1, 0)
 	c2, _ := grid.CellIndex(2, 0)
@@ -32,13 +33,13 @@ func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 	p.Length = 3
 	p.Index = 1
 
-	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []cell.ID{start, c2, target})
 }
 
 func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, 10)
+	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(2, 0)
 
@@ -47,7 +48,7 @@ func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 	p.Length = 1
 	p.Index = 0
 
-	cells := navigation.PathCells(board.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
 
 	if last := cells[len(cells)-1]; last != target {
 		t.Errorf("last cell = %v, want %v (Target)", last, target)
@@ -55,7 +56,7 @@ func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 }
 
 func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, 10)
+	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	mid, _ := grid.CellIndex(1, 0)
 	target, _ := grid.CellIndex(2, 0)
 
@@ -65,16 +66,16 @@ func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 	p.Length = 2
 	p.Index = 0
 
-	cells := navigation.PathCells(board.At{Cell: mid}, navigation.MoveOrder{Target: target, Path: p})
+	cells := navigation.PathCells(unit.At{Cell: mid}, navigation.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []cell.ID{mid, target})
 }
 
 func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 1, 10)
+	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	target, _ := grid.CellIndex(2, 0)
 
-	cells := navigation.PathCells(board.At{Cell: target}, navigation.MoveOrder{Target: target})
+	cells := navigation.PathCells(unit.At{Cell: target}, navigation.MoveOrder{Target: target})
 
 	assertCells(t, cells, []cell.ID{target})
 }

@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
 	if layout.Default != "water" {
 		t.Errorf("default kind %q, want water round the island", layout.Default)
@@ -45,7 +45,7 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 // The sea stays level at 0 up to the shore, the land stands at least landHeight above it, and in
 // places a cliff rises straight from the sea.
 func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
 	land, wet := map[cell.ID]bool{}, map[[2]int]bool{}
 	for _, e := range layout.Cells {
@@ -93,7 +93,7 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 // The plateau's flat top holds a group: twenty cells or more, each level at the plateau's height and
 // none of them water, nearest its middle first.
 func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
 	kinds := map[cell.ID]string{}
 	for _, e := range layout.Cells {
@@ -123,7 +123,7 @@ func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
 }
 
 func TestIslandLayout_RisesToARangeOfPeaksAndAPlateau(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
 	top, plateau, gentle := 0.0, 0, 0
 	for _, e := range layout.Cells {
@@ -153,7 +153,7 @@ func TestIslandLayout_RisesToARangeOfPeaksAndAPlateau(t *testing.T) {
 
 // Rock is steep or high ground, sand lies by the sea or on the lowland and is gentle.
 func TestIslandLayout_PutsEachSoilWhereItBelongs(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
 	for _, e := range layout.Cells {
 		x, y, _ := grid.Coords(e.Cell)
@@ -181,7 +181,7 @@ func TestIslandLayout_PutsEachSoilWhereItBelongs(t *testing.T) {
 
 // A walker reaches every stop from every other: streams are waded, rivers crossed at a ford.
 func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
 	walk := map[cell.ID]bool{}
 	for _, e := range layout.Cells {
@@ -215,7 +215,7 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 
 // Somewhere the running water falls: a cell of it dropping a cell's width or more across it.
 func TestIslandLayout_HasAWaterfall(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
 	for _, w := range layout.Ways {
 		x, y, _ := grid.Coords(w.Cell)
@@ -234,7 +234,7 @@ func TestIslandLayout_HasAWaterfall(t *testing.T) {
 // Brooks, streams and rivers run across the ground, each the wider the more water it carries, each
 // linked on to a neighbour.
 func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, _ := Layout(grid)
 	count, width := map[string]int{}, map[string]float32{}
 	for _, w := range layout.Ways {
@@ -256,7 +256,7 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 // Running water lies ashore and takes on the sea's look down its course, all of it where it
 // reaches the sea (the landscape runs it on into the water, fading).
 func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, _ := Layout(grid)
 	land := map[cell.ID]bool{}
 	for _, e := range layout.Cells {
@@ -274,7 +274,7 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 			heads++
 		}
 		for i := range 8 {
-			if n, ok := board.Toward(grid, w.Cell, i); ok && w.Links&(1<<i) != 0 && !land[n] {
+			if n, ok := grid.Toward(w.Cell, i); ok && w.Links&(1<<i) != 0 && !land[n] {
 				mouths++
 				if w.Mix != 1 {
 					t.Errorf("a %s reaching the sea at %v mixed %v, want all the sea's look", w.Kind, w.Cell, w.Mix)
@@ -290,14 +290,14 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 // Roads run from every stop to the next round the hexagon over land, one network of them, round
 // the rock where they can, and a bridge carries a road over every course it crosses.
 func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
 	soil := map[cell.ID]string{}
 	for _, e := range layout.Cells {
 		soil[e.Cell] = e.Kind
 	}
 	road := map[cell.ID]cell.Links{}
-	course := map[cell.ID]board.WayEntry{}
+	course := map[cell.ID]cell.WayEntry{}
 	for _, w := range layout.Ways {
 		if w.Kind == "road" {
 			road[w.Cell] = w.Links
@@ -340,7 +340,7 @@ func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 			if road[c]&(1<<i) == 0 {
 				continue
 			}
-			if n, ok := board.Toward(grid, c, i); ok && !seen[n] {
+			if n, ok := grid.Toward(c, i); ok && !seen[n] {
 				if _, on := road[n]; on {
 					seen[n] = true
 					queue = append(queue, n)

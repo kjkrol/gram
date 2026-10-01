@@ -11,6 +11,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -35,7 +37,7 @@ type walker struct {
 }
 
 // roughCells is a quarter of the board's cells: one square block, or scattered at random.
-func roughCells(grid board.Grid, scattered bool) []cell.ID {
+func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	var out []cell.ID
 	if !scattered {
 		for y := range uint32(terrainSide / 2) {
@@ -64,8 +66,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 		Entities: world.EntitiesCfg{MaxCount: terrainUnits, MinSize: 10, MaxSize: 10},
 	})
 	c := collision.NewPlugin(w)
-	grid := board.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
-	brd := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	grid := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	v := vision.NewPlugin(w)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
@@ -91,8 +93,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	walkers := kind.Define[walker](w.Kinds(), "walker", kind.Spec{
 		comp.Load(func(r walker) world.Position { return r.pos }),
 		comp.Load(func(r walker) world.Velocity { return r.vel }),
-		comp.Load(func(r walker) board.At { return board.At{Cell: r.cell} }),
-		comp.Const(board.Mover{Domain: cell.Land}),
+		comp.Load(func(r walker) unit.At { return unit.At{Cell: r.cell} }),
+		comp.Const(unit.Mover{Domain: cell.Land}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}), comp.Const(vision.Sighted{}),

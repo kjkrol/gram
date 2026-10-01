@@ -2,17 +2,17 @@ package navigation
 
 import (
 	"github.com/kjkrol/astar"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
 )
 
 // pathFinder computes routes over one grid, reusing its A* solver across
 // calls — build once and share across systems.
 type pathFinder struct {
-	grid      board.Grid
-	terrain   board.Terrain
-	occupancy board.Occupancy
+	grid      grid.Grid
+	terrain   cell.Terrain
+	occupancy cell.Occupancy
 	slopes    slopes
 	ways      ways // the terrain, when it knows its ways; nil, none run
 	solver    *astar.Solver[cell.ID]
@@ -34,7 +34,7 @@ type ways interface {
 }
 
 // newPathFinder builds a pathFinder over grid that respects terrain, its slopes and occupancy.
-func newPathFinder(grid board.Grid, terrain board.Terrain, slopes slopes, occupancy board.Occupancy) *pathFinder {
+func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes slopes, occupancy cell.Occupancy) *pathFinder {
 	p := &pathFinder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
 	p.ways, _ = terrain.(ways)
 	p.solver = astar.New[cell.ID](func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) })

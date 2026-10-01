@@ -9,6 +9,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -34,10 +36,10 @@ type roadUnit struct {
 
 type roadWorld struct {
 	t     *testing.T
-	grid  board.Grid
+	grid  grid.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
-	cell  goke.Comp[board.At]
+	cell  goke.Comp[unit.At]
 	base  goke.Comp[world.Base]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -49,12 +51,12 @@ const roadCell = 32
 
 func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	t.Helper()
-	rw := &roadWorld{t: t, grid: board.DefaultGrids{}.Square(width, 3, roadCell), byRow: map[int]uid.UID64{}}
+	rw := &roadWorld{t: t, grid: grid.DefaultGrids{}.Square(width, 3, roadCell), byRow: map[int]uid.UID64{}}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width * roadCell, Height: 3 * roadCell},
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 22, MaxSize: 22},
 	})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(rw.grid, occupancy, w)
 	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}) // field
@@ -90,14 +92,14 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			profile.MaxSpeed, profile.TurnRate = 144, 0.1
 		}
 		s := kind.Spec{
-			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: board.CellAABB(rw.grid, u.start, 22)} }),
+			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: cellBox(rw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(profile),
-			comp.Load(func(u roadUnit) board.At { return board.At{Cell: u.start} }),
+			comp.Load(func(u roadUnit) unit.At { return unit.At{Cell: u.start} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(domain)),
 			comp.Const(collision.Physics{}),
-			comp.Const(board.Mover{Domain: domain}),
+			comp.Const(unit.Mover{Domain: domain}),
 		}
 		if ordered {
 			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target, Group: u.group} }))

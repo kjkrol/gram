@@ -7,12 +7,13 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 // reliefOf is a level relief over a cols x rows square grid of cells size wide.
-func reliefOf(cols, rows, size uint32) (*Relief, board.Grid) {
-	grid := board.DefaultGrids{}.Square(cols, rows, size)
-	return New(board.NewBoard(grid, board.NewTerrainMap())), grid
+func reliefOf(cols, rows, size uint32) (*Relief, grid.Grid) {
+	grid := grid.DefaultGrids{}.Square(cols, rows, size)
+	return New(board.NewBoard(grid)), grid
 }
 
 // On a ramp rising 1 in 2 eastward a step is priced by the slope of the cell it enters, the way

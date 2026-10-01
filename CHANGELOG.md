@@ -6,20 +6,50 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now.
 
-**A cell is a package of its own**
-- `plugins/board/cell` is what is said of one cell: `cell.ID` (was `board.CellID`), `cell.Kind`
-  (`CellKind`), `cell.Kinds` (`CellKindDict`; `board.Plugin.CellKinds()` in place of
-  `CellKindDict()`), `cell.Name`/`Named`, `cell.Domain` with `cell.Land`, `Water`, `Air`, the cell
-  entity's `cell.Plot` and `cell.Ground`, `cell.Way`, `Crossing`, `Links`, the game's tags of places
-  (`cell.Family`, `cell.Tag`, `cell.Tags`, was `board.Places`) and the moment of a cell, `cell.Now`
-  (was `board.Cell`). The board keeps the grid, `Board`, `Layout`, `Terrain`, `Occupancy`, `Mover`,
-  `At`, `Standing`. Saves made before this do not load: the components' type names changed.
+**The board in parts: an API in packages, its machinery in `internal`**
+- `plugins/board` keeps the `Plugin`, the `Board` (the terrain read and written: `Kind`, `Bare`,
+  `Set`, `SetAll`, `Way`, `SetWay`, `Crossing`, `SetCrossing`, `Along`, the versions, `Touch`),
+  the `Layout`, the `Map` contract and `NewUnits`; the rest is in packages of their own:
+  - `plugins/board/cell`, what is said of one cell: `cell.ID` (was `board.CellID`), `cell.Kind`
+    (`CellKind`), `cell.Kinds` (`CellKindDict`; `board.Plugin.CellKinds()` in place of
+    `CellKindDict()`), `cell.Name`/`Named`, `cell.Domain` with `cell.Land`, `Water`, `Air`, the
+    cell entity's `cell.Plot` and `cell.Ground`, `cell.Way`, `Crossing`, `Links`, the game's tags
+    of places (`cell.Family`, `cell.Tag`, `cell.Tags`, was `board.Places`), the moment of a cell,
+    `cell.Now` (was `board.Cell`), `cell.Terrain` and `cell.TerrainMap` (now with the Layout's
+    tags, `TerrainMap.Tags`), the Layout's `cell.Entry` (was `board.CellEntry`) and
+    `cell.WayEntry`, `cell.Occupancy` with `SingleOccupancy` and `MultipleOccupancy`;
+  - `plugins/board/unit`, an entity on the board: `unit.At`, `unit.Mover`, `unit.DomainAt` and the
+    moment `unit.Standing` (were `board.At`, `Mover`, `DomainAt`, `Standing`);
+  - `plugins/board/grid`, the topology: `grid.Grid`, `grid.DefaultGrids`, `grid.Link` (were
+    `board.Grid`, `DefaultGrids`, `Link`); `board.Toward` is the method `Grid.Toward`;
+    `grid.Shape`/`ShapeOf`, square or hex, in place of `board.SquareShape`, and
+    `Board.Shape()` of `Board.Square()`;
+  - `plugins/board/look`, how a board is drawn: `look.Look`, `Dressing`, `EvenLit`, `Parallel`,
+    `ParallelLook`, `Tile`, `FlatLook`, `Nothing`, `RenderState`, `MinGridCell` (were `board.…`),
+    `look.Map` (the drawing part of `board.Map`) and `look.Renderer`, `look.NewRenderer(b, atlas,
+    m, space)` in place of `board.NewRenderer`; a tile's `Sway` is nothing where nothing stands
+    at a height;
+  - `plugins/board/ground`: `ground.Heights`, `Cover`, `Readied` (were `board.…`).
+- The board's machinery is in `plugins/board/internal`, which nothing outside the board imports:
+  the cells' state and entities (`internal/terrain`), the rules of a `unit.Standing` and of a
+  `cell.Now` with their systems and the board's own rule slowing units by the ground
+  (`internal/rule`), the ground's cover and solid field (`internal/field`), the grids' types
+  (`internal/grids`), the simple map's bands (`internal/draw`), and the release of the holds of
+  whoever left the world, a system of its own now (`internal/occupancy`).
+- The board's ground is a field of its own, inside it: `Board.Walk`, `Ready`, `Solid` and
+  `Overhang` are gone; `Plugin.Cover()` is the cover (a `ground.Readied` too), and
+  `Plugin.WithCollision` hands collision the solid ground.
+- Gone, used by nothing: `Board.SetMany`, `TerrainMap.SetMany`, `Plugin.Top`, `Plugin.Slope`,
+  `Grid.Contains`, `board.CellAABB` (the tests have their own), `board.HexCapStrips`,
+  `Plugin.DefaultAtlas` (`WithRenderer(nil)` still draws from it). `board.Center(pos)` is
+  `pos.Center()`, a method of `world.Position`. `NewBoard(grid)` takes the grid alone.
+- Saves made before this do not load: the components' type names changed.
 
 **Entities behave in one vocabulary: rules, plans, effects, commands, facts**
 - `plugins/world/rule` is how entities behave (`doc/rule.md`). Two constructors, each taking a
   function that writes the steps for a builder (Go 1.27's methods with type parameters). A
   **rule**, `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` — a `plugin.Rule` — is what
-  is done at a moment a plugin catches in its own pass — a `board.Standing` or `Cell`, a
+  is done at a moment a plugin catches in its own pass — a `unit.Standing` or `Cell`, a
   `vision.Sighting`, a `collision.Meeting` or `Struck`, a `world.Moving`, `Leaving` or `Drawing`, a
   `climate.Weathering`, a `clock.Moment`, a `navigation.Touch` — hooked on that plugin; the filter
   says whom it fires for: `rule.All`, `rule.Self(tag)`, `rule.Between(a, b)` (pairs, for a moment
@@ -56,7 +86,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   the board learns of a cell's ground so — in place of `Active.Altered`, `effect.Idle`, the
   `effect.Idling` moment and `host.EachHost.RunRows`. `Active` stays on an entity, empty when no
   effect runs; navigation's `CellEntered` is the marker `navigation.Entered` (the cell is the
-  unit's `board.At`); collision's hit is an effect whose marker `HitOverlay` reads:
+  unit's `unit.At`); collision's hit is an effect whose marker `HitOverlay` reads:
   `hooks.Hit(w, d)` hands back the `effect.Effect`, `ShowHits(hit)` and `HitOverlay(hit, with)`
   take it. Saves made before this do not load (`Active`'s slots changed).
 - `effect.Then(next)` casts the next effect when one's time is up, not when it is dispelled. The
@@ -72,10 +102,10 @@ the topography was split into packages: its heights are `relief.Heights` now.
   `Steering`. `vision.Sight` loses `Seen` to the component `vision.Sighted` and gains `Ahead`, the
   sight looking the way the entity moves (`Sight.Looking`). Saves made before this do not load.
 - `rule.Placed` moments stand on places of their own: `m.Here(step)` acts on the cells under the
-  entity, `m.Around(rings, step)` on the rings of neighbours too, each cell once — `board.Standing`
+  entity, `m.Around(rings, step)` on the rings of neighbours too, each cell once — `unit.Standing`
   is one, and `board.Cell`, every cell at every step while a rule of it is hooked, the board's new
   moment. Moments are data alone: their host tells the places round in `plugin.Tick.Around`. The
-  unit's cell component is `board.At{Cell}` (was `board.Cell{ID}`). A `clock.Moment` is the clock's own entity's (`Moment.Clock`): an effect a clock rule
+  unit's cell component is `unit.At{Cell}` (was `board.Cell{ID}`). A `clock.Moment` is the clock's own entity's (`Moment.Clock`): an effect a clock rule
   applies lands there, a phase.
 - **A player acts by effects**: `selection.Apply{Effect}` puts an effect on the player's own
   selected units (an ability), `world.Apply{Effect}` on the world itself — its own entity, the
@@ -83,8 +113,8 @@ the topography was split into packages: its heights are `relief.Heights` now.
   `During(e, step)` (`plugin.Tick.World`; `rule.New` takes the world's entity). The new
   `trapdoor-demo` (`make demo-trapdoor`): 1 and 2 pull two levers, each opening its own strip of
   trapdoors under whoever stands on it; J hastens the selected scouts. Cells carry the game's tags
-  of places for good, `board.Places`, given in the `Layout` (`CellEntry.Tags`; a `CellEntry`
-  without a `Kind` keeps the default), which rules of a `Cell` filter by (`rule.Self`), and
+  of places for good, `cell.Tags`, given in the `Layout` (`cell.Entry.Tags`; an entry without a
+  `Kind` keeps the default), which rules of a `cell.Now` filter by (`rule.Self`), and
   `Standing.Places` are those of the cell under a unit; the `pressure-plate-demo` (`make
   demo-pressure-plate`) opens each strip while a scout stands on its plate, whoever stands there
   ordering `world.Apply`. The navigation demo's H, opening holes under the units, is gone.
@@ -92,7 +122,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   to its goals in turn and round again, for ever, standing the pause on each; reached or given
   up, it goes on. The demos' wanderers are one kind, each with its own round, in place of a kind
   and a plan a row.
-- `board.Occupancy` lets go of whoever left the world: `Release(gone)`, called by the board every
+- `cell.Occupancy` lets go of whoever left the world: `Release(gone)`, called by the board every
   step. A despawned unit — fallen in, say — kept its holds before, its cell and the one it was
   stepping into, blocking them for good under `SingleOccupancy`.
 - A plugin's own hooks and the ready-made ones are written on `plugin/host` (`host.Each`,
@@ -126,13 +156,13 @@ the topography was split into packages: its heights are `relief.Heights` now.
   are the packages `hooks`: ready-made rules, whole, for a plugin's Hook —
   `hooks.CountContacts(&stats)`, `ShowHits(hit)`, `LogContacts()`, `HitOverlay(hit, with)` (for the
   world), `Chase(tags, every)`, `NewFlee(tags).Rule()`.
-- `world.Despawn`, a command an entity gives itself to leave the world; `board.Standing` carries
+- `world.Despawn`, a command an entity gives itself to leave the world; `unit.Standing` carries
   the entity's `Domain`, `Standing.Fallen()` in place of `Fell(domain)`. The demos' falls and
   drownings are rules ordering `Despawn`; the effect demo's ice is rules keeping `frozen` and
   `slip` with `Keep`.
 - collision: a push apart never puts a unit further over ground that does not take it — water to
   a walker, a hole: the side it would put there holds as at a wall and the other goes the whole
-  way. `collision.Field` has `Overhang(layers, box)`, the board's `Board.Overhang`; ground turning
+  way. `collision.Field` has `Overhang(layers, box)`, the board's field's; ground turning
   to water under a unit still lets it fall in.
 - navigation's crowd is rules, as in StarCraft II, its own and unexported: hooked by the plugin
   unless a game gives its own with `WithCrowd`, and a game adds rules beside them with `Hook`. An
@@ -289,8 +319,8 @@ the topography was split into packages: its heights are `relief.Heights` now.
 **Flat boards and their clouds on the GPU**
 - A flat board seen from above is composed once and kept on the GPU (`render.Still`), composed
   anew only when a cell changes, its grid drawn by a shader; the board demo's CPU drawing went
-  from 3.2 to 0.3 ms a frame at 2560x1440. A `board.Dressing` lighting every tile alike says so
-  with `board.EvenLit`; the ways' and rivers' bands are now lit by the sun as the tiles they lie
+  from 3.2 to 0.3 ms a frame at 2560x1440. A `look.Dressing` lighting every tile alike says so
+  with `look.EvenLit`; the ways' and rivers' bands are now lit by the sun as the tiles they lie
   on.
 - The clouds' shadows over a flat world are one draw on the GPU, their noise worked out every 8
   pixels: 0.6 ms of the GPU at 2560x1440 where they took about 6.5.
@@ -331,8 +361,8 @@ the topography was split into packages: its heights are `relief.Heights` now.
   `steering.Driven.Flown` and the look's rise (`Driven.Climb`, the sine of the pitch), the drive
   system goes as much less along the ground (`Driven.Slope`, 80° at the steepest), and the
   topography's altitude system climbs it by the rise over the run it made in the step. It keeps
-  `board.Mover.Clearance` over the ground, pushed up where the ground rises to it, and stays under
-  `board.Mover.Ceiling` over sea level; its `Lift` follows, so let go it keeps its height over the
+  `unit.Mover.Clearance` over the ground, pushed up where the ground rises to it, and stays under
+  `unit.Mover.Ceiling` over sea level; its `Lift` follows, so let go it keeps its height over the
   ground again. The island's hawk keeps its own height, 20 m, over the ground and stops 100 m
   under the clouds.
 - The island demo's `Sprint` is 4.
@@ -361,7 +391,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   every material registered (render/library.kage, split from compose.kage) — for a source drawing
   itself; no material may be registered after. `render.Direct.Draw` is handed the frame's
   uniforms (`render.Uniforms`, `UniformsOf`), so such a shader reads the sun, the air and the
-  clock the frame set. `board.MinGridCell` is exported; `weather.kage` has `cloudShade`.
+  clock the frame set. `look.MinGridCell` is exported; `weather.kage` has `cloudShade`.
 
 **S brakes, then backs away; the island's units four times slower**
 - A driven entity asked back (`steering.Driven.Ahead` -1: S riding, Down following) brakes to a
@@ -415,7 +445,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   traces every pixel's line of sight over the relief (heightfield.kage) — the heights a lattice
   image of 16 bits a corner, a colour a cell from the kinds' Colors, the ground split into the
   two triangles a tile is, lit by the sun with its shadows cast, hazed towards the Fog as far off
-  as it lies — in place of the tiles, which lay nothing then (`board.Nothing`); what stands on
+  as it lies — in place of the tiles, which lay nothing then (`look.Nothing`); what stands on
   the ground is drawn as before, a billboard the ground hides from the eye left out
   (`Renderer.Hides`). `Config.Heightfield` reaches it and G switches ([`Heightfield`],
   `Plugin.ShowHeightfield`); `Plugin.Renderer` is its renderer, for the scene's composer beside
@@ -433,7 +463,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
 
 **The tiles dressed and the cones scanned on every CPU**
 - The board's renderer dresses the tiles on several goroutines at once when the Map's Dressing
-  is a `board.Parallel` and its Look a `board.ParallelLook` (`board.Plugin.WithWorkers`: 0 every
+  is a `look.Parallel` and its Look a `look.ParallelLook` (`board.Plugin.WithWorkers`: 0 every
   CPU, as it starts; 1 none): every visible tile is Warmed on the frame's goroutine, the dressing
   made Ready, then the tiles are shared out in runs, each drawn by a Worker of the dressing and
   of the look into a frame of its own (`render.Frame.Branch`, `Append`) and appended in order —
@@ -446,7 +476,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   scanner of its own each — its view, its lookup, the cover walked for it — in runs cut across
   the ECS's chunks (a chunk of outlines holds a few); the behaviors then run one observer at a
   time, in order, as before. The board reads every cell's cover at once beforehand
-  (`Board.Ready`, the `board.Readied` contract) rather than cell by cell through the ECS as a ray
+  (its cover's `Ready`, the `ground.Readied` contract) rather than cell by cell through the ECS as a ray
   meets it, and one query settles the space's index first. 500 observers scan in 0.26 ms, 0.49
   with outlines — 0.54 and 1.31 on one goroutine. An outline's shadows are cleared only as far as
   its samples reach.
@@ -499,7 +529,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   one standing gives way to a free cell square off the way, else beside, and comes back; two
   meeting head on, the greater id goes round; a goal someone stands on is settled beside after
   half a second, a passer-by waited for; a corner of a slantwise step held is gone round square.
-  `board.SingleOccupancy.Holder` and `MultipleOccupancy.Holder` tell who holds a cell.
+  `cell.SingleOccupancy.Holder` and `MultipleOccupancy.Holder` tell who holds a cell.
   `MoveOrder.Held` is new (saves change shape). A unit lingering on a goal lets its step's cells
   go, so a yielder no longer holds the cell it left.
 
@@ -572,12 +602,12 @@ the topography was split into packages: its heights are `relief.Heights` now.
   renderer hands its `Look` every entity in white light with its `Appearance.Sway`; the Look —
   a view plugin's, or the atmosphere's — lights it, leans it and lays its shadow. The flat look
   draws as it is.
-- `plugins/board` is the ground: `board.Heights` (a point's height and the sampling step; the
+- `plugins/board` is the ground: `ground.Heights` (a point's height and the sampling step; the
   Map's, `Map.Heights()`, a topography's relief, nil on a flat map; `Plugin.Heights`),
-  `board.Cover` (the Board; `Plugin.Cover`), and `Plugin.WithCollision(c)` hands collision the
+  `ground.Cover` (the Board; `Plugin.Cover`), and `Plugin.WithCollision(c)` hands collision the
   Solid cells as its `collision.Field`. `vision.Plugin.WithBoard(brd)` (or `WithHeights`,
   `WithCover`) has sight follow them; navigation reads the board's heights. A flat board's tiles
-  are drawn as they are; `board.NewRenderer(brd, atlas, m)` takes no sun.
+  are drawn as they are; `look.NewRenderer(brd, atlas, m, world.SpaceCfg{})` takes no sun.
 - `plugins/atmosphere` is the sky. `sky.Sun`, `sky.Lamp`, `sky.DefaultSun` (from world), with
   `Sun.Frame` (the uniforms of `sky/sun.kage`: `Sun`, `SunStrength`, `SunColor`, `SkyColor`,
   `Ambience`, `sunWay()`) and `Sun.Shadow` (an entity's shadow, from the world's renderer);
@@ -637,7 +667,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   flat world from above, the ways and crossings as plain bands in their kinds' colours, a step at
   its kind's cost times the distance. `CellKind.Color` is how a kind looks without an atlas of the
   game's, `CellKindDict.Draw(name, drawer)` a drawn look; `WithRenderer(nil)` draws from the
-  board's own atlas of them (`DefaultAtlas`). `board.FlatLook()` is the flat look for another
+  board's own atlas of them (`DefaultAtlas`). `look.FlatLook()` is the flat look for another
   map to fall back on.
 - The board is flat: its heights, shaping, climbing and the units' altitudes are `plugins/topography`'s.
   `Plot` is the cell alone; `Relief`, `SetRelief`, `SetHeights`, `GroundAt`, `Altitude`,
@@ -820,7 +850,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
 - A flat world is lit too: `world.Plugin.Sunlit()` is true in a world with heights and, in a flat
   one, once something set the sun (`SetSun`) — the sky of a day going by tints the tiles and the
   sprites by the hour, night dark, dawn warm — and `atmosphere.Plugin.Clouds()` lays the clouds'
-  shadows once over the screen. `board.Tile.Light` without a dressing is the sun's light on level
+  shadows once over the screen. `look.Tile.Light` without a dressing is the sun's light on level
   ground where the world is sunlit.
 
 **Movement costs**
@@ -940,7 +970,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
 - `world.Config{Quasi3D: true}` gives a world heights; the default is flat and no plugin guesses
   the mode from the data. Entities carry `world.Z{Altitude, Height}`; a flat world refuses a Z.
 - Board: `CellKind.Altitude` (ground level) and `Height` (what stands on the cell), `Mover.Lift`,
-  `Shape{Size, Height}` for `NewUnits`, `Units.Define(name, board.Mover{Domain, Lift}, …)`. The
+  `Shape{Size, Height}` for `NewUnits`, `Units.Define(name, unit.Mover{Domain, Lift}, …)`. The
   `Board` keeps a raster of altitudes (`Grid.Ordinal`, `GroundAt`) rebuilt when the terrain
   changes and is the world's `Ground`; the board writes every `Z.Altitude` each tick from the
   ground under the entity plus its `Lift`.
@@ -969,14 +999,14 @@ the topography was split into packages: its heights are `relief.Heights` now.
   too. No forest grows on them until plants get a plugin; the forest kind, its snow and its
   swaying stay for it.
 - Running water: `CellKind.Flow` makes a shiny kind run down the slope of its cell, as fast as the
-  Flow by the square root of the slope; `board.Tile.Flow` hands the current at each corner to
+  Flow by the square root of the slope; `look.Tile.Flow` hands the current at each corner to
   `render.Frame.Stream`, whose shader carries ripples and flecks of foam down with it and turns
   it white where it runs fast: rapids and waterfalls.
 - Ways: `board.Way{Kind, Width, Links}`, what runs across a cell over its ground — a stream, a
   river, a road — on every cell entity beside `Plot` and `Ground` (saved, and an effect may alter
   it). Its kind decides who may cross the cell and what it costs (`Way.Over`; `Board.Kind` lays it
   over the ground), the ground keeps the rest. `Board.Way`, `SetWay`, `Layout.Ways`
-  (`WayEntry`), `TerrainMap.Ways`; `board.Link` and `board.Toward` name a neighbour by the grid's
+  (`WayEntry`), `TerrainMap.Ways`; `grid.Link` and `Grid.Toward` name a neighbour by the grid's
   direction, the bits of `Links`. `Tile.Way` cuts it into bands from the cell's middle out to
   halfway to each neighbour it runs on to, the width eased between cells, and a square where it
   turns; `Tile.DrawWay` draws them over the tile, as water running down the band where the kind
@@ -1016,7 +1046,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
   only where the land is, as the grounds round a coast are laid over the water; its look turns
   there too (`Frame.GlazeBlend`: a blended sprite glazed as far as an opacity).
 - `plugins/landscape`: everything a board draws beyond its sprites leaves the board for a landscape
-  (`landscape.NewPlugin(board, world)`), set as the board's `board.Dressing`
+  (`landscape.NewPlugin(board, world)`), set as the board's `look.Dressing`
   (`board.Plugin.SetDressing`; `Tile.Base`, `Tile.Light`, `Tile.FaceLight` ask it, `Tile.Dress`
   lays what lies on a tile): the sun's light on the relief and the terrain's shadows
   (`landscape.Plugin.WithShadows`), grounds blending, coasts, water glinting and running
@@ -1025,12 +1055,12 @@ the topography was split into packages: its heights are `relief.Heights` now.
   kind looks is its `landscape.Style{Shine, Flow, Spread, Under}`, set by name
   (`landscape.Plugin.Style`); `CellKind.Shine`, `Flow`, `Spread`, `Under` and
   `board.Plugin.WithShadows` are gone. A board alone draws its sprites in even light, and a game
-  that never imports the landscape never compiles its shader. `board.NewRenderer`,
-  `Board.Changes`, `Board.Square`.
+  that never imports the landscape never compiles its shader. `look.NewRenderer`,
+  `Board.Changes`, `Board.Shape`.
 - Far off, the landscape dresses the tiles from a ground sheet: under 16 pixels a cell on a square
   grid a tile's blends and ways are painted once (`render.Paint`), 16 pixels a cell below a copy of
   the board's atlas, and drawn as one piece of it (`Frame.SpritePart`); a cell is painted anew when
-  it or a cell round it changes. `board.Dressing.Sheet` hands the renderer the tiles' sheet. A
+  it or a cell round it changes. `look.Dressing.Sheet` hands the renderer the tiles' sheet. A
   way's water eases out between 24 and 16 pixels a cell, and from far its curves are cut in fewer
   pieces where no sheet is painted. The clouds' shadow is laid once over a tile's top, after all
   on it (`Frame.Last`, `Frame.OverlayOn`, `landscape.OvercastOn`), not once per piece. The islands
@@ -1135,8 +1165,8 @@ the topography was split into packages: its heights are `relief.Heights` now.
   isometric projection, camera and billboard are private to the plugin. `camera.Projection.Sorts`
   tells the composer to sort by depth.
 - How things lie on the screen is a swappable `Look`: `world.Look` (`Sprite`, `Drawn` for picking,
-  `Footprint` for outlines; `Plugin.SetLook`, `Look`) and `board.Look` (`Cell`, handed a
-  `board.Tile` with its box, sprite, `Top` and `Beside`; `Plugin.SetLook`, `Look`). The renderers
+  `Footprint` for outlines; `Plugin.SetLook`, `Look`) and `look.Look` (`Cell`, handed a
+  `look.Tile` with its box, sprite, `Top` and `Beside`; `Plugin.SetLook`, `Look`). The renderers
   keep their data and ask the Look for geometry only. `selection.HighlightStyle.Compose(frame,
   footprint)`; `NewSelectionSystem` and `NewRenderer` take the world's Look. Selection, navigation,
   the board and the world renderers no longer test for an isometric camera.
@@ -1144,7 +1174,7 @@ the topography was split into packages: its heights are `relief.Heights` now.
 **Light**
 - `world.Sun` (`Dir`, `Strength`, `Ambient`; `Sun.Light` for a surface's normal), `DefaultSun`,
   `world.Plugin.SetSun`/`Sun`. In a world with heights the board lights every tile per corner from
-  the slope of the ground there and at its neighbours (`board.Tile.Light`, `Tile.FaceLight`), so
+  the slope of the ground there and at its neighbours (`look.Tile.Light`, `Tile.FaceLight`), so
   slopes run on smoothly and a map drawn from above shows its relief; the isometric blocks take the
   same light, and `DefaultSun` keeps their old look. A flat world is drawn as its sprites are.
 - `island-25-demo`: the island of island-isometric-demo, the same Quasi3D world, drawn from above —

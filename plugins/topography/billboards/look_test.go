@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/billboards"
 	"github.com/kjkrol/gram/plugins/topography/cameras"
@@ -32,7 +33,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin) {
 		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
-	b := board.NewPlugin(board.DefaultGrids{}.Square(4, 4, 32), &board.MultipleOccupancy{}, w)
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return w, topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 }

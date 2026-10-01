@@ -32,7 +32,7 @@
 //
 // Game logic that reacts to what a plugin finds is a rule (rule.On), hooked on the
 // plugin it concerns and run inside that plugin's own pass: a rule of a collision.Meeting for
-// every pair of entities it meets, one carrying tag A and the other B; of a board.Standing for
+// every pair of entities it meets, one carrying tag A and the other B; of a unit.Standing for
 // every entity on the board. The payload type says whose the rule is — a Meeting is
 // collision's, a Sighting is vision's — and a plugin refuses one made for another, so hooking in
 // the wrong place is an error, never a silent no-op. What lasts over ticks is a kind's plan, of

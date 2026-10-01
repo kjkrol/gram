@@ -115,7 +115,7 @@ below says what was decided and why, or what needs an answer. Take them out as t
   board's map at once in `NewPlugin`. The shaping commands and bindings moved here from the board.
 - **One camera, two views**: the topography's camera holds a `flat` flag; `View` (Tab) flips it,
   keeping the ground point in the middle of the screen and a cell as wide on the screen as it was
-  (zoom × Cell/TileW). From above the board's tiles lie flat (`board.FlatLook()`) and the world's
+  (zoom × Cell/TileW). From above the board's tiles lie flat (`look.FlatLook()`) and the world's
   entities as the world's own flat look draws them (`world.Plugin.FlatLook()`); isometrically
   blocks and billboards. Turn and Tilt do nothing from above; Follow centres without turning. The
   view is saved with the camera. A game begins from above unless `Config.Isometric`.
@@ -314,7 +314,7 @@ below says what was decided and why, or what needs an answer. Take them out as t
   and paints (the sheets, the stills). The selection's and the goals' outlines and the marquee stay
   2D pieces of the frame on the Marks tier — a handful a frame, drawn by the GPU in one call — like
   the HUD. The board's per-frame tile path stays for cameras not looking from above and dressings
-  that light tiles apart (`board.EvenLit` says which). An observer of a world without heights that
+  that light tiles apart (`look.EvenLit` says which). An observer of a world without heights that
   carries a `SightOutline` keeps its outline: the entities cut its view on the CPU only.
   **Found on the way**: the navigation-vision demos drew no ground since the terrain became a
   Direct (their composers lacked the topography's renderer; fixed); on a wrapping flat board the
@@ -435,7 +435,7 @@ below says what was decided and why, or what needs an answer. Take them out as t
   terrain, and from first person the mountains above the eye vanish. Three causes. (1) The
   colour was one per cell from `Kind.Color`; rivers, roads, bridges and blends are `WayPiece`
   and `BlendPiece` bakes the tiles draw or, from far, paint once on the ground sheet — which
-  holds no bases and, under `board.Nothing`, is never repainted. So the dresser paints a second
+  holds no bases and, under `look.Nothing`, is never repainted. So the dresser paints a second
   sheet, the *albedo*: `groundSheet` with `based`, `newSheet(atlas, based)`, the painter
   (`paint`, `paintAll`, `paintCell`, `lay`, `markWays`) taking the sheet instead of reading
   `l.sheet`, and `layBase` laying `base(c)`'s sprite over the whole cell first, so the sea lies
@@ -493,7 +493,7 @@ below says what was decided and why, or what needs an answer. Take them out as t
   the topography's `worldLook` leaves the billboard out; the cones, routes and shadows are
   overlays on the ground and stay. (4) **The switch.** `Config.Heightfield` makes the renderer
   (`Plugin.Renderer`, nil without) and binds G to the `Heightfield` command; shown, the board's
-  Map gives `board.Nothing` for its Look — the renderer readies the dressing for the frame (the
+  Map gives `look.Nothing` for its Look — the renderer readies the dressing for the frame (the
   sun's and the air's uniforms the billboards need) and lays no tile. Tiles stay the default:
   a strategy beside the old, not in its place. (5) **Not done, and doubts.** The colours are
   the kinds' flat colours: no blends, no water glints, no ways' curves — the ground sheet has
@@ -536,8 +536,8 @@ below says what was decided and why, or what needs an answer. Take them out as t
   topography's drawing could go to the GPU, or failing that be spread over the CPUs, and ordered
   the whole plan in stages. Ebitengine's Kage is fragment shaders only, so the tiles stay on the
   CPU; what is parallel is composing them. (1) **The renderer, not the dresser, shares the work
-  out**, through two contracts: `board.Parallel` (Warm, Ready, Worker) on the Dressing and
-  `board.ParallelLook` (Worker) on the Look — both, or the tiles stay on one goroutine, since a
+  out**, through two contracts: `look.Parallel` (Warm, Ready, Worker) on the Dressing and
+  `look.ParallelLook` (Worker) on the Look — both, or the tiles stay on one goroutine, since a
   look such as a test's records what it sees. Each worker draws into its own `render.Frame`,
   appended in order, so the composer's stable sort sees what one goroutine would have handed
   it: piece for piece the same picture (tested vertex for vertex, from above, isometric, a part
@@ -715,8 +715,8 @@ below says what was decided and why, or what needs an answer. Take them out as t
   it needs both. The world's renderer draws in white light and the `Look` lights: topography's
   look (it imports the leaves and takes an `Atmosphere`, defaulting to `sky.DefaultSun` in still
   air, so `navigation-vision-demo` shades as before) or the atmosphere's wrappers over a flat
-  board (`WithBoard`: the board's Map and the world's Look). The ground: `board.Heights` (the name
-  `Ground` was the cell component's), `board.Cover`, `collision.Field` set by
+  board (`WithBoard`: the board's Map and the world's Look). The ground: `ground.Heights` (the name
+  `Ground` was the cell component's), `ground.Cover`, `collision.Field` set by
   `board.Plugin.WithCollision` (collision cannot import board); sight takes the board with
   `WithBoard`; `control.Context.Ground` goes, the topography's camera being a `Picker`. Entity
   shadows moved from the world's renderer to `sky.Sun.Shadow`, laid by the topography's look.
@@ -1214,8 +1214,8 @@ place of the demos' logs, the names `Here`/`Around`, and the board's cell moment
   `vision.Sight` the knobs, `vision.Sighted` what the scan found. `Course` is a unit's default in
   the roster and given by the steering where missing; `Sighted` only given by vision at the first
   scan, so units without sight do not carry its ~100 bytes. Tests building raw kinds add them.
-- The cell moment was first `board.Lying` (`board.Tile` was taken); it is `board.Cell` now, the
-  unit's cell component renamed `board.At` to free the name (below).
+- The cell moment was first `board.Lying` (`look.Tile` was taken); it is `board.Cell` now, the
+  unit's cell component renamed `unit.At` to free the name (below).
 - `Around(n)` takes in the places stood on (ring 0); a spreading rule keeps off what already
   burns with `Unless`, or a cell keeps itself burning (doc/rule.md says so).
 - `LogFalls` logs once an entity, `LogSightings` once a pair (each keeps a map).
@@ -1248,7 +1248,7 @@ Looking again: the occupancy is navigation's bookings (the cell stood on and the
 and it kept the holds of despawned units for good — four fallen wanderers left eight cells held,
 blocking navigation. So: `Occupancy.Release(gone)`, called by the board's standing pass every step;
 the plate goes through the unit's own moment (`Standing.Places`, the tags of the cell under it), no
-count of the cells; the cell moment is `board.Cell` (the unit's component renamed `board.At`,
+count of the cells; the cell moment is `board.Cell` (the unit's component renamed `unit.At`,
 `gopls rename`), data alone — the user objected to the moments carrying a pointer to the board,
 so the board's neighbourhood comes in `plugin.Tick.Around` and `rule.Placed` is a marker.
 
@@ -1270,7 +1270,58 @@ bits in `cell`, the moment of a cell in `cell` as `cell.Now`, the dictionary `ce
 Done by a script over the qualified names (it also hit fields named `board`, `d.board.Way`,
 put back), the compiler's "undefined" positions inside `board`, and `gopls rename` for local
 variables named `cell` that shadowed the package (`cellAt` for the demos' helpers, `at` for
-`goke.Comp[board.At]`, `here` for the rest); `water`'s queue item type `cell` is `flooded`.
+`goke.Comp[unit.At]`, `here` for the rest); `water`'s queue item type `cell` is `flooded`.
+
+Then the user had the cell systems moved out of `board` too, with what they work on: the system
+making the cells' entities is `cell.EntitySystem` (it was `cellSystem`), the board reading them
+through the `cell.Store` it hands over (was `cellStore`); `cell.Terrain`, `cell.TerrainMap`,
+`cell.Occupancy` with `SingleOccupancy` and `MultipleOccupancy`, the Layout's `cell.Entry` (was
+`CellEntry`) and `cell.WayEntry` went with it. The dictionary's implementation stays in `board`.
+The rules of a cell got a subpackage of their own at the user's word, `plugins/board/rule`
+(`rule.CellSystem`, was `cellRuleSystem` in `cell_rules.go`, a file without the System suffix).
+`cell` must not import `board`: the system takes the grid as a small `cell.Grid` (`CellCount`,
+`Ordinal`, `EachCell`), the seed, and two functions of the board — `bind` (the store) and
+`changed` (the cells an effect changed, counted once per step as before). The Layout's tags,
+kept in `Board.places` till the cells were made, are the seed's now (`TerrainMap.Tags`), so the
+seed alone says what every cell starts as. The standing pass stays in `board`: `Standing`, `At`
+and `Mover` are the board's, and `board/rule` cannot import `board`. (The same day the cell systems and the rules went to `board/internal`, and `Standing`, `At`, `Mover` to `board/unit`: see the next section.)
+
+### board in parts, API apart from internal (2026-10-01)
+
+The user found the board's root a heap of parts and `board/rule` a package whose system showed no
+rules while `terrainSpeed`, a rule, sat in the root; they asked for the parts in packages, an
+inventory of what is still needed, and no wide API: what a game uses in normal packages, the
+machinery in `plugins/board/internal` (the same for the other plugins later). Their choices:
+`board/unit` for `At`, `Mover`, `Standing`; `board/grid`, `board/look`, `board/ground`.
+
+- Public: `board` (Plugin, Board façade, Layout, Map, NewUnits), `cell`, `unit`, `grid`, `look`,
+  `ground`. Internal: `terrain` (the cells' state, seed or entities, the entity system, the counts
+  of changes, the kinds' dictionary), `rule` (`Rules`: the hosts, `StandingSystem()`,
+  `CellSystem()`, `Around`, `TerrainSpeed`), `field` (cover and solid ground), `grids` (the square
+  and hex types), `draw` (the simple map's bands), `occupancy` (the release system). Systems
+  follow the topography's pattern: a part's method returns a private `goke.System`.
+- `Board` first kept `Walk`, `Ready`, `Solid` and `Overhang` as hand-overs to the field, only
+  because the board's tests read them. The user had the tests moved to the packages whose code
+  they test, and that settled it: the field's own tests build it straight (`field.New` over
+  `terrain.Cells`), the ones through the plugin take it from `Plugin.Cover()` as the
+  `collision.Field` it also is, and `Board` lost the four. What the tests share — an installer, a
+  world of world, collision, board and vision, a game of one stage — is `internal/boardtest`; the
+  root keeps the tests of the plugin, `NewUnits`, the simple map and `Along`.
+- `Board.Map` stays public: the renderer's tests (now `look_test`, outside `look`) draw a board by
+  its simple map. `look.Renderer` reads the board through `look.Board`, public methods of `Board`
+  alone (`Shape`, `Kind`, `Bare`, `CellVersion`, `Changes` and the grid); its insides are read by
+  the tests through `export_test.go`, as `billboards` does. `grid.SquareShape` became `grid.Shape`,
+  square or hex, since the grid lines need a hex's size too.
+- `Tile.Sway` no longer asks whether the world has heights: nothing stands at a height in a flat
+  world (a kind with a Height is refused there), and a tile of no height leans nowhere.
+- Inventory: gone `Board.SetMany`, `TerrainMap.SetMany`, `Plugin.Top`, `Plugin.Slope`,
+  `Grid.Contains` (and its test), `CellAABB` (tests' own helpers), `HexCapStrips`,
+  `DefaultAtlas` (private), `extras_test.go` (it tested world's `WithEffect` with board props and
+  no board); `board.Center` is `Position.Center()`; `NewBoard(grid)`. Kept on purpose:
+  `TerrainMap` (navigation's tests use it as a `Terrain`), `NewBoard` (topography's and the
+  renderer's tests), `WithWorkers`, `Parallel`/`ParallelLook`. Stale docs fixed: water's
+  `board.MeanOfCells`/`board.Relief`, CLAUDE.md's `board.Effect`.
+- The demos' row type `unit` clashed with the package: it is `unitRow`.
 
 ## Questions for review
 

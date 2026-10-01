@@ -5,6 +5,8 @@ import (
 
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/render"
@@ -20,7 +22,7 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	if !ok || r.Tier() != render.Ground {
 		t.Fatalf("the renderer is %T, want a render.Direct at the Ground tier", p.Renderer())
 	}
-	if p.Look() != board.Nothing {
+	if p.Look() != look.Nothing {
 		t.Error("over a square grid the board's Look still lays tiles")
 	}
 	for _, bd := range p.DefaultBindings() {
@@ -30,13 +32,13 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	}
 
 	w2 := newWorld(0)
-	hex := board.NewPlugin(board.DefaultGrids{}.Hex(4, 4, 16), &board.MultipleOccupancy{}, w2)
+	hex := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 16), &cell.MultipleOccupancy{}, w2)
 	hex.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	prisms := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	if r, ok := prisms.Renderer().(render.Direct); !ok || r.Tier() != render.Ground {
 		t.Errorf("over a hex grid the renderer is %T, want a render.Direct at the Ground tier", prisms.Renderer())
 	}
-	if prisms.Look() != board.Nothing {
+	if prisms.Look() != look.Nothing {
 		t.Error("over a hex grid the board's Look still lays tiles")
 	}
 }

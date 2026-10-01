@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -22,10 +23,10 @@ type Plugin struct {
 	style       ConeStyle
 	shadow      *Shadow
 	groundStep  float64
-	heights     func() board.Heights // the ground sight follows; nil, flat
-	cover       func() board.Cover   // what holds sight back; nil, nothing
-	hidden      bool                 // the views drawn are hidden, as they start — see Cones
-	workers     int                  // how many goroutines at most share a scan: 0 all the CPUs, 1 none
+	heights     func() ground.Heights // the ground sight follows; nil, flat
+	cover       func() ground.Cover   // what holds sight back; nil, nothing
+	hidden      bool                  // the views drawn are hidden, as they start — see Cones
+	workers     int                   // how many goroutines at most share a scan: 0 all the CPUs, 1 none
 	cones       control.Queue[Cones]
 
 	sightings host.PairHost[Sighting]
@@ -139,19 +140,19 @@ func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
 }
 
 // WithHeights has sight follow the ground heights gives when a scan starts; nil, flat.
-func (p *Plugin) WithHeights(heights func() board.Heights) *Plugin {
+func (p *Plugin) WithHeights(heights func() ground.Heights) *Plugin {
 	p.heights = heights
 	return p
 }
 
 // WithCover has sight held back by the cover cover gives when a scan starts; nil, nothing.
-func (p *Plugin) WithCover(cover func() board.Cover) *Plugin {
+func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
 	p.cover = cover
 	return p
 }
 
 // groundOf is the ground as it stands now, nil without one.
-func (p *Plugin) groundOf() board.Heights {
+func (p *Plugin) groundOf() ground.Heights {
 	if p.heights == nil {
 		return nil
 	}
@@ -159,7 +160,7 @@ func (p *Plugin) groundOf() board.Heights {
 }
 
 // coverOf is the cover as it stands now, nil without one.
-func (p *Plugin) coverOf() board.Cover {
+func (p *Plugin) coverOf() ground.Cover {
 	if p.cover == nil {
 		return nil
 	}

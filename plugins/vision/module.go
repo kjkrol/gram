@@ -6,7 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin/host"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
@@ -19,7 +19,7 @@ type module struct {
 	clock    *clock.Clock // the world's; nil, run at once
 }
 
-func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() board.Cover, workers int) *module {
+func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.sys.coverOf = coverOf
 	m.sys.Workers(workers)
@@ -34,7 +34,7 @@ func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *h
 // heights is what the scan needs of a world with heights: where to find its Ground, and the step the
 // game asked for (0: the Ground's own).
 type heights struct {
-	groundOf func() board.Heights
+	groundOf func() ground.Heights
 	step     float64
 	bend     float64 // how far the ground d off sinks under an eye's level, per d² (world.Scale.Bend)
 }

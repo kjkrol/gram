@@ -11,6 +11,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -56,12 +58,12 @@ type Ground struct {
 	m      board.Map // the relief's map: how high the cells stand, what lies over their tiles
 	relief *relief.Relief
 	sky    Sky
-	grid   board.Grid
+	grid   grid.Grid
 	size   float32 // from a cell's centre to its corner
 	still  *render.Still
-	tiles  *board.Renderer // composes the tiles from above for the still
-	at     [2]uint64       // the board's changes and the relief's version the still holds, 1 more
-	top    *render.Image   // the still drawn, px pixels a world unit
+	tiles  *look.Renderer // composes the tiles from above for the still
+	at     [2]uint64      // the board's changes and the relief's version the still holds, 1 more
+	top    *render.Image  // the still drawn, px pixels a world unit
 	px     float32
 	cells  []float32 // three vec4s a cell: centre and top, the six neighbours' tops
 	opts   render.DrawMeshOptions
@@ -117,7 +119,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("HexSize", h.size)
 	h.set("TopPx", h.px)
 	grid := float32(0)
-	if rs := h.board.Res.Render; rs != nil && rs.ShowGridLines && h.size*cam.Zoom() >= board.MinGridCell {
+	if rs := h.board.Res.Render; rs != nil && rs.ShowGridLines && h.size*cam.Zoom() >= look.MinGridCell {
 		grid = 1
 	}
 	h.set("GridOn", grid)
@@ -146,7 +148,7 @@ func (h *Ground) refresh() bool {
 	ww, wh := float32(space.Width), float32(space.Height)
 	if h.still == nil {
 		h.still = render.NewStill()
-		h.tiles = board.NewRenderer(brd, atlas, fromAbove{h.m})
+		h.tiles = look.NewRenderer(brd, atlas, fromAbove{h.m}, world.SpaceCfg{})
 		h.px = min(topPx, maxTop/ww, maxTop/wh)
 		h.top = render.NewImage(int(math.Ceil(float64(ww*h.px))), int(math.Ceil(float64(wh*h.px))))
 	}
@@ -189,4 +191,4 @@ func (h *Ground) set(name string, v ...float32) {
 // prisms compose once.
 type fromAbove struct{ board.Map }
 
-func (m fromAbove) Look() board.Look { return board.FlatLook() }
+func (m fromAbove) Look() look.Look { return look.FlatLook() }

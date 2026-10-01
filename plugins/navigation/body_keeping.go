@@ -7,8 +7,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -42,21 +43,21 @@ func (openOccupancy) Release(func(uid.UID64) bool)                  {}
 // standing for its routes to go round. A group is given its spots round the point it is sent to.
 type bodyKeeping struct {
 	finder  *pathFinder
-	grid    board.Grid
-	terrain board.Terrain
-	space   *aabbworld.Space     // for the short way round and the world's edges; nil, flat and open
-	ground  func() board.Heights // the board's ground, for steps; nil or giving nil, level
+	grid    grid.Grid
+	terrain cell.Terrain
+	space   *aabbworld.Space      // for the short way round and the world's edges; nil, flat and open
+	ground  func() ground.Heights // the board's ground, for steps; nil or giving nil, level
 	index   bodyIndex
 }
 
 var _ keeping = (*bodyKeeping)(nil)
 
 // newBodyKeeping keeps units apart over finder's grid, in space, on ground.
-func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() board.Heights) *bodyKeeping {
+func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() ground.Heights) *bodyKeeping {
 	return &bodyKeeping{finder: finder, grid: finder.grid, terrain: finder.terrain, space: space, ground: ground, index: bodyIndex{grid: finder.grid}}
 }
 
-func (k *bodyKeeping) occupancy() board.Occupancy { return k.finder.occupancy }
+func (k *bodyKeeping) occupancy() cell.Occupancy { return k.finder.occupancy }
 
 func (k *bodyKeeping) begin(gather func([]body) []body) {
 	k.index.build(gather(k.index.bodies[:0]))

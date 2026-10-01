@@ -1,6 +1,9 @@
 package entity
 
-import "github.com/kjkrol/aabbworld/plane"
+import (
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
+)
 
 // Position is an entity's world-space rectangle — shared by every plugin
 // that places or draws entities (physics, board, ...).
@@ -14,6 +17,11 @@ const StepReach = 0.5
 
 // MaxStep is the furthest this entity moves in a single tick, whatever its Velocity says.
 func (p Position) MaxStep() float64 { return StepReach * min(p.Size.X, p.Size.Y) }
+
+// Center is the middle of the entity's rectangle.
+func (p Position) Center() geom.Vec {
+	return geom.NewVec(p.TopLeft.X+p.Size.X/2, p.TopLeft.Y+p.Size.Y/2)
+}
 
 // MaxSpeed is the fastest this entity can travel, in world units a second, at tps ticks a second.
 func (p Position) MaxSpeed(tps int) float64 { return p.MaxStep() * float64(tps) }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
@@ -36,7 +37,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // the Lift it keeps above the ground), its steering profile and whatever else the game gives its
 // entities. It is kind.Define with the board's part filled in and the world's roster checked; a
 // unit standing off the board panics when spawned.
-func (u *Units[P]) Define(name string, mover Mover, steering steering.Steering, extra ...comp.Comp) kind.Of[P] {
+func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) kind.Of[P] {
 	brd := u.brd.Res.Logic.Board
 	heights := u.brd.worldPlugin.HasHeights()
 	if !heights && mover.Lift != 0 {
@@ -48,12 +49,12 @@ func (u *Units[P]) Define(name string, mover Mover, steering steering.Steering, 
 			c := u.at(row)
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-half, c.Y-half), u.shape.Size, u.shape.Size)}
 		}),
-		comp.Load(func(row P) At {
+		comp.Load(func(row P) unit.At {
 			c, ok := brd.CellAt(u.at(row))
 			if !ok {
 				panic(fmt.Sprintf("board: a %q stands off the board at %v", name, u.at(row)))
 			}
-			return At{Cell: c}
+			return unit.At{Cell: c}
 		}),
 		comp.Const(mover),
 		comp.Const(world.Layers(mover.Domain)),

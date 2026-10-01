@@ -8,18 +8,22 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
+	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 func TestUnits_CarryNoZInAFlatWorld(t *testing.T) {
-	bw, _ := squareWorld(t, mover{})
-	bw.tick()
+	bw, _ := boardtest.SquareWorld(t, boardtest.Mover{})
+	bw.Tick()
 	var z goke.OptComp[world.Z]
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	bw.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Optional(&z).Build() }})
+	bw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Optional(&z).Build() }})
 	for q.All(); q.Next(); {
 		if z.Present(q.Cursor()) {
 			t.Fatal("an entity of a flat world carries a Z")
@@ -44,7 +48,7 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 			Space:    world.SpaceCfg{Width: 128, Height: 128},
 			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: 20},
 		})
-		return w, board.NewPlugin(board.DefaultGrids{}.Square(4, 4, 32), &board.MultipleOccupancy{}, w)
+		return w, board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
 	}
 	at := func(recruit) geom.Vec { return geom.NewVec(48, 48) }
 
@@ -59,13 +63,13 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 	t.Run("a unit with a lift", func(t *testing.T) {
 		_, brd := flat()
 		units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, at)
-		expectPanic(t, "Heights", func() { units.Define("hawk", board.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{}) })
+		expectPanic(t, "Heights", func() { units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{}) })
 	})
 	t.Run("a unit with a Z of its own", func(t *testing.T) {
 		_, brd := flat()
 		units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, at)
 		expectPanic(t, "Heights", func() {
-			units.Define("tower", board.Mover{Domain: cell.Land}, steering.Steering{}, comp.Const(world.Z{Height: 3}))
+			units.Define("tower", unit.Mover{Domain: cell.Land}, steering.Steering{}, comp.Const(world.Z{Height: 3}))
 		})
 	})
 }
@@ -73,8 +77,8 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 // The simple map is flat and prices nothing beyond the kinds: a step and the speed are the kind's.
 func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}})
-	grid := board.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewPlugin(grid, &board.MultipleOccupancy{}, w)
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	m := brd.Map()
 	a, _ := grid.CellIndex(0, 0)
 	b, _ := grid.CellIndex(1, 0)
@@ -84,7 +88,7 @@ func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	if m.Climb(a, b, cell.Land) != 1 || m.Least(cell.Land) != 1 || m.Slope(geom.NewVec(16, 16), geom.NewVec(1, 0), cell.Land) != 1 {
 		t.Error("a simple map prices a step or the speed beyond the kind's cost")
 	}
-	if m.Look() != board.FlatLook() || m.Dressing() == nil {
+	if m.Look() != look.FlatLook() || m.Dressing() == nil {
 		t.Error("a simple map is not seen flat from above with its bands over the tiles")
 	}
 }

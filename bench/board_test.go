@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/cameras"
@@ -42,8 +43,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	})
-	grid := board.DefaultGrids{}.Square(side, side, size)
-	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	grid := grid.DefaultGrids{}.Square(side, side, size)
+	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
@@ -84,8 +85,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	})
-	grid := board.DefaultGrids{}.Square(w, h, size)
-	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	grid := grid.DefaultGrids{}.Square(w, h, size)
+	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}) // the terrain's shadows are the topography's
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
@@ -140,8 +141,8 @@ func Benchmark_Board_Shores(b *testing.B) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	})
-	grid := board.DefaultGrids{}.Square(w, h, size)
-	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	grid := grid.DefaultGrids{}.Square(w, h, size)
+	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}).Style("sea", painter.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
@@ -207,8 +208,8 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384
 	}
 	ctx.UseWorld(cfg)
-	grid := board.DefaultGrids{}.Square(w, h, size)
-	p := board.NewPlugin(grid, &board.MultipleOccupancy{}, ctx.world)
+	grid := grid.DefaultGrids{}.Square(w, h, size)
+	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
 	kinds := p.CellKinds()
 	kinds.Create(
@@ -269,7 +270,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 			case heights(at) > 110:
 				kind = "rock"
 			}
-			layout.Cells = append(layout.Cells, board.CellEntry{Kind: kind, Cell: c})
+			layout.Cells = append(layout.Cells, cell.Entry{Kind: kind, Cell: c})
 		}
 	})
 	layout.Ways = rivers.Net(map[water.Course]string{water.Brook: "stream", water.Stream: "stream", water.River: "stream",

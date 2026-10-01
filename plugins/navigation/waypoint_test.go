@@ -6,8 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -17,7 +18,7 @@ import (
 // commandWorld is a 10x1 board with a Selected unit in flight and a Selected idle unit, driven
 // by the command system alone.
 type commandWorld struct {
-	grid  board.Grid
+	grid  grid.Grid
 	moves *control.Queue[MoveTo]
 	ecs   *goke.ECS
 	order goke.OptComp[MoveOrder]
@@ -29,15 +30,15 @@ type commandWorld struct {
 
 func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
-	cw := &commandWorld{grid: board.DefaultGrids{}.Square(10, 1, 10), moves: &control.Queue[MoveTo]{}}
-	terrain := board.NewTerrainMap()
+	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &control.Queue[MoveTo]{}}
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &board.SingleOccupancy{}), cw.moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &control.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()
 	cw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.At]
+		var cell goke.Comp[unit.At]
 		var pos goke.Comp[world.Base]
 		var sel goke.Comp[tag.Tags[selection.Family]]
 		var order goke.Comp[MoveOrder]
@@ -47,8 +48,8 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		f.Next()
 		sel.Slice(&f.Cursor)[0] = selectedMarks
 		cw.moving = f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.At{Cell: cw.cellAt(0)}
-		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(0), 8)}
+		cell.Slice(&f.Cursor)[0] = unit.At{Cell: cw.cellAt(0)}
+		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(0), 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: cw.oldTarget, Path: Path{Length: 1}}
 
 		g := si.NewFactory(&cell, &pos, &sel)
@@ -56,8 +57,8 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		g.Next()
 		sel.Slice(&g.Cursor)[0] = selectedMarks
 		cw.idle = g.Cursor.IDs[0]
-		cell.Slice(&g.Cursor)[0] = board.At{Cell: cw.cellAt(5)}
-		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(5), 8)}
+		cell.Slice(&g.Cursor)[0] = unit.At{Cell: cw.cellAt(5)}
+		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(5), 8)}
 
 		cw.q = si.NewQueryBuilder(&cell).Optional(&cw.order).Build()
 		cmds.Init(si)

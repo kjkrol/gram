@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -113,7 +112,7 @@ func (s *stage) onStrip(i int) map[uid.UID64]bool {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
-			c, ok := s.brd.CellAt(board.Center(s.base.Slice(cur)[k].Pos))
+			c, ok := s.brd.CellAt(s.base.Slice(cur)[k].Pos.Center())
 			if x, y, _ := s.brd.Coords(c); ok && x >= levers[i].left && x <= levers[i].left+1 && y >= stripTop && y <= stripBottom {
 				out[id] = true
 			}
@@ -167,7 +166,7 @@ func TestLever_OpensItsTrapdoorsUnderWhoeverStandsOnThem(t *testing.T) {
 	if !s.holds(0) {
 		t.Error("a west trapdoor still open after its lever went back")
 	}
-	held, alive := s.board.Occupancy().(*board.SingleOccupancy), s.alive()
+	held, alive := s.board.Occupancy().(*cell.SingleOccupancy), s.alive()
 	s.brd.EachCell(func(c cell.ID) {
 		if id, ok := held.Holder(c, cell.Land); ok && !alive[id] {
 			t.Errorf("cell %d is still held by %d, fallen in and gone", c, id)

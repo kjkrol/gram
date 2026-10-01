@@ -5,8 +5,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -48,7 +48,7 @@ func (b body) member() member {
 // bodyIndex is the tick's bodies, by id and bucketed by the cells their boxes touch: what a unit
 // learns of whoever it struck, and what a unit walked by hand feels just ahead.
 type bodyIndex struct {
-	grid    board.Grid
+	grid    grid.Grid
 	bodies  []body
 	byID    map[uid.UID64]int
 	boxes   [][]int32 // per cell ordinal, the bodies whose box touches the cell

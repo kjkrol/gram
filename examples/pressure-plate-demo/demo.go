@@ -16,7 +16,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -85,7 +87,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // unit is the row every kind spawns from: where it starts and, for a wanderer, the other end of
 // its walk.
-type unit struct{ start, to cell.ID }
+type unitRow struct{ start, to cell.ID }
 
 type mainStage struct {
 	world     *world.Plugin
@@ -101,8 +103,8 @@ type mainStage struct {
 	pressed           []effect.Effect // each group's plate, in the order of groups
 	plates, trapdoors []cell.Tag
 
-	scout    kind.Of[unit]
-	wanderer kind.Of[unit]
+	scout    kind.Of[unitRow]
+	wanderer kind.Of[unitRow]
 	stack    game.Scenes
 }
 
@@ -123,8 +125,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
@@ -139,8 +141,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 
 	// Whoever stands where nothing holds it falls in.
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -152,8 +154,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		plate := s.world.Kinds().DefineTag[cell.Family]("plate " + g.name)
 		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + g.name)
 		if err := s.board.Hook(
-			rule.On("plate "+g.name, rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-				return m.If(func(st board.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
+			rule.On("plate "+g.name, rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+				return m.If(func(st unit.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
 			}),
 			rule.On("trapdoors "+g.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
 				return m.During(pressed, m.Keep(open))
@@ -212,36 +214,36 @@ func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil 
 // nobody's, each walking its row from one side of the meadow to the other and back, over both
 // strips.
 func (s *mainStage) defineKinds() {
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return s.brd.CellCenter(u.start) })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
-	land := board.Mover{Domain: cell.Land}
+	land := unit.Mover{Domain: cell.Land}
 	s.scout = units.Define("scout", land, profile, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile,
-		comp.Load(func(u unit) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
 // Spawn lays the plates and the strips of trapdoors, each cell tagged with its group's, and puts
 // the scouts and the wanderers in place.
 func (s *mainStage) Spawn() error {
 	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for i, g := range groups {
-		cells = append(cells, board.CellEntry{Kind: "plate", Cell: cellAt(g.plate, plateRow), Tags: cell.Tags(0).With(s.plates[i])})
+		cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(g.plate, plateRow), Tags: cell.Tags(0).With(s.plates[i])})
 		trapdoors := cell.Tags(0).With(s.trapdoors[i])
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := g.left; x <= g.left+1; x++ {
-				cells = append(cells, board.CellEntry{Kind: "boards", Cell: cellAt(x, y), Tags: trapdoors})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Tags: trapdoors})
 			}
 		}
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unit{start: cellAt(GridWidth/2-2+2*i, plateRow)}))
+		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(GridWidth/2-2+2*i, plateRow)}))
 	}
 	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unit{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
+		s.world.Seed(s.wanderer.Entry(unitRow{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
 	}
 	return nil
 }

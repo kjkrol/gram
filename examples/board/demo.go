@@ -26,7 +26,9 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -92,7 +94,7 @@ type mainStage struct {
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	unit       kind.Of[unit]
+	unit       kind.Of[unitRow]
 	stack      game.Scenes
 	state      *State
 }
@@ -117,12 +119,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
-	grid := board.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.board.CellKinds().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -208,14 +210,14 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target cell.ID }
+type unitRow struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored: walkers with sight cones.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.unit = units.Define("unit", board.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
 	)
@@ -227,7 +229,7 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(layout)
 	entries := make([]kind.Entry, 0, len(stops))
 	for i, from := range stops {
-		entries = append(entries, s.unit.Entry(unit{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
+		entries = append(entries, s.unit.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
 	}
 	s.world.Seed(entries...)
 	return nil

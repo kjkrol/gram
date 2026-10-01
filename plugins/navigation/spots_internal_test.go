@@ -5,8 +5,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -14,16 +15,16 @@ import (
 // placeRig is a 7 x 5 field of 32-unit cells, land everywhere unless a test says otherwise, kept
 // apart by boxes over a ground as heights says.
 type placeRig struct {
-	grid    board.Grid
-	terrain *board.TerrainMap
+	grid    grid.Grid
+	terrain *cell.TerrainMap
 	keep    *bodyKeeping
 	heights func(p geom.Vec) float64
 }
 
 func newPlaceRig() *placeRig {
-	r := &placeRig{grid: board.DefaultGrids{}.Square(7, 5, 32), terrain: board.NewTerrainMap()}
+	r := &placeRig{grid: grid.DefaultGrids{}.Square(7, 5, 32), terrain: cell.NewTerrainMap()}
 	r.terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() board.Heights {
+	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() ground.Heights {
 		if r.heights == nil {
 			return nil
 		}
@@ -33,7 +34,7 @@ func newPlaceRig() *placeRig {
 	return r
 }
 
-// groundFunc is a board.Heights read off a function.
+// groundFunc is a ground.Heights read off a function.
 type groundFunc func(p geom.Vec) float64
 
 func (g groundFunc) At(p geom.Vec) float64 { return g(p) }

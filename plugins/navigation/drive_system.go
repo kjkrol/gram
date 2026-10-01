@@ -6,8 +6,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -27,13 +27,13 @@ type driveSystem struct {
 	nav *navigationSystem
 
 	query  *goke.Query
-	cell   goke.Comp[board.At]
+	cell   goke.Comp[unit.At]
 	base   goke.Comp[world.Base]
 	steer  goke.Comp[steering.Steering]
 	course goke.Comp[steering.Course]
 	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
-	mover  goke.OptComp[board.Mover]
+	mover  goke.OptComp[unit.Mover]
 	states goke.OptComp[tag.Tags[States]]
 
 	orderID, statesID goke.CompID
@@ -60,7 +60,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		orders, movers, states := s.order.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur)
 		for i, id := range cur.IDs {
 			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
-			domain := board.DomainAt(movers, i)
+			domain := unit.DomainAt(movers, i)
 			facing := in.Face.X != 0 || in.Face.Y != 0
 			if orders != nil {
 				if in.Ahead == 0 && in.Turn == 0 && !facing {
@@ -135,8 +135,8 @@ func backing(st *steering.Steering) float64 {
 
 // follow moves the entity's Cell, and its hold on the occupancy, to the cell under its centre;
 // true when that is another cell.
-func (s *driveSystem) follow(id uid.UID64, cell *board.At, pos world.Position, domain cell.Domain) bool {
-	actual, ok := s.nav.grid.CellAt(board.Center(pos))
+func (s *driveSystem) follow(id uid.UID64, cell *unit.At, pos world.Position, domain cell.Domain) bool {
+	actual, ok := s.nav.grid.CellAt(pos.Center())
 	if !ok || actual == cell.Cell {
 		return false
 	}

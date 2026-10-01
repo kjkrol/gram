@@ -6,8 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -15,9 +16,9 @@ import (
 )
 
 // riverBoard is a 5x3 board with water across the middle row, except a ford at column 4.
-func riverBoard() (board.Grid, *board.TerrainMap) {
-	grid := board.DefaultGrids{}.Square(5, 3, 10)
-	terrain := board.NewTerrainMap()
+func riverBoard() (grid.Grid, *cell.TerrainMap) {
+	grid := grid.DefaultGrids{}.Square(5, 3, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	for x := uint32(0); x < 4; x++ {
 		c, _ := grid.CellIndex(x, 1)
@@ -28,7 +29,7 @@ func riverBoard() (board.Grid, *board.TerrainMap) {
 
 func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	grid, terrain := riverBoard()
-	pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
+	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 
 	path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(0, 2))
@@ -59,19 +60,19 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 }
 
 func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	start, _ := grid.CellIndex(0, 0)
 	lake, _ := grid.CellIndex(8, 0)
 	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 
 	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &board.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
-	var at goke.Comp[board.At]
+	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var mover goke.Comp[board.Mover]
+	var mover goke.Comp[unit.Mover]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var order goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
@@ -82,9 +83,9 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 		f.Create(1)
 		f.Next()
 		selected.Slice(&f.Cursor)[0] = selectedMarks
-		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
-		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
-		mover.Slice(&f.Cursor)[0] = board.Mover{Domain: cell.Land}
+		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
+		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
+		mover.Slice(&f.Cursor)[0] = unit.Mover{Domain: cell.Land}
 		readQuery = si.NewQueryBuilder().Optional(&order).Build()
 		cmds.Init(si)
 	}})
@@ -106,15 +107,15 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 
 func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	const frost = cell.Domain(1 << 3)
-	grid := board.DefaultGrids{}.Square(3, 3, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(3, 3, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | frost})
 	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
 	// The middle row is snow: slow for anyone on foot, a highway for the frost-born.
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))
 	}
-	pf := newPathFinder(grid, terrain, nil, &board.MultipleOccupancy{})
+	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 
 	walker, _ := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(2, 0))
 	for _, step := range walker.Steps[:walker.Length] {

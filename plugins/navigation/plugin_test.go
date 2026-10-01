@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -34,12 +35,12 @@ func (c *stubInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
 func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 
 func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -95,12 +96,12 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 // past the click slop, and moves nothing when the button comes up; a click that shook within the
 // slop is still a click.
 func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -145,12 +146,12 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 // Shift+P issues Routes, which shows the routes drawn and hides them again; the goals are drawn
 // whatever it says.
 func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(5, 5, 10)
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	boardPlugin := board.NewPlugin(grid, &board.SingleOccupancy{}, worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	if err := pl.Local("tester").Bind(navPlugin.DefaultBindings()...); err != nil {

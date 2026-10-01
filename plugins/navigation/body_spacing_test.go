@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -43,11 +45,11 @@ func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
 // their boxes.
 type fieldWorld struct {
 	t     *testing.T
-	grid  board.Grid
+	grid  grid.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
 	base  goke.Comp[world.Base]
-	cell  goke.Comp[board.At]
+	cell  goke.Comp[unit.At]
 	order goke.OptComp[MoveOrder]
 	coll  goke.OptComp[collision.Collider]
 	q     *goke.Query
@@ -65,7 +67,7 @@ func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b 
 // newFieldWorldWith is newFieldWorld with navigation set up by configure before it is used.
 func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
 	t.Helper()
-	fw := &fieldWorld{t: t, grid: board.DefaultGrids{}.Square(cols, rows, fieldCell)}
+	fw := &fieldWorld{t: t, grid: grid.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
 	for _, u := range units {
 		largest = max(largest, uint32(math.Ceil(u.side)))
@@ -75,7 +77,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 1, MaxSize: largest},
 	})
 	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(fw.grid, &board.SingleOccupancy{}, w).WithCollision(c)
+	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithCollision(c)
 	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
 		lay(brd.Res.Logic.Board, fw.at)
@@ -109,11 +111,11 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 			}),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
-			comp.Load(func(u fieldUnit) board.At { c, _ := fw.grid.CellAt(u.at); return board.At{Cell: c} }),
+			comp.Load(func(u fieldUnit) unit.At { c, _ := fw.grid.CellAt(u.at); return unit.At{Cell: c} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(cell.Land)),
 			comp.Const(collision.Physics{}),
-			comp.Const(board.Mover{Domain: cell.Land}),
+			comp.Const(unit.Mover{Domain: cell.Land}),
 		}
 		if u.selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
@@ -189,7 +191,7 @@ func (fw *fieldWorld) centre(i int) (geom.Vec, *MoveOrder) {
 	var order *MoveOrder
 	fw.each(func(id uid.UID64, b *world.Base, _ cell.ID, o *MoveOrder, _ *collision.Collider) {
 		if id == fw.ids[i] {
-			at = board.Center(b.Pos)
+			at = b.Pos.Center()
 			if o != nil {
 				copied := *o
 				order = &copied
@@ -312,7 +314,7 @@ func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 }
 
 func TestBodySpacing_TwoHeadOnPassEachOtherAndOneWalksPastAStandingOne(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	goal0, goal1 := geom.NewVec(9*fieldCell+16, 80), geom.NewVec(16, 80)
 	units := []fieldUnit{
 		{at: goal1, side: 6, order: probe.standAt(goal0)},
@@ -397,7 +399,7 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 // A road east with a longer way round north of it and water south: a unit nearly a cell large
 // standing on the road leaves no room to pass, so the unit on its way east goes round by the north.
 func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStands(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(9, 3, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 3, fieldCell)}
 	road := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 9; x++ {
 			b.Set(at(x, 0), cell.Kind{Cost: 3, Allows: cell.Land})
@@ -415,7 +417,7 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 		t.Errorf("boxes overlap: %v", o)
 	}
 
-	lane := &fieldWorld{grid: board.DefaultGrids{}.Square(9, 1, fieldCell)}
+	lane := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 1, fieldCell)}
 	from, goal, blocker = lane.grid.CellCenter(lane.at(0, 0)), lane.grid.CellCenter(lane.at(8, 0)), lane.grid.CellCenter(lane.at(4, 0))
 	fw = newFieldWorld(t, 9, 1, BodySpacing, nil, []fieldUnit{{at: from, side: 6, order: lane.standAt(goal)}, {at: blocker, side: 28}})
 	settled, _ = fw.run(30 * time.Second)
@@ -436,7 +438,7 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 // way to the late one striking it, the late one takes the point, and the first, back to find its
 // place taken, stands beside it round the same point.
 func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 3, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	goal := probe.grid.CellCenter(probe.at(8, 1))
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{
 		{at: probe.grid.CellCenter(probe.at(0, 1)), side: 6, order: probe.standAt(goal)},
@@ -469,7 +471,7 @@ func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 // A click inside the cell a unit stands on moves it to the point; Shift queues the next point,
 // passed on the way; a LookAt stops a unit on the move where its braking ends and turns it.
 func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 3, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	home := probe.grid.CellCenter(probe.at(1, 1))
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{{at: home, side: 4, selected: true}})
 	inside := geom.NewVec(home.X+9, home.Y-8)
@@ -550,7 +552,7 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 			b.Set(at(x, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 	}
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 3, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	from, goal := geom.NewVec(16, 36), geom.NewVec(9*fieldCell+16, 36)
 	fw := newFieldWorld(t, 10, 3, BodySpacing, shore, []fieldUnit{
 		{at: from, side: 6, order: probe.standAt(goal)},
@@ -574,7 +576,7 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 // One standing in the way of one on the move, struck by it, steps off its way — square to it, not
 // pushed along it — lets it pass and stays there.
 func TestBodySpacing_OneStandingStepsAsideAndStays(t *testing.T) {
-	probe := &fieldWorld{grid: board.DefaultGrids{}.Square(10, 5, fieldCell)}
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	fw := newFieldWorld(t, 10, 5, BodySpacing, nil, []fieldUnit{
 		{at: from, side: 6, order: probe.standAt(goal)},

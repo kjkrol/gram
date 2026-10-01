@@ -8,8 +8,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -21,38 +22,38 @@ import (
 type driveRig struct {
 	t         *testing.T
 	ecs       *goke.ECS
-	grid      board.Grid
-	occupancy *board.SingleOccupancy
+	grid      grid.Grid
+	occupancy *cell.SingleOccupancy
 	walker    uid.UID64
 
-	cell   goke.Comp[board.At]
+	cell   goke.Comp[unit.At]
 	base   goke.Comp[world.Base]
 	steer  goke.Comp[steering.Steering]
 	course goke.Comp[steering.Course]
 	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
 	states goke.OptComp[tag.Tags[States]]
-	mover  goke.OptComp[board.Mover]
+	mover  goke.OptComp[unit.Mover]
 	q      *goke.Query
 }
 
-func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig {
+func newDriveRig(t *testing.T, order *MoveOrder, mover ...unit.Mover) *driveRig {
 	t.Helper()
-	r := &driveRig{t: t, ecs: goke.New(), grid: board.DefaultGrids{}.Square(10, 1, 10), occupancy: &board.SingleOccupancy{}}
-	terrain := board.NewTerrainMap()
+	r := &driveRig{t: t, ecs: goke.New(), grid: grid.DefaultGrids{}.Square(10, 1, 10), occupancy: &cell.SingleOccupancy{}}
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	water, _ := r.grid.CellIndex(6, 0)
 	terrain.Set(water, cell.Kind{Cost: 1, Allows: cell.Water})
 	nav := newNavigationSystem(newPathFinder(r.grid, terrain, nil, r.occupancy), r.grid, terrain, r.occupancy)
 	sys := &driveSystem{nav: nav}
 
-	var at goke.Comp[board.At]
+	var at goke.Comp[unit.At]
 	var base goke.Comp[world.Base]
 	var steer goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var driven goke.Comp[steering.Driven]
 	var ord goke.Comp[MoveOrder]
-	var mov goke.Comp[board.Mover]
+	var mov goke.Comp[unit.Mover]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.course, &r.driven).Optional(&r.order).Optional(&r.states).Optional(&r.mover).Build()
 		comps := []goke.Addable{&at, &base, &steer, &course, &driven}
@@ -67,7 +68,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 		for f.Next() {
 			r.walker = f.Cursor.IDs[0]
 			start, _ := r.grid.CellIndex(2, 0)
-			at.Slice(&f.Cursor)[0] = board.At{Cell: start}
+			at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 			b := &base.Slice(&f.Cursor)[0]
 			b.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(23, 3), 4, 4)}
 			b.Vel.Dir = geom.NewVec(1, 0)
@@ -87,7 +88,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...board.Mover) *driveRig
 }
 
 // with calls fn with the walker's components.
-func (r *driveRig) with(fn func(c *board.At, b *world.Base, st steering.Helm, d *steering.Driven, o *MoveOrder, entered bool)) {
+func (r *driveRig) with(fn func(c *unit.At, b *world.Base, st steering.Helm, d *steering.Driven, o *MoveOrder, entered bool)) {
 	r.q.All()
 	for r.q.Next() {
 		cur := r.q.Cursor()
@@ -100,7 +101,7 @@ func (r *driveRig) with(fn func(c *board.At, b *world.Base, st steering.Helm, d 
 }
 
 func (r *driveRig) drive(in steering.Driven) {
-	r.with(func(_ *board.At, _ *world.Base, _ steering.Helm, d *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, _ steering.Helm, d *steering.Driven, _ *MoveOrder, _ bool) {
 		*d = in
 	})
 	r.ecs.Tick(time.Second / 60)
@@ -108,14 +109,14 @@ func (r *driveRig) drive(in steering.Driven) {
 
 // place puts the walker's centre at (x, 5).
 func (r *driveRig) place(x float64) {
-	r.with(func(_ *board.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		b.Pos.AABB = plane.NewAABB(geom.NewVec(x-2, 3), 4, 4)
 	})
 }
 
 func (r *driveRig) steering() steering.Course {
 	var st steering.Course
-	r.with(func(_ *board.At, _ *world.Base, s steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, s steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st = *s.Course
 	})
 	return st
@@ -166,7 +167,7 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	r.drive(steering.Driven{Ahead: 1})
 	cell3, _ := r.grid.CellIndex(3, 0)
 	cell2, _ := r.grid.CellIndex(2, 0)
-	r.with(func(c *board.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, _ *MoveOrder, entered bool) {
+	r.with(func(c *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, _ *MoveOrder, entered bool) {
 		if c.Cell != cell3 || !entered {
 			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)
 		}
@@ -180,13 +181,13 @@ func TestDrive_AHandEndsAnOrderAndNoHandLetsItGoOn(t *testing.T) {
 	order := &MoveOrder{Target: 8}
 	r := newDriveRig(t, order)
 	r.drive(steering.Driven{})
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, o *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, o *MoveOrder, _ bool) {
 		if o == nil || st.WantSpeed != 0 || st.Want != (geom.Vec{}) {
 			t.Errorf("no hand on an ordered walker: order %v, steering %+v; want the order kept, the steering untouched", o, st)
 		}
 	})
 	r.drive(steering.Driven{Ahead: 1})
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, o *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, o *MoveOrder, _ bool) {
 		if o != nil || st.WantSpeed != 20 {
 			t.Errorf("a hand on an ordered walker: order %v, asks %v; want the order gone, walking on", o, st.WantSpeed)
 		}
@@ -194,8 +195,8 @@ func TestDrive_AHandEndsAnOrderAndNoHandLetsItGoOn(t *testing.T) {
 }
 
 func TestDrive_AHandGivesUpTheCellsTheOrdersStepHeld(t *testing.T) {
-	cell2, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(2, 0)
-	cell3, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(3, 0)
+	cell2, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(2, 0)
+	cell3, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(3, 0)
 	r := newDriveRig(t, &MoveOrder{Target: 8, Leg: Leg{From: cell2, To: cell3, Active: true}})
 	r.occupancy.Enter(cell3, r.walker, cell.Land)
 	r.drive(steering.Driven{Turn: 1})
@@ -222,7 +223,7 @@ func TestDrive_FaceTurnsItToFaceAWay(t *testing.T) {
 	o := r2order(t)
 	o.drive(steering.Driven{Face: geom.NewVec(0, 1)})
 	gone := true
-	o.with(func(_ *board.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, ord *MoveOrder, _ bool) {
+	o.with(func(_ *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, ord *MoveOrder, _ bool) {
 		gone = ord == nil
 	})
 	if !gone {
@@ -232,7 +233,7 @@ func TestDrive_FaceTurnsItToFaceAWay(t *testing.T) {
 
 // r2order is the drive rig with the walker on an order to the far end of the row.
 func r2order(t *testing.T) *driveRig {
-	far, _ := board.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
+	far, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
 	return newDriveRig(t, &MoveOrder{Target: far})
 }
 
@@ -240,7 +241,7 @@ func r2order(t *testing.T) *driveRig {
 // facing as it does — and stops it at the edge behind it.
 func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	r := newDriveRig(t, nil)
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st.Accel, st.Brake, st.V0, st.Speed = 40, 80, 5, 20
 	})
 	r.place(45)
@@ -248,7 +249,7 @@ func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	if st := r.steering(); st.WantSpeed != 0 || st.Speed != 20 {
 		t.Fatalf("S held walking at 20: asks %v, speed %v; want braking, not stopped at once", st.WantSpeed, st.Speed)
 	}
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st.Speed = 0 // braked to a stop
 	})
 	r.drive(steering.Driven{Ahead: -1})
@@ -277,7 +278,7 @@ func (r *driveRig) lift() float64 {
 // W with Shift urges the walker to its Sprint; without one to its top speed alone.
 func TestDrive_SprintsWhereUrged(t *testing.T) {
 	r := newDriveRig(t, nil)
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st.Sprint = 4
 	})
 	r.place(35)
@@ -295,8 +296,8 @@ func TestDrive_SprintsWhereUrged(t *testing.T) {
 // or not; its height is the topography's to change, so the drive leaves its Lift be. Neither a
 // flyer steered from behind nor a walker slows for the look.
 func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
-	r := newDriveRig(t, nil, board.Mover{Domain: cell.Land | cell.Air, Lift: 10}) // over the rig's land
-	r.with(func(_ *board.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
+	r := newDriveRig(t, nil, unit.Mover{Domain: cell.Land | cell.Air, Lift: 10}) // over the rig's land
+	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ *MoveOrder, _ bool) {
 		st.Sprint, st.Speed = 4, 20
 	})
 	r.place(35)
@@ -315,7 +316,7 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	if st := r.steering(); st.WantSpeed != 20 {
 		t.Errorf("steered from behind: asks %v, want its top speed", st.WantSpeed)
 	}
-	w := newDriveRig(t, nil, board.Mover{Domain: cell.Land})
+	w := newDriveRig(t, nil, unit.Mover{Domain: cell.Land})
 	w.place(35)
 	w.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
 	if st := w.steering(); st.WantSpeed != 20 {

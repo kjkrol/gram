@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/network"
 	"github.com/kjkrol/gram/plugins/board/water"
 )
@@ -20,7 +21,7 @@ import (
 // bridges over what they cross (plugins/board/network). What is high and what is low is the heights
 // alone; the ground is earth, sand or rock as they and the coast say — see soil. It gives the
 // board's Layout, the heights for a topography to seed, and the stops.
-func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
+func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 	cellAt := func(x, y int) cell.ID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
 	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy) goes
@@ -125,7 +126,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 	}
 	heights := rivers.Carved(ground)
 
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	soils := map[cell.ID]string{}
 	levels := map[cell.ID]float64{} // the mean of each land cell's corners
 	for y := range GridHeight {
@@ -141,7 +142,7 @@ func Layout(grid board.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 			c := cellAt(x, y)
 			soils[c] = soil(hs, cw, inland(fx, fy), fx, fy)
 			levels[c] = (hs[0] + hs[1] + hs[2] + hs[3]) / 4
-			cells = append(cells, board.CellEntry{Kind: soils[c], Cell: c})
+			cells = append(cells, cell.Entry{Kind: soils[c], Cell: c})
 		}
 	}
 	// running water crosses the ground as a band down the middle of the cell
@@ -274,7 +275,7 @@ func plateau(x, y float64) float64 {
 
 // Plateau is the cells of the plateau's flat top, nearest its middle first: high ground with a
 // steep, ragged edge all round, at the range's western end.
-func Plateau(grid board.Grid) []cell.ID {
+func Plateau(grid grid.Grid) []cell.ID {
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
 	type at struct {
 		c cell.ID

@@ -4,11 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -111,7 +113,7 @@ func (s *stage) strip(i int) map[uid.UID64]bool {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
-			c, ok := s.brd.CellAt(board.Center(s.base.Slice(cur)[k].Pos))
+			c, ok := s.brd.CellAt(s.base.Slice(cur)[k].Pos.Center())
 			if x, y, _ := s.brd.Coords(c); ok && x >= groups[i].left && x <= groups[i].left+1 && y >= stripTop && y <= stripBottom {
 				out[id] = true
 			}
@@ -141,7 +143,7 @@ func (s *stage) scout() uid.UID64 {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
-			if at, ok := s.brd.CellAt(board.Center(s.base.Slice(cur)[k].Pos)); ok {
+			if at, ok := s.brd.CellAt(s.base.Slice(cur)[k].Pos.Center()); ok {
 				if _, y, _ := s.brd.Coords(at); y == plateRow {
 					return id
 				}
@@ -153,7 +155,7 @@ func (s *stage) scout() uid.UID64 {
 
 // put moves the unit id onto cell c.
 func (s *stage) put(id uid.UID64, c cell.ID) {
-	to := board.CellAABB(s.brd, c, EntitySize).TopLeft
+	to := cellBox(s.brd, c, EntitySize).TopLeft
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, at := range cur.IDs {
@@ -204,4 +206,11 @@ func TestPlate_OpensItsTrapdoorsWhileSomeoneStandsOnIt(t *testing.T) {
 	if !s.holds(0) {
 		t.Error("the west trapdoors still open well after the scout stepped off the plate")
 	}
+}
+
+// cellBox is the size x size box centred on cell c.
+func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
+	at := g.CellCenter(c)
+	half := float64(size) / 2
+	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
 }

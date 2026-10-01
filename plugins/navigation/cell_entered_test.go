@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -17,7 +18,7 @@ import (
 type enteredWorld struct {
 	ecs  *goke.ECS
 	id   uid.UID64
-	grid board.Grid
+	grid grid.Grid
 
 	// per-tick observations, refreshed by the observer system
 	entered  map[uid.UID64]cell.ID
@@ -29,12 +30,12 @@ type enteredWorld struct {
 func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks bool) *enteredWorld {
 	t.Helper()
 	ew := &enteredWorld{
-		grid:     board.DefaultGrids{}.Square(w, h, legCellSize),
+		grid:     grid.DefaultGrids{}.Square(w, h, legCellSize),
 		entered:  map[uid.UID64]cell.ID{},
 		hasOrder: map[uid.UID64]bool{},
 	}
-	occupancy := &board.SingleOccupancy{}
-	terrain := board.NewTerrainMap()
+	occupancy := &cell.SingleOccupancy{}
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 
 	steer := newNavigationSystem(
@@ -44,12 +45,12 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 
 	var statesComp goke.OptComp[tag.Tags[States]]
 	var orderComp goke.OptComp[MoveOrder]
-	var cellComp goke.Comp[board.At]
+	var cellComp goke.Comp[unit.At]
 	var enteredQ, orderQ *goke.Query
 
 	ew.ecs = goke.New()
 	ew.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var at goke.Comp[board.At]
+		var at goke.Comp[unit.At]
 		var pos goke.Comp[world.Base]
 		var order goke.Comp[MoveOrder]
 		var profile goke.Comp[steering.Steering]
@@ -62,8 +63,8 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 		f.Create(1)
 		f.Next()
 		ew.id = f.Cursor.IDs[0]
-		p := world.Position{AABB: board.CellAABB(ew.grid, start, legEntitySize)}
-		at.Slice(&f.Cursor)[0] = board.At{Cell: start}
+		p := world.Position{AABB: cellBox(ew.grid, start, legEntitySize)}
+		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = p
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
@@ -126,7 +127,7 @@ func TestEntered_ReportsEveryCellOnTheWayToTheTarget(t *testing.T) {
 }
 
 func enteredOnTheWay(t *testing.T, marks bool) {
-	grid := board.DefaultGrids{}.Square(6, 1, legCellSize)
+	grid := grid.DefaultGrids{}.Square(6, 1, legCellSize)
 	start, _ := grid.CellIndex(0, 0)
 	target, _ := grid.CellIndex(3, 0)
 	ew := newEnteredWorld(t, 6, 1, start, target, marks)

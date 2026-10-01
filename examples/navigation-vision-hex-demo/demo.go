@@ -14,6 +14,8 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -91,8 +93,8 @@ type mainStage struct {
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	unitTag    tag.Tag[units]
-	kinds      []kind.Of[unit]
-	hawk       kind.Of[unit]
+	kinds      []kind.Of[unitRow]
+	hawk       kind.Of[unitRow]
 	stack      game.Scenes
 }
 
@@ -114,8 +116,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize}) // the hills in relief, seen from above
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
@@ -185,7 +187,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target cell.ID }
+type unitRow struct{ start, target cell.ID }
 
 var unitColors = []color.RGBA{
 	{R: 220, G: 90, B: 90, A: 255},
@@ -199,20 +201,20 @@ var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
 	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
-		s.kinds = append(s.kinds, units.Define(name, board.Mover{Domain: cell.Land}, scout, order,
+		s.kinds = append(s.kinds, units.Define(name, unit.Mover{Domain: cell.Land}, scout, order,
 			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 			sight, eye(1.5), comp.Tagged(s.unitTag)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
-	s.hawk = units.Define("hawk", board.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
+	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
 		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye(1), comp.Tagged(s.unitTag))
 }
@@ -224,17 +226,17 @@ func (s *mainStage) Spawn() error {
 
 	// A wall down the q = wallCol column with a gap at r = gapRow, a forest either side of the
 	// gap, and a road along r = 0 with both flanks.
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for r := uint32(1); r < GridHeight; r++ {
 		if r == gapRow {
 			continue
 		}
-		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(wallCol, r)})
 	}
 	for _, f := range [][2]uint32{{5, 4}, {13, 8}} {
 		for dr := uint32(0); dr < 3; dr++ {
 			for dq := uint32(0); dq < 3; dq++ {
-				cells = append(cells, board.CellEntry{Kind: "forest", Cell: cellAt(f[0]+dq, f[1]+dr)})
+				cells = append(cells, cell.Entry{Kind: "forest", Cell: cellAt(f[0]+dq, f[1]+dr)})
 			}
 		}
 	}
@@ -242,15 +244,15 @@ func (s *mainStage) Spawn() error {
 	for dr := uint32(2); dr <= 4; dr++ {
 		for dq := uint32(8); dq <= 10; dq++ {
 			if dq != wallCol {
-				cells = append(cells, board.CellEntry{Kind: "hill", Cell: cellAt(dq, dr)})
+				cells = append(cells, cell.Entry{Kind: "hill", Cell: cellAt(dq, dr)})
 			}
 		}
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cellAt(roadLeft, r)}, board.CellEntry{Kind: "road", Cell: cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(roadLeft, r)}, cell.Entry{Kind: "road", Cell: cellAt(roadRight, r)})
 	}
 	hills := map[cell.ID]bool{}
 	for _, e := range cells {
@@ -266,11 +268,11 @@ func (s *mainStage) Spawn() error {
 	s.topography.Seed(heights)
 
 	s.world.Seed(
-		s.kinds[0].Entry(unit{start: cellAt(3, 3), target: cellAt(GridWidth-4, 3)}),
-		s.kinds[1].Entry(unit{start: cellAt(3, 9), target: cellAt(GridWidth-4, 9)}),
-		s.kinds[2].Entry(unit{start: cellAt(GridWidth-4, gapRow), target: cellAt(3, gapRow)}),
+		s.kinds[0].Entry(unitRow{start: cellAt(3, 3), target: cellAt(GridWidth-4, 3)}),
+		s.kinds[1].Entry(unitRow{start: cellAt(3, 9), target: cellAt(GridWidth-4, 9)}),
+		s.kinds[2].Entry(unitRow{start: cellAt(GridWidth-4, gapRow), target: cellAt(3, gapRow)}),
 		// The hawk crosses the wall and the second forest head-on.
-		s.hawk.Entry(unit{start: cellAt(1, 9), target: cellAt(GridWidth-2, 9)}),
+		s.hawk.Entry(unitRow{start: cellAt(1, 9), target: cellAt(GridWidth-2, 9)}),
 	)
 	return nil
 }

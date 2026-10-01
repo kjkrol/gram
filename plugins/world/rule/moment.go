@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// About is a moment of one entity: whose it is. A host's payload — a board.Standing, a
+// About is a moment of one entity: whose it is. A host's payload — a unit.Standing, a
 // vision.Sighting, a collision.Struck, a clock.Moment (the clock's own entity) — is one; on a moment
 // of no entity steps acting on one fail.
 type About interface{ Who() uid.UID64 }

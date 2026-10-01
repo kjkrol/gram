@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/billboards"
 	"github.com/kjkrol/gram/plugins/topography/cameras"
@@ -156,7 +158,7 @@ func (s boardSurface) Surface() terrain.Painted {
 	}
 	out.Shores, out.Reach, out.Coast = d.Coast()
 	if rs := s.p.boardPlugin.Res.Render; rs != nil && rs.ShowGridLines {
-		out.Grid = board.MinGridCell
+		out.Grid = look.MinGridCell
 	}
 	return out
 }
@@ -245,15 +247,15 @@ func (p *Plugin) Populate() error {
 // =================================================================
 
 // Look is how the board's cells lie on the screen: no tiles at all, the ground drawn on the GPU
-// (board.Nothing) — a mesh of the heights over a square grid, prisms over a hex one.
-func (p *Plugin) Look() board.Look { return board.Nothing }
+// (look.Nothing) — a mesh of the heights over a square grid, prisms over a hex one.
+func (p *Plugin) Look() look.Look { return look.Nothing }
 
 // Dressing is what lies over the tiles: the light on the relief and the terrain's shadows, the
 // grounds blending, coasts, water, the ways, the clouds' shadows.
-func (p *Plugin) Dressing() board.Dressing { return p.painter }
+func (p *Plugin) Dressing() look.Dressing { return p.painter }
 
 // relief.Heights is the relief: the ground's height at any point, for sight and navigation.
-func (p *Plugin) Heights() board.Heights { return p.relief }
+func (p *Plugin) Heights() ground.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
 func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) {

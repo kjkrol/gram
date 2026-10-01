@@ -12,7 +12,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -74,7 +76,7 @@ type mainStage struct {
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
-	red, blue kind.Of[unit]
+	red, blue kind.Of[unitRow]
 	stack     game.Scenes
 	state     *State
 }
@@ -96,11 +98,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.registerCellKinds()
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[board.Standing]) rule.Step {
-		return m.If(board.Standing.Fallen, m.Order(world.Despawn{}))
+	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
 	}
@@ -187,44 +189,44 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
-type unit struct{ start, target cell.ID }
+type unitRow struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unit](s.board, board.Shape{Size: EntitySize}, func(u unit) geom.Vec { return brd.CellCenter(u.start) })
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	own := []comp.Comp{
-		comp.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 	}
-	s.red = units.Define("red", board.Mover{Domain: cell.Land}, profile, own...)
-	s.blue = units.Define("blue", board.Mover{Domain: cell.Land}, profile, own...)
+	s.red = units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
+	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
 // Spawn says who is there when the game starts fresh.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for y := uint32(2); y < GridHeight; y++ {
-		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(wallCol, y)})
+		cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(wallCol, y)})
 	}
-	cells = append(cells, board.CellEntry{Kind: "hole", Cell: cell(6, 4)}, board.CellEntry{Kind: "hole", Cell: cell(17, 12)})
+	cells = append(cells, cell.Entry{Kind: "hole", Cell: cellAt(6, 4)}, cell.Entry{Kind: "hole", Cell: cellAt(17, 12)})
 	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(x, roadTop)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, roadTop)})
 	}
 	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(roadLeft, y)}, board.CellEntry{Kind: "road", Cell: cell(roadRight, y)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(roadLeft, y)}, cell.Entry{Kind: "road", Cell: cellAt(roadRight, y)})
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.red.Entry(unit{start: cell(2, 4), target: cell(GridWidth-3, 4)}),
-		s.blue.Entry(unit{start: cell(2, 12), target: cell(GridWidth-3, 12)}),
+		s.red.Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}),
+		s.blue.Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}),
 	)
 	return nil
 }

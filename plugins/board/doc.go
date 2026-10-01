@@ -1,141 +1,111 @@
-// Package board lays a square or hex grid over the game world, with per-cell terrain
-// (passability, movement cost, sprite) and occupancy tracking. Entities on the board
-// move at the terrain's cost, solid cells push them out and veiled ones dim sight, and
-// plugins/navigation builds pathfinding on top.
+// Package board lays a square or hex grid over the game world, with per-cell terrain (who may
+// pass, what a step costs, how it looks) and occupancy. Entities on the board move at the
+// terrain's cost, solid cells push them out and veiled ones dim sight, and plugins/navigation
+// builds pathfinding on top.
 //
-// # Board, Grid and Layout
+// # Packages
 //
-// A [Grid] is a topology behind neighbor, coordinate and distance queries; [DefaultGrids] makes a
-// square or a hex one, and each wraps per axis following the world's edges. A [Board] is a Grid
-// with its terrain, the one place to read the topology and read or write terrain. [Plugin], built
-// over a Grid, an [Occupancy] and the world plugin, seeds its terrain from a [Layout] (a default
-// kind for every cell, per-cell overrides, and the heights) when the Stage starts fresh, and slows
-// every entity carrying a [Mover] by the terrain under it (a Moving hook of its own on the
-// world). Every step it tells the rules of a [Standing] hooked on it ([Plugin.Hook]) where
-// each entity stands: the cell, its kind and the game's tags of its place, the entity's box and
-// domain — [Standing.Fallen] where the domain may not be, a unit pushed into the sea — and the
-// rules of a cell.Now every cell: its entity, which cell, its kind now. Both are rule.Placed, data
-// alone: the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a
-// rule's Here acts on the cells under the entity (a cell itself), its Around on the rings of
-// neighbours round them too — a witch's frost, fire spreading over the ground. A cell carries for
-// good the game's tags of places (cell.Tag: a trapdoor, a plate, a zone), given in the Layout
-// ([CellEntry].Tags), which rules of a cell.Now filter by (rule.Self) and a Standing tells
-// (Standing.Places: a plate under the unit). Ready-made hooks are in plugins/board/hooks.
+// What a game uses is this package and its public subpackages; the board's own machinery — the
+// cells' state and entities, the systems running the rules, the ground's field, the simple map's
+// bands — is in plugins/board/internal, which nothing outside the board imports.
 //
-// # Cells, At and Terrain
+//   - board: the [Plugin]; the [Board], a grid and its terrain, the one place to read and write
+//     it; the [Layout] it is seeded from; its [Map]; [NewUnits] for a game's kinds of units.
+//   - cell: what is said of one cell — its id and kind, the domains it admits, its ground, way and
+//     crossing, the game's tags of places, the moment of it (cell.Now), its occupancy.
+//   - unit: an entity on the board — the cell it is At, how it moves (Mover), where it stands at a
+//     step (Standing).
+//   - grid: the topology — a Grid, DefaultGrids, the Link from a cell to its neighbour, a Shape.
+//   - look: how the board is drawn — a Look, a Dressing, a Tile, the Renderer.
+//   - ground: what its ground is to the other plugins — Heights, Cover, Readied.
+//   - hooks, network, water: ready-made hooks; ways across the board; the rivers of a relief.
 //
-// What is said of one cell — its cell.ID, its cell.Kind, the cell.Domain values it admits, its
-// tags, the way across it — is the subpackage cell (plugins/board/cell); the board lays the grid of
-// them. [At] is an entity's current cell. A kind is a named terrain: its movement cost, whom it
-// admits, whether it is solid (a wall) or how much it veils sight (a forest), and the sprite
-// drawn for it; kinds are created through [Plugin.CellKinds]. Cost 1 is full speed
-// and the cheapest step — a road; above 1 slows and costs more to plan through — the ground off a
-// road, the islands' at 2.5. cell.Kind.Costing prices a kind differently for some domains —
-// elves through a forest, a witch over snow — and cell.Kind.CostFor is what an entity pays: the
-// cheapest of its domains the kind admits and prices, else Cost. A Graded kind — a road, a bridge, built up and cut into
-// the slope — is not slowed by the slope under it, nor priced by it in a route: its Cost is the
-// whole price. [Terrain] is what a cell answers about itself.
+// # Board, Layout and kinds
+//
+// [Plugin], built over a grid.Grid, a cell.Occupancy and the world plugin, seeds its terrain from
+// a [Layout] when the Stage starts fresh: a default kind for every cell, per-cell overrides with
+// the game's tags of places, the ways and the crossings. The grid wraps per axis following the
+// world's edges. Once the ECS is set up every cell is an entity for good — cell.Plot, cell.Ground,
+// cell.Way, cell.Crossing — saved with the game, so an effect on it is an effect on the terrain.
+//
+// A kind is a named terrain: its movement cost, whom it admits, whether it is solid (a wall) or
+// how much it veils sight (a forest), and the sprite drawn for it; kinds are created through
+// [Plugin.CellKinds]. Cost 1 is full speed and the cheapest step — a road; above 1 slows and costs
+// more to plan through — the ground off a road, the islands' at 2.5. cell.Kind.Costing prices a
+// kind differently for some domains — elves through a forest, a witch over snow — and
+// cell.Kind.CostFor is what an entity pays: the cheapest of its domains the kind admits and
+// prices, else Cost. A Graded kind — a road, a bridge, built up and cut into the slope — is not
+// slowed by the slope under it, nor priced by it in a route: its Cost is the whole price.
+// cell.Terrain is what a cell answers about itself; the Board is one.
+//
+// # Rules
+//
+// Every step the board runs the rules hooked on it ([Plugin.Hook]): of a unit.Standing for every
+// entity on the board — the cell under it, its kind and the game's tags of its place, its box and
+// domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
+// cell.Now for every cell: its entity, which cell, its kind now. Both are rule.Placed, data alone:
+// the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
+// Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
+// round them too — a witch's frost, fire spreading over the ground. Rules of a cell.Now filter
+// cells by the game's tags of places (rule.Self: a trapdoor, a plate, a zone), and a Standing
+// tells those of the cell under a unit (Standing.Places). The board slows every entity carrying a
+// unit.Mover by the ground under it, a Moving rule of its own on the world. Ready-made hooks are
+// in plugins/board/hooks.
 //
 // # Ways
 //
 // A cell.Way is what runs across a cell over its ground — a brook, a river, a road: a band Width
-// wide from the cell's middle out towards each neighbour its cell.Links name, a bit for each of the grid's
-// directions ([Link] finds the bit for a neighbour, [Toward] the neighbour for a bit). Every cell
-// entity carries one beside its Plot and Ground, the zero Way where nothing runs, so it is saved
-// with the cell and an effect may alter it — a stream freezing over. Its kind decides who may cross
-// the cell and what it costs there (cell.Way.Over; [Board.Kind] is the ground as whoever crosses it
-// meets it), the ground keeps the rest: whether it is solid, what it veils. [Board.Way] and
-// [Board.SetWay] read and write it, [Layout.Ways] seeds it; [Board.Along] tells a step along a way
-// — the way links the two cells — from one over the ground beside it, and [Board.Bare] is that
-// ground, the cell's kind bare of the way, which is how a route follows a road round its bend
-// instead of cutting the corner; the Map draws it as a band through the
-// cell's middle — plain on the simple map, water and roads in relief on a topography's. [Board.CellVersion] counts the changes to each cell alone
-// — its kind, its way, its heights, an effect on it — and [Board.Changes] to them all, so whoever
-// keeps something worked out of a cell knows when it is stale.
+// wide from the cell's middle out towards each neighbour its cell.Links name, a bit for each of
+// the grid's directions (grid.Link finds the bit for a neighbour, Grid.Toward the neighbour for a
+// bit); a cell.Crossing — a bridge — runs over it. Every cell entity carries both, the zero ones
+// where nothing runs, so an effect may alter them — a stream freezing over. The way decides who
+// may cross the cell and what it costs there, the crossing lets whoever it admits over too, the
+// ground keeps the rest: whether it is solid, what it veils ([Board.Kind]). [Board.Way],
+// [Board.SetWay], [Board.Crossing] and [Board.SetCrossing] read and write them, [Layout.Ways] and
+// [Layout.Crossings] seed them; [Board.Along] tells a step along a way from one over the ground
+// beside it, and [Board.Bare] is that ground, which is how a route follows a road round its bend
+// instead of cutting the corner. [Board.CellVersion] counts the changes to each cell alone — its
+// kind, its way, its heights, an effect on it — and [Board.Changes] to them all, so whoever keeps
+// something worked out of a cell knows when it is stale.
 //
 // # Heights and slopes
 //
-// The board is flat. What is high, steep or in relief is its [Map]'s: plugins/topography keeps
-// the ground's heights, shapes them, prices every slope and lights the tiles by them, and the
-// board asks it — [Map.Top] for a cell's corners and level, [Map.Climb], [Map.Least] and
-// [Map.Slope] for what a step and the speed cost beyond the kind's ([Plugin.Top], [Plugin.Climb],
-// [Plugin.Least], [Plugin.Slope] delegate). A cell.Kind's Height is what stands on the cell — a
-// wall, a forest — in a world with heights (world.Config.Heights); a flat world refuses one, and its
-// units carry no Z. Whoever changes a cell beyond the board — the topography shaping its corners
-// — says so with [Board.Touch], so the cell's version moves and whatever was worked out of it is
-// read anew.
+// The board is flat. What is high, steep or in relief is its [Map]'s: plugins/topography keeps the
+// ground's heights, shapes them, prices every slope and lights the tiles by them, and the board
+// asks it — Map.Top for a cell's corners and level, [Map.Climb], [Map.Least] and [Map.Slope] for
+// what a step and the speed cost beyond the kind's ([Plugin.Climb] and [Plugin.Least] delegate).
+// A cell.Kind's Height is what stands on the cell — a wall, a forest — in a world with heights
+// (world.Config.Heights); a flat world refuses one, and its units carry no Z. Whoever changes a
+// cell beyond the board — the topography shaping its corners — says so with [Board.Touch], so the
+// cell's version moves and whatever was worked out of it is read anew.
 //
-// # Occupancy
+// # Ground and occupancy
 //
-// The board is the ground: [Heights] is the height of the ground at a point, the Map's — a
-// topography's relief — and nil on a flat map ([Plugin.Heights]); [Cover] is what stands on the
-// board and holds sight back, the Board itself ([Plugin.Cover]); and the Solid cells are the solid
-// ground collision pushes colliders out of, the cells a kind does not take ([Board.Overhang]) the
-// ground it never pushes one over ([Plugin.WithCollision], collision.Field). Sight takes
-// them with vision.Plugin.WithBoard. The world knows none of it: it knows its entities.
+// The board is the ground: ground.Heights is the height of the ground at a point, the Map's — a
+// topography's relief — and nil on a flat map ([Plugin.Heights]); ground.Cover is what stands on
+// the board and holds sight back ([Plugin.Cover], a ground.Readied too); and the Solid cells are
+// the solid ground collision pushes colliders out of, the cells a kind does not take the ground it
+// never pushes one over (a collision.Field, [Plugin.WithCollision]). The board's field, inside it,
+// is both. Sight takes them with vision.Plugin.WithBoard. The world knows none of it: it
+// knows its entities.
 //
-// [Occupancy] tracks who holds each cell and in which domains, gating and recording every step
-// navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart by
-// their boxes leave it unasked): [SingleOccupancy] lets one entity per domain into a cell (a walker and a
-// hawk share one, two walkers do not), [MultipleOccupancy] any number — tokens on a square, which
-// carry no Physics, since bodies cannot overlap. A hold is a booking: the cell a unit stands on
-// and the one it steps into. The board lets go of the holds of whoever left the world, every step
-// (Occupancy.Release), so one fallen in blocks no cell. A Solid cell stops only whoever its kind
-// keeps out, so a wall admitting Air lets a flyer over.
+// A cell.Occupancy tracks who holds each cell and in which domains, gating and recording every
+// step navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart
+// by their boxes leave it unasked): cell.SingleOccupancy lets one entity per domain into a cell (a
+// walker and a hawk share one, two walkers do not), cell.MultipleOccupancy any number — tokens on
+// a square, which carry no Physics, since bodies cannot overlap. A hold is a booking: the cell a
+// unit stands on and the one it steps into. The board lets go of the holds of whoever left the
+// world, every step (cell.Occupancy.Release), so one fallen in blocks no cell. A Solid cell stops
+// only whoever its kind keeps out, so a wall admitting Air lets a flyer over.
 //
-// # Map and Renderer
+// # Drawing
 //
-// A [Map] is what the board is drawn and priced by beyond what its cells say: how the cells lie on
-// the screen ([Look]), what lies over them beyond their sprites ([Dressing]), how high they stand
-// and what a step costs. The board's own is the simple map: a flat world seen from above
-// ([FlatLook]), every kind in its Color or drawn sprite, the ways and the crossings as plain bands
-// in their kinds' colours, a step at its kind's cost times the distance. [Plugin.WithMap] puts
-// another in — plugins/topography, a map in relief — and [Plugin.Map] is the one in use.
-//
-// How a kind looks is its Color, or a sprite drawn for it (cell.Kinds.Draw), or
-// whatever the game's own atlas has at its SpriteID: [Plugin.WithRenderer] takes the atlas, and
-// given nil draws from the board's own ([Plugin.DefaultAtlas]), a cell's size each.
-//
-// [Plugin.WithRenderer] builds the [Renderer], a render.Source for a scene's render.Composer
-// ([NewRenderer] for a board no plugin runs): it reads each visible cell and hands it, as a [Tile]
-// — its box, its sprite, its kind — to the Map's Look, which lays it on the render.Ground tier:
-// from above its sprite over its box, or as the Map has it. A kind with a Sway — trees, set by an
-// effect when the wind blows — leans its top with the wind ([Tile.Sway]). A flat map seen from
-// above whose Dressing lights every tile alike ([EvenLit]: the simple map's, a sky's over it) is
-// composed once instead, every cell, and kept on the GPU (render.Still), composed anew only when
-// a cell changes ([Board.Changes]); the renderer, a render.Direct at the Ground tier, draws it every
-// frame in the Dressing's light, again past a wrapping world's seam, and the grid over it on the
-// GPU. A Map in relief draws its ground itself (plugins/topography) and its Look lays nothing
-// ([Nothing]).
-//
-// Over a cell's ground may run a [Way] — a river, a road — and over that a [Crossing] — a bridge:
-// the way decides who may cross the cell and at what cost, the crossing lets whoever it admits
-// over too, the water running on under it ([Board.Kind]).
-//
-// The Map's Dressing lays what lies on the tiles beyond their sprites: the renderer hands it each
-// frame first and takes from it the sheet the tiles are drawn from ([Tile].Atlas: the board's
-// atlas or a sheet of the dressing's with the atlas on it), the tile asks it its [Tile.Base] and
-// its [Tile.Light] and [Tile.FaceLight], and the Look has it lay what lies on the tile
-// ([Tile.Dress]). The simple map's lays the bands; a topography's the grounds blending, coasts,
-// water glinting and running and the ways drawn across the cells, painted for its ground on the
-// GPU. Without a Dressing's light a tile is drawn as it is; a sky over a flat board
-// (atmosphere.Plugin.WithBoard) lights it by the hour.
-// [RenderState] holds the renderer's live toggles, such as the grid: over a board composed once a
-// shader draws it, a square grid's tiles darkened along their edges, a hex grid's edges as lines;
-// over tiles composed every frame, on a square grid each tile outlined by the shader along its own
-// edges at no piece of its own (render.Frame.Tile) — where a Dressing lays grounds or ways over it
-// ([Tile.Covered]), outlined by the dressing over them instead (render.Frame.OutlineOn); on a hex
-// grid the cells' outlines as lines on a tier just above the tiles. It is left out where a cell
-// spans fewer than a few pixels on screen.
-//
-// A Dressing that is [Parallel], under a Look that is a [ParallelLook], dresses the tiles on
-// several goroutines at once ([Plugin.WithWorkers]; as many as there are CPUs unless told
-// otherwise, none for a few tiles): the renderer Warms every visible tile on its own goroutine,
-// has the dressing Ready itself, then shares the tiles out in runs, each drawn by a Worker of the
-// dressing and of the look into a frame of its own, appended in order — the picture one goroutine
-// would draw, piece for piece — for a game's own dressing; gram's dress their tiles once.
-//
-// The board is the [Cover] sight is held back by ([Board.Walk]) and reads the cells' cover all at
-// once when asked ([Board.Ready], the [Readied] contract), for whoever walks it from several
-// goroutines at a time.
+// The board's own Map is the simple map: a flat world seen from above (look.FlatLook), every kind
+// in its Color or drawn sprite, the ways and the crossings as plain bands in their kinds' colours,
+// a step at its kind's cost times the distance. [Plugin.WithMap] puts another in — a topography's,
+// a map in relief — and [Plugin.Map] is the one in use. How a kind looks is its Color, or a sprite
+// drawn for it (cell.Kinds.Draw), or whatever the game's own atlas has at its SpriteID:
+// [Plugin.WithRenderer] builds the look.Renderer over that atlas — given nil, the board's own atlas
+// of the kinds, a cell's size each — and [Plugin.WithWorkers] says how many goroutines may share a
+// frame's tiles. How the renderer composes the tiles is plugins/board/look's.
 package board

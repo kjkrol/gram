@@ -6,8 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/entity/tag"
@@ -15,10 +16,10 @@ import (
 )
 
 func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	oldTarget, _ := grid.CellIndex(3, 0)
@@ -29,7 +30,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.At]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var selectable goke.Comp[tag.Tags[selection.Family]]
@@ -51,8 +52,8 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
 		for i := range ids {
-			cells[i] = board.At{Cell: start}
-			positions[i].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+			cells[i] = unit.At{Cell: start}
+			positions[i].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 			orders[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 		}
 
@@ -103,10 +104,10 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 }
 
 func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	newTarget, _ := grid.CellIndex(8, 0)
@@ -116,7 +117,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.At]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
@@ -133,8 +134,8 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
-		cells[0] = board.At{Cell: start}
-		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+		cells[0] = unit.At{Cell: start}
+		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 
 		readQuery = si.NewQueryBuilder().Optional(&order).Build()
 		selSys.Init(si)
@@ -193,10 +194,10 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 }
 
 func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	oldTarget, _ := grid.CellIndex(3, 0)
@@ -208,7 +209,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	selects := &control.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.At]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var readQuery *goke.Query
@@ -226,8 +227,8 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
-		cells[0] = board.At{Cell: start}
-		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+		cells[0] = unit.At{Cell: start}
+		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		orders[0] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 
 		readQuery = si.NewQueryBuilder(&order).Build()

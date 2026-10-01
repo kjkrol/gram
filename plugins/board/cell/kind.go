@@ -18,7 +18,7 @@ type Kind struct {
 	// would be a boost past full speed, which the planner's estimate does not allow for.
 	Cost float64
 	// Allows is the domains that may stand here; the planner keeps the others out, and one that
-	// ends up here anyway has fallen in — see board.Standing.
+	// ends up here anyway has fallen in — see unit.Standing.
 	Allows Domain
 	// Solid makes the cell solid ground: collision pushes out whoever Allows keeps out.
 	Solid bool

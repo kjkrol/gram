@@ -3,17 +3,17 @@ package navigation
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
 )
 
 func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
-	r := &PathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &board.SingleOccupancy{})}
+	r := &PathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
 
 	mt := MoveOrder{Target: at(2)}
 	mt.Enqueue(Goal{Cell: at(5)})

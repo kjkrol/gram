@@ -3,8 +3,8 @@ package network
 import (
 	"slices"
 
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 // Node is a cell a network runs through: the board kind its way is laid of, named, how wide it
@@ -19,7 +19,7 @@ type Node struct {
 // through and which of their neighbours each runs on to. A link that Flows has a way down: water
 // running from cell to cell towards where it leaves the network, the sea.
 type Network struct {
-	grid  board.Grid
+	grid  grid.Grid
 	nodes map[cell.ID]Node
 	links map[cell.ID]cell.Links
 	down  map[cell.ID]cell.ID
@@ -28,7 +28,7 @@ type Network struct {
 }
 
 // New is an empty network over grid.
-func New(grid board.Grid) *Network {
+func New(grid grid.Grid) *Network {
 	return &Network{grid: grid, nodes: map[cell.ID]Node{}, links: map[cell.ID]cell.Links{},
 		down: map[cell.ID]cell.ID{}, up: map[cell.ID][]cell.ID{}}
 }
@@ -46,8 +46,8 @@ func (n *Network) Node(c cell.ID) (Node, bool) {
 
 // Link has a and b, neighbours, run on to each other; false where they are no neighbours.
 func (n *Network) Link(a, b cell.ID) bool {
-	ab, ok := board.Link(n.grid, a, b)
-	ba, back := board.Link(n.grid, b, a)
+	ab, ok := grid.Link(n.grid, a, b)
+	ba, back := grid.Link(n.grid, b, a)
 	if !ok || !back {
 		return false
 	}
@@ -60,14 +60,14 @@ func (n *Network) Link(a, b cell.ID) bool {
 // network runs through it — a river's last cell runs on to the sea it leaves by, which is no
 // part of it. False where they are no neighbours.
 func (n *Network) Flow(from, to cell.ID) bool {
-	l, ok := board.Link(n.grid, from, to)
+	l, ok := grid.Link(n.grid, from, to)
 	if !ok {
 		return false
 	}
 	n.links[from] |= l
 	n.down[from] = to
 	if _, runs := n.nodes[to]; runs {
-		if back, ok := board.Link(n.grid, to, from); ok {
+		if back, ok := grid.Link(n.grid, to, from); ok {
 			n.links[to] |= back
 		}
 		n.up[to] = append(n.up[to], from)
@@ -156,12 +156,12 @@ func (n *Network) Crossings(o *Network) []cell.ID {
 // Ways is the network laid on a board: a Way across every cell it runs through, of its node's
 // kind, as wide and faded, running on as Links says, its look turned as far down its flow as it
 // lies (Along) — a river taking on the sea's where it reaches it.
-func (n *Network) Ways() []board.WayEntry {
+func (n *Network) Ways() []cell.WayEntry {
 	cells := n.Cells()
-	out := make([]board.WayEntry, 0, len(cells))
+	out := make([]cell.WayEntry, 0, len(cells))
 	for _, c := range cells {
 		node := n.nodes[c]
-		out = append(out, board.WayEntry{Kind: node.Kind, Cell: c, Width: float32(node.Width),
+		out = append(out, cell.WayEntry{Kind: node.Kind, Cell: c, Width: float32(node.Width),
 			Links: n.Links(c), Fade: float32(node.Fade), Mix: float32(n.Along(c))})
 	}
 	return out
