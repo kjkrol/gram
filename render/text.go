@@ -25,6 +25,12 @@ var glyphs struct {
 
 const glyphCell = 7
 
+// handGlyphs are glyphs basicfont lacks — it has ASCII alone — drawn here by hand from a cell's
+// top-left, '#' a lit pixel; the rest of Latin-1 prints as its replacement box.
+var handGlyphs = map[rune][]string{
+	'°': {"", "", "", "  ##", " #  #", " #  #", "  ##"},
+}
+
 func glyphSheet() *Image {
 	if glyphs.sheet != nil {
 		return glyphs.sheet
@@ -40,6 +46,16 @@ func glyphSheet() *Image {
 	glyphs.cell = map[rune]int{}
 	for i, r := range runes {
 		glyphs.cell[r] = i
+		if rows, ok := handGlyphs[r]; ok {
+			for y, row := range rows {
+				for x, px := range row {
+					if px == '#' {
+						img.Set(i*glyphCell+x, y, color.White)
+					}
+				}
+			}
+			continue
+		}
 		d.Dot = fixed.P(i*glyphCell, 12)
 		d.DrawString(string(r))
 	}
