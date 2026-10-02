@@ -24,9 +24,13 @@
 //
 // [Plugin], built over a grid.Grid, a cell.Occupancy and the world plugin, seeds its terrain from
 // a [Layout] when the Stage starts fresh: a default kind for every cell, per-cell overrides with
-// the game's tags of places, the ways and the crossings. The grid wraps per axis following the
-// world's edges. Once the ECS is set up every cell is an entity for good — cell.Plot, cell.Ground,
-// cell.Way, cell.Crossing — saved with the game, so an effect on it is an effect on the terrain.
+// the game's tags of places, the roles a cell plays and the wire it is wired to (cell.Entry.Roles,
+// cell.Entry.Wired), the ways and the crossings. The grid wraps per axis following the world's
+// edges. Once the ECS is set up every cell is an entity for good — cell.Plot, cell.Ground,
+// cell.Way, cell.Crossing, its tags and roles, a rule.Wired where it is wired, and whatever the
+// world's roster gives every cell (Roster().Cell: a game's own component, a Load reading the
+// cell's cell.ID) — saved with the game, so an effect on it is an effect on the terrain. A cell
+// wired to a wire no world defined (world.Plugin.Wire) panics as the cells are made.
 //
 // A kind is a named terrain: its movement cost, whom it admits, whether it is solid (a wall) or
 // how much it veils sight (a forest), and the sprite drawn for it; kinds are created through
@@ -40,18 +44,22 @@
 //
 // # Rules
 //
-// Every step the board runs the rules hooked on it ([Plugin.Hook]): of a unit.Standing for every
-// entity on the board — the cell under it, its kind and the game's tags of its place, its box and
-// domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
-// cell.Now for every cell: its entity, which cell, its kind now. Both are plugin.Placed, data alone:
+// Every step the board runs the rules hooked on it ([Plugin.Hook], or game.Initializer.Hook, which
+// finds the board for them): of a unit.Standing for every entity on the board — the cell under it,
+// its kind and the game's tags of its place, its box and domain; Standing.Fallen where the domain
+// may not be, a unit pushed into the sea — and of a cell.Now for every cell: its entity, which
+// cell, its kind now, and whether the centre of an entity carrying unit.At lies on it this step
+// (Now.Trodden; Now.Stood for a rule's If: a plate pressed). Both are plugin.Placed, data alone:
 // the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. Rules of a cell.Now filter
-// cells by the game's tags of places (rule.Self: a trapdoor, a plate, a zone), and a Standing
-// tells those of the cell under a unit (Standing.Places). In the same pass the board writes every
-// unit carrying a unit.Mover its steering.Pace — the cost and the slope of the ground under it —
-// which the world's velocity pass goes by from the next step; WithLog has a line written for each
-// unit fallen where its domain may not be.
+// cells by the game's tags of places (rule.Self: a zone), and a Standing tells those of the cell
+// under a unit (Standing.Places). A cell playing a role obeys the role's rules (rule.Part.Obeys: a
+// trapdoor, a plate), and one wired to a wire follows it: OnWire drives the wire (a plate putting
+// it on while stood on), WhileWire reads it (the trapdoors on it open while it is on). In the same
+// pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the
+// slope of the ground under it — which the world's velocity pass goes by from the next step;
+// WithLog has a line written for each unit fallen where its domain may not be.
 //
 // # Ways
 //

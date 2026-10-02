@@ -18,8 +18,8 @@
 // a wrapping one, may leave by an open one); the [EntitiesCfg] bounds how many entities the world
 // holds and the sizes they spawn with; the camera.Config sizes the camera. An entity wholly past
 // an open edge carries [Outside] — put on by whoever moved it there, the world's move or collision's
-// solver — and every tick it does, the rules of a [Leaving] hooked with [Plugin.Hook] hear of
-// it; with none hooked it is despawned. Put back inside, it
+// solver — and every tick it does, the rules of a [Leaving] hooked on it (ctx.Hook or
+// [Plugin.Hook]) hear of it; with none hooked it is despawned. Put back inside, it
 // loses the mark. [Plugin.Roster] is what the plugins in the game ask of a unit's kind — see
 // package kind; world requires a Position and brings a Velocity. [Layers] are the planes an
 // entity is on, one bit each, read by collision and
@@ -70,6 +70,11 @@
 // Spawn puts entities on the roster with [Plugin.Seed]; the engine calls [Plugin.Populate] only
 // when nothing was restored. [GridPlacement] arranges a population on a regular grid.
 //
+// A kind's Spec gives each component type once: kind.Define panics naming the kind and the type
+// given twice, and wants a Position and a Velocity exactly once. Two comp.Tagged of one family are
+// refused, not merged, so a kind gives every tag of a family in one, and every role it plays in
+// one rule.Plays. Roster().Unit.Spec leaves out a default the game gives its own of.
+//
 // # Tags
 //
 // A tag is a bit of a family: [tag.Tags] is the family's component, an empty type of the
@@ -80,6 +85,11 @@
 // same tick. Rules name tags with the filters Self and Between (package rule); the marker
 // components of old are gone.
 //
+// A role (rule.Role) is a tag of the family rule.Roles, one name one tag across the program. The
+// world defines the name of every role made so far in its kinds as the Stage's ECS is set up
+// (rule.RoleNames), so a save carries the roles an entity plays by name, like any tag: make the
+// roles in Init.
+//
 // # Despawn and Apply
 //
 // [Plugin.Despawn] removes an entity at the end of the tick, and an entity gives itself the
@@ -88,6 +98,27 @@
 // — which rules and plans read with During; a player gives it from a binding, a rule or a plan
 // may Order it. Components come and go mid-game through effects (Grant, Alter) and the plugins'
 // own facts, never put on by hand.
+//
+// # Wires
+//
+// [Plugin.Wire] defines a wire by name (rule.Wire) in a Stage's Init — a lever and its
+// trapdoors, a plate and its gate; a name defined twice, or after the Stage's ecs.Setup, panics.
+// Its state is an effect on its own entity, so one effect serves any number of wires. A binding
+// drives it — Wire.Key puts the effect on, lasting as its Spec says; Wire.Switch puts it on or
+// takes it off — and so does a rule's OnWire on whatever is wired to it; a rule's WhileWire reads
+// it. An entity carrying rule.Wired, the wire's name hashed, is wired to it: a cell through
+// cell.Entry.Wired, a kind's entities through comp.Const(w.Wired()).
+//
+// The wires system, the first the world registers, makes every wire's entity at Setup, carrying
+// rule.Wiring, or finds it by that in a loaded game, and tells the rules and the plans which wire
+// an entity is wired to and which roles it plays (plugin.Tick.Wires, Tick.Roles, for a rule's
+// Playing). In every step of the simulation it carries out the command rule.Signal, which Wire.Key
+// and Wire.Switch give: it casts the Signal's effect on the wire's entity or, a Toggle, dispels it
+// when it is on — a step's Signals of one effect on one wire netted, so a switch flipped twice in
+// a step stays as it was; either lands with the step's effects. The players carry it with the
+// world's other commands ([Plugin.Queues]). OnWire needs no Signal: its step acts on the wire's
+// entity itself. rule.Wiring, rule.Wired and the roles an entity plays are saved with the game,
+// and a wire's state, an effect, with its entity.
 //
 // # Commands the entities give themselves
 //
@@ -104,7 +135,12 @@
 // simulation's steps, Space is the tactical pause and ] and [ the tempo — the players carry its
 // commands ([Plugin.Queues], [Plugin.DefaultBindings]) — the entities' plans (package rule), run
 // first in each step, and the effects (package rule/effect, [Plugin.Effects]), which last in game
-// time and fire the rules of the clock's moments (clock.Moment) every step.
+// time and fire the rules of the clock's moments (clock.Moment) every step. A clock.Moment is of
+// the world as a whole, run once a step (plugin.StepRules): a rule of it takes no filter and
+// obeys no role — [Plugin.Hook] refuses one filtered or narrowed with plugin.ErrUnhosted; read the
+// world's effects with During, or write the rule over entities. A Stage hooks rules through its
+// Initializer (game.Initializer.Hook), which finds the world for a Moving, a Leaving or a
+// clock.Moment.
 //
 // [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
 // the simulation the clock replays as many times as the tempo says and not at all in the pause,
@@ -115,7 +151,8 @@
 // no state of its own between ticks: Populate and PostLoad rebuild it too, so it is whole before
 // the first tick, and a despawned entity is gone from it on the next. Anything reading the space
 // in its own pass sees the boxes as they stand after the last rebuild — and, after a collision
-// tick, as the engine pushed them. The leavers and the effects close every step.
+// tick, as the engine pushed them. The leavers, the wires' Signals, the rules of the clock's
+// moments and the effects close every step.
 //
 // # Appearance, drawing and Look
 //

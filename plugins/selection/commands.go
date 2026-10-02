@@ -63,7 +63,7 @@ func (p *Plugin) Abilities(roles ...*rule.Part) []control.Binding {
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and F to
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and C to
 // follow the one selected unit or stop following.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {

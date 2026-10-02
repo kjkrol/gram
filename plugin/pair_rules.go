@@ -29,7 +29,8 @@ type pairRule[P any] interface {
 	RunPair(t Tick, pair P)
 }
 
-// withinRule is a pair rule whose entity must carry more tags than its side's (rule.Within).
+// withinRule is a pair rule whose entity must carry more tags than its side's: a role's
+// (rule.Part.Obeys).
 type withinRule interface{ PairWithin() []Side }
 
 // paired is a pair rule as PairRules holds it: its sides and their families' places, -1 for

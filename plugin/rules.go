@@ -109,7 +109,7 @@ type StepRules[P any] struct {
 func (r *StepRules[P]) Add(rule any) error {
 	once, ok := rule.(onceRule[P])
 	if !ok {
-		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter, nor Within)", ErrUnhosted, rule)
+		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter and obeys no role)", ErrUnhosted, rule)
 	}
 	if r.bound {
 		return fmt.Errorf("%w: %v", ErrHostBuilt, rule)

@@ -8,6 +8,25 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Rules hooked by the Stage; roles and wires**
+- `game.Initializer.Hook(rules...)` hooks each rule, and every rule of a role, on the plugin in use
+  that hosts its moment, after the plugins are used and before `Init` returns; a rule none hosts is
+  an error wrapping `plugin.ErrUnhosted`, named by its `String`. A plugin's own `Hook` still works
+  until the Stage's `ecs.Setup`.
+- `rule.Role(name)` is a behaviour entities play: `Obeys(rules...)` narrows each rule to its
+  players on top of its own filter, `Can(effect, trigger, label)` is an ability a player casts on
+  its selected units playing it (`selection.Plugin.Abilities(roles...)`, listed under K). A kind
+  plays roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`; `m.Playing(role,
+  step)` asks it of an entity or of a place `Around` turned to. 64 roles a program, saved by name.
+- `world.Plugin.Wire(name)` is a connection by name with its own entity, its state an effect on
+  it: `Wire.Key` pulses it, `Wire.Switch` toggles it, and what is wired to it (`cell.Entry.Wired`,
+  `comp.Const(w.Wired())` in a kind) drives it with `OnWire` and reads it with `WhileWire`.
+  `cell.Now.Stood` (`Trodden`) says a unit stands on the cell.
+- `climate.Weathering` rules are hosted by a `plugin.StepRules`, like the clock's: run once a
+  step, a filtered or narrowed one is refused with `plugin.ErrUnhosted`.
+- The roster's `kind.Role` is `kind.Template`, and `Roster.Cell` is what every cell a board makes
+  carries.
+
 **A box pushed out through an open edge leaves**
 - Collision writes the box of whoever it pushed out through an open edge to its `Pos`, as
   aabbworld v1.10.0's `collide.Engine.Left` now tells it (a `collide.Leaver`, id and box). Before,

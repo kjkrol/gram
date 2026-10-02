@@ -105,7 +105,7 @@ func (e *eachWith[P]) holds(cursor *goke.Cursor, i int) bool {
 type pair[P any] struct {
 	label       string
 	self, other plugin.Side
-	within      []plugin.Side // more tags the pair's entity carries (Within)
+	within      []plugin.Side // more tags the pair's entity carries (a role's Obeys)
 	react       func(plugin.Tick, P)
 }
 

@@ -12,9 +12,9 @@ import (
 )
 
 // Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
-// standing on the board, one seeing another, two striking — built with On and hooked with the
-// plugin's Hook. The moment's type says which plugin hosts it; another refuses it. String is its
-// name and its moment.
+// standing on the board, one seeing another, two striking — built with On and hooked through the
+// Stage's Initializer (game.Initializer.Hook). The moment's type says which plugin hosts it;
+// another refuses it. String is its name and its moment.
 type Rule interface {
 	fmt.Stringer
 	rule()
@@ -23,7 +23,7 @@ type Rule interface {
 
 // within is r for the entities carrying t alone — on a moment that is Met, for the pairs whose
 // entity carries t — whatever r's own filter: what a Role's Obeys makes of a rule; desc says how,
-// in its String. Within tag.Any is r.
+// in its String. Narrowed by tag.Any, r is r.
 func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
@@ -33,9 +33,9 @@ func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 
 // On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
 // board, one seeing another, two striking — for whom filter lets through, it runs the steps body
-// writes for the Moment, steps done within the pass alone. Hook it on the plugin that catches P:
-// board.Plugin.Hook, vision's, collision's, world's, navigation's. A rule keeps no memory of its
-// own: an effect's presence is its memory.
+// writes for the Moment, steps done within the pass alone. Hook it with game.Initializer.Hook,
+// which finds the plugin that catches P. A rule keeps no memory of its own: an effect's presence
+// is its memory.
 func On[P any](name string, filter Filter, body func(m *Moment[P]) Step) Rule {
 	return build[P](name, filter, body(&Moment[P]{}))
 }
@@ -84,8 +84,8 @@ func carrierOf[F any](t tag.Tag[F]) *side {
 // cond is a test of the side, as a rule over one entity reads it: the entity's tags carrying a tag.
 func (s *side) cond() cond { return cond{mk: s.tags, holds: s.carries} }
 
-// narrowing is a tag a rule's entity must carry besides its filter (Within): read off its tags by
-// a rule over one entity, matched as one more side by a rule over pairs.
+// narrowing is a tag a rule's entity must carry besides its filter (a role's Obeys): read off its
+// tags by a rule over one entity, matched as one more side by a rule over pairs.
 type narrowing struct {
 	side    plugin.Side
 	carrier *side

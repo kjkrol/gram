@@ -17,10 +17,10 @@
 //
 // A [Stage] is one self-contained context the game can be in, with its own plugins and its own
 // goke ECS, both built fresh when the Stage is entered. Init installs plugins through the
-// Initializer and may call UseWorld once; Restore resumes from a save or reports there is none;
-// Spawn seeds the initial state, run only when Restore found nothing; Update advances the
-// simulation one tick by running the plugins' RunPlan in the order the game needs. A Stage
-// handles no input: that is a Scene's.
+// Initializer, may call UseWorld once and hooks the game's rules; Restore resumes from a save or
+// reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
+// Update advances the simulation one tick by running the plugins' RunPlan in the order the game
+// needs. A Stage handles no input: that is a Scene's.
 //
 // # Scene, Scenes and Composition
 //
@@ -42,6 +42,12 @@
 // installs this Stage's world plugin from a world.Config (a second call panics), and TPS is the
 // engine's measured tick counter. It embeds plugin.Installer, so a Stage may wire ECS modules and
 // systems of its own the way a plugin does.
+//
+// Hook hooks each rule, and every rule of a role (rule.Role), on the plugin in use that hosts its
+// moment — a unit.Standing's on the board, a vision.Sighting's on vision — so a Stage need not know
+// which plugin hosts what. Call it once the plugins are Used, before Init returns:
+// ctx.Hook(mortal, hasty, trapdoor). A rule no plugin in use hosts is an error wrapping
+// plugin.ErrUnhosted, naming the rule.
 //
 // # Runtime
 //

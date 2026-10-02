@@ -28,8 +28,9 @@
 //
 // [Plugin.WithWeathering] lays the weather on a board (plugins/atmosphere/weathering): snow
 // lying, ice on the water, what sways swaying, as effects on the cells, in a pass of its own once
-// a second of game time. [Plugin.Hook] hosts rules told the weather (climate.Weathering) every
-// step, about the world's own entity.
+// a second of game time. [Plugin.Hook] hosts rules told the weather (climate.Weathering) once a
+// step, about the world's own entity: rules of the world as a whole, which take no filter and obey
+// no role.
 //
 // The plugin is a plugin.CommandHandler, its keys the players carry: P freezes the light and lets
 // it go, Shift+] and Shift+[ move a frozen light half an hour on and back, Shift+W changes the

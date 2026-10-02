@@ -1,8 +1,8 @@
-// Package hooks holds ready-made rules of what an entity sees, for the vision plugin's Hook: Flee
-// gives way to what is on a collision course and runs from a Threat, Chase goes after the nearest
-// prey and Search looks round when there is none. They steer only by the commands an entity gives
-// itself (steering.Away, Toward, Turn). A game wanting something else writes its own rule of a
-// vision.Sighting (rule.On).
+// Package hooks holds ready-made rules of what an entity sees, for ctx.Hook
+// (game.Initializer.Hook): Flee gives way to what is on a collision course and runs from a Threat,
+// Chase goes after the nearest prey and Search looks round when there is none. They steer only by
+// the commands an entity gives itself (steering.Away, Toward, Turn). A game wanting something else
+// writes its own rule of a vision.Sighting (rule.On).
 //
 // # Flee
 //

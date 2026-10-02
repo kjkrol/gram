@@ -8,7 +8,7 @@
 // one of the plate role puts its wire on while it is stood on (OnWire), one of the gate role keeps
 // the gate open while its wire is on. Wanderers nobody owns walk to and fro over both strips; the
 // player's scouts and porters start in the yard. Everyone plays mortal and falls in where nothing
-// holds them; the scouts play hasty too, and J hastens the selected ones (Role.Can), never the
+// holds them; the scouts play hasty too, and J hastens the selected ones (rule.Part.Can), never the
 // porters. The west lever stands in the yard as well, a cell playing lever wired to west: the
 // scouts play handy, and U has a selected scout beside it pull it (Playing among the cells Around
 // the scout, so the trapdoors on its wire are not pulled). All of it is defined here, in the game.
