@@ -21,6 +21,7 @@ import (
 // hookStage uses the plugins before, the world, the plugins after, seeds one walker and hooks
 // rules through its Initializer, keeping what Hook said in hooked.
 type hookStage struct {
+	plays         []*rule.Part // the roles the walker plays
 	before, after []plugin.Plugin
 	rules         []rule.Rule
 	hooked        error
@@ -49,10 +50,14 @@ func (s *hookStage) Init(ctx game.Initializer) error {
 		}
 	}
 	ctx.Setup(s)
-	s.walker = kind.Define[struct{}](s.world.Kinds(), "walker", kind.Spec{
+	spec := kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(50, 50), 5, 5)}),
 		comp.Const(world.Velocity{}),
-	})
+	}
+	if s.plays != nil {
+		spec = append(spec, rule.Plays(s.plays...))
+	}
+	s.walker = kind.Define[struct{}](s.world.Kinds(), "walker", spec)
 	s.hooked = ctx.Hook(s.rules...)
 	return nil
 }
@@ -253,5 +258,26 @@ func TestInitializer_Hook_AfterSetupIsRefusedAsBuilt(t *testing.T) {
 	}
 	if errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Hook after Setup = %v, want it not to read as unhosted", err)
+	}
+}
+
+// A role hooked through ctx.Hook has its rules hooked on the plugins hosting them, for its players
+// alone: the walker despawns playing the role, and stays playing another.
+func TestInitializer_Hook_TakesARoleForItsPlayers(t *testing.T) {
+	mortal := rule.Role("hook mortal").Obeys(despawning())
+	for _, c := range []struct {
+		name  string
+		plays []*rule.Part
+		left  int
+	}{
+		{"playing it", []*rule.Part{mortal}, 0},
+		{"playing another", []*rule.Part{rule.Role("hook immortal")}, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := &hookStage{rules: []rule.Rule{mortal}, plays: c.plays}
+			if _, after := runHookStage(t, s); s.hooked != nil || after != c.left {
+				t.Errorf("Hook = %v, walkers left %d; want nil and %d", s.hooked, after, c.left)
+			}
+		})
 	}
 }

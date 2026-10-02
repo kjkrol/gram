@@ -168,7 +168,7 @@ func (k *Registry) LoadComps() []goke.CompToken {
 // Persisted returns the kind.ID to name mapping, and each tag family's bit to name mapping, for
 // a save to keep and a load to fill.
 func (k *Registry) Persisted() []any {
-	k.saved = k.order
+	k.saved = slices.Clone(k.order) // a load decodes into it: never this build's own order
 	k.savedTags = make(map[string][]string, len(k.families))
 	for t, f := range k.families {
 		k.savedTags[t.String()] = f.names
