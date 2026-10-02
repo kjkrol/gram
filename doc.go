@@ -78,20 +78,21 @@
 //	          clock               — the tactical clock: time, pause, tempo, phases, Moment, At, Every (→ control, render, tag)
 //	          rule/effect         — temporary changes to entities: Grant and Alter; made and run by the world (→ tag)
 //	Layer 3   entity              — what every entity carries: Base, Position, Velocity, Z, Layers, Eye (→ kind)
-//	          rule                — rules at a plugin's moments (On, filters, Moment's steps) and the hosts a plugin runs
-//	                                them with, Tick, Marks; its engine in rule/internal (→ control, tag, effect)
+//	          internal/steps      — the engine running the steps of rules and plans                (→ control, effect)
+//	          plugin              — the extension contract: Plugin, Installer, CommandHandler, Serializable,
+//	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
+//	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
 //	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
-//	Layer 4   plugin              — the extension contract: Plugin, Installer, CommandHandler, Serializable,
-//	                                PostLoader, Populator, Restorer                                    (→ control, render, rule)
-//	          rule/plan           — what an entity does over time: New, Actor, Command, asks, Mind; run by the world (→ rule, effect, kind/comp)
-//	Layer 5   plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
+//	Layer 4   rule                — rules at a plugin's moments: On, the filters, the Moment's steps (→ plugin, steps, tag, effect)
+//	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
+//	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
 //	                                movement, kinds, Seed and Populate, Despawn, the carrier of commands, Camera; it runs
-//	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, render)
+//	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, world, render)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
 //	          plugins/selection   — a Select command into a Selected tag                           (→ world, …)
-//	          plugins/vision      — a Sight cone into Seen, Sighting, SightOutline                   (→ world, …)
+//	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/hooks, plugins/vision/hooks — ready-made rules                       (→ their plugin, world, rule)
 //	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
@@ -105,7 +106,7 @@
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
 //
-//	camera ──► render ──► rule ──► plugin ──► plugins/world ──► game ──► internal/engine ──► gram
+//	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
 //	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/hooks

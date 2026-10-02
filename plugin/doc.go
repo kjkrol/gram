@@ -20,9 +20,15 @@
 // # Rules
 //
 // A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
-// pass, written with package rule (rule.On) and run by its hosts (plugin.Rules, plugin.PairRules,
-// plugin.StepRules) inside that pass. Package rule holds the rule, the hosts and the Tick a host hands
-// its rules. Hook before Use.
+// pass, written with package rule (rule.On), and Hook before Use. It runs them inside that pass:
+// [Rules] over the entities it walks (Bind adds the columns the rules read to its query, Run or
+// RunWhere over each chunk; [Own] shares a column it reads itself), [PairRules] over pairs (Bind
+// its tag families to its queries, read an entity's [Marks] with InChunk or At, then Dispatch,
+// DispatchEitherWay or DispatchGrouped), [StepRules] once a step. Each hands its rules a [Tick],
+// made by the world's [TickSource]: the command buffer, the carrier, the game time, the world's
+// seed and own entity, the places round a [Placed] moment. A moment is [About] one entity, [Met]
+// others too, a [Subject] names another, an [Aimed] command is told whom it is about; a Hook
+// refuses a moment it does not catch with [ErrUnhosted], and one too late with [ErrHostBuilt].
 //
 // # Commands
 //

@@ -21,8 +21,8 @@
 // later one is stopped; Steps runs its steps one after another, remembering where it is; If runs a
 // step while a fact holds as a function of it says; Until waits for a fact to come afresh; Wait
 // waits; Timeout, Cooldown and Not decorate; Idle runs for ever. The state of a plan is the
-// entity's [Mind]: the plan, the steps running, each one's place and start on the world's clock.
-// The world makes and runs the plans ([NewPlans]).
+// entity's mind, a component [New] gives: the plan, the steps running, each one's place and start
+// on the world's clock. The world makes and runs the plans.
 //
 // # Effects and commands
 //
@@ -43,10 +43,10 @@
 //
 // An Actor's Ask asks the subject of the fact it stands under for something — a type naming the
 // ask, a game's own — and waits for the answer: yes runs its agreed step, no or no answer in time
-// its refused one. The ask reaches the other entity a tick later as the fact [Asked], which its
+// its refused one. The ask reaches the other entity a tick later as the fact Asked, which its
 // own plan answers with Agree or Refuse, or passes on with Relay to the subject of the fact it
-// stands under — someone beside — telling the asker to wait ([Relayed]). The answer comes back as
-// the fact [Replied]. An ask reaches only an entity with a Mind; an ask or an answer nobody takes
-// up is dropped after [AskLife]; a [Chain] lists who an ask passed through, at most [MaxChain],
+// stands under — someone beside — telling the asker to wait. The answer comes back as the fact
+// Replied. An ask reaches only an entity with a Mind; an ask or an answer nobody takes
+// up is dropped after three seconds; a chain lists who an ask passed through, at most four,
 // and a Relay to anyone on it, to the asker or to itself fails — so every conversation ends.
 package plan
