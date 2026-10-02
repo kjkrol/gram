@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // initializer is the game.Initializer bound to one Stage's ecsHost.
@@ -16,6 +17,8 @@ type initializer struct {
 	tps   *game.TPS
 	// handlers are the plugin.CommandHandlers used before the world, for it to carry
 	handlers []plugin.CommandHandler
+	// used are the plugins installed so far, in the order they were: the hosts Hook tries
+	used []any
 
 	screenWidth, screenHeight int
 }
@@ -64,8 +67,15 @@ func (c *initializer) use(p plugin.Plugin) error {
 			return fmt.Errorf("gram: %q: %w", p.Name(), err)
 		}
 	}
-	return p.Install(c)
+	if err := p.Install(c); err != nil {
+		return err
+	}
+	c.used = append(c.used, p)
+	return nil
 }
+
+// Hook hooks each rule on the first plugin used that hosts its moment.
+func (c *initializer) Hook(rules ...rule.Rule) error { return rule.HookOn(c.used, rules...) }
 
 // Track registers s for Save and Load under its Go type name.
 func (c *initializer) Track(s plugin.Serializable) error {

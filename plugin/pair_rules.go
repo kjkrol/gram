@@ -29,6 +29,9 @@ type pairRule[P any] interface {
 	RunPair(t Tick, pair P)
 }
 
+// withinRule is a pair rule whose entity must carry more tags than its side's (rule.Within).
+type withinRule interface{ PairWithin() []Side }
+
 // paired is a pair rule as PairRules holds it: its sides and their families' places, -1 for
 // anybody.
 type paired[P any] struct {
@@ -36,6 +39,22 @@ type paired[P any] struct {
 	a, b   Side
 	fa, fb int
 	same   bool
+	within []Side // more tags the first side carries
+	fw     []int  // their families' places
+}
+
+// first reports whether an entity carrying m is the rule's first side: its tag and every one it
+// must carry besides.
+func (p *paired[P]) first(m Marks) bool {
+	if !fits(m, p.fa, p.a) {
+		return false
+	}
+	for k, s := range p.within {
+		if !fits(m, p.fw[k], s) {
+			return false
+		}
+	}
+	return true
 }
 
 // PairRules are the rules of a moment P of two entities — a collision.Meeting, a
@@ -60,8 +79,16 @@ func (r *PairRules[P]) Add(rule any) error {
 		return fmt.Errorf("%w: %T", ErrHostBuilt, rule)
 	}
 	a, b := p.PairSides()
-	r.rules = append(r.rules, paired[P]{rule: p, a: a, b: b, fa: r.familyOf(a), fb: r.familyOf(b),
-		same: a.family == b.family && a.bit == b.bit})
+	held := paired[P]{rule: p, a: a, b: b, fa: r.familyOf(a), fb: r.familyOf(b),
+		same: a.family == b.family && a.bit == b.bit}
+	if w, ok := rule.(withinRule); ok {
+		for _, s := range w.PairWithin() {
+			held.within = append(held.within, s)
+			held.fw = append(held.fw, r.familyOf(s))
+		}
+		held.same = held.same && len(held.within) == 0
+	}
+	r.rules = append(r.rules, held)
 	return nil
 }
 
@@ -121,7 +148,7 @@ func fits(m Marks, f int, s Side) bool {
 // Dispatch runs every rule whose first side self carries and second side other carries.
 func (r *PairRules[P]) Dispatch(t Tick, self, other Marks, pair P) {
 	for _, p := range r.rules {
-		if fits(self, p.fa, p.a) && fits(other, p.fb, p.b) {
+		if p.first(self) && fits(other, p.fb, p.b) {
 			p.rule.RunPair(t, pair)
 		}
 	}
@@ -131,7 +158,7 @@ func (r *PairRules[P]) Dispatch(t Tick, self, other Marks, pair P) {
 // build makes the moment of the others matched, by their places in others.
 func (r *PairRules[P]) DispatchGrouped(t Tick, self Marks, others []Marks, build func(matched []int) P) {
 	for _, p := range r.rules {
-		if !fits(self, p.fa, p.a) {
+		if !p.first(self) {
 			continue
 		}
 		r.matched = r.matched[:0]
@@ -147,13 +174,13 @@ func (r *PairRules[P]) DispatchGrouped(t Tick, self Marks, others []Marks, build
 // DispatchEitherWay is Dispatch for a pair with no direction, run whichever way the sides fit.
 func (r *PairRules[P]) DispatchEitherWay(t Tick, a, b Marks, forward, backward P) {
 	for _, p := range r.rules {
-		if fits(a, p.fa, p.a) && fits(b, p.fb, p.b) {
+		if p.first(a) && fits(b, p.fb, p.b) {
 			p.rule.RunPair(t, forward)
 			if p.same {
 				continue
 			}
 		}
-		if fits(b, p.fa, p.a) && fits(a, p.fb, p.b) {
+		if p.first(b) && fits(a, p.fb, p.b) {
 			p.rule.RunPair(t, backward)
 		}
 	}

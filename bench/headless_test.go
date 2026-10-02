@@ -5,6 +5,7 @@ package bench_test
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -49,6 +50,8 @@ func (c *headless) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)
 	return p.Install(c)
 }
+
+func (c *headless) Hook(rules ...rule.Rule) error { return rule.HookOn(c.tracked, rules...) }
 
 func (c *headless) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
