@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Config is the atmosphere: the Calendar's days and year, the Sky's sun and light, the Climate's
@@ -108,10 +109,10 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // schedule.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
-	ctx.UseModule(p.module)
 	if p.weathering != nil {
-		return p.worldPlugin.Hook(p.weathering.Rule())
+		p.module.weathering = p.weathering.System(p.worldPlugin.Clock())
 	}
+	ctx.UseModule(p.module)
 	return nil
 }
 
@@ -158,7 +159,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook hosts rules (rule.On) of climate.Weathering, fired every step with the
 // weather; call before Use.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		if err := p.climate.Host(b); err != nil {
 			return fmt.Errorf("%w in %s", err, p.Name())
@@ -190,16 +191,21 @@ var _ goke.Module = (*module)(nil)
 
 // module runs the sky once a tick and the weather in every step of the simulation.
 type module struct {
-	sky, climate goke.System
-	comps        []goke.CompToken
-	clock        *clock.Clock
-	skyRun       goke.Runnable
-	climateRun   goke.Runnable
+	sky, climate  goke.System
+	comps         []goke.CompToken
+	clock         *clock.Clock
+	skyRun        goke.Runnable
+	climateRun    goke.Runnable
+	weathering    goke.System // nil without WithWeathering
+	weatheringRun goke.Runnable
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.skyRun = ecs.RegSys(m.sky)
 	m.climateRun = ecs.RegSys(m.climate)
+	if m.weathering != nil {
+		m.weatheringRun = ecs.RegSys(m.weathering)
+	}
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
@@ -207,6 +213,9 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.climateRun, step)
+		if m.weatheringRun != nil {
+			ctx.Run(m.weatheringRun, step)
+		}
 		ctx.Sync()
 	})
 }

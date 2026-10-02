@@ -1477,7 +1477,79 @@ changes the Appearance itself, while a drawing rule changes what is drawn this f
 test draws through a recording Look. `Leaving` stays, marked to reconsider; `Clock.In` and the
 clock's phases stay.
 
+### Rules in one place (2026-10-02, stage 1)
+
+The user found the rule spread over three packages: `plugin.Rule` an `any` in the plugin's
+contract with `Tick` and `Marks` beside it, the hosts and a second vocabulary of filters in
+`plugin/host`, and `rule` with `On` in `moment.go`, `Plan` in `tree.go` returning a component and
+`rule.New` making the plans' engine ("M-A-S-A-K-R-A"). Agreed with the user:
+- `rule` holds the rule (`rule.go`: `Rule`, sealed — only `On` makes one — `On`, the filters, the
+  errors), the moment (`moment.go`), the `Tick` (`tick.go`) and the hosts; `plugin/host` is gone
+  and `plugin` keeps the contract alone. The hosts had to come with the rule: `rule.On` builds
+  what a host runs, and a host must know the rule — two packages would import each other.
+- Plans are `rule/plan` (`plan.New`, `Actor`, `Command`, the asks, `Mind`, `NewPlans`). The engine
+  of both — the nodes run within a rule's pass and over a plan's steps alike — is
+  `rule/internal/engine`; the faces alias its types: `rule.Step`, `plan.Mind`, `plan.Asked`,
+  `Replied`, `Chain`, `Answer`. A plan reacting to an ask names `plan.Asked[W]`, navigation asks
+  whether a unit has a `plan.Mind`: those need public names, and the engine cannot import the
+  packages that import it.
+- `plugins/board/internal/rule` is `plugins/board/internal/moments`, out of the way of `rule`.
+- Tests that hooked a string or a goke system to see it refused are gone: the sealed `Rule` makes
+  that a compile error. The engine's `ctx` takes a `Pass` (carrier, step, time, seed, world,
+  places round) instead of the `Tick`, which the engine cannot import.
+
+Stage 2 removes the rules written as Go functions (`rule.Each`, `Every`, `Pair`, left public
+until then); stage 3 moves render's mechanism into `render`.
+
+### No Go code in a rule (2026-10-02, stages 2 and 3)
+
+The user's standard: everything not of drawing goes through the ordinary mechanism; a rule rides
+a pass its plugin makes anyway — one walk, many rules — never a system per behaviour, and holds no
+Go code of its own. Each rule with a Go body became something else:
+- **The ground's pace** is a fact: the board's units pass (`standingSystem`, already walking every
+  unit) writes `steering.Pace{Share}`, and the world's `velocitySystem` multiplies by it. The board
+  runs after the world, so the pace of a step is the ground the unit stood on the step before.
+- **Navigation's bumps** read the `Collider` contacts in navigation's own pass (`bump()`), the way
+  it read them already for the crowd.
+- **Logs and stats** are options of the plugins (`WithLog`, `WithStats`), written in their passes.
+- **Weathering** is the atmosphere's own system; it was a rule of the clock's moment running Go.
+- **Flee and Chase** order steering commands the world carries out: `steering.Away`/`Toward`,
+  aimed at the `Sighting`'s subject (the nearest seen), and `Turn`. A behaviour switched for the
+  whole game is an effect on the world: `world.Apply` and the new `world.Dispel`, the rule
+  running `During` it — the demo's A key. Asked whether that is the way to put an effect on the
+  whole game without picking entities, the user agreed. Looking round became its own rule,
+  `Search`, `Unless` an effect `Looked` lasting the while: one rule with both would have looked
+  round with only bystanders in view and could not be tested as a pure chase.
+- An aimed command now **fails** when the moment names nobody (`Sighting` with none in view):
+  entity 0 is valid, so an aim at zero could not mean nobody. Only moments that name a subject
+  are affected; a plan outside a fact keeps its own aim.
+- `climate.Weathering` named no entity, so no rule of it could do anything; it is about the
+  world's own now.
+- **Tests** watch through components (`Collider.Contacts`, `Pace`) or a rule ordering a test
+  command (`heard`) a test queue keeps — who, about whom, which rule. The hosts' own tests are
+  internal to `rule`, with makers of Go-bodied rules they alone have.
+
+Stage 3: drawing is the one place rules are Go, and the mechanism is `render`'s:
+`render.Appearance`, `render.Rule` (`Over` — `render.Overlay` was taken by the material quad —
+`As`, `With`, `Show`, each over a component `T`, `Over`/`As`/`Show` with conditions of `T`),
+`render.Rules` to run them (`Own` shares a column the renderer reads itself: goke panics on a
+component both required and optional in one query). `world.Plugin.Draw` and `vision.Plugin.Draw`
+take them; `world.Facing` is a `render.With` over `Base`; `HitOverlay` is
+`render.Over(with, hit.Mark().In)`; `vision.ShowViewOf(t)` is `render.Show(t.In)`, with
+`tag.Tag.In` new.
+
+A finding on the way: collision marks a box `Outside` by its pushed place in the index while its
+`Pos` keeps the place before the push (it is not written back for a box that left). The world's
+exit pass reads `Pos`, so a Leaving rule hears of such a box every tick while the mark comes off
+and goes back on. Running the rules only for boxes out by `Pos` broke collision's open-edge test,
+so the exit pass was left as it was; see Questions.
+
 ## Questions for review
+
+- **A box collision pushes out by an open edge keeps its old `Pos`.** The index has it out and
+  collision marks it `Outside`; the world's exit pass finds it inside by its `Pos`, takes the mark
+  off, and collision puts it back the next tick — a Leaving rule hears of it every tick, and with
+  none hooked it is never despawned. Should collision write the pushed box back for a leaver too?
 
 - **`world.Leaving`: a moment nobody uses.** The world hands it to rules every tick an entity is
   past an open edge, and despawns the leaver when no rule is hooked. No game or demo hooks one;

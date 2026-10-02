@@ -8,17 +8,18 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
-// nudge is a made-up host's moment: an entity nudged by another, its Subject.
-type nudge struct{ self, by uid.UID64 }
+// nudge is a made-up host's moment: an entity nudged by another, its Subject, or by nobody.
+type nudge struct {
+	self, by uid.UID64
+	nobody   bool
+}
 
 func (n nudge) Who() uid.UID64             { return n.self }
-func (n nudge) Subject() (uid.UID64, bool) { return n.by, true }
+func (n nudge) Subject() (uid.UID64, bool) { return n.by, !n.nobody }
 
 // dodge is a command about whom to dodge, told as it is given.
 type dodge struct{ Of uid.UID64 }
@@ -33,7 +34,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 	if err := carrier.Carry(&dodges); err != nil {
 		t.Fatal(err)
 	}
-	h := &host.EachHost[nudge]{}
+	h := &rule.EachHost[nudge]{}
 	if err := h.Add(rule.On("dodge", rule.All, func(m *rule.Moment[nudge]) rule.Step { return m.Order(dodge{}) })); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 		q := qb.Build()
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
-			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
+			h.Run(rule.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
 				return nudge{self: cur.IDs[i], by: cur.IDs[1-i]}
 			})
 		}
@@ -67,6 +68,49 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 	}
 }
 
+// brace is a command about nobody.
+type brace struct{}
+
+// An Aimed command fails while the moment names nobody: the one nudged by nobody braces instead
+// of dodging; the other dodges.
+func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
+	var carrier control.Carrier
+	var dodges control.Queue[dodge]
+	var braces control.Queue[brace]
+	if err := carrier.Carry(&dodges, &braces); err != nil {
+		t.Fatal(err)
+	}
+	h := &rule.EachHost[nudge]{}
+	if err := h.Add(rule.On("dodge or brace", rule.All, func(m *rule.Moment[nudge]) rule.Step {
+		return m.OneOf(m.Order(dodge{}), m.Order(brace{}))
+	})); err != nil {
+		t.Fatal(err)
+	}
+	var ids []uid.UID64
+	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		var tokens goke.Comp[token]
+		f := si.NewFactory(&tokens)
+		f.Create(2)
+		f.Next()
+		ids = append(ids, f.Cursor.IDs...)
+		qb := si.NewQueryBuilder(&tokens)
+		h.Bind(qb)
+		q := qb.Build()
+		for q.All(); q.Next(); {
+			cur := q.Cursor()
+			h.Run(rule.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
+				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: i == 0}
+			})
+		}
+	}})
+	var dodged, braced []uid.UID64
+	dodges.Drain(func(i control.Issued[dodge]) { dodged = append(dodged, i.Entity) })
+	braces.Drain(func(i control.Issued[brace]) { braced = append(braced, i.Entity) })
+	if !slices.Equal(dodged, ids[1:]) || !slices.Equal(braced, ids[:1]) {
+		t.Errorf("dodged %v, braced %v; want %v dodging, %v bracing", dodged, braced, ids[1], ids[0])
+	}
+}
+
 // token is the made-up host's component its entities carry.
 type token struct{ N int }
 
@@ -80,7 +124,7 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 		if err := carrier.Carry(&dodges); err != nil {
 			t.Fatal(err)
 		}
-		h := &host.EachHost[nudge]{}
+		h := &rule.EachHost[nudge]{}
 		if err := h.Add(rule.On("dodge now and then", rule.All, func(m *rule.Moment[nudge]) rule.Step {
 			return m.Chance(p, m.Order(dodge{}))
 		})); err != nil {
@@ -98,7 +142,7 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			h.Bind(qb)
 			q := qb.Build()
 			for k := range steps {
-				tick := plugin.Tick{Dt: time.Millisecond, Commands: &carrier, Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
+				tick := rule.Tick{Dt: time.Millisecond, Commands: &carrier, Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
 				for q.All(); q.Next(); {
 					cur := q.Cursor()
 					h.Run(tick, cur, func(i int) nudge { return nudge{self: cur.IDs[i], by: cur.IDs[1-i]} })

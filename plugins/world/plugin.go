@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -79,7 +80,7 @@ func NewPlugin(cfg Config) *Plugin {
 		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.ChangedName))
 	}
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
-	m.plans = rule.New(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
+	m.plans = plan.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
@@ -101,7 +102,7 @@ func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
 
 // Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation: the
 // world's carrier of commands, the game time the step ends at and the world's seed.
-func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick { return p.module.tick(cb, d) }
+func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) rule.Tick { return p.module.tick(cb, d) }
 
 // HasHeights reports whether this world has heights — see Config.Heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
@@ -201,10 +202,11 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's, Despawn's and Apply's — for the players plugin, which carries the world's
-// commands itself.
+// Queues are the clock's, Despawn's, Apply's, Dispel's and the steering's (steering.Away, Toward,
+// Turn) — for the players plugin, which carries the world's commands itself.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies)
+	q := append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies, &p.module.dispels)
+	return append(q, p.module.steer.Queues()...)
 }
 
 // Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the
@@ -219,7 +221,7 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 }
 
 // Commands is what takes the commands the world's entities give themselves to their handlers:
-// a host's plugin.Tick carries it.
+// a host's rule.Tick carries it.
 func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
 
 // DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
@@ -227,9 +229,8 @@ func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.Def
 
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = newRenderer(atlas, p.ViewFor, p.module.drawers, p.Look)
+	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
-	p.renderer.stepped, p.renderer.seed = p.module.clock.Time, p.module.config.Seed
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
@@ -247,20 +248,28 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge), a Drawing (every entity about to be drawn) and a
-// clock.Moment (every step). Call before Use.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+// an entity is Outside an open edge) and a clock.Moment (every step). Call before Use.
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		var err error
-		hosts := []func(plugin.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.drawers.Add, p.module.moments.host.Add}
+		hosts := []func(rule.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.moments.host.Add}
 		for _, add := range hosts {
-			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
+			if err = add(b); err == nil || !errors.Is(err, rule.ErrUnhosted) {
 				break
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Moving, Leaving, Drawing or clock.Moment", err, p.Name())
+			return fmt.Errorf("%w in %s — it takes a rule of Moving, Leaving or clock.Moment", err, p.Name())
 		}
+	}
+	return nil
+}
+
+// Draw has the world's renderer draw its entities as rules say, every frame, in the order given
+// (render.Over, As, With, Show; Facing); call before Use.
+func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.module.drawing.Add(rules...); err != nil {
+		return fmt.Errorf("%w in %s", err, p.Name())
 	}
 	return nil
 }

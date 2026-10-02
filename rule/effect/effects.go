@@ -6,7 +6,6 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
 
@@ -94,7 +93,6 @@ type Module struct {
 }
 
 var _ goke.Module = (*Module)(nil)
-var _ plugin.Serializable = (*Module)(nil)
 
 // RegSystems registers the effect system once, however many times the module is registered: the
 // world registers it with its own systems and installs it as a module of its own.

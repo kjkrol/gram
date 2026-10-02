@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 // carrierStage is a world with collision and the players, and a leaver whose tree gives itself a
@@ -51,7 +52,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	s.leaver = kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		rule.Plan("leaver", func(a *rule.Actor) rule.Step {
+		plan.New("leaver", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
 		}),
 	})

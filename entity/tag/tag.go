@@ -15,6 +15,10 @@ const MaxTagsPerFamily = 64
 // Has reports whether t is set.
 func (s Tags[F]) Has(t Tag[F]) bool { return s&(1<<t) != 0 }
 
+// In reports whether s carries t: t.In is a condition of the entities carrying it, for a
+// render.Rule.
+func (t Tag[F]) In(s Tags[F]) bool { return s.Has(t) }
+
 // With returns s with every tag set.
 func (s Tags[F]) With(tags ...Tag[F]) Tags[F] {
 	for _, t := range tags {

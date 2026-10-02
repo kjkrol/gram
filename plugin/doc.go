@@ -19,20 +19,10 @@
 //
 // # Rules
 //
-// A [Rule] is what is done at a moment a plugin catches in its own pass, built with rule.On
-// (package rule) and hooked with the plugin's Hook: rule.On[vision.Sighting](name,
-// rule.Between(a, b), body) fires for every observer carrying tag a and what it sees carrying b;
-// rule.On[unit.Standing](name, rule.All, body) for every entity on the board. The moment's type —
-// a Sighting, a Standing, a Moving — is what says which plugin hosts it; a host refuses another's
-// with [ErrUnhosted], and one hooked after the host's queries were built with [ErrHostBuilt]. Hook
-// before Use. The hosts behind rules are in plugin/host, a plugin author's package. A rule is
-// instant, in the host's pass; what lasts over ticks and talks to other entities is a kind's plan
-// (rule.Plan).
-//
-// A tag is a bit of a family (package entity/tag). The families a host's rules name join
-// its queries as optional components, so a rule costs no query of its own, and a host reads
-// what an entity carries as [Marks] — what a payload passes on for [Marks.Carries]. One host's
-// rules may name at most [MaxFamilies] families.
+// A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
+// pass, written with package rule (rule.On) and run by its hosts (rule.EachHost, rule.PairHost,
+// rule.ListHost) inside that pass. Package rule holds the rule, the hosts and the Tick a host hands
+// its rules. Hook before Use.
 //
 // # Commands
 //
@@ -43,12 +33,6 @@
 // what hears an event, and there may be many. The players plugin is the carrier built over the
 // handlers for the players; the world carries the commands its entities give themselves
 // (Order in a rule or a plan), the engine handing it every handler a stage uses.
-//
-// # Tick
-//
-// [Tick] is what a rule is told about the pass it runs in: the command buffer its structural
-// changes go through (they land when the pass is over), the time read once for the whole pass,
-// the tick's length, and the world's carrier of commands.
 //
 // # Optional interfaces
 //

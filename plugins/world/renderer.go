@@ -3,55 +3,48 @@ package world
 import (
 	"time"
 
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world/view"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 var _ render.Direct = (*renderer)(nil)
 
 // renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
-// camera — what it sees this tick — each laid on the screen by the world's Look, running the Each
-// rules of a Drawing over each chunk to settle their layers. A Stage that has not ticked yet
-// sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
+// camera — what it sees this tick — each laid on the screen by the world's Look, running the
+// render.Rules given to Plugin.Draw over each chunk to settle their layers and which are drawn. A
+// Stage that has not ticked yet sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
 // sprites it was handed.
 type renderer struct {
 	renderQuery *goke.Query
 	base        goke.Comp[Base]
 	appearance  goke.Comp[Appearance]
 	z           goke.OptComp[Z]
-	host        *host.EachHost[Drawing]
+	rules       *render.Rules
 	layers      [][]Appearance // one per entity of the chunk being drawn
+	shown       []bool         // the chunk's, as the rules say
 	atlas       render.AtlasSource
 	look        func() Look
 	views       func(camera.Camera) *view.View
 	view        *view.View // the one being drawn
 	// clock is the game time the frame's animations go by; nil, the composer's own
 	clock func() time.Duration
-	// stepped is the game time of the last step, seed the world's: what a Drawing rule's Chance
-	// draws from
-	stepped func() time.Duration
-	seed    uint64
 
-	ids   []uid.UID64
 	bases []Base
-	about func(i int) Drawing // at, bound once so a frame allocates no method value
 }
 
-func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, host *host.EachHost[Drawing], look func() Look) *renderer {
-	r := &renderer{atlas: atlas, views: views, host: host, look: look}
-	r.about = r.at
-	return r
+func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, rules *render.Rules, look func() Look) *renderer {
+	return &renderer{atlas: atlas, views: views, rules: rules, look: look}
 }
 
 func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
-	s.host.Bind(qb)
+	render.Own(s.rules, &s.base)
+	render.Own(s.rules, &s.appearance)
+	render.Own(s.rules, &s.z)
+	s.rules.Bind(qb)
 	s.renderQuery = qb.Build()
 }
 
@@ -99,31 +92,27 @@ func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 }
 
-// each walks the drawn entities of the View, their Drawing rules run, calling visit once per
-// entity with its index in the chunk and its Z, nil without one.
+// each walks the drawn entities of the View, their rules run, calling visit once per entity shown
+// with its index in the chunk and its Z, nil without one.
 func (s *renderer) each(visit func(i int, z *Z)) {
-	tick := plugin.Tick{Now: time.Now(), Seed: s.seed}
-	if s.stepped != nil {
-		tick.Time = s.stepped()
-	}
 	s.renderQuery.All()
 	for s.renderQuery.Next() {
 		cursor := s.renderQuery.Cursor()
-		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
+		ids := cursor.IDs
+		s.bases = s.base.Slice(cursor)
 		appearances := s.appearance.Slice(cursor)
 		zs := s.z.Slice(cursor)
 
-		for len(s.layers) < len(s.ids) {
+		for len(s.layers) < len(ids) {
 			s.layers = append(s.layers, nil)
+			s.shown = append(s.shown, false)
 		}
-		for i := range s.ids {
+		for i := range ids {
 			s.layers[i] = append(s.layers[i][:0], appearances[i])
 		}
-		if !s.host.Empty() {
-			s.host.Run(tick, cursor, s.about)
-		}
-		for i, id := range s.ids {
-			if !s.view.Contains(id) {
+		s.rules.Run(cursor, s.layers[:len(ids)], s.shown[:len(ids)])
+		for i, id := range ids {
+			if !s.shown[i] || !s.view.Contains(id) {
 				continue
 			}
 			var z *Z
@@ -133,9 +122,4 @@ func (s *renderer) each(visit func(i int, z *Z)) {
 			visit(i, z)
 		}
 	}
-}
-
-// at describes the i-th entity of the chunk being drawn.
-func (s *renderer) at(i int) Drawing {
-	return Drawing{ID: s.ids[i], Base: &s.bases[i], Layers: &s.layers[i]}
 }

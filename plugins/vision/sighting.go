@@ -1,24 +1,31 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 // Sighting is one observer and everything in its view carrying the rule's second tag,
-// nearest first, possibly none. Helm is the zero one for an observer that cannot be steered.
+// nearest first, possibly none.
 type Sighting struct {
 	Self  uid.UID64
 	Base  *world.Base
 	Sight *Sight
-	Helm  steering.Helm
 	Seen  []Seen
 }
 
 // Who is the observer: whose moment it is, for a rule.
 func (s Sighting) Who() uid.UID64 { return s.Self }
+
+// Subject is the nearest one seen, whom an Aimed command given on the moment is about; false
+// while none is in view.
+func (s Sighting) Subject() (uid.UID64, bool) {
+	if len(s.Seen) == 0 {
+		return 0, false
+	}
+	return s.Seen[0].ID, true
+}
 
 // Whom tells each one the observer sees.
 func (s Sighting) Whom(each func(uid.UID64)) {
@@ -33,5 +40,5 @@ type Seen struct {
 	ID   uid.UID64
 	Base *world.Base
 	Dist float32
-	plugin.Marks
+	rule.Marks
 }

@@ -32,7 +32,7 @@
 //     step is refused, the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
 //     whatever the rules do, it notes the cell for its routes to go round and plans afresh; a
 //     corner of a slantwise step held is gone round square at once. One that struck someone bodily
-//     (a Struck rule navigation registers on the board's collision plugin) stops, plans again
+//     (navigation reads its collision.Collider contacts in its own pass) stops, plans again
 //     from where it stands and keeps that route for a while whatever bumps follow —
 //     MoveOrder.Bumped and Cooldown. Occupancy is seeded from every entity's Cell and Mover when the
 //     Stage is set up, fresh or loaded. Board games and units a cell large.

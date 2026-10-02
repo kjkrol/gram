@@ -3,11 +3,9 @@ package hooks
 import (
 	"time"
 
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 )
@@ -20,19 +18,14 @@ func Hit(w *world.Plugin, d time.Duration) effect.Effect {
 
 // ShowHits casts the hit on an entity that struck something, afresh every tick it strikes; hook it
 // on collision.
-func ShowHits(hit effect.Effect) plugin.Rule {
+func ShowHits(hit effect.Effect) rule.Rule {
 	return rule.On("collision.show hits", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
 		return m.Apply(hit)
 	})
 }
 
-// HitOverlay is a Drawing hook for the world plugin: with is drawn on top of an entity while the
-// hit's marker is on — a bit read from its row, no effect looked up.
-func HitOverlay(hit effect.Effect, with world.Appearance) plugin.Rule {
-	mark := hit.Mark()
-	return host.Each(func(_ plugin.Tick, marks *tag.Tags[effect.States], d world.Drawing) {
-		if marks.Has(mark) {
-			d.Overlay(with)
-		}
-	})
+// HitOverlay draws with on top of an entity while the hit's marker is on — a bit read from its
+// row, no effect looked up; give it to the world's Draw.
+func HitOverlay(hit effect.Effect, with world.Appearance) render.Rule {
+	return render.Over(with, hit.Mark().In)
 }

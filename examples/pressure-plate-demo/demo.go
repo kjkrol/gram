@@ -8,6 +8,7 @@ package main
 
 import (
 	"image/color"
+	"log"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -19,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -126,7 +126,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
@@ -141,7 +141,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 
 	// Whoever stands where nothing holds it falls in.
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	if err := s.board.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err

@@ -7,13 +7,15 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*System)(nil)
 
 // System carries out the Course asked of each entity between the plans and movement, as
 // its Steering lets it: heading by at most TurnRate a tick, and base speed rewritten each tick for
-// an entity with a motion profile; one Halted stands. An entity without a Course gets one, steered
+// an entity with a motion profile; one Halted stands. The commands entities gave themselves —
+// Away, Toward, Turn — it asks of their Helms first. An entity without a Course gets one, steered
 // from its next step. The world runs it in every step of its simulation, before movement.
 type System struct {
 	query    *goke.Query
@@ -21,17 +23,27 @@ type System struct {
 	course   goke.OptComp[Course]
 	base     goke.Comp[entity.Base]
 	courseID goke.CompID
+
+	// told are the commands given, carried out first in a step, through lookup
+	told       queues
+	obeyed     map[uid.UID64]bool
+	lookup     *goke.Query
+	lookBase   goke.Comp[entity.Base]
+	lookSteer  goke.OptComp[Steering]
+	lookCourse goke.OptComp[Course]
 }
 
 // NewSystem is the steering system; the world registers it.
-func NewSystem() *System { return &System{} }
+func NewSystem() *System { return &System{obeyed: map[uid.UID64]bool{}} }
 
 func (s *System) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.steer, &s.base).Optional(&s.course).Build()
+	s.lookup = si.NewQueryBuilder(&s.lookBase).Optional(&s.lookSteer, &s.lookCourse).Build()
 	s.courseID = si.RegComp[Course]()
 }
 
 func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
+	s.obey()
 	dt := d.Seconds()
 	s.query.All()
 	for s.query.Next() {

@@ -6,8 +6,8 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/rule"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -19,7 +19,7 @@ type module struct {
 	clock    *clock.Clock // the world's; nil, run at once
 }
 
-func newModule(space *aabbworld.Space, host *host.PairHost[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
+func newModule(space *aabbworld.Space, host *rule.PairHost[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.sys.coverOf = coverOf
 	m.sys.Workers(workers)

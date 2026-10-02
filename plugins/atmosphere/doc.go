@@ -27,9 +27,9 @@
 // what falls. The root keeps no shaders of its own: it composes these.
 //
 // [Plugin.WithWeathering] lays the weather on a board (plugins/atmosphere/weathering): snow
-// lying, ice on the water, what sways swaying, as effects on the cells from a rule of the
-// world's clock, once a second of game time. [Plugin.Hook] hosts rules told the weather
-// (climate.Weathering) every step.
+// lying, ice on the water, what sways swaying, as effects on the cells, in a pass of its own once
+// a second of game time. [Plugin.Hook] hosts rules told the weather (climate.Weathering) every
+// step, about the world's own entity.
 //
 // The plugin is a plugin.CommandHandler, its keys the players carry: P freezes the light and lets
 // it go, Shift+] and Shift+[ move a frozen light half an hour on and back, Shift+W changes the

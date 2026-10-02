@@ -1,60 +1,36 @@
 package hooks
 
 import (
-	"math/rand/v2"
+	"math"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/vision"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
-// Chase has every Predator steer at the nearest Prey it sees; seeing none, it turns a quarter
-// aside every lookEvery. Hook it on the vision plugin.
-func Chase(tags Tags, lookEvery time.Duration) plugin.Rule {
-	started := time.Now()
-	return host.Pair(tags.Predator, tags.Prey, func(t plugin.Tick, s vision.Sighting) { hunt(t, s, started, lookEvery) })
+// Chase has every Predator head at the nearest Prey it sees. Hook it on the vision plugin.
+func Chase(tags Tags) rule.Rule {
+	return rule.On("vision.chase", rule.Between(tags.Predator, tags.Prey), func(m *rule.Moment[vision.Sighting]) rule.Step {
+		return m.Order(steering.Toward{})
+	})
 }
 
-// hunt steers s's observer at the nearest prey shown, or a quarter aside when it is time to look.
-func hunt(t plugin.Tick, s vision.Sighting, started time.Time, lookEvery time.Duration) {
-	if !s.Helm.Steerable() {
-		return
-	}
-	if len(s.Seen) > 0 {
-		chase(s)
-		return
-	}
-	if lookEvery > 0 && looksDue(started, t, lookEvery) {
-		lookAside(s)
-	}
+// Looked defines on w the look round, the effect of a Predator having turned aside to search,
+// lasting d of game time. Define it in Init, before the kinds.
+func Looked(w *world.Plugin, d time.Duration) effect.Effect {
+	return w.Effects().Define("looked", effect.Spec{effect.Lasts(d)})
 }
 
-// chase points the predator at the nearest prey — Seen comes nearest first.
-func chase(s vision.Sighting) {
-	ox, oy := centre(&s.Base.Pos)
-	tx, ty := centre(&s.Seen[0].Base.Pos)
-	if tx != ox || ty != oy {
-		s.Helm.Request(geom.NewVec(tx-ox, ty-oy))
-	}
-}
-
-// looksDue reports the tick in which another stretch of every has run out.
-func looksDue(started time.Time, t plugin.Tick, every time.Duration) bool {
-	now := t.Now.Sub(started)
-	return now/every != (now-t.Dt)/every
-}
-
-// lookAside turns the predator a quarter to whichever side the coin falls.
-func lookAside(s vision.Sighting) {
-	heading := s.Base.Vel.Dir
-	if heading.X == 0 && heading.Y == 0 {
-		return
-	}
-	side := geom.NewVec(-heading.Y, heading.X)
-	if rand.IntN(2) == 0 {
-		side = geom.NewVec(heading.Y, -heading.X)
-	}
-	s.Helm.Request(side)
+// Search has every Predator that sees no Prey turn a quarter aside, to whichever side the chance
+// falls, unless it still has looked about it. Hook it on the vision plugin.
+func Search(tags Tags, looked effect.Effect) rule.Rule {
+	return rule.On("vision.search", rule.Between(tags.Predator, tags.Prey), func(m *rule.Moment[vision.Sighting]) rule.Step {
+		return m.If(func(s vision.Sighting) bool { return len(s.Seen) == 0 }, m.Unless(looked, m.Steps(
+			m.Apply(looked),
+			m.OneOf(m.Chance(0.5, m.Order(steering.Turn{Angle: math.Pi / 2})), m.Order(steering.Turn{Angle: -math.Pi / 2})),
+		)))
+	})
 }

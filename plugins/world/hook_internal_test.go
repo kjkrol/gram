@@ -4,20 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/rule"
 )
 
-// Hook hosts rules alone: a goke system or anything else that is no rule of the world's moments
-// is refused.
-func TestHook_RefusesWhatIsNoRule(t *testing.T) {
+// Hook hosts the rules of the world's moments alone: one of another moment is refused.
+func TestHook_RefusesARuleOfAnotherMoment(t *testing.T) {
 	p := testPlugin()
-	for name, b := range map[string]plugin.Rule{
-		"a goke system": goke.SystemFn{},
-		"not a rule":    struct{}{},
-	} {
-		if err := p.Hook(b); !errors.Is(err, plugin.ErrUnhosted) {
-			t.Errorf("Hook(%s) = %v, want ErrUnhosted", name, err)
-		}
+	other := rule.On("of another moment", rule.All, func(m *rule.Moment[struct{}]) rule.Step { return m.Steps() })
+	if err := p.Hook(other); !errors.Is(err, rule.ErrUnhosted) {
+		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}
 }

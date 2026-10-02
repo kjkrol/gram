@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/collision"
-	chooks "github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
 	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
@@ -25,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 const (
@@ -52,7 +52,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{avoiding: true}} }
+func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -81,12 +81,12 @@ type mainStage struct {
 	hunter    kind.Of[body]
 	collision *collision.Plugin
 
-	avoidance *vhooks.Flee
-	tags      vhooks.Tags
-	avoiding  bool
-	hits      chooks.ContactStats
+	tags    vhooks.Tags
+	fleeing effect.Effect // on the world while the prey flee
+	hits    collision.ContactStats
 
 	players *players.Plugin
+	player  *players.Player
 
 	stack game.Scenes
 }
@@ -103,20 +103,16 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	})
 
 	s.tags = vhooks.DefineTags(s.world.Kinds())
+	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
+	looked := vhooks.Looked(s.world, hunterLooksEvery)
 	s.defineKinds()
 
-	s.avoidance = vhooks.NewFlee(s.tags)
-
 	s.vision = vision.NewPlugin(s.world)
-	if err := s.vision.Hook(
-		s.avoidance.Rule(),
-		vhooks.Chase(s.tags, hunterLooksEvery),
-	); err != nil {
+	if err := s.vision.Hook(append(vhooks.Flee(s.tags, s.fleeing), vhooks.Chase(s.tags), vhooks.Search(s.tags, looked))...); err != nil {
 		return err
 	}
-	s.collision = collision.NewPlugin(s.world)
+	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
 	if err := s.collision.Hook(
-		chooks.CountContacts(&s.hits),
 		rule.On("caught", rule.Between(s.tags.Predator, s.tags.Prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
 			return m.ForOther(m.Order(world.Despawn{})) // the hunter's prey is gone
 		}),
@@ -133,7 +129,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
 	s.players = players.NewPlugin(s.world, s.vision)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -200,6 +197,7 @@ func (s *mainStage) Spawn() error {
 	}
 	entries = append(entries, s.hunter.Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
+	s.world.Commands().Put(s.player.ID, world.Apply{Effect: s.fleeing}) // the prey flee from the start
 	return nil
 }
 
@@ -259,8 +257,16 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 		case control.KeyEscape:
 			runtime.Quit()
 		case control.KeyA:
-			m.stage.avoiding = !m.stage.avoiding
-			m.stage.avoidance.SetEnabled(m.stage.avoiding)
+			m.stage.switchFleeing()
 		}
 	}
+}
+
+// switchFleeing has the player take the fleeing off the world, or put it back on.
+func (s *mainStage) switchFleeing() {
+	var cmd any = world.Apply{Effect: s.fleeing}
+	if s.world.Effects().Has(s.world.Clock().Entity(), s.fleeing) {
+		cmd = world.Dispel{Effect: s.fleeing}
+	}
+	s.world.Commands().Put(s.player.ID, cmd)
 }

@@ -4,48 +4,57 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*velocitySystem)(nil)
 
-// velocitySystem runs the rules of a Moving over every entity, after Steering wrote the
-// base speed and before movement, so each may scale Velocity.Value.
+// velocitySystem scales every entity's speed, after Steering wrote the base speed and before
+// movement: by its steering.Pace, the ground's, then as the rules of a Moving say.
 type velocitySystem struct {
-	host  *host.EachHost[Moving]
-	tick  plugin.TickSource
+	host  *rule.EachHost[Moving]
+	tick  rule.TickSource
 	query *goke.Query
 	base  goke.Comp[Base]
+	pace  goke.OptComp[steering.Pace]
 
 	ids   []uid.UID64
 	bases []Base
 	about func(i int) Moving // at, bound once so a tick allocates no method value
 }
 
-func newVelocitySystem(host *host.EachHost[Moving]) *velocitySystem {
+func newVelocitySystem(host *rule.EachHost[Moving]) *velocitySystem {
 	s := &velocitySystem{host: host}
 	s.about = s.at
 	return s
 }
 
 func (s *velocitySystem) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&s.base)
+	qb := si.NewQueryBuilder(&s.base).Optional(&s.pace)
 	s.host.Bind(qb)
 	s.query = qb.Build()
 }
 
 func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	if s.host.Empty() {
-		return
+	hosted := !s.host.Empty()
+	var tick rule.Tick
+	if hosted {
+		tick = s.tick.Of(cb, d)
 	}
-	tick := s.tick.Of(cb, d)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
-		s.host.Run(tick, cursor, s.about)
+		if paces := s.pace.Slice(cursor); paces != nil {
+			for i := range s.bases {
+				s.bases[i].Vel.Value *= paces[i].Share
+			}
+		}
+		if hosted {
+			s.host.Run(tick, cursor, s.about)
+		}
 	}
 }
 

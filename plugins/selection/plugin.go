@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
@@ -79,9 +80,9 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook reports ErrUnhosted — selection hosts no rules.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
+		return fmt.Errorf("%w: %T in %s", rule.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

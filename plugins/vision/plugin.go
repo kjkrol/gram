@@ -2,16 +2,17 @@ package vision
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin wires vision into a Stage over world.Plugin's space.
@@ -27,10 +28,11 @@ type Plugin struct {
 	cover       func() ground.Cover   // what holds sight back; nil, nothing
 	hidden      bool                  // the views drawn are hidden, as they start — see Cones
 	workers     int                   // how many goroutines at most share a scan: 0 all the CPUs, 1 none
+	log         *log.Logger           // a line the first time one entity sees another, nil for none
 	cones       control.Queue[Cones]
 
-	sightings host.PairHost[Sighting]
-	viewings  host.EachHost[Viewing] // which views are drawn; none, every one
+	sightings rule.PairHost[Sighting]
+	drawing   render.Rules // which views are drawn; none, every one
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -55,7 +57,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
 	p.module.clock = p.worldPlugin.Clock()
-	p.module.sys.tick = p.worldPlugin.Tick
+	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -69,7 +71,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep).WithCover(p.coverOf).WithScale(p.worldPlugin.Scale()).WithViewing(&p.viewings)
+	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep).WithCover(p.coverOf).WithScale(p.worldPlugin.Scale()).WithDrawing(&p.drawing)
 	if p.style != nil {
 		p.renderer.WithStyle(p.style)
 	}
@@ -92,16 +94,22 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer, and of
-// Viewing, fired as the frame is composed; call before Use.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer; call before Use.
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
-		if err := p.sightings.Add(b); err == nil {
-			continue
+		if err := p.sightings.Add(b); err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of Sighting", err, p.Name())
 		}
-		if err := p.viewings.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Sighting or of Viewing", err, p.Name())
-		}
+	}
+	return nil
+}
+
+// Draw has the views drawn as rules say, every frame: render.Show picks the observers whose views
+// are drawn — the selected ones, say (render.Show(selected.In)); with none, every one is. Call
+// before Use.
+func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.drawing.Add(rules...); err != nil {
+		return fmt.Errorf("%w in %s", err, p.Name())
 	}
 	return nil
 }
@@ -171,6 +179,13 @@ func (p *Plugin) coverOf() ground.Cover {
 // board's cell; a longer step is a cheaper scan. Call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
+	return p
+}
+
+// WithLog has the vision write a line to l the first time one entity sees another; call before
+// Use.
+func (p *Plugin) WithLog(l *log.Logger) *Plugin {
+	p.log = l
 	return p
 }
 

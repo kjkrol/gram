@@ -95,7 +95,7 @@
 // it the players' commands, and a plan or a rule (Order) the commands its entities give
 // themselves, each taken to the queue of the plugin that handles it. [Plugin.Carry] takes a
 // plugin.CommandHandler's queues; the engine carries every one a stage uses, and a host's
-// plugin.Tick hands the carrier to its rules. Nothing is dropped: a command waits for its
+// rule.Tick hands the carrier to its rules. Nothing is dropped: a command waits for its
 // handler's pass — given after it, for the next frame's.
 //
 // # Clock, Systems and Effects
@@ -117,12 +117,13 @@
 // in its own pass sees the boxes as they stand after the last rebuild — and, after a collision
 // tick, as the engine pushed them. The leavers and the effects close every step.
 //
-// # Appearance, Drawing and Look
+// # Appearance, drawing and Look
 //
-// [Appearance] is the sprite an entity is drawn from; [Plugin.WithRenderer] builds the entity
-// renderer over an atlas, and the rules of a [Drawing] registered on the plugin settle each
-// entity's layers in order (Drawing.Overlay, As, With; the ready-made ones are in
-// plugins/world/hooks, for a game, which cannot write a Drawing rule of its own). The renderer, a render.Source for a scene's render.Composer, hands it the
+// [Appearance] is the sprite an entity is drawn from (render.Appearance); [Plugin.WithRenderer]
+// builds the entity renderer over an atlas, and the render.Rule values given to [Plugin.Draw]
+// settle, every frame and in order, what each entity is drawn with and whether it is drawn —
+// render.Over, As, With, Show, and [Facing], its sprite picked from the way it moves — leaving
+// its Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]
 // with its box and its [Z] — where it stands and how tall — from above its box, unless a view
 // plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says.

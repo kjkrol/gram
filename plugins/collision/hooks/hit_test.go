@@ -9,12 +9,11 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -22,14 +21,14 @@ import (
 // box is a hit test's collider: where it starts and how fast it goes right.
 type box struct{ x, vx float64 }
 
-// hits is a world with collision, boxes at their places, the hit effect cast by ShowHits and a
-// host of HitOverlay to draw with.
+// hits is a world with collision, boxes at their places, the hit effect cast by ShowHits and the
+// rules of HitOverlay to draw with.
 type hits struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
 	hit     effect.Effect
 	ids     []uid.UID64
-	drawing *host.EachHost[world.Drawing]
+	drawing *render.Rules
 	drawn   *goke.Query
 	base    goke.Comp[world.Base]
 }
@@ -38,7 +37,7 @@ var flash = world.Appearance{SpriteID: 2}
 
 func newHits(t *testing.T, boxes ...box) *hits {
 	t.Helper()
-	h := &hits{drawing: &host.EachHost[world.Drawing]{}}
+	h := &hits{drawing: &render.Rules{}}
 	h.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: len(boxes), MinSize: 10, MaxSize: 10},
@@ -93,12 +92,11 @@ func (h *hits) overlaid() []bool {
 	on := map[uid.UID64]bool{}
 	for h.drawn.All(); h.drawn.Next(); {
 		cur := h.drawn.Cursor()
-		bases := h.base.Slice(cur)
 		layers := make([][]world.Appearance, len(cur.IDs))
-		h.drawing.Run(plugin.Tick{}, cur, func(i int) world.Drawing {
+		for i := range layers {
 			layers[i] = []world.Appearance{{SpriteID: 1}}
-			return world.Drawing{ID: cur.IDs[i], Base: &bases[i], Layers: &layers[i]}
-		})
+		}
+		h.drawing.Run(cur, layers, nil)
 		for i, id := range cur.IDs {
 			on[id] = len(layers[i]) == 2 && layers[i][1] == flash
 		}

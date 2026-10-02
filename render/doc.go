@@ -74,4 +74,15 @@
 // sheet, and [Paint] paints a frame's sprites once into an image of one's own, through the same
 // shader: a sheet painted once and drawn from every frame. [ProjectCorners] projects a world box
 // at a height through a camera; [VisitWrapImages] visits each image of a box on a wrapping world.
+//
+// # Appearance and Rules
+//
+// [Appearance] is the sprite an entity is drawn from and how it sways. A [Rule] says, every frame,
+// how the entities a renderer draws are drawn, each reading one component T of the entity: [Over]
+// lays a sprite on top of one carrying T, [As] draws it as another, [With] reworks its sprite
+// through a function of T, [Show] leaves out those it does not hold for; Over, As and Show take
+// conditions of T (a tag's In for a tag carried). Being no part of the game, they are written in
+// Go — the one place a rule is. A renderer runs them through [Rules]: Bind adds what they read to
+// its query, [Own] shares a column it reads itself, Run settles each chunk. The world's renderer
+// takes them (world.Plugin.Draw), the views of vision too.
 package render

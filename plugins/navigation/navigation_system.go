@@ -10,8 +10,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -20,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -227,7 +226,7 @@ type navigationSystem struct {
 	lastOrderID goke.CompID
 	lastLacking []LastOrder // the units lacking LastOrder whose order is over this chunk, by Group
 	lastIDs     []uid.UID64
-	mind        goke.OptComp[rule.Mind]
+	mind        goke.OptComp[plan.Mind]
 	blocked     goke.OptComp[Blocked]
 	arrived     goke.OptComp[Arrived]
 	blockedID   goke.CompID
@@ -241,10 +240,11 @@ type navigationSystem struct {
 	told     map[uid.UID64]told
 	touched  []touching
 	felt     map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
-	touches  *host.PairHost[Touch]
+	touches  *rule.PairHost[Touch]
+	bumps    bumps // how it answers what a unit under orders struck
 	marks    *goke.Query
 	markCell goke.Comp[unit.At]
-	tick     plugin.TickSource // the world's, for the rules
+	tick     rule.TickSource // the world's, for the rules
 
 	orderID goke.CompID
 
@@ -316,6 +316,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.terrainSeen, changed = v.Version(), true
 	}
 	s.keep.begin(s.gather)
+	s.bump()
 	s.touched = s.touched[:0]
 	if s.felt == nil {
 		s.felt = map[[2]uid.UID64]bool{}
@@ -819,7 +820,7 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 
 // fire hands the Touch of self by other, holding cell, to the rules, and notes it for self when
 // it has a tree.
-func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
+func (s *navigationSystem) fire(tick rule.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
 	t := Touch{Self: self.id, Other: other.id, Way: way, Moving: self.moving, OtherMoving: other.moving,
 		GivingWay: self.givingWay, OtherGivingWay: other.givingWay, LastGoal: self.lastGoal,
 		Ally: owner.Allies(self.owners, other.owners), Groupmate: self.group != 0 && self.group == other.group,
@@ -842,9 +843,9 @@ func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body,
 }
 
 // marksOf is what id carries of the tag families the rules of Touch name.
-func (s *navigationSystem) marksOf(id uid.UID64) plugin.Marks {
+func (s *navigationSystem) marksOf(id uid.UID64) rule.Marks {
 	if !s.marks.Seek(id) {
-		return plugin.Marks{}
+		return rule.Marks{}
 	}
 	return s.touches.At(0, s.marks.Cursor())
 }

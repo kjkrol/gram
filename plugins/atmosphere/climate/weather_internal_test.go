@@ -10,22 +10,31 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/uid"
 )
 
 func near(a, b, tolerance float32) bool { return math.Abs(float64(a-b)) <= float64(tolerance) }
 
 type rig struct {
-	w     *world.Plugin
-	clk   *clock.Clock
-	c     *Climate
-	sys   *weatherSystem
-	heard []Weathering
+	w      *world.Plugin
+	clk    *clock.Clock
+	c      *Climate
+	sys    *weatherSystem
+	winter heards // the world's, told by a rule of the weather in a winter
 }
+
+// winterNow is the command the rig's rule gives in a winter, as the world's weather says.
+type winterNow struct{}
+
+// heards is where the winterNow commands land, for the world to carry.
+type heards struct{ control.Queue[winterNow] }
+
+func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) DefaultBindings() []control.Binding { return nil }
 
 // weatherOf runs a weather system of cfg over a new world, on a calendar of 4-minute days begun in
 // the middle of season.
@@ -34,7 +43,12 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
 	cal := calendar.New(r.clk, calendar.Config{Day: 4 * time.Minute, Season: season})
 	r.c = New(r.w, cal, cfg)
-	if err := r.c.Host(host.Every(func(_ plugin.Tick, w Weathering) { r.heard = append(r.heard, w) })); err != nil {
+	if err := r.w.Carry(&r.winter); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.c.Host(rule.On("winter", rule.All, func(m *rule.Moment[Weathering]) rule.Step {
+		return m.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, m.Order(winterNow{}))
+	})); err != nil {
 		t.Fatal(err)
 	}
 	r.sys = r.c.System().(*weatherSystem)
@@ -181,8 +195,10 @@ func TestWeather_TellsItsRulesEveryStep(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Winter)
 	r.tick(time.Millisecond)
 	r.tick(time.Millisecond)
-	if len(r.heard) != 2 || r.heard[1].Season != calendar.Winter || r.heard[1].Weather != r.c.Air() {
-		t.Errorf("the rule heard %+v, want the world's weather and the winter, every step", r.heard)
+	var told []uid.UID64
+	r.winter.Drain(func(i control.Issued[winterNow]) { told = append(told, i.Entity) })
+	if len(told) != 2 || told[0] != r.w.Clock().Entity() {
+		t.Errorf("the rule told %v, want the world's entity twice, of its weather in the winter", told)
 	}
 }
 

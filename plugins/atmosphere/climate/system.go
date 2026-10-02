@@ -6,11 +6,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 var _ goke.System = (*weatherSystem)(nil)
@@ -31,14 +31,14 @@ type weatherSystem struct {
 	query   *goke.Query
 	now     goke.Comp[Weather]
 	spawn   goke.Comp[Weather]
-	host    *host.EachHost[Weathering]
+	host    *rule.EachHost[Weathering]
 	profile Profile                // the zone's climate in numbers
 	about   func(i int) Weathering // what a rule hears, bound once so a tick allocates nothing
 	told    Weathering
 	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *host.EachHost[Weathering], running *Running) *weatherSystem {
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *rule.EachHost[Weathering], running *Running) *weatherSystem {
 	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: rules, profile: cfg.Zone.Profile()}
 	s.about = func(int) Weathering { return s.told }
 	return s
@@ -107,8 +107,9 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		now := w.air(s.world.Scale(), *s.running)
 		s.current = now
 		if !s.host.Empty() {
-			s.told = Weathering{Weather: now, Season: season}
-			s.host.Run(s.world.Tick(cb, d), cursor, s.about)
+			t := s.world.Tick(cb, d)
+			s.told = Weathering{Weather: now, Season: season, World: t.World}
+			s.host.Run(t, cursor, s.about)
 		}
 		return
 	}

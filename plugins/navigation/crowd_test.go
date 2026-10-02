@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 // wall is ground nobody walks.
@@ -214,7 +215,7 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	patrol := rule.Plan("navigation test patrol", func(a *rule.Actor) rule.Step {
+	patrol := plan.New("navigation test patrol", func(a *plan.Actor) rule.Step {
 		return a.Steps(
 			a.Order(MoveTo{Cell: east}).Until[Arrived](),
 			a.Order(MoveTo{Cell: west}).Until[Arrived](),

@@ -6,19 +6,20 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
 // moments hands the rules of the clock its Moment once every step of the simulation, just before
 // the effects' pass: what happens when — every day at an hour, every winter — is a rule of a
-// clock.Moment holding clock.Every or clock.At. First it puts on the world what was Applied to it.
+// clock.Moment holding clock.Every or clock.At. First it puts on the world what was Applied to it
+// and takes off what was Dispelled.
 type moments struct {
 	clock   *clock.Clock
-	host    host.ListHost[clock.Moment]
-	tick    plugin.TickSource
+	host    rule.ListHost[clock.Moment]
+	tick    rule.TickSource
 	applies *control.Queue[Apply]
+	dispels *control.Queue[Dispel]
 	last    time.Duration
 	begun   bool
 }
@@ -28,6 +29,11 @@ func (m *moments) system() goke.System {
 		m.applies.Drain(func(i control.Issued[Apply]) {
 			if i.Command.Effect != (effect.Effect{}) {
 				i.Command.Effect.Cast(cb, m.clock.Entity())
+			}
+		})
+		m.dispels.Drain(func(i control.Issued[Dispel]) {
+			if i.Command.Effect != (effect.Effect{}) {
+				i.Command.Effect.Dispel(m.clock.Entity())
 			}
 		})
 		now := m.clock.Time() + d

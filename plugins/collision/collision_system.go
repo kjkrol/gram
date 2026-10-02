@@ -1,6 +1,7 @@
 package collision
 
 import (
+	"log"
 	"math"
 	"time"
 
@@ -9,10 +10,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -28,14 +28,14 @@ const solverIterations = 16
 type collisionSystem struct {
 	space  *aabbworld.Space
 	engine collide.Engine
-	tickOf plugin.TickSource // the world's, for the rules
+	tickOf rule.TickSource // the world's, for the rules
 
 	// walk is the pass over every Collider: its rules and its capabilities.
 	walk     *goke.Query
 	base     goke.Comp[world.Base]
 	collider goke.Comp[Collider]
 	physics  goke.OptComp[Physics]
-	each     *host.EachHost[Struck]
+	each     *rule.EachHost[Struck]
 	walking  struct {
 		ids       []uid.UID64
 		colliders []Collider
@@ -59,19 +59,21 @@ type collisionSystem struct {
 	// pair is the contact being settled; contacts is what this tick confirmed.
 	pair     pairSides
 	contacts []pairSides
-	between  *host.PairHost[Meeting]
+	between  *rule.PairHost[Meeting]
 	outside  goke.CompID // world.Outside, for whoever the solver pushes out by an open edge
 
 	// fieldOf resolves the solid ground when the engine is built; ground is the side it shows a
 	// contact, immovable and still.
 	fieldOf func() Field
+	stats   *ContactStats // counted into, nil for none
+	log     *log.Logger   // a line per contact, nil for none
 	field   solidField
 	ground  struct {
 		base    world.Base
 		physics Physics
 	}
 
-	tick  plugin.Tick
+	tick  rule.Tick
 	stale bool
 }
 
@@ -107,7 +109,7 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 const sought = 0
 
 // newCollisionSystem builds the collision system over space, its rules hosted by between and each.
-func newCollisionSystem(space *aabbworld.Space, between *host.PairHost[Meeting], each *host.EachHost[Struck], fieldOf func() Field) *collisionSystem {
+func newCollisionSystem(space *aabbworld.Space, between *rule.PairHost[Meeting], each *rule.EachHost[Struck], fieldOf func() Field) *collisionSystem {
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
 	d.struckAt, d.hitAt = d.struck, d.hit
 	d.ground.physics = Physics{Mass: math.Inf(1)}
@@ -157,6 +159,12 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 		d.between.DispatchEitherWay(d.tick, s.tagsA, s.tagsB,
 			Meeting{Self: s.A.Entity, Other: s.B.Entity, Impact: s.impact, Normal: s.normal},
 			Meeting{Self: s.B.Entity, Other: s.A.Entity, Impact: s.impact, Normal: geom.NewVec(-s.normal.X, -s.normal.Y)})
+		if d.log != nil {
+			d.log.Printf("collision: %v <-> %v (impact %.2f)", s.A.Entity, s.B.Entity, s.impact)
+		}
+	}
+	if d.stats != nil {
+		d.stats.Counter += len(d.contacts)
 	}
 }
 
@@ -211,7 +219,7 @@ func (d *collisionSystem) hit(i int) bool { return d.walking.colliders[i].Struck
 // pairSides is who the two boxes of a contact belong to, what they carry, and how it went.
 type pairSides struct {
 	A, B         contactSide
-	tagsA, tagsB plugin.Marks
+	tagsA, tagsB rule.Marks
 
 	impact float64
 	normal geom.Vec
@@ -272,12 +280,12 @@ func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
 }
 
 // side looks one entity up, refusing one that no longer carries a Collider.
-func (d *collisionSystem) side(id uid.UID64) (contactSide, plugin.Marks, bool) {
+func (d *collisionSystem) side(id uid.UID64) (contactSide, rule.Marks, bool) {
 	if !d.seek(id) {
 		if d.all.Seek(id) {
 			d.allBase.At(d.all.Cursor()).Caps, d.stale = aabbworld.Plain, true
 		}
-		return contactSide{}, plugin.Marks{}, false
+		return contactSide{}, rule.Marks{}, false
 	}
 	cur := d.lookup.Cursor()
 	return contactSide{

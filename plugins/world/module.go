@@ -13,13 +13,13 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -39,10 +39,11 @@ type module struct {
 
 	kinds *Kinds
 
-	leavers *host.EachHost[Leaving]
-	movers  *host.EachHost[Moving]
-	drawers *host.EachHost[Drawing]
+	leavers *rule.EachHost[Leaving]
+	movers  *rule.EachHost[Moving]
+	drawing render.Rules // the renderer's
 
+	steer            *steering.System
 	steeringRunnable goke.Runnable
 	velocityRunnable goke.Runnable
 	moveRunnable     goke.Runnable
@@ -61,7 +62,7 @@ type module struct {
 	momentsRunnable goke.Runnable
 
 	// the entities' plans, run first in every step of the simulation
-	plans         *rule.Plans
+	plans         *plan.Plans
 	plansRunnable goke.Runnable
 
 	// commands takes the commands the entities give themselves to the plugins that handle them;
@@ -69,6 +70,7 @@ type module struct {
 	commands control.Carrier
 	despawns control.Queue[Despawn]
 	applies  control.Queue[Apply]
+	dispels  control.Queue[Dispel]
 }
 
 var _ goke.Module = (*module)(nil)
@@ -77,16 +79,16 @@ var _ goke.Module = (*module)(nil)
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
-		leavers: &host.EachHost[Leaving]{}, movers: &host.EachHost[Moving]{}, drawers: &host.EachHost[Drawing]{},
-		clock: clk}
-	w.moments = moments{clock: clk, tick: w.tick, applies: &w.applies}
+		leavers: &rule.EachHost[Leaving]{}, movers: &rule.EachHost[Moving]{},
+		clock: clk, steer: steering.NewSystem()}
+	w.moments = moments{clock: clk, tick: w.tick, applies: &w.applies, dispels: &w.dispels}
 	return w
 }
 
 // tick is the Tick of a pass over d of the simulation: the world's carrier, the game time the
 // step ends at and the world's seed.
-func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
-	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed,
+func (w *module) tick(cb *goke.CmdBuf, d time.Duration) rule.Tick {
+	return rule.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed,
 		World: w.clock.Entity()}
 }
 
@@ -99,7 +101,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
-	w.steeringRunnable = ecs.RegSys(steering.NewSystem())
+	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
 	velocity.tick = w.tick
 	w.velocityRunnable = ecs.RegSys(velocity)
@@ -149,6 +151,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Appearance](),
 		goke.LoadComp[steering.Steering](),
 		goke.LoadComp[steering.Course](),
+		goke.LoadComp[steering.Pace](),
 		goke.LoadComp[Outside](),
 		goke.LoadComp[Layers](),
 		goke.LoadComp[Z](),

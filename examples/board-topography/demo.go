@@ -47,7 +47,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -163,7 +162,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.board.CellKinds().Create(island.Kinds(scale.Units(20))...) // a forest 20 m tall
 	// the island in relief: its heights, the views of it (Tab), = and - shaping the ground under
 	// the cursor and an L-drag levelling it; how the kinds look beyond their sprites — the sea
@@ -174,7 +173,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Isometric:   true,
 		Perspective: true,
 		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
@@ -199,7 +198,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Hook(vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -215,7 +214,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	weather := s.defineClimate() // the snowy kinds and ice, and how the weather lies on the island
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
-			Start:  6 * time.Hour,
+			Start:  18 * time.Hour,
 			Season: calendar.Summer,
 			Year:   calendar.EarthYear,
 		},

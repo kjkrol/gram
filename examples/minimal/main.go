@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -52,7 +51,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
-	stats     hooks.ContactStats
+	stats     collision.ContactStats
 	scenes    game.Scenes
 }
 
@@ -72,12 +71,7 @@ func (a *arena) Init(ctx game.Initializer) error {
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
 
-	a.collision = collision.NewPlugin(a.world)
-	if err := a.collision.Hook(
-		hooks.CountContacts(&a.stats),
-	); err != nil {
-		return err
-	}
+	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	if err := ctx.Use(a.collision); err != nil {
 		return err
 	}

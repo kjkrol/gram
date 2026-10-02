@@ -7,9 +7,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -28,10 +25,8 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	c := collision.NewPlugin(w)
-	if err := c.Hook(host.Pair(tag.Any, tag.Any, func(plugin.Tick, collision.Meeting) { met = true })); err != nil {
-		t.Fatal(err)
-	}
+	var stats collision.ContactStats
+	c := collision.NewPlugin(w).WithStats(&stats)
 	boxes := kind.Define[layered](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -54,7 +49,7 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 			lefts = append(lefts, b.Pos.TopLeft.X)
 		}
 	}
-	return met, max(lefts[0], lefts[1]) - min(lefts[0], lefts[1])
+	return stats.Counter > 0, max(lefts[0], lefts[1]) - min(lefts[0], lefts[1])
 }
 
 func TestLayers_TouchOnlyWhereTheyShareABit(t *testing.T) {

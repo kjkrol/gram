@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -51,7 +50,7 @@ func randomVelocity(rng *rand.Rand) world.Velocity {
 
 // benchCollision installs a world and a collision plugin counting every contact, spawns the
 // scene on a grid with seeded random velocities, and runs 120 ticks so the boxes have spread.
-func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *hooks.ContactStats) {
+func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *collision.ContactStats) {
 	b.Helper()
 	count := countFor(rect, percent)
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
@@ -61,11 +60,8 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 		Space:    world.SpaceCfg{Width: sceneWidth, Height: sceneHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: count, MinSize: rect, MaxSize: rect},
 	})
-	c := collision.NewPlugin(w)
-	stats := &hooks.ContactStats{}
-	if err := c.Hook(hooks.CountContacts(stats)); err != nil {
-		b.Fatal(err)
-	}
+	stats := &collision.ContactStats{}
+	c := collision.NewPlugin(w).WithStats(stats)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}

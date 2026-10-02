@@ -10,13 +10,13 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -35,8 +35,8 @@ type Plugin struct {
 	given  givenQueues
 	finder *pathFinder
 
-	touches  host.PairHost[Touch]
-	crowd    []plugin.Rule // the rules of the crowd, Crowd unless crowdSet
+	touches  rule.PairHost[Touch]
+	crowd    []rule.Rule // the rules of the crowd, Crowd unless crowdSet
 	crowdSet bool
 
 	routeStyle   RouteStyle
@@ -98,12 +98,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	if p.collision != nil {
-		answer := bumped()
+		navSys.bumps = anyBump
 		if p.spacing == BodySpacing {
-			answer = struckBy()
-		}
-		if err := p.collision.Hook(answer); err != nil {
-			return err
+			navSys.bumps = groundBump
 		}
 	}
 
@@ -165,7 +162,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook hosts rules (rule.On) of Touch, a pair, beside the rules of the crowd; call before
 // Use.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		if err := p.touches.Add(b); err != nil {
 			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
@@ -181,7 +178,7 @@ func (p *Plugin) Hook(rules ...plugin.Rule) error {
 // WithCrowd has the units get on among others by rules, rules of Touch, in place of Crowd;
 // none leaves them to navigation's own last word — stalled, they plan afresh, and give up. Call
 // before Use.
-func (p *Plugin) WithCrowd(rules ...plugin.Rule) *Plugin {
+func (p *Plugin) WithCrowd(rules ...rule.Rule) *Plugin {
 	p.crowd, p.crowdSet = rules, true
 	return p
 }

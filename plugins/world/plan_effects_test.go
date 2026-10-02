@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 // effectStage spawns one entity whose plan plan writes with the world's effects.
@@ -22,7 +23,7 @@ type effectStage struct {
 	world  *world.Plugin
 	unit   kind.Of[struct{}]
 	active goke.OptComp[effect.Active]
-	mind   goke.Comp[rule.Mind]
+	mind   goke.Comp[plan.Mind]
 	query  *goke.Query
 	stack  game.Scenes
 }
@@ -98,7 +99,7 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	var held effect.Effect
 	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
 		held = fx.Define("held", effect.Spec{})
-		return rule.Plan("hold a while", func(a *rule.Actor) rule.Step {
+		return plan.New("hold a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(
 				a.Not(a.Timeout(300*time.Millisecond, a.Keep(held))),
 				a.Wait(time.Hour))
@@ -122,7 +123,7 @@ func TestPlan_UnlessKeepsItsMemoryInAnEffect(t *testing.T) {
 	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
 		marked = fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
 		tally = fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking()})
-		return rule.Plan("tally once a while", func(a *rule.Actor) rule.Step {
+		return plan.New("tally once a while", func(a *plan.Actor) rule.Step {
 			return a.OneOf(
 				a.Unless(marked, a.Steps(a.Apply(marked), a.Apply(tally))),
 				a.Idle())

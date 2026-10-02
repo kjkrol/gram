@@ -18,7 +18,7 @@
 //   - grid: the topology — a Grid, DefaultGrids, the Link from a cell to its neighbour, a Shape.
 //   - look: how the board is drawn — a Look, a Dressing, a Tile, the Renderer.
 //   - ground: what its ground is to the other plugins — Heights, Cover, Readied.
-//   - hooks, network, water: ready-made hooks; ways across the board; the rivers of a relief.
+//   - network, water: ways across the board; the rivers of a relief.
 //
 // # Board, Layout and kinds
 //
@@ -44,13 +44,14 @@
 // entity on the board — the cell under it, its kind and the game's tags of its place, its box and
 // domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
 // cell.Now for every cell: its entity, which cell, its kind now. Both are rule.Placed, data alone:
-// the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
+// the board tells a rule, in its Tick, which cells lie round (rule.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. Rules of a cell.Now filter
 // cells by the game's tags of places (rule.Self: a trapdoor, a plate, a zone), and a Standing
-// tells those of the cell under a unit (Standing.Places). The board slows every entity carrying a
-// unit.Mover by the ground under it, a Moving rule of its own on the world. Ready-made hooks are
-// in plugins/board/hooks.
+// tells those of the cell under a unit (Standing.Places). In the same pass the board writes every
+// unit carrying a unit.Mover its steering.Pace — the cost and the slope of the ground under it —
+// which the world's velocity pass goes by from the next step; WithLog has a line written for each
+// unit fallen where its domain may not be.
 //
 // # Ways
 //

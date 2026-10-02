@@ -68,7 +68,7 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 	t.Helper()
 
-	stage := &mainStage{avoiding: true}
+	stage := &mainStage{}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -228,4 +228,24 @@ func headingOf(view bodyView, id uid.UID64) (dir geom.Vec, alive bool) {
 		}
 	})
 	return dir, alive
+}
+
+// The prey flee from the start; A has the player take the fleeing off the world, and put it back.
+func TestStage_ASwitchesTheFleeingOffAndOn(t *testing.T) {
+	ecs, stage := buildStage(t)
+	fleeing := func() bool { return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.fleeing) }
+	ecs.Tick(time.Second / TPS)
+	if !fleeing() {
+		t.Fatal("no fleeing on the world from the start")
+	}
+	stage.switchFleeing()
+	ecs.Tick(time.Second / TPS)
+	if fleeing() {
+		t.Fatal("the fleeing still on after A")
+	}
+	stage.switchFleeing()
+	ecs.Tick(time.Second / TPS)
+	if !fleeing() {
+		t.Error("no fleeing after A again")
+	}
 }

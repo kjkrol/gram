@@ -8,11 +8,10 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -26,10 +25,11 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.OpenX},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	var left []uid.UID64
-	if err := w.Hook(host.Each(func(_ plugin.Tick, _ *world.Appearance, l world.Leaving) {
-		left = append(left, l.ID)
-	})); err != nil {
+	var orders heards
+	if err := w.Carry(&orders); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Hook(rule.On("left", rule.All, func(m *rule.Moment[world.Leaving]) rule.Step { return m.Order(heard{}) })); err != nil {
 		t.Fatal(err)
 	}
 
@@ -55,6 +55,10 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 		ecs.Tick(time.Second / 60)
 	}
 
+	var left []uid.UID64
+	for _, h := range orders.given() {
+		left = append(left, h.Entity)
+	}
 	if len(left) == 0 {
 		t.Fatal("no Leaving heard, want the box the wall pushed out")
 	}

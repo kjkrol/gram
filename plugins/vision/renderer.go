@@ -3,18 +3,14 @@ package vision
 import (
 	"image/color"
 	"math"
-	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 // ConePoint is a point of a view's outline on screen, with the depth of the world point under it
@@ -93,10 +89,8 @@ type Renderer struct {
 	eye     goke.Comp[world.Eye]
 	out     goke.OptComp[SightOutline]
 	z       goke.OptComp[world.Z]
-	viewing *host.EachHost[Viewing] // nil: every view drawn
-	shown   []bool                  // the chunk's, as its Viewing rules say
-	ids     []uid.UID64
-	bases   []world.Base
+	drawing *render.Rules // nil: every view drawn
+	shown   []bool        // the chunk's, as the rules say
 	// groundStep is how far apart the views are draped over the ground, world units; 0, the
 	// ground's own step
 	groundStep float32
@@ -171,16 +165,22 @@ func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	return r
 }
 
-// WithViewing has only the views the Viewing rules of h show drawn, where it holds any.
-func (r *Renderer) WithViewing(h *host.EachHost[Viewing]) *Renderer {
-	r.viewing = h
+// WithDrawing has the views drawn as rules say: only those of the observers a render.Show rule
+// holds for, where it holds any.
+func (r *Renderer) WithDrawing(rules *render.Rules) *Renderer {
+	r.drawing = rules
 	return r
 }
 
 func (r *Renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).Optional(&r.out).Optional(&r.z)
-	if r.viewing != nil {
-		r.viewing.Bind(qb)
+	if r.drawing != nil {
+		render.Own(r.drawing, &r.base)
+		render.Own(r.drawing, &r.sight)
+		render.Own(r.drawing, &r.eye)
+		render.Own(r.drawing, &r.out)
+		render.Own(r.drawing, &r.z)
+		r.drawing.Bind(qb)
 	}
 	r.query = qb.Build()
 }
@@ -204,24 +204,16 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
 }
 
-// settle has the Viewing rules say which views of the chunk under cursor are drawn: every one
-// without any rule.
-func (r *Renderer) settle(cursor *goke.Cursor, bases []world.Base) {
-	n := len(cursor.IDs)
+// settle has the rules say which views of the chunk under cursor are drawn: every one without
+// any.
+func (r *Renderer) settle(cursor *goke.Cursor) {
 	r.shown = r.shown[:0]
-	for range n {
-		r.shown = append(r.shown, r.viewing == nil || r.viewing.Empty())
+	for range cursor.IDs {
+		r.shown = append(r.shown, true)
 	}
-	if r.viewing == nil || r.viewing.Empty() {
-		return
+	if r.drawing != nil {
+		r.drawing.Run(cursor, nil, r.shown)
 	}
-	r.ids, r.bases = cursor.IDs, bases
-	r.viewing.Run(plugin.Tick{Now: time.Now()}, cursor, r.viewingAt)
-}
-
-// viewingAt describes the i-th observer of the chunk being settled.
-func (r *Renderer) viewingAt(i int) Viewing {
-	return Viewing{ID: r.ids[i], Base: &r.bases[i], shown: &r.shown[i]}
 }
 
 // Compose hands f every view in sight of cam — or notes them for Draw to draw on the GPU; nothing
@@ -258,7 +250,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		eyes := r.eye.Slice(cursor)
 		outlines := r.out.Slice(cursor)
 		zs := r.z.Slice(cursor)
-		r.settle(cursor, bases)
+		r.settle(cursor)
 		for i := range cursor.IDs {
 			if !r.shown[i] {
 				continue

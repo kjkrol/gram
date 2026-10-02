@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 func testWorldConfig() world.Config {
@@ -50,7 +51,7 @@ func (a *ecsAccessor) WithRenderer(render.AtlasSource)    {}
 func (a *ecsAccessor) Renderer() render.Layer             { return nil }
 func (a *ecsAccessor) EventHandler() control.EventHandler { return nil }
 func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
-func (a *ecsAccessor) Hook(...plugin.Rule) error          { return plugin.ErrUnhosted }
+func (a *ecsAccessor) Hook(...rule.Rule) error            { return rule.ErrUnhosted }
 
 // saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {

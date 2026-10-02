@@ -29,7 +29,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -120,10 +119,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.board.CellKinds().Create(island.Kinds(0)...)
 	weather := s.defineClimate()
-	if err := s.board.Hook(bhooks.LogFalls(), rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})); err != nil {
 		return err
@@ -141,7 +140,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Hook(vision.ShowViewOf(s.selection.Tags().Selected)); err != nil {
+	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {

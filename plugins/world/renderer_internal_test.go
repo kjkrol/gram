@@ -8,22 +8,20 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
-// counting is a look that counts the sprites it is handed.
+// counting is a look that counts the sprites it is handed, and keeps them.
 type counting struct {
 	Look
-	sprites int
+	sprites []render.SpriteID
 }
 
 func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	c.sprites++
+	c.sprites = append(c.sprites, id)
 	c.Look.Sprite(f, cam, box, z, atlas, id, light, sway)
 }
 
@@ -34,19 +32,19 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-// drawThrough spawns one 10x10 entity per position, lets pick say which of them the View holds
-// (nil: the zero View, which sees everything), draws once and returns how many quads were drawn
-// and how many entities the Drawing rules were run for.
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...geom.Vec) (drawn, visited int) {
+// drawThrough spawns one 10x10 entity of sprite 1 per position, heading east, lets pick say which
+// of them the View holds (nil: the zero View, which sees everything), draws once through rules and
+// returns the sprites drawn.
+func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, at ...geom.Vec) []render.SpriteID {
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
-	drawers := &host.EachHost[Drawing]{}
-	if err := drawers.Add(host.Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
+	var drawing render.Rules
+	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
 	look := &counting{Look: ilook.NewFlat(1000, 1000)}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, drawers, func() Look { return look })
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing, func() Look { return look })
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[Appearance]
@@ -57,9 +55,10 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 		var ids []uid.UID64
 		i := 0
 		for f.Next() {
-			bases := base.Slice(&f.Cursor)
+			bases, looks := base.Slice(&f.Cursor), appearance.Slice(&f.Cursor)
 			for j, id := range f.Cursor.IDs {
-				bases[j].Pos = Position{AABB: plane.NewAABB(at[i], 10, 10)}
+				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: geom.NewVec(1, 0)}}
+				looks[j] = Appearance{SpriteID: 1}
 				ids = append(ids, id)
 				i++
 			}
@@ -73,20 +72,40 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	return look.sprites, visited
+	return look.sprites
 }
 
-func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
-	quarters := []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
+var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
 
+func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	firstOnly := func(ids []uid.UID64, v *view.View) {
 		v.Culled = true
 		v.In.Add(ids[0])
 	}
-	if drawn, visited := drawThrough(t, firstOnly, quarters...); drawn != 1 || visited != 4 {
-		t.Errorf("a View holding one entity drew %d and visited %d, want 1 drawn of 4 visited", drawn, visited)
+	if drawn := drawThrough(t, firstOnly, nil, quarters...); len(drawn) != 1 {
+		t.Errorf("a View holding one entity drew %d sprites, want 1", len(drawn))
 	}
-	if drawn, _ := drawThrough(t, nil, quarters...); drawn != 4 {
-		t.Errorf("the zero View drew %d entities, want all 4", drawn)
+	if drawn := drawThrough(t, nil, nil, quarters...); len(drawn) != 4 {
+		t.Errorf("the zero View drew %d sprites, want all 4", len(drawn))
+	}
+}
+
+// The rules read what the renderer reads itself — the Base, the Appearance — and settle what is
+// drawn: Facing turns the sprite, Over lays one on top, Show leaves out the rest.
+func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
+	const east, crown render.SpriteID = 5, 9
+	rules := []render.Rule{
+		Facing(func(v Velocity) render.SpriteID { return east }),
+		render.Over[Appearance](Appearance{SpriteID: crown}),
+		render.Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
+	}
+	drawn := drawThrough(t, nil, rules, quarters...)
+	if len(drawn) != 4 {
+		t.Fatalf("drew %v, want the two on the left, each turned east under a crown", drawn)
+	}
+	for i := 0; i < len(drawn); i += 2 {
+		if drawn[i] != east || drawn[i+1] != crown {
+			t.Errorf("drew %v, want %v under %v for each", drawn, east, crown)
+		}
 	}
 }

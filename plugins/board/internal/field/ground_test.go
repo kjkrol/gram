@@ -6,8 +6,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -101,10 +99,10 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 
 func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 	var hits []collision.Contact
-	strikes := host.Every(func(_ plugin.Tick, s collision.Struck) { hits = append(hits, s.Contacts...) })
-	bw, gap := boardtest.SquareWorldWith(t, strikes, boardtest.Mover{Heading: east})
+	bw, gap := boardtest.SquareWorld(t, boardtest.Mover{Heading: east})
 	for range 60 {
 		bw.Tick()
+		hits = append(hits, bw.Struck()...)
 	}
 	if len(hits) == 0 {
 		t.Fatal("the unit drove into the wall and struck nothing")

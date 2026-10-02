@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,27 +31,57 @@ type tagged struct {
 
 // registrar is the part of the collision engine a fixture hooks rules on.
 type registrar interface {
-	Hook(rules ...plugin.Rule) error
+	Hook(rules ...rule.Rule) error
 }
 
-// meet runs the real collision engine for one tick over boxes and returns every Meeting handed out.
-func meet(t *testing.T, rulesOf func(record func(collision.Meeting)) []plugin.Rule, boxes ...*tagged) []collision.Meeting {
+// heard is the command the tests' rules give: which rule, given by the one met when Other.
+type heard struct {
+	Rule  string
+	Other bool
+}
+
+// heards is where the heard commands land, for a world to carry.
+type heards struct{ control.Queue[heard] }
+
+func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) DefaultBindings() []control.Binding { return nil }
+
+// given is every heard given since the last time.
+func (h *heards) given() []control.Issued[heard] {
+	var got []control.Issued[heard]
+	h.Drain(func(i control.Issued[heard]) { got = append(got, i) })
+	return got
+}
+
+// met is one Meeting a rule fired for: which rule, Self and Other.
+type met struct {
+	rule        string
+	self, other uid.UID64
+}
+
+// meet runs the real collision engine for one tick over boxes, rules hooked, and returns every
+// Meeting the rules fired for.
+func meet(t *testing.T, rules []rule.Rule, boxes ...*tagged) []met {
 	t.Helper()
-	var met []collision.Meeting
-	meetWith(t, func(engine registrar) {
-		if err := engine.Hook(rulesOf(func(m collision.Meeting) { met = append(met, m) })...); err != nil {
+	return meetWith(t, func(engine registrar) {
+		if err := engine.Hook(rules...); err != nil {
 			t.Fatalf("Hook: %v", err)
 		}
 	}, boxes...)
-	return met
 }
 
 // meetWith is meet with the registering left to the caller.
-func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
+func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) []met {
 	t.Helper()
+	var commands control.Carrier
+	var orders heards
+	if err := commands.Carry(&orders); err != nil {
+		t.Fatal(err)
+	}
 	space := testSpace(t)
 	ecs := goke.New()
 	engine := collision.New(space, ecs)
+	engine.Carry(&commands)
 	register(engine)
 
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -84,11 +114,26 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) {
 	engine.RegSystems(ecs)
 	ecs.SetPlan(engine.RunPlan)
 	ecs.Tick(time.Millisecond)
+	var got []met
+	for _, h := range orders.given() {
+		if h.Command.Other {
+			got[len(got)-1].other = h.Entity
+			continue
+		}
+		got = append(got, met{rule: h.Command.Rule, self: h.Entity})
+	}
+	return got
 }
 
-func bulletsAgainstTargets(record func(collision.Meeting)) []plugin.Rule {
-	return []plugin.Rule{host.Pair(bullet, target, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
+// heardOf is a rule named name of a Meeting between a and b: Self gives a heard of it, then
+// Other one more.
+func heardOf[F any](name string, a tag.Tag[roles], b tag.Tag[F]) rule.Rule {
+	return rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step {
+		return m.Steps(m.Order(heard{Rule: name}), m.ForOther(m.Order(heard{Rule: name, Other: true})))
+	})
 }
+
+func bulletsAgainstTargets() []rule.Rule { return []rule.Rule{heardOf("bullets", bullet, target)} }
 
 func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
 	for name, order := range map[string][2]bool{"bullet spawned first": {true, false}, "target spawned first": {false, true}} {
@@ -96,41 +141,39 @@ func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
 			first := &tagged{x: 100, bullet: order[0], target: !order[0]}
 			second := &tagged{x: 105, bullet: order[1], target: !order[1]}
 
-			met := meet(t, bulletsAgainstTargets, first, second)
+			got := meet(t, bulletsAgainstTargets(), first, second)
 
 			shot, struck := first, second
 			if !first.bullet {
 				shot, struck = second, first
 			}
-			if len(met) != 1 {
-				t.Fatalf("the rule ran %d times, want once", len(met))
+			if len(got) != 1 {
+				t.Fatalf("the rule fired %d times, want once", len(got))
 			}
-			if met[0].Self != shot.id || met[0].Other != struck.id {
-				t.Errorf("Meeting = (self %v, other %v), want (bullet %v, target %v)", met[0].Self, met[0].Other, shot.id, struck.id)
+			if got[0].self != shot.id || got[0].other != struck.id {
+				t.Errorf("fired for %v about %v, want for the bullet %v about the target %v", got[0].self, got[0].other, shot.id, struck.id)
 			}
 		})
 	}
 }
 
 func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
-	met := meet(t, bulletsAgainstTargets,
+	got := meet(t, bulletsAgainstTargets(),
 		&tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true},
 		&tagged{x: 300}, &tagged{x: 305, target: true},
 	)
 
-	if len(met) != 0 {
-		t.Errorf("the rule ran for %+v, want it left alone — no bullet met a target", met)
+	if len(got) != 0 {
+		t.Errorf("the rule fired %+v, want it left alone — no bullet met a target", got)
 	}
 }
 
 // A pair of the same tag would match either way round, and is still one contact.
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
-	met := meet(t, func(record func(collision.Meeting)) []plugin.Rule {
-		return []plugin.Rule{host.Pair(bullet, bullet, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
-	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
+	got := meet(t, []rule.Rule{heardOf("bullets", bullet, bullet)}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
-	if len(met) != 1 {
-		t.Errorf("the rule ran %d times, want once for one contact", len(met))
+	if len(got) != 1 {
+		t.Errorf("the rule fired %d times, want once for one contact", len(got))
 	}
 }
 
@@ -138,38 +181,45 @@ func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	shot, wall := &tagged{x: 100, bullet: true}, &tagged{x: 105}
 
-	met := meet(t, func(record func(collision.Meeting)) []plugin.Rule {
-		return []plugin.Rule{host.Pair(bullet, tag.Any, func(_ plugin.Tick, m collision.Meeting) { record(m) })}
-	}, shot, wall)
+	got := meet(t, []rule.Rule{heardOf("anything", bullet, tag.Any)}, shot, wall)
 
-	if len(met) != 1 || met[0].Self != shot.id || met[0].Other != wall.id {
-		t.Errorf("Meetings = %+v, want the bullet %v meeting the untagged %v once", met, shot.id, wall.id)
+	if len(got) != 1 || got[0].self != shot.id || got[0].other != wall.id {
+		t.Errorf("fired %+v, want for the bullet %v about the untagged %v once", got, shot.id, wall.id)
 	}
 }
 
 func TestBetween_RulesSharingATag_BothRun(t *testing.T) {
-	var first, second int
-	met := meet(t, func(func(collision.Meeting)) []plugin.Rule {
-		return []plugin.Rule{
-			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { first++ }),
-			host.Pair(bullet, tag.Any, func(plugin.Tick, collision.Meeting) { second++ }),
-		}
-	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
+	got := meet(t, []rule.Rule{heardOf("first", bullet, target), heardOf("second", bullet, tag.Any)},
+		&tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
-	if first != 1 || second != 1 || len(met) != 0 {
-		t.Errorf("the rules ran (%d, %d) times, want (1, 1)", first, second)
+	if len(got) != 2 || got[0].rule != "first" || got[1].rule != "second" {
+		t.Errorf("fired %+v, want the first rule, then the second, once each", got)
 	}
+}
+
+// elsewhere is a moment of a host other than collision's.
+type elsewhere struct{}
+
+func (elsewhere) Who() uid.UID64       { return 0 }
+func (elsewhere) Whom(func(uid.UID64)) {}
+
+// fromElsewhere is a rule of elsewhere: of a pair when paired, else of anyone.
+func fromElsewhere(paired bool) rule.Rule {
+	filter := rule.All
+	if paired {
+		filter = rule.Between(bullet, target)
+	}
+	return rule.On("elsewhere", filter, func(m *rule.Moment[elsewhere]) rule.Step { return m.Order(heard{}) })
 }
 
 func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 	engine := collision.New(testSpace(t), goke.New())
 
-	for name, b := range map[string]plugin.Rule{
-		"not a rule at all":              "just a string",
-		"a pair made for another host":   host.Pair(bullet, target, func(plugin.Tick, string) {}),
-		"an entity made for another one": host.Each(func(plugin.Tick, *tagged, string) {}),
+	for name, b := range map[string]rule.Rule{
+		"a pair made for another host":   fromElsewhere(true),
+		"an entity made for another one": fromElsewhere(false),
 	} {
-		if err := engine.Hook(b); !errors.Is(err, plugin.ErrUnhosted) {
+		if err := engine.Hook(b); !errors.Is(err, rule.ErrUnhosted) {
 			t.Errorf("%s: Hook = %v, want ErrUnhosted", name, err)
 		}
 	}
@@ -181,27 +231,22 @@ func TestHook_RefusesOneThatComesTooLate(t *testing.T) {
 	ecs.Setup()
 	engine.RegSystems(ecs)
 
-	if err := engine.Hook(bulletsAgainstTargets(func(collision.Meeting) {})[0]); !errors.Is(err, plugin.ErrHostBuilt) {
+	if err := engine.Hook(bulletsAgainstTargets()...); !errors.Is(err, rule.ErrHostBuilt) {
 		t.Errorf("Hook after the systems were built = %v, want ErrHostBuilt", err)
 	}
 }
 
 func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
-	var before, after int
 	var refused error
 
-	meetWith(t, func(engine registrar) {
-		refused = engine.Hook(
-			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { before++ }),
-			"not a rule at all",
-			host.Pair(bullet, target, func(plugin.Tick, collision.Meeting) { after++ }),
-		)
+	got := meetWith(t, func(engine registrar) {
+		refused = engine.Hook(heardOf("before", bullet, target), fromElsewhere(true), heardOf("after", bullet, target))
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
-	if !errors.Is(refused, plugin.ErrUnhosted) {
+	if !errors.Is(refused, rule.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", refused)
 	}
-	if before != 1 || after != 0 {
-		t.Errorf("the rules ran (before %d, after %d), want (1, 0)", before, after)
+	if len(got) != 1 || got[0].rule != "before" {
+		t.Errorf("fired %+v, want the rule before the refused one alone", got)
 	}
 }

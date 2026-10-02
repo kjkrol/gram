@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 // treeStage spawns one unit under plan — a sentry's when nil, coming to its post, waiting an hour
@@ -27,7 +28,7 @@ type treeStage struct {
 }
 
 type treeProbe struct {
-	mind  goke.Comp[rule.Mind]
+	mind  goke.Comp[plan.Mind]
 	query *goke.Query
 }
 
@@ -43,16 +44,16 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	g.probe = &treeProbe{}
 	ctx.Setup(g.probe)
-	plan := g.plan
-	if plan == nil {
-		plan = rule.Plan("sentry", func(a *rule.Actor) rule.Step {
+	sentry := g.plan
+	if sentry == nil {
+		sentry = plan.New("sentry", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(10*time.Millisecond), a.Wait(time.Hour), a.Order(world.Despawn{}))
 		})
 	}
 	g.unit = kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
-		plan,
+		sentry,
 	})
 	return nil
 }
@@ -84,7 +85,7 @@ func (g *treeStage) minds() (n int, since time.Duration, running bool) {
 	for g.probe.query.All(); g.probe.query.Next(); {
 		for _, m := range g.probe.mind.Slice(g.probe.query.Cursor()) {
 			n++
-			running = m.Running != rule.StepSet{}
+			running = m.Running != [len(m.Running)]uint64{}
 			since = m.Since[2]
 		}
 	}
@@ -135,7 +136,7 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 // A plan orders commands as a player does: the world's own Despawn takes the entity that gives it
 // itself out of the world.
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
-	stage := &treeStage{plan: rule.Plan("leaver", func(a *rule.Actor) rule.Step {
+	stage := &treeStage{plan: plan.New("leaver", func(a *plan.Actor) rule.Step {
 		return a.Steps(a.Wait(50*time.Millisecond), a.Order(world.Despawn{}))
 	})}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})

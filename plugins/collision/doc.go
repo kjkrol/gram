@@ -49,6 +49,7 @@
 // A rule of a [Meeting] is handed one per confirmed contact between its two tags,
 // seen from Self: who it met, the impulse exchanged (zero when only detected) and the way Self
 // left Other. A rule of a [Struck] is handed one per entity that struck something the tick
-// before: which it is and what it struck; an entity that struck nothing is not told. Ready-made ones are in plugins/collision/hooks; this package
-// never imports it.
+// before: which it is and what it struck; an entity that struck nothing is not told. Ready-made
+// rules are in plugins/collision/hooks; this package never imports it. [Plugin.WithStats] counts the contacts into a [ContactStats], [Plugin.WithLog]
+// writes a line for each — the plugin's own work in its pass.
 package collision

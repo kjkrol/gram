@@ -49,12 +49,11 @@
 // # Sighting
 //
 // A rule of a [Sighting] hooked here (rule.On(name, rule.Between(a, b), …)) is
-// run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base, Sight and
-// Helm (the zero one for one that cannot be steered), and everything in view carrying b as [Seen]
-// values nearest first — a directed pair, grouped by observer, run even when nothing is in view. A
-// ready-made hook tells its seen entities apart with Seen.Carries, and steers only through
-// Helm.Request. Ready-made
-// ones, and their tags, are in plugins/vision/hooks.
+// run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base and Sight,
+// and everything in view carrying b as [Seen] values nearest first — a directed pair, grouped by
+// observer, run even when nothing is in view. Its Subject is the nearest one seen: an Aimed
+// command — steering.Away, steering.Toward — is about it, and fails while none is in view.
+// Ready-made rules, and their tags, are in plugins/vision/hooks.
 //
 // # SightOutline and Renderer
 //
@@ -80,6 +79,9 @@
 // draped over the world's Ground when it has one ([Renderer.WithGround]), the shadows veiled over
 // it in pieces of the ground's step. A game that wants the shape on the CPU keeps SightOutline on
 // its observers; it costs a scan that much more.
+//
+// Every observer's view is drawn, unless render.Show rules given to [Plugin.Draw] pick some —
+// render.Show(selected.In), the selected units' alone.
 //
 // The views start hidden. The plugin is a plugin.CommandHandler, its one key the players carry:
 // Shift+C ([Cones]) shows every view drawn — the cones and the shadows — and hides them again;

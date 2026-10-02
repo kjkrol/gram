@@ -5,9 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
@@ -138,19 +137,26 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 // one (effect.Effects.Has).
 func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
-// Rule is the weathering as a hook of the world's clock: every second of game time. Hook it on the
-// world.
-func (w *Weathering) Rule() plugin.Rule {
+// System is the weathering's system, run in every step of the simulation on clk, the world's
+// clock: once every second of game time it works the weather on the board.
+func (w *Weathering) System(clk *clock.Clock) goke.System {
 	second := clock.Every(time.Second, 0)
-	return host.Every(func(tick plugin.Tick, m clock.Moment) {
-		if second(m) {
-			w.second(tick)
+	var last time.Duration
+	begun := false
+	return goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
+		now := clk.Time() + d
+		if !begun {
+			last, begun = clk.Time(), true
 		}
-	})
+		if second(clock.Moment{Last: last, Now: now}) {
+			w.second(cb)
+		}
+		last = now
+	}}
 }
 
 // second is a second of the weather on the board.
-func (w *Weathering) second(t plugin.Tick) {
+func (w *Weathering) second(cb *goke.CmdBuf) {
 	if w.still {
 		return
 	}
@@ -158,24 +164,24 @@ func (w *Weathering) second(t plugin.Tick) {
 	if !w.laid {
 		w.laid = true
 		if w.calendar.Now().Season() == calendar.Winter {
-			w.winter(t)
+			w.winter(cb)
 		}
 	}
 	switch {
 	case air.Temperature < 0 && air.Snow > 0.05:
-		w.scatter(t, snowSettles*air.Snow, w.snow, w.snowLies)
+		w.scatter(cb, snowSettles*air.Snow, w.snow, w.snowLies)
 	case air.Temperature > 0:
 		w.clear(snowMelts*air.Temperature, w.snow, w.snowEdge)
 	}
 	if w.cfg.Ice != "" {
 		switch {
 		case air.Temperature < iceBelow:
-			w.scatter(t, iceSets*(iceBelow-air.Temperature), w.ice, w.freezes)
+			w.scatter(cb, iceSets*(iceBelow-air.Temperature), w.ice, w.freezes)
 		case air.Temperature > 0:
 			w.clear(iceThaws*air.Temperature, w.ice, func(cell.ID) bool { return true })
 		}
 	}
-	w.blow(t, float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))))
+	w.blow(cb, float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))))
 }
 
 // roll throws the dice: a number from 0 up to 1 (xorshift).
@@ -199,11 +205,11 @@ func (w *Weathering) pick() cell.ID {
 }
 
 // scatter casts fx on about share of the board's cells picked at random, those may takes.
-func (w *Weathering) scatter(t plugin.Tick, share float32, fx effect.Effect, may func(c cell.ID) bool) {
+func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
-			fx.Cast(t.CmdBuf, id)
+			fx.Cast(cb, id)
 		}
 	}
 }
@@ -220,17 +226,17 @@ func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) 
 
 // winter lays what a winter begun lies under: snow in drifts over most of the board, ice along
 // its shores.
-func (w *Weathering) winter(t plugin.Tick) {
+func (w *Weathering) winter(cb *goke.CmdBuf) {
 	w.board.Res.Logic.Board.EachCell(func(c cell.ID) {
 		id, ok := w.board.CellEntity(c)
 		if !ok {
 			return
 		}
 		if w.takesSnow(c) && w.drift(c) < driftWinter {
-			w.effects.Cast(t.CmdBuf, id, w.snow)
+			w.effects.Cast(cb, id, w.snow)
 		}
 		if w.cfg.Ice != "" && w.freezes(c) {
-			w.effects.Cast(t.CmdBuf, id, w.ice)
+			w.effects.Cast(cb, id, w.ice)
 		}
 	})
 }
@@ -314,7 +320,7 @@ func (w *Weathering) freezes(c cell.ID) bool {
 
 // blow has what sways sway once the wind blows harder than swayAbove and stop once it falls below
 // swayBelow.
-func (w *Weathering) blow(t plugin.Tick, wind float32) {
+func (w *Weathering) blow(cb *goke.CmdBuf, wind float32) {
 	if len(w.swaying) == 0 || wind > swayBelow && wind < swayAbove {
 		return
 	}
@@ -329,7 +335,7 @@ func (w *Weathering) blow(t plugin.Tick, wind float32) {
 		}
 		switch swaying := w.effects.Has(id, w.sway); {
 		case wind > swayAbove && !swaying:
-			w.effects.Cast(t.CmdBuf, id, w.sway)
+			w.effects.Cast(cb, id, w.sway)
 		case wind < swayBelow && swaying:
 			w.effects.Dispel(id, w.sway)
 		}

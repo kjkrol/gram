@@ -27,7 +27,7 @@ rule.On("in the ice", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 })
 
 // a plan: what a unit does over time
-rule.Plan("patrol", func(a *rule.Actor) rule.Step {
+plan.New("patrol", func(a *plan.Actor) rule.Step {
 	return a.Steps(
 		a.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
 		a.Wait(10 * time.Second),
@@ -36,13 +36,13 @@ rule.Plan("patrol", func(a *rule.Actor) rule.Step {
 })
 ```
 
-- `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `plugin.Rule` for the `Hook` of
+- `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `rule.Rule` for the `Hook` of
   the plugin that catches `P`.
-- `rule.Plan(name, func(a *rule.Actor) rule.Step)` is the component a kind gives its entities:
+- `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its entities:
   `units.Define("unit", …, patrol)`. Its name is what a save knows it by.
 - A function writing part of a rule or a plan takes the Moment or the Actor as its own:
-  `func whenBlocked(a *rule.Actor) rule.Step`. Ready-made rules come whole, in a plugin's `hooks`
-  package: `collision.Hook(chooks.CountContacts(&stats))`.
+  `func whenBlocked(a *plan.Actor) rule.Step`. Ready-made rules come whole, in a plugin's `hooks`
+  package: `collision.Hook(chooks.ShowHits(hit))`.
 
 ## Filters
 
@@ -63,14 +63,14 @@ costs nothing for it.
 ## The five words
 
 - **Rule** — a moment a plugin catches: a `unit.Standing` or a `cell.Now`, a
-  `vision.Sighting`, a `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Drawing`, a
-  `clock.Moment`, a `navigation.Touch`. A Moment's steps are instant — `OneOf`, `Steps`, `If` on
+  `vision.Sighting`, a `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Leaving`, a
+  `clock.Moment`, a `climate.Weathering`, a `navigation.Touch`. A Moment's steps are instant — `OneOf`, `Steps`, `If` on
   the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`,
   `ForOther`, `Here`, `Around` — so a step that lasts (`Wait`, `Until`, `Ask`) is not to be had in a rule: a
   Moment has no such method, and one made by an Actor is refused as the rule is made. A rule
   remembers nothing of its own, and runs no Go code of its own: there is no step for it. What
   the steps cannot say is a moment, a step or a knob the plugin still lacks.
-- **Plan** — what a kind's entities do over time. It remembers its place (`rule.Mind`: the steps
+- **Plan** — what a kind's entities do over time. It remembers its place (`plan.Mind`: the steps
   running, each one's place and start on the world's clock), waits (`Wait`, `Until`), talks to
   other entities (`Ask`), and is saved with the game. `OneOf` is a reactive choice, `Steps` a
   sequence with memory; the Actor's `When[F]` and `On[F]` open a branch on a fact, `If` reads one.
@@ -85,7 +85,7 @@ costs nothing for it.
   at once: **fire and forget**. The handler carries it out for the entity alone
   (`control.Issued.ByEntity`). The world keeps a stage's one carrier (`control.Carrier`,
   `world.Plugin.Commands`): the players give it theirs, the entities theirs; the engine carries
-  every `plugin.CommandHandler` a stage uses, and a plugin's `plugin.Tick` hands the carrier to its
+  every `plugin.CommandHandler` a stage uses, and a plugin's `rule.Tick` hands the carrier to its
   rules. Nothing is dropped: a command waits for its handler's pass — given after it, for the next
   frame's. A command that is `rule.Aimed` is told the subject of the fact it stands under, or of
   the rule's moment: whom the entity touched, who asked.
@@ -187,13 +187,35 @@ the knob in a component of its own — `steering.Course` beside `Steering`, `vis
 `Sight` — given where it is missing: an `Alter` ending puts back the original, and would put back
 stale state with it. A new knob goes into the component a plugin reads, never into its state.
 
-## Hooks of a plugin's own
+## No Go code in a rule
 
-A plugin's own reactions inside another's pass — the board's terrain speed in the world's
-`Moving`, navigation's bumps in collision's `Struck` — and the ready-made hooks of a `hooks`
-package (`chooks.CountContacts`, `bhooks.LogFalls`, `vhooks.Chase`) are library code, written
-straight on `plugin/host` (`host.Each`, `host.Every`, `host.Pair`) and hooked the same way. A game
-writes rules.
+A rule holds no Go code of its own but the conditions of `If`. What a plugin does of its own is
+its own work in a pass it makes anyway, never a rule hooked on another plugin (2026-10-02):
+
+- the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
+  and the slope of the cell under it — and the world's velocity pass multiplies the speed by it,
+  from the next step;
+- navigation's bumps: its pass reads the `collision.Collider` contacts of every unit under orders;
+- contacts counted and logged, sightings and falls logged: `collision.Plugin.WithStats`,
+  `WithLog`, `vision.Plugin.WithLog`, `board.Plugin.WithLog`;
+- the weather on the board: the atmosphere's own `Weathering.System`, once a second of game time.
+
+Steering is commands an entity gives itself: `steering.Away{}` and `steering.Toward{}`, aimed at
+the moment's subject — a `Sighting`'s nearest seen; an aimed command fails while the moment
+names nobody — and `steering.Turn{Angle}`. `vhooks.Flee`, `Chase` and `Search` are written so:
+
+```go
+rule.On("vision.chase", rule.Between(tags.Predator, tags.Prey), func(m *rule.Moment[vision.Sighting]) rule.Step {
+	return m.Order(steering.Toward{})
+})
+```
+
+A switch of a behaviour for the whole game is an effect on the world (`world.Apply`,
+`world.Dispel`), the rule running `During` it: `vhooks.Flee(tags, fleeing)`.
+
+How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `With` and `Show`,
+given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every frame.
+They read a component and decide nothing in the game.
 
 ## Dispel and order
 
@@ -236,19 +258,19 @@ standing has room — and carries out the commands, keeping its own rules inside
 never stepped into water, off a cliff or into a wall); the rules decide:
 
 ```go
-func makeWay() plugin.Rule {
+func makeWay() rule.Rule {
 	return rule.On("navigation.make way", rule.All, func(m *rule.Moment[Touch]) rule.Step {
 		return m.If(Touch.PushedByAlly, m.Order(StepAside{}))
 	})
 }
 
-func joinTheGroup() plugin.Rule {
+func joinTheGroup() rule.Rule {
 	return rule.On("navigation.join the group", rule.All, func(m *rule.Moment[Touch]) rule.Step {
 		return m.If(Touch.ReachedTheGroup, m.Order(Stop{}))
 	})
 }
 
-func goRound() plugin.Rule {
+func goRound() rule.Rule {
 	return rule.On("navigation.go round", rule.All, func(m *rule.Moment[Touch]) rule.Step {
 		return m.OneOf(
 			m.If(Touch.GoalTaken, m.Order(Settle{})),

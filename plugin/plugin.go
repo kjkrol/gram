@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin extends a Game: Install wires an ECS module, setup, renderers and resources as one unit.
@@ -33,5 +34,5 @@ type Plugin interface {
 	Serializable() Serializable
 
 	// Hook hosts rules in this plugin's own pass; call before Use.
-	Hook(rules ...Rule) error
+	Hook(rules ...rule.Rule) error
 }

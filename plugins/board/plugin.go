@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"time"
 
@@ -9,18 +10,21 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/internal/moments"
 	"github.com/kjkrol/gram/plugins/board/internal/occupancy"
-	"github.com/kjkrol/gram/plugins/board/internal/rule"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -46,7 +50,7 @@ type Plugin struct {
 
 	worldPlugin *world.Plugin
 	module      *module
-	rules       *rule.Rules
+	rules       *moments.Rules
 	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 }
 
@@ -72,11 +76,9 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	p.rules = rule.New(brd.Grid, brd.cells, worldPlugin.Tick)
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
-	if err := worldPlugin.Hook(rule.TerrainSpeed(brd.Grid, brd.cells, slope)); err != nil {
-		panic(err)
-	}
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope)
+	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
 	return p
 }
 
@@ -114,6 +116,13 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = true
 	p.renderer.Workers(p.workers)
+}
+
+// WithLog has the board write a line to l, once for each, for a unit fallen where its domain may
+// not be — in a hole, a walker in the water; call before Use.
+func (p *Plugin) WithLog(l *log.Logger) *Plugin {
+	p.rules.Log = l
+	return p
 }
 
 // WithWorkers sets how many goroutines at most share a frame's tiles when the Map's Dressing
@@ -168,7 +177,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
 // and of a cell.Now, fired every step for every cell; hook them before Use.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, r := range rules {
 		if err := p.rules.Hook(r); err != nil {
 			return fmt.Errorf("%w in %s — it takes a rule of unit.Standing or cell.Now", err, p.Name())

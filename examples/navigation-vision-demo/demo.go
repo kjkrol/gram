@@ -5,6 +5,7 @@ package main
 
 import (
 	"image/color"
+	"log"
 	"math"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
-	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
@@ -137,11 +137,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
-	if err := s.vision.Hook(
-		vhooks.LogSightings(),
-		vision.ShowViewOf(s.selection.Tags().Selected), // the views drawn are the selected units'
-	); err != nil {
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
+	// the views drawn are the selected units'
+	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
 		return err
 	}
 

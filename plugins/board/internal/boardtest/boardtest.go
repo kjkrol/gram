@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -22,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -63,15 +63,16 @@ type World struct {
 	Board *board.Plugin
 	ECS   *goke.ECS
 
-	t     *testing.T
-	base  goke.Comp[world.Base]
-	sight goke.OptComp[vision.Sighted]
-	q     *goke.Query
+	t        *testing.T
+	base     goke.Comp[world.Base]
+	sight    goke.OptComp[vision.Sighted]
+	collider goke.OptComp[collision.Collider]
+	q        *goke.Query
 }
 
 // NewWorld is a World over g, width x height, its terrain laid by terrain, units spawned as their
 // rows say and rules hooked on the board or on collision.
-func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...plugin.Rule) *World {
+func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...rule.Rule) *World {
 	t.Helper()
 	bw := &World{t: t}
 	bw.World = world.NewPlugin(world.Config{
@@ -83,7 +84,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 	terrain(bw.Board.Res.Logic.Board)
 	for _, b := range rules {
 		err := bw.Board.Hook(b)
-		if errors.Is(err, plugin.ErrUnhosted) {
+		if errors.Is(err, rule.ErrUnhosted) {
 			err = c.Hook(b)
 		}
 		if err != nil {
@@ -150,7 +151,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 	}
 
 	systems := append(ctx.Systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		bw.q = si.NewQueryBuilder(&bw.base).Optional(&bw.sight).Build()
+		bw.q = si.NewQueryBuilder(&bw.base).Optional(&bw.sight, &bw.collider).Build()
 	}})
 	ctx.ECS().Setup(systems...)
 	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -208,6 +209,17 @@ func (bw *World) Seen() (vision.Sighted, bool) {
 	return vision.Sighted{}, false
 }
 
+// Struck is what the units struck in the last tick, in the order they stand in the ECS.
+func (bw *World) Struck() []collision.Contact {
+	var out []collision.Contact
+	for bw.q.All(); bw.q.Next(); {
+		for _, c := range bw.collider.Slice(bw.q.Cursor()) {
+			out = append(out, c.Contacts()...)
+		}
+	}
+	return out
+}
+
 // Overlaps reports whether a and b share interior, not just an edge.
 func Overlaps(a, b geom.AABB) bool {
 	const eps = 1e-6
@@ -238,7 +250,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 }
 
 // SquareWorldWith is SquareWorld with a rule hooked on the board.
-func SquareWorldWith(t *testing.T, rule plugin.Rule, units ...Mover) (*World, cell.ID) {
+func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
 	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
@@ -247,9 +259,9 @@ func SquareWorldWith(t *testing.T, rule plugin.Rule, units ...Mover) (*World, ce
 			units[i].Here = cellAt(1, 7)
 		}
 	}
-	var rules []plugin.Rule
-	if rule != nil {
-		rules = append(rules, rule)
+	var rules []rule.Rule
+	if hooked != nil {
+		rules = append(rules, hooked)
 	}
 	bw := NewWorld(t, grid, 6*CellSize, 16*CellSize, func(brd *board.Board) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})

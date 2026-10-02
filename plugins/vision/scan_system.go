@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"log"
 	"math"
 	"time"
 
@@ -8,11 +9,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -24,7 +23,10 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner // the system's own, for one observer at a time
 
-	tick plugin.TickSource // the world's, for the rules
+	tick rule.TickSource // the world's, for the rules
+
+	log  *log.Logger           // a line the first time one entity sees another, nil for none
+	told map[[2]uid.UID64]bool // the pairs logged
 
 	// scanners are the system's own and one more a goroutine sharing a chunk's observers, at most
 	// count of them: 0 as many as there are CPUs, 1 none
@@ -49,20 +51,18 @@ type ScanSystem struct {
 	sightedID goke.CompID
 	eye       goke.Comp[world.Eye]
 	base      goke.Comp[world.Base]
-	steer     goke.OptComp[steering.Steering]
-	course    goke.OptComp[steering.Course]
 	outline   goke.OptComp[SightOutline]
 	z         goke.OptComp[world.Z]
 
 	// host runs the pair rules registered with the plugin, inside this pass.
-	host *host.PairHost[Sighting]
+	host *rule.PairHost[Sighting]
 
 	jobs []job // the frame's chunks of observers
 
 	// What the host is being run over: the observer in hand, everyone it sees, and their tags.
 	observer   Sighting
 	seen       []Seen
-	seenTags   []plugin.Marks
+	seenTags   []rule.Marks
 	matched    []Seen
 	sightingOf func(matched []int) Sighting
 }
@@ -112,10 +112,10 @@ const (
 )
 
 func NewScanSystem(space *aabbworld.Space) *ScanSystem {
-	return newScanSystem(space, &host.PairHost[Sighting]{})
+	return newScanSystem(space, &rule.PairHost[Sighting]{})
 }
 
-func newScanSystem(space *aabbworld.Space, host *host.PairHost[Sighting]) *ScanSystem {
+func newScanSystem(space *aabbworld.Space, host *rule.PairHost[Sighting]) *ScanSystem {
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting
@@ -134,7 +134,7 @@ func (c *scanner) bind(space *aabbworld.Space) {
 func (s *ScanSystem) Workers(n int) { s.count = max(n, 0) }
 
 func (s *ScanSystem) Init(si *goke.SysInit) {
-	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.steer, &s.course, &s.z)
+	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.host.Bind(walk, seek)
 	s.query, s.lookup = walk.Build(), seek.Build()
@@ -275,17 +275,16 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		if j.seens == nil {
 			continue
 		}
-		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		for i, id := range cursor.IDs {
 			if k <= 1 {
 				j.scan(&s.scanner, i)
 			}
+			if s.log != nil {
+				s.logSightings(id, &j.seens[i])
+			}
 			if hosting {
 				sight := &j.sights[i]
 				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
-				if i < len(steers) && i < len(courses) {
-					s.observer.Helm = steering.Helm{Steering: &steers[i], Course: &courses[i]}
-				}
 				s.gather(&j.seens[i])
 				s.host.DispatchGrouped(t, s.host.InChunk(walked, cursor, i), s.seenTags, s.sightingOf)
 			}
@@ -486,4 +485,17 @@ func (s *scanner) trace(dst *SightOutline, sight *Sight, half float64) {
 func samplesFor(s *Sight, half float64) int {
 	k := int(math.Ceil(2*half*s.Radius/EdgeTolerance)) + 1
 	return min(max(k, 2), MaxSamples)
+}
+
+// logSightings writes a line for each of what id sees that it had not seen before.
+func (s *ScanSystem) logSightings(id uid.UID64, seen *Sighted) {
+	if s.told == nil {
+		s.told = map[[2]uid.UID64]bool{}
+	}
+	for k := range int(seen.Count) {
+		if pair := [2]uid.UID64{id, seen.IDs[k]}; !s.told[pair] {
+			s.told[pair] = true
+			s.log.Printf("entity %d sees entity %d at %.0f", id, seen.IDs[k], seen.Dists[k])
+		}
+	}
 }

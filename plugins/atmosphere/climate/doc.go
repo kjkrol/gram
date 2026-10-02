@@ -32,9 +32,10 @@
 // of it a game wants still ([Running]: the changes, the wind, the clouds, what falls), the air
 // left without it, the weather going on underneath.
 //
-// [Climate.Host] hosts a rule (rule.On) told the weather and the season
-// ([Weathering]) every step. [Change] (Shift+W) goes on to the next weather now, [Set] into a named one — a
-// game scripting its weather ([Climate.Queues], [Climate.DefaultBindings]). [Climate.Reporter]
+// [Climate.Host] hosts a rule (rule.On) told the weather and the season ([Weathering]) every
+// step, about the world's own entity: an effect it applies is a state of the whole game. [Change]
+// (Shift+W) goes on to the next weather now, [Set] into a named one — a game scripting its weather
+// ([Climate.Queues], [Climate.DefaultBindings]). [Climate.Reporter]
 // adds the weather to the telemetry. The atmosphere plugin (plugins/atmosphere) puts it all
 // together.
 package climate

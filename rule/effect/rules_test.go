@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 // hookGlow hooks on the world a rule keeping glow on while it fires, then a rule dispelling it at
@@ -85,7 +86,7 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	var glow effect.Effect
 	r := newRig(t, true, func(r *rig) {
 		glow = r.fx.Define("glow", effect.Spec{})
-		r.comps = append(r.comps, rule.Plan("douse in a while", func(a *rule.Actor) rule.Step {
+		r.comps = append(r.comps, plan.New("douse in a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(3*tick), a.Dispel(glow), a.Idle())
 		}))
 	})
@@ -109,7 +110,7 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	r := newRig(t, true, func(r *rig) {
 		glow = r.fx.Define("glow", effect.Spec{})
 		gaveWay = r.fx.Define("gave way", effect.Spec{})
-		r.comps = append(r.comps, rule.Plan("glow till doused", func(a *rule.Actor) rule.Step {
+		r.comps = append(r.comps, plan.New("glow till doused", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Not(a.Keep(glow)), a.Apply(gaveWay), a.Idle())
 		}))
 	})
@@ -131,13 +132,13 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 // A player's world.Apply puts an effect on the world; a rule's During runs its step while the
 // world is under it, and a plan's alike.
 func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
-	for _, plan := range []bool{false, true} {
+	for _, planned := range []bool{false, true} {
 		var lever, open effect.Effect
 		r := newRig(t, true, func(r *rig) {
 			lever = r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
 			open = r.fx.Define("open", effect.Spec{})
-			if plan {
-				r.comps = append(r.comps, rule.Plan("open while pulled", func(a *rule.Actor) rule.Step {
+			if planned {
+				r.comps = append(r.comps, plan.New("open while pulled", func(a *plan.Actor) rule.Step {
 					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())
 				}))
 				return
@@ -154,20 +155,20 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		r.tick()
 		r.tick()
 		if r.fx.Has(r.id, open) {
-			t.Fatalf("plan %v: open before the lever was pulled", plan)
+			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
 		r.w.Commands().Put(1, world.Apply{Effect: lever})
 		r.tick() // the lever is put on the world
 		r.tick()
 		r.tick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
-			t.Fatalf("plan %v: lever on the world %v, open %v; want both", plan, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
+			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
 		}
 		for range 6 {
 			r.tick()
 		}
 		if r.fx.Has(r.id, open) {
-			t.Errorf("plan %v: still open after the lever went back", plan)
+			t.Errorf("planned %v: still open after the lever went back", planned)
 		}
 	}
 }

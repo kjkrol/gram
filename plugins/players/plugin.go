@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // ErrUnknownCommand is what Issue reports for a command type no handler defines.
@@ -252,9 +253,9 @@ func (o ownCameras) Persisted() []any {
 }
 
 // Hook reports ErrUnhosted — players host no rules; they carry commands.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
+		return fmt.Errorf("%w: %T in %s", rule.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

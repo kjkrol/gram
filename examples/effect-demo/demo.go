@@ -9,6 +9,7 @@ package main
 
 import (
 	"image/color"
+	"log"
 	"math"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	bhooks "github.com/kjkrol/gram/plugins/board/hooks"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
@@ -126,7 +126,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.effects = s.world.Effects()
 	// A frozen boat holds its cell, so the planner goes round.
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.brd = s.board.Res.Logic.Board
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
@@ -162,7 +162,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// slips while it does.
 	ice := s.ice
 	if err := s.board.Hook(
-		bhooks.LogFalls(),
 		rule.On("freeze", rule.Having[witch](), func(m *rule.Moment[unit.Standing]) rule.Step {
 			return m.Around(1, m.Apply(s.frost))
 		}),

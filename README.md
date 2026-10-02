@@ -102,12 +102,11 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/hooks"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -141,7 +140,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
-	stats     hooks.ContactStats
+	stats     collision.ContactStats
 	scenes    game.Scenes
 }
 
@@ -161,12 +160,7 @@ func (a *arena) Init(ctx game.Initializer) error {
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
 
-	a.collision = collision.NewPlugin(a.world)
-	if err := a.collision.Hook(
-		hooks.CountContacts(&a.stats),
-	); err != nil {
-		return err
-	}
+	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	if err := ctx.Use(a.collision); err != nil {
 		return err
 	}
@@ -323,13 +317,14 @@ has the prey give itself a `Despawn`; `rule.All` would fire for every pair, `rul
 every entity carrying a tag. A tag is a
 bit of a family — one `tag.Tags[F]` component per family, named through `Kinds.DefineTag`, given
 to a kind with `comp.Tagged` — so markers cost no component types of their own. What lasts over
-ticks is a *plan* a kind gives its entities, `rule.Plan(name, func(a *rule.Actor) rule.Step {…})`,
+ticks is a *plan* a kind gives its entities, `plan.New(name, func(a *plan.Actor) rule.Step {…})`,
 of the same steps; both cast *effects* that hold for a while and give *commands* for their entity
 (`a.Order(navigation.MoveTo{…})`), and a plan waits for the *facts* a plugin tells it
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
-`cell.Ground`. Ready-made hooks live in `plugins/board/hooks`, `plugins/collision/hooks` and
-`plugins/vision/hooks`, whole, to Hook; navigation's crowd is its own
+`cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is the one place
+rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). Ready-made rules
+live in `plugins/collision/hooks` and `plugins/vision/hooks`, whole, to Hook; navigation's crowd is its own
 rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to with `Hook` or
 replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
 out, rules and plans say what to do when. What a player *wants* is a
@@ -364,31 +359,29 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
 | [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued` (by a player or an entity), `Carrier`, `Binding`, `Command`, the triggers of bindings |
-| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers |
-| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Rule`, `Marks`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator` |
-| [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `PairHost`, `EachHost` and `ListHost` that run rules in a plugin's pass, and the constructors `rule.On` builds them from |
+| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers; `Appearance` and the drawing rules (`Over`, `As`, `With`, `Show`) a renderer runs every frame through `Rules` |
+| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Restorer` |
 | [`entity/tag`](entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
 | [`entity/kind`](entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases, the `Moment` of a step with `At` and `Every` |
 | [`rule/effect`](rule/effect/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the rules of the clock's moments |
-| [`rule`](rule/doc.go) | How entities behave, in one vocabulary ([the story](doc/rule.md)): rules hooked on a plugin's pass (`On(name, filter, func(m *Moment[P]) Step)`, filters `All`, `Self`, `Between`, `Having`), plans a kind gives (`Plan(name, func(a *Actor) Step)`: `OneOf`, `Steps`, `If`, `When`, `On`, `Until`, `Ask`), effects (`Apply`, `Keep`, `Unless`), commands an entity gives itself (`Order`), facts plugins tell it; run by the world |
-| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Despawn`, the carrier of the commands entities give themselves, the entity renderer; it runs the core's systems (the clock's, the plans', the effects'); its register of kinds and tags and its flat look in `plugins/world/internal` |
-| [`plugins/world/hooks`](plugins/world/hooks/doc.go) | Ready-made drawing rules: `Overlay[T]`, `As[T]`, `With[T]`, `Facing` — what is drawn this frame, the `Appearance` untouched |
-| [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; `Driven` for an entity steered by hand |
+| [`rule`](rule/doc.go) | Rules at a plugin's moments, in one vocabulary ([the story](doc/rule.md)): `On(name, filter, func(m *Moment[P]) Step)`, filters `All`, `Self`, `Between`, `Having`, the Moment's steps (`Apply`, `Keep`, `Unless`, `Order`…); the hosts a plugin runs them with (`EachHost`, `PairHost`, `ListHost`), `Tick`, `Marks` |
+| [`rule/plan`](rule/plan/doc.go) | What an entity does over time: `New(name, func(a *Actor) Step)` given to a kind (`OneOf`, `Steps`, `If`, `When`, `On`, `Until`, `Ask`), `Command`, the asks, `Mind`; run by the world |
+| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Despawn`, `Apply`/`Dispel` on the world itself, the carrier of the commands entities give themselves, the entity renderer drawing as the rules given to `Draw` say (`Facing`); it runs the core's systems (the clock's, the plans', the effects'); its register of kinds and tags and its flat look in `plugins/world/internal` |
+| [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; the commands an entity gives itself (`Away`, `Toward`, `Turn`); `Pace`, the ground's share of its speed; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
-| [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made hooks: `CountContacts`, `ShowHits` with `HitOverlay`, `LogContacts` |
+| [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made rules: `ShowHits` with `HitOverlay` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
-| [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made hooks: `Flee`, `Chase`, `LogSightings`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
+| [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made rules: `Flee`, `Chase`, `Search`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`; rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
 | [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), the game's tags of places (`Family`, `Tag`, `Tags`), `Ground`, `Way`, `Crossing`, the moment `Now`; `TerrainMap`, the Layout's `Entry`, `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
 | [`plugins/board/grid`](plugins/board/grid/doc.go) | The topology: `Grid` (neighbours, `Toward`, cells under a box), `DefaultGrids` (square, hex), `Link`, `Shape` |
 | [`plugins/board/look`](plugins/board/look/doc.go) | How a board is drawn: `Look`, `Dressing`, `Tile`, `FlatLook`, `Nothing`; the `Renderer` — composed every frame, in parallel, or once for a flat map, the grid over it |
 | [`plugins/board/ground`](plugins/board/ground/doc.go) | What the board's ground is to the others: `Heights`, `Cover`, `Readied` |
-| [`plugins/board/hooks`](plugins/board/hooks/doc.go) | Ready-made hooks: `LogFalls` |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. The commands (`View`, `Turn`, `LookOut`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `MeanOfCells`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; the crowd — rules over the moment `Touch` and the commands `StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; its own crowd rules, as in StarCraft II: an ally standing makes way and stays aside, a group gathers round its point, strangers are gone round, nobody is stepped into water, off a cliff or into a wall |

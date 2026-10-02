@@ -5,73 +5,37 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/vision"
+	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 // onCourse is the cosine of the widest angle at which one still counts as heading at the other.
 const onCourse = 0.5
 
-// Flee steers every Skittish entity away from what is closing on it, and from any Threat on
-// sight; its Rule is hooked on the vision plugin, and SetEnabled switches it off and on.
-type Flee struct {
-	skittish, threat tag.Tag[Family]
-	off              bool // zero value is on
-}
-
-// NewFlee is a Flee that is switched on, for whatever carries tags.Skittish, fleeing whatever
-// carries tags.Threat.
-func NewFlee(tags Tags) *Flee { return &Flee{skittish: tags.Skittish, threat: tags.Threat} }
-
-// SetEnabled turns the rule off and on again without unhooking it.
-func (b *Flee) SetEnabled(on bool) { b.off = !on }
-
-// Rule is the fleeing as a hook of a Sighting, for the vision plugin's Hook.
-func (b *Flee) Rule() plugin.Rule { return host.Pair(b.skittish, tag.Any, b.steer) }
-
-// steer turns the observer away from what closes on it, and from any Threat in view.
-func (b *Flee) steer(_ plugin.Tick, s vision.Sighting) {
-	if b.off || !s.Helm.Steerable() {
-		return
-	}
-	if away, ok := awayFrom(s, b.threat); ok {
-		s.Helm.Request(away)
+// Flee has every Skittish entity head away from the nearest Threat it sees, else from the nearest
+// one in view when either is heading at the other; both rules run During fleeing, a state of the
+// world (world.Apply). Hook them on the vision plugin in this order.
+func Flee(tags Tags, fleeing effect.Effect) []rule.Rule {
+	return []rule.Rule{
+		rule.On("vision.flee a threat", rule.Between(tags.Skittish, tags.Threat), func(m *rule.Moment[vision.Sighting]) rule.Step {
+			return m.During(fleeing, m.Order(steering.Away{}))
+		}),
+		rule.On("vision.give way", rule.Between(tags.Skittish, tag.Any), func(m *rule.Moment[vision.Sighting]) rule.Step {
+			return m.During(fleeing, m.If(func(s vision.Sighting) bool { return len(s.Seen) > 0 && closing(s) }, m.Order(steering.Away{})))
+		}),
 	}
 }
 
-// awayFrom sums a push per sighting worth avoiding, nearest weighing most; Threats alone win.
-func awayFrom(s vision.Sighting, threat tag.Tag[Family]) (geom.Vec, bool) {
-	ox, oy := centre(&s.Base.Pos)
-	heading := s.Base.Vel.Dir
-
-	var threats, others geom.Vec
-	for _, seen := range s.Seen {
-		tx, ty := centre(&seen.Base.Pos)
-		dx, dy := ox-tx, oy-ty
-		d := math.Hypot(dx, dy)
-		if d == 0 {
-			continue
-		}
-		switch {
-		case seen.Marks.Carries(threat):
-			threats.X += dx / (d * d)
-			threats.Y += dy / (d * d)
-		case closing(heading, seen.Base.Vel.Dir, -dx/d, -dy/d):
-			others.X += dx / (d * d)
-			others.Y += dy / (d * d)
-		}
+// closing reports whether the observer or the nearest one it sees is heading at the other.
+func closing(s vision.Sighting) bool {
+	towards := s.Seen[0].Base.Pos.Center().Sub(s.Base.Pos.Center())
+	d := math.Hypot(towards.X, towards.Y)
+	if d == 0 {
+		return false
 	}
-	if threats.X != 0 || threats.Y != 0 {
-		return threats, true
-	}
-	return others, others.X != 0 || others.Y != 0
-}
-
-// closing reports whether either of the two is heading at the other.
-func closing(heading, otherHeading geom.Vec, towardsX, towardsY float64) bool {
-	if heading.X*towardsX+heading.Y*towardsY > onCourse {
-		return true
-	}
-	return otherHeading.X*towardsX+otherHeading.Y*towardsY < -onCourse
+	towards = geom.NewVec(towards.X/d, towards.Y/d)
+	mine, theirs := s.Base.Vel.Dir, s.Seen[0].Base.Vel.Dir
+	return mine.X*towards.X+mine.Y*towards.Y > onCourse || theirs.X*towards.X+theirs.Y*towards.Y < -onCourse
 }

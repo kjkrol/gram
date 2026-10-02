@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/tag"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -87,17 +86,17 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 // viewers is a tag family for the tests.
 type viewers struct{}
 
-// Composed, only the views of the observers carrying an outline are drawn; with a Viewing rule
-// showing the ones tagged, only theirs.
-func TestRenderer_ComposesTheOutlinedViewsTheViewingRulesShow(t *testing.T) {
+// Composed, only the views of the observers carrying an outline are drawn; with a Show rule
+// for the ones tagged, only theirs.
+func TestRenderer_ComposesTheOutlinedViewsTheShowRulesShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	shown := tag.Tag[viewers](3)
-	var h host.EachHost[Viewing]
-	if err := h.Add(ShowViewOf(shown)); err != nil {
+	var rules render.Rules
+	if err := rules.Add(render.Show(shown.In)); err != nil {
 		t.Fatal(err)
 	}
-	tagged.WithViewing(&h)
+	tagged.WithDrawing(&rules)
 	drawn := map[*Renderer]int{}
 	for _, r := range []*Renderer{every, tagged} {
 		r.WithStyle(ConeStyleFn(func(*render.Frame, []ConePoint) { drawn[r]++ }))
@@ -136,7 +135,7 @@ func TestRenderer_ComposesTheOutlinedViewsTheViewingRulesShow(t *testing.T) {
 	composeWith(every)
 	composeWith(tagged)
 	if drawn[every] != 2 {
-		t.Errorf("without a Viewing rule %d views were drawn, want the two with an outline", drawn[every])
+		t.Errorf("without a Show rule %d views were drawn, want the two with an outline", drawn[every])
 	}
 	if drawn[tagged] != 1 {
 		t.Errorf("showing the tagged, %d views were drawn, want the one tagged", drawn[tagged])

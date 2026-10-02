@@ -6,8 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -15,6 +14,15 @@ import (
 
 // tick is a step of the moments' test.
 const tick = time.Second / 10
+
+// heard is the command the tests' rules give: which rule.
+type heard struct{ Rule string }
+
+// heards is where the heard commands land, for the world to carry.
+type heards struct{ control.Queue[heard] }
+
+func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) DefaultBindings() []control.Binding { return nil }
 
 // Rules of the clock's Moment, fired by the world, fire once at their time and every period after
 // their offset, on the clock's time — at any tempo and never in the pause — and an effect one
@@ -28,16 +36,16 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		night := w.Kinds().DefineTag[clock.Phase]("night")
 		fx := w.Effects()
 		dusk := fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
-		var once, daily []time.Duration
-		at5, daily4 := clock.At(5*tick), clock.Every(4*tick, 2*tick)
+		var orders heards
+		if err := w.Carry(&orders); err != nil {
+			t.Fatal(err)
+		}
 		err := w.Hook(
-			host.Every(func(_ plugin.Tick, m clock.Moment) {
-				if at5(m) {
-					once = append(once, m.Now)
-				}
-				if daily4(m) {
-					daily = append(daily, m.Now)
-				}
+			rule.On("once", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
+				return r.If(clock.At(5*tick), r.Order(heard{Rule: "once"}))
+			}),
+			rule.On("daily", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
+				return r.If(clock.Every(4*tick, 2*tick), r.Order(heard{Rule: "daily"}))
 			}),
 			rule.On("dusk", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
 				return r.If(clock.At(3*tick), r.Apply(dusk))
@@ -46,6 +54,7 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fired := map[string][]time.Duration{}
 		var inNight []bool
 
 		ctx := &installCtx{ecs: goke.New()}
@@ -59,7 +68,11 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		ctx.ecs.Setup(systems...)
 		ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 			w.RunPlan(rc, d)
-			w.Clock().Simulate(rc, func(goke.RunCtx, time.Duration) { inNight = append(inNight, w.Clock().In(night)) })
+			w.Clock().Simulate(rc, func(_ goke.RunCtx, step time.Duration) {
+				inNight = append(inNight, w.Clock().In(night))
+				now := w.Clock().Time() + step // the step's end, the Moment's Now
+				orders.Drain(func(i control.Issued[heard]) { fired[i.Command.Rule] = append(fired[i.Command.Rule], now) })
+			})
 			w.Clock().Replay(rc, d)
 		})
 		for _, cmd := range map[float32][]any{4: {clock.Faster{}, clock.Faster{}}, 0.5: {clock.Slower{}}}[tempo] {
@@ -71,6 +84,7 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		for range ticks {
 			ctx.ecs.Tick(tick)
 		}
+		once, daily := fired["once"], fired["daily"]
 		if len(once) != 1 || once[0] != 5*tick {
 			t.Errorf("tempo %g: the once rule fired at %v, want once at %v", tempo, once, 5*tick)
 		}

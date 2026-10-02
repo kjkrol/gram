@@ -8,6 +8,54 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**No Go code in a rule; drawing in `render`**
+- `rule.Each`, `rule.Every` and `rule.Pair` are gone: a rule is `rule.On` alone, its Go no more
+  than the conditions of `If`. What a plugin did through them is its own work in its own pass.
+- The ground's pace: the board's pass over its units writes each one's `steering.Pace{Share}`
+  (1/cost of the cell under it, the slope the way it goes) and the world's velocity pass
+  multiplies the speed by it — from the step after the unit stood there, a step late.
+  `TerrainSpeed` is gone.
+- Navigation answers bumps by reading the `collision.Collider` contacts of its units under orders
+  in its own pass; it hooks nothing on collision.
+- `chooks.CountContacts` and `LogContacts`, `vhooks.LogSightings` and `bhooks.LogFalls` are the
+  plugins' options: `collision.Plugin.WithStats(&stats)` (`collision.ContactStats`, was
+  `hooks.ContactStats`) and `WithLog`, `vision.Plugin.WithLog`, `board.Plugin.WithLog`.
+  `plugins/board/hooks` is gone.
+- The weather on the board is the atmosphere's own system (`weathering.Weathering.System`), not
+  a rule of the clock; `Weathering.Rule` is gone.
+- Steering by command: `steering.Away{From}`, `Toward{To}` (aimed at the moment's subject) and
+  `Turn{Angle}`, which an entity gives itself and the world carries out through its `Helm`, one a
+  step. `vision.Sighting.Subject` is the nearest one seen; `Sighting.Helm` is gone. An aimed
+  command now fails while the rule's moment names nobody.
+- `vhooks.Flee(tags, fleeing)` is two rules — away from the nearest Threat, else from the nearest
+  one closing — run `During` an effect the game puts on the world; `NewFlee`, `Flee.Rule` and
+  `SetEnabled` are gone. It flees the nearest, not a weighted sum of everyone in view.
+  `vhooks.Chase(tags)` heads at the nearest Prey; looking round when none is in view is
+  `vhooks.Search(tags, vhooks.Looked(w, d))`, once every `d` of game time (it was wall time).
+- `world.Dispel{Effect}` takes an effect off the world, beside `world.Apply`.
+- `climate.Weathering` is about the world's own entity (`World`, `Who`), so its rules may cast a
+  state of the game.
+- Drawing rules are `render`'s: `render.Appearance` (`world.Appearance` is an alias),
+  `render.Over`, `As`, `With`, `Show`, run every frame by `render.Rules`, given with
+  `world.Plugin.Draw` and `vision.Plugin.Draw`. `world.Facing` picks the sprite from the way an
+  entity goes. `world.Drawing`, `vision.Viewing`, `vision.ShowViewOf` and `plugins/world/hooks`
+  are gone; `vision.Plugin.Draw(render.Show(selected.In))` draws the selected views alone
+  (`tag.Tag.In` is the condition of carrying a tag). `chooks.HitOverlay` is a `render.Rule` for
+  `world.Plugin.Draw`.
+
+**Rules in one place: package rule**
+- `plugin.Rule`, `Tick`, `TickSource`, `Marks`, `MaxFamilies`, `ErrUnhosted` and `ErrHostBuilt`
+  are `rule`'s; `rule.Rule` is a sealed interface, made by `rule.On` (a value of any other kind no
+  longer compiles as a rule). The hosts (`EachHost`, `PairHost`, `ListHost`, `Own`) are `rule`'s
+  too and `plugin/host` is gone; `plugin` keeps the plugin contract alone. In `rule`, `On` and
+  its filters are in `rule.go`.
+- Plans are package `rule/plan`: `plan.New(name, body)` (was `rule.Plan`), `plan.Actor`,
+  `plan.Command`, `plan.Mind`, the asks (`Asked`, `Replied`, `Chain`, `Answer`), `plan.NewPlans`
+  (was `rule.New`). The engine running the steps of both is `rule/internal/engine`; `rule.Step`
+  and the plan's types are its aliases. Saves name the mind and the asks after the engine now
+  (`engine.Mind`), so a save from before does not load.
+- `plugins/board/internal/rule` is `plugins/board/internal/moments`, out of the way of `rule`.
+
 **gram's core out of the world; the world tidied**
 - `entity` (with `entity/kind`, `kind/comp`, `entity/tag`), `clock` and `rule` (with
   `rule/effect`) are at the module's top beside `plugin`, `control`, `render` and `camera`:
@@ -17,9 +65,9 @@ argument's full path, which moved.
 - Removed, as no game used them: `world.Plugin.Attach`, `Detach` and `Declare` (components come
   and go through effects and the plugins' facts), `Bodies`, `NewBodies` and `Kinds.Reserve`,
   `comp.Template.WithEffect`, `Clock.Now`.
-- `world.Draw` (`Overlay`, `As`, `With`, `Facing`) is `plugins/world/hooks` (`Overlay[T]`, `As[T]`,
-  `With[T]`, `Facing`), as the other plugins' ready-made hooks are; `examples/appearance-demo`
-  shows them changing what is drawn while the Appearance stays as it is.
+- The world's drawing rules (`Overlay`, `As`, `With`, `Facing`) are `render`'s now (`render.Over`,
+  `As`, `With`, `Show`; `world.Facing`) — see above; `examples/appearance-demo` shows them
+  changing what is drawn while the Appearance stays as it is.
 - No longer public: `VelocitySystem` and `MoveSystem`, the `Renderer` type (`Plugin.Renderer()` stays),
   `Plugin.NewView` and `DropView` (`ViewFor` stays), `view.View.Refresh`, `clock.DefaultTempos`,
   `Clock.Paused`, `Tempo`, `SetPaused`, `SetTempo` and `Written` (the clock's commands set it),
@@ -35,7 +83,7 @@ argument's full path, which moved.
   movement, beside the rules and plans; no game used it. `Hook` takes rules alone now, and the
   plans run first in each step.
 - `collision.Struck` comes only to an entity that struck something; `Struck.Hit` is gone — a rule
-  of it is `m.Apply(hit)`, with no `If`. `host.EachHost.RunWhere` runs a host's rules over the
+  of it is `m.Apply(hit)`, with no `If`. `rule.EachHost.RunWhere` runs a host's rules over the
   entities of a chunk a moment is about.
 - Files and tests named after behaviours carry the rules' names: `collision/meeting.go` and
   `struck.go`, `vision/sighting.go`, `plugin/host/rules.go`.

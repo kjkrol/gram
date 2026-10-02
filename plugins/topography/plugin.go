@@ -25,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Atmosphere is the sky over the relief: the sun that lights it and casts its shadows, and the
@@ -352,9 +353,9 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook refuses every rule: the topography hosts none.
-func (p *Plugin) Hook(rules ...plugin.Rule) error {
+func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhosted, b, p.Name())
+		return fmt.Errorf("%w: %T in %s", rule.ErrUnhosted, b, p.Name())
 	}
 	return nil
 }

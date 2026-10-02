@@ -11,9 +11,9 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	icamera "github.com/kjkrol/gram/internal/camera"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -360,7 +360,7 @@ func TestPlugin_Contract(t *testing.T) {
 	if r.p.Renderer() != nil || r.p.Serializable() != nil {
 		t.Error("players draw nothing and save nothing of their own")
 	}
-	if err := r.p.Hook(struct{}{}); !errors.Is(err, plugin.ErrUnhosted) {
+	if err := r.p.Hook(rule.On("anything", rule.All, func(m *rule.Moment[struct{}]) rule.Step { return m.Steps() })); !errors.Is(err, rule.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}
 }

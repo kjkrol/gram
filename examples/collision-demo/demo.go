@@ -101,7 +101,7 @@ type mainStage struct {
 	hit       effect.Effect
 
 	state          *State
-	collisionStats hooks.ContactStats
+	collisionStats collision.ContactStats
 
 	players *players.Plugin
 
@@ -122,15 +122,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.hit = hooks.Hit(s.world, hitDuration)
 	s.defineKinds()
 	s.hitSprite = s.world.Kinds().NewSprite()
-	if err := s.world.Hook(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
+	if err := s.world.Draw(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
 		return err
 	}
 
-	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.Hook(
-		hooks.CountContacts(&s.collisionStats),
-		hooks.ShowHits(s.hit),
-	); err != nil {
+	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
+	if err := s.collision.Hook(hooks.ShowHits(s.hit)); err != nil {
 		return err
 	}
 	s.state = &State{}

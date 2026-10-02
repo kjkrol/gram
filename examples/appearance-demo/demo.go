@@ -1,7 +1,7 @@
 // Command appearance-demo shows a game changing how its entities are drawn, frame by frame, with
-// the world's ready-made drawing rules (plugins/world/hooks): every walker is drawn facing the way it
-// goes (Facing), red while it is angry (With, reading its Mood), a ghost as a ghost whatever it
-// feels (As) and the leader with a crown on (Overlay). They bounce off one another, so they turn,
+// drawing rules (package render) given to the world's Draw: every walker is drawn facing the way it
+// goes (world.Facing), red while it is angry (render.With, reading its Mood), a ghost as a ghost
+// whatever it feels (render.As) and the leader with a crown on (render.Over). They bounce off one another, so they turn,
 // and their arrows turn with them. R makes everyone angry for a while: an effect on the world, kept
 // on each entity by a rule as its Mood — what is drawn follows, the Appearance itself is never
 // touched.
@@ -23,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	whooks "github.com/kjkrol/gram/plugins/world/hooks"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -71,7 +70,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 // =========================== Stage ===========================
 
 // Mood is what an entity feels: the With rule draws it red while Angry. Ghost and Leader mark the
-// entities As and Overlay draw otherwise.
+// entities As and Over draw otherwise.
 type (
 	Mood   struct{ Angry bool }
 	Ghost  struct{}
@@ -160,11 +159,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
 
 	// The whole of the drawing, in order: the sprite of the heading, red while angry, a ghost drawn
-	// as a ghost after that — whatever it feels — and a crown on the leader. And the rule keeping
-	// everyone angry while the world is in a rage.
-	if err := s.world.Hook(
-		whooks.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
-		whooks.With(func(a world.Appearance, m Mood) world.Appearance {
+	// as a ghost after that — whatever it feels — and a crown on the leader.
+	if err := s.world.Draw(
+		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
+		render.With(func(a world.Appearance, m Mood) world.Appearance {
 			if m.Angry {
 				for h, calm := range s.facing {
 					if a.SpriteID == calm {
@@ -174,12 +172,15 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 			}
 			return a
 		}),
-		whooks.As[Ghost](world.Appearance{SpriteID: s.spook}),
-		whooks.Overlay[Leader](world.Appearance{SpriteID: s.crown}),
-		rule.On("rage spreads", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.During(s.rage, m.Keep(s.angry))
-		}),
+		render.As[Ghost](world.Appearance{SpriteID: s.spook}),
+		render.Over[Leader](world.Appearance{SpriteID: s.crown}),
 	); err != nil {
+		return err
+	}
+	// The rule keeping everyone angry while the world is in a rage.
+	if err := s.world.Hook(rule.On("rage spreads", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
+		return m.During(s.rage, m.Keep(s.angry))
+	})); err != nil {
 		return err
 	}
 

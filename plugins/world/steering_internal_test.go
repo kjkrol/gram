@@ -9,8 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -206,21 +204,21 @@ func TestSteering_KeepsActingOnTheLastDecisionWhileReacting(t *testing.T) {
 	}
 }
 
-// speedTicks spawns one entity carrying st and co at vel, runs n ticks at 60 TPS with the given Moving
-// rules, and reports the Steering's base speed and the entity's Velocity.Value after each.
-func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velocity, moving []plugin.Rule, n int) (speeds, values []float64) {
+// speedTicks spawns one entity carrying st and co at vel, with a Pace of share when it is not 0,
+// runs n ticks at 60 TPS and reports the Steering's base speed and the entity's Velocity.Value
+// after each.
+func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velocity, share float64, n int) (speeds, values []float64) {
 	t.Helper()
 
 	wm := testWorld()
-	for _, b := range moving {
-		if err := wm.movers.Add(b); err != nil {
-			t.Fatal(err)
-		}
+	comps := []comp.Comp{comp.Const(st), comp.Const(co)}
+	if share != 0 {
+		comps = append(comps, comp.Const(steering.Pace{Share: share}))
 	}
 	wm.populate(testKind(
 		Position{AABB: plane.NewAABB(geom.NewVec(500, 500), 10, 10)},
 		vel,
-		comp.Const(st), comp.Const(co),
+		comps...,
 	), []any{nil})
 
 	var base goke.Comp[Base]
@@ -247,11 +245,8 @@ func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velo
 	return speeds, values
 }
 
-// halving is a Moving rule that halves every entity's speed.
-var halving = host.Every(func(_ plugin.Tick, m Moving) { m.Base.Vel.Value *= 0.5 })
-
 func TestSteering_NoProfileLeavesSpeedAlone(t *testing.T) {
-	_, values := speedTicks(t, steering.Steering{TurnRate: 0.5}, steering.Course{}, Velocity{Dir: east, Value: 60}, nil, 3)
+	_, values := speedTicks(t, steering.Steering{TurnRate: 0.5}, steering.Course{}, Velocity{Dir: east, Value: 60}, 0, 3)
 	for tick, v := range values {
 		if v != 60 {
 			t.Fatalf("tick %d: Velocity.Value = %v, want the kind's 60 left alone without a profile", tick+1, v)
@@ -261,7 +256,7 @@ func TestSteering_NoProfileLeavesSpeedAlone(t *testing.T) {
 
 func TestSteering_SetsOffAtV0ThenAccelerates(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100, Accel: 200, V0: 40}, steering.Course{WantSpeed: 100}
-	speeds, values := speedTicks(t, st, co, Velocity{Dir: east}, nil, 40)
+	speeds, values := speedTicks(t, st, co, Velocity{Dir: east}, 0, 40)
 
 	step := 200 * (time.Second / 60).Seconds() // one tick of Accel, at the tick length the harness uses
 	if speeds[0] != 40 {
@@ -304,7 +299,7 @@ func TestSteering_SpeedIsHeldWithinTheProfile(t *testing.T) {
 
 func TestSteering_BrakesToAHalt(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100, Accel: 200, V0: 40}, steering.Course{Speed: 100, WantSpeed: 0}
-	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east, Value: 100}, nil, 40)
+	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east, Value: 100}, 0, 40)
 
 	step := 200 * (time.Second / 60).Seconds()
 	if got, want := speeds[0], 100-step; math.Abs(got-want) > 1e-9 {
@@ -322,7 +317,7 @@ func TestSteering_BrakesToAHalt(t *testing.T) {
 
 func TestSteering_NoAccelChangesSpeedAtOnce(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100}, steering.Course{WantSpeed: 70}
-	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east}, nil, 1)
+	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east}, 0, 1)
 	if speeds[0] != 70 {
 		t.Errorf("tick 1: Speed = %v, want 70 at once with no Accel", speeds[0])
 	}
@@ -330,17 +325,17 @@ func TestSteering_NoAccelChangesSpeedAtOnce(t *testing.T) {
 
 func TestSteering_RewritesTheBaseSpeedAheadOfModifiers(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100}, steering.Course{WantSpeed: 100}
-	speeds, values := speedTicks(t, st, co, Velocity{Dir: east}, []plugin.Rule{halving}, 3)
+	speeds, values := speedTicks(t, st, co, Velocity{Dir: east}, 0.5, 3)
 	for tick := range values {
 		if got, want := values[tick], speeds[tick]*0.5; got != want {
-			t.Fatalf("tick %d: Velocity.Value = %v, want %v — the modifier compounds instead of scaling a fresh base speed", tick+1, got, want)
+			t.Fatalf("tick %d: Velocity.Value = %v, want %v — the pace compounds instead of scaling a fresh base speed", tick+1, got, want)
 		}
 	}
 }
 
 func TestSteering_BrakesAtItsOwnRateWhenGivenOne(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100, Accel: 200, Brake: 400, V0: 40}, steering.Course{Speed: 100, WantSpeed: 0}
-	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east, Value: 100}, nil, 2)
+	speeds, _ := speedTicks(t, st, co, Velocity{Dir: east, Value: 100}, 0, 2)
 
 	step := 400 * (time.Second / 60).Seconds()
 	if got, want := speeds[0], 100-step; math.Abs(got-want) > 1e-9 {
@@ -354,7 +349,7 @@ func TestSteering_BrakesAtItsOwnRateWhenGivenOne(t *testing.T) {
 
 // Halted, an entity stands whatever it is asked: no speed, its heading kept.
 func TestSteering_HaltedStandsWhateverItIsAsked(t *testing.T) {
-	speeds, values := speedTicks(t, steering.Steering{MaxSpeed: 100, Halted: true}, steering.Course{WantSpeed: 100, Speed: 100}, Velocity{Dir: east, Value: 100}, nil, 3)
+	speeds, values := speedTicks(t, steering.Steering{MaxSpeed: 100, Halted: true}, steering.Course{WantSpeed: 100, Speed: 100}, Velocity{Dir: east, Value: 100}, 0, 3)
 	for tick := range values {
 		if values[tick] != 0 || speeds[tick] != 0 {
 			t.Fatalf("tick %d: speed %v, Velocity.Value %v; want both 0 while halted", tick+1, speeds[tick], values[tick])

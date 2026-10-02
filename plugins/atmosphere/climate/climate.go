@@ -5,12 +5,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Climate is the climate of a world: where in the world it lies, and its weather going from one
@@ -24,7 +23,7 @@ type Climate struct {
 	change   control.Queue[Change]
 	set      control.Queue[Set]
 	report   report
-	rules    host.EachHost[Weathering]
+	rules    rule.EachHost[Weathering]
 	running  Running
 }
 
@@ -84,7 +83,7 @@ func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.Lo
 
 // Host hosts a rule of Weathering, fired every step with the weather; call before the
 // system's Init.
-func (c *Climate) Host(b plugin.Rule) error {
+func (c *Climate) Host(b rule.Rule) error {
 	if err := c.rules.Add(b); err != nil {
 		return fmt.Errorf("%w in the climate — it takes a rule of Weathering", err)
 	}
