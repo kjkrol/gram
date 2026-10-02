@@ -55,6 +55,14 @@ func (m *Moment[P]) Under(e effect.Effect, step Step) Step { return steps.NewUnd
 // pulled, an alarm (world.Apply) — and fails while it is not.
 func (m *Moment[P]) During(e effect.Effect, step Step) Step { return steps.NewDuring(e, step) }
 
+// OnWire runs step on the wire the entity is wired to (Wired), in place of the entity — an effect
+// applied there drives the wire — and fails for one wired to none.
+func (m *Moment[P]) OnWire(step Step) Step { return steps.NewOnWire(step) }
+
+// WhileWire runs step while the wire the entity is wired to is under e — a trapdoor kept open
+// while its lever's wire is on — and fails while it is not, or for one wired to none.
+func (m *Moment[P]) WhileWire(e effect.Effect, step Step) Step { return steps.NewWhileWire(e, step) }
+
 // Order gives the command cmd for the entity each time it fires — the same command a player gives
 // — and does well at once; one that is Aimed is told the moment's Subject, and fails while the
 // moment names nobody.

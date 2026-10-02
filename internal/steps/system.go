@@ -25,6 +25,9 @@ func NewPlans(now func() time.Duration, world func() uid.UID64, seed uint64, fx 
 	return &Plans{system: &system{now: now, world: world, seed: seed, effects: fx, commands: commands}}
 }
 
+// Wires has the plans find the wire an entity is wired to with lookup: the world's.
+func (c *Plans) Wires(lookup func(uid.UID64) (uid.UID64, bool)) { c.system.wires = lookup }
+
 // System is the plans' system, run in every step of the simulation.
 func (c *Plans) System() goke.System { return c.system }
 
@@ -50,6 +53,7 @@ type system struct {
 	seed     uint64           // the world's, which Chance draws from
 	effects  *effect.Effects  // the world's, which Apply, Keep and the rest cast
 	commands *control.Carrier // the world's, which Order gives to
+	wires    func(uid.UID64) (uid.UID64, bool)
 	trees    map[uint64]*tree
 	facts    map[reflect.Type]any // *fact[F] by F
 	si       *goke.SysInit

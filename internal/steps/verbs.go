@@ -163,6 +163,64 @@ func NewUnless(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.Mark()), make: func() exec { return under{e: e, not: true} }}
 }
 
+// NewOnWire runs node on the wire the entity is wired to, in place of it; Failure for one wired to
+// none.
+func NewOnWire(node Step) Step {
+	return composite{kids: []Step{node}, sign: "onwire", make: func() exec { return onWire{} }}
+}
+
+type onWire struct{ basic }
+
+func (onWire) instant() {}
+
+func (onWire) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity {
+		return Failure
+	}
+	wire, ok := c.wireOf(c.id)
+	if !ok {
+		return Failure
+	}
+	self := c.id
+	c.id = wire
+	st := c.run(kids[0])
+	c.id = self
+	return st
+}
+
+// NewWhileWire runs node while the wire the entity is wired to is under e, and fails while it is
+// not or the entity is wired to none.
+func NewWhileWire(e effect.Effect, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("whilewire(%d)", e.Mark()), make: func() exec { return whileWire{e: e} }}
+}
+
+type whileWire struct {
+	basic
+	e effect.Effect
+}
+
+func (whileWire) instant() {}
+
+func (w whileWire) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity {
+		return Failure
+	}
+	wire, ok := c.wireOf(c.id)
+	if !ok {
+		return Failure
+	}
+	on := false
+	if c.instant {
+		on = w.e.On(wire)
+	} else {
+		on = c.sys.effects.Has(wire, w.e)
+	}
+	if !on {
+		return Failure
+	}
+	return c.run(kids[0])
+}
+
 func NewUnder(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("under(%d)", e.Mark()), make: func() exec { return under{e: e} }}
 }

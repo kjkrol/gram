@@ -26,6 +26,7 @@ type Rules struct {
 	now      plugin.Rules[cell.Now]
 	rings    rings
 	slope    func(p, dir geom.Vec, d cell.Domain) float64 // the Map's, for every unit's Pace
+	trodden  []bool                                         // by ordinal: a unit stands on the cell this step
 
 	// Log has a line written, once for each, for a unit fallen where its domain may not be — in a
 	// hole, a walker in the water; nil for none.

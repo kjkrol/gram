@@ -23,6 +23,9 @@ type Tick struct {
 	// the moment stands, those it stands on first: the system's to say, for a rule's Here and
 	// Around; nil where there are none.
 	Around func(moment any, rings int, each func(uid.UID64))
+	// Wires tells the wire an entity is wired to (rule.Wired), for a rule's OnWire and WhileWire:
+	// the world's; nil where there are none.
+	Wires func(id uid.UID64) (uid.UID64, bool)
 }
 
 // TickSource builds the Tick of a pass: the world's (world.Plugin.Tick).

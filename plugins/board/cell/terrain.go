@@ -1,5 +1,10 @@
 package cell
 
+import (
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/rule"
+)
+
 // Terrain reports one cell's terrain kind, independent of the grid's topology.
 type Terrain interface {
 	Kind(c ID) Kind
@@ -14,8 +19,11 @@ type TerrainMap struct {
 	// Kind leaves them out — the board lays them over.
 	Ways      map[ID]Way
 	Crossings map[ID]Crossing
-	// Tags are the game's tags of places the cells carry for good, the Layout's.
-	Tags map[ID]Tags
+	// Tags are the game's tags of places the cells carry for good, the Layout's; Roles the roles they
+	// play and Wired the wires they are wired to, the Layout's too.
+	Tags  map[ID]Tags
+	Roles map[ID]tag.Tags[rule.Roles]
+	Wired map[ID]*rule.Wire
 
 	version uint64
 }
@@ -80,6 +88,22 @@ func (t *TerrainMap) Tag(c ID, tags Tags) {
 		t.Tags = make(map[ID]Tags)
 	}
 	t.Tags[c] |= tags
+}
+
+// Cast has c play roles besides those it plays; the terrain's Version stays as it was.
+func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
+	if t.Roles == nil {
+		t.Roles = make(map[ID]tag.Tags[rule.Roles])
+	}
+	t.Roles[c] |= roles
+}
+
+// Wire wires c to w; the terrain's Version stays as it was.
+func (t *TerrainMap) Wire(c ID, w *rule.Wire) {
+	if t.Wired == nil {
+		t.Wired = make(map[ID]*rule.Wire)
+	}
+	t.Wired[c] = w
 }
 
 // SetAll resets every cell's terrain kind to kind, discarding any prior Set.

@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -29,6 +30,8 @@ type entitySystem struct {
 	spawnCross  goke.Comp[cell.Crossing]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
 	spawnTags   goke.Comp[cell.Tags]
+	spawnRoles  goke.Comp[tag.Tags[rule.Roles]]
+	spawnWired  goke.Comp[rule.Wired]
 }
 
 func (s *entitySystem) Init(si *goke.SysInit) {
@@ -61,31 +64,66 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	s.cells.made(st)
 }
 
-// spawn makes an entity for every cell out of the seed.
+// spawn makes an entity for every cell out of the seed: the cells wired to a wire apart, carrying
+// their Wired besides.
 func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 	seed := s.cells.seed
+	var plain, wired []int // ordinals
 	cells := make([]cell.ID, len(ids))
 	s.cells.grid.EachCell(func(c cell.ID) {
 		if o, ok := s.cells.Ordinal(c); ok {
 			cells[o] = c
 		}
 	})
-	// the effects' markers and the game's tags of places, for good
-	factory := si.NewFactory(&s.spawnPlot, &s.spawnGround, &s.spawnWay, &s.spawnCross, &s.spawnMarks, &s.spawnTags)
-	factory.Create(len(cells))
-	o := 0
+	for o, c := range cells {
+		if seed.Wired[c] != nil {
+			wired = append(wired, o)
+		} else {
+			plain = append(plain, o)
+		}
+	}
+	// the effects' markers, the game's tags of places and the roles, for good
+	columns := []goke.Addable{&s.spawnPlot, &s.spawnGround, &s.spawnWay, &s.spawnCross, &s.spawnMarks, &s.spawnTags, &s.spawnRoles}
+	s.make(si.NewFactory(columns...), plain, cells, ids, false)
+	if len(wired) > 0 {
+		s.make(si.NewFactory(append(columns, &s.spawnWired)...), wired, cells, ids, true)
+	}
+}
+
+// make spawns the cells at ordinals with factory; wired, each with the Wired of its wire.
+func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.ID, ids []uid.UID64, wired bool) {
+	if len(ordinals) == 0 {
+		return
+	}
+	seed := s.cells.seed
+	factory.Create(len(ordinals))
+	k := 0
 	for factory.Next() {
-		plots, grounds, ways := s.spawnPlot.Slice(&factory.Cursor), s.spawnGround.Slice(&factory.Cursor), s.spawnWay.Slice(&factory.Cursor)
-		crossings, tags := s.spawnCross.Slice(&factory.Cursor), s.spawnTags.Slice(&factory.Cursor)
+		cur := &factory.Cursor
+		plots, grounds, ways := s.spawnPlot.Slice(cur), s.spawnGround.Slice(cur), s.spawnWay.Slice(cur)
+		crossings, tags, roles := s.spawnCross.Slice(cur), s.spawnTags.Slice(cur), s.spawnRoles.Slice(cur)
+		var wires []rule.Wired
+		if wired {
+			wires = s.spawnWired.Slice(cur)
+		}
 		for i, id := range factory.IDs {
+			o := ordinals[k]
 			c := cells[o]
 			plots[i] = cell.Plot{Cell: c}
 			grounds[i] = cell.Ground{Kind: seed.Kind(c)}
 			ways[i] = seed.Ways[c]
 			crossings[i] = seed.Crossings[c]
 			tags[i] = seed.Tags[c]
+			roles[i] = seed.Roles[c]
+			if wired {
+				w := seed.Wired[c]
+				if _, made := w.Entity(); !made {
+					panic(fmt.Sprintf("board: cell %d is wired to %q, which no world defined (world.Plugin.Wire)", c, w.Name()))
+				}
+				wires[i] = w.Wired()
+			}
 			ids[o] = id
-			o++
+			k++
 		}
 	}
 }

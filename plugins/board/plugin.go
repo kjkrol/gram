@@ -284,6 +284,12 @@ func (p *Plugin) Populate() error {
 		if e.Tags != 0 {
 			brd.cells.Tag(e.Cell, e.Tags)
 		}
+		if e.Roles != 0 {
+			brd.cells.Cast(e.Cell, e.Roles)
+		}
+		if e.Wired != nil {
+			brd.cells.Wire(e.Cell, e.Wired)
+		}
 	}
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])

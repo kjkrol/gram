@@ -51,5 +51,10 @@ func (s *cellSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 
 // now is the i-th cell of the chunk being walked.
 func (s *cellSystem) now(i int) cell.Now {
-	return cell.Now{ID: s.ids[i], Cell: s.plots[i].Cell, Kind: s.grounds[i].Kind}
+	c := s.plots[i].Cell
+	trodden := false
+	if o, ok := s.r.cells.Ordinal(c); ok && o < len(s.r.trodden) {
+		trodden = s.r.trodden[o]
+	}
+	return cell.Now{ID: s.ids[i], Cell: c, Kind: s.grounds[i].Kind, Trodden: trodden}
 }

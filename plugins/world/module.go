@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -61,6 +62,10 @@ type module struct {
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
+	// the wires a game defined, their entities and the Signals given to them
+	wires         wires
+	wiresRunnable goke.Runnable
+
 	// the entities' plans, run first in every step of the simulation
 	plans         *steps.Plans
 	plansRunnable goke.Runnable
@@ -89,7 +94,7 @@ func newModule(cfg Config) *module {
 // step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
 	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity()}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Wires: w.wires.Of}
 }
 
 // =================================================================
@@ -101,6 +106,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
+	w.wiresRunnable = ecs.RegSys(w.wires.system()) // first: whatever is wired is made after its wire
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
 	velocity.tick = w.tick
@@ -136,6 +142,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Sync()
 	ctx.Run(w.exitRunnable, step)
 	ctx.Sync()
+	ctx.Run(w.wiresRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
 	ctx.Sync()
 	w.effects.Module().RunPlan(ctx, step)
@@ -159,6 +166,8 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[clock.State](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
+		goke.LoadComp[rule.Wiring](),
+		goke.LoadComp[rule.Wired](),
 	}, w.effects.Module().LoadComps()...)
 	return append(tokens, w.plans.LoadComps()...)
 }
