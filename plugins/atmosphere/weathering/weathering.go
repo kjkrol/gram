@@ -5,14 +5,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/rule/effect"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 // Config is what the weather does to the board: Snowy names, for each kind snow may lie on, the

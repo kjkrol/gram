@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
-	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }

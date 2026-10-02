@@ -1,6 +1,6 @@
 package world
 
-import "github.com/kjkrol/gram/plugins/world/entity"
+import "github.com/kjkrol/gram/entity"
 
 // What an entity carries, as package entity has it — re-exported, so the world's own name for
 // each stays: Base, Position, Velocity, Z, Layers and Eye are the same types wherever they are

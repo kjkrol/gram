@@ -9,11 +9,11 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/kind"
-	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 )
 
 // The collision scenes are the collision demo's: a 1024x1024 torus filled to a share of its

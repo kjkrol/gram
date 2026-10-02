@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/entity/tag"
 )
 
 // Family is selection's tag family: Selectable, Selected and Followed live in it.

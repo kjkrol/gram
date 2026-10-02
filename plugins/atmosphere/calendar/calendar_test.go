@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
-	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 // A calendar reads the clock at a fixed scale: a fresh game begins at Start in the middle of

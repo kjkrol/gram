@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // module registers and runs the move commands at once, and navigation and the driving in the

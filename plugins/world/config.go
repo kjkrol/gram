@@ -3,7 +3,7 @@ package world
 import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/clock"
 )
 
 // Config configures world's spatial shape, the bounds its entity population must respect,

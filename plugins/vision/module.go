@@ -5,9 +5,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/ground"
-	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 var _ goke.Module = (*module)(nil)

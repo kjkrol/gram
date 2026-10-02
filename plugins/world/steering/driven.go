@@ -23,8 +23,8 @@ type Driven struct {
 	Climb       float64
 }
 
-// Steepest is the sine of the steepest an entity flown by hand climbs or dives: 80°.
-const Steepest = 0.985
+// steepest is the sine of the steepest an entity flown by hand climbs or dives: 80°.
+const steepest = 0.985
 
 // Slope is how the way a flown entity is steered along parts its speed: rise the share going up
 // (down under zero), run the share along the ground; level, all along the ground, unless Flown.
@@ -32,6 +32,6 @@ func (d Driven) Slope() (rise, run float64) {
 	if !d.Flown {
 		return 0, 1
 	}
-	rise = min(max(d.Climb, -Steepest), Steepest)
+	rise = min(max(d.Climb, -steepest), steepest)
 	return rise, math.Sqrt(1 - rise*rise)
 }

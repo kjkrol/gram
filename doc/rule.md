@@ -1,6 +1,6 @@
 # Rule: how entities behave
 
-One vocabulary for every behaviour of an entity, in `plugins/world/rule`: a **rule** is what is
+One vocabulary for every behaviour of an entity, in `rule`: a **rule** is what is
 done at a moment a plugin catches, a **plan** is what an entity does over time, an **effect** is a
 change that holds, a **command** is what an entity has done, and a **fact** is what a plugin tells
 an entity. Written on 2026-09-30 when yielding and avoiding outgrew the reflexes, and unified the

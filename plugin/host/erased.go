@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // Side is one side of a pair, its tag family erased: what a rule built from separate filters

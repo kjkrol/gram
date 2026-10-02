@@ -315,47 +315,15 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 
 func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	occupancy := &cell.SingleOccupancy{}
-	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
-	space := testSpace(t)
-	steer.BindSpace(space)
-
 	target, _ := grid.CellIndex(2, 0)
-	offCenter := world.Position{AABB: plane.NewAABB(geom.NewVec(17, 1), 8, 8)}
+	offCenter := plane.NewAABB(geom.NewVec(17, 1), 8, 8)
 
-	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[steering.Steering]
-	var course goke.Comp[steering.Course]
 	var q *goke.Query
-
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
-		f.Create(1)
-		f.Next()
-		id := f.Cursor.IDs[0]
-		at.Slice(&f.Cursor)[0] = unit.At{Cell: target}
-		pos.Slice(&f.Cursor)[0].Pos = offCenter
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(target, id, cell.Land)
-
-		q = si.NewQueryBuilder(&pos).Build()
-	}})
-
-	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(steering.NewSystem())
-	moveHandle := ecs.RegSys(world.NewMoveSystem(space))
-	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
-		ctx.Run(steerHandle, d)
-		ctx.Run(steeringHandle, d)
-		ctx.Run(moveHandle, d)
-		ctx.Sync()
-	})
+	nw := newNavWorld(t, 5, 1, 10, []navUnit{{
+		box: offCenter, at: target, profile: &steering.Steering{MaxSpeed: 20}, order: &MoveOrder{Target: target},
+	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&pos).Build() }})
+	ecs := nw.ecs
 
 	readCenter := func() (float64, float64) {
 		t.Helper()
@@ -401,58 +369,21 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 		speed                           = float64(cellSize * 2)
 	)
 	grid := grid.DefaultGrids{}.Square(gridWidth, gridHeight, cellSize)
-	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	var wallCells []cell.ID
-	for y := uint32(2); y < gridHeight; y++ {
-		c, _ := grid.CellIndex(wallCol, y)
-		wallCells = append(wallCells, c)
-	}
-	for _, c := range wallCells {
-		terrain.Set(c, cell.Kind{Cost: 1, Solid: true})
-	}
-	occupancy := &cell.SingleOccupancy{}
-
 	start, _ := grid.CellIndex(2, 4)
 	target, _ := grid.CellIndex(gridWidth-3, 4)
-
-	pathFinder := newPathFinder(grid, terrain, nil, occupancy)
-	steer := newNavigationSystem(pathFinder, grid, terrain, occupancy)
-	space := testSpace(t)
-	steer.BindSpace(space)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var profile goke.Comp[steering.Steering]
-	var course goke.Comp[steering.Course]
 	var q *goke.Query
-
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
-		f.Create(1)
-		f.Next()
-		id := f.Cursor.IDs[0]
-		startPos := world.Position{AABB: cellBox(grid, start, entitySize)}
-		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
-		pos.Slice(&f.Cursor)[0].Pos = startPos
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
-		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: speed}
-		occupancy.Enter(start, id, cell.Land)
-
-		q = si.NewQueryBuilder(&at, &pos, &order).Build()
-	}})
-
-	steerHandle := ecs.RegSys(steer)
-	steeringHandle := ecs.RegSys(steering.NewSystem())
-	moveHandle := ecs.RegSys(world.NewMoveSystem(space))
-	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
-		ctx.Run(steerHandle, d)
-		ctx.Run(steeringHandle, d)
-		ctx.Run(moveHandle, d)
-		ctx.Sync()
-	})
+	nw := newNavWorld(t, gridWidth, gridHeight, cellSize, []navUnit{{
+		box: cellBox(grid, start, entitySize), at: start, profile: &steering.Steering{MaxSpeed: speed}, order: &MoveOrder{Target: target},
+	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&at, &pos, &order).Build() }})
+	terrain, ecs := nw.board, nw.ecs
+	for y := uint32(2); y < gridHeight; y++ {
+		c, _ := grid.CellIndex(wallCol, y)
+		terrain.Set(c, cell.Kind{Cost: 1, Solid: true})
+	}
 
 	dt := time.Second / 60
 	var lastSteps []cell.ID

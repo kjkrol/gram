@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/entity/tag"
 )
 
 // Family is the owners' tag family: a tag a player, the players an entity belongs to.

@@ -1418,8 +1418,71 @@ entity, so that no component comes and goes: it is so already — the contacts l
 for good, and `Struck` is a view of them. A marker (a bit of `effect.States`, as `Changed`) would
 serve a plan or another plugin's rule wanting "struck this step"; nobody wants it yet.
 
+### The world tidied, the core out of it (2026-10-01)
+
+The user asked for the world the same work as the plugins before, wondering whether `rule`,
+`entity` and `clock` were not rather gram's core. They were: `plugin` and `plugin/host`, the
+framework's spine, imported `plugins/world/entity/tag`; `rule`, `clock` and `entity` never import
+the world, and every plugin and game used them (tag 72 files, comp 69, kind 66, effect 27, rule
+23, clock 18). They are at the module's top now. The user asked about the components they define:
+registering them stays the world's — whoever runs a part registers its components, as the world
+registers `steering`'s and collision `Collider` — and only two save names changed, the generic
+`tag.Tags[clock.Phase]` and `tag.Tags[effect.States]`, whose argument goke names by full path
+(checked by printing the world's `LoadComps` before and after).
+
+The world's root was 20 files in seven groups: the plugin, making entities, motion, drawing, the
+cameras and views, the clock's moments, small vocabulary. A separate plugin for making entities
+("units") was weighed and left: making an entity writes `Base`, puts its box in the space, counts
+it against `MaxCount` and checks its size, and a load remaps its kind and tags — a plugin apart
+would need a wide public way into the world. What stands alone went to `world/internal`: the
+register of kinds and tags with the remapping of a load (`internal/kinds`) and the flat look
+(`internal/look`). Spawning from rows stays in the root, beside the `Appearance` and `Base` it
+writes. A place where a kind is defined with its rules and its starting effects is to be designed
+on this layout.
+
+The user had `Attach`/`Detach`/`Declare`, `Bodies` with `Kinds.Reserve` and `world.Draw.*`
+removed. By the audit rule: `VelocitySystem`, the `Renderer` type, `NewView`/`DropView`,
+`View.Refresh`, the clock's setters and getters, `DefaultTempos`, `Steepest` and `MarkerPrefix`
+are private; `comp.Template.WithEffect` and `Clock.Now` went (a navigation test that entered its
+units' cells at spawn through `WithEffect` enters them in its setup). Kept on purpose:
+`MoveSystem`/`NewMoveSystem`, which navigation's and collision's test rigs compose into steps of
+their own (moving them onto the world plugin changes the order of systems they count ticks by — a
+step of its own), `Drawing.As`/`With` (a Drawing rule's verbs), the plans and asks of `rule` and
+the effect traits (the formalism a game writes with; no demo uses plans yet), `Clock.In`.
+
+### The move system private, the tests on the world (2026-10-02)
+
+The user had `MoveSystem` made private: "the tests we have are stupid if they force these systems
+public". Navigation's rigs (`newProfiledWorld`, `newLegWorld`, `newEnteredWorld` and two in
+`navigation_test.go`, 22 tests with `ground_test`'s and `destination_test`'s) and collision's
+`pairs_test` built an ECS of their own: navigation, steering, the world's move. They stand on the
+plugins now — navigation's on `newNavWorld` (`world_rig_test.go`: world, board, navigation under
+CellSpacing, units from kinds, each holding its cell), collision's on `collisiontest.Start` — and a
+step is the game's: the world, then the board and navigation. Six tests changed, none by hiding a
+change of behaviour:
+- `TurnsBeforeTheBendAndNeverStops`, `BrakesToRestOnTheGoal`, `RunsThroughQueuedGoalsWithoutStopping`,
+  `APatrolGoesRoundStandingItsPauseOnEachGoal`: navigation decides after the world's step, so an
+  order is carried out from the second tick; the first tick is skipped. `BrakesToRest` also reads
+  the rest a tick after the arrival, when the world's step has carried out the stop — and checks the
+  unit stood on the goal's centre already at the arrival.
+- `BlockedDeparture_RepathsAroundStationaryEntity`, `OccupiedTarget_WaitsThenSettlesNextToIt`: the
+  plugin hooks the crowd's rules, and an ownerless unit standing makes way for an ownerless one on
+  the move (allies); the old rig ran no rules. The standing unit is another player's now (a
+  stranger, `owner: 2`), which is what the tests are about.
+The tests of navigation's system alone (no movement) stay as they were.
+
+The ready-made drawing rules came back as `plugins/world/hooks` with `examples/appearance-demo`: a
+game cannot write a Drawing rule of its own (it would need plugin/host), and an effect's Alter
+changes the Appearance itself, while a drawing rule changes what is drawn this frame. The demo's
+test draws through a recording Look. `Leaving` stays, marked to reconsider; `Clock.In` and the
+clock's phases stay.
+
 ## Questions for review
 
+- **`world.Leaving`: a moment nobody uses.** The world hands it to rules every tick an entity is
+  past an open edge, and despawns the leaver when no rule is hooked. No game or demo hooks one;
+  only collision's test of the open edge does. Kept on 2026-10-02 at the user's word, to be
+  thought over: should it stay a moment, or should the world simply despawn whoever leaves?
 
 - **Determinism across tempos** holds for the simulation; the interface part (orders, selection)
   runs once a tick, so a player acting at ×4 acts every four steps rather than every step. That is

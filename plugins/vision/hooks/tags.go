@@ -1,8 +1,8 @@
 package hooks
 
 import (
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // Family is the tag family of the ready-made vision rules.

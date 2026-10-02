@@ -6,12 +6,13 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -21,16 +22,18 @@ const (
 	legEntitySize = uint32(22)
 )
 
-// legUnit seeds one entity: its start cell and, if hasOrder, a MoveOrder toward target.
+// legUnit seeds one entity: its start cell and, if hasOrder, a MoveOrder toward target; owner, when
+// set, makes it another player's — a stranger, who makes no way for the others.
 type legUnit struct {
 	start, target cell.ID
 	hasOrder      bool
+	owner         control.PlayerID
 }
 
-// legWorld is a real navigation + movement ECS over an open grid, for Leg reservation tests.
+// legWorld is a world with a board and navigation over an open grid, for Leg reservation tests.
 type legWorld struct {
 	grid      grid.Grid
-	terrain   *cell.TerrainMap
+	terrain   *board.Board
 	occupancy *cell.SingleOccupancy
 	ecs       *goke.ECS
 	ids       []uid.UID64
@@ -43,52 +46,20 @@ type legWorld struct {
 
 func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	t.Helper()
-	lw := &legWorld{grid: grid.DefaultGrids{}.Square(w, h, legCellSize), occupancy: &cell.SingleOccupancy{}}
-	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	lw.terrain = terrain
-	steer := newNavigationSystem(newPathFinder(lw.grid, terrain, nil, lw.occupancy), lw.grid, terrain, lw.occupancy)
-	space := testSpace(t)
-	steer.BindSpace(space)
-
-	lw.ecs = goke.New()
-	lw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		for _, u := range units {
-			var at goke.Comp[unit.At]
-			var pos goke.Comp[world.Base]
-			var profile goke.Comp[steering.Steering]
-			var course goke.Comp[steering.Course]
-			comps := []goke.Addable{&at, &pos, &profile, &course}
-			var order goke.Comp[MoveOrder]
-			if u.hasOrder {
-				comps = append(comps, &order)
-			}
-			f := si.NewFactory(comps...)
-			f.Create(1)
-			f.Next()
-			id := f.Cursor.IDs[0]
-			p := world.Position{AABB: cellBox(lw.grid, u.start, legEntitySize)}
-			at.Slice(&f.Cursor)[0] = unit.At{Cell: u.start}
-			pos.Slice(&f.Cursor)[0].Pos = p
-			profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: float64(legCellSize * 2)}
-			if u.hasOrder {
-				order.Slice(&f.Cursor)[0] = MoveOrder{Target: u.target}
-			}
-			lw.occupancy.Enter(u.start, id, cell.Land)
-			lw.ids = append(lw.ids, id)
+	lw := &legWorld{}
+	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
+	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
+	rows := make([]navUnit, len(units))
+	for i, u := range units {
+		rows[i] = navUnit{box: cellBox(g, u.start, legEntitySize), at: u.start, profile: &profile, owner: u.owner}
+		if u.hasOrder {
+			rows[i].order = &MoveOrder{Target: u.target}
 		}
+	}
+	nw := newNavWorld(t, w, h, legCellSize, rows, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		lw.q = si.NewQueryBuilder(&lw.pos, &lw.cell).Optional(&lw.order).Build()
 	}})
-
-	steerHandle := lw.ecs.RegSys(steer)
-	steeringHandle := lw.ecs.RegSys(steering.NewSystem())
-	moveHandle := lw.ecs.RegSys(world.NewMoveSystem(space))
-	lw.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
-		ctx.Run(steerHandle, d)
-		ctx.Run(steeringHandle, d)
-		ctx.Run(moveHandle, d)
-		ctx.Sync()
-	})
+	lw.grid, lw.terrain, lw.occupancy, lw.ecs, lw.ids = nw.grid, nw.board, nw.occupancy, nw.ecs, nw.ids
 	return lw
 }
 
@@ -171,7 +142,7 @@ func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T)
 	blocker := at(1, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: at(4, 2), hasOrder: true},
-		legUnit{start: blocker},
+		legUnit{start: blocker, owner: 2}, // a stranger: it makes no way
 	)
 
 	for range 60 * 20 {

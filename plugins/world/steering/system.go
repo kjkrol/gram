@@ -6,12 +6,12 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world/entity"
+	"github.com/kjkrol/gram/entity"
 )
 
 var _ goke.System = (*System)(nil)
 
-// System carries out the Course asked of each entity between the decision pass and movement, as
+// System carries out the Course asked of each entity between the plans and movement, as
 // its Steering lets it: heading by at most TurnRate a tick, and base speed rewritten each tick for
 // an entity with a motion profile; one Halted stands. An entity without a Course gets one, steered
 // from its next step. The world runs it in every step of its simulation, before movement.

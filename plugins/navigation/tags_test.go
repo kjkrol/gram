@@ -1,8 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/selection"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // selTags is the selection tags the navigation tests use, in the order selection.NewPlugin

@@ -91,8 +91,8 @@ func TestDriven_SlopePartsTheSpeedOnlyWhenFlown(t *testing.T) {
 	if rise, run := (Driven{Flown: true, Climb: 0.6}).Slope(); math.Abs(rise-0.6) > 1e-12 || math.Abs(run-0.8) > 1e-12 {
 		t.Errorf("flown at a rise of 0.6: %v up, %v along; want 0.6 and 0.8", rise, run)
 	}
-	if rise, _ := (Driven{Flown: true, Climb: -1}).Slope(); rise != -Steepest {
-		t.Errorf("flown straight down: %v up, want the steepest dive %v", rise, -Steepest)
+	if rise, _ := (Driven{Flown: true, Climb: -1}).Slope(); rise != -steepest {
+		t.Errorf("flown straight down: %v up, want the steepest dive %v", rise, -steepest)
 	}
 	if rise, run := (Driven{Climb: 0.6}).Slope(); rise != 0 || run != 1 {
 		t.Errorf("not flown: %v up, %v along; want all along the ground", rise, run)

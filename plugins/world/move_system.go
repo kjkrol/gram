@@ -9,11 +9,11 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-var _ goke.System = (*MoveSystem)(nil)
+var _ goke.System = (*moveSystem)(nil)
 
-// MoveSystem integrates each entity's already speed-scaled Velocity into Position under the
+// moveSystem integrates each entity's already speed-scaled Velocity into Position under the
 // space's edge rules, marks whoever left by an open edge Outside, then rebuilds the space.
-type MoveSystem struct {
+type moveSystem struct {
 	space     *aabbworld.Space
 	moveQuery *goke.Query
 	base      goke.Comp[Base]
@@ -22,17 +22,17 @@ type MoveSystem struct {
 	items     []aabbworld.Item
 }
 
-// NewMoveSystem builds world's movement system; no entity moves past its Position.MaxStep a tick.
-func NewMoveSystem(space *aabbworld.Space) *MoveSystem {
-	return &MoveSystem{space: space}
+// newMoveSystem builds world's movement system; no entity moves past its Position.MaxStep a tick.
+func newMoveSystem(space *aabbworld.Space) *moveSystem {
+	return &moveSystem{space: space}
 }
 
-func (s *MoveSystem) Init(si *goke.SysInit) {
+func (s *moveSystem) Init(si *goke.SysInit) {
 	s.outsideID = si.RegComp[Outside]()
 	s.moveQuery = si.NewQueryBuilder(&s.base).Optional(&s.outside).Build()
 }
 
-func (s *MoveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
+func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	dt := d.Seconds()
 	s.moveQuery.All()
 	for s.moveQuery.Next() {

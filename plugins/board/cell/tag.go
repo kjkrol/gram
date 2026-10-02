@@ -1,7 +1,7 @@
 package cell
 
 import (
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/entity/tag"
 )
 
 // Family is the family of a game's tags of cells — a trapdoor, a plate, a zone — which every cell

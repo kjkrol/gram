@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/rule"
-	"github.com/kjkrol/gram/plugins/world/rule/effect"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 // tick is a step of the moments' test.
@@ -62,8 +62,10 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			w.Clock().Simulate(rc, func(goke.RunCtx, time.Duration) { inNight = append(inNight, w.Clock().In(night)) })
 			w.Clock().Replay(rc, d)
 		})
-		if err := w.Clock().SetTempo(tempo); err != nil {
-			t.Fatal(err)
+		for _, cmd := range map[float32][]any{4: {clock.Faster{}, clock.Faster{}}, 0.5: {clock.Slower{}}}[tempo] {
+			if !w.Commands().Put(1, cmd) {
+				t.Fatalf("the world carries no %T", cmd)
+			}
 		}
 		ticks := int(12 / tempo)
 		for range ticks {

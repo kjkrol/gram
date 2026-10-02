@@ -13,14 +13,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-var _ render.Direct = (*Renderer)(nil)
+var _ render.Direct = (*renderer)(nil)
 
-// Renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
+// renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
 // camera — what it sees this tick — each laid on the screen by the world's Look, running the Each
 // rules of a Drawing over each chunk to settle their layers. A Stage that has not ticked yet
 // sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
 // sprites it was handed.
-type Renderer struct {
+type renderer struct {
 	renderQuery *goke.Query
 	base        goke.Comp[Base]
 	appearance  goke.Comp[Appearance]
@@ -43,13 +43,13 @@ type Renderer struct {
 	about func(i int) Drawing // at, bound once so a frame allocates no method value
 }
 
-func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, host *host.EachHost[Drawing], look func() Look) *Renderer {
-	r := &Renderer{atlas: atlas, views: views, host: host, look: look}
+func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, host *host.EachHost[Drawing], look func() Look) *renderer {
+	r := &renderer{atlas: atlas, views: views, host: host, look: look}
 	r.about = r.at
 	return r
 }
 
-func (s *Renderer) Init(si *goke.SysInit) {
+func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
 	s.host.Bind(qb)
 	s.renderQuery = qb.Build()
@@ -58,7 +58,7 @@ func (s *Renderer) Init(si *goke.SysInit) {
 // Clock is the game time the frame's animations go by: the world's tactical clock's as shown
 // (clock.Clock.Shown), so what sways and flows moves every frame, stands in the tactical pause and
 // hurries with the tempo.
-func (s *Renderer) Clock() (time.Duration, bool) {
+func (s *renderer) Clock() (time.Duration, bool) {
 	if s.clock == nil {
 		return 0, false
 	}
@@ -68,7 +68,7 @@ func (s *Renderer) Clock() (time.Duration, bool) {
 // Compose hands f every drawn entity in sight of cam, as the world's Look lays it, in white light
 // and swaying as its Appearance says: the Look — a view plugin's, the atmosphere's — knows the
 // light and the wind; the world knows its entities.
-func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
+func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := s.look()
 	if d, ok := look.(DirectLook); ok {
 		d.Begin(cam)
@@ -90,10 +90,10 @@ func (s *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 }
 
 // Tier is where a DirectLook's sprites come in the picture: render.Objects.
-func (s *Renderer) Tier() render.Tier { return render.Objects }
+func (s *renderer) Tier() render.Tier { return render.Objects }
 
 // Draw has a DirectLook draw the sprites Compose handed it; any other Look laid them on the frame.
-func (s *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
+func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
 	}
@@ -101,7 +101,7 @@ func (s *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 
 // each walks the drawn entities of the View, their Drawing rules run, calling visit once per
 // entity with its index in the chunk and its Z, nil without one.
-func (s *Renderer) each(visit func(i int, z *Z)) {
+func (s *renderer) each(visit func(i int, z *Z)) {
 	tick := plugin.Tick{Now: time.Now(), Seed: s.seed}
 	if s.stepped != nil {
 		tick.Time = s.stepped()
@@ -136,6 +136,6 @@ func (s *Renderer) each(visit func(i int, z *Z)) {
 }
 
 // at describes the i-th entity of the chunk being drawn.
-func (s *Renderer) at(i int) Drawing {
+func (s *renderer) at(i int) Drawing {
 	return Drawing{ID: s.ids[i], Base: &s.bases[i], Layers: &s.layers[i]}
 }

@@ -5,9 +5,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // LookStep is how far a pixel of the mouse turns the eye riding in an entity: a seventh of a

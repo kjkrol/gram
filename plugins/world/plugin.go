@@ -11,18 +11,19 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/clock"
-	"github.com/kjkrol/gram/plugins/world/entity/kind"
-	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
-	"github.com/kjkrol/gram/plugins/world/rule/effect"
+	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -43,7 +44,7 @@ func (r *Resources) Persisted() []any { return r.Camera.Persisted() }
 type Plugin struct {
 	Res      Resources
 	module   *module
-	renderer *Renderer
+	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
@@ -69,9 +70,9 @@ func NewPlugin(cfg Config) *Plugin {
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
 		cameras: icamera.NewFromSpaceWithConfig,
-		look:    &flatLook{worldW: float32(cfg.Space.Width), worldH: float32(cfg.Space.Height)}}
+		look:    ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
 	p.Res.Camera = p.NewCamera()
-	p.view = p.NewView(p.Res.Camera.Bounds)
+	p.view = p.newView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	if t := kinds.DefineTag[effect.States](effect.ChangedName); t != effect.Changed {
@@ -108,9 +109,9 @@ func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 // View is what the camera sees: refreshed each tick after movement, drawn by the entity renderer.
 func (p *Plugin) View() *view.View { return p.view }
 
-// NewView keeps a View current over whatever bounds says, from the next tick on — a second
+// newView keeps a View current over whatever bounds says, from the next tick on — a second
 // camera's, a remote player's, anything that watches a part of the world.
-func (p *Plugin) NewView(bounds func() geom.AABB) *view.View {
+func (p *Plugin) newView(bounds func() geom.AABB) *view.View {
 	v := view.New(bounds)
 	p.module.views = append(p.module.views, v)
 	return v
@@ -127,9 +128,9 @@ func (p *Plugin) NewCamera() camera.Camera {
 // plugin's projection. Call before anything asks for a camera — right after the world is made.
 func (p *Plugin) SetCameras(make Cameras) {
 	p.cameras = make
-	p.DropView(p.view)
+	p.dropView(p.view)
 	p.Res.Camera = p.NewCamera()
-	p.view = p.NewView(p.Res.Camera.Bounds)
+	p.view = p.newView(p.Res.Camera.Bounds)
 }
 
 // Scale is how many metres a world unit spans, as the world was made with.
@@ -144,7 +145,7 @@ func (p *Plugin) Look() Look { return p.look }
 // FlatLook is the world seen from above, its own Look before any view set another: each entity's
 // sprite over its box, split at a wrap seam.
 func (p *Plugin) FlatLook() Look {
-	return &flatLook{worldW: float32(p.Res.Config.Space.Width), worldH: float32(p.Res.Config.Space.Height)}
+	return ilook.NewFlat(float32(p.Res.Config.Space.Width), float32(p.Res.Config.Space.Height))
 }
 
 // ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
@@ -159,13 +160,13 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	if p.views == nil {
 		p.views = map[camera.Camera]*view.View{}
 	}
-	v := p.NewView(cam.Bounds)
+	v := p.newView(cam.Bounds)
 	p.views[cam] = v
 	return v
 }
 
-// DropView stops refreshing v; it keeps whatever it last saw.
-func (p *Plugin) DropView(v *view.View) {
+// dropView stops refreshing v; it keeps whatever it last saw.
+func (p *Plugin) dropView(v *view.View) {
 	views := p.module.views
 	for i, w := range views {
 		if w == v {
@@ -188,7 +189,6 @@ func (p *Plugin) Restore() { p.Res.Camera.Restore() }
 func (p *Plugin) Name() string { return "gram.world" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module.ecs = ctx.ECS()
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
@@ -277,48 +277,24 @@ func (p *Plugin) Populate() error {
 	var order []string
 	groups := make(map[string][]any)
 	for _, e := range p.seeded {
-		r, ok := p.kinds.entries[e.Kind()]
+		r, ok := p.kinds.r.Kind(e.Kind())
 		if !ok {
 			return fmt.Errorf("world: unknown kind %q", e.Kind())
 		}
-		if got := reflect.TypeOf(e.Row()); got != r.row {
-			return fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.name, got, r.row)
+		if got := reflect.TypeOf(e.Row()); got != r.Row {
+			return fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.Name, got, r.Row)
 		}
-		if _, seen := groups[r.name]; !seen {
-			order = append(order, r.name)
+		if _, seen := groups[r.Name]; !seen {
+			order = append(order, r.Name)
 		}
-		groups[r.name] = append(groups[r.name], e.Row())
+		groups[r.Name] = append(groups[r.Name], e.Row())
 	}
 	for _, name := range order {
-		p.module.populate(p.kinds.entries[name], groups[name])
+		k, _ := p.kinds.r.Kind(name)
+		p.module.populate(k, groups[name])
 	}
 	p.seeded = nil
 	return nil
-}
-
-// Attach gives id the component v from the next sync on, replacing one it already carries.
-func (p *Plugin) Attach[T any](cb *goke.CmdBuf, id uid.UID64, v T) {
-	cb.AddOne(id, compID[T](p), v)
-}
-
-// Detach takes T off id from the next sync on; an entity without it is left alone.
-func (p *Plugin) Detach[T any](cb *goke.CmdBuf, id uid.UID64) {
-	if reflect.TypeFor[T]() == reflect.TypeFor[Base]() {
-		panic("world: Detach[Base] — every entity carries a Base; Despawn the entity instead")
-	}
-	cb.RemoveCompOne(id, compID[T](p))
-}
-
-// Declare tells save files about T, a component only ever attached; call it in Stage.Init.
-func (p *Plugin) Declare[T any]() {
-	p.module.declared = append(p.module.declared, goke.LoadComp[T]())
-}
-
-func compID[T any](p *Plugin) goke.CompID {
-	if p.module.ecs == nil {
-		panic("world: Attach/Detach before the Plugin was installed")
-	}
-	return p.module.ecs.RegComp[T]()
 }
 
 // Despawn takes an entity out of the ECS at the end of the tick.

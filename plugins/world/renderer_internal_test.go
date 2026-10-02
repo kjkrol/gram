@@ -10,10 +10,22 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
+	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
+
+// counting is a look that counts the sprites it is handed.
+type counting struct {
+	Look
+	sprites int
+}
+
+func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+	c.sprites++
+	c.Look.Sprite(f, cam, box, z, atlas, id, light, sway)
+}
 
 // flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
 type flatAtlas struct{}
@@ -33,7 +45,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	if err := drawers.Add(host.Every(func(plugin.Tick, Drawing) { visited++ })); err != nil {
 		t.Fatal(err)
 	}
-	look := &flatLook{worldW: 1000, worldH: 1000}
+	look := &counting{Look: ilook.NewFlat(1000, 1000)}
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, drawers, func() Look { return look })
 
 	var base goke.Comp[Base]
@@ -61,7 +73,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), at ...g
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	return f.Len() + look.sprites.Len(), visited // laid on the frame, or gathered for the GPU
+	return look.sprites, visited
 }
 
 func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/rule"
 )
 
 // wall is ground nobody walks.

@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
-	"github.com/kjkrol/gram/plugins/world/clock"
 )
 
 var _ goke.Module = (*module)(nil)

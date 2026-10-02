@@ -76,7 +76,7 @@
 // gone round — with no way round, the unit steps aside a while; of two head on the first waits. A
 // game's own rules of Touch — narrowed by tags as any rule's — go beside them ([Plugin.Hook]).
 // Whatever the rules, navigation keeps the last word: a unit making no headway plans afresh and,
-// after a few stalls, stands where it is. A unit with a plan (plugins/world/rule) is told the facts
+// after a few stalls, stands where it is. A unit with a plan (package rule) is told the facts
 // [Blocked] while someone blocks it and, once its order
 // is over, [Arrived]; a [MoveTo] or [LookAt] it gives itself orders it alone.
 //

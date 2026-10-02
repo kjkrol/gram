@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/kjkrol/gram/plugins/world/clock"
+	"github.com/kjkrol/gram/clock"
 )
 
 // Year is how the year goes: how many days it has and how long the moon takes round.

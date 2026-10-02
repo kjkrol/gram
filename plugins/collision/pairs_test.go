@@ -5,7 +5,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
 
 	"github.com/kjkrol/aabbworld"
@@ -30,39 +33,12 @@ func posAt(x, y, w, h float64) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), w, h)}
 }
 
-// seedBroadPhaseEntity spawns one entity carrying Collider.
-func seedBroadPhaseEntity(t *testing.T, si *goke.SysInit, space *aabbworld.Space, pos world.Position) uid.UID64 {
-	t.Helper()
-	var baseComp goke.Comp[world.Base]
-	var collComp goke.Comp[collision.Collider]
-	f := si.NewFactory(&baseComp, &collComp)
-	f.Create(1)
-	f.Next()
-	baseComp.Slice(&f.Cursor)[0].Pos = pos
-	return f.IDs[0]
-}
-
-// seedNonCollidableEntity is seedBroadPhaseEntity without a Collider.
-func seedNonCollidableEntity(t *testing.T, si *goke.SysInit, space *aabbworld.Space, pos world.Position) uid.UID64 {
-	t.Helper()
-	var baseComp goke.Comp[world.Base]
-	f := si.NewFactory(&baseComp)
-	f.Create(1)
-	f.Next()
-	baseComp.Slice(&f.Cursor)[0].Pos = pos
-	return f.IDs[0]
-}
-
-// seedMovingCollidableEntity is seedBroadPhaseEntity plus a starting Velocity.
-func seedMovingCollidableEntity(t *testing.T, si *goke.SysInit, space *aabbworld.Space, pos world.Position, vel world.Velocity) uid.UID64 {
-	t.Helper()
-	var baseComp goke.Comp[world.Base]
-	var collComp goke.Comp[collision.Collider]
-	f := si.NewFactory(&baseComp, &collComp)
-	f.Create(1)
-	f.Next()
-	baseComp.Slice(&f.Cursor)[0] = world.Base{Pos: pos, Vel: vel}
-	return f.IDs[0]
+// placed is one box of a pairs test: where it stands, how it moves, and whether it carries a
+// Collider.
+type placed struct {
+	x, y     float64
+	vel      world.Velocity
+	collides bool
 }
 
 type pair struct{ A, B uid.UID64 }
@@ -83,29 +59,54 @@ func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []pair {
 	return found
 }
 
-// broadTick seeds a world, runs ticks of movement and detection, and lists who touched on the last.
-func broadTick(t *testing.T, ticks int, seed func(si *goke.SysInit, space *aabbworld.Space)) []pair {
+// broadTick puts boxes in a world with collision, steps it ticks seconds, and lists who touched
+// on the last step; the boxes' entities come back in the order given.
+func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 	t.Helper()
-	space := testSpace(t)
-	ecs := goke.New()
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: len(boxes), MinSize: 10, MaxSize: 10},
+	})
+	c := collision.NewPlugin(w)
+	spec := kind.Spec{
+		comp.Load(func(b placed) world.Position { return posAt(b.x, b.y, 10, 10) }),
+		comp.Load(func(b placed) world.Velocity { return b.vel }),
+	}
+	colliders := kind.Define[placed](w.Kinds(), "collider", append(spec, comp.Const(collision.Collider{})))
+	inert := kind.Define[placed](w.Kinds(), "inert", spec)
+	for _, b := range boxes {
+		if b.collides {
+			w.Seed(colliders.Entry(b))
+		} else {
+			w.Seed(inert.Entry(b))
+		}
+	}
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
 	var coll goke.Comp[collision.Collider]
 	var q *goke.Query
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		seed(si, space)
+	ids := make([]uid.UID64, len(boxes))
+	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		q = si.NewQueryBuilder(&coll).Build()
+		var base goke.Comp[world.Base]
+		all := si.NewQueryBuilder(&base).Build()
+		for all.All(); all.Next(); {
+			cur := all.Cursor()
+			for i, id := range cur.IDs {
+				at := base.Slice(cur)[i].Pos.TopLeft
+				for k, b := range boxes {
+					if at.X == b.x && at.Y == b.y {
+						ids[k] = id
+					}
+				}
+			}
+		}
 	}})
-
-	move := ecs.RegSys(world.NewMoveSystem(space))
-	detect := ecs.RegSys(collision.NewCollisionSystem(space))
-	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
-		ctx.Run(move, d)
-		ctx.Run(detect, d)
-		ctx.Sync()
-	})
 	for range ticks {
 		ecs.Tick(time.Second)
 	}
-	return contactsOf(q, &coll)
+	return contactsOf(q, &coll), ids
 }
 
 // paired reports whether found names a and b as a pair, either way round.
@@ -119,22 +120,15 @@ func paired(found []pair, a, b uid.UID64) bool {
 }
 
 func TestPairs_NamesOverlappingNeighborsOnce(t *testing.T) {
-	var idA, idB uid.UID64
-	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
-		idA = seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
-		idB = seedBroadPhaseEntity(t, si, space, posAt(5, 0, 10, 10))
-	})
+	found, ids := broadTick(t, 1, placed{x: 0, collides: true}, placed{x: 5, collides: true})
 
-	if len(found) != 1 || !paired(found, idA, idB) {
-		t.Errorf("found %v, want the one pair (%v, %v)", found, idA, idB)
+	if len(found) != 1 || !paired(found, ids[0], ids[1]) {
+		t.Errorf("found %v, want the one pair (%v, %v)", found, ids[0], ids[1])
 	}
 }
 
 func TestPairs_FarApart_NothingNamed(t *testing.T) {
-	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
-		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
-		seedBroadPhaseEntity(t, si, space, posAt(900, 900, 10, 10))
-	})
+	found, _ := broadTick(t, 1, placed{x: 0, collides: true}, placed{x: 900, y: 900, collides: true})
 
 	if len(found) != 0 {
 		t.Errorf("found %v between two entities a world apart, want nothing", found)
@@ -142,9 +136,7 @@ func TestPairs_FarApart_NothingNamed(t *testing.T) {
 }
 
 func TestPairs_SingleEntity_NeverPairsWithItself(t *testing.T) {
-	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
-		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
-	})
+	found, _ := broadTick(t, 1, placed{x: 0, collides: true})
 
 	if len(found) != 0 {
 		t.Errorf("found %v for a lone entity, want nothing", found)
@@ -152,24 +144,19 @@ func TestPairs_SingleEntity_NeverPairsWithItself(t *testing.T) {
 }
 
 func TestPairs_IgnoresNonCollidableNeighbor(t *testing.T) {
-	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
-		seedBroadPhaseEntity(t, si, space, posAt(0, 0, 10, 10))
-		seedNonCollidableEntity(t, si, space, posAt(5, 0, 10, 10))
-	})
+	found, _ := broadTick(t, 1, placed{x: 0, collides: true}, placed{x: 5})
 
 	if len(found) != 0 {
 		t.Errorf("found %v, want nothing — the neighbor cannot collide", found)
 	}
 }
 
-func TestPairs_FollowsAnEntityMovedByMoveSystem(t *testing.T) {
-	var idA, idB uid.UID64
-	found := broadTick(t, 1, func(si *goke.SysInit, space *aabbworld.Space) {
-		idA = seedMovingCollidableEntity(t, si, space, posAt(88, 0, 10, 10), world.Velocity{Dir: geom.NewVec(1, 0), Value: 1000})
-		idB = seedBroadPhaseEntity(t, si, space, posAt(100, 0, 10, 10))
-	})
+func TestPairs_FollowsAnEntityTheWorldMoved(t *testing.T) {
+	found, ids := broadTick(t, 1,
+		placed{x: 88, vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: 1000}, collides: true},
+		placed{x: 100, collides: true})
 
-	if !paired(found, idA, idB) {
-		t.Errorf("found %v, want (%v, %v) once MoveSystem brought A into B", found, idA, idB)
+	if !paired(found, ids[0], ids[1]) {
+		t.Errorf("found %v, want (%v, %v) once the world's move brought A into B", found, ids[0], ids[1])
 	}
 }

@@ -21,7 +21,7 @@ the larger scenes is the amortised growth of buffers kept between ticks.
 
 ## World tick — `Benchmark_World_*`
 
-`Benchmark_World_Tick` is one tick of the world plugin alone: the decision pass, steering and
+`Benchmark_World_Tick` is one tick of the world plugin alone: the plans, steering and
 velocity folded into each entity's speed, every box moved under the edge rules, and the space
 rebuilt from every entity. `Benchmark_World_PositionScan` is the floor under it: reading every
 entity's `Base` through a goke query, chunk by chunk. The boxes stand on a 30-unit lattice, so
@@ -296,7 +296,7 @@ visits the marked alone. So a state that comes and goes often — more than abou
 tick in 10,000, or read by a pass that walks those entities anyway — is cheaper as a bit of a
 family carried for good; a state that lasts, on few entities, which a pass wants alone, is
 cheaper as a component of its own. That is the rule of gram's markers (`comp.Marks`, described in
-`plugins/world/entity/tag`): effects' `Idle`, navigation's `Entered`, collision's hit.
+`entity/tag`): effects' `Idle`, navigation's `Entered`, collision's hit.
 
 ## How to benchmark
 

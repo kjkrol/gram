@@ -15,10 +15,9 @@ import (
 // exitSystem takes it off once the entity is back inside.
 type Outside struct{}
 
-// Despawn is the command an entity gives itself to leave the world: gone in the step it gives it.
-type Despawn struct{}
-
 // Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside.
+// To reconsider: no game hooks a rule on it yet, so the world despawns every leaver — whether it
+// stays a moment or the world simply despawns is open (doc/refactor-notes.md, Questions for review).
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base

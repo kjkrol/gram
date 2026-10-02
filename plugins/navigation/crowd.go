@@ -2,7 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/rule"
+	"github.com/kjkrol/gram/rule"
 )
 
 // crowd is how units get on among others, as in StarCraft II: one standing makes way for an ally

@@ -6,11 +6,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -104,7 +104,7 @@ func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 	target := at(4, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: target, hasOrder: true},
-		legUnit{start: target},
+		legUnit{start: target, owner: 2}, // a stranger: it makes no way
 	)
 
 	waitTicks := int(targetWaitTimeout / (time.Second / 60))

@@ -4,8 +4,8 @@ import (
 	"reflect"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // Pair is a rule for every pair a host meets where one entity carries a and the other b;

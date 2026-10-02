@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -17,9 +18,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
-	"github.com/kjkrol/gram/plugins/world/rule"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -221,7 +221,7 @@ type navigationSystem struct {
 	route  []geom.Vec // the centres ahead, unwrapped, reused each entity
 
 	// whose the units are, the group each came to the end of last, and for the units with a tree
-	// (plugins/world/rule) their minds and the facts navigation tells them
+	// (package rule) their minds and the facts navigation tells them
 	owners      goke.OptComp[tag.Tags[owner.Family]]
 	lastOrder   goke.OptComp[LastOrder]
 	lastOrderID goke.CompID

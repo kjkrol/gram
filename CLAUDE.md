@@ -71,7 +71,7 @@ on Go 1.27.0.
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`,
 `WithRenderer`, `Renderer`, `EventHandler`, `Serializable`,
 `Hook` — is the one extension point. A rule (`rule.On(name, filter, func(m *rule.Moment[P])
-rule.Step {…})`, `plugins/world/rule`, a `plugin.Rule`) is hooked on the plugin it concerns and run
+rule.Step {…})`, `rule`, a `plugin.Rule`) is hooked on the plugin it concerns and run
 inside that plugin's own pass; its filter, the second argument, says whom it fires for:
 `rule.All`, `rule.Self(a)` one carrying a tag, `rule.Between(a, b)` a pair (a moment that is
 `rule.Met`), `rule.Having[T]()` one carrying `T` — so a game never imports `plugin/host`; a
@@ -84,7 +84,7 @@ over one component share its column (`host.Own` shares the host's own). The mome
 host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
 error, never a silent no-op. A plugin author runs them with `host.PairHost[P]`/`host.EachHost[P]`/
 `host.ListHost[P]` from `plugin/host`. Tags are bits of a family, not component types
-(`plugins/world/entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
+(`entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
 family `F` (an empty type a plugin or a game names the family by: `selection.Family`,
 `hooks.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
@@ -120,7 +120,7 @@ Initial state follows the same optional-interface pattern as
 each plugin's own typed `Seed` (`world.Plugin.Seed(roster)`,
 `board.Plugin.Seed(layout)`), and the engine then calls `Populate()` on every
 tracked `plugin.Populator` — only when `Restore` loaded nothing. Entity kinds
-are defined in `Stage.Init` with the `plugins/world/entity/kind` package:
+are defined in `Stage.Init` with the `entity/kind` package:
 `prey := kind.Define[P](world.Kinds(), "prey", kind.Spec{...})` — a `Spec` is
 just the list of a kind's components, each made in `kind/comp`: `comp.Const(v)` (same for all) or
 `comp.Load(func(row P) T)` (read from that entity's row), `world.Position` and
@@ -281,7 +281,7 @@ level ground, leans it with the wind and lays its shadow on the relief away from
 stretched by its height and pushed off by how far above the ground it stands; the world's own flat
 look draws it as it is.
 The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
-(`plugins/world/clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
+(`clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
 every `Config.Day` of game time from the moment a fresh game begins at (`Start`, the hour on the
 clock as a `time.Duration`, in the middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
 its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
@@ -429,6 +429,13 @@ shows how much of it is boilerplate vs. real behavior.
 
 ### A plugin's packages: entries, vocabulary, internal
 
+What every plugin and every game share is gram's core, at the module's top beside `plugin`,
+`control`, `render` and `camera`: `entity` (with `entity/kind`, `kind/comp`, `entity/tag`), `clock`
+and `rule` (with `rule/effect`). None of them imports a plugin; the world, the builtin plugin,
+makes and runs their systems (the clock's, the plans', the effects') and registers their
+components for the saves, as it registers `steering`'s. They were the world's sub-packages until
+2026-10-01, when `plugin` itself importing `plugins/world/entity/tag` showed they were not.
+
 A plugin's code lies in three layers:
 
 - **The plugin's own package — the entries**: what a game constructs and drives the plugin with:
@@ -464,13 +471,14 @@ with them (unexported), and `internal` takes what stands alone (`navigation/inte
 `navigation/internal/routes`, `collision/internal/response`); moving the types to a vocabulary
 package or aliasing them in the root were both declined. A package of one interface and an alias
 is no package: collision's `Field` stays in its root. Constructors and methods only tests use go
-to `export_test.go` (collision's `New`, `module.Hook`, `NewCollisionSystem`). `board`, `topography`, `navigation`
-and `collision` are laid out this way; the other plugins follow as they grow.
+to `export_test.go` (collision's `New`, `module.Hook`, `NewCollisionSystem`). `board`, `topography`, `navigation`,
+`collision` and `world` (its register of kinds and tags and its flat look in `world/internal`) are
+laid out this way; the other plugins follow as they grow.
 
 ### Behaviour goes through rule
 
 gram is a library: whatever a game may want to change is written in the rule
-formalism (`plugins/world/rule`), never as a policy inside a plugin's system. A
+formalism (`rule`), never as a policy inside a plugin's system. A
 plugin **perceives** — moments its pass catches, for rules (`unit.Standing`,
 `collision.Meeting`, `navigation.Touch`), and facts, for plans — and **carries out**
 commands (`navigation.StepAside`, `world.Despawn`), keeping the engine's own rules
@@ -509,7 +517,7 @@ rule a pair, made in a loop).
   per axis — `aabbworld.Torus`, `WrapX`/`WrapY` alone, `OpenX`/`OpenY`, a closed
   axis by default: a box stops whole at a closed edge, wraps at a wrapping one,
   and may leave by an open one. An entity wholly past an open edge carries
-  `world.Outside`, put on by whoever moved it there (`MoveSystem`, collision's
+  `world.Outside`, put on by whoever moved it there (the world's move pass, collision's
   solver); every tick it does, rules of a `world.Leaving`
   hooked on the world hear of it, and with none it is despawned; back inside
   it loses the mark. An entity gives itself `world.Despawn{}` (`Order` in its plan or a rule) to go;
@@ -540,9 +548,8 @@ rule a pair, made in a loop).
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
   hosts instead of anyone binding it twice — plus Appearance, entity spawning and
-  `Despawn`, `Attach(cb, id, v)`/`Detach[T](cb, id)` — the mid-game counterparts of a
-  kind's `k.Const`, for game logic that has a `plugin.Tick` and no `CompID`
-  (`Declare[T]()` in `Stage.Init` tells saves about a type only ever attached) — the shared
+  `Despawn` (components come and go mid-game through effects and the plugins' facts;
+  `Attach`/`Detach`/`Declare` and `Bodies` were removed on 2026-10-01, no game used them) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
   shorter side (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`), so mixed
   sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
@@ -551,16 +558,18 @@ rule a pair, made in a loop).
   `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts rules of five moments, all through
   `Hook`: a `Moving` (every entity before it moves, to scale `Base.Vel.Value`;
   board's terrain speed is one), a `Leaving` (every tick an entity is `Outside`) and a
-  `Drawing` (every entity about to be drawn; `world.Draw.Overlay[T]`, `Draw.As[T]`,
-  `Draw.With[T]`, `Draw.Facing` are ready-made), and a `clock.Moment` (every step, its own system
+  `Drawing` (every entity about to be drawn; a rule changes its layers with `Overlay`, `As`,
+  `With`; the ready-made ones are `plugins/world/hooks` — `Overlay[T]`, `As[T]`, `With[T]`,
+  `Facing`, hooked in the order they apply, shown by `examples/appearance-demo`), and a
+  `clock.Moment` (every step, its own system
   just before the effects' pass). Every `plugin.Tick` a host hands its rules comes from
   `world.Plugin.Tick(cb, d)` (a `plugin.TickSource`): the carrier, `Time` (game time at the step's
   end) and `Seed` (`world.Config.Seed`), which `Chance` draws from. The space keeps no state of its own between ticks:
-  `MoveSystem` moves every box under the edge rules (`Space.Move`), then hands
+  the move pass (`moveSystem`, private: tests use the world plugin) moves every box under the edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
-  `view.View` (a rectangle plus the `view.EntitySet` of entities the space finds in it; `Plugin.NewView`
-  over any bounds source, `Plugin.View()` is the camera's, `Plugin.ViewFor(cam)` any camera's) — the
+  `view.View` (a rectangle plus the `view.EntitySet` of entities the space finds in it;
+  `Plugin.View()` is the camera's, `Plugin.ViewFor(cam)` any camera's) — the
   entity renderer draws only what the camera's View contains. `Populate` and
   `PostLoad` rebuild it too, so it is whole before the first tick; a despawned
   entity is gone from it on the next. Anything reading the space in its own pass
@@ -680,7 +689,7 @@ rule a pair, made in a loop).
   from the next tick. `Solid` and `Veil` are independent. Depends on `world` and `collision`.
 - **`collision`** — optional collision detection over `world`'s space, one
   `collisionSystem` a tick. An entity collides exactly while it carries `Collider` —
-  `comp.Const(collision.Collider{})`, or `Attach`/`Detach` mid-game. The `collisionSystem`
+  `comp.Const(collision.Collider{})`. The `collisionSystem`
   first settles every `Collider`'s `Base.Caps` (`CanCollide`, plus `Static` for an
   immovable `Physics`, `Sensor` for none) and rebuilds the space when any changed;
   two colliders touch only where their `world.Layers` meet — a board game uses `Domain` bits —
@@ -799,15 +808,15 @@ rule a pair, made in a loop).
   facts `Blocked` (from its touches while on the move, held `blockedLasts` after the last) and
   `Arrived` (its order over, until the next); `MoveOrder.HitUnit` tells a unit struck from the
   ground (entity ids start at 0: never use 0 as "nobody").
-- **`world/entity`** — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
+- **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
   from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike. A
   leaf: the world's sub-packages read the components
   from it, and the world re-exports them as type aliases (`world.Base = entity.Base`, …), so
   every other plugin and a game say `world.Base` as before and the component is one type for goke
-  and the saves. Nothing outside `plugins/world` needs to import it. Beside it, `world/entity/kind`
+  and the saves. Beside it, `entity/kind`
   (+ `kind/comp`) is what an entity is (a kind's `Spec`, `Define`, `Of`, the `Registry`) and
-  `world/entity/tag` the tag families (`tag.Tags[F]`, `tag.Tag[F]`, `tag.Any`), a leaf `plugin`,
+  `entity/tag` the tag families (`tag.Tags[F]`, `tag.Tag[F]`, `tag.Any`), a leaf `plugin`,
   `plugin/host` and `comp` import.
 - **`world/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake, V0,
   Halted}`, the knobs (`Braking`), and `steering.Course{Want, Pending, Delay, Speed, WantSpeed}`,
@@ -818,13 +827,13 @@ rule a pair, made in a loop).
   `Want` by at most `TurnRate` a tick after `Reflex` ticks, writes `Vel.Value` from the profile;
   `Halted` holds speed at 0 and the heading. `steering.Driven{Ahead, Turn, Face}` is an entity steered by hand
   (the topography's camera system writes it, navigation's `driveSystem` carries it out). Imports
-  `world/entity`, not `world`.
-- **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`, `Refresh(space, area)`),
+  `entity`, not `world`.
+- **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`; the view system refreshes it),
   `view.EntitySet` (a bit set by entity index), `view.New(bounds)` and `view.System`
   (`view.NewSystem(space, &views, w, h)`), registered by the world after movement. The world's
-  `Plugin.View/NewView/ViewFor/DropView` hand out `*view.View`; `players.Player.View` is one.
+  `Plugin.View/ViewFor` hand out `*view.View`; `players.Player.View` is one.
   Imports nothing of the world.
-- **`world/clock`** — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
+- **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
   clock's own entity, saved. Space is the tactical pause, ] and [ the tempo (`Config.Tempos`, ½ 1
   2 4; sub-steps of one length, or one longer step with `Config.BiggerStep`); the players carry
@@ -837,7 +846,7 @@ rule a pair, made in a loop).
   clock's `Shown` through `render.Clocked` (the world's renderer): game time past the last tick by
   the real time the engine holds toward the next (`Clock.Pending`, every frame) at the tempo, so
   animations move every frame, not in the ticks' steps.
-- **`world/rule`** — how entities behave, one vocabulary (`doc/rule.md`; the package was `act`,
+- **`rule`** (core) — how entities behave, one vocabulary (`doc/rule.md`; the package was `act`,
   before it `conduct`): rules, plans, effects, commands, facts. Two constructors, each taking a
   function that writes the steps for a builder (Go 1.27's methods with type parameters):
   `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `plugin.Rule` for the host's
@@ -862,14 +871,14 @@ rule a pair, made in a loop).
   a plan hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch from
   giving it every tick. One type, `rule.Step`, for both; a function writing part of a rule or a
   plan takes the Moment or the Actor (`func whenBlocked(a *rule.Actor) rule.Step`); ready-made
-  hooks are whole, in a plugin's `hooks` package (`chooks.CountContacts(&stats)`,
+  hooks are whole, in a plugin's `hooks` package (`chooks.CountContacts(&stats)`, `whooks.Facing(…)`,
   `bhooks.LogFalls()`). Plans run first in every simulation step
   (`rule.Plans`, made by the world); the world hosts no other decision pass (`world.Behavior`, a
   bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
   Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
   exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
-- **`world/rule/effect`** — states on entities for a while, cast from anywhere, made and
+- **`rule/effect`** (core) — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
   Then(next), Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
   (`Cast`/`CastFor`/`Dispel`/`On`/`Mark`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active`
@@ -901,8 +910,7 @@ rule a pair, made in a loop).
   (`players/owner.Obeys` over the optional `tag.Tags[owner.Family]`), so one `Selected` tag
   serves every player; `Follow` takes the issuer's one selected unit. Depends on `world` and the
   leaf `players/owner`.
-- **`players/owner`** — whose a unit is, a leaf importing only `world/entity/tag` and `control` (as
-  `world/entity` is `world`'s): `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
+- **`players/owner`** — whose a unit is, a leaf importing only `entity/tag` and `control`: `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
   by selection, navigation's `moveCommandSystem` and the topography's cameras (`theSelected`):

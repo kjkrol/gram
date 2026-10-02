@@ -69,10 +69,10 @@ cgo. Without a GPU the tests that draw skip themselves.
 |:---|:---|:---|
 | **Stages and Scenes** | `game` | Named Stages with their own ECS and lifecycle (`Init`/`Restore`/`Spawn`/`Update`); Scenes with layered renderers and input; a live Composition of what is shown and which Scene is active |
 | **Plugins and rules** | `plugin` | The one extension contract; rules hooked on the plugin whose pass catches their moment, pairs too |
-| **Behaviour** | `plugins/world/rule` | One vocabulary: rules at a plugin's moments, plans a kind's entities follow, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
+| **Behaviour** | `rule` | One vocabulary: rules at a plugin's moments, plans a kind's entities follow, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
 | **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds; `Heights` for a world with heights |
 | **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
-| **Kinds** | `plugins/world/entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
+| **Kinds** | `entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
 | **Collisions** | `plugins/collision` | Collision over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, `Meeting`/`Struck` for rules |
 | **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Seen`, nearest first; `Sighting` rules per observer; outlines shown with Shift+C; in a world with heights the eye looks over walls, forests and hills by height |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain and occupancy; `MoveOrder` paths that re-route when terrain changes |
@@ -106,8 +106,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/kind"
-	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -269,6 +269,7 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 |:---|:---|:---|
 | [`minimal`](examples/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-minimal` |
 | [`collision-demo`](examples/collision-demo) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-collision` |
+| [`appearance-demo`](examples/appearance-demo) | Walkers bouncing off one another, drawn by the world's ready-made drawing rules: facing the way each goes, red while angry, a ghost as a ghost whatever it feels, the leader with a crown on; R makes everyone angry for a while — what is drawn follows, the Appearance is never touched | `make demo-appearance` |
 | [`scenes-demo`](examples/scenes-demo) | A menu Stage switching into a gameplay Stage, a modal Scene over the ticking world, a non-focusable HUD | `make demo-scenes` |
 | [`navigation-demo`](examples/navigation-demo) | A board with terrain, units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens under the units | `make demo-navigation` |
 | [`navigation-hex-demo`](examples/navigation-hex-demo) | The same on a hex board: hex cells and route arrows at 60°, a wall of solid hex cells | `make demo-navigation-hex` |
@@ -347,7 +348,7 @@ A unit over a board is defined through `board.NewUnits[Row](brd, size, at)`:
 what the plugins in the game bring by default (a `Collider`, a `Physics`, a `Velocity`) and what
 they require (`At`, `Mover`, `Steering`), a Spec missing one panicking by plugin and reason.
 `Spawn` puts entries on the world's roster with `Seed`; the engine spawns them only when
-`Restore` loaded nothing. `Attach` and `Detach` are the mid-game counterparts of `Const`. Kinds
+`Restore` loaded nothing; mid-game, components come and go through effects and the plugins' facts. Kinds
 tell save files every component type their entities carry, so a game's own tags and state
 survive a save without being registered anywhere else.
 
@@ -366,10 +367,14 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `Tick`, `Rule`, `Marks`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator` |
 | [`plugin/host`](plugin/host/doc.go) | A plugin author's package: `PairHost`, `EachHost` and `ListHost` that run rules in a plugin's pass, and the constructors `rule.On` builds them from |
-| [`plugins/world/entity/tag`](plugins/world/entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
-| [`plugins/world/entity/kind`](plugins/world/entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
-| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Attach`/`Detach`, `Despawn`, the carrier of the commands entities give themselves, the entity renderer |
-| [`plugins/world/entity`](plugins/world/entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
+| [`entity/tag`](entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
+| [`entity/kind`](entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
+| [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
+| [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases, the `Moment` of a step with `At` and `Every` |
+| [`rule/effect`](rule/effect/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the rules of the clock's moments |
+| [`rule`](rule/doc.go) | How entities behave, in one vocabulary ([the story](doc/rule.md)): rules hooked on a plugin's pass (`On(name, filter, func(m *Moment[P]) Step)`, filters `All`, `Self`, `Between`, `Having`), plans a kind gives (`Plan(name, func(a *Actor) Step)`: `OneOf`, `Steps`, `If`, `When`, `On`, `Until`, `Ask`), effects (`Apply`, `Keep`, `Unless`), commands an entity gives itself (`Order`), facts plugins tell it; run by the world |
+| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Despawn`, the carrier of the commands entities give themselves, the entity renderer; it runs the core's systems (the clock's, the plans', the effects'); its register of kinds and tags and its flat look in `plugins/world/internal` |
+| [`plugins/world/hooks`](plugins/world/hooks/doc.go) | Ready-made drawing rules: `Overlay[T]`, `As[T]`, `With[T]`, `Facing` — what is drawn this frame, the `Appearance` untouched |
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
@@ -386,19 +391,16 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/board/hooks`](plugins/board/hooks/doc.go) | Ready-made hooks: `LogFalls` |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V rides in a unit — with the cameras turned, tilted and fastened behind a unit. The commands (`View`, `Turn`, `LookOut`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `MeanOfCells`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
-| [`plugins/world/clock`](plugins/world/clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the tactical pause (Space), the tempo (] and [), `Simulate` for what a plugin's tick simulates, the phases, the `Moment` of a step with `At` and `Every` |
-| [`plugins/world/rule/effect`](plugins/world/rule/effect/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the rules of the clock's moments |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; the crowd — rules over the moment `Touch` and the commands `StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; its own crowd rules, as in StarCraft II: an ally standing makes way and stays aside, a group gathers round its point, strangers are gone round, nobody is stepped into water, off a cliff or into a wall |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; highlight renderer |
-| [`plugins/world/rule`](plugins/world/rule/doc.go) | How entities behave, in one vocabulary ([the story](doc/rule.md)): rules hooked on a plugin's pass (`On(name, filter, func(m *Moment[P]) Step)`, filters `All`, `Self`, `Between`, `Having`), plans a kind gives (`Plan(name, func(a *Actor) Step)`: `OneOf`, `Steps`, `If`, `When`, `On`, `Until`, `Ask`), effects (`Apply`, `Keep`, `Unless`), commands an entity gives itself (`Order`), facts plugins tell it; run by the world |
 | [`plugins/players`](plugins/players/doc.go) | A carrier over the command handlers: players and their bindings, `Pan` and `Zoom`; whose a unit is (`players/owner`) — a player selects, orders and rides its own units alone |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop (gogpu), one active Stage, persistence, input capture |
 | [`gram`](doc.go) (public) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 
 ```
-camera ──► render ──► plugin ──► plugins/world/rule ──► plugins/world ──► game ──► internal/engine ──► gram
-control ───┘ (→ camera)                                  │  ▲
-                                                         ▼  │
+camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
+control ───┘ (→ camera)                   │  ▲
+                                          ▼  │
                      plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/*/hooks ──► plugins/players
 ```
 

@@ -7,14 +7,14 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/host"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/kind"
-	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 	"github.com/kjkrol/uid"
 )
 
@@ -75,7 +75,8 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		t.Fatalf("%d contacts on the first tick, want 1 — carrying Collider is all it should take", got)
 	}
 
-	edit = func(cb *goke.CmdBuf) { w.Detach[collision.Collider](cb, first) }
+	collider := ecs.RegComp[collision.Collider]()
+	edit = func(cb *goke.CmdBuf) { cb.RemoveCompOne(first, collider) }
 	if got := tick(); got != 0 {
 		t.Errorf("%d contacts on the tick Collider came off, want 0", got)
 	}
@@ -86,7 +87,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		t.Errorf("%d contacts a tick later, want 0", got)
 	}
 
-	edit = func(cb *goke.CmdBuf) { w.Attach(cb, first, collision.Collider{}) }
+	edit = func(cb *goke.CmdBuf) { cb.AddOne(first, collider, collision.Collider{}) }
 	if got := tick(); got != 1 {
 		t.Errorf("%d contacts on the tick Collider went back on, want 1", got)
 	}

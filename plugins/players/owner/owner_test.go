@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
 )
 
 // A player's tag is its id less one; nobody and past the family's size own nothing.

@@ -1,7 +1,7 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/world/entity/tag"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/uid"
 )
 

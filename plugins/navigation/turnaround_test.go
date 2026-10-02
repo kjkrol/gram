@@ -7,6 +7,8 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,8 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/entity/kind"
-	"github.com/kjkrol/gram/plugins/world/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -86,8 +86,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: cellBox(tw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
-			comp.Load(func(u unitRow) unit.At { return unit.At{Cell: u.start} }).
-				WithEffect(func(c unit.At, id uid.UID64) { occupancy.Enter(c.Cell, id, cell.Land) }),
+			comp.Load(func(u unitRow) unit.At { return unit.At{Cell: u.start} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{}),
 		}
@@ -110,6 +109,12 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.order).Build()
+		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
+			cur := tw.q.Cursor()
+			for i, id := range cur.IDs {
+				occupancy.Enter(tw.cell.Slice(cur)[i].Cell, id, cell.Land)
+			}
+		}
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {

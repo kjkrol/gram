@@ -4,7 +4,31 @@
 
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
-the topography was split into packages: its heights are `relief.Heights` now.
+the topography was split into packages: its heights are `relief.Heights` now. Nor before the core
+left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
+argument's full path, which moved.
+
+**gram's core out of the world; the world tidied**
+- `entity` (with `entity/kind`, `kind/comp`, `entity/tag`), `clock` and `rule` (with
+  `rule/effect`) are at the module's top beside `plugin`, `control`, `render` and `camera`:
+  `github.com/kjkrol/gram/rule`, not `…/plugins/world/rule`. Every plugin and game used them and
+  none imports a plugin; `plugin` itself imported `plugins/world/entity/tag`. The world still
+  makes and runs their systems and registers their components; `steering` and `view` stay its own.
+- Removed, as no game used them: `world.Plugin.Attach`, `Detach` and `Declare` (components come
+  and go through effects and the plugins' facts), `Bodies`, `NewBodies` and `Kinds.Reserve`,
+  `comp.Template.WithEffect`, `Clock.Now`.
+- `world.Draw` (`Overlay`, `As`, `With`, `Facing`) is `plugins/world/hooks` (`Overlay[T]`, `As[T]`,
+  `With[T]`, `Facing`), as the other plugins' ready-made hooks are; `examples/appearance-demo`
+  shows them changing what is drawn while the Appearance stays as it is.
+- No longer public: `VelocitySystem` and `MoveSystem`, the `Renderer` type (`Plugin.Renderer()` stays),
+  `Plugin.NewView` and `DropView` (`ViewFor` stays), `view.View.Refresh`, `clock.DefaultTempos`,
+  `Clock.Paused`, `Tempo`, `SetPaused`, `SetTempo` and `Written` (the clock's commands set it),
+  `steering.Steepest`, `effect.MarkerPrefix`.
+- Navigation's and collision's tests that composed a step of their own out of the world's move
+  system run on the world plugin, as a game does.
+- The world's register of kinds and tags is `plugins/world/internal/kinds`, its flat look
+  `plugins/world/internal/look`; `world.Kinds` hands a game its part. `plugin/behavior.go` is
+  `plugin/rule.go`.
 
 **The last of the behaviours gone: rules alone**
 - `world.Behavior` is gone: the world's `Hook` took a bare goke system and ran it before

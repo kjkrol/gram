@@ -7,7 +7,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Blocked is what navigation tells a unit with a tree (plugins/world/rule) that touches someone
+// Blocked is what navigation tells a unit with a tree (package rule) that touches someone
 // in its way, for as long as it stays so and a moment after: whom, the cell they hold, and how the
 // two stand to each other — strangers or allies (players/owner.Allies), of one group sent
 // together, on the move or idle, on the unit's goal — and what came of the unit's commands: a

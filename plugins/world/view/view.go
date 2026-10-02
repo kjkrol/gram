@@ -32,9 +32,9 @@ func New(bounds func() geom.AABB) *View {
 // Contains reports whether id is in view.
 func (v *View) Contains(id uid.UID64) bool { return !v.Culled || v.In.Has(id) }
 
-// Refresh reads the bounds anew and marks the entities space finds in them; a View whose bounds
+// refresh reads the bounds anew and marks the entities space finds in them; a View whose bounds
 // cover worldArea or more is not queried and simply sees everything.
-func (v *View) Refresh(space *aabbworld.Space, worldArea float64) {
+func (v *View) refresh(space *aabbworld.Space, worldArea float64) {
 	b := v.bounds()
 	v.Bounds = b
 	v.In.Clear()

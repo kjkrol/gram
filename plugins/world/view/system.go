@@ -28,6 +28,6 @@ func (s *System) Init(*goke.SysInit) {}
 
 func (s *System) Update(*goke.CmdBuf, time.Duration) {
 	for _, v := range *s.views {
-		v.Refresh(s.space, s.worldArea)
+		v.refresh(s.space, s.worldArea)
 	}
 }
