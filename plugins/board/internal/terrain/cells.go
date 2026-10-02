@@ -2,9 +2,12 @@ package terrain
 
 import (
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -30,9 +33,12 @@ func New(g grid.Grid) *Cells {
 	return t
 }
 
-// System makes an entity for every cell at Setup, or finds those a save brought back, and counts
-// the changes effects make to them.
-func (t *Cells) System() goke.System { return &entitySystem{cells: t} }
+// System makes an entity for every cell at Setup — each carrying template's defaults besides, a
+// Load reading its cell.ID — or finds those a save brought back, and counts the changes effects
+// make to them.
+func (t *Cells) System(template *kind.Template) goke.System {
+	return &entitySystem{cells: t, template: template}
+}
 
 // Made reports whether the cells are entities yet.
 func (t *Cells) Made() bool { return t.store != nil }
@@ -204,6 +210,22 @@ func (t *Cells) Tag(c cell.ID, tags cell.Tags) {
 		panic("board: a cell's tags are given in the Layout, before the cells are made")
 	}
 	t.seed.Tag(c, tags)
+}
+
+// Cast has c play roles for good; only the seed takes them, before the cells are made.
+func (t *Cells) Cast(c cell.ID, roles tag.Tags[rule.Roles]) {
+	if t.store != nil {
+		panic("board: a cell's roles are given in the Layout, before the cells are made")
+	}
+	t.seed.Cast(c, roles)
+}
+
+// Wire wires c to w for good; only the seed takes it, before the cells are made.
+func (t *Cells) Wire(c cell.ID, w *rule.Wire) {
+	if t.store != nil {
+		panic("board: a cell's wire is given in the Layout, before the cells are made")
+	}
+	t.seed.Wire(c, w)
 }
 
 // CellVersion counts the changes to c; it only grows, and changes to other cells leave it as it is.

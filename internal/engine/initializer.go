@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // initializer is the game.Initializer bound to one Stage's ecsHost.
@@ -16,6 +18,8 @@ type initializer struct {
 	tps   *game.TPS
 	// handlers are the plugin.CommandHandlers used before the world, for it to carry
 	handlers []plugin.CommandHandler
+	// used are the plugins installed so far, in the order they were: the hosts Hook tries
+	used []any
 
 	screenWidth, screenHeight int
 }
@@ -64,7 +68,53 @@ func (c *initializer) use(p plugin.Plugin) error {
 			return fmt.Errorf("gram: %q: %w", p.Name(), err)
 		}
 	}
-	return p.Install(c)
+	if err := p.Install(c); err != nil {
+		return err
+	}
+	c.used = append(c.used, p)
+	return nil
+}
+
+// Hook hooks each rule on the first plugin used that hosts its moment.
+func (c *initializer) Hook(rules ...rule.Rule) error { return HookOn(c.used, rules...) }
+
+// host is a plugin hosting rules: its Hook refuses a rule of a moment it does not catch with
+// plugin.ErrUnhosted.
+type host interface {
+	Hook(rules ...rule.Rule) error
+}
+
+// HookOn hooks each rule — a role's, each of its rules — on the first of among that hosts it,
+// trying the next while one refuses it with plugin.ErrUnhosted: what game.Initializer.Hook does
+// over the plugins a Stage uses. A rule none takes is plugin.ErrUnhosted; any other error stops
+// at once.
+func HookOn(among []any, rules ...rule.Rule) error {
+	for _, r := range rules {
+		if role, ok := r.(*rule.Part); ok {
+			if err := HookOn(among, role.Rules()...); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := hookOn(among, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hookOn(among []any, r rule.Rule) error {
+	for _, a := range among {
+		h, ok := a.(host)
+		if !ok {
+			continue
+		}
+		err := h.Hook(r)
+		if err == nil || !errors.Is(err, plugin.ErrUnhosted) {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: no plugin in use hosts the rule %v", plugin.ErrUnhosted, r)
 }
 
 // Track registers s for Save and Load under its Go type name.

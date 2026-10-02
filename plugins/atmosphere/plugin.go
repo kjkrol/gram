@@ -157,8 +157,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of climate.Weathering, fired every step with the
-// weather; call before Use.
+// Hook hosts rules (rule.On) of climate.Weathering, fired every step with the weather, until the
+// Stage's ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		if err := p.climate.Host(b); err != nil {

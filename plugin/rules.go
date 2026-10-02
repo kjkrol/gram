@@ -63,10 +63,10 @@ func (r *Rules[P]) Empty() bool { return len(r.rules) == 0 }
 func (r *Rules[P]) Add(rule any) error {
 	each, ok := rule.(eachRule[P])
 	if !ok {
-		return fmt.Errorf("%w: %T", ErrUnhosted, rule)
+		return fmt.Errorf("%w: %v", ErrUnhosted, rule)
 	}
 	if r.bound {
-		return fmt.Errorf("%w: %T", ErrHostBuilt, rule)
+		return fmt.Errorf("%w: %v", ErrHostBuilt, rule)
 	}
 	r.rules = append(r.rules, each)
 	return nil
@@ -97,18 +97,29 @@ func (r *Rules[P]) RunWhere(t Tick, cursor *goke.Cursor, keep func(i int) bool, 
 }
 
 // StepRules are the rules of a moment P of the world as a whole, run once a step and walking no
-// entities — the clock's. Only rules over no component (rule.All) are taken.
-type StepRules[P any] struct{ rules []onceRule[P] }
+// entities — the clock's, the weather's. Only rules over no component (rule.All) are taken: a
+// filtered or narrowed one has no entity to read.
+type StepRules[P any] struct {
+	rules []onceRule[P]
+	bound bool
+}
 
-// Add takes a rule of P over no component made by rule.On; ErrUnhosted for another.
+// Add takes a rule of P over no component made by rule.On; ErrUnhosted for another, ErrHostBuilt
+// after Bind.
 func (r *StepRules[P]) Add(rule any) error {
 	once, ok := rule.(onceRule[P])
 	if !ok {
-		return fmt.Errorf("%w: %T", ErrUnhosted, rule)
+		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter and obeys no role)", ErrUnhosted, rule)
+	}
+	if r.bound {
+		return fmt.Errorf("%w: %v", ErrHostBuilt, rule)
 	}
 	r.rules = append(r.rules, once)
 	return nil
 }
+
+// Bind marks the system running the rules built: no rule is taken after; call it in its Init.
+func (r *StepRules[P]) Bind() { r.bound = true }
 
 // Empty reports whether no rule was added.
 func (r *StepRules[P]) Empty() bool { return len(r.rules) == 0 }

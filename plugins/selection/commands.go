@@ -4,7 +4,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -33,8 +35,12 @@ type Marquee struct {
 type Follow struct{ Camera camera.Camera }
 
 // Apply is the command to put Effect on every Selected unit of the player who gives it, as its
-// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from.
-type Apply struct{ Effect effect.Effect }
+// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from. One a role's
+// Abilities issue goes to the units playing the role alone.
+type Apply struct {
+	Effect effect.Effect
+	only   tag.Tags[rule.Roles] // empty: every selected unit
+}
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
@@ -43,8 +49,21 @@ func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.applies}
 }
 
+// Abilities are the bindings of what the roles can do (rule.Part.Can): each its trigger into an
+// Apply of its effect to the units playing its role, under its label — for a player's Bind.
+func (p *Plugin) Abilities(roles ...*rule.Part) []control.Binding {
+	var bindings []control.Binding
+	for _, r := range roles {
+		for _, a := range r.Abilities() {
+			apply := Apply{Effect: a.Effect, only: tag.Tags[rule.Roles](0).With(r.Tag())}
+			bindings = append(bindings, control.Command(a.Trigger, a.Label, func(control.Context) (Apply, bool) { return apply, true }))
+		}
+	}
+	return bindings
+}
+
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and F to
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and C to
 // follow the one selected unit or stop following.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {

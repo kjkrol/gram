@@ -20,7 +20,7 @@ func types(spec kind.Spec) []string {
 	return out
 }
 
-func TestRole_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
+func TestTemplate_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
 	r := kind.NewRoster()
 	r.Unit.Default(comp.Const(stat{HP: 3}))
 
@@ -34,7 +34,7 @@ func TestRole_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
 	}
 }
 
-func TestRole_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
+func TestTemplate_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
 	r := kind.NewRoster()
 	r.Unit.Default(comp.Const(stat{HP: 3}))
 
@@ -48,7 +48,7 @@ func TestRole_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
 	}
 }
 
-func TestRole_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
+func TestTemplate_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
 	r := kind.NewRoster()
 	r.Unit.Default(comp.Const(stat{HP: 3}))
 	r.Unit.Default(comp.Const(armour{Plate: 1}))
@@ -63,7 +63,7 @@ func TestRole_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
 	}
 }
 
-func TestRole_ARequirementIsMetByAConstOrALoad(t *testing.T) {
+func TestTemplate_ARequirementIsMetByAConstOrALoad(t *testing.T) {
 	for name, own := range map[string]comp.Comp{
 		"const": comp.Const(stat{}),
 		"load":  comp.Load(func(r row) stat { return stat{HP: r.hp} }),
@@ -78,7 +78,7 @@ func TestRole_ARequirementIsMetByAConstOrALoad(t *testing.T) {
 	}
 }
 
-func TestRole_SpecPanicsNamingEveryUnmetRequirement(t *testing.T) {
+func TestTemplate_SpecPanicsNamingEveryUnmetRequirement(t *testing.T) {
 	r := kind.NewRoster()
 	kind.Require[stat](&r.Unit, "board", "its health")
 	kind.Require[armour](&r.Unit, "collision", "what it is clad in")

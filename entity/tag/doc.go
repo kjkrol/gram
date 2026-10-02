@@ -16,7 +16,7 @@
 // (Effect.Mark), an effect changed its components (effect.Changed), it entered another cell
 // (navigation.Entered). A plugin names its family of markers States and has every entity carry it
 // for good — a kind lists it with comp.Marks, the world's roster gives it to every unit
-// (Role.Default), an entity without it gets it the first time it is needed — and switches a marker
+// (Template.Default), an entity without it gets it the first time it is needed — and switches a marker
 // by writing its bit. Putting a component on an entity or taking it off moves the entity to
 // another place in memory, its whole row copied: some 200 ns each time, against a nanosecond or two
 // for a bit (bench, Benchmark_Marker_*). A state that comes with data does the same: its component

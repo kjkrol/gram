@@ -3,7 +3,8 @@
 // plate — while someone stands on it, and a second after, its trapdoors are open and every
 // unfortunate on one falls in. A plate pressed is a state of the whole game, put on the world
 // (world.Apply) every step by whoever stands on the plate; a plate and a trapdoor are cells tagged
-// with their group (cell.Family). All of it is defined here, in the game.
+// with their group (cell.Family). All of it is defined here, in the game, and the rules hooked
+// with ctx.Hook.
 package main
 
 import (
@@ -140,12 +141,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	fx := s.world.Effects()
 	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 
-	// Whoever stands where nothing holds it falls in.
-	if err := s.board.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	// The game's rules, hooked once the plugins are in: whoever stands where nothing holds it
+	// falls in.
+	rules := []rule.Rule{rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})); err != nil {
-		return err
-	}
+	})}
 	// Each group: the plate pressed, a state of the game; the tags of its plate and its trapdoors;
 	// the rule of whoever stands on the plate pressing it, and the trapdoors' keeping them open
 	// while it is pressed.
@@ -153,16 +153,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		pressed := fx.Define("pressed "+g.name, effect.Spec{effect.Lasts(heldAfter)})
 		plate := s.world.Kinds().DefineTag[cell.Family]("plate " + g.name)
 		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + g.name)
-		if err := s.board.Hook(
+		rules = append(rules,
 			rule.On("plate "+g.name, rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 				return m.If(func(st unit.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
 			}),
 			rule.On("trapdoors "+g.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
 				return m.During(pressed, m.Keep(open))
 			}),
-		); err != nil {
-			return err
-		}
+		)
 		s.pressed = append(s.pressed, pressed)
 		s.plates, s.trapdoors = append(s.plates, plate), append(s.trapdoors, trapdoor)
 	}
@@ -186,6 +184,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
+		return err
+	}
+	// The game's rules, each on the plugin in use that hosts its moment: here the board.
+	if err := ctx.Hook(rules...); err != nil {
 		return err
 	}
 	s.defineKinds()

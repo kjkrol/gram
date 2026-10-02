@@ -1,5 +1,5 @@
 // Package selection turns Select commands into a Selected tag on Selectable world entities;
-// its default bindings make a left drag one (a click is a drag of no length, Shift adds), and F
+// its default bindings make a left drag one (a click is a drag of no length, Shift adds), and C
 // has the camera follow the one selected unit. WithRenderer outlines what is selected.
 //
 // # Selectable, Selected and SelectionSystem
@@ -21,6 +21,17 @@
 // code, a script, an AI run as nobody — and only a Select nobody gave reaches them. Follow takes
 // the one selected unit of the player who asked, and an [Apply] puts its effect — an ability, a
 // sprint, a spell — on what the player who gave it has selected.
+//
+// # Abilities
+//
+// [Plugin.Abilities] makes bindings of what roles can do (rule.Part.Can: an effect, a trigger, a
+// label): each ability's trigger an [Apply] of its effect that reaches only the player's selected
+// units playing the role (rule.Plays) — with scouts and porters selected, haste goes to the scouts
+// alone — listed under its label in the keys (K). A game binds them on its player:
+//
+//	s.player.Bind(s.selection.Abilities(hasty)...)
+//
+// An Apply a game builds itself goes to every selected unit.
 //
 // # Followed and FollowSystem
 //

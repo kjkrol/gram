@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -48,6 +50,8 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)
 	return p.Install(c)
 }
+
+func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)

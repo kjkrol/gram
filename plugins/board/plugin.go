@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -91,7 +92,8 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities, the occupancy's upkeep and the rules.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Res.Logic.Board.cells.System(),
+		cells:     p.Res.Logic.Board.cells.System(&p.worldPlugin.Roster().Cell),
+		template:  &p.worldPlugin.Roster().Cell,
 		release:   occupancy.ReleaseSystem(p.occupancy),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
@@ -176,7 +178,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
-// and of a cell.Now, fired every step for every cell; hook them before Use.
+// and of a cell.Now, fired every step for every cell; hook them until the Stage's ecs.Setup —
+// before or after Use — or hand them to its Initializer's Hook.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, r := range rules {
 		if err := p.rules.Hook(r); err != nil {
@@ -222,8 +225,8 @@ func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 
-// Populate applies the seeded Layout — kinds, the cells' tags, ways and crossings — changing nothing
-// and erroring on an unknown kind name.
+// Populate applies the seeded Layout — kinds, the cells' tags, roles and wires, ways and crossings —
+// changing nothing and erroring on an unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil
@@ -283,6 +286,16 @@ func (p *Plugin) Populate() error {
 		}
 		if e.Tags != 0 {
 			brd.cells.Tag(e.Cell, e.Tags)
+		}
+		var roles tag.Tags[rule.Roles]
+		for _, r := range e.Roles {
+			roles = roles.With(r.Tag())
+		}
+		if roles != 0 {
+			brd.cells.Cast(e.Cell, roles)
+		}
+		if e.Wired != nil {
+			brd.cells.Wire(e.Cell, e.Wired)
 		}
 	}
 	for i, e := range p.seeded.Ways {

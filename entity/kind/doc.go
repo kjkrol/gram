@@ -19,14 +19,16 @@
 //
 // # Roster
 //
-// A [Roster] is what the plugins of a world ask of the kinds a game defines, gathered as the
-// plugins are made — a world's, reached through world.Plugin.Roster. Its [Role] for a unit lists
-// what plugins require ([Require]: the game must supply a component of that type, a Load or a
-// Const) and what they bring themselves (Role.Default: a constant the game may override with its
-// own of the same type, or leave out with comp.Without). Role.Spec builds the Spec from the defaults and
-// the game's own components and panics naming every requirement left unmet, by plugin and reason,
-// so a kind defined without its At hears "board requires unit.At (the cell it starts in)".
-// A plugin added to the game later brings its requirements along.
+// A [Roster] is what the plugins of a world ask of the entities a game makes, gathered as the
+// plugins are made — a world's, reached through world.Plugin.Roster. Its [Template] for a unit
+// lists what plugins require ([Require]: the game must supply a component of that type, a Load or
+// a Const) and what they bring themselves (Template.Default: a constant the game may override with
+// its own of the same type, or leave out with comp.Without). Template.Spec builds the Spec from
+// the defaults and the game's own components and panics naming every requirement left unmet, by
+// plugin and reason, so a kind defined without its At hears "board requires unit.At (the cell it
+// starts in)". A plugin added to the game later brings its requirements along. Its Template for a
+// cell is what every cell a board makes carries besides the board's own components — a game's
+// own component on every cell: a Const, or a Load reading the cell's cell.ID.
 //
 // # Registry
 //

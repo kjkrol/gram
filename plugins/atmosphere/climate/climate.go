@@ -24,7 +24,7 @@ type Climate struct {
 	change   control.Queue[Change]
 	set      control.Queue[Set]
 	report   report
-	rules    plugin.Rules[Weathering]
+	rules    plugin.StepRules[Weathering]
 	running  Running
 }
 
@@ -82,8 +82,8 @@ func (c *Climate) System() goke.System {
 // LoadComps lists the weather's one component — see goke.CompProvider.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
-// Host hosts a rule of Weathering, fired every step with the weather; call before the
-// system's Init.
+// Host hosts a rule of Weathering, fired every step with the weather, until the system's Init: a
+// moment of the world as a whole, so a filtered or narrowed rule is refused (plugin.ErrUnhosted).
 func (c *Climate) Host(b rule.Rule) error {
 	if err := c.rules.Add(b); err != nil {
 		return fmt.Errorf("%w in the climate — it takes a rule of Weathering", err)

@@ -5,7 +5,7 @@
 // while, to get off a strip in time. A lever pulled is a state of the whole game, put on the world
 // (world.Apply); the haste a state of the scouts, put on the selected (selection.Apply); a
 // trapdoor a cell tagged with its lever's group (cell.Family), which a rule keeps open while that
-// lever is pulled. All of it is defined here, in the game.
+// lever is pulled. All of it is defined here, in the game, and the rules hooked with ctx.Hook.
 package main
 
 import (
@@ -151,22 +151,19 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
 
-	// Whoever stands where nothing holds it falls in.
-	if err := s.board.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+	// The game's rules, hooked once the plugins are in: whoever stands where nothing holds it
+	// falls in.
+	rules := []rule.Rule{rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})); err != nil {
-		return err
-	}
+	})}
 	// Each lever: its state, the tag of its trapdoors, and the rule keeping them open while it is
 	// pulled; its key comes with the player's, below.
 	for _, l := range levers {
 		pulled := fx.Define("lever "+l.name, effect.Spec{effect.Lasts(leverHeld)})
 		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + l.name)
-		if err := s.board.Hook(rule.On("trapdoors "+l.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
+		rules = append(rules, rule.On("trapdoors "+l.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
 			return m.During(pulled, m.Keep(open))
-		})); err != nil {
-			return err
-		}
+		}))
 		s.pulled, s.trapdoors = append(s.pulled, pulled), append(s.trapdoors, trapdoor)
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -201,6 +198,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
+		return err
+	}
+	// The game's rules, each on the plugin in use that hosts its moment: here the board.
+	if err := ctx.Hook(rules...); err != nil {
 		return err
 	}
 	s.defineKinds()

@@ -90,6 +90,21 @@ func (a *Actor) Under(e effect.Effect, step rule.Step) rule.Step { return steps.
 // pulled, an alarm (world.Apply) — and fails while it is not.
 func (a *Actor) During(e effect.Effect, step rule.Step) rule.Step { return steps.NewDuring(e, step) }
 
+// OnWire runs step on the wire the actor is wired to (rule.Wired), in place of the actor, and
+// fails for one wired to none.
+func (a *Actor) OnWire(step rule.Step) rule.Step { return steps.NewOnWire(step) }
+
+// WhileWire runs step while the wire the actor is wired to is under e, and fails while it is not,
+// or for one wired to none.
+func (a *Actor) WhileWire(e effect.Effect, step rule.Step) rule.Step {
+	return steps.NewWhileWire(e, step)
+}
+
+// Playing runs step while the actor plays role, and fails while it does not.
+func (a *Actor) Playing(role *rule.Part, step rule.Step) rule.Step {
+	return steps.NewPlaying(uint8(role.Tag()), step)
+}
+
 // Order gives the command cmd for the actor — queued for the plugin that handles its type, the
 // same command a player gives — each time it runs, and does well at once: fire and forget. What
 // comes of it the branch waits for with the Command's Until, or it stays with Stay, so that a

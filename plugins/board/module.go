@@ -5,9 +5,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -20,7 +22,8 @@ type module struct {
 	release   goke.System
 	standing  goke.System
 	cellRules goke.System
-	clock     *clock.Clock // the world's; nil, run at once
+	clock     *clock.Clock   // the world's; nil, run at once
+	template  *kind.Template // the world's roster's for cells, whose components the saves carry
 
 	cellsRunnable     goke.Runnable
 	releaseRunnable   goke.Runnable
@@ -56,9 +59,15 @@ func (m *module) SetupSystems() []goke.System { return nil }
 // LoadComps lists the component types board writes or reads, so a save loads without the vision
 // and effects plugins — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{
+	var templated []goke.CompToken // what the world's plugins give every cell
+	if m.template != nil {
+		for _, c := range m.template.Spec() {
+			templated = append(templated, c.LoadToken())
+		}
+	}
+	return append(templated,
 		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](),
 		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
-		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[cell.Family]](),
-	}
+		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[cell.Family]](), goke.LoadComp[tag.Tags[rule.Roles]](),
+	)
 }

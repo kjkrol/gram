@@ -63,7 +63,13 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	}
 	r := Kind{Name: name, TypeID: kind.ID(len(k.order)), SpriteID: k.NewSprite(), Row: row}
 	var positions, velocities int
+	seen := make(map[reflect.Type]bool, len(spec))
 	for _, c := range spec {
+		if t := comp.TypeOf(c); seen[t] {
+			panic(fmt.Sprintf("world: kind %q carries %v twice; give each component once", name, t))
+		} else {
+			seen[t] = true
+		}
 		if _, z := c.(comp.Template[entity.Z]); z && !k.heights {
 			panic(fmt.Sprintf("world: kind %q carries a Z in a flat world; set world.Config.Heights", name))
 		}
@@ -162,7 +168,7 @@ func (k *Registry) LoadComps() []goke.CompToken {
 // Persisted returns the kind.ID to name mapping, and each tag family's bit to name mapping, for
 // a save to keep and a load to fill.
 func (k *Registry) Persisted() []any {
-	k.saved = k.order
+	k.saved = slices.Clone(k.order) // a load decodes into it: never this build's own order
 	k.savedTags = make(map[string][]string, len(k.families))
 	for t, f := range k.families {
 		k.savedTags[t.String()] = f.names

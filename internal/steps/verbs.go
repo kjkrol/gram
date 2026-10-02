@@ -35,7 +35,7 @@ type hold struct{ e effect.Effect }
 func (hold) instant() {}
 
 func (h hold) enter(c *ctx, at int) {
-	if c.instant {
+	if c.instant || c.wired {
 		return
 	}
 	c.sys.effects.CastFor(c.cb, c.id, h.e, effect.Forever)
@@ -52,9 +52,12 @@ func (h hold) tick(c *ctx, at int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	if c.instant {
+	if c.instant || c.wired { // renewed every step: a wire's holder may halt elsewhere, or go
 		c.effects().CastFor(c.cb, c.id, h.e, 2*c.pass.Dt)
-		return Success
+		if c.instant {
+			return Success
+		}
+		return Running
 	}
 	on := c.sys.effects.Has(c.id, h.e)
 	switch {
@@ -161,6 +164,84 @@ func (d during) tick(c *ctx, _ int, kids []int) Status {
 
 func NewUnless(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.Mark()), make: func() exec { return under{e: e, not: true} }}
+}
+
+// NewOnWire runs node on the wire the entity is wired to, in place of it; Failure for one wired to
+// none.
+func NewOnWire(node Step) Step {
+	return composite{kids: []Step{node}, sign: "onwire", make: func() exec { return onWire{} }}
+}
+
+type onWire struct{ basic }
+
+func (onWire) instant() {}
+
+func (onWire) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity {
+		return Failure
+	}
+	wire, ok := c.wireOf(c.id)
+	if !ok {
+		return Failure
+	}
+	self, wired := c.id, c.wired
+	c.id, c.wired = wire, !c.instant
+	st := c.run(kids[0])
+	c.id, c.wired = self, wired
+	return st
+}
+
+// NewWhileWire runs node while the wire the entity is wired to is under e, and fails while it is
+// not or the entity is wired to none.
+func NewWhileWire(e effect.Effect, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("whilewire(%d)", e.Mark()), make: func() exec { return whileWire{e: e} }}
+}
+
+type whileWire struct {
+	basic
+	e effect.Effect
+}
+
+func (whileWire) instant() {}
+
+func (w whileWire) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity {
+		return Failure
+	}
+	wire, ok := c.wireOf(c.id)
+	if !ok {
+		return Failure
+	}
+	on := false
+	if c.instant {
+		on = w.e.On(wire)
+	} else {
+		on = c.sys.effects.Has(wire, w.e)
+	}
+	if !on {
+		return Failure
+	}
+	return c.run(kids[0])
+}
+
+// NewPlaying runs node while the entity — a place Around turned it to, too — plays the role of bit,
+// and fails while it does not.
+func NewPlaying(bit uint8, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("playing(%d)", bit), make: func() exec { return playing{bit: bit} }}
+}
+
+type playing struct {
+	basic
+	bit uint8
+}
+
+func (playing) instant() {}
+
+func (p playing) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity || c.rolesOf(c.id)&(1<<p.bit) == 0 {
+		return Failure
+	}
+	return c.run(kids[0])
 }
 
 func NewUnder(e effect.Effect, node Step) Step {

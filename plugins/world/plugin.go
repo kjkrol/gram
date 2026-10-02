@@ -78,7 +78,10 @@ func NewPlugin(cfg Config) *Plugin {
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
 	m.moments.effects = m.effects
+	m.wires.effects = m.effects
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
+	m.plans.Wires(m.wires.Of)
+	m.plans.Roles(m.wires.RolesOf)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
@@ -203,7 +206,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // Queues are the clock's, Despawn's, Apply's, Dispel's and the steering's (steering.Away, Toward,
 // Turn) — for the players plugin, which carries the world's commands itself.
 func (p *Plugin) Queues() []control.CommandQueue {
-	q := append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies, &p.module.dispels)
+	q := append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies, &p.module.dispels, &p.module.wires.signals)
 	return append(q, p.module.steer.Queues()...)
 }
 
@@ -246,7 +249,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge) and a clock.Moment (every step). Call before Use.
+// an entity is Outside an open edge) and a clock.Moment (every step), until the Stage's ecs.Setup;
+// a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		var err error
@@ -312,3 +316,7 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
+
+// Wire defines the wire named name — its own entity made at Setup, found again in a loaded game —
+// for keys and rules to drive and rules of what is wired to it to read (rule.Wire); call it in Init.
+func (p *Plugin) Wire(name string) *rule.Wire { return p.module.wires.define(name) }

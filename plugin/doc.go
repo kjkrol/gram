@@ -20,15 +20,28 @@
 // # Rules
 //
 // A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
-// pass, written with package rule (rule.On), and Hook before Use. It runs them inside that pass:
-// [Rules] over the entities it walks (Bind adds the columns the rules read to its query, Run or
-// RunWhere over each chunk; [Own] shares a column it reads itself), [PairRules] over pairs (Bind
-// its tag families to its queries, read an entity's [Marks] with InChunk or At, then Dispatch,
-// DispatchEitherWay or DispatchGrouped), [StepRules] once a step. Each hands its rules a [Tick],
-// made by the world's [TickSource]: the command buffer, the carrier, the game time, the world's
-// seed and own entity, the places round a [Placed] moment. A moment is [About] one entity, [Met]
-// others too, a [Subject] names another, an [Aimed] command is told whom it is about; a Hook
-// refuses a moment it does not catch with [ErrUnhosted], and one too late with [ErrHostBuilt].
+// pass, written with package rule (rule.On), a role's rules among them. Its Hook takes them before
+// or after Use until the Stage's ecs.Setup builds its systems, and refuses a rule of a moment it
+// does not catch with an error wrapping [ErrUnhosted], one too late with [ErrHostBuilt]. A Stage
+// hands its rules to game.Initializer.Hook, which tries the plugins in use in the order they were
+// Used and hooks each rule on the first that does not refuse it with ErrUnhosted: a Hook wraps
+// ErrUnhosted for that alone, as any other error stops the Stage's Hook at once. The errors name
+// the rule by its String — "fall in" of unit.Standing, for the role mortal — and a plugin's Hook
+// adds its Name and the moments it does take (world: Moving, Leaving or clock.Moment).
+//
+// It runs them inside that pass: [Rules] over the entities it walks (Bind adds the columns the
+// rules read to its query, Run or RunWhere over each chunk; [Own] shares a column it reads itself),
+// [PairRules] over pairs (Bind its tag families to its queries, read an entity's [Marks] with
+// InChunk or At, then Dispatch, DispatchEitherWay or DispatchGrouped). A rule a role narrows runs
+// only where the pair's own entity plays the role too, its family among the eight a PairRules
+// reads; DispatchEitherWay runs a rule with one tag on both sides at most once a pair. [StepRules]
+// run once a step, walking no entities: they take a rule of rule.All alone, refusing a filtered or
+// narrowed one with ErrUnhosted, and Bind, in the system's Init, marks them built. Each hands its
+// rules a [Tick], made by the world's [TickSource]: the command buffer, the carrier, the game time,
+// the world's seed and own entity, the places round a [Placed] moment, the wire an entity is wired
+// to (Tick.Wires) and the roles it plays (Tick.Roles, for a rule's Playing). A moment is [About]
+// one entity, [Met] others too, a [Subject] names another, an [Aimed] command is told whom it is
+// about.
 //
 // # Commands
 //

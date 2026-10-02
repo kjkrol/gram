@@ -30,14 +30,22 @@
 // plugin takes it as a constructor argument — construction order in the game's code is the
 // dependency order; there is no registry, no lookup by name and no install-order retry.
 //
-// Game logic that reacts to what a plugin finds is a rule (rule.On), hooked on the
-// plugin it concerns and run inside that plugin's own pass: a rule of a collision.Meeting for
-// every pair of entities it meets, one carrying tag A and the other B; of a unit.Standing for
-// every entity on the board. The payload type says whose the rule is — a Meeting is
-// collision's, a Sighting is vision's — and a plugin refuses one made for another, so hooking in
-// the wrong place is an error, never a silent no-op. What lasts over ticks is a kind's plan, of
-// the same steps (package rule): it casts effects and orders commands — the same as a
-// player's — for its entity.
+// Game logic that reacts to what a plugin finds is a rule (rule.On), run inside the pass of the
+// plugin whose moment it is: a rule of a collision.Meeting for every pair of entities it meets,
+// one carrying tag A and the other B; of a unit.Standing for every entity on the board. The
+// payload type says whose the rule is — a Meeting is collision's, a Sighting is vision's. A Stage
+// hooks its rules with ctx.Hook ([game.Initializer]) once its plugins are used: each goes to the
+// plugin in use that hosts its moment, and one none hosts is an error, never a silent no-op. What
+// lasts over ticks is a kind's plan, of the same steps (package rule): it casts effects and orders
+// commands — the same as a player's — for its entity.
+//
+// A role (rule.Role) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
+// the rules it obeys fire for those playing it alone, and its abilities are effects a player puts
+// on its selected units playing it. A kind plays roles through one component (rule.Plays), a cell
+// through its Layout entry, and a role is hooked like a rule. A wire (world.Plugin.Wire) is a
+// connection by name with an entity of its own, whose state is an effect on it: a key pulls it or
+// flips it, and the rules of what is wired to it drive it or read it — a lever, a plate and the
+// trapdoors they open. Any number of wires share one effect and the roles that read it.
 //
 // # Kinds and spawning
 //
@@ -83,15 +91,16 @@
 //	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
 //	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
 //	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
-//	Layer 4   rule                — rules at a plugin's moments: On, the filters, the Moment's steps (→ plugin, steps, tag, effect)
+//	Layer 4   rule                — rules at a plugin's moments: On, the filters, the Moment's steps; roles (Role, Plays)
+//	                                and wires (Wire, Wired)    (→ control, plugin, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Despawn, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Despawn, wires, the carrier of commands, Camera; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
-//	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, world, render)
+//	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
-//	          plugins/selection   — a Select command into a Selected tag                           (→ world, …)
+//	          plugins/selection   — a Select command into a Selected tag; the roles' abilities     (→ world, rule, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/hooks, plugins/vision/hooks — ready-made rules                       (→ their plugin, world, rule)
@@ -101,7 +110,8 @@
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
 //	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
 //	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
-//	Layer 9   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence (→ game, plugin, world, camera, control, render)
+//	Layer 9   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the routing of
+//	                                ctx.Hook (→ game, plugin, rule, world, camera, control, render)
 //	Layer 10  gram                — Run; the package you import                                     (→ game, internal/engine)
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
