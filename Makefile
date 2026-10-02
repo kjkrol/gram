@@ -6,7 +6,7 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-minimal demo-collision demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-island demo-effect demo-scenes demo-vision deps tidy test bench bench-save clean
+.PHONY: all demo-minimal demo-collision demo-appearance demo-navigation demo-navigation-hex demo-navigation-vision demo-navigation-vision-hex demo-board demo-board-topography demo-board-atlas demo-effect demo-trapdoor demo-pressure-plate demo-split-screen demo-scenes demo-vision deps tidy test bench bench-save clean
 
 all: demo-collision
 
@@ -14,6 +14,8 @@ all: demo-collision
 demo-minimal: run-minimal
 
 demo-collision: run-collision
+
+demo-appearance: run-appearance
 
 demo-navigation: run-navigation
 
@@ -23,9 +25,19 @@ demo-navigation-vision: run-navigation-vision
 
 demo-navigation-vision-hex: run-navigation-vision-hex
 
-demo-island: run-island
+demo-board: run-board
+
+demo-board-topography: run-board-topography
+
+demo-board-atlas: run-board-atlas
 
 demo-effect: run-effect
+
+demo-trapdoor: run-trapdoor
+
+demo-pressure-plate: run-pressure-plate
+
+demo-split-screen: run-split-screen
 
 demo-scenes: run-scenes
 
@@ -50,11 +62,29 @@ run-navigation-vision: deps
 run-navigation-vision-hex: deps
 	$(GO) run ./examples/navigation-vision-hex-demo
 
-run-island: deps
-	$(GO) run ./examples/island-demo
+run-board: deps
+	$(GO) run ./examples/board
+
+run-board-topography: deps
+	$(GO) run ./examples/board-topography
+
+run-board-atlas: deps
+	$(GO) run ./examples/board-atlas
 
 run-effect: deps
 	$(GO) run ./examples/effect-demo
+
+run-trapdoor: deps
+	$(GO) run ./examples/trapdoor-demo
+
+run-appearance: deps
+	$(GO) run ./examples/appearance-demo
+
+run-pressure-plate: deps
+	$(GO) run ./examples/pressure-plate-demo
+
+run-split-screen: deps
+	$(GO) run ./examples/split-screen-demo
 
 run-scenes: deps
 	$(GO) run ./examples/scenes-demo

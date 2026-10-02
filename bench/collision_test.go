@@ -9,11 +9,10 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/behavior"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 )
 
 // The collision scenes are the collision demo's: a 1024x1024 torus filled to a share of its
@@ -51,7 +50,7 @@ func randomVelocity(rng *rand.Rand) world.Velocity {
 
 // benchCollision installs a world and a collision plugin counting every contact, spawns the
 // scene on a grid with seeded random velocities, and runs 120 ticks so the boxes have spread.
-func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *behavior.ContactStats) {
+func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *collision.ContactStats) {
 	b.Helper()
 	count := countFor(rect, percent)
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
@@ -61,19 +60,16 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 		Space:    world.SpaceCfg{Width: sceneWidth, Height: sceneHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: count, MinSize: rect, MaxSize: rect},
 	})
-	c := collision.NewPlugin(w)
-	stats := &behavior.ContactStats{}
-	if err := c.RegisterBehavior(collision.Between(plugin.Any, plugin.Any, behavior.CountContacts(stats))); err != nil {
-		b.Fatal(err)
-	}
+	stats := &collision.ContactStats{}
+	c := collision.NewPlugin(w).WithStats(stats)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}
 	boxes := kind.Define[body](w.Kinds(), "box", kind.Spec{
-		kind.Load(func(r body) world.Position { return r.pos }),
-		kind.Load(func(r body) world.Velocity { return r.vel }),
-		kind.Const(collision.Collider{}),
-		kind.Const(collision.Physics{Restitution: 1}),
+		comp.Load(func(r body) world.Position { return r.pos }),
+		comp.Load(func(r body) world.Velocity { return r.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
 	})
 	placement := world.NewGridPlacement(sceneWidth, sceneHeight, rect)
 	entries := make([]kind.Entry, count)

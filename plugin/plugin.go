@@ -22,15 +22,13 @@ type Plugin interface {
 	// WithRenderer has this plugin's renderer draw sprites from atlas; call before Use.
 	WithRenderer(atlas render.AtlasSource)
 
-	// Renderer returns this plugin's own render.Renderer, or nil if it has none.
-	Renderer() render.Renderer
+	// Renderer returns this plugin's own layer — a render.Renderer, or a render.Source a scene hands
+	// to its render.Composer — or nil if it has none.
+	Renderer() render.Layer
 
 	// EventHandler returns this plugin's own control.EventHandler, or nil if it has none.
 	EventHandler() control.EventHandler
 
 	// Serializable returns this plugin's persistable state, or nil if it has none.
 	Serializable() Serializable
-
-	// RegisterBehavior hosts behaviors in this plugin's own pass; call before Use.
-	RegisterBehavior(behaviors ...Behavior) error
 }

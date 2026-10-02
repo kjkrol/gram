@@ -2,8 +2,8 @@ package render
 
 import (
 	"fmt"
-
-	"github.com/hajimehoshi/ebiten/v2"
+	"image"
+	"image/draw"
 )
 
 // SpriteID identifies a pre-baked sprite in an Atlas — resolved by array
@@ -12,12 +12,14 @@ type SpriteID uint8
 
 // SpriteDrawer paints one sprite's size x size pixels into dst — passed to
 // Atlas.Register to bake a new sprite.
-type SpriteDrawer func(dst *ebiten.Image, size int)
+type SpriteDrawer func(dst *Canvas, size int)
 
-// AtlasSource supplies the sprite sheet and per-sprite UV rects that QuadBatch draws from.
+// AtlasSource supplies the sprite sheet a Frame draws from: each sprite's rectangle on it, and a
+// white texel plain colours sample, so they are drawn in the same call as the sprites.
 type AtlasSource interface {
-	Atlas() *ebiten.Image
+	Atlas() *Image
 	UV(id SpriteID) (sx0, sy0, sx1, sy1 float32)
+	White() (u, v float32)
 }
 
 // maxAtlasWidth is where Close starts a new row of sprites, so that a sheet of
@@ -28,8 +30,10 @@ const maxAtlasWidth = 4096
 // then Close — which is when the sheet is laid out and baked, so nothing has to be sized up front.
 type Atlas struct {
 	slots  []slot // indexed by SpriteID
-	image  *ebiten.Image
+	image  *Image
 	closed bool
+	// white is the top-left of a 3x3 white patch after the sprites.
+	whiteX, whiteY float32
 }
 
 // slot is one registered sprite: how to draw it and, after Close, where it sits on the sheet.
@@ -76,22 +80,25 @@ func (a *Atlas) Close() {
 	a.closed = true
 
 	width, height := a.layout()
-	a.image = ebiten.NewImage(max(width, 1), max(height, 1))
+	sheet := newCanvas(max(width, 1), max(height, 1))
+	wx, wy := int(a.whiteX), int(a.whiteY)
+	draw.Draw(sheet.RGBA, image.Rect(wx, wy, wx+3, wy+3), image.White, image.Point{}, draw.Src)
 	for i := range a.slots {
 		s := &a.slots[i]
 		if s.draw == nil {
 			continue
 		}
-		sprite := ebiten.NewImage(s.size, s.size)
+		sprite := newCanvas(s.size, s.size)
 		s.draw(sprite, s.size)
-		opts := &ebiten.DrawImageOptions{}
-		opts.GeoM.Translate(float64(s.x0), float64(s.y0))
-		a.image.DrawImage(sprite, opts)
+		draw.Draw(sheet.RGBA, image.Rect(int(s.x0), int(s.y0), int(s.x0)+s.size, int(s.y0)+s.size), sprite.RGBA, image.Point{}, draw.Over)
 		s.draw = nil
 	}
+	a.image = NewImage(sheet.Bounds().Dx(), sheet.Bounds().Dy())
+	a.image.WritePixels(sheet.Pix)
 }
 
-// layout shelves the sprites in slot order and reports how large a sheet that takes.
+// layout shelves the sprites in slot order, then the white patch, and reports how large a sheet
+// that takes.
 func (a *Atlas) layout() (width, height int) {
 	x, y, rowHeight := 0, 0, 0
 	for i := range a.slots {
@@ -108,14 +115,26 @@ func (a *Atlas) layout() (width, height int) {
 		rowHeight = max(rowHeight, s.size)
 		width = max(width, x)
 	}
-	return width, y + rowHeight
+	if x > 0 && x+3 > maxAtlasWidth {
+		x, y, rowHeight = 0, y+rowHeight, 0
+	}
+	a.whiteX, a.whiteY = float32(x), float32(y)
+	return max(width, x+3), y + max(rowHeight, 3)
 }
 
-func (a *Atlas) Atlas() *ebiten.Image {
+func (a *Atlas) Atlas() *Image {
 	if !a.closed {
 		panic("gram: Atlas used before Close — its sheet does not exist yet")
 	}
 	return a.image
+}
+
+// White is the middle of the sheet's white patch.
+func (a *Atlas) White() (u, v float32) {
+	if !a.closed {
+		panic("gram: Atlas used before Close — its sheet does not exist yet")
+	}
+	return a.whiteX + 1.5, a.whiteY + 1.5
 }
 
 func (a *Atlas) UV(id SpriteID) (sx0, sy0, sx1, sy1 float32) {

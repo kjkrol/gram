@@ -1,37 +1,39 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
 func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	occupancy := &board.SingleOccupancy{}
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	oldTarget, _ := grid.CellIndex(3, 0)
 	newTarget, _ := grid.CellIndex(8, 0)
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
-	var selectable goke.Comp[plugin.Tags[selection.Family]]
+	var selectable goke.Comp[tag.Tags[selection.Family]]
 	var readQuery *goke.Query
 	var selectedID, otherID uid.UID64
 
@@ -50,8 +52,8 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
 		for i := range ids {
-			cells[i] = board.Cell{ID: start}
-			positions[i].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+			cells[i] = unit.At{Cell: start}
+			positions[i].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 			orders[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 		}
 
@@ -102,20 +104,20 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 }
 
 func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	occupancy := &board.SingleOccupancy{}
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	newTarget, _ := grid.CellIndex(8, 0)
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
@@ -123,7 +125,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var selectable goke.Comp[plugin.Tags[selection.Family]]
+		var selectable goke.Comp[tag.Tags[selection.Family]]
 		f := si.NewFactory(&cell, &pos, &selectable)
 		f.Create(1)
 		f.Next()
@@ -132,8 +134,8 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
-		cells[0] = board.Cell{ID: start}
-		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+		cells[0] = unit.At{Cell: start}
+		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 
 		readQuery = si.NewQueryBuilder().Optional(&order).Build()
 		selSys.Init(si)
@@ -192,22 +194,22 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 }
 
 func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *testing.T) {
-	grid := board.DefaultGrids{}.Square(10, 1, 10)
-	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	occupancy := &board.SingleOccupancy{}
+	grid := grid.DefaultGrids{}.Square(10, 1, 10)
+	terrain := cell.NewTerrainMap()
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	occupancy := &cell.SingleOccupancy{}
 
 	start, _ := grid.CellIndex(0, 0)
 	oldTarget, _ := grid.CellIndex(3, 0)
 	wall, _ := grid.CellIndex(8, 0)
-	terrain.Set(wall, board.CellKind{Cost: 1, Solid: true})
+	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
-	moves := &control.Inbox[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, occupancy), moves, selTags.Selected)
-	selects := &control.Inbox[selection.Select]{}
-	selSys := selection.NewSelectionSystem(selects, nil, selTags)
+	moves := &control.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	selects := &control.Queue[selection.Select]{}
+	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
-	var cell goke.Comp[board.Cell]
+	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
 	var readQuery *goke.Query
@@ -215,7 +217,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var selectable goke.Comp[plugin.Tags[selection.Family]]
+		var selectable goke.Comp[tag.Tags[selection.Family]]
 		f := si.NewFactory(&cell, &pos, &order, &selectable)
 		f.Create(1)
 		f.Next()
@@ -225,8 +227,8 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
 		orders := order.Slice(&f.Cursor)
-		cells[0] = board.Cell{ID: start}
-		positions[0].Pos = world.Position{AABB: board.CellAABB(grid, start, 8)}
+		cells[0] = unit.At{Cell: start}
+		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		orders[0] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 
 		readQuery = si.NewQueryBuilder(&order).Build()

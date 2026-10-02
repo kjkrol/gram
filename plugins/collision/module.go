@@ -3,12 +3,14 @@ package collision
 import (
 	"errors"
 	"fmt"
-	"github.com/kjkrol/gram/plugin/host"
+	"log"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/rule"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -18,20 +20,19 @@ type module struct {
 	space *aabbworld.Space
 	ecs   *goke.ECS
 
-	pairs    *host.PairHost[Meeting]
-	entities *host.EachHost[Struck]
+	pairs    *plugin.PairRules[Meeting]
+	entities *plugin.Rules[Struck]
 
-	system goke.Runnable
-	shapes ShapeTest
-	built  bool
+	system  goke.Runnable
+	fieldOf func() Field
+	stats   *ContactStats
+	log     *log.Logger
+	clock   *clock.Clock      // the world's; nil, run at once
+	tick    plugin.TickSource // the world's, for the rules
+	built   bool
 }
 
-// New builds the collision engine over space.
-func New(space *aabbworld.Space, ecs *goke.ECS) *module {
-	return newModule(space, ecs, &host.PairHost[Meeting]{}, &host.EachHost[Struck]{})
-}
-
-func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *host.PairHost[Meeting], entities *host.EachHost[Struck]) *module {
+func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck]) *module {
 	return &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
 }
 
@@ -46,9 +47,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	}
 }
 
+// RunPlan hands the collisions to the simulation: every step, the pairs meet and are pushed apart.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.system, d)
-	ctx.Sync()
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.system, step)
+		ctx.Sync()
+	})
 }
 
 // SetupSystems is empty — the collision engine has no one-time seeding of its own.
@@ -66,20 +70,15 @@ func (m *module) LoadComps() []goke.CompToken {
 // collision-specific
 // =================================================================
 
-// RegisterBehavior hosts a Between of Meeting or an Each/Every of Struck.
-func (m *module) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	return hostAll(m.pairs, m.entities, behaviors)
-}
-
-// hostAll hands each behavior to whichever host takes it, stopping at the first neither does.
-func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], behaviors []plugin.Behavior) error {
-	for _, b := range behaviors {
+// hostAll hands each rule to whichever host takes it, stopping at the first neither does.
+func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], rules []rule.Rule) error {
+	for _, b := range rules {
 		err := pairs.Add(b)
-		if errors.Is(err, plugin.ErrUnhostedBehavior) {
+		if errors.Is(err, plugin.ErrUnhosted) {
 			err = entities.Add(b)
 		}
-		if errors.Is(err, plugin.ErrUnhostedBehavior) {
-			return fmt.Errorf("%w in collision — it takes Between for Meeting and Each for Struck", err)
+		if errors.Is(err, plugin.ErrUnhosted) {
+			return fmt.Errorf("%w in collision — it takes a rule of Meeting or of Struck", err)
 		}
 		if err != nil {
 			return err
@@ -89,6 +88,9 @@ func hostAll(pairs *host.PairHost[Meeting], entities *host.EachHost[Struck], beh
 }
 
 func (m *module) build() {
-	m.system = m.ecs.RegSys(newCollisionSystem(m.space, m.pairs, m.entities, m.shapes))
+	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
+	s.stats, s.log = m.stats, m.log
+	s.tickOf = m.tick
+	m.system = m.ecs.RegSys(s)
 	m.built = true
 }

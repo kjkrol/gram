@@ -1,13 +1,15 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -16,29 +18,29 @@ import (
 // commandWorld is a 10x1 board with a Selected unit in flight and a Selected idle unit, driven
 // by the command system alone.
 type commandWorld struct {
-	grid  board.Grid
-	moves *control.Inbox[MoveTo]
+	grid  grid.Grid
+	moves *control.Queue[MoveTo]
 	ecs   *goke.ECS
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
 
 	moving, idle uid.UID64
-	oldTarget    board.CellID
+	oldTarget    cell.ID
 }
 
 func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
-	cw := &commandWorld{grid: board.DefaultGrids{}.Square(10, 1, 10), moves: &control.Inbox[MoveTo]{}}
-	terrain := board.NewTerrainMap()
-	terrain.SetAll(board.CellKind{Cost: 1, Allows: board.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, &board.SingleOccupancy{}), cw.moves, selTags.Selected)
+	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &control.Queue[MoveTo]{}}
+	terrain := cell.NewTerrainMap()
+	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &control.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()
 	cw.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var cell goke.Comp[board.Cell]
+		var cell goke.Comp[unit.At]
 		var pos goke.Comp[world.Base]
-		var sel goke.Comp[plugin.Tags[selection.Family]]
+		var sel goke.Comp[tag.Tags[selection.Family]]
 		var order goke.Comp[MoveOrder]
 
 		f := si.NewFactory(&cell, &pos, &sel, &order)
@@ -46,8 +48,8 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		f.Next()
 		sel.Slice(&f.Cursor)[0] = selectedMarks
 		cw.moving = f.Cursor.IDs[0]
-		cell.Slice(&f.Cursor)[0] = board.Cell{ID: cw.cellAt(0)}
-		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(0), 8)}
+		cell.Slice(&f.Cursor)[0] = unit.At{Cell: cw.cellAt(0)}
+		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(0), 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: cw.oldTarget, Path: Path{Length: 1}}
 
 		g := si.NewFactory(&cell, &pos, &sel)
@@ -55,8 +57,8 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		g.Next()
 		sel.Slice(&g.Cursor)[0] = selectedMarks
 		cw.idle = g.Cursor.IDs[0]
-		cell.Slice(&g.Cursor)[0] = board.Cell{ID: cw.cellAt(5)}
-		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: board.CellAABB(cw.grid, cw.cellAt(5), 8)}
+		cell.Slice(&g.Cursor)[0] = unit.At{Cell: cw.cellAt(5)}
+		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(5), 8)}
 
 		cw.q = si.NewQueryBuilder(&cell).Optional(&cw.order).Build()
 		cmds.Init(si)
@@ -66,10 +68,10 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	return cw
 }
 
-func (cw *commandWorld) cellAt(x uint32) board.CellID { c, _ := cw.grid.CellIndex(x, 0); return c }
+func (cw *commandWorld) cellAt(x uint32) cell.ID { c, _ := cw.grid.CellIndex(x, 0); return c }
 
 // issue runs one command through a tick.
-func (cw *commandWorld) issue(cell board.CellID, appendIt bool) {
+func (cw *commandWorld) issue(cell cell.ID, appendIt bool) {
 	cw.moves.Add(control.Nobody, MoveTo{Cell: cell, Append: appendIt})
 	cw.ecs.Tick(time.Second)
 }
@@ -100,7 +102,7 @@ func TestCommandSystem_Update_ShiftAppendsAWaypointToInFlightOrders(t *testing.T
 	if got == nil || got.Target != cw.oldTarget {
 		t.Fatalf("in-flight order = %+v, want its Target %v kept", got, cw.oldTarget)
 	}
-	if got.Queued != 1 || got.Waypoints[0] != next {
+	if got.Queued != 1 || got.Waypoints[0].Cell != next {
 		t.Errorf("queue = %v (%d), want [%v]", got.Waypoints[:got.Queued], got.Queued, next)
 	}
 	if got.Path.Length != 1 {
@@ -131,7 +133,7 @@ func TestCommandSystem_Update_AFullQueueIgnoresAnotherWaypoint(t *testing.T) {
 	if int(got.Queued) != MaxWaypoints {
 		t.Fatalf("Queued = %d, want the queue full at %d", got.Queued, MaxWaypoints)
 	}
-	if got.Waypoints[MaxWaypoints-1] != cw.cellAt(MaxWaypoints-1) {
+	if got.Waypoints[MaxWaypoints-1].Cell != cw.cellAt(MaxWaypoints-1) {
 		t.Errorf("last queued = %v, want the eighth goal kept and the ninth dropped", got.Waypoints[MaxWaypoints-1])
 	}
 }

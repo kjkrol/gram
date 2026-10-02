@@ -1,8 +1,9 @@
 package world_test
 
 import (
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 )
 
 func ExamplePlugin_Seed() {
@@ -13,8 +14,8 @@ func ExamplePlugin_Seed() {
 	placement := world.NewGridPlacement(800, 600, 8)
 
 	dot := kind.Define[world.Position](plugin.Kinds(), "dot", kind.Spec{
-		kind.Load(func(p world.Position) world.Position { return p }),
-		kind.Const(world.Velocity{}),
+		comp.Load(func(p world.Position) world.Position { return p }),
+		comp.Const(world.Velocity{}),
 	})
 
 	for i := range 10 {

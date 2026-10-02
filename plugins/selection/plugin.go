@@ -1,11 +1,9 @@
 package selection
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
@@ -14,12 +12,15 @@ import (
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
 type Plugin struct {
-	worldPlugin *world.Plugin
-	selects     control.Inbox[Select]
-	camera      camera.Camera
-	module      *module
-	renderer    *Renderer
-	tags        Tags
+	worldPlugin  *world.Plugin
+	selects      control.Queue[Select]
+	marqueeQueue control.Queue[Marquee]
+	follows      control.Queue[Follow]
+	applies      control.Queue[Apply]
+	marquees     marquees
+	module       *module
+	renderer     *Renderer
+	tags         Tags
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -31,8 +32,9 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	tags := Tags{
 		Selectable: reg.DefineTag[Family]("selection.selectable"),
 		Selected:   reg.DefineTag[Family]("selection.selected"),
+		Followed:   reg.DefineTag[Family]("selection.followed"),
 	}
-	return &Plugin{worldPlugin: worldPlugin, camera: worldPlugin.Camera(), tags: tags}
+	return &Plugin{worldPlugin: worldPlugin, tags: tags}
 }
 
 // Tags returns selection's tags, to give Selectable to a kind or to read Selected.
@@ -45,20 +47,24 @@ func (p *Plugin) Tags() Tags { return p.tags }
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags)
-	p.module = &module{sys: sys}
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
+	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
+	sys.applies, sys.effects = &p.applies, p.worldPlugin.Effects()
+	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
 	return nil
 }
 
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the highlight renderer; atlas is unused, selection draws primitives.
+// WithRenderer builds the renderer of the highlights and of the box being dragged; atlas is
+// unused, selection draws primitives.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = NewRenderer(p.camera, p.tags.Selected)
+	p.renderer = NewRenderer(p.tags.Selected, p.worldPlugin.Look)
+	p.renderer.marquees = &p.marquees
 }
 
-func (p *Plugin) Renderer() render.Renderer {
+func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
 	}
@@ -70,11 +76,3 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — selection has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// RegisterBehavior reports ErrUnhostedBehavior — selection hosts no behaviors.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
-	}
-	return nil
-}

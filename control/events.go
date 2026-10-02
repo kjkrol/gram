@@ -1,7 +1,6 @@
 package control
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 )
 
@@ -13,13 +12,13 @@ const (
 )
 
 type KeyEvent struct {
-	Key    ebiten.Key
+	Key    Key
 	Action KeyAction
 }
 
 type ClickEvent struct {
 	Pos    geom.Vec
-	Button ebiten.MouseButton
+	Button MouseButton
 	Action KeyAction
 }
 
@@ -45,15 +44,29 @@ func (e *InputEvents) ResetTransient() {
 	e.CursorDelta = geom.Vec{}
 }
 
-func (e *InputEvents) AddKeyEvent(key ebiten.Key, action KeyAction) {
+func (e *InputEvents) AddKeyEvent(key Key, action KeyAction) {
 	e.KeyEvents = append(e.KeyEvents, KeyEvent{Key: key, Action: action})
 }
 
 // AddClickEvent takes plain int for caller ergonomics — stored as geom.Vec.
-func (e *InputEvents) AddClickEvent(x, y int, button ebiten.MouseButton, action KeyAction) {
+func (e *InputEvents) AddClickEvent(x, y int, button MouseButton, action KeyAction) {
 	e.ClickQueue = append(e.ClickQueue, ClickEvent{
 		Pos:    geom.NewVec(float64(x), float64(y)),
 		Button: button,
 		Action: action,
 	})
+}
+
+// cursorCapture is the window's way to catch the cursor, the engine's; nil without a window.
+var cursorCapture func(on bool)
+
+// SetCursorCapture is the engine's: how the window catches its cursor and lets it go.
+func SetCursorCapture(fn func(on bool)) { cursorCapture = fn }
+
+// CaptureCursor catches the window's cursor — hidden, the mouse moving without end — or shows it
+// again; nothing without a window.
+func CaptureCursor(on bool) {
+	if cursorCapture != nil {
+		cursorCapture(on)
+	}
 }

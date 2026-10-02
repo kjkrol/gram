@@ -1,14 +1,16 @@
 package board
 
-// Layout is a board's initial terrain for Plugin.Seed: Default fills every
-// cell, then each CellEntry overrides one.
-type Layout struct {
-	Default string
-	Cells   []CellEntry
-}
+import (
+	"github.com/kjkrol/gram/plugins/board/cell"
+)
 
-// CellEntry sets Cell to the CellKind named Kind.
-type CellEntry struct {
-	Kind string
-	Cell CellID
+// Layout is a board's initial terrain for Plugin.Seed: Default fills every cell, then each of
+// Cells overrides one; each of Ways lays a cell.Way across a cell, each of Crossings a
+// cell.Crossing over a cell's way. The ground's heights are a topography's to seed
+// (plugins/topography).
+type Layout struct {
+	Default   string
+	Cells     []cell.Entry
+	Ways      []cell.WayEntry
+	Crossings []cell.WayEntry
 }

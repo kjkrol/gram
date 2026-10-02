@@ -1,26 +1,32 @@
 package navigation
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
+	"image/color"
+	"math"
+
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(cell board.Cell, mt MoveOrder) []board.CellID {
-	cells := []board.CellID{cell.ID}
+func pathCells(at unit.At, mt MoveOrder) []cell.ID {
+	cells := []cell.ID{at.Cell}
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
 		next = mt.Path.Steps[mt.Path.Index]
 	}
-	if mt.Leg.Active && mt.Leg.To != cell.ID && mt.Leg.To != next {
+	if mt.Leg.Active && mt.Leg.To != at.Cell && mt.Leg.To != next {
 		cells = append(cells, mt.Leg.To)
 	}
 	for s := mt.Path.Index; s < mt.Path.Length; s++ {
@@ -36,128 +42,298 @@ func pathCells(cell board.Cell, mt MoveOrder) []board.CellID {
 	return cells
 }
 
-type PathRenderer struct {
-	grid    board.Grid
-	sprites PathSprites
-	batch   *render.QuadBatch
-	space   *aabbworld.Space
+// RouteStyle is how routes and goals are drawn: a route a line in Line, Width pixels wide; a goal
+// the entity's outline where it will stand, in Goal.
+type RouteStyle struct {
+	Line, Goal color.RGBA
+	Width      float32
+}
+
+// DefaultRouteStyle is a thin orange line and an orange-yellow outline.
+var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220}, Goal: color.RGBA{R: 255, G: 200, B: 40, A: 255}, Width: 1.5}
+
+// goalWidth is how wide a goal's outline is drawn: the selection's.
+const goalWidth = 2
+
+// pathRenderer draws, for every selected entity, its goals — the entity's outline where it will
+// stand, on the render.Marks tier, always — and, when the routes are shown (Routes, Shift+P), the
+// remaining route and the routes on to each queued goal. In a world with heights, through a
+// camera with Rays, a route is a render.Direct drawing on the GPU, over the ground and under what stands on it: laid on the ground
+// the frame drew, read from its depth, so it follows every rise and a hill in front hides it.
+// Otherwise it is a line over the ground on the render.Overlays tier in pieces of the ground's
+// step, each at the depth of the ground under it, so the line runs straight through any camera.
+type pathRenderer struct {
+	grid   grid.Grid
+	style  RouteStyle
+	frame  *render.Frame // the one being composed
+	camera camera.Camera // the one of the frame being composed
+	space  *aabbworld.Space
+	// heights is the ground the routes and goals lie on, read when composing starts; nil, level
+	// at 0.
+	heights func() ground.Heights
+	ground  ground.Heights
+	step    float64
+	// look lays a goal's outline as the world draws the entity; nil, the box as it lies.
+	look   func() world.Look
+	routes bool // the routes are drawn; the goals always are
 
 	// finder plans the routes between queued goals for the preview; nil draws the goals alone.
 	finder   *pathFinder
 	previews map[uid.UID64]*preview
 
-	selected plugin.Tag[selection.Family]
+	selected tag.Tag[selection.Family]
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[unit.At]
 	order goke.Comp[MoveOrder]
-	marks goke.Comp[plugin.Tags[selection.Family]]
-	mover goke.OptComp[board.Mover]
+	marks goke.Comp[tag.Tags[selection.Family]]
+	mover goke.OptComp[unit.Mover]
+
+	footprint []render.Corners // reused
+
+	gpu   *routes.Lines // the routes drawn on the GPU
+	onGPU bool          // this frame's
 }
 
-var _ render.Renderer = (*PathRenderer)(nil)
+var _ render.Direct = (*pathRenderer)(nil)
 
-func NewPathRenderer(cam camera.Camera, grid board.Grid, atlas render.AtlasSource, sprites PathSprites, selected plugin.Tag[selection.Family]) *PathRenderer {
-	return &PathRenderer{grid: grid, sprites: sprites, batch: render.NewQuadBatch(atlas, cam), selected: selected}
+// newPathRenderer draws the routes and goals of the entities carrying selected, as style says.
+func newPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *pathRenderer {
+	if style == (RouteStyle{}) {
+		style = DefaultRouteStyle
+	}
+	return &pathRenderer{grid: grid, style: style, selected: selected, gpu: routes.New()}
 }
 
-func (r *PathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
+// Tier is where the routes drawn on the GPU come: over the ground, under what stands on it.
+func (r *pathRenderer) Tier() render.Tier { return routes.Tier }
 
-func (r *PathRenderer) Init(si *goke.SysInit) {
+// Draw lays the routes Compose gathered on the ground, on the GPU; nothing where it composed them.
+func (r *pathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
+	if r.onGPU {
+		r.gpu.Draw(t, cam, r.style.Line, r.style.Width)
+	}
+}
+
+// WithHeights has the routes and goals laid on the ground heights gives when composing starts:
+// board.Plugin.Heights; nil, level at 0.
+func (r *pathRenderer) WithHeights(heights func() ground.Heights) *pathRenderer {
+	r.heights = heights
+	return r
+}
+
+// WithLook has a goal outlined as look draws the entity standing there: world.Plugin.Look.
+func (r *pathRenderer) WithLook(look func() world.Look) *pathRenderer {
+	r.look = look
+	return r
+}
+
+// ShowRoutes has the routes drawn, or the goals alone.
+func (r *pathRenderer) ShowRoutes(shown bool) { r.routes = shown }
+
+// RoutesShown reports whether the routes are drawn.
+func (r *pathRenderer) RoutesShown() bool { return r.routes }
+
+func (r *pathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
+
+func (r *pathRenderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.cell, &r.order, &r.marks).
 		Optional(&r.mover).
 		Build()
 }
 
-func (r *PathRenderer) Draw(screen *ebiten.Image) {
-	r.batch.Reset()
-	if r.space != nil {
-		r.query.All()
-		for r.query.Next() {
-			cursor := r.query.Cursor()
-			bases := r.base.Slice(cursor)
-			cells := r.cell.Slice(cursor)
-			orders := r.order.Slice(cursor)
-			marks := r.marks.Slice(cursor)
-			movers := r.mover.Slice(cursor)
-			for i := range cursor.IDs {
-				if !marks[i].Has(r.selected) {
-					continue
-				}
-				center := board.Center(bases[i].Pos)
-				r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], orders[i]))
-				for _, route := range r.queued(cursor.IDs[i], board.DomainAt(movers, i), &orders[i]) {
-					r.drawRoute(route)
-				}
+// Compose hands f the goals of the selected units, and their routes when shown.
+func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
+	r.frame, r.camera = f, cam
+	r.ground, r.step = nil, 0
+	if r.heights != nil {
+		if r.ground = r.heights(); r.ground != nil {
+			r.step = r.ground.Step()
+		}
+	}
+	_, rays := cam.(camera.Rays)
+	r.onGPU = rays && r.ground != nil && r.space != nil && r.space.Edges == 0
+	if r.space == nil {
+		return
+	}
+	r.query.All()
+	for r.query.Next() {
+		cursor := r.query.Cursor()
+		bases := r.base.Slice(cursor)
+		cells := r.cell.Slice(cursor)
+		orders := r.order.Slice(cursor)
+		marks := r.marks.Slice(cursor)
+		movers := r.mover.Slice(cursor)
+		for i := range cursor.IDs {
+			if !marks[i].Has(r.selected) {
+				continue
+			}
+			o := &orders[i]
+			r.goals(bases[i].Pos.Size, o)
+			if !r.routes {
+				continue
+			}
+			center := bases[i].Pos.Center()
+			r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], *o), r.point(o.Target, o.Spot))
+			from := r.point(o.Target, o.Spot)
+			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), o) {
+				to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
+				r.drawRoute(route, from, to)
+				from = to
 			}
 		}
 	}
-	r.batch.Flush(screen)
 }
 
-func (r *PathRenderer) drawPath(entityCenter, travel geom.Vec, cells []board.CellID) {
-	for i, c := range cells {
-		center := r.grid.CellCenter(c)
-
-		if i > 0 {
-			dirBack := directionBetween(center, r.grid.CellCenter(cells[i-1]), r.space.Width, r.space.Height, r.space.Edges)
-			r.appendCellSprite(c, r.sprites.spoke(dirBack))
-		}
-
-		if i == len(cells)-1 {
-			r.appendCellSprite(c, r.sprites.Dot)
-			continue
-		}
-
-		if i == 0 && hasPassedCenter(center, entityCenter, travel, r.space.Width, r.space.Height, r.space.Edges) {
-			continue
-		}
-
-		dirOut := directionBetween(center, r.grid.CellCenter(cells[i+1]), r.space.Width, r.space.Height, r.space.Edges)
-		r.appendCellSprite(c, r.sprites.spoke(dirOut))
+// goals outlines where o's entity, of size, will stand: its Target — not a step aside, which is no
+// goal — and every goal queued after it.
+func (r *pathRenderer) goals(size geom.Vec, o *MoveOrder) {
+	if !o.GivingWay {
+		r.goal(size, o.Target, o.Spot)
+	}
+	for k := range o.Waypoints[:o.Queued] {
+		r.goal(size, o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 	}
 }
 
-// drawRoute draws a route between two goals: spokes along it and a dot on its end.
-func (r *PathRenderer) drawRoute(cells []board.CellID) {
+// point is where a goal is: its spot, or its cell's centre.
+func (r *pathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
+	if spot != (geom.Vec{}) {
+		return spot
+	}
+	return r.grid.CellCenter(c)
+}
+
+// drawPath draws the route from the entity through the centres of cells, ending at end, leaving
+// out the first cell's centre once the entity has passed it.
+func (r *pathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
+	from := entityCenter
 	for i, c := range cells {
-		center := r.grid.CellCenter(c)
-		if i > 0 {
-			r.appendCellSprite(c, r.sprites.spoke(directionBetween(center, r.grid.CellCenter(cells[i-1]), r.space.Width, r.space.Height, r.space.Edges)))
-		}
+		to := r.grid.CellCenter(c)
 		if i == len(cells)-1 {
-			r.appendCellSprite(c, r.sprites.Dot)
+			to = end
+		}
+		if i == 0 && hasPassedCenter(to, entityCenter, travel, r.space.Width, r.space.Height, r.space.Edges) && len(cells) > 1 {
 			continue
 		}
-		r.appendCellSprite(c, r.sprites.spoke(directionBetween(center, r.grid.CellCenter(cells[i+1]), r.space.Width, r.space.Height, r.space.Edges)))
+		r.line(from, to)
+		from = to
+	}
+}
+
+// drawRoute draws a route between two goals: from the first through the centres of cells to the
+// second.
+func (r *pathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
+	if len(cells) == 0 {
+		r.line(from, to)
+		return
+	}
+	at := from
+	for _, c := range cells[1 : len(cells)-1] {
+		next := r.grid.CellCenter(c)
+		r.line(at, next)
+		at = next
+	}
+	r.line(at, to)
+}
+
+// line draws the stretch from a to b over the ground: on a wrapping world flat, the short way
+// round; else in pieces of the ground's step, each on the ground under its ends and at the depth
+// of its middle.
+func (r *pathRenderer) line(a, b geom.Vec) {
+	if r.space != nil && r.space.Edges != 0 {
+		dx := shortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
+		dy := shortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
+		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
+		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
+		r.frame.Line(render.Overlays, 0, x0, y0, x1, y1, r.style.Width, r.style.Line)
+		return
+	}
+	if r.onGPU {
+		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.style.Width)
+		return
+	}
+	length := math.Hypot(b.X-a.X, b.Y-a.Y)
+	pieces := 1
+	if r.step > 0 && length > r.step {
+		pieces = int(math.Ceil(length / r.step))
+	}
+	x0, y0 := r.on(a)
+	for i := 1; i <= pieces; i++ {
+		t := float64(i) / float64(pieces)
+		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
+		x1, y1 := r.on(p)
+		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float64(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float64(pieces)))
+		r.frame.Line(render.Overlays, r.camera.Depth(float32(mid.X), float32(mid.Y), r.groundAt(mid)), x0, y0, x1, y1, r.style.Width, r.style.Line)
+		x0, y0 = x1, y1
+	}
+}
+
+// groundAt is the height of the ground at p.
+func (r *pathRenderer) groundAt(p geom.Vec) float32 {
+	if r.ground == nil {
+		return 0
+	}
+	return float32(r.ground.At(p))
+}
+
+// on is where the ground point p is drawn.
+func (r *pathRenderer) on(p geom.Vec) (float32, float32) {
+	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
+}
+
+// goal outlines a box of size standing on the goal — its spot, or its cell's centre — on the
+// ground there, on the Marks tier, as the look draws it.
+func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec) {
+	at := r.point(c, spot)
+	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
+	alt := r.groundAt(at)
+	r.footprint = r.footprint[:0]
+	if r.look != nil {
+		r.footprint = r.look().Footprint(r.camera, box, alt, r.footprint)
+	} else {
+		var q render.Corners
+		for i, p := range [4][2]float32{{float32(box.TopLeft.X), float32(box.TopLeft.Y)}, {float32(box.BottomRight.X), float32(box.TopLeft.Y)}, {float32(box.TopLeft.X), float32(box.BottomRight.Y)}, {float32(box.BottomRight.X), float32(box.BottomRight.Y)}} {
+			q[i][0], q[i][1] = r.camera.Project(p[0], p[1], alt)
+		}
+		r.footprint = append(r.footprint, q)
+	}
+	for _, q := range r.footprint {
+		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
+		for i, p := range pts {
+			n := pts[(i+1)%len(pts)]
+			r.frame.Line(render.Marks, 0, p[0], p[1], n[0], n[1], goalWidth, r.style.Goal)
+		}
 	}
 }
 
 // preview is the routes between one order's queued goals, kept until the goals change.
 type preview struct {
-	goals  [MaxWaypoints + 1]board.CellID
+	goals  [MaxWaypoints + 1]cell.ID
 	queued uint8
-	routes [][]board.CellID
+	routes [][]cell.ID
 }
 
 // queued is the routes from the order's Target through each queued goal, planned once per change
 // of the goals; a goal no route reaches is drawn on its own.
-func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) [][]board.CellID {
+func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [][]cell.ID {
 	if mt.Queued == 0 {
 		delete(r.previews, id)
 		return nil
 	}
-	var goals [MaxWaypoints + 1]board.CellID
+	var goals [MaxWaypoints + 1]cell.ID
 	goals[0] = mt.Target
-	copy(goals[1:], mt.Waypoints[:mt.Queued])
+	for k, g := range mt.Waypoints[:mt.Queued] {
+		goals[k+1] = g.Cell
+	}
 	if pv := r.previews[id]; pv != nil && pv.queued == mt.Queued && pv.goals == goals {
 		return pv.routes
 	}
 	pv := &preview{goals: goals, queued: mt.Queued}
 	for k := 0; k < int(mt.Queued); k++ {
 		from, to := goals[k], goals[k+1]
-		route := []board.CellID{from}
+		route := []cell.ID{from}
 		if r.finder != nil {
 			if path, ok := r.finder.findPath(id, domain, from, to); ok {
 				for _, step := range path.Steps[:path.Length] {
@@ -175,15 +351,6 @@ func (r *PathRenderer) queued(id uid.UID64, domain board.Domain, mt *MoveOrder) 
 	}
 	r.previews[id] = pv
 	return pv.routes
-}
-
-// appendCellSprite lays sprite as a square reaching the cell's nearest edges, so a spoke ends where
-// the neighbour's begins.
-func (r *PathRenderer) appendCellSprite(c board.CellID, sprite render.SpriteID) {
-	center := r.grid.CellCenter(c)
-	w, h := r.grid.CellBounds()
-	half := min(w, h) / 2
-	r.batch.AppendQuad(float32(center.X-half), float32(center.Y-half), float32(center.X+half), float32(center.Y+half), sprite)
 }
 
 func hasPassedCenter(cellCenter, entityCenter, travel geom.Vec, width, height uint32, edges aabbworld.Edges) bool {

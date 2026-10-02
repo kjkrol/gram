@@ -1,11 +1,8 @@
 package players
 
 import (
-	"time"
-
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -31,22 +28,31 @@ const (
 )
 
 // CameraBindings is the default camera control: wheel zooms about the cursor, a middle drag pans
-// one to one with it, the cursor at an edge scrolls scrollSpeed pixels a tick (DefaultScrollSpeed).
+// one to one with it, W, A, S and D held and the cursor at an edge scroll scrollSpeed pixels a
+// tick (DefaultScrollSpeed) — up, left, down and right on the screen, however the view is turned.
+// All but the wheel hold while the camera is free (camera.Free), not while it rides in an entity.
 func CameraBindings(scrollSpeed ...int32) []control.Binding {
 	speed := float32(DefaultScrollSpeed)
 	if len(scrollSpeed) > 0 {
 		speed = float32(scrollSpeed[0])
 	}
+	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
+		return func(control.Context) (Pan, bool) { return Pan{Dx: dx * speed, Dy: dy * speed}, true }
+	}
 	return []control.Binding{
+		control.Command(control.KeyHeld{Key: control.KeyW}, "Scroll up", scroll(0, -1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyS}, "Scroll down", scroll(0, 1)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyA}, "Scroll left", scroll(-1, 0)).In(camera.Free),
+		control.Command(control.KeyHeld{Key: control.KeyD}, "Scroll right", scroll(1, 0)).In(camera.Free),
 		control.Command(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
 				return Zoom{Factor: ZoomStep, At: c.World(c.Cursor)}, true
 			}
 			return Zoom{Factor: 1 / ZoomStep, At: c.World(c.Cursor)}, true
 		}),
-		control.Command(control.ButtonHeld{Button: ebiten.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
+		control.Command(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
 			return Pan{Dx: float32(-c.Delta.X), Dy: float32(-c.Delta.Y)}, true
-		}),
+		}).In(camera.Free),
 		control.Command(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
 			side := edgeSides(c)
@@ -63,7 +69,7 @@ func CameraBindings(scrollSpeed ...int32) []control.Binding {
 				dy = speed
 			}
 			return Pan{Dx: dx, Dy: dy}, dx != 0 || dy != 0
-		}),
+		}).In(camera.Free),
 	}
 }
 
@@ -87,31 +93,4 @@ func edgeSides(c control.Context) sides {
 func atEdge(c control.Context) bool {
 	s := edgeSides(c)
 	return s.left || s.right || s.top || s.bottom
-}
-
-var _ goke.System = (*cameraSystem)(nil)
-
-// cameraSystem carries out the Pan and Zoom commands on each issuing player's camera.
-type cameraSystem struct{ p *Plugin }
-
-func (s *cameraSystem) Init(*goke.SysInit) {}
-
-func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
-	s.p.pans.Drain(func(i control.Issued[Pan]) {
-		if pl := s.p.ByID(i.Player); pl != nil {
-			pl.Camera.Pan(i.Command.Dx, i.Command.Dy)
-		}
-	})
-	s.p.zooms.Drain(func(i control.Issued[Zoom]) {
-		pl := s.p.ByID(i.Player)
-		if pl == nil {
-			return
-		}
-		x, y := float32(i.Command.At.X), float32(i.Command.At.Y)
-		if i.Command.Factor >= 1 {
-			pl.Camera.ZoomIn(i.Command.Factor, x, y)
-		} else {
-			pl.Camera.ZoomOut(1/i.Command.Factor, x, y)
-		}
-	})
 }

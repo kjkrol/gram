@@ -17,10 +17,11 @@ type ecsHost struct {
 	tracked      []any
 	pendingSetup []func() []goke.System
 	names        map[string]bool
+	layers       map[render.Layer]bool // registered, when comparable
 }
 
 func newECSHost() *ecsHost {
-	return &ecsHost{ecs: goke.New(), resources: newStorage()}
+	return &ecsHost{ecs: goke.New(), resources: newStorage(), layers: map[render.Layer]bool{}}
 }
 
 // track records v among the values the host later loads, restores, populates and saves.
@@ -48,11 +49,16 @@ func (h *ecsHost) regSys(factory func() goke.System) goke.Runnable {
 	return h.ecs.RegSys(factory())
 }
 
-func (h *ecsHost) registerRenderer(r render.Renderer) render.Renderer {
-	sys := goke.SystemFn{OnInit: func(si *goke.SysInit) { r.Init(si) }}
+// registerLayer has l initialised at Setup, once however many scenes list it.
+func (h *ecsHost) registerLayer(l render.Layer) {
+	if reflect.TypeOf(l).Comparable() {
+		if h.layers[l] {
+			return
+		}
+		h.layers[l] = true
+	}
+	sys := goke.SystemFn{OnInit: func(si *goke.SysInit) { l.Init(si) }}
 	h.addPendingSetup(func() []goke.System { return []goke.System{sys} })
-
-	return r
 }
 
 // providedComps collects LoadComps from every tracked goke.CompProvider, each type once.

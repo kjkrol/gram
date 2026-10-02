@@ -8,18 +8,16 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/behavior"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -53,7 +51,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
-	stats     behavior.ContactStats
+	stats     collision.ContactStats
 	scenes    game.Scenes
 }
 
@@ -67,18 +65,13 @@ func (a *arena) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.boxes = kind.Define[box](a.world.Kinds(), "box", kind.Spec{
-		kind.Load(func(b box) world.Position { return b.pos }),
-		kind.Load(func(b box) world.Velocity { return b.vel }),
-		kind.Const(collision.Collider{}),
-		kind.Const(collision.Physics{Restitution: 1}),
+		comp.Load(func(b box) world.Position { return b.pos }),
+		comp.Load(func(b box) world.Velocity { return b.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
 	})
 
-	a.collision = collision.NewPlugin(a.world)
-	if err := a.collision.RegisterBehavior(
-		collision.Between(plugin.Any, plugin.Any, behavior.CountContacts(&a.stats)),
-	); err != nil {
-		return err
-	}
+	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	if err := ctx.Use(a.collision); err != nil {
 		return err
 	}
@@ -125,23 +118,28 @@ type view struct {
 func (v *view) Name() string    { return "view" }
 func (v *view) Focusable() bool { return true }
 
-func (v *view) Layers() []render.Renderer {
+func (v *view) Layers() []render.Layer {
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(v.arena.boxes.SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
-	return []render.Renderer{
+	return []render.Layer{
 		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
-		v.arena.world.Renderer(),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count, &v.arena.stats.Counter),
+		render.NewComposer(v.arena.world.Renderer()),
+		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
 	}
+}
+
+// Viewports are where the world is shown: the camera over the whole screen.
+func (v *view) Viewports(screen geom.AABB) []render.Viewport {
+	return render.Whole(v.arena.world.Camera(), screen)
 }
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyEscape {
+		if k.Action == control.ActionPress && k.Key == control.KeyEscape {
 			runtime.Quit()
 		}
 	}

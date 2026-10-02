@@ -8,11 +8,13 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -43,19 +45,17 @@ func (a *ecsAccessor) Install(ctx plugin.Installer) error {
 func (a *ecsAccessor) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: a.setup}}
 }
-func (a *ecsAccessor) RunPlan(goke.RunCtx, time.Duration)        {}
-func (a *ecsAccessor) WithRenderer(render.AtlasSource)           {}
-func (a *ecsAccessor) Renderer() render.Renderer                 { return nil }
-func (a *ecsAccessor) EventHandler() control.EventHandler        { return nil }
-func (a *ecsAccessor) Serializable() plugin.Serializable         { return nil }
-func (a *ecsAccessor) RegisterBehavior(...plugin.Behavior) error { return plugin.ErrUnhostedBehavior }
+func (a *ecsAccessor) RunPlan(goke.RunCtx, time.Duration) {}
+func (a *ecsAccessor) WithRenderer(render.AtlasSource)    {}
+func (a *ecsAccessor) Renderer() render.Layer             { return nil }
+func (a *ecsAccessor) EventHandler() control.EventHandler { return nil }
+func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
 
 // saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {
 	acc      *ecsAccessor
 	setup    func(*goke.SysInit)
 	define   func(*world.Kinds) []kind.Entry
-	declare  func(*world.Plugin)
 	world    *world.Plugin
 	loadFrom string
 	loadArgs []any
@@ -68,9 +68,6 @@ func (g *saveLoadTestGame) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	if g.define != nil {
 		g.world.Seed(g.define(g.world.Kinds())...)
-	}
-	if g.declare != nil {
-		g.declare(g.world)
 	}
 	g.acc = &ecsAccessor{setup: g.setup}
 	return ctx.Use(g.acc)
@@ -172,11 +169,11 @@ func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 	define := func(kinds *world.Kinds) []kind.Entry {
 		marked := kind.Define[struct{}](kinds, "marked", kind.Spec{
-			kind.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
-			kind.Const(world.Velocity{}),
-			kind.Const(saveTestTag{}),
-			kind.Const(saveTestMark{Left: 3}),
-			kind.Const(world.Steering{TurnRate: 0.5}),
+			comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
+			comp.Const(world.Velocity{}),
+			comp.Const(saveTestTag{}),
+			comp.Const(saveTestMark{Left: 3}),
+			comp.Const(steering.Steering{TurnRate: 0.5}),
 		})
 		return []kind.Entry{marked.Entry(struct{}{})}
 	}
@@ -207,50 +204,5 @@ func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 	}
 	if len(marks) != 1 || marks[0].Left != 3 {
 		t.Errorf("tagged entities after Load = %+v, want the one saved with Left 3", marks)
-	}
-}
-
-type saveTestAttached struct{ Turns int }
-
-func TestGame_SaveLoad_NeedsAnAttachedTypeDeclared(t *testing.T) {
-	basePath := t.TempDir() + "/save"
-
-	var attached goke.Comp[saveTestAttached]
-	saving := &saveLoadTestGame{setup: func(si *goke.SysInit) {
-		f := si.NewFactory(&attached)
-		f.Create(1)
-		f.Next()
-		attached.Slice(&f.Cursor)[0] = saveTestAttached{Turns: 4}
-	}}
-	eng := engine.NewEngine(oneStageGame{stage: saving, props: game.Props{}})
-	if err := eng.Init(); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if err := eng.Persistence().Save(basePath, ""); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	undeclared := &saveLoadTestGame{loadFrom: basePath}
-	if err := engine.NewEngine(oneStageGame{stage: undeclared, props: game.Props{}}).Init(); err == nil {
-		t.Fatal("the save loaded although nothing had declared the attached type")
-	}
-
-	var loadedComp goke.Comp[saveTestAttached]
-	var q *goke.Query
-	declared := &saveLoadTestGame{
-		declare:  func(w *world.Plugin) { w.Declare[saveTestAttached]() },
-		setup:    func(si *goke.SysInit) { q = si.NewQueryBuilder(&loadedComp).Build() },
-		loadFrom: basePath,
-	}
-	if err := engine.NewEngine(oneStageGame{stage: declared, props: game.Props{}}).Init(); err != nil {
-		t.Fatalf("Init from the save, with the type declared: %v", err)
-	}
-
-	var got []saveTestAttached
-	for q.All(); q.Next(); {
-		got = append(got, loadedComp.Slice(q.Cursor())...)
-	}
-	if len(got) != 1 || got[0].Turns != 4 {
-		t.Errorf("attached components after Load = %+v, want the one saved with Turns 4", got)
 	}
 }

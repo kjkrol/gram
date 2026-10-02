@@ -14,6 +14,8 @@ type initializer struct {
 	host  *ecsHost
 	world *world.Plugin
 	tps   *game.TPS
+	// handlers are the plugin.CommandHandlers used before the world, for it to carry
+	handlers []plugin.CommandHandler
 
 	screenWidth, screenHeight int
 }
@@ -41,7 +43,8 @@ func (c *initializer) Use(p plugin.Plugin) error {
 // useBuiltin installs an engine-managed Plugin.
 func (c *initializer) useBuiltin(p plugin.Plugin) error { return c.use(p) }
 
-// use checks p's Name is new, registers its Serializable, tracks it and runs its Install.
+// use checks p's Name is new, registers its Serializable, tracks it and runs its Install; the
+// world carries the commands of a plugin.CommandHandler its entities give themselves.
 func (c *initializer) use(p plugin.Plugin) error {
 	if c.host.names == nil {
 		c.host.names = make(map[string]bool)
@@ -54,6 +57,13 @@ func (c *initializer) use(p plugin.Plugin) error {
 		c.host.resources.register(p.Name(), s)
 	}
 	c.host.track(p)
+	if h, ok := p.(plugin.CommandHandler); ok && p != plugin.Plugin(c.world) {
+		if c.world == nil {
+			c.handlers = append(c.handlers, h)
+		} else if err := c.world.Carry(h); err != nil {
+			return fmt.Errorf("gram: %q: %w", p.Name(), err)
+		}
+	}
 	return p.Install(c)
 }
 
@@ -73,6 +83,9 @@ func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
 	}
 	c.world = world.NewPlugin(cfg)
 	if err := c.useBuiltin(c.world); err != nil {
+		panic(err)
+	}
+	if err := c.world.Carry(c.handlers...); err != nil {
 		panic(err)
 	}
 	return c.world

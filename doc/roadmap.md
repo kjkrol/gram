@@ -2,46 +2,61 @@
 
 [← Back to README](../README.md)
 
-Where the engine stands and what comes next, in the order it is meant to come. The reasoning
-behind each item lives in [movement.md](movement.md) and [views.md](views.md).
+What is left to do, in no particular order yet. Take an item out when it lands.
 
-## Done
+## Engine
 
-- Movement through a motion profile: `world.Steering` with `V0`, `Accel`, `Brake` and
-  `TurnRate`; navigation asks for headings at a lookahead point, passes waypoints by projection,
-  brakes to rest on the goal, queues goals (Shift + right click) — [movement §1–§4, §7](movement.md).
-- Terrain as the one truth of the board: solid cells are bodies built from the boxes of any grid
-  (square and hex), domains say who may stand where (`Allows`, `Solid`, `Mover`), the board
-  reports where everyone stands (`Standing`, `Fell`), costs are priced per domain, and routes are
-  checked whenever the terrain changes — [movement §5, §6, §11](movement.md).
-- Sight through terrain: a `Veil` per kind on a body carrying `vision.Transparency`, aabbworld's
-  raycast spending its radius as a budget; planes — `world.Layers` read by collision and by sight
-  through `Sight.Blockers`, so a hawk on `Air` looks over walls, forests and walkers and still
-  sees them — [movement §12](movement.md). Heights (2.5D) are next — [movement §14](movement.md).
-- Tags as bits of families, one component per family; `Between(a, b, fn)` by value; behaviors
-  built by the hosting plugin (`vision.Between`, `board.Each`, `world.Every`), `plugin/host` for
-  plugin authors;
-  `Selectable`/`Selected`, the vision behaviors' tags and terrain bodies on bits.
-- Effects: `Grant` and `Alter` in a `Spec`, cast by entity id, saved with the entity; cell
-  entities with `Ground` so an effect can change terrain for a while — [movement §13](movement.md).
-- Hex boards on screen, route arrows every 15°, camera panning in screen pixels, a `QuadBatch`
-  that draws in chunks; six demos, `effect-demo` among them.
-- Players: `plugins/players` with one local player over the world's camera, built over the
-  `plugin.Commander`s; typed commands (`Select`, `MoveTo`, `Pan`, `Zoom`) owned and drained by the
-  plugins that define them; labelled bindings with defaults shipped by the plugins — [views §2](views.md).
+- **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
+  work, no collision involved.
+- **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
+  a shaping drag (lost with the players' marquee); the costs of shaping.
+- **`RouteStyle`** — how a route is drawn becomes a style, as `vision.ConeStyle` is: `CellArrows`,
+  today's arrow per cell, by default; `SmoothRoute` opt-in, the line the unit will follow — arcs
+  of radius `Speed / TurnRate` through the lookahead points, the queued waypoints marked. Drawn for
+  selected units only, computed when the route or the waypoints change and kept beside the `Path`,
+  sharing the lookahead's code with navigation so what is drawn and what is driven cannot drift.
+- **Weather and seasons as effects over the whole board** — planned as effects on an entity
+  standing for the board. `plugins/atmosphere` does weather and seasons another way (the weather
+  on its own entity, snow and ice as the weathering's effects on cells, the seasons the
+  calendar's over the clock): decide whether that settles it.
+- **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
+- **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
+  player whose translator decodes frames:
+  - deltas from the player's `View`: entered, updated, left; a client that joins gets all as
+    entered;
+  - one walk for all clients: a `uint64` mask per entity for up to 64 clients;
+  - a binary frame a tick per client: the tick, the camera state echoed, entered
+    `[id, kind, sprite, box]`, updated `[id, box]`, left `[id]`;
+  - a client without an ECS: a camera, an atlas, a `render.Composer` over the frames, commands
+    going out; the transport behind an interface, tests through memory;
+  - open: the server's tick against the client's frame rate (interpolation), joining mid-game (a
+    snapshot), trust (a LAN to begin with);
+  - commands that carry a camera today (`Select`, `Follow`, `Marquee`) carry the player instead.
+- **Turn-based movement** — every unit at one tempo and a say in who moves when: a layer above
+  navigation setting the tempo for a move and issuing `MoveTo` one unit at a time, waiting for
+  each arrival; navigation need not know.
+- **Arbitration** — the planner and a reaction (`Flee`) steering one unit in one tick: to start
+  with, the reaction wins the tick and the planner re-plans; summed weighted requests only if that
+  fails somewhere real.
+- **Collision with heights** — two entities meet where their `world.Layers` share a bit; a veto by
+  `Z` overlap would let collision follow height (a hawk landing, a projectile clearing a wall) — a
+  real change to the solver, when a game needs it.
+- **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
+  in summer, courses changing with the weather and the season.
 
-## Next
+## Landscape and the islands
 
-1. **Split screen** — a camera and a screen rectangle per local player, renderers per rectangle —
-   [views §2](views.md).
-2. **Hover** — what is under the cursor, a `Space.Query` at a point in the translator — [views §2](views.md).
-3. **`RouteStyle`** — `CellArrows` by default, `SmoothRoute` opt-in, arcs from the profile,
-   computed when the route changes — [movement §8](movement.md).
-4. **Effects over the whole board** — weather and seasons as effects on an entity standing for
-   the board — [movement §13](movement.md).
-5. **Networking** — `netview` over players: deltas from the `View`, one mask per client, a frame
-   a tick, a client without an ECS — [views §3](views.md).
-6. **Turn-based movement** and **arbitration** — when a game needs them — [movement §9, §10](movement.md).
+- **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
+  cells' edges, not the rounded coast.
+- **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
+- **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
+  the water: the drainage joins them by the shore.
+- **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
 
-Also on the list: saves written before tag families do not load, to be noted at the next tag; that
-tag, v0.3.0, once this state has been reviewed.
+## Housekeeping
+
+- **`BENCHMARKS.md`** — the island's numbers predate the roads, the folded quads and the outline
+  fix: measure again on an idle machine, alternately against a baseline.
+- **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
+- **The next tag, v0.3.0** — once this state has been reviewed; note that saves written before
+  tag families, the cell entities and the crossings (`cell.Crossing`) do not load.

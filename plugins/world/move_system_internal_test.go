@@ -48,7 +48,7 @@ func TestMoveSystem_CarriesSubUnitSpeedEveryTick(t *testing.T) {
 		query = si.NewQueryBuilder(&base).Build()
 	}})...)
 	wm.RegSystems(ecs)
-	ecs.SetPlan(wm.RunPlan)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { wm.RunPlan(rc, d); wm.clock.Replay(rc, d) })
 
 	x := func() float64 {
 		query.All()

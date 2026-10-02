@@ -1,5 +1,5 @@
 // Package plugin is the extension contract: what a [Plugin] is, what it is handed at install
-// time, and how game logic is hosted inside a plugin's own pass as a behavior. Built-in plugins
+// time, and how game logic is hosted inside a plugin's own pass as a rule. Built-in plugins
 // and third-party ones implement exactly the same interface.
 //
 // # Plugin
@@ -8,7 +8,7 @@
 // that queues its ECS wiring, a RunPlan the game calls once a tick in the order it needs, and
 // optional faces: WithRenderer and Renderer for what it draws, EventHandler for the input it
 // reads (the players plugin's, in practice: other plugins take commands, not input), Serializable
-// for the state it saves, RegisterBehavior for the behaviors it hosts. A
+// for the state it saves, Hook for the rules it hosts. A
 // [Builtin] plugin is one the engine installs itself, such as the world; Use refuses it.
 //
 // # Installer
@@ -17,35 +17,22 @@
 // the engine flushes every plugin's wiring in one ecs.Setup after the Stage's Init. Cross-plugin
 // data comes from constructor injection, not from the Installer.
 //
-// # Behaviors
+// # Rules
 //
-// A [Behavior] is game logic a plugin runs inside its own pass, built with that plugin's own
-// constructors and registered with its RegisterBehavior: vision.Between(a, b, fn) reacts to every
-// observer carrying tag a and what it sees carrying b, [Any] standing for either side;
-// board.Each[T](fn) reacts on every entity on the board carrying T, world.Every(fn) on every
-// entity the payload's host visits. The payload type — a Sighting, a Standing, a Moving — is what
-// says which plugin hosts it; a host refuses another's with [ErrUnhostedBehavior], and one
-// registered after the host's queries were built with [ErrHostBuilt]. Register before Use. The
-// generic constructors and the hosts behind them are in plugin/host, a plugin author's package.
-//
-// A [Tag] is a bit of a family: [Tags] is the family's component, holding up to
-// [MaxTagsPerFamily] of them, and an empty type of the plugin's or the game's names the family.
-// The families a host's behaviors name join its queries as optional components, so a behavior
-// costs no query of its own, and a host reads what an entity carries as [Marks] — what a payload
-// passes on for [Marks.Carries]. One host's behaviors may name at most [MaxFamilies] families.
+// A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
+// pass, written with package rule (rule.On) and run by its hosts (plugin.Rules, plugin.PairRules,
+// plugin.StepRules) inside that pass. Package rule holds the rule, the hosts and the Tick a host hands
+// its rules. Hook before Use.
 //
 // # Commands
 //
 // What a player wants goes the other way, as a command — the vocabulary is package control's. A
-// [Commander] is a plugin, or a game, that defines command types: it keeps a control.Inbox of each
-// as a field, lists them in Commands, drains them in its own pass, and suggests the
-// control.Bindings that issue them. The players plugin is the carrier built over the Commanders.
-//
-// # Tick
-//
-// [Tick] is what a behavior is told about the pass it runs in: the command buffer its structural
-// changes go through (they land when the pass is over), the time read once for the whole pass,
-// and the tick's length.
+// [CommandHandler] is a plugin, or a game, that defines command types and carries them out: it
+// keeps a control.Queue of each as a field, lists them in Queues, drains them in its own pass, and
+// suggests the control.Bindings that issue them. A command type has one handler — a subscriber is
+// what hears an event, and there may be many. The players plugin is the carrier built over the
+// handlers for the players; the world carries the commands its entities give themselves
+// (Order in a rule or a plan), the engine handing it every handler a stage uses.
 //
 // # Optional interfaces
 //

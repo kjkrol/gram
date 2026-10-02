@@ -7,29 +7,34 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
 // The scene of the reported bug: a wall column on the left, a red unit standing still, a blue
 // unit above it ordered below it and, on its way past, ordered back to where it started.
 type unitRow struct {
-	start   board.CellID
-	target  board.CellID
+	start   cell.ID
+	target  cell.ID
 	ordered bool
 }
 
 // turnaroundWorld is world + collision + board + navigation over a 3x4 board, as the demo runs them.
 type turnaroundWorld struct {
 	t     *testing.T
-	grid  board.Grid
+	grid  grid.Grid
 	ecs   *goke.ECS
 	nav   *Plugin
-	cell  goke.Comp[board.Cell]
+	cell  goke.Comp[unit.At]
 	base  goke.Comp[world.Base]
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -39,16 +44,16 @@ type turnaroundWorld struct {
 func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	t.Helper()
 	const size = 32
-	tw := &turnaroundWorld{t: t, grid: board.DefaultGrids{}.Square(3, 4, size)}
+	tw := &turnaroundWorld{t: t, grid: grid.DefaultGrids{}.Square(3, 4, size)}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 3 * size, Height: 4 * size},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 22, MaxSize: 22},
 	})
-	occupancy := &board.SingleOccupancy{}
+	occupancy := &cell.SingleOccupancy{}
 	brd := board.NewPlugin(tw.grid, occupancy, w)
-	brd.Res.Logic.Board.SetAll(board.CellKind{Cost: 2, Allows: board.Land}) // grass, as in the demo
+	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
-		brd.Res.Logic.Board.Set(tw.at(0, y), board.CellKind{Cost: 1, Solid: true})
+		brd.Res.Logic.Board.Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
 	tw.nav = NewPlugin(brd, w, sel)
@@ -57,6 +62,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		c = collision.NewPlugin(w)
 	}
 
+	if err := w.Carry(tw.nav); err != nil { // as the engine does with Use
+		t.Fatal(err)
+	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -75,17 +83,16 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 
 	spec := func(ordered bool) kind.Spec {
 		s := kind.Spec{
-			kind.Load(func(u unitRow) world.Position { return world.Position{AABB: board.CellAABB(tw.grid, u.start, 22)} }),
-			kind.Const(world.Velocity{}),
-			kind.Const(world.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
-			kind.Load(func(u unitRow) board.Cell { return board.Cell{ID: u.start} }).
-				WithEffect(func(c board.Cell, id uid.UID64) { occupancy.Enter(c.ID, id, board.Land) }),
-			kind.Const(collision.Collider{}),
-			kind.Const(collision.Physics{}),
+			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: cellBox(tw.grid, u.start, 22)} }),
+			comp.Const(world.Velocity{}),
+			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
+			comp.Load(func(u unitRow) unit.At { return unit.At{Cell: u.start} }),
+			comp.Const(collision.Collider{}),
+			comp.Const(collision.Physics{}),
 		}
 		if ordered {
-			s = append(s, kind.Tagged(sel.Tags().Selectable, sel.Tags().Selected),
-				kind.Load(func(u unitRow) MoveOrder { return MoveOrder{Target: u.target} }))
+			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected),
+				comp.Load(func(u unitRow) MoveOrder { return MoveOrder{Target: u.target} }))
 		}
 		return s
 	}
@@ -102,6 +109,12 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.order).Build()
+		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
+			cur := tw.q.Cursor()
+			for i, id := range cur.IDs {
+				occupancy.Enter(tw.cell.Slice(cur)[i].Cell, id, cell.Land)
+			}
+		}
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -111,6 +124,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		}
 		tw.nav.RunPlan(rc, d)
 		rc.Sync()
+		w.Clock().Replay(rc, d)
 	})
 	tw.ecs = ctx.ecs
 	for tw.q.All(); tw.q.Next(); {
@@ -124,17 +138,17 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	return tw
 }
 
-func (tw *turnaroundWorld) at(x, y uint32) board.CellID { c, _ := tw.grid.CellIndex(x, y); return c }
+func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c, _ := tw.grid.CellIndex(x, y); return c }
 
 // blueState is the blue unit's cell, its order if any, and its route.
-func (tw *turnaroundWorld) blueState() (cell board.CellID, mt *MoveOrder) {
+func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 	for tw.q.All(); tw.q.Next(); {
 		cur := tw.q.Cursor()
 		for i, id := range cur.IDs {
 			if id != tw.blue {
 				continue
 			}
-			cell = tw.cell.Slice(cur)[i].ID
+			cell = tw.cell.Slice(cur)[i].Cell
 			if orders := tw.order.Slice(cur); orders != nil {
 				o := orders[i]
 				mt = &o
@@ -157,17 +171,17 @@ func runTurnaround(t *testing.T, collide bool, after int) (replans int, err stri
 		return 0, "done" // already arrived below red: nothing to turn around from
 	}
 	tw.nav.moves.Add(control.Nobody, MoveTo{Cell: a})
-	var last []board.CellID
+	var last []cell.ID
 	for tick := range 60 * 10 {
 		tw.ecs.Tick(time.Second / 60)
-		cell, mt := tw.blueState()
+		here, mt := tw.blueState()
 		if mt == nil {
-			if cell != a {
-				return replans, fmt.Sprintf("tick %d: order done at %v, want %v", tick, cell, a)
+			if here != a {
+				return replans, fmt.Sprintf("tick %d: order done at %v, want %v", tick, here, a)
 			}
 			return replans, ""
 		}
-		steps := append([]board.CellID(nil), mt.Path.Steps[:mt.Path.Length]...)
+		steps := append([]cell.ID(nil), mt.Path.Steps[:mt.Path.Length]...)
 		if !equalSteps(steps, last) {
 			replans++
 			last = steps

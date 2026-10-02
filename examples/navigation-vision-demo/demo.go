@@ -1,6 +1,6 @@
-// Command navigation-vision-demo puts sight on navigated units: their cones stop at the wall and
-// fade in the forest, both terrain bodies the board made; a hawk flies over both and sees through
-// the forest.
+// Command navigation-vision-demo puts sight on navigated units in a world with heights: their cones stop
+// at the wall, fade in the forest and climb the hill; a hawk 40 up looks over all three. Shift+C
+// shows the cones, Shift+P the routes.
 package main
 
 import (
@@ -9,22 +9,27 @@ import (
 	"math"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 const (
@@ -36,7 +41,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 80 // units plus the terrain bodies of the wall and the forests
+	MaxEntCount  = 32 // the units; the wall and the forests are cells, not entities
 
 	sightRadius = 200
 	sightHalf   = math.Pi / 5
@@ -54,7 +59,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram — sight across a board: walls cut, forests dim, a hawk flies over",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }
@@ -70,18 +75,20 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type units struct{}
 
 type mainStage struct {
-	world     *world.Plugin
-	board     *board.Plugin
-	nav       *navigation.Plugin
-	collision *collision.Plugin
-	selection *selection.Plugin
-	players   *players.Plugin
-	vision    *vision.Plugin
-	unitTag   plugin.Tag[units]
-	kinds     []kind.Of[unit]
-	hawk      kind.Of[unit]
-	noticed   map[[2]uid.UID64]bool
-	stack     game.Scenes
+	world      *world.Plugin
+	board      *board.Plugin
+	topography *topography.Plugin
+	nav        *navigation.Plugin
+	collision  *collision.Plugin
+	selection  *selection.Plugin
+	players    *players.Plugin
+	player     *players.Player // the one at this keyboard: the units are its
+	shortcuts  *players.Shortcuts
+	vision     *vision.Plugin
+	unitTag    tag.Tag[units]
+	kinds      []kind.Of[unitRow]
+	hawk       kind.Of[unitRow]
+	stack      game.Scenes
 }
 
 var _ game.Stage = (*mainStage)(nil)
@@ -94,6 +101,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+		Heights:  true, // heights: the hawk looks over the wall, the forest and the hill
 	})
 
 	s.collision = collision.NewPlugin(s.world)
@@ -101,15 +109,20 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land | board.Air}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true, Allows: board.Air},
-		board.CellKind{Name: board.Named("forest"), Cost: 3, Allows: board.Land | board.Air, Veil: 0.6, Veils: board.Land}.Costing(board.Air, 1),
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land | board.Air},
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize}) // the hills in relief, seen from above
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
+		cell.Kind{Name: cell.Named("forest"), Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land | cell.Air},
+		cell.Kind{Name: cell.Named("hill"), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
 	)
 	if err := ctx.Use(s.board); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.topography); err != nil {
 		return err
 	}
 
@@ -118,26 +131,24 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}
 
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
+	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
+	// the views drawn are the selected units'
+	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
 		return err
 	}
 
-	s.noticed = map[[2]uid.UID64]bool{}
-	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
-	s.vision = vision.NewPlugin(s.world)
-	if err := s.vision.RegisterBehavior(
-		vision.Between(plugin.Any, plugin.Any, faceTravel),
-		vision.Between(s.unitTag, s.unitTag, s.noticedEachOther),
-	); err != nil {
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.topography, s.vision)
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.players); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -147,7 +158,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineKinds()
 
 	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
+	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
+	main.keys = players.SceneKeys{
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+	}
+	s.shortcuts = s.players.Shortcuts(main.keys)
+	stack, err := game.NewStack(main, s.shortcuts)
 	if err != nil {
 		return err
 	}
@@ -160,7 +178,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unitRow struct{ start, target cell.ID }
 
 var unitColors = []color.RGBA{
 	{R: 220, G: 90, B: 90, A: 255},
@@ -173,84 +191,77 @@ var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 // defineKinds says what this game's entities are: one kind per colour, all scouts, and a hawk.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	spec := kind.Spec{
-		kind.Load(func(u unit) world.Position { return world.Position{AABB: board.CellAABB(brd, u.start, EntitySize)} }),
-		kind.Const(world.Velocity{}),
-		kind.Const(world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}),
-		kind.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
-		kind.Load(func(u unit) board.Cell { return board.Cell{ID: u.start} }),
-		kind.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		kind.Const(collision.Collider{}),
-		kind.Const(world.Layers(board.Land)),
-		kind.Const(collision.Physics{}),
-		kind.Const(board.Mover{Domain: board.Land}),
-		kind.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Blockers: world.Layers(board.Land)}),
-		kind.Const(vision.SightOutline{}),
-		kind.Tagged(s.unitTag),
+	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
+	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
+	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	for _, name := range []string{"red", "blue", "yellow"} {
+		s.kinds = append(s.kinds, units.Define(name, unit.Mover{Domain: cell.Land}, scout, order,
+			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
+			sight, eye(1.5), comp.Tagged(s.unitTag)))
 	}
-	names := []string{"red", "blue", "yellow"}
-	for _, name := range names {
-		s.kinds = append(s.kinds, kind.Define[unit](s.world.Kinds(), name, spec))
-	}
-	s.hawk = kind.Define[unit](s.world.Kinds(), "hawk", s.hawkSpec())
-}
-
-// hawkSpec is a flyer: it moves in Air and is on the Air layer alone, so walls and walkers pass
-// under it and cut none of its sight, while other flyers push it and block it.
-func (s *mainStage) hawkSpec() kind.Spec {
-	brd := s.board.Res.Logic.Board
-	return kind.Spec{
-		kind.Load(func(u unit) world.Position { return world.Position{AABB: board.CellAABB(brd, u.start, EntitySize)} }),
-		kind.Const(world.Velocity{}),
-		kind.Const(world.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}),
-		kind.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
-		kind.Load(func(u unit) board.Cell { return board.Cell{ID: u.start} }),
-		kind.Tagged(s.selection.Tags().Selectable),
-		kind.Const(collision.Collider{}),
-		kind.Const(world.Layers(board.Air)),
-		kind.Const(collision.Physics{}),
-		kind.Const(board.Mover{Domain: board.Air}),
-		kind.Const(vision.Sight{Facing: geom.NewVec(1, 0), HalfAngle: sightHalf, Radius: sightRadius, Blockers: world.Layers(board.Air)}),
-		kind.Const(vision.SightOutline{}),
-		kind.Tagged(s.unitTag),
-	}
+	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
+	// eye looks over the wall, the forest and the hill that stop a walker's.
+	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
+	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
+		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
+		sight, eye(1), comp.Tagged(s.unitTag))
 }
 
 // Spawn says who is there when the game starts fresh.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 
 	// A wall down column 12 with a gap at row 8, a forest either side of the gap, and a road
 	// along row 1 with both flanks.
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for y := uint32(2); y < GridHeight; y++ {
 		if y == gapRow {
 			continue
 		}
-		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(wallCol, y)})
+		cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(wallCol, y)})
 	}
 	for _, f := range [][2]uint32{{6, 6}, {17, 10}} {
 		for dy := uint32(0); dy < 3; dy++ {
 			for dx := uint32(0); dx < 4; dx++ {
-				cells = append(cells, board.CellEntry{Kind: "forest", Cell: cell(f[0]+dx, f[1]+dy)})
+				cells = append(cells, cell.Entry{Kind: "forest", Cell: cellAt(f[0]+dx, f[1]+dy)})
 			}
 		}
 	}
+	// A hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over.
+	for dy := uint32(3); dy <= 5; dy++ {
+		for dx := uint32(7); dx <= 9; dx++ {
+			cells = append(cells, cell.Entry{Kind: "hill", Cell: cellAt(dx, dy)})
+		}
+	}
 	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(x, roadTop)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, roadTop)})
 	}
 	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(roadLeft, y)}, board.CellEntry{Kind: "road", Cell: cell(roadRight, y)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(roadLeft, y)}, cell.Entry{Kind: "road", Cell: cellAt(roadRight, y)})
 	}
+	hills := map[cell.ID]bool{}
+	for _, e := range cells {
+		hills[e.Cell] = e.Kind == "hill"
+	}
+	heights := relief.MeanOfCells(s.board.Res.Logic.Board, func(c cell.ID) float64 {
+		if hills[c] {
+			return hillHeight
+		}
+		return 0
+	})
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	s.topography.Seed(heights)
 
 	s.world.Seed(
-		s.kinds[0].Entry(unit{start: cell(2, 4), target: cell(GridWidth-3, 4)}),
-		s.kinds[1].Entry(unit{start: cell(2, 12), target: cell(GridWidth-3, 12)}),
-		s.kinds[2].Entry(unit{start: cell(GridWidth-3, gapRow), target: cell(2, gapRow)}),
+		s.kinds[0].Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}),
+		s.kinds[1].Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}),
+		s.kinds[2].Entry(unitRow{start: cellAt(GridWidth-3, gapRow), target: cellAt(2, gapRow)}),
 		// The hawk crosses the wall and the second forest head-on.
-		s.hawk.Entry(unit{start: cell(1, 11), target: cell(GridWidth-2, 11)}),
+		s.hawk.Entry(unitRow{start: cellAt(1, 11), target: cellAt(GridWidth-2, 11)}),
 	)
 	return nil
 }
@@ -262,37 +273,23 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.nav.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.topography.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
-// faceTravel points each unit's Sight where it is going, and leaves it there when it stops.
-func faceTravel(_ plugin.Tick, s vision.Sighting) {
-	if s.Base.Vel.Value > 0 {
-		s.Sight.Facing = s.Base.Vel.Dir
-	}
-}
-
-// noticedEachOther logs the first time one unit sees another.
-func (s *mainStage) noticedEachOther(_ plugin.Tick, sighting vision.Sighting) {
-	for _, seen := range sighting.Seen {
-		pair := [2]uid.UID64{sighting.Self, seen.ID}
-		if !s.noticed[pair] {
-			s.noticed[pair] = true
-			log.Printf("unit %d sees unit %d at %.0f", sighting.Self, seen.ID, seen.Dist)
-		}
-	}
-}
-
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	keys  players.SceneKeys
+}
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
@@ -303,13 +300,14 @@ func (m *mainScene) Layers() []render.Renderer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass":  {R: 60, G: 95, B: 60, A: 255},
 		"wall":   {R: 40, G: 40, B: 40, A: 255},
 		"forest": {R: 25, G: 60, B: 30, A: 255},
 		"road":   {R: 150, G: 130, B: 80, A: 255},
+		"hill":   {R: 110, G: 100, B: 70, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
@@ -317,33 +315,22 @@ func (m *mainScene) Layers() []render.Renderer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
-	s.players.WithRenderer(nil)
 
-	return append([]render.Renderer{s.board.Renderer(), s.vision.Renderer(), s.world.Renderer()}, s.players.Renderers()...)
+	return []render.Layer{render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	s := m.stage
-	s.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case ebiten.KeyEscape:
-			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyB:
-			s.board.Res.Render.ToggleShowGridLines()
-		}
-	}
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
+	return m.stage.players.Viewports(screen)
+}
+
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
+	m.keys.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }
@@ -355,3 +342,6 @@ const (
 	roadLeft, roadRight uint32 = 2, GridWidth - 3
 	roadTop, roadBottom uint32 = 1, 13
 )
+
+// hillHeight is how high the hill stands over the grass.
+const hillHeight = 12

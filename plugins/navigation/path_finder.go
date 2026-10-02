@@ -1,90 +1,56 @@
 package navigation
 
 import (
-	"github.com/kjkrol/astar"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/uid"
 )
 
-// pathFinder computes routes over one grid, reusing its A* solver across
-// calls — build once and share across systems.
+// pathFinder is the plugin's route finder over its board, its routes laid in Paths, with what the
+// keepers read beside it.
 type pathFinder struct {
-	grid      board.Grid
-	terrain   board.Terrain
-	occupancy board.Occupancy
-	solver    *astar.Solver[board.CellID]
+	*pathfind.Finder
+	grid      grid.Grid
+	terrain   cell.Terrain
+	occupancy cell.Occupancy
 }
 
-// newPathFinder builds a pathFinder over grid that respects terrain and occupancy.
-func newPathFinder(grid board.Grid, terrain board.Terrain, occupancy board.Occupancy) *pathFinder {
-	return &pathFinder{
-		grid: grid, terrain: terrain, occupancy: occupancy,
-		solver: astar.New[board.CellID](func(a, b board.CellID) float64 { return grid.Distance(a, b) }),
-	}
+// newPathFinder builds a pathFinder over grid that respects terrain, its slopes and occupancy.
+func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes, occupancy cell.Occupancy) *pathFinder {
+	return &pathFinder{Finder: pathfind.New(grid, terrain, slopes, occupancy), grid: grid, terrain: terrain, occupancy: occupancy}
 }
 
-// findPath computes a route from 'from' toward 'to' for entity moving in domain — ok=false if
-// unreachable.
-func (p *pathFinder) findPath(entity uid.UID64, domain board.Domain, from, to board.CellID) (Path, bool) {
-	full := p.solver.Solve(from, to, p.transitionsFor(entity, domain))
-	if len(full) < 2 {
-		return Path{}, false
-	}
-	steps := full[1:]
-	n := min(len(steps), MaxPathLength)
+// findPath is the route from from toward to for entity moving in domain, its first MaxPathLength
+// steps; false if unreachable.
+func (p *pathFinder) findPath(entity uid.UID64, domain cell.Domain, from, to cell.ID) (Path, bool) {
 	var path Path
-	copy(path.Steps[:], steps[:n])
+	n, ok := p.Find(entity, domain, from, to, path.Steps[:])
 	path.Length = uint16(n)
-	return path, true
+	return path, ok
 }
 
-// transitionsFor adapts the grid, terrain and occupancy into astar's Transitions for entity.
-func (p *pathFinder) transitionsFor(entity uid.UID64, domain board.Domain) astar.Transitions[board.CellID] {
-	return func(from, prev board.CellID, buf []astar.Transition[board.CellID]) []astar.Transition[board.CellID] {
-		buf = buf[:0]
-		for _, n := range p.grid.Neighbors(from) {
-			if n == prev {
-				continue
-			}
-			kind := p.terrain.Kind(n)
-			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, entity, domain) {
-				continue
-			}
-			if c1, c2, ok := p.grid.DiagonalNeighbors(from, n); ok {
-				if !p.enterable(c1, entity, domain) || !p.enterable(c2, entity, domain) {
-					continue
-				}
-			}
-			buf = append(buf, astar.Transition[board.CellID]{To: n, Cost: kind.CostFor(domain) * p.grid.NeighborCost(from, n)})
-		}
-		return buf
-	}
-}
-
-// enterable reports whether entity may hold c: terrain admitting its domain, the Occupancy letting it in.
-func (p *pathFinder) enterable(c board.CellID, entity uid.UID64, domain board.Domain) bool {
-	return p.terrain.Kind(c).Admits(domain) && p.occupancy.CanEnter(c, entity, domain)
-}
-
-// maxVisitedCells bounds how many cells nearestFree inspects around its target.
-const maxVisitedCells = 64
-
-// nearestFree returns the free cell nearest target that entity can reach, and the route to it.
-func (p *pathFinder) nearestFree(entity uid.UID64, domain board.Domain, from, target board.CellID, taken map[board.CellID]bool) (board.CellID, Path, bool) {
+// findPathAround is findPath going round every cell blocked reports.
+func (p *pathFinder) findPathAround(entity uid.UID64, domain cell.Domain, from, to cell.ID, blocked func(cell.ID) bool) (Path, bool) {
 	var path Path
-	passable := func(c board.CellID) bool { return p.terrain.Kind(c).Admits(domain) }
-	reachableFree := func(c board.CellID) bool {
-		if taken[c] || !p.enterable(c, entity, domain) {
-			return false
-		}
-		if c == from {
-			path = Path{}
-			return true
-		}
-		found, ok := p.findPath(entity, domain, from, c)
-		path = found
-		return ok
-	}
-	dest, ok := breadthFirst(target, p.grid.Neighbors, passable, reachableFree, maxVisitedCells)
+	n, ok := p.FindAround(entity, domain, from, to, blocked, path.Steps[:])
+	path.Length = uint16(n)
+	return path, ok
+}
+
+// nearestFree is the free cell nearest target entity can reach — not one taken says — and the
+// route to it.
+func (p *pathFinder) nearestFree(entity uid.UID64, domain cell.Domain, from, target cell.ID, taken func(cell.ID) bool) (cell.ID, Path, bool) {
+	var path Path
+	dest, n, ok := p.NearestFree(entity, domain, from, target, taken, path.Steps[:])
+	path.Length = uint16(n)
 	return dest, path, ok
+}
+
+// climb is the slope's price of the step from one cell to its neighbour (Finder.Climb).
+func (p *pathFinder) climb(from, to cell.ID, d cell.Domain) float64 { return p.Climb(from, to, d) }
+
+// price is what the step costs an entity moving in d, to's kind being kind (Finder.Price).
+func (p *pathFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
+	return p.Price(from, to, kind, d)
 }

@@ -10,17 +10,18 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-
-	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/behavior"
+	"github.com/kjkrol/gram/plugins/collision/hooks"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 const (
@@ -62,7 +63,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram collision demo",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }
@@ -97,9 +98,12 @@ type mainStage struct {
 	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
 	kinds     [entityColors][entityShapes]kind.Of[body]
 	hitSprite render.SpriteID
+	hit       effect.Effect
 
 	state          *State
-	collisionStats behavior.ContactStats
+	collisionStats collision.ContactStats
+
+	players *players.Plugin
 
 	stack game.Scenes
 }
@@ -115,21 +119,28 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
+	s.hit = hooks.Hit(s.world, hitDuration)
 	s.defineKinds()
 	s.hitSprite = s.world.Kinds().NewSprite()
-	if err := s.world.RegisterBehavior(behavior.HitOverlay(world.Appearance{SpriteID: s.hitSprite})); err != nil {
+	if err := s.world.Draw(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
 		return err
 	}
 
-	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.RegisterBehavior(
-		collision.Between(plugin.Any, plugin.Any, behavior.CountContacts(&s.collisionStats)),
-		collision.Each[behavior.HitMark](behavior.ShowHits(hitDuration)),
-	); err != nil {
+	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
+	if err := s.collision.Hook(hooks.ShowHits(s.hit)); err != nil {
 		return err
 	}
 	s.state = &State{}
 	if err := ctx.Use(s.collision); err != nil {
+		return err
+	}
+
+	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
+	s.players = players.NewPlugin(s.world)
+	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+		return err
+	}
+	if err := ctx.Use(s.players); err != nil {
 		return err
 	}
 
@@ -165,11 +176,10 @@ func (s *mainStage) defineKinds() {
 	for ci := range entityColors {
 		for si := range entityShapes {
 			s.kinds[ci][si] = kind.Define[body](kinds, entityKindName(ci, si), kind.Spec{
-				kind.Load(func(b body) world.Position { return b.pos }),
-				kind.Load(func(b body) world.Velocity { return b.vel }),
-				kind.Const(collision.Collider{}),
-				kind.Const(collision.Physics{Restitution: 1}),
-				kind.Const(behavior.HitMark{Duration: hitDuration}),
+				comp.Load(func(b body) world.Position { return b.pos }),
+				comp.Load(func(b body) world.Velocity { return b.vel }),
+				comp.Const(collision.Collider{}),
+				comp.Const(collision.Physics{Restitution: 1}),
 			})
 		}
 	}
@@ -191,6 +201,7 @@ func (s *mainStage) Spawn() error {
 func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
@@ -205,7 +216,7 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	palette := [8]color.RGBA{
@@ -231,28 +242,32 @@ func (m *mainScene) Layers() []render.Renderer {
 	s.world.WithRenderer(atlas)
 
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
-	return []render.Renderer{
+	return []render.Layer{
 		render.NewCachedRenderer(
 			render.SolidBackground{Color: color.RGBA{R: 50, G: 50, B: 50, A: 255}},
 			ScreenWidth, ScreenHeight,
 		),
-		s.world.Renderer(),
-		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount, &s.collisionStats.Counter),
+		render.NewComposer(s.world.Renderer()),
+		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount).With(s.collisionStats.Reporter(&m.tps.Ticks)),
 	}
 }
 
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
+	return m.stage.players.Viewports(screen)
+}
+
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.EventHandler().HandleEvents(events)
 	s := m.stage
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress {
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyF5:
+		case control.KeyF5:
 			s.state.Saves++
 			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {
 				log.Printf("save: %v", err)

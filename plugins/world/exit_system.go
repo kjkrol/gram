@@ -1,12 +1,12 @@
 package world
 
 import (
-	"github.com/kjkrol/gram/plugin/host"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
@@ -15,29 +15,39 @@ import (
 // exitSystem takes it off once the entity is back inside.
 type Outside struct{}
 
-// Leaving is what an Each behavior hosted by world gets, every tick, for an entity carrying Outside.
+// Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside.
+// To reconsider: no game hooks a rule on it yet, so the world despawns every leaver — whether it
+// stays a moment or the world simply despawns is open (doc/refactor-notes.md, Questions for review).
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base
 }
 
+// Who is the entity leaving: whose moment it is, for a rule.
+func (l Leaving) Who() uid.UID64 { return l.ID }
+
 var _ goke.System = (*exitSystem)(nil)
 
-// exitSystem walks the entities carrying Outside: the hosted behaviors hear of them, or they are
-// despawned when there are none; one that is back inside loses the mark.
+// exitSystem despawns the entities that gave themselves a Despawn, and walks those carrying
+// Outside: the hosted rules hear of them, or they are despawned when there are none; one that
+// is back inside loses the mark.
 type exitSystem struct {
 	w    *module
-	host *host.EachHost[Leaving]
+	host *plugin.Rules[Leaving]
 
 	query   *goke.Query
 	base    goke.Comp[Base]
 	outside goke.CompID
 
+	// alive finds whoever gave itself a Despawn: one gone already is not despawned again
+	alive     *goke.Query
+	aliveBase goke.Comp[Base]
+
 	ids   []uid.UID64
 	bases []Base
 }
 
-func newExitSystem(w *module, host *host.EachHost[Leaving]) *exitSystem {
+func newExitSystem(w *module, host *plugin.Rules[Leaving]) *exitSystem {
 	return &exitSystem{w: w, host: host}
 }
 
@@ -46,10 +56,16 @@ func (s *exitSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base).Include(goke.Include[Outside]())
 	s.host.Bind(qb)
 	s.query = qb.Build()
+	s.alive = si.NewQueryBuilder(&s.aliveBase).Build()
 }
 
 func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	tick := plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d}
+	s.w.despawns.Drain(func(i control.Issued[Despawn]) {
+		if i.ByEntity && s.alive.Seek(i.Entity) {
+			s.w.despawn(cb, i.Entity)
+		}
+	})
+	tick := s.w.tick(cb, d)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()

@@ -3,47 +3,60 @@ package players
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
+	"slices"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-// ErrUnknownCommand is what Issue reports for a command type none of the Commanders defines.
+// ErrUnknownCommand is what Issue reports for a command type no handler defines.
 var ErrUnknownCommand = errors.New("players: no plugin listens for this command")
 
-// Plugin keeps the game's players and carries their commands to the Commanders that define them:
-// a player's bindings, an AI or a network issue a command, and it lands in its owner's inbox.
+// Plugin keeps the game's players and gives their commands to the world's carrier, which takes
+// each to the handler that defines it: a player's bindings, an AI or a network issue a command,
+// and it lands in its handler's queue.
 type Plugin struct {
 	worldPlugin *world.Plugin
-	commanders  []plugin.Commander
+	handlers    []plugin.CommandHandler
 	players     []*Player
-	inboxes     map[reflect.Type]control.Mailbox
-	pans        control.Inbox[Pan]
-	zooms       control.Inbox[Zoom]
+	pans        control.Queue[Pan]
+	zooms       control.Queue[Zoom]
 	module      *module
-	renderer    *Renderer
+	layout      Layout
+	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
+	// lets go of the window's cursor
+	captured   bool
+	setCapture func(on bool)
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
-var _ plugin.Commander = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, whose camera and View the local players
-// share, carrying the commands of commanders; two Commanders of one command type panic.
-func NewPlugin(worldPlugin *world.Plugin, commanders ...plugin.Commander) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin, inboxes: map[reflect.Type]control.Mailbox{}}
-	p.commanders = append([]plugin.Commander{p}, commanders...)
-	for _, c := range p.commanders {
-		for _, box := range c.Commands() {
-			if other, taken := p.inboxes[box.Accepts()]; taken && other != box {
-				panic(fmt.Sprintf("players: %v is defined twice", box.Accepts()))
-			}
-			p.inboxes[box.Accepts()] = box
+// share, having the world carry the commands of handlers — beside the world's own and the
+// players' — as it does those of the plugins a stage uses; two handlers of one command type
+// panic. It registers the owners' tags with the world's kinds, a
+// player each, saved by name.
+func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
+	for id := control.PlayerID(1); int(id) <= owner.Players; id++ {
+		if tag := worldPlugin.Kinds().DefineTag[owner.Family](owner.Name(id)); tag != owner.Of(id) {
+			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
+	}
+	p := &Plugin{worldPlugin: worldPlugin}
+	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
+	if err := worldPlugin.Carry(p.handlers...); err != nil {
+		panic(fmt.Sprintf("players: %v", err))
 	}
 	return p
 }
@@ -58,7 +71,7 @@ func (p *Plugin) Local(name string) *Player {
 // Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
 // Issue; it looks through the world's camera until it has one of its own.
 func (p *Plugin) Add(name string) *Player {
-	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View()}
+	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View(), world: p.worldPlugin}
 	p.players = append(p.players, pl)
 	return pl
 }
@@ -85,35 +98,45 @@ func (p *Plugin) ByID(id control.PlayerID) *Player {
 	return p.players[id-1]
 }
 
-// Defaults is every Commander's default bindings, camera controls included, in one list to bind.
+// Defaults is every handler's default bindings, camera controls included, in one list to bind.
 func (p *Plugin) Defaults() []control.Binding {
 	var out []control.Binding
-	for _, c := range p.commanders {
+	for _, c := range p.handlers {
 		out = append(out, c.DefaultBindings()...)
 	}
 	return out
 }
 
-// Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no Commander defines its
+// Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
 // type. Bindings, an AI or a network all come in here.
 func (p *Plugin) Issue(player *Player, cmd any) error {
-	box, ok := p.inboxes[reflect.TypeOf(cmd)]
-	if !ok {
-		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
-	}
 	id := control.Nobody
 	if player != nil {
 		id = player.ID
 	}
-	box.Put(id, cmd)
+	if !p.worldPlugin.Commands().Put(id, cmd) {
+		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
+	}
+	return nil
+}
+
+// handlerOf is the handler whose queue takes commands of type t, nil for none of the players'.
+func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
+	for _, h := range p.handlers {
+		for _, q := range h.Queues() {
+			if q.Accepts() == t {
+				return h
+			}
+		}
+	}
 	return nil
 }
 
 // =================================================================
-// plugin.Commander contract — players' own commands are Pan and Zoom
+// plugin.CommandHandler contract — players' own commands are Pan and Zoom
 // =================================================================
 
-func (p *Plugin) Commands() []control.Mailbox { return []control.Mailbox{&p.pans, &p.zooms} }
+func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.pans, &p.zooms} }
 
 // DefaultBindings is CameraBindings at DefaultScrollSpeed.
 func (p *Plugin) DefaultBindings() []control.Binding { return CameraBindings() }
@@ -130,48 +153,100 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries out the camera commands and empties every inbox; call it last in Update.
+// RunPlan carries out the camera commands and empties every queue; call it last in Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the marquee renderer; atlas is unused, players draw primitives.
-func (p *Plugin) WithRenderer(render.AtlasSource) { p.renderer = &Renderer{p: p} }
+// WithRenderer is a no-op — players draw nothing; a selection box is selection's to draw.
+func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer returns the marquee renderer, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Renderer {
-	if p.renderer == nil {
-		return nil
+// Renderer is nil — players draw nothing.
+func (p *Plugin) Renderer() render.Layer { return nil }
+
+// Layout splits the screen into n parts, one per camera the local players look through, in the
+// order the players were added.
+type Layout func(screen geom.AABB, n int) []geom.AABB
+
+// Columns is the default Layout: n equal columns side by side, each a whole number of pixels wide,
+// the last taking what is left over.
+func Columns(screen geom.AABB, n int) []geom.AABB {
+	out := make([]geom.AABB, n)
+	w := math.Floor((screen.BottomRight.X - screen.TopLeft.X) / float64(n))
+	for i := range out {
+		x := screen.TopLeft.X + float64(i)*w
+		out[i] = geom.NewAABB(geom.NewVec(x, screen.TopLeft.Y), geom.NewVec(x+w, screen.BottomRight.Y))
 	}
-	return p.renderer
+	out[n-1].BottomRight.X = screen.BottomRight.X
+	return out
 }
 
-// Renderers is what the player's plugins draw over the world — each Commander's Renderer, in the
-// order given to NewPlugin, then the marquee — for the Scene to lay over its world layers.
-func (p *Plugin) Renderers() []render.Renderer {
-	var out []render.Renderer
-	for _, c := range p.commanders[1:] {
-		if pl, ok := c.(plugin.Plugin); ok {
-			if r := pl.Renderer(); r != nil {
-				out = append(out, r)
-			}
+// WithLayout sets how Viewports splits the screen between the local players' cameras.
+func (p *Plugin) WithLayout(layout Layout) *Plugin {
+	p.layout = layout
+	return p
+}
+
+// Viewports are where the local players look: one per camera they look through, laid out by the
+// Layout (Columns unless WithLayout), the world's camera over the whole screen when nobody is at
+// this keyboard. A Scene showing the world hands them to the engine as its game.Viewer; each local
+// player keeps its part of the screen, where its mouse input comes from.
+func (p *Plugin) Viewports(screen geom.AABB) []render.Viewport {
+	var cams []camera.Camera
+	for _, pl := range p.Locals() {
+		if !slices.Contains(cams, pl.Camera) {
+			cams = append(cams, pl.Camera)
 		}
 	}
-	if p.renderer != nil {
-		out = append(out, p.renderer)
+	if len(cams) == 0 {
+		return render.Whole(p.worldPlugin.Camera(), screen)
+	}
+	layout := p.layout
+	if layout == nil {
+		layout = Columns
+	}
+	areas := layout(screen, len(cams))
+	out := make([]render.Viewport, len(cams))
+	for i, cam := range cams {
+		out[i] = render.Viewport{Camera: cam, Area: areas[i]}
+	}
+	for _, pl := range p.Locals() {
+		pl.area = areas[slices.Index(cams, pl.Camera)]
 	}
 	return out
 }
 
 // EventHandler translates this tick's input through every local player's bindings; call it from
 // the active Scene's HandleEvents.
-func (p *Plugin) EventHandler() control.EventHandler { return translator{p} }
+func (p *Plugin) EventHandler() control.EventHandler { return eventHandler{p} }
 
-// Serializable returns nil — the local players' cameras are the world's, saved with it.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// RegisterBehavior reports ErrUnhostedBehavior — players host no behaviors; they carry commands.
-func (p *Plugin) RegisterBehavior(behaviors ...plugin.Behavior) error {
-	for _, b := range behaviors {
-		return fmt.Errorf("%w: %T in %s", plugin.ErrUnhostedBehavior, b, p.Name())
+// Serializable is the players' own cameras, in the order the players were added; the others are
+// the world's, saved with it. Nil when nobody has a camera of their own.
+func (p *Plugin) Serializable() plugin.Serializable {
+	for _, pl := range p.players {
+		if pl.own {
+			return ownCameras{p}
+		}
 	}
 	return nil
+}
+
+// Restore rebuilds the own cameras after a load has written their state.
+func (p *Plugin) Restore() {
+	for _, pl := range p.players {
+		if pl.own {
+			pl.Camera.Restore()
+		}
+	}
+}
+
+// ownCameras persists the players' own cameras.
+type ownCameras struct{ p *Plugin }
+
+func (o ownCameras) Persisted() []any {
+	var out []any
+	for _, pl := range o.p.players {
+		if pl.own {
+			out = append(out, pl.Camera.Persisted()...)
+		}
+	}
+	return out
 }

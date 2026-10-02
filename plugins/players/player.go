@@ -3,35 +3,58 @@ package players
 import (
 	"fmt"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 )
 
 // Player is whoever acts in the game and may look at a part of it: a camera and the View through
-// it, and — at this keyboard — the bindings that turn its input into commands.
+// it, its part of the screen, and — at this keyboard — the bindings that turn its input into
+// commands.
 type Player struct {
 	ID     control.PlayerID
 	Name   string
 	Camera camera.Camera
-	View   *world.View
+	View   *view.View
 
+	world    *world.Plugin
+	own      bool      // looks through a camera of its own, saved with the game
+	area     geom.AABB // its part of the screen, as last laid out; zero is all of it
 	local    bool
 	bindings []control.Binding
-	cursor   geom.Vec
-	held     map[ebiten.MouseButton]geom.Vec // buttons down and where they went down
+	in       input // what the event handler has seen of its keys and buttons
 }
 
-// Bind adds bindings to the player; two on one Trigger are an error, never a silent last-one-wins.
+// OwnCamera gives the player a camera of its own over the world, and its View, saved with the
+// game; call before Use. Two local players with cameras of their own split the screen.
+func (p *Player) OwnCamera() *Player {
+	p.Camera = p.world.NewCamera()
+	p.View = p.world.ViewFor(p.Camera)
+	p.own = true
+	return p
+}
+
+// Owner is the player's tag: a kind its units are made of carries it (comp.Tagged), and they
+// take commands from this player alone.
+func (p *Player) Owner() tag.Tag[owner.Family] { return owner.Of(p.ID) }
+
+// Area is the player's part of the screen, in pixels, as the viewports last laid it out; zero
+// before.
+func (p *Player) Area() geom.AABB { return p.area }
+
+// Bind adds bindings to the player; two on one Trigger holding in one camera mode are an error,
+// never a silent last-one-wins.
 func (p *Player) Bind(bindings ...control.Binding) error {
 	for _, b := range bindings {
 		if b.Command() == nil {
 			return fmt.Errorf("players: %q is not a Binding built with control.Command", b.Label)
 		}
 		for _, have := range p.bindings {
-			if have.Trigger == b.Trigger {
+			if have.Trigger == b.Trigger && have.Overlaps(b) {
 				return fmt.Errorf("players: %q and %q are both bound to %v for %s", have.Label, b.Label, b.Trigger, p.Name)
 			}
 		}
@@ -42,38 +65,3 @@ func (p *Player) Bind(bindings ...control.Binding) error {
 
 // Bindings lists what the player can do, in the order bound.
 func (p *Player) Bindings() []control.Binding { return p.bindings }
-
-// DragBox is the drag in progress of a button the player has a Drag binding on, in screen pixels.
-func (p *Player) DragBox() (start, current geom.Vec, dragging bool) {
-	for _, b := range p.bindings {
-		d, ok := b.Trigger.(control.Drag)
-		if !ok {
-			continue
-		}
-		if at, down := p.held[d.Button]; down {
-			return at, p.cursor, true
-		}
-	}
-	return geom.Vec{}, geom.Vec{}, false
-}
-
-// screen is the window's size in pixels, as the camera shows the world.
-func (p *Player) screen() geom.Vec {
-	b := p.Camera.Bounds()
-	z := float64(p.Camera.Zoom())
-	return geom.NewVec((b.BottomRight.X-b.TopLeft.X)*z, (b.BottomRight.Y-b.TopLeft.Y)*z)
-}
-
-func (p *Player) press(button ebiten.MouseButton, at geom.Vec) {
-	if p.held == nil {
-		p.held = map[ebiten.MouseButton]geom.Vec{}
-	}
-	p.held[button] = at
-}
-
-// release forgets the button and reports where it went down, if it was down.
-func (p *Player) release(button ebiten.MouseButton) (geom.Vec, bool) {
-	at, down := p.held[button]
-	delete(p.held, button)
-	return at, down
-}

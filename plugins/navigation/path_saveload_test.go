@@ -2,20 +2,25 @@ package navigation_test
 
 import (
 	"testing"
+	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/navigation"
 )
 
 func TestMoveTo_RoundTrip(t *testing.T) {
 	path := t.TempDir() + "/save.bin"
 
-	want := navigation.MoveOrder{Target: board.CellID(7), Path: navigation.Path{Length: 3, Index: 1}, Queued: 2}
-	want.Waypoints[0], want.Waypoints[1] = board.CellID(9), board.CellID(11)
-	want.Path.Steps[0] = board.CellID(10)
-	want.Path.Steps[1] = board.CellID(11)
-	want.Path.Steps[2] = board.CellID(12)
+	want := navigation.MoveOrder{Target: cell.ID(7), Path: navigation.Path{Length: 3, Index: 1}, Queued: 2}
+	want.Waypoints[0], want.Waypoints[1] = navigation.Goal{Cell: 9}, navigation.Goal{Cell: 11, Spot: geom.NewVec(3.5, 7.25), At: geom.NewVec(4, 7)}
+	want.Spot, want.At, want.Struck, want.Hit, want.Mets = geom.NewVec(1.5, 2.5), geom.NewVec(1, 2), geom.NewVec(0, -1), 42, 1
+	want.Met[0], want.Avoid[0], want.Avoids, want.AsideFor = 42, 13, 1, 250*time.Millisecond
+	want.Path.Steps[0] = cell.ID(10)
+	want.Path.Steps[1] = cell.ID(11)
+	want.Path.Steps[2] = cell.ID(12)
 
 	ecs := goke.New()
 	var moveToComp goke.Comp[navigation.MoveOrder]

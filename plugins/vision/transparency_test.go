@@ -4,13 +4,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
 // A forest 60 deep at τ = 0.5 costs 60 of reach on top of its depth, so the target 235 ahead
 // costs 295: out of a 290 reach, in a 300 one. The forest itself is seen either way.
-func forestAhead(observer *vision.Sight) []spawn {
+func forestAhead(observer *look) []spawn {
 	return []spawn{
 		{x: 0, y: 0, sight: observer, outline: true},
 		{x: 100, y: 0, size: 60, tau: 0.5, layers: 1},
@@ -56,7 +55,8 @@ func TestScan_AWallCutsSightOnlyOnTheObserversBlockers(t *testing.T) {
 		"wall on another layer is looked over": {blockers: vision.Sight{Blockers: 2}, want: 2},
 	} {
 		t.Run(name, func(t *testing.T) {
-			observer := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi / 8, Radius: 300, Blockers: tc.blockers.Blockers}
+			observer := eastward(math.Pi/8, 300)
+			observer.Blockers = tc.blockers.Blockers
 			wallLayers := tc.blockers.Blockers
 			if tc.want == 2 {
 				wallLayers = 1

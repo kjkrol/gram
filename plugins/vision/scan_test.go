@@ -8,9 +8,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/uid"
 )
 
@@ -43,8 +45,24 @@ type spawn struct {
 	size    float64
 	tau     float64
 	layers  world.Layers
-	sight   *vision.Sight // nil for something that is merely seen
+	z       *world.Z // heights, in a scene with heights
+	sight   *look    // nil for something that is merely seen
 	outline bool
+	heading geom.Vec // the way it moves; zero, none
+	bare    bool     // a sight without a Sighted, which vision gives it
+}
+
+// look is a Sight with the Eye it sees from: how wide, and how high in a scene with heights.
+type look struct {
+	vision.Sight
+	world.Eye
+}
+
+// relief is what a scene with heights stands on: nil for flat ground at 0.
+type relief struct {
+	ground ground.Heights
+	step   float64
+	scale  world.Scale
 }
 
 func at(d spawn) world.Position {
@@ -55,15 +73,34 @@ func at(d spawn) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(d.x, d.y), size, size)}
 }
 
-// scene installs world+vision, spawns everything, ticks once; returns observers and what they saw.
+// scene installs world+vision on a flat world, spawns everything, ticks once; returns observers and
+// what they saw.
 func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
+	t.Helper()
+	return sceneIn(t, nil, spawns...)
+}
+
+// sceneIn is scene in a world with heights standing on r (nil: a flat world).
+func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
+	t.Helper()
+	return sceneWith(t, r, 0, spawns...)
+}
+
+// sceneWith is sceneIn with the scan shared among workers goroutines at most (0: the CPUs, 1: none).
+func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2000, Height: 2000},
 		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 1, MaxSize: 100},
+		Heights:  r != nil,
+		Scale:    scaleOf(r),
 	})
-	v := vision.NewPlugin(w)
+	v := vision.NewPlugin(w).WithWorkers(workers)
+	if r != nil {
+		heights := r.ground
+		v.WithHeights(func() ground.Heights { return heights }).WithGroundStep(r.step)
+	}
 
 	ctx := &installCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -75,19 +112,25 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 
 	for i, s := range spawns {
 		spec := kind.Spec{
-			kind.Load(at),
-			kind.Const(world.Velocity{}),
+			comp.Load(at),
+			comp.Load(func(s spawn) world.Velocity { return world.Velocity{Dir: s.heading} }),
 		}
 		if s.tau > 0 {
-			spec = append(spec, kind.Const(vision.Transparency{Value: s.tau}))
+			spec = append(spec, comp.Const(vision.Transparency{Value: s.tau}))
 		}
 		if s.layers != 0 {
-			spec = append(spec, kind.Const(s.layers))
+			spec = append(spec, comp.Const(s.layers))
+		}
+		if s.z != nil {
+			spec = append(spec, comp.Const(*s.z))
 		}
 		if s.sight != nil {
-			spec = append(spec, kind.Const(*s.sight))
+			spec = append(spec, comp.Const(s.sight.Sight), comp.Const(s.sight.Eye))
+			if !s.bare {
+				spec = append(spec, comp.Const(vision.Sighted{}))
+			}
 			if s.outline {
-				spec = append(spec, kind.Const(vision.SightOutline{}))
+				spec = append(spec, comp.Const(vision.SightOutline{}))
 			}
 		}
 		w.Seed(kind.Define[spawn](w.Kinds(), kindName(i), spec).Entry(s))
@@ -96,7 +139,7 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 		t.Fatalf("Populate: %v", err)
 	}
 
-	var sightComp goke.Comp[vision.Sight]
+	var sightComp goke.Comp[vision.Sighted]
 	var outlineComp goke.OptComp[vision.SightOutline]
 	var query *goke.Query
 	var systems []goke.System
@@ -111,6 +154,7 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 
@@ -127,7 +171,7 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 		}
 		for i, id := range cursor.IDs {
 			ids = append(ids, id)
-			seen = append(seen, got[i].Seen)
+			seen = append(seen, got[i])
 			if outs != nil {
 				outlines = append(outlines, outs[i])
 			}
@@ -138,8 +182,8 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 
 func kindName(i int) string { return string(rune('a' + i)) }
 
-func eastward(half, radius float64) *vision.Sight {
-	return &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: half, Radius: radius}
+func eastward(half, radius float64) *look {
+	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}, Eye: world.Eye{Angle: 2 * half}}
 }
 
 func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
@@ -157,6 +201,37 @@ func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
 	}
 	if seen[0].Dists[0] >= seen[0].Dists[1] {
 		t.Errorf("distances %v, %v are not nearest-first", seen[0].Dists[0], seen[0].Dists[1])
+	}
+}
+
+// A Sight Ahead looks the way its entity moves, its Facing only while it has no heading.
+func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
+	ahead := eastward(math.Pi/8, 600)
+	ahead.Ahead = true
+	north := geom.NewVec(0, 1)
+	for _, c := range []struct {
+		heading geom.Vec
+		want    float32 // how far off the one it sees is
+	}{{north, 500}, {geom.Vec{}, 300}} {
+		_, seen, _ := scene(t,
+			spawn{x: 500, y: 500, sight: ahead, heading: c.heading},
+			spawn{x: 800, y: 500},  // east of it, 300 off
+			spawn{x: 500, y: 1000}, // north of it, 500 off
+		)
+		if seen[0].Count != 1 || math.Abs(float64(seen[0].Dists[0]-c.want)) > 15 {
+			t.Errorf("heading %v: saw %d, the nearest %v off; want one, %v off", c.heading, seen[0].Count, seen[0].Dists[0], c.want)
+		}
+	}
+}
+
+// An observer without a Sighted is given one at its first step and scanned from the next.
+func TestScan_GivesASightedWhereThereIsNone(t *testing.T) {
+	ids, seen, _ := scene(t,
+		spawn{x: 500, y: 500, sight: eastward(math.Pi/4, 600), bare: true},
+		spawn{x: 700, y: 500},
+	)
+	if len(ids) != 1 || seen[0].Count != 0 {
+		t.Errorf("after the first step: %d observers with a Sighted, the first seeing %v; want one given, seeing nothing yet", len(ids), seen)
 	}
 }
 
@@ -229,7 +304,7 @@ func TestScan_FillsTheOutlineWhenAsked(t *testing.T) {
 
 // A cone wider and longer than the buffer was sized for must still fit it.
 func TestScan_OutlineNeverOverrunsItsBuffer(t *testing.T) {
-	huge := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: math.Pi/2 - 0.01, Radius: 1900}
+	huge := eastward(math.Pi/2-0.01, 1900)
 	_, _, outlines := scene(t,
 		spawn{x: 50, y: 500, sight: huge, outline: true},
 		spawn{x: 700, y: 500},
@@ -253,7 +328,7 @@ func TestMaxSamples_IsTheSmallestThatHoldsTheTolerance(t *testing.T) {
 }
 
 func TestScan_ClearsSightedWhenTheConeIsUnanswerable(t *testing.T) {
-	blind := &vision.Sight{Facing: geom.NewVec(1.0, 0.0), HalfAngle: 0, Radius: 0}
+	blind := eastward(0, 0)
 	_, seen, _ := scene(t,
 		spawn{x: 500, y: 500, sight: blind},
 		spawn{x: 700, y: 500},
@@ -262,4 +337,12 @@ func TestScan_ClearsSightedWhenTheConeIsUnanswerable(t *testing.T) {
 	if seen[0].Count != 0 {
 		t.Errorf("a blind entity recorded %d sightings, want none", seen[0].Count)
 	}
+}
+
+// scaleOf is r's scale, none without a relief.
+func scaleOf(r *relief) world.Scale {
+	if r == nil {
+		return world.Scale{}
+	}
+	return r.scale
 }

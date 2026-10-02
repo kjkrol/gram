@@ -6,20 +6,24 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
+	"github.com/kjkrol/gram/rule"
 )
 
 const (
@@ -31,7 +35,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 40 // units plus the terrain bodies the board makes of its walls
+	MaxEntCount  = 16 // the units; the walls are cells, not entities
 
 	saveBasePath = "board-navigation-demo"
 )
@@ -50,7 +54,7 @@ func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
 func (d *Demo) Props() game.Props {
 	return game.Props{
 		Title:       "gram board & navigation plugins demo",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
 }
@@ -69,11 +73,11 @@ type mainStage struct {
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
-	red, blue kind.Of[unit]
-	// under is the cell each unit stood on last tick — where H opens a trapdoor.
-	under map[uid.UID64]board.CellID
-	stack game.Scenes
-	state *State
+	player    *players.Player // the one at this keyboard: the units are its
+	shortcuts *players.Shortcuts
+	red, blue kind.Of[unitRow]
+	stack     game.Scenes
+	state     *State
 }
 
 var _ game.Stage = (*mainStage)(nil)
@@ -93,11 +97,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	grid := board.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &board.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.registerCellKinds()
-	s.under = map[uid.UID64]board.CellID{}
-	if err := s.board.RegisterBehavior(board.Each[board.Mover](s.standing)); err != nil {
+	if err := s.board.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
+	})); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.board); err != nil {
@@ -109,13 +114,14 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	if err := ctx.Use(s.nav); err != nil {
 		return err
 	}
 
 	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
+	s.player = s.players.Local("player")
+	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -127,7 +133,26 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineKinds()
 
 	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
+	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
+	main.keys = players.SceneKeys{
+		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
+		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
+		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
+		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
+			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
+			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
+		}},
+		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
+			s.state.Saves++
+			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
+				log.Printf("save: %v", err)
+				return
+			}
+			log.Printf("saved (save #%d)", s.state.Saves)
+		}},
+	}
+	s.shortcuts = s.players.Shortcuts(main.keys)
+	stack, err := game.NewStack(main, s.shortcuts)
 	if err != nil {
 		return err
 	}
@@ -139,32 +164,12 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 // registerCellKinds defines every terrain kind the board can hold.
 func (s *mainStage) registerCellKinds() {
-	s.board.CellKindDict().Create(
-		board.CellKind{Name: board.Named("grass"), Cost: 2, Allows: board.Land},
-		board.CellKind{Name: board.Named("wall"), Cost: 1, Solid: true},
-		board.CellKind{Name: board.Named("road"), Cost: 1, Allows: board.Land},
-		board.CellKind{Name: board.Named("hole"), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
+		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("hole"), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
 	)
-}
-
-// standing remembers where each unit stands and despawns the ones that fell into a hole.
-func (s *mainStage) standing(t plugin.Tick, m *board.Mover, st board.Standing) {
-	if st.Fell(m.Domain) {
-		log.Printf("unit %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
-		delete(s.under, st.ID)
-		s.world.Despawn(t.CmdBuf, st.ID)
-		return
-	}
-	s.under[st.ID] = st.Cell
-}
-
-// openTrapdoors turns the cell under every unit into a hole.
-func (s *mainStage) openTrapdoors() {
-	hole, _ := s.board.CellKindDict().Get("hole")
-	for _, c := range s.under {
-		s.board.Res.Logic.Board.Set(c, hole)
-	}
-	log.Printf("opened a hole under %d units", len(s.under))
 }
 
 func (s *mainStage) Restore(p game.Persistence) (bool, error) {
@@ -183,51 +188,44 @@ func (s *mainStage) Restore(p game.Persistence) (bool, error) {
 }
 
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
-type unit struct{ start, target board.CellID }
+type unitRow struct{ start, target cell.ID }
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
-	unitSpec := kind.Spec{
-		kind.Load(func(u unit) world.Position { return world.Position{AABB: board.CellAABB(brd, u.start, EntitySize)} }),
-		kind.Const(world.Velocity{}),
-		kind.Const(world.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}),
-		kind.Load(func(u unit) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
-		kind.Load(func(u unit) board.Cell { return board.Cell{ID: u.start} }),
-		kind.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected),
-		kind.Const(collision.Collider{}),
-		kind.Const(world.Layers(board.Land)),
-		kind.Const(collision.Physics{}),
-		kind.Const(board.Mover{Domain: board.Land}),
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	own := []comp.Comp{
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
+		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 	}
-	kinds := s.world.Kinds()
-	s.red = kind.Define[unit](kinds, "red", unitSpec)
-	s.blue = kind.Define[unit](kinds, "blue", unitSpec)
+	s.red = units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
+	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
 // Spawn says who is there when the game starts fresh.
 func (s *mainStage) Spawn() error {
 	brd := s.board.Res.Logic.Board
-	cell := func(x, y uint32) board.CellID { c, _ := brd.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
 
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
-	var cells []board.CellEntry
+	var cells []cell.Entry
 	for y := uint32(2); y < GridHeight; y++ {
-		cells = append(cells, board.CellEntry{Kind: "wall", Cell: cell(wallCol, y)})
+		cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(wallCol, y)})
 	}
-	cells = append(cells, board.CellEntry{Kind: "hole", Cell: cell(6, 4)}, board.CellEntry{Kind: "hole", Cell: cell(17, 12)})
+	cells = append(cells, cell.Entry{Kind: "hole", Cell: cellAt(6, 4)}, cell.Entry{Kind: "hole", Cell: cellAt(17, 12)})
 	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(x, roadTop)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, roadTop)})
 	}
 	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, board.CellEntry{Kind: "road", Cell: cell(roadLeft, y)}, board.CellEntry{Kind: "road", Cell: cell(roadRight, y)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(roadLeft, y)}, cell.Entry{Kind: "road", Cell: cellAt(roadRight, y)})
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.red.Entry(unit{start: cell(2, 4), target: cell(GridWidth-3, 4)}),
-		s.blue.Entry(unit{start: cell(2, 12), target: cell(GridWidth-3, 12)}),
+		s.red.Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}),
+		s.blue.Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}),
 	)
 	return nil
 }
@@ -244,13 +242,16 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct {
+	stage *mainStage
+	keys  players.SceneKeys
+}
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Renderer {
+func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
@@ -259,7 +260,7 @@ func (m *mainScene) Layers() []render.Renderer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKindDict()
+	kinds := s.board.CellKinds()
 	grass, _ := kinds.Get("grass")
 	wall, _ := kinds.Get("wall")
 	road, _ := kinds.Get("road")
@@ -272,44 +273,21 @@ func (m *mainScene) Layers() []render.Renderer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	pathAtlas, pathSprites := navigation.RegisterDefaultPathSprites(CellSize, 2, color.RGBA{R: 255, G: 140, B: 0, A: 255})
-	s.nav.SetPathSprites(pathSprites)
-	s.nav.WithRenderer(pathAtlas)
+	s.nav.WithRenderer(nil)
 
 	s.selection.WithRenderer(nil)
-	s.players.WithRenderer(nil)
 
-	return append([]render.Renderer{s.board.Renderer(), s.world.Renderer()}, s.players.Renderers()...)
+	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+}
+
+// Viewports are where the world is shown: the local players' views.
+func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
+	return m.stage.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	s := m.stage
-	s.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case ebiten.KeyEscape:
-			runtime.Quit()
-		case ebiten.KeySpace:
-			runtime.TogglePause()
-		case ebiten.KeyB:
-			s.board.Res.Render.ToggleShowGridLines()
-		case ebiten.KeyR:
-			buildShortcut(s.board.Res.Logic.Board, s.board.CellKindDict())
-			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
-		case ebiten.KeyH:
-			s.openTrapdoors()
-		case ebiten.KeyF5:
-			s.state.Saves++
-			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {
-				log.Printf("save: %v", err)
-				continue
-			}
-			log.Printf("saved (save #%d)", s.state.Saves)
-		}
-	}
+	m.stage.players.EventHandler().HandleEvents(events)
+	m.keys.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }
@@ -323,7 +301,7 @@ const (
 )
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
-func buildShortcut(brd *board.Board, kinds board.CellKindDict) {
+func buildShortcut(brd *board.Board, kinds cell.Kinds) {
 	road, _ := kinds.Get("road")
 	for x := roadLeft + 1; x < roadRight; x++ {
 		c, _ := brd.CellIndex(x, shortcutRow)

@@ -6,9 +6,10 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/vision/behavior"
+	"github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -67,7 +68,7 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 	t.Helper()
 
-	stage := &mainStage{avoiding: true}
+	stage := &mainStage{}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -82,7 +83,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(stage.Update)
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); stage.world.Clock().Replay(rc, d) })
 
 	var systems []goke.System
 	for _, produce := range ctx.pending {
@@ -138,11 +139,11 @@ func placeOnPrey(t *testing.T, stage *mainStage, view bodyView) uid.UID64 {
 type bodyView struct {
 	query *goke.Query
 	base  goke.Comp[world.Base]
-	marks goke.Comp[plugin.Tags[behavior.Family]]
-	tags  behavior.Tags
+	marks goke.Comp[tag.Tags[hooks.Family]]
+	tags  hooks.Tags
 }
 
-func bodies(ecs *goke.ECS, tags behavior.Tags) bodyView {
+func bodies(ecs *goke.ECS, tags hooks.Tags) bodyView {
 	view := bodyView{tags: tags}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
@@ -151,7 +152,7 @@ func bodies(ecs *goke.ECS, tags behavior.Tags) bodyView {
 }
 
 // each calls fn for every entity carrying tag.
-func (v *bodyView) each(tag plugin.Tag[behavior.Family], fn func(id uid.UID64, b *world.Base)) {
+func (v *bodyView) each(tag tag.Tag[hooks.Family], fn func(id uid.UID64, b *world.Base)) {
 	v.query.All()
 	for v.query.Next() {
 		cursor := v.query.Cursor()
@@ -227,4 +228,24 @@ func headingOf(view bodyView, id uid.UID64) (dir geom.Vec, alive bool) {
 		}
 	})
 	return dir, alive
+}
+
+// The prey flee from the start; A has the player take the fleeing off the world, and put it back.
+func TestStage_ASwitchesTheFleeingOffAndOn(t *testing.T) {
+	ecs, stage := buildStage(t)
+	fleeing := func() bool { return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.fleeing) }
+	ecs.Tick(time.Second / TPS)
+	if !fleeing() {
+		t.Fatal("no fleeing on the world from the start")
+	}
+	stage.switchFleeing()
+	ecs.Tick(time.Second / TPS)
+	if fleeing() {
+		t.Fatal("the fleeing still on after A")
+	}
+	stage.switchFleeing()
+	ecs.Tick(time.Second / TPS)
+	if !fleeing() {
+		t.Error("no fleeing after A again")
+	}
 }

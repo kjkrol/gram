@@ -1,11 +1,11 @@
 package world
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/uid"
 )
@@ -37,6 +37,7 @@ func run(ecs *goke.ECS, wm *module, act func(*goke.CmdBuf)) {
 		ctx.Run(handle, d)
 		ctx.Sync()
 		wm.RunPlan(ctx, d)
+		wm.clock.Replay(ctx, d)
 	})
 	ecs.Tick(time.Millisecond)
 }

@@ -4,23 +4,28 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/effects"
-	"github.com/kjkrol/gram/plugins/vision"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, every tick, the cell entities' Ground into the terrain, then the terrain bodies
-// when the plugin was built WithCollision, then the standing report.
+// module runs, in the simulation, the cells — what effects changed — the occupancy's upkeep and
+// the rules of where units stand and of the cells.
 type module struct {
-	cells    *cellEntitySystem
-	standing *standingSystem
-	bodies   *terrainBodySystem
+	cells     goke.System
+	release   goke.System
+	standing  goke.System
+	cellRules goke.System
+	clock     *clock.Clock // the world's; nil, run at once
 
-	cellsRunnable    goke.Runnable
-	standingRunnable goke.Runnable
-	bodiesRunnable   goke.Runnable
+	cellsRunnable     goke.Runnable
+	releaseRunnable   goke.Runnable
+	standingRunnable  goke.Runnable
+	cellRulesRunnable goke.Runnable
 }
 
 // =================================================================
@@ -28,34 +33,32 @@ type module struct {
 // =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
-	m.cellsRunnable = ecs.RegSys(m.cells)
-	if m.bodies != nil {
-		m.bodiesRunnable = ecs.RegSys(m.bodies)
-	}
+	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
+	m.releaseRunnable = ecs.RegSys(m.release)
 	m.standingRunnable = ecs.RegSys(m.standing)
+	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
 }
 
+// RunPlan hands the board's work to the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.cellsRunnable, d)
-	if m.bodies != nil {
-		ctx.Run(m.bodiesRunnable, d)
-	}
-	ctx.Run(m.standingRunnable, d)
-	ctx.Sync()
+	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
+		ctx.Run(m.cellsRunnable, step)
+		ctx.Run(m.releaseRunnable, step)
+		ctx.Run(m.standingRunnable, step)
+		ctx.Run(m.cellRulesRunnable, step)
+		ctx.Sync()
+	})
 }
 
-// SetupSystems is empty — the bodies build themselves in their own Init.
+// SetupSystems is empty — the cells build themselves in their own Init.
 func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the component types board writes or reads, so a save loads without the vision
 // and effects plugins — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
-	tokens := []goke.CompToken{
-		goke.LoadComp[Cell](), goke.LoadComp[Mover](), goke.LoadComp[Ground](),
-		goke.LoadComp[effects.Active](), goke.LoadComp[effects.Idle](),
+	return []goke.CompToken{
+		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](),
+		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
+		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[cell.Family]](),
 	}
-	if m.bodies != nil {
-		tokens = append(tokens, goke.LoadComp[vision.Transparency](), goke.LoadComp[world.Layers]())
-	}
-	return tokens
 }

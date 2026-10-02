@@ -15,16 +15,24 @@ type Physics struct {
 // that makes an equal pair exchange velocities.
 const DefaultMass = 1.0
 
-// Weight is what this entity weighs in a collision — DefaultMass unless Mass is a real weight.
-func (p Physics) Weight() float64 {
+// weight is what this entity weighs in a collision — DefaultMass unless Mass is a real weight.
+func (p Physics) weight() float64 {
 	if p.Mass <= 0 {
 		return DefaultMass
 	}
 	return p.Mass
 }
 
-// Bounce is Restitution held within its range.
-func (p Physics) Bounce() float64 { return min(max(p.Restitution, 0), 1) }
+// bounce is Restitution held within its range.
+func (p Physics) bounce() float64 { return min(max(p.Restitution, 0), 1) }
 
-// Immovable reports whether nothing can shift this entity.
-func (p Physics) Immovable() bool { return math.IsInf(p.Mass, 1) }
+// immovable reports whether nothing can shift this entity.
+func (p Physics) immovable() bool { return math.IsInf(p.Mass, 1) }
+
+// inverseMass is how much of an impulse an entity takes — none for one nothing can move.
+func (p Physics) inverseMass() float64 {
+	if p.immovable() {
+		return 0
+	}
+	return 1 / p.weight()
+}

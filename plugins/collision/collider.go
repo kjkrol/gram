@@ -19,8 +19,12 @@ func (c *Collider) Contacts() []Contact { return c.Struck[:c.StruckCount] }
 
 // addContact records one confirmed contact, up to MaxContacts.
 func (c *Collider) addContact(other uid.UID64, impact float64, normal geom.Vec) {
+	c.add(Contact{Other: other, Impact: impact, Normal: normal})
+}
+
+func (c *Collider) add(ct Contact) {
 	if c.StruckCount < MaxContacts {
-		c.Struck[c.StruckCount] = Contact{Other: other, Impact: impact, Normal: normal}
+		c.Struck[c.StruckCount] = ct
 		c.StruckCount++
 	}
 }

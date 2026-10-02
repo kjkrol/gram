@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 )
 
 type layered struct {
@@ -24,23 +25,14 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	c := collision.NewPlugin(w)
-	if err := c.RegisterBehavior(collision.Between(plugin.Any, plugin.Any, func(plugin.Tick, collision.Meeting) { met = true })); err != nil {
-		t.Fatal(err)
-	}
-	ctx := &installCtx{ecs: goke.New()}
-	if err := w.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Install(ctx); err != nil {
-		t.Fatal(err)
-	}
+	var stats collision.ContactStats
+	c := collision.NewPlugin(w).WithStats(&stats)
 	boxes := kind.Define[layered](w.Kinds(), "box", kind.Spec{
-		kind.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
-		kind.Const(world.Velocity{}),
-		kind.Const(collision.Collider{}),
-		kind.Load(func(b layered) world.Layers { return b.layers }),
-		kind.Const(collision.Physics{}),
+		comp.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
+		comp.Const(world.Velocity{}),
+		comp.Const(collision.Collider{}),
+		comp.Load(func(b layered) world.Layers { return b.layers }),
+		comp.Const(collision.Physics{}),
 	})
 	w.Seed(boxes.Entry(layered{x: 100, layers: a}), boxes.Entry(layered{x: 104, layers: b}))
 	if err := w.Populate(); err != nil {
@@ -48,18 +40,8 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
-	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		c.RunPlan(rc, d)
-		rc.Sync()
-	})
-	ctx.ecs.Tick(time.Second / 60)
+	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	ecs.Tick(time.Second / 60)
 
 	var lefts []float64
 	for q.All(); q.Next(); {
@@ -67,7 +49,7 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 			lefts = append(lefts, b.Pos.TopLeft.X)
 		}
 	}
-	return met, max(lefts[0], lefts[1]) - min(lefts[0], lefts[1])
+	return stats.Counter > 0, max(lefts[0], lefts[1]) - min(lefts[0], lefts[1])
 }
 
 func TestLayers_TouchOnlyWhereTheyShareABit(t *testing.T) {

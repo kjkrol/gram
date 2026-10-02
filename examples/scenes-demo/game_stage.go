@@ -2,21 +2,19 @@ package main
 
 import (
 	"fmt"
-	"github.com/kjkrol/aabbworld"
 	"image/color"
 	"log"
 	"slices"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/kind"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -59,8 +57,8 @@ func (g *GameplayStage) Init(ctx game.Initializer) error {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
 	g.mover = kind.Define[world.Position](g.world.Kinds(), "mover", kind.Spec{
-		kind.Load(func(p world.Position) world.Position { return p }),
-		kind.Const(velocity),
+		comp.Load(func(p world.Position) world.Position { return p }),
+		comp.Const(velocity),
 	})
 
 	worldScn := &worldScene{stage: g}
@@ -116,11 +114,11 @@ func handleGlobalKeys(events *control.InputEvents, runtime game.Runtime, basePat
 			continue
 		}
 		switch k.Key {
-		case ebiten.KeyEscape:
+		case control.KeyEscape:
 			runtime.Quit()
-		case ebiten.KeySpace:
+		case control.KeySpace:
 			runtime.TogglePause()
-		case ebiten.KeyF5:
+		case control.KeyF5:
 			if err := runtime.Persistence().Save(basePath, ""); err != nil {
 				log.Printf("save: %v", err)
 			} else {
@@ -140,7 +138,7 @@ var _ game.Scene = (*worldScene)(nil)
 
 func (w *worldScene) Name() string { return "world" }
 
-func (w *worldScene) Layers() []render.Renderer {
+func (w *worldScene) Layers() []render.Layer {
 	s := w.stage
 
 	atlas := render.NewAtlas()
@@ -148,16 +146,21 @@ func (w *worldScene) Layers() []render.Renderer {
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
-	return []render.Renderer{
+	return []render.Layer{
 		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 40, A: 255}}, ScreenWidth, ScreenHeight),
-		s.world.Renderer(),
+		render.NewComposer(s.world.Renderer()),
 	}
+}
+
+// Viewports are where the world is shown: the camera over the whole screen.
+func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
+	return render.Whole(w.stage.world.Camera(), screen)
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	handleGlobalKeys(events, runtime, w.stage.basePath())
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyP {
+		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Show(w.stage.panel.Name())
 		}
 	}
@@ -173,12 +176,12 @@ var _ game.Scene = (*panelScene)(nil)
 
 func (p *panelScene) Name() string { return "panel" }
 
-func (p *panelScene) Layers() []render.Renderer { return []render.Renderer{&panelRenderer{}} }
+func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRenderer{}} }
 
 func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	handleGlobalKeys(events, runtime, p.stage.basePath())
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == ebiten.KeyP {
+		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Hide(p.Name())
 		}
 	}
@@ -190,11 +193,11 @@ type panelRenderer struct{}
 
 func (r *panelRenderer) Init(*goke.SysInit) {}
 
-func (r *panelRenderer) Draw(screen *ebiten.Image) {
+func (r *panelRenderer) Draw(screen *render.Image) {
 	const w, h = 300, 140
 	x, y := float32(ScreenWidth-w)/2, float32(ScreenHeight-h)/2
-	vector.FillRect(screen, x, y, w, h, color.RGBA{R: 235, G: 235, B: 235, A: 255}, false)
-	ebitenutil.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
+	render.FillRect(screen, x, y, w, h, color.RGBA{R: 235, G: 235, B: 235, A: 255})
+	render.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
 }
 
 // hudScene is a passive overlay: always on top, never focusable, so it never takes input.
@@ -204,7 +207,7 @@ var _ game.Scene = (*hudScene)(nil)
 
 func (h *hudScene) Name() string { return "hud" }
 
-func (h *hudScene) Layers() []render.Renderer { return []render.Renderer{&hudRenderer{stage: h.stage}} }
+func (h *hudScene) Layers() []render.Layer { return []render.Layer{&hudRenderer{stage: h.stage}} }
 
 func (h *hudScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 
@@ -214,7 +217,7 @@ type hudRenderer struct{ stage *GameplayStage }
 
 func (r *hudRenderer) Init(*goke.SysInit) {}
 
-func (r *hudRenderer) Draw(screen *ebiten.Image) {
+func (r *hudRenderer) Draw(screen *render.Image) {
 	active := r.stage.stack.Composition().Active()
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
+	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
 }
