@@ -42,9 +42,7 @@ func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 // Seen from above the flat look's sprites drawn on the GPU are the ones it lays on the frame, pixel
 // for pixel: zoomed in, in their light, their halves either side of a wrapping world's seam.
 func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(1, 8, func(dst *render.Canvas, size int) {
 		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 200, G: 40, B: 40, A: 255})
@@ -78,5 +76,13 @@ func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	}
 	if drawn == 0 {
 		t.Fatal("no sprite in view")
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

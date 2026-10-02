@@ -2,21 +2,17 @@ package terrain
 
 import (
 	"image"
-	"os"
 	"testing"
 
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // As the sun turns the shade is baked anew a strip a frame, and a round of strips holds what a
 // bake of the whole at once holds; the sun leapt, it is baked whole at once. Coarse, it is baked
 // half as fine a side.
 func TestRenderer_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	cam := icamera.NewFromSpace(512, 512, 0)
 	sun := func(x float32) render.Uniforms { // low in the east or in the west: the ridge's shadow to either side
 		return render.UniformsOf(map[string]any{"Sun": []float32{x, 0.1, 0.3}, "SunStrength": []float32{1}})

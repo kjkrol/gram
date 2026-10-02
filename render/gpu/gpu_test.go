@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-// needDevice readies the headless device, the software rasteriser with GRAM_GPU=software; a machine
+// needGPU readies the headless device, the software rasteriser with GRAM_GPU=software; a machine
 // without either skips.
-func needDevice(t *testing.T) {
+func needGPU(t *testing.T) {
 	t.Helper()
 	if err := Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU to draw on: %v", err)
+		t.Skipf("no GPU: %v", err)
 	}
 }
 
@@ -21,7 +21,7 @@ func pixel(pix []byte, w, x, y int) [4]byte {
 
 // A fill covers the rectangle asked for, and only it; what is written and drawn reads back.
 func TestFill_CoversItsRectangleOnly(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	tex := NewTexture(8, 6)
 	Fill(Image{Texture: tex}, 0, 0, 1, 1)
 	Fill(Image{Texture: tex, Rect: Rect{2, 1, 3, 2}}, 1, 0, 0, 1)
@@ -41,7 +41,7 @@ func TestFill_CoversItsRectangleOnly(t *testing.T) {
 // Pixels written land after the draws before them; a program reads an image at its pixels, and
 // its uniforms by name.
 func TestTriangles_AProgramReadsItsImageAndUniforms(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	src := NewTexture(2, 1)
 	src.WritePixels(0, 0, 2, 1, []byte{255, 0, 0, 255, 0, 255, 0, 255})
 	layout := NewLayout([]Uniform{{"Shade", 1}, {"Tint", 3}})
@@ -70,7 +70,7 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 // An image drawn over another lays its premultiplied colours over what is there; outside the
 // image a program reads transparent.
 func TestDrawImage_LaysItOverWhatIsThere(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	dst := NewTexture(4, 4)
 	Fill(Image{Texture: dst}, 1, 1, 1, 1)
 	src := NewTexture(2, 2)
@@ -98,7 +98,7 @@ func TestLayout_FollowsWGSL(t *testing.T) {
 // Pixels written into a part of a texture land there, rows of any width, and leave the rest as it
 // was — gogpu's own write at an origin spoils what lies left of it.
 func TestWritePixels_APartLandsInPlaceAndLeavesTheRest(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	const w, h = 97, 3
 	tex := NewTexture(w, h)
 	all := make([]byte, 4*w*h)
@@ -127,7 +127,7 @@ func TestWritePixels_APartLandsInPlaceAndLeavesTheRest(t *testing.T) {
 // A mesh reads its vertices from their index alone; drawn with a depth buffer, the nearer of two
 // covers the further whichever comes first.
 func TestMesh_TheNearerCoversTheFurtherWhicheverComesFirst(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	layout := NewLayout([]Uniform{{"Depth", 1}, {"Color", 4}})
 	p := NewMesh("test mesh", layout.Fields, `
 struct Out { @builtin(position) clip: vec4<f32> }
@@ -167,7 +167,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return U.Color; }`)
 // An instanced mesh is drawn once an instance, each reading its own vectors: two quads, from their
 // vertices alone, each where and in the colour its instance says.
 func TestMesh_AnInstancedMeshIsDrawnOnceAnInstance(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	p := NewMesh("test instances", "", `
 struct Out {
     @builtin(position) clip: vec4<f32>,
@@ -199,7 +199,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
 // A new texture is transparent, as WebGPU has it, though its memory was another texture's: a part
 // drawn into it leaves the rest clear.
 func TestNewTexture_IsTransparent(t *testing.T) {
-	needDevice(t)
+	needGPU(t)
 	used := NewTexture(64, 64)
 	Fill(Image{Texture: used}, 0.3, 0.6, 0.9, 1)
 	used.Release()

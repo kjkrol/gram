@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // shooter runs the demo without a window, a frame every 60th of a second on a GPU of its own, and
@@ -151,9 +150,7 @@ func TestShots(t *testing.T) {
 	if dir == "" {
 		t.Skip("set GRAM_SHOTS to a directory to save what the demo draws")
 	}
-	if err := gpu.Headless(false); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	d := NewDemo()
 	e := engine.NewEngine(d)
 	if err := e.Init(); err != nil {

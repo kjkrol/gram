@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/internal/engine"
@@ -40,9 +41,7 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 // The demo draws its frames: every kind of its units has a sprite in the atlas — the crowd on the
 // plateau once had none and the first frame panicked. Needs a GPU; skipped without one.
 func TestDemo_DrawsAFrame(t *testing.T) {
-	if err := gpu.Headless(false); err != nil {
-		t.Skip(err)
-	}
+	needGPU(t)
 	e := engine.NewEngine(NewDemo())
 	if err := e.Init(); err != nil {
 		t.Fatal(err)
@@ -55,5 +54,13 @@ func TestDemo_DrawsAFrame(t *testing.T) {
 		}
 		screen.Clear()
 		e.Draw(screen)
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

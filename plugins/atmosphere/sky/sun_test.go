@@ -2,6 +2,7 @@ package sky_test
 
 import (
 	"math"
+	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -11,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -98,7 +100,16 @@ func TestSun_LaysAShadowAwayFromItPushedOffByHowHighTheEntityStands(t *testing.T
 }
 
 func TestSun_ItsShaderCompiles(t *testing.T) {
+	needGPU(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

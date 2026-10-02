@@ -21,9 +21,7 @@ import (
 // tiles composed every frame are — kinds, ways and all, zoomed in and moved — composed anew when a
 // cell changes, and drawn on across a wrapping world's seam.
 func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 40, G: 80, B: 200, A: 255}}
 	road := cell.Kind{Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 150, G: 120, B: 80, A: 255}}
@@ -92,9 +90,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 // Over a board composed once the GPU draws the grid as the tiles composed every frame show it: a
 // square grid's outlined tiles alike, a hex grid's edges within their smoothing.
 func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(1, 4, render.Solid(grass.Color))
@@ -135,5 +131,13 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 		if most > c.most || 100*sum/len(a) > c.mean {
 			t.Errorf("%s: the grid drawn on the GPU differs by %d at most, %.2f on average; want at most %d and %.2f", c.name, most, float64(sum)/float64(len(a)), c.most, float64(c.mean)/100)
 		}
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

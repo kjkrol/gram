@@ -42,9 +42,7 @@ func purple(px []byte) bool { return px[0] > 60 && px[2] > 60 && px[1] < px[0]/4
 // Drawn on the GPU in the isometric view, a billboard standing behind a hill is hidden by it, one
 // standing on the hill's slope shows, and its shadow darkens the ground beside it.
 func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
@@ -136,9 +134,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 // Over a hex board in relief, drawn as prisms, a billboard shows and casts its shadow on the prisms
 // it stands among, laid from the frame's depth.
 func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
@@ -194,5 +190,13 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	}
 	if shown == 0 || darker == 0 {
 		t.Errorf("a billboard on the prisms shows %d pixels and darkens %d round it, want some of each", shown, darker)
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

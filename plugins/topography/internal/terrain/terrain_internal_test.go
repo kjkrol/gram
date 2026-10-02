@@ -154,6 +154,7 @@ func (e eye) Project(x, y, z float32) (float32, float32) {
 // The lattice's quadrants are written once a version of the ground, the shores once a version of
 // the coast; without an albedo the ground is drawn plain.
 func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T) {
+	needGPU(t)
 	g := &hill{}
 	f := &flat{}
 	r := New(g, f, stillSky{}, Config{})
@@ -253,6 +254,7 @@ func TestShores_HoldTheWayAndHowFar(t *testing.T) {
 // A draw's uniforms are the frame's with the renderer's own over them, the grid from the
 // surface; the frame's own are left as they were.
 func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
+	needGPU(t)
 	f := &flat{grid: 6}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}

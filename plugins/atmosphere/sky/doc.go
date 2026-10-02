@@ -11,7 +11,7 @@
 // ground drawn on the GPU to lay. [DefaultSun] stands high over
 // the south-east, the sun of a relief under no sky.
 //
-// [New] takes the calendar, the [Config] — which [Way] the sun stands at noon, in how many steps
+// [New] takes the calendar, the [Config] — which [celestial.Way] the sun stands at noon, in how many steps
 // a day it moves (none: as it goes), whether the light begins frozen and at what hour on the
 // clock, which stars the night shows — and the latitude the sun goes at, the climate's zone's in
 // an atmosphere. Once a tick ([Sky.Update], in the interface part of

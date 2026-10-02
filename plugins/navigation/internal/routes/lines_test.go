@@ -26,9 +26,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 // Laid on the GPU over the level ground drawn from above, a stretch of route is drawn along it in
 // its colour, as wide as asked, and nowhere off it.
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
 	screen.ClearDepth(depth)
@@ -54,5 +52,13 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	}
 	if len(g.stretches) != 0 {
 		t.Error("the stretches drawn are kept for the next frame")
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }
