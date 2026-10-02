@@ -32,7 +32,7 @@ type weatherSystem struct {
 	now     goke.Comp[Weather]
 	spawn   goke.Comp[Weather]
 	host    *plugin.StepRules[Weathering]
-	profile Profile // the zone's climate in numbers
+	profile Profile     // the zone's climate in numbers
 	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 

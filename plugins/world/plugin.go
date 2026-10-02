@@ -319,4 +319,3 @@ func (p *Plugin) Kinds() *Kinds { return p.kinds }
 // Wire defines the wire named name — its own entity made at Setup, found again in a loaded game —
 // for keys and rules to drive and rules of what is wired to it to read (rule.Wire); call it in Init.
 func (p *Plugin) Wire(name string) *rule.Wire { return p.module.wires.define(name) }
-

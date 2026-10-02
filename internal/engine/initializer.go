@@ -80,7 +80,9 @@ func (c *initializer) Hook(rules ...rule.Rule) error { return HookOn(c.used, rul
 
 // host is a plugin hosting rules: its Hook refuses a rule of a moment it does not catch with
 // plugin.ErrUnhosted.
-type host interface{ Hook(rules ...rule.Rule) error }
+type host interface {
+	Hook(rules ...rule.Rule) error
+}
 
 // HookOn hooks each rule — a role's, each of its rules — on the first of among that hosts it,
 // trying the next while one refuses it with plugin.ErrUnhosted: what game.Initializer.Hook does

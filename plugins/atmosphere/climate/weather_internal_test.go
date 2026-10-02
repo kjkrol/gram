@@ -1,6 +1,7 @@
 package climate
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
@@ -290,5 +292,24 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 	}
 	if clear := weather.Default[Config{Weathers: weather.Default}.index("clear")]; r.sys.likely(clear, calendar.Winter) != 1 {
 		t.Errorf("a dry weather comes %v in the dry season, want as likely as ever", r.sys.likely(clear, calendar.Winter))
+	}
+}
+
+// The weather is a moment of the world as a whole: a rule of it filtered or narrowed to a role has
+// no entity to read and is refused, never hooked to fire for nobody.
+func TestClimate_RefusesAFilteredOrNarrowedRule(t *testing.T) {
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	c := New(w, calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute}), Config{})
+	every := rule.On("any weather", rule.All, func(m *rule.Moment[Weathering]) rule.Step { return m.Order(winterNow{}) })
+	for name, r := range map[string]rule.Rule{
+		"narrowed": rule.Role("climate sheltered").Obeys(every).Rules()[0],
+		"having":   rule.On("having", rule.Having[Weather](), func(m *rule.Moment[Weathering]) rule.Step { return m.Order(winterNow{}) }),
+	} {
+		if err := c.Host(r); !errors.Is(err, plugin.ErrUnhosted) {
+			t.Errorf("%s: Host = %v; want plugin.ErrUnhosted", name, err)
+		}
+	}
+	if err := c.Host(every); err != nil {
+		t.Errorf("Host of a rule of every weather = %v; want it taken", err)
 	}
 }

@@ -96,7 +96,9 @@ func (a *Actor) OnWire(step rule.Step) rule.Step { return steps.NewOnWire(step) 
 
 // WhileWire runs step while the wire the actor is wired to is under e, and fails while it is not,
 // or for one wired to none.
-func (a *Actor) WhileWire(e effect.Effect, step rule.Step) rule.Step { return steps.NewWhileWire(e, step) }
+func (a *Actor) WhileWire(e effect.Effect, step rule.Step) rule.Step {
+	return steps.NewWhileWire(e, step)
+}
 
 // Order gives the command cmd for the actor — queued for the plugin that handles its type, the
 // same command a player gives — each time it runs, and does well at once: fire and forget. What
