@@ -2,6 +2,7 @@ package painter
 
 import (
 	"math"
+	"os"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 type flatAtlas struct{}
@@ -490,6 +492,7 @@ func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 
 // The composer's shader compiles with the materials the board and the world bring.
 func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
+	needGPU(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
 	}
@@ -764,6 +767,7 @@ func TestTile_ABridgeRunsOverItsRiverOnToTheRoad(t *testing.T) {
 // land — with the grounds running in and the ways over it, painted anew for the cells that change
 // and left alone while nothing does.
 func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
@@ -812,6 +816,7 @@ func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 // Beside the albedo the water is painted in its layers: the sea's shine over the sea and under the
 // coast, the coast's grounds covering it, a river's flow down its slope and its shine where it runs.
 func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
@@ -857,6 +862,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 // Water may lie on the sea, on the cells a river runs across and on every cell beside either; the
 // rest is dry, and a cell turned to water wets it and the cells round it.
 func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(8, 6, 32)
 	brd := board.NewBoard(grid)
@@ -929,3 +935,11 @@ func TestPainter_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
 }
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+}
