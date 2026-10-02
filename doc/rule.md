@@ -53,7 +53,7 @@ The second argument of `rule.On` says whom the rule fires for, read before its s
   `rule.Self(frozen.Mark())`; a cell carries the game's tags of places (`cell.Tag`, of the family
   `cell.Family`, given in the board's `Layout`) — `rule.Self(trapdoor)` on a `cell.Now`;
 - `rule.Between(a, b)` — a pair whose entity carries `a` and whose other carries `b` (`tag.Any`
-  for either side), for a moment that is `rule.Met`: a collision's `Meeting`, a `Sighting`, a
+  for either side), for a moment that is `plugin.Met`: a collision's `Meeting`, a `Sighting`, a
   navigation `Touch`;
 - `rule.Having[T]()` — an entity carrying the component `T`: `rule.Having[witch]()`.
 
@@ -70,7 +70,7 @@ costs nothing for it.
   Moment has no such method, and one made by an Actor is refused as the rule is made. A rule
   remembers nothing of its own, and runs no Go code of its own: there is no step for it. What
   the steps cannot say is a moment, a step or a knob the plugin still lacks.
-- **Plan** — what a kind's entities do over time. It remembers its place (`plan.Mind`: the steps
+- **Plan** — what a kind's entities do over time. It remembers its place (its mind, a component `plan.New` gives: the steps
   running, each one's place and start on the world's clock), waits (`Wait`, `Until`), talks to
   other entities (`Ask`), and is saved with the game. `OneOf` is a reactive choice, `Steps` a
   sequence with memory; the Actor's `When[F]` and `On[F]` open a branch on a fact, `If` reads one.
@@ -85,9 +85,9 @@ costs nothing for it.
   at once: **fire and forget**. The handler carries it out for the entity alone
   (`control.Issued.ByEntity`). The world keeps a stage's one carrier (`control.Carrier`,
   `world.Plugin.Commands`): the players give it theirs, the entities theirs; the engine carries
-  every `plugin.CommandHandler` a stage uses, and a plugin's `rule.Tick` hands the carrier to its
+  every `plugin.CommandHandler` a stage uses, and a plugin's `plugin.Tick` hands the carrier to its
   rules. Nothing is dropped: a command waits for its handler's pass — given after it, for the next
-  frame's. A command that is `rule.Aimed` is told the subject of the fact it stands under, or of
+  frame's. A command that is `plugin.Aimed` is told the subject of the fact it stands under, or of
   the rule's moment: whom the entity touched, who asked.
 - **Fact** — a component a plugin writes for entities with a `Mind` alone (navigation's
   `Blocked`, `Arrived`), so entities without a plan pay nothing. Facts are how a plan learns what
@@ -112,7 +112,7 @@ costs nothing for it.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
   a clock rule applies lands there — `m.If(clock.At(dusk), m.Apply(night))`, a phase that
   `clock.Clock.In` reads.
-- **Where one stands.** On a moment that is `rule.Placed` — a `unit.Standing`, a cell's
+- **Where one stands.** On a moment that is `plugin.Placed` — a `unit.Standing`, a cell's
   `cell.Now` — `m.Here(step)` runs the step on the cells under the entity (for a cell, on
   itself) and `m.Around(rings, step)` on those and the rings of neighbours round them, each cell
   once, on square and hex boards alike: an effect applied to the ground.
