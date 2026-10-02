@@ -81,6 +81,7 @@ func NewPlugin(cfg Config) *Plugin {
 	m.wires.effects = m.effects
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	m.plans.Wires(m.wires.Of)
+	m.plans.Roles(m.wires.RolesOf)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {

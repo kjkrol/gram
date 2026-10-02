@@ -116,7 +116,7 @@ func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	if f.subject {
 		subject, aimed = any(&f.current).(plugin.Subject).Subject()
 	}
-	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around, Wires: t.Wires}
+	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around, Wires: t.Wires, Roles: t.Roles}
 	f.run.Fire(p, t.CmdBuf, id, f.about, subject, aimed)
 }
 

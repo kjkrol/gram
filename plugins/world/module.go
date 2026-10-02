@@ -94,7 +94,7 @@ func newModule(cfg Config) *module {
 // step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
 	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Wires: w.wires.Of}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Wires: w.wires.Of, Roles: w.wires.RolesOf}
 }
 
 // =================================================================
@@ -171,6 +171,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[rule.Wiring](),
 		goke.LoadComp[rule.Wired](),
+		goke.LoadComp[tag.Tags[rule.Roles]](),
 	}, w.effects.Module().LoadComps()...)
 	return append(tokens, w.plans.LoadComps()...)
 }

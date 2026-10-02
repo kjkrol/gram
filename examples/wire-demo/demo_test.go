@@ -369,3 +369,33 @@ func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	half := float64(size) / 2
 	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
 }
+
+// U has a selected scout beside the lever pull it: the west wire goes on and the west trapdoors
+// open, the east ones stay shut; a scout far from the lever pulls nothing, and the trapdoors on the
+// wire it stands beside are not levers.
+func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
+	s := buildStage(t)
+	s.tick(1)
+	scouts := s.onRow(yardRow)
+	if len(scouts) != 3 {
+		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
+	}
+	far, _ := s.brd.CellIndex(GridWidth/2, yardRow)
+	s.put(scouts[0], far)
+	s.tick(1)
+	s.world.Commands().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scouts[0]}})
+	s.tick(1)
+	s.press(control.KeyU)
+	s.tick(TPS / 4)
+	if !s.holds(westLeft) {
+		t.Fatal("a scout far from the lever pulled it")
+	}
+	beside, _ := s.brd.CellIndex(leverCol+1, yardRow)
+	s.put(scouts[0], beside)
+	s.tick(1)
+	s.press(control.KeyU)
+	s.tick(TPS / 4)
+	if s.holds(westLeft) || !s.holds(eastLeft) {
+		t.Errorf("U beside the lever: west holds %v, east holds %v; want the west open alone", s.holds(westLeft), s.holds(eastLeft))
+	}
+}

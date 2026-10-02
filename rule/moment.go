@@ -63,6 +63,12 @@ func (m *Moment[P]) OnWire(step Step) Step { return steps.NewOnWire(step) }
 // while its lever's wire is on — and fails while it is not, or for one wired to none.
 func (m *Moment[P]) WhileWire(e effect.Effect, step Step) Step { return steps.NewWhileWire(e, step) }
 
+// Playing runs step while the entity plays role, and fails while it does not: inside Here or
+// Around, the place it turned to — a lever beside a unit, among the trapdoors on its wire.
+func (m *Moment[P]) Playing(role *Part, step Step) Step {
+	return steps.NewPlaying(uint8(role.tag), step)
+}
+
 // Order gives the command cmd for the entity each time it fires — the same command a player gives
 // — and does well at once; one that is Aimed is told the moment's Subject, and fails while the
 // moment names nobody.

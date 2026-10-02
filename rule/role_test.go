@@ -338,3 +338,26 @@ func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
 		t.Errorf("the entity spawned carries %b; want %b", spawned, want)
 	}
 }
+
+// Playing runs its step while the entity plays the role, as the world's lookup tells: not for
+// one playing another, nor for one the lookup knows nothing of.
+func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
+	lever, trapdoor := rule.Role("playing lever"), rule.Role("playing trapdoor")
+	carrier, q := listen(t)
+	h := &plugin.StepRules[standing]{}
+	if err := h.Add(rule.On("pull", rule.All, func(m *rule.Moment[standing]) rule.Step {
+		return m.Playing(lever, m.Order(heard{Rule: "pull"}))
+	})); err != nil {
+		t.Fatal(err)
+	}
+	roles := map[uid.UID64]uint64{1: 1 << lever.Tag(), 2: 1 << trapdoor.Tag()}
+	tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier, Roles: func(id uid.UID64) uint64 { return roles[id] }}
+	for _, id := range []uid.UID64{1, 2, 3} {
+		h.Run(tick, standing{who: id})
+	}
+	var got []uid.UID64
+	q.Drain(func(i control.Issued[heard]) { got = append(got, i.Entity) })
+	if !slices.Equal(got, []uid.UID64{1}) {
+		t.Errorf("Playing ran for %v; want [1], the lever alone", got)
+	}
+}

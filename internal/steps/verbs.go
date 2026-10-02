@@ -221,6 +221,26 @@ func (w whileWire) tick(c *ctx, _ int, kids []int) Status {
 	return c.run(kids[0])
 }
 
+// NewPlaying runs node while the entity — a place Around turned it to, too — plays the role of bit,
+// and fails while it does not.
+func NewPlaying(bit uint8, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("playing(%d)", bit), make: func() exec { return playing{bit: bit} }}
+}
+
+type playing struct {
+	basic
+	bit uint8
+}
+
+func (playing) instant() {}
+
+func (p playing) tick(c *ctx, _ int, kids []int) Status {
+	if !c.entity || c.rolesOf(c.id)&(1<<p.bit) == 0 {
+		return Failure
+	}
+	return c.run(kids[0])
+}
+
 func NewUnder(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("under(%d)", e.Mark()), make: func() exec { return under{e: e} }}
 }

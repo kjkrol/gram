@@ -9,7 +9,9 @@
 // the gate open while its wire is on. Wanderers nobody owns walk to and fro over both strips; the
 // player's scouts and porters start in the yard. Everyone plays mortal and falls in where nothing
 // holds them; the scouts play hasty too, and J hastens the selected ones (Role.Can), never the
-// porters. All of it is defined here, in the game.
+// porters. The west lever stands in the yard as well, a cell playing lever wired to west: the
+// scouts play handy, and U has a selected scout beside it pull it (Playing among the cells Around
+// the scout, so the trapdoors on its wire are not pulled). All of it is defined here, in the game.
 package main
 
 import (
@@ -56,9 +58,13 @@ const (
 	// holds the plate, the scouts on its first row and the porters on its second
 	fenceRow, gateLeft uint32 = 13, 11
 	yardRow, plateCol  uint32 = 14, GridWidth - 4
+	// the west lever stands at the yard's left end, on the scouts' row
+	leverCol uint32 = 1
 
 	// pulse is how long a wire stays on once its lever is pulled or its plate let go.
 	pulse = 2 * time.Second
+	// pulling is how long a scout pulls the lever beside it once told to.
+	pulling = time.Second / 4
 	// hasteHeld is how long the scouts go twice as fast.
 	hasteHeld = 3 * time.Second
 )
@@ -105,7 +111,7 @@ type mainStage struct {
 	brd       *board.Board
 
 	wires struct{ west, east, gate *rule.Wire }
-	roles struct{ trapdoor, plate, gate, hasty, mortal *rule.Part }
+	roles struct{ trapdoor, plate, gate, lever, hasty, handy, mortal *rule.Part }
 	// on is a wire pulled or pressed, for a while; lit a switch flipped on, until flipped off
 	on, lit     effect.Effect
 	haste       effect.Effect
@@ -140,6 +146,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		cell.Kind{Name: cell.Named("boards"), Cost: 1, Allows: cell.Land}, // a trapdoor shut
 		cell.Kind{Name: cell.Named("pit"), Cost: 1},                       // holds nobody
 		cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("lever"), Cost: 1, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("fence"), Cost: 1, Solid: true},
 		cell.Kind{Name: cell.Named("gate"), Cost: 1, Solid: true},          // the gate shut
 		cell.Kind{Name: cell.Named("gateway"), Cost: 1, Allows: cell.Land}, // the gate open
@@ -177,6 +184,15 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return m.WhileWire(lit, m.Keep(ajar))
 	}))
 	s.roles.hasty = rule.Role("hasty").Can(s.haste, control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts")
+	// a lever does nothing of its own: a handy unit beside it pulls it, its wire going on
+	s.roles.lever = rule.Role("lever")
+	pull := fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
+	lever := s.roles.lever
+	s.roles.handy = rule.Role("handy").
+		Can(pull, control.KeyPress{Key: control.KeyU}, "Pull the lever beside the selected scouts").
+		Obeys(rule.On("pull the lever beside", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
+			return m.Under(pull, m.Around(1, m.Playing(lever, m.OnWire(m.Apply(on)))))
+		}))
 	s.roles.mortal = rule.Role("mortal").Obeys(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	}))
@@ -208,7 +224,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	); err != nil {
 		return err
 	}
-	if err := s.player.Bind(s.selection.Abilities(s.roles.hasty)...); err != nil {
+	if err := s.player.Bind(s.selection.Abilities(s.roles.hasty, s.roles.handy)...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -216,7 +232,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 
 	// Every role's rules, each hooked on the plugin hosting its moment: the board, here.
-	if err := ctx.Hook(s.roles.trapdoor, s.roles.plate, s.roles.gate, s.roles.hasty, s.roles.mortal); err != nil {
+	if err := ctx.Hook(s.roles.trapdoor, s.roles.plate, s.roles.gate, s.roles.hasty, s.roles.handy, s.roles.mortal); err != nil {
 		return err
 	}
 	s.defineKinds()
@@ -250,7 +266,7 @@ func (s *mainStage) defineKinds() {
 	laden := steering.Steering{MaxSpeed: UnitSpeed * 3 / 4, Accel: UnitSpeed, V0: UnitSpeed / 4, TurnRate: 0.1}
 	land := unit.Mover{Domain: cell.Land}
 	selectable, mine := comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner())
-	s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(s.roles.hasty, s.roles.mortal))
+	s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(s.roles.hasty, s.roles.handy, s.roles.mortal))
 	s.porter = units.Define("porter", land, laden, selectable, mine, rule.Plays(s.roles.mortal))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile, rule.Plays(s.roles.mortal),
@@ -282,6 +298,7 @@ func (s *mainStage) Spawn() error {
 		}
 	}
 	cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Wired: s.wires.east})
+	cells = append(cells, cell.Entry{Kind: "lever", Cell: cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Wired: s.wires.west})
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {
@@ -335,6 +352,7 @@ func (m *mainScene) Layers() []render.Layer {
 		"boards":  {R: 120, G: 90, B: 55, A: 255},
 		"pit":     {R: 15, G: 12, B: 20, A: 255},
 		"plate":   {R: 160, G: 160, B: 170, A: 255},
+		"lever":   {R: 200, G: 170, B: 60, A: 255},
 		"fence":   {R: 85, G: 60, B: 40, A: 255},
 		"gate":    {R: 70, G: 75, B: 90, A: 255},
 		"gateway": {R: 150, G: 130, B: 95, A: 255},

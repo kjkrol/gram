@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
@@ -22,6 +23,8 @@ type wires struct {
 	spawn  goke.Comp[rule.Wiring]
 	wired  *goke.Query // every entity wired to a wire, sought by Of
 	wiredC goke.Comp[rule.Wired]
+	plays  *goke.Query // every entity playing roles, sought by RolesOf
+	playsC goke.Comp[tag.Tags[rule.Roles]]
 }
 
 // define adds the wire named name; a name defined twice panics.
@@ -44,12 +47,21 @@ func (w *wires) Of(id uid.UID64) (uid.UID64, bool) {
 	return w.wiredC.At(w.wired.Cursor()).To, true
 }
 
+// RolesOf is the roles id plays, a bit each: what a rule's Playing asks.
+func (w *wires) RolesOf(id uid.UID64) uint64 {
+	if w.plays == nil || !w.plays.Seek(id) {
+		return 0
+	}
+	return uint64(*w.playsC.At(w.plays.Cursor()))
+}
+
 // system finds the wires a loaded game brought, makes the rest — before anything wired to them is
 // made — and carries out the Signals every step.
 func (w *wires) system() goke.System {
 	return goke.SystemFn{
 		OnInit: func(si *goke.SysInit) {
 			w.wired = si.NewQueryBuilder(&w.wiredC).Build()
+			w.plays = si.NewQueryBuilder(&w.playsC).Build()
 			found := map[uint64]uid.UID64{}
 			q := si.NewQueryBuilder(&w.own).Build()
 			for q.All(); q.Next(); {
