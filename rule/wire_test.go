@@ -78,8 +78,7 @@ func newWireRig(t *testing.T, define func(r *wireRig)) *wireRig {
 		g.Create(1)
 		g.Next()
 		r.wired = g.Cursor.IDs[0]
-		id, _ := r.wire.Entity()
-		r.wiredCol.Slice(&g.Cursor)[0] = rule.Wired{To: id}
+		r.wiredCol.Slice(&g.Cursor)[0] = r.wire.Wired()
 		mind(&g.Cursor)
 		h := si.NewFactory(cols...)
 		h.Create(1)
@@ -133,10 +132,10 @@ func newWireRig(t *testing.T, define func(r *wireRig)) *wireRig {
 
 // wireOf is the wire id is wired to, read off its Wired as the world reads it.
 func (r *wireRig) wireOf(id uid.UID64) (uid.UID64, bool) {
-	if !r.wiredQuery.Seek(id) {
+	if !r.wiredQuery.Seek(id) || r.wiredCol.At(r.wiredQuery.Cursor()).To != r.wire.Wiring().Name {
 		return 0, false
 	}
-	return r.wiredCol.At(r.wiredQuery.Cursor()).To, true
+	return r.wire.Entity()
 }
 
 func (r *wireRig) tick(n int) {

@@ -94,8 +94,8 @@ func (s *system) Init(si *goke.SysInit) {
 // minded reports whether id is an entity with a mind: one that can take an ask up.
 func (s *system) minded(id uid.UID64) bool { return s.minds.Seek(id) }
 
-func (s *system) Update(cb *goke.CmdBuf, _ time.Duration) {
-	c := ctx{sys: s, cb: cb, now: s.now()}
+func (s *system) Update(cb *goke.CmdBuf, dt time.Duration) {
+	c := ctx{sys: s, cb: cb, now: s.now(), pass: Pass{Dt: dt}}
 	defer func() { c.about = false }()
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
@@ -138,6 +138,7 @@ type ctx struct {
 	i          int
 	id         uid.UID64
 	entity     bool // id holds whom the node acts for; a rule of a clock.Moment has none
+	wired      bool // under a plan's OnWire: a Keep is renewed every step, lapsing once it is not
 	mind       *Mind
 	tree       *tree
 	prev, next StepSet // the nodes running before this tick, and those running after it

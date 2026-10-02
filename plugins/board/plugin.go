@@ -224,8 +224,8 @@ func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
 
-// Populate applies the seeded Layout — kinds, the cells' tags, ways and crossings — changing nothing
-// and erroring on an unknown kind name.
+// Populate applies the seeded Layout — kinds, the cells' tags, roles and wires, ways and crossings —
+// changing nothing and erroring on an unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
 		return nil

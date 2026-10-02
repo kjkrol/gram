@@ -3,8 +3,8 @@ package cell
 import "github.com/kjkrol/gram/rule"
 
 // Entry sets Cell to the kind named Kind — none, the board's Layout's Default kept — and gives it
-// Tags, the game's tags of places it carries for good, the Roles it plays (rule.Plays) and the
-// wire it is wired to (rule.Wired), none for nil.
+// Tags, the game's tags of places it carries for good, the Roles it plays and the wire it is wired
+// to (world.Plugin.Wire), none for nil.
 type Entry struct {
 	Kind  string
 	Cell  ID

@@ -68,9 +68,9 @@ func (p *wireProbe) marked(id uid.UID64, e effect.Effect) bool {
 	return m != nil && m.Has(e.Mark())
 }
 
-// wiredTo is every entity carrying a Wired, and the entity it names.
-func (p *wireProbe) wiredTo() map[uid.UID64]uid.UID64 {
-	out := map[uid.UID64]uid.UID64{}
+// wiredTo is every entity carrying a Wired, and the wire's name it holds, hashed.
+func (p *wireProbe) wiredTo() map[uid.UID64]uint64 {
+	out := map[uid.UID64]uint64{}
 	for p.ends.All(); p.ends.Next(); {
 		cur := p.ends.Cursor()
 		for i, w := range p.wired.Slice(cur) {
@@ -218,6 +218,19 @@ func TestWire_DefinedTwicePanics(t *testing.T) {
 	w.Wire("west")
 }
 
+// A wire defined once the game is set up would never get its entity: it panics.
+func TestWire_DefinedAfterSetupPanics(t *testing.T) {
+	w := world.NewPlugin(wireConfig())
+	w.Wire("west")
+	rigWires(t, w)
+	defer func() {
+		if recover() == nil {
+			t.Error("a wire defined after Setup returned quietly, want a panic")
+		}
+	}()
+	w.Wire("late")
+}
+
 // A Key puts its effect on its wire every time it is pressed, for as long as the effect's Spec
 // says — the wire's marker on meanwhile — and on no other wire.
 func TestWire_KeyPulsesItsEffectAsLongAsItsSpecSays(t *testing.T) {
@@ -281,9 +294,7 @@ func TestWire_TheFirstPulseLastsAsLongAsTheNext(t *testing.T) {
 		t.Fatalf("the pulses lasted %v steps, want 3 each", lasted)
 	}
 	if lasted[0] != 3 {
-		t.Skipf("BUG(wires): the first pulse lasted %d steps, the next ones 3 — the wire's entity is made "+
-			"without tag.Tags[effect.States], so the first effect's grant of its marker attaches the family "+
-			"and the slot begins a step late; remove this Skip once fixed", lasted[0])
+		t.Errorf("the first pulse lasted %d steps, the next ones 3", lasted[0])
 	}
 }
 
@@ -328,12 +339,9 @@ func TestWire_TwoFlipsInOneStepLeaveTheWireAsItWas(t *testing.T) {
 		name   string
 		before int  // flips, three steps each, before the two
 		on     bool // the wire before the two, and after them
-		bug    string
 	}{
-		{name: "never flipped", before: 0, on: false,
-			bug: "the wire's entity has no effect.Active yet, so Has misses the first flip's Cast (an AddOne in the command buffer) and the second casts again"},
-		{name: "on", before: 1, on: true,
-			bug: "the first flip's Dispel leaves the slot running until the effects' pass, so Has still sees it and the second flip dispels again"},
+		{name: "never flipped", before: 0, on: false},
+		{name: "on", before: 1, on: true},
 		{name: "off after on", before: 2, on: false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -354,10 +362,6 @@ func TestWire_TwoFlipsInOneStepLeaveTheWireAsItWas(t *testing.T) {
 			press(t, w, flip)
 			r.tick(1)
 			if got := lit.On(id); got != c.on {
-				if c.bug != "" {
-					t.Skipf("BUG(wires): on %v and flipped twice in one step, the wire is on %v — %s; "+
-						"remove this Skip once fixed", c.on, got, c.bug)
-				}
 				t.Errorf("on %v and flipped twice in one step, the wire is on %v; want %v", c.on, got, c.on)
 			}
 		})
@@ -373,7 +377,7 @@ func TestWire_PlansFollowTheirWire(t *testing.T) {
 	fx := w.Effects()
 	on := fx.Define("on", effect.Spec{effect.Lasts(3 * wireTick)})
 	lit := fx.Define("lit", effect.Spec{})
-	wired := comp.Load(func(struct{}) rule.Wired { return wiredTo(west) })
+	wired := comp.Const(west.Wired())
 	puller := &wiredMaker{rows: 1, comps: []comp.Comp{wired,
 		plan.New("wires: pull once", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(2*wireTick), a.OnWire(a.Apply(on)), a.Idle())
@@ -427,7 +431,7 @@ func TestWire_PlansKeepOnTheWireEndsWithTheBranch(t *testing.T) {
 	west := w.Wire("west")
 	held := w.Effects().Define("held", effect.Spec{})
 	holder := &wiredMaker{rows: 1, comps: []comp.Comp{
-		comp.Load(func(struct{}) rule.Wired { return wiredTo(west) }),
+		comp.Const(west.Wired()),
 		plan.New("wires: hold the wire a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Not(a.Timeout(3*wireTick, a.OnWire(a.Keep(held)))), a.Idle())
 		})}}
@@ -443,9 +447,6 @@ func TestWire_PlansKeepOnTheWireEndsWithTheBranch(t *testing.T) {
 		t.Error("the branch over, the kept effect is on the holder, which it never was put on")
 	}
 	if held.On(westID) {
-		t.Skip("BUG(wires): a plan's Keep under OnWire is halted with the actor as the entity " +
-			"(steps.system.Update halts nodes with c.id = the actor), so it dispels the actor, not the wire, " +
-			"and the wire keeps the effect forever — remove this Skip once fixed")
 		t.Error("the branch over, the wire is still under the kept effect")
 	}
 }
@@ -458,7 +459,7 @@ func TestWire_AKindsUnitsAreWiredToTheirWire(t *testing.T) {
 	unit := kind.Define[struct{}](w.Kinds(), "lever hand", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(struct{}) rule.Wired { return wiredTo(west) }),
+		comp.Const(west.Wired()),
 	})
 	w.Seed(unit.Entry(struct{}{}))
 	r := rigWires(t, w)
@@ -468,14 +469,48 @@ func TestWire_AKindsUnitsAreWiredToTheirWire(t *testing.T) {
 		t.Fatalf("%d entities carry Wired, want the one unit", len(ends))
 	}
 	for id, to := range ends {
-		if to != westID {
-			t.Skipf("BUG(wires): the unit %v is wired to %v, the west wire's entity is %v — the world's "+
-				"seeds run before its RegSystems makes the wires, and Wire.Wired before that is Wired{To: 0}, "+
-				"a real entity; remove this Skip once fixed", id, to, westID)
+		if to != west.Wiring().Name {
+			t.Errorf("the unit %v is wired to %x, want the west wire's name %x", id, to, west.Wiring().Name)
 		}
 		if got, ok := w.Tick(nil, 0).Wires(id); !ok || got != westID {
 			t.Errorf("Of(%v) = %v, %v; want %v", id, got, ok, westID)
 		}
+	}
+}
+
+// A wire kept on by a plan's holder goes off once the holder is gone, though no branch of its
+// gave way: the Keep is renewed every step and lapses.
+func TestWire_PlansKeepOnTheWireLapsesWithItsHolder(t *testing.T) {
+	w := world.NewPlugin(wireConfig())
+	west := w.Wire("west")
+	held := w.Effects().Define("held", effect.Spec{})
+	holder := kind.Define[struct{}](w.Kinds(), "holder", kind.Spec{
+		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
+		comp.Const(world.Velocity{}),
+		comp.Const(west.Wired()),
+		plan.New("wires: hold the wire for good", func(a *plan.Actor) rule.Step {
+			return a.OnWire(a.Keep(held))
+		}),
+	})
+	w.Seed(holder.Entry(struct{}{}))
+	r := rigWires(t, w)
+	westID := entityOf(t, west)
+	var holderID uid.UID64
+	for id := range r.probe.wiredTo() {
+		holderID = id
+	}
+
+	r.tick(2)
+	if !held.On(westID) {
+		t.Fatal("while its holder holds it the wire is not under the kept effect")
+	}
+	w.Commands().PutFrom(holderID, world.Despawn{})
+	r.tick(4)
+	if len(r.probe.wiredTo()) != 0 {
+		t.Fatal("the holder was not despawned")
+	}
+	if held.On(westID) {
+		t.Error("the holder gone, the wire is still under the kept effect")
 	}
 }
 
@@ -504,7 +539,7 @@ func (g *wireStage) Init(ctx game.Initializer) error {
 	}
 	first := g.wires[g.order[0]]
 	g.maker = &wiredMaker{rows: 1, skip: g.loadFrom != "", comps: []comp.Comp{
-		comp.Load(func(struct{}) rule.Wired { return wiredTo(first) }),
+		comp.Const(first.Wired()),
 	}}
 	g.probe = &wireProbe{}
 	ctx.Setup(g.maker, g.probe)
@@ -618,10 +653,4 @@ func TestWire_ALoadFindsEachWireByNameWhateverTheOrder(t *testing.T) {
 			t.Errorf("after a load %d entities carry the %s wire's Wiring, want 1: %v", len(got), name, got)
 		}
 	}
-}
-
-// wiredTo is the Wired of an entity wired to w, once w's entity is made.
-func wiredTo(w *rule.Wire) rule.Wired {
-	id, _ := w.Entity()
-	return rule.Wired{To: id}
 }

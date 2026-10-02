@@ -24,8 +24,9 @@ type Wire struct {
 // finds it.
 type Wiring struct{ Name uint64 }
 
-// Wired is the component of an entity wired to a wire: To is the wire's entity.
-type Wired struct{ To uid.UID64 }
+// Wired is the component of an entity wired to a wire: To is the wire's name, hashed, as its
+// Wiring says, so a kind gives it before the wire's entity is made and a save keeps it.
+type Wired struct{ To uint64 }
 
 // Signal is the command to put Effect on Wire's entity — Toggle, to take it off when it is on: a
 // key pulling a lever, a switch flipped. The world carries it out.
@@ -44,6 +45,9 @@ func NewWire(name string) *Wire {
 
 // Wiring is the component of the wire's own entity.
 func (w *Wire) Wiring() Wiring { return Wiring{Name: w.hash} }
+
+// Wired is the component of whatever is wired to the wire: comp.Const(w.Wired()) in a kind.
+func (w *Wire) Wired() Wired { return Wired{To: w.hash} }
 
 // String names the wire.
 func (w *Wire) String() string { return "the wire " + w.name }

@@ -35,7 +35,7 @@ type hold struct{ e effect.Effect }
 func (hold) instant() {}
 
 func (h hold) enter(c *ctx, at int) {
-	if c.instant {
+	if c.instant || c.wired {
 		return
 	}
 	c.sys.effects.CastFor(c.cb, c.id, h.e, effect.Forever)
@@ -52,9 +52,12 @@ func (h hold) tick(c *ctx, at int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	if c.instant {
+	if c.instant || c.wired { // renewed every step: a wire's holder may halt elsewhere, or go
 		c.effects().CastFor(c.cb, c.id, h.e, 2*c.pass.Dt)
-		return Success
+		if c.instant {
+			return Success
+		}
+		return Running
 	}
 	on := c.sys.effects.Has(c.id, h.e)
 	switch {
@@ -181,10 +184,10 @@ func (onWire) tick(c *ctx, _ int, kids []int) Status {
 	if !ok {
 		return Failure
 	}
-	self := c.id
-	c.id = wire
+	self, wired := c.id, c.wired
+	c.id, c.wired = wire, !c.instant
 	st := c.run(kids[0])
-	c.id = self
+	c.id, c.wired = self, wired
 	return st
 }
 

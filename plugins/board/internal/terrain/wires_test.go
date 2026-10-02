@@ -39,7 +39,7 @@ type cellState struct {
 	hasRoles bool
 	roles    tag.Tags[rule.Roles]
 	wired    bool
-	to       uid.UID64
+	to       uint64 // the wire's name, hashed
 }
 
 // read is every cell entity's state, by its cell.
@@ -132,12 +132,13 @@ func TestCells_RolesAndWiresReachTheCellEntities(t *testing.T) {
 			if !westMade || !eastMade || westID == eastID {
 				t.Fatalf("wires' entities west %d (%v), east %d (%v): want two, made", westID, westMade, eastID, eastMade)
 			}
+			westTo, eastTo := west.Wired().To, east.Wired().To
 			want := map[cell.ID]cellState{
-				a: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag()), wired: true, to: westID},
-				b: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(plate.Tag()), wired: true, to: westID},
-				c: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag(), plate.Tag()), wired: true, to: eastID},
+				a: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag()), wired: true, to: westTo},
+				b: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(plate.Tag()), wired: true, to: westTo},
+				c: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag(), plate.Tag()), wired: true, to: eastTo},
 				d: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag())},
-				e: {hasRoles: true, wired: true, to: eastID},
+				e: {hasRoles: true, wired: true, to: eastTo},
 			}
 			got := probe.read(t)
 			if len(got) != g.CellCount() {
@@ -186,24 +187,16 @@ func panicsWith(t *testing.T, f func(), want ...string) {
 	f()
 }
 
-// A cell wired to a wire no world defined — or one another world defined — panics as the cells
-// are made, naming the wire.
+// A cell wired to a wire no world defined panics as the cells are made, naming the wire.
 func TestCells_ACellWiredToAWireNoWorldDefinedPanicsNamingIt(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
-	other := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
-		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
-	})
-	for name, wire := range map[string]*rule.Wire{"undefined": rule.NewWire("ghost"), "another world's": other.Wire("elsewhere")} {
-		t.Run(name, func(t *testing.T) {
-			c, _ := g.CellIndex(2, 1)
-			panicsWith(t, func() {
-				installCells(t, g, func(_ *world.Plugin, brd *board.Plugin) {
-					brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: c, Wired: wire}}})
-				})
-			}, wire.String(), "world.Plugin.Wire")
+	wire := rule.NewWire("ghost")
+	c, _ := g.CellIndex(2, 1)
+	panicsWith(t, func() {
+		installCells(t, g, func(_ *world.Plugin, brd *board.Plugin) {
+			brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: c, Wired: wire}}})
 		})
-	}
+	}, wire.String(), "world.Plugin.Wire")
 }
 
 // Roles and wires are the Layout's: given once the cells are made, they panic.
@@ -295,8 +288,7 @@ func (s *wiredStage) Stack() game.Scenes {
 // by name, the entities as they are.
 func (s *wiredStage) state(t *testing.T) map[cell.ID]string {
 	t.Helper()
-	westID, _ := s.west.Entity()
-	eastID, _ := s.east.Entity()
+	westTo, eastTo := s.west.Wired().To, s.east.Wired().To
 	out := map[cell.ID]string{}
 	for c, st := range s.probe.read(t) {
 		desc := fmt.Sprintf("entity %d", st.id)
@@ -313,12 +305,12 @@ func (s *wiredStage) state(t *testing.T) map[cell.ID]string {
 		}
 		switch {
 		case !st.wired:
-		case st.to == westID:
+		case st.to == westTo:
 			desc += ", wired west"
-		case st.to == eastID:
+		case st.to == eastTo:
 			desc += ", wired east"
 		default:
-			desc += fmt.Sprintf(", wired to entity %d, no wire's", st.to)
+			desc += fmt.Sprintf(", wired to %x, no wire's", st.to)
 		}
 		out[c] = desc
 	}

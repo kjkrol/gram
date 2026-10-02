@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
+	"maps"
 	"testing"
 	"time"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -165,18 +166,41 @@ func (s *stage) onRow(row uint32) []uid.UID64 {
 	return out
 }
 
-// admits reports whether the cell at x, y holds a walker.
-func (s *stage) admits(x, y uint32) bool {
-	c, _ := s.brd.CellIndex(x, y)
-	return s.brd.Kind(c).Admits(cell.Land)
+// opened is every cell open now — a trapdoor fallen open, the gate open — counted by the group it
+// belongs to: "west", "east", "gate", "elsewhere" for none.
+func (s *stage) opened() map[string]int {
+	out := map[string]int{}
+	pit, gateway := cell.Named("pit"), cell.Named("gateway")
+	for c := range cell.ID(s.brd.CellCount()) {
+		if k := s.brd.Kind(c).Name; k != pit && k != gateway {
+			continue
+		}
+		x, y, _ := s.brd.Coords(c)
+		group := "elsewhere"
+		switch {
+		case y >= stripTop && y <= stripBottom && x >= westLeft && x <= westLeft+1:
+			group = "west"
+		case y >= stripTop && y <= stripBottom && x >= eastLeft && x <= eastLeft+1:
+			group = "east"
+		case y == fenceRow && x >= gateLeft && x <= gateLeft+1:
+			group = "gate"
+		}
+		out[group]++
+	}
+	return out
 }
 
-// holds reports whether the top trapdoor of the strip from column left holds a walker.
-func (s *stage) holds(left uint32) bool { return s.admits(left, stripTop) }
-
-// gateOpen reports whether both cells of the gate let a walker through.
-func (s *stage) gateOpen() bool {
-	return s.admits(gateLeft, fenceRow) && s.admits(gateLeft+1, fenceRow)
+// wantOpen checks that groups, every cell of them, are open now and nothing else is.
+func (s *stage) wantOpen(t *testing.T, when string, groups ...string) {
+	t.Helper()
+	size := map[string]int{"west": 2 * int(stripBottom-stripTop+1), "east": 2 * int(stripBottom-stripTop+1), "gate": 2}
+	want := map[string]int{}
+	for _, g := range groups {
+		want[g] = size[g]
+	}
+	if got := s.opened(); !maps.Equal(got, want) {
+		t.Errorf("%s: open cells by group %v, want %v", when, got, want)
+	}
 }
 
 func (s *stage) alive() map[uid.UID64]bool {
@@ -224,14 +248,9 @@ func TestKey1_OpensTheWestTrapdoorsAlone(t *testing.T) {
 			t.Errorf("unit %d stood on a west trapdoor as the west wire went on and is still here", id)
 		}
 	}
-	if s.holds(westLeft) || !s.holds(eastLeft) || s.gateOpen() {
-		t.Errorf("key 1: west holds %v, east holds %v, gate open %v; want the west open alone",
-			s.holds(westLeft), s.holds(eastLeft), s.gateOpen())
-	}
+	s.wantOpen(t, "key 1", "west")
 	s.tick(int((pulse + time.Second).Seconds() * TPS))
-	if !s.holds(westLeft) {
-		t.Error("a west trapdoor still open after the west wire's pulse")
-	}
+	s.wantOpen(t, "after the west wire's pulse")
 }
 
 // A scout on the plate puts the east wire on: the east trapdoors open, the west ones stay shut;
@@ -239,9 +258,7 @@ func TestKey1_OpensTheWestTrapdoorsAlone(t *testing.T) {
 func TestPlate_OpensTheEastTrapdoorsAlone(t *testing.T) {
 	s := buildStage(t)
 	s.tick(1)
-	if !s.holds(westLeft) || !s.holds(eastLeft) {
-		t.Fatal("a trapdoor open before anyone stood on the plate")
-	}
+	s.wantOpen(t, "before anyone stood on the plate")
 	scouts := s.onRow(yardRow)
 	if len(scouts) != 3 {
 		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
@@ -249,19 +266,13 @@ func TestPlate_OpensTheEastTrapdoorsAlone(t *testing.T) {
 	plate, _ := s.brd.CellIndex(plateCol, yardRow)
 	s.put(scouts[0], plate)
 	s.tick(TPS / 2)
-	if s.holds(eastLeft) || !s.holds(westLeft) {
-		t.Errorf("plate stood on: east holds %v, west holds %v; want the east open alone", s.holds(eastLeft), s.holds(westLeft))
-	}
+	s.wantOpen(t, "plate stood on", "east")
 	away, _ := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], away)
 	s.tick(int(pulse.Seconds() * TPS / 2))
-	if s.holds(eastLeft) {
-		t.Error("the east trapdoors shut at once, want them open for the pulse after the scout stepped off")
-	}
+	s.wantOpen(t, "stepped off the plate, within the pulse", "east")
 	s.tick(2 * TPS)
-	if !s.holds(eastLeft) {
-		t.Error("the east trapdoors still open well after the scout stepped off the plate")
-	}
+	s.wantOpen(t, "well after the scout stepped off the plate")
 }
 
 // G flips the gate's switch: the gate opens and stays open, long past a pulse, until G again shuts
@@ -269,30 +280,17 @@ func TestPlate_OpensTheEastTrapdoorsAlone(t *testing.T) {
 func TestGate_StaysAsTheSwitchLeftIt(t *testing.T) {
 	s := buildStage(t)
 	s.tick(1)
-	if s.gateOpen() {
-		t.Fatal("the gate open before its switch was flipped")
-	}
+	s.wantOpen(t, "before the gate's switch was flipped")
 	s.press(control.KeyG)
 	s.tick(TPS / 2)
-	if !s.gateOpen() {
-		t.Fatal("G flipped the switch and the gate is still shut")
-	}
+	s.wantOpen(t, "G flipped the switch", "gate")
 	s.tick(int(5 * pulse.Seconds() * TPS))
-	if !s.gateOpen() {
-		t.Error("the gate shut by itself, want it open until G again")
-	}
-	if !s.holds(westLeft) || !s.holds(eastLeft) {
-		t.Errorf("the gate's switch on: west holds %v, east holds %v; want both shut", s.holds(westLeft), s.holds(eastLeft))
-	}
+	s.wantOpen(t, "long after G flipped the switch", "gate")
 	s.press(control.KeyG)
 	s.tick(TPS / 2)
-	if s.gateOpen() {
-		t.Fatal("G flipped the switch back and the gate is still open")
-	}
+	s.wantOpen(t, "G flipped the switch back")
 	s.tick(int(5 * pulse.Seconds() * TPS))
-	if s.gateOpen() {
-		t.Error("the gate opened by itself, want it shut until G again")
-	}
+	s.wantOpen(t, "long after G flipped the switch back")
 }
 
 // A scout sent into the meadow stays in the yard while the gate is shut and walks out through it
@@ -387,15 +385,11 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	s.tick(1)
 	s.press(control.KeyU)
 	s.tick(TPS / 4)
-	if !s.holds(westLeft) {
-		t.Fatal("a scout far from the lever pulled it")
-	}
+	s.wantOpen(t, "U far from the lever")
 	beside, _ := s.brd.CellIndex(leverCol+1, yardRow)
 	s.put(scouts[0], beside)
 	s.tick(1)
 	s.press(control.KeyU)
 	s.tick(TPS / 4)
-	if s.holds(westLeft) || !s.holds(eastLeft) {
-		t.Errorf("U beside the lever: west holds %v, east holds %v; want the west open alone", s.holds(westLeft), s.holds(eastLeft))
-	}
+	s.wantOpen(t, "U beside the lever", "west")
 }
