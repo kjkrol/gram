@@ -75,6 +75,17 @@ type World struct {
 // rows say and rules hooked on the board or on collision.
 func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...rule.Rule) *World {
 	t.Helper()
+	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []rule.Rule {
+		terrain(brd.Res.Logic.Board)
+		return rules
+	}, units)
+}
+
+// NewWorldWith is NewWorld with the world and the board handed to prepare before they are
+// installed — to define roles and wires, seed a Layout and Populate it — and the rules it gives
+// hooked on the board or on collision.
+func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []rule.Rule, units []Mover) *World {
+	t.Helper()
 	bw := &World{t: t}
 	bw.World = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
@@ -82,7 +93,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 	})
 	c := collision.NewPlugin(bw.World)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).WithCollision(c)
-	terrain(bw.Board.Res.Logic.Board)
+	rules := prepare(bw.World, bw.Board)
 	for _, b := range rules {
 		err := bw.Board.Hook(b)
 		if errors.Is(err, plugin.ErrUnhosted) {
