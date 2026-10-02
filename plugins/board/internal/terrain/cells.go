@@ -2,6 +2,7 @@ package terrain
 
 import (
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -32,9 +33,12 @@ func New(g grid.Grid) *Cells {
 	return t
 }
 
-// System makes an entity for every cell at Setup, or finds those a save brought back, and counts
-// the changes effects make to them.
-func (t *Cells) System() goke.System { return &entitySystem{cells: t} }
+// System makes an entity for every cell at Setup — each carrying template's defaults besides, a
+// Load reading its cell.ID — or finds those a save brought back, and counts the changes effects
+// make to them.
+func (t *Cells) System(template *kind.Template) goke.System {
+	return &entitySystem{cells: t, template: template}
+}
 
 // Made reports whether the cells are entities yet.
 func (t *Cells) Made() bool { return t.store != nil }

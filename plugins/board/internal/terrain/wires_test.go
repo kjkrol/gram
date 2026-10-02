@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
@@ -19,17 +20,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// cellProbe reads every cell entity's roles and wire once the cells are made.
+// cellProbe reads every cell entity's roles, wire and fuel once the cells are made.
 type cellProbe struct {
 	q     *goke.Query
 	plot  goke.Comp[cell.Plot]
 	roles goke.OptComp[tag.Tags[rule.Roles]]
 	wired goke.OptComp[rule.Wired]
+	fuel  goke.OptComp[fuel]
 }
+
+// fuel is a game's own component on every cell, given through the world's roster.
+type fuel struct{ Left int }
 
 func (p *cellProbe) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		p.q = si.NewQueryBuilder(&p.plot).Optional(&p.roles, &p.wired).Build()
+		p.q = si.NewQueryBuilder(&p.plot).Optional(&p.roles, &p.wired, &p.fuel).Build()
 	}}}
 }
 
@@ -40,6 +45,7 @@ type cellState struct {
 	roles    tag.Tags[rule.Roles]
 	wired    bool
 	to       uint64 // the wire's name, hashed
+	fuel     *fuel  // nil for none
 }
 
 // read is every cell entity's state, by its cell.
@@ -48,9 +54,12 @@ func (p *cellProbe) read(t *testing.T) map[cell.ID]cellState {
 	out := map[cell.ID]cellState{}
 	for p.q.All(); p.q.Next(); {
 		cur := p.q.Cursor()
-		roles, wired := p.roles.Slice(cur), p.wired.Slice(cur)
+		roles, wired, fuels := p.roles.Slice(cur), p.wired.Slice(cur), p.fuel.Slice(cur)
 		for i, plot := range p.plot.Slice(cur) {
 			st := cellState{id: cur.IDs[i], hasRoles: roles != nil, wired: wired != nil}
+			if fuels != nil {
+				st.fuel = &fuels[i]
+			}
 			if roles != nil {
 				st.roles = roles[i]
 			}
@@ -243,6 +252,7 @@ func (s *wiredStage) Init(ctx game.Initializer) error {
 	}
 	s.trapdoor, s.plate = rule.Role("trapdoor"), rule.Role("plate")
 	s.west, s.east = s.world.Wire("west"), s.world.Wire("east")
+	s.world.Roster().Cell.Default(comp.Const(fuel{Left: 3}))
 	s.board = board.NewPlugin(s.grid, &cell.MultipleOccupancy{}, s.world)
 	s.board.CellKinds().Create(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	if err := ctx.Use(s.board); err != nil {
@@ -303,6 +313,11 @@ func (s *wiredStage) state(t *testing.T) map[cell.ID]string {
 		if rest := st.roles.Without(s.trapdoor.Tag(), s.plate.Tag()); rest != 0 {
 			desc += fmt.Sprintf(", roles %b besides", rest)
 		}
+		if st.fuel != nil {
+			desc += fmt.Sprintf(", fuel %d", st.fuel.Left)
+		} else {
+			desc += ", no fuel"
+		}
 		switch {
 		case !st.wired:
 		case st.to == westTo:
@@ -333,7 +348,7 @@ func TestPlugin_SaveLoad_CellsKeepTheirRolesAndWires(t *testing.T) {
 	a, _ := g.CellIndex(1, 1)
 	b, _ := g.CellIndex(2, 3)
 	c, _ := g.CellIndex(3, 0)
-	for at, want := range map[cell.ID]string{a: ", the role trapdoor, wired west", b: ", the role plate, wired east", c: ", the role trapdoor, the role plate"} {
+	for at, want := range map[cell.ID]string{a: ", the role trapdoor, fuel 3, wired west", b: ", the role plate, fuel 3, wired east", c: ", the role trapdoor, the role plate, fuel 3"} {
 		if !strings.HasSuffix(before[at], want) {
 			t.Fatalf("fresh cell %d: %s, want it to end %q", at, before[at], want)
 		}

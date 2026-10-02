@@ -92,7 +92,8 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities, the occupancy's upkeep and the rules.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Res.Logic.Board.cells.System(),
+		cells:     p.Res.Logic.Board.cells.System(&p.worldPlugin.Roster().Cell),
+		template:  &p.worldPlugin.Roster().Cell,
 		release:   occupancy.ReleaseSystem(p.occupancy),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),

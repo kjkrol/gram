@@ -7,7 +7,7 @@ import (
 )
 
 // Without leaves the roster's default T out of a kind's Spec — a unit nothing pushes leaves out
-// collision.Physics. It is a marker kind.Role.Spec takes out; it never reaches a spawn.
+// collision.Physics. It is a marker kind.Template.Spec takes out; it never reaches a spawn.
 func Without[T any]() Comp { return omit{reflect.TypeFor[T]()} }
 
 // Omitted reports whether c is a Without marker, and of which type.
