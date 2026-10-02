@@ -117,10 +117,11 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 			roles[i] = seed.Roles[c]
 			if wired {
 				w := seed.Wired[c]
-				if _, made := w.Entity(); !made {
-					panic(fmt.Sprintf("board: cell %d is wired to %q, which no world defined (world.Plugin.Wire)", c, w.Name()))
+				to, made := w.Entity()
+				if !made {
+					panic(fmt.Sprintf("board: cell %d is wired to %v, which no world defined (world.Plugin.Wire)", c, w))
 				}
-				wires[i] = w.Wired()
+				wires[i] = rule.Wired{To: to}
 			}
 			ids[o] = id
 			k++

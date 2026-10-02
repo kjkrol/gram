@@ -42,20 +42,17 @@ func NewWire(name string) *Wire {
 	return &Wire{name: name, hash: h.Sum64()}
 }
 
-// Name is the wire's name.
-func (w *Wire) Name() string { return w.name }
-
 // Wiring is the component of the wire's own entity.
 func (w *Wire) Wiring() Wiring { return Wiring{Name: w.hash} }
+
+// String names the wire.
+func (w *Wire) String() string { return "the wire " + w.name }
 
 // Entity is the wire's own entity, once the world has made it or found it in a loaded game.
 func (w *Wire) Entity() (uid.UID64, bool) { return w.entity, w.made }
 
 // Made tells the wire its entity: for the world that makes it.
 func (w *Wire) Made(id uid.UID64) { w.entity, w.made = id, true }
-
-// Wired is the component of an entity wired to w, once w's entity is made.
-func (w *Wire) Wired() Wired { return Wired{To: w.entity} }
 
 // Key is a binding putting e on the wire every time trigger fires, label saying so in the list of
 // keys: a lever pulled, its effect lasting as its Spec says.

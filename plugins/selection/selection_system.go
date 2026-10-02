@@ -94,7 +94,7 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.applies != nil {
 		s.applies.Drain(func(i control.Issued[Apply]) {
 			if i.Command.Effect != (effect.Effect{}) {
-				s.eachSelected(i.Player, i.Command.Only, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
+				s.eachSelected(i.Player, i.Command.only, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
 			}
 		})
 	}

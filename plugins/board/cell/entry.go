@@ -1,9 +1,6 @@
 package cell
 
-import (
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule"
-)
+import "github.com/kjkrol/gram/rule"
 
 // Entry sets Cell to the kind named Kind — none, the board's Layout's Default kept — and gives it
 // Tags, the game's tags of places it carries for good, the Roles it plays (rule.Plays) and the
@@ -12,7 +9,7 @@ type Entry struct {
 	Kind  string
 	Cell  ID
 	Tags  Tags
-	Roles tag.Tags[rule.Roles]
+	Roles []*rule.Part
 	Wired *rule.Wire
 }
 

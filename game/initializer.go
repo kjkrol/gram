@@ -14,10 +14,9 @@ type Initializer interface {
 	// UseWorld builds and installs this Stage's world.Plugin from cfg; a second call panics.
 	UseWorld(cfg world.Config) *world.Plugin
 
-	// Hook hooks each rule on the plugin this Stage uses that hosts its moment — a rule of a
-	// unit.Standing on the board, of a vision.Sighting on vision — so a Stage need not know which
-	// (rule.HookOn); one no plugin in use hosts is plugin.ErrUnhosted. Call it once the plugins are
-	// Used, before Init returns.
+	// Hook hooks each rule — a role's rules too — on the plugin this Stage uses that hosts its
+	// moment: a rule of a unit.Standing on the board, of a vision.Sighting on vision; one no plugin
+	// in use hosts is plugin.ErrUnhosted. Call it once the plugins are Used, before Init returns.
 	Hook(rules ...rule.Rule) error
 
 	// Track saves and loads s alongside the game's Plugins.

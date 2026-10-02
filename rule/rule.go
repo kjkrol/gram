@@ -1,7 +1,6 @@
 package rule
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -22,46 +21,9 @@ type Rule interface {
 	narrowed(n narrowing) Rule
 }
 
-// Host is a plugin that hosts rules: its Hook takes the rules of the moments its passes catch and
-// refuses another's with plugin.ErrUnhosted — board.Plugin, vision's, collision's, world's,
-// navigation's, atmosphere's.
-type Host interface{ Hook(rules ...Rule) error }
-
-// HookOn hooks each rule on the first of among that is a Host and takes it, trying the next while
-// one refuses it with plugin.ErrUnhosted: what game.Initializer.Hook does over the plugins a Stage
-// uses. A rule none takes is plugin.ErrUnhosted; any other error stops at once.
-func HookOn(among []any, rules ...Rule) error {
-	for _, r := range rules {
-		if err := hookOn(among, r); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func hookOn(among []any, r Rule) error {
-	for _, a := range among {
-		h, ok := a.(Host)
-		if !ok {
-			continue
-		}
-		err := h.Hook(r)
-		if err == nil || !errors.Is(err, plugin.ErrUnhosted) {
-			return err
-		}
-	}
-	return fmt.Errorf("%w: no plugin in use hosts the rule %v", plugin.ErrUnhosted, r)
-}
-
-// Within is r for the entities carrying t alone — on a moment that is Met, for the pairs whose
-// entity carries t — whatever r's own filter: a rule a role obeys. It is a new rule; hook it in
-// place of r. A rule of a moment of the world as a whole (a clock.Moment) walks no entities, and
-// its host refuses it narrowed. Within tag.Any is r.
-func Within[F any](t tag.Tag[F], r Rule) Rule {
-	return within(t, r, fmt.Sprintf("within tag %d of %v", t, reflect.TypeFor[F]()))
-}
-
-// within is Within, the narrowed rule's String saying how: desc.
+// within is r for the entities carrying t alone — on a moment that is Met, for the pairs whose
+// entity carries t — whatever r's own filter: what a Role's Obeys makes of a rule; desc says how,
+// in its String. Within tag.Any is r.
 func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
@@ -75,7 +76,44 @@ func (c *initializer) use(p plugin.Plugin) error {
 }
 
 // Hook hooks each rule on the first plugin used that hosts its moment.
-func (c *initializer) Hook(rules ...rule.Rule) error { return rule.HookOn(c.used, rules...) }
+func (c *initializer) Hook(rules ...rule.Rule) error { return HookOn(c.used, rules...) }
+
+// host is a plugin hosting rules: its Hook refuses a rule of a moment it does not catch with
+// plugin.ErrUnhosted.
+type host interface{ Hook(rules ...rule.Rule) error }
+
+// HookOn hooks each rule — a role's, each of its rules — on the first of among that hosts it,
+// trying the next while one refuses it with plugin.ErrUnhosted: what game.Initializer.Hook does
+// over the plugins a Stage uses. A rule none takes is plugin.ErrUnhosted; any other error stops
+// at once.
+func HookOn(among []any, rules ...rule.Rule) error {
+	for _, r := range rules {
+		if role, ok := r.(*rule.Part); ok {
+			if err := HookOn(among, role.Rules()...); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := hookOn(among, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hookOn(among []any, r rule.Rule) error {
+	for _, a := range among {
+		h, ok := a.(host)
+		if !ok {
+			continue
+		}
+		err := h.Hook(r)
+		if err == nil || !errors.Is(err, plugin.ErrUnhosted) {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: no plugin in use hosts the rule %v", plugin.ErrUnhosted, r)
+}
 
 // Track registers s for Save and Load under its Go type name.
 func (c *initializer) Track(s plugin.Serializable) error {

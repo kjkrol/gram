@@ -26,12 +26,12 @@ type wires struct {
 
 // define adds the wire named name; a name defined twice panics.
 func (w *wires) define(name string) *rule.Wire {
+	wire := rule.NewWire(name)
 	for _, d := range w.defined {
-		if d.Name() == name {
+		if d.Wiring() == wire.Wiring() {
 			panic(fmt.Sprintf("world: wire %q is defined twice", name))
 		}
 	}
-	wire := rule.NewWire(name)
 	w.defined = append(w.defined, wire)
 	return wire
 }

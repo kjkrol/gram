@@ -320,8 +320,3 @@ func (p *Plugin) Kinds() *Kinds { return p.kinds }
 // for keys and rules to drive and rules of what is wired to it to read (rule.Wire); call it in Init.
 func (p *Plugin) Wire(name string) *rule.Wire { return p.module.wires.define(name) }
 
-// Role defines the role named name in this world's kinds — saved by name, like a tag — for the
-// rules its players obey and what they can do (rule.Role); a kind plays it through rule.Plays.
-func (p *Plugin) Role(name string) *rule.Role {
-	return rule.NewRole(name, p.kinds.DefineTag[rule.Roles](name))
-}

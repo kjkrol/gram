@@ -1,6 +1,10 @@
 package rule
 
 import (
+	"fmt"
+	"slices"
+	"sync"
+
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -10,10 +14,10 @@ import (
 // Roles is the family of roles: one tag.Tags[Roles] on an entity holds every role it plays.
 type Roles struct{}
 
-// Role is a part an entity plays: a tag of Roles, the rules those playing it obey (Obeys) and what
-// they can do when their player asks (Can). A role means a behaviour — mortal, hasty, a trapdoor —
-// not a group: a game has 64 at most. Define one by name with world.Plugin.Role.
-type Role struct {
+// Part is a role an entity plays, as Role makes it: the rules those playing it obey (Obeys) and
+// what they can do when their player asks (Can). Give it to a kind with Plays, to a cell with
+// cell.Entry.Roles, and hook it with the Stage's Initializer, like a rule.
+type Part struct {
 	name      string
 	tag       tag.Tag[Roles]
 	rules     []Rule
@@ -21,25 +25,51 @@ type Role struct {
 }
 
 // Ability is what a role can do when its player asks: put Effect on the player's selected units
-// that play the role, bound to Trigger and listed under Label.
+// that play the role, bound to Trigger and listed under Label (selection.Plugin.Abilities).
 type Ability struct {
 	Effect  effect.Effect
 	Trigger control.Trigger
 	Label   string
-	Role    *Role
 }
 
-// NewRole is the role named name, its tag t: what world.Plugin.Role makes.
-func NewRole(name string, t tag.Tag[Roles]) *Role { return &Role{name: name, tag: t} }
+// Role is the role named name, ready for its rules and abilities. A role means a behaviour —
+// mortal, hasty, a trapdoor — not a group: a program names 64 at most. Each call is a new Part;
+// one name is one tag, which a world saves by the name.
+func Role(name string) *Part { return &Part{name: name, tag: roleTag(name)} }
 
-// Name is the role's name.
-func (r *Role) Name() string { return r.name }
+// names are the roles' names in the order of their tags, for every Part a program makes.
+var names = struct {
+	sync.Mutex
+	order []string
+	tags  map[string]tag.Tag[Roles]
+}{tags: map[string]tag.Tag[Roles]{}}
 
-// Tag is the role's tag of Roles.
-func (r *Role) Tag() tag.Tag[Roles] { return r.tag }
+// roleTag is name's tag, given at its first Role.
+func roleTag(name string) tag.Tag[Roles] {
+	names.Lock()
+	defer names.Unlock()
+	if t, ok := names.tags[name]; ok {
+		return t
+	}
+	if len(names.order) == tag.MaxTagsPerFamily {
+		panic(fmt.Sprintf("rule: cannot define the role %q: a program names at most %d roles", name, tag.MaxTagsPerFamily))
+	}
+	t := tag.Tag[Roles](len(names.order))
+	names.order = append(names.order, name)
+	names.tags[name] = t
+	return t
+}
 
-// Obeys adds rules those playing the role obey: each Within the role's tag, hooked with Rules.
-func (r *Role) Obeys(rules ...Rule) *Role {
+// RoleNames are the names of the roles defined so far, in the order of their tags: what a world
+// names in its kinds, so a save carries the roles by name.
+func RoleNames() []string {
+	names.Lock()
+	defer names.Unlock()
+	return append([]string(nil), names.order...)
+}
+
+// Obeys adds rules those playing the role obey, each for them alone.
+func (r *Part) Obeys(rules ...Rule) *Part {
 	for _, b := range rules {
 		r.rules = append(r.rules, within(r.tag, b, "for the role "+r.name))
 	}
@@ -47,30 +77,39 @@ func (r *Role) Obeys(rules ...Rule) *Role {
 }
 
 // Can adds an ability: the player's trigger puts e on its selected units playing the role, label
-// saying so in the list of keys. A plugin carrying abilities out binds them (selection.Plugin.Abilities).
-func (r *Role) Can(e effect.Effect, trigger control.Trigger, label string) *Role {
-	r.abilities = append(r.abilities, Ability{Effect: e, Trigger: trigger, Label: label, Role: r})
+// saying so in the list of keys.
+func (r *Part) Can(e effect.Effect, trigger control.Trigger, label string) *Part {
+	r.abilities = append(r.abilities, Ability{Effect: e, Trigger: trigger, Label: label})
 	return r
 }
 
-// Rules are the rules the role's players obey, for game.Initializer.Hook.
-func (r *Role) Rules() []Rule { return r.rules }
+// Tag is the role's tag of Roles: for the plugins giving it and reading it.
+func (r *Part) Tag() tag.Tag[Roles] { return r.tag }
 
-// Abilities are what the role can do.
-func (r *Role) Abilities() []Ability { return r.abilities }
+// Rules are the rules the role's players obey: what hooking the role hooks.
+func (r *Part) Rules() []Rule { return slices.Clone(r.rules) }
 
-// RulesOf are the rules of every role, for game.Initializer.Hook.
-func RulesOf(roles ...*Role) []Rule {
-	var rules []Rule
-	for _, r := range roles {
-		rules = append(rules, r.rules...)
+// Abilities are what the role can do: for the plugin binding them.
+func (r *Part) Abilities() []Ability { return slices.Clone(r.abilities) }
+
+// String names the role.
+func (r *Part) String() string { return "the role " + r.name }
+
+func (*Part) rule() {}
+
+// narrowed is the role whose rules are narrowed by n besides.
+func (r *Part) narrowed(n narrowing) Rule {
+	q := *r
+	q.rules = make([]Rule, len(r.rules))
+	for i, b := range r.rules {
+		q.rules[i] = b.narrowed(n)
 	}
-	return rules
+	return &q
 }
 
 // Plays is the component of an entity playing roles, for a kind's Spec: every role it plays in
 // one, so a kind names Plays once.
-func Plays(roles ...*Role) comp.Template[tag.Tags[Roles]] {
+func Plays(roles ...*Part) comp.Template[tag.Tags[Roles]] {
 	tags := make([]tag.Tag[Roles], len(roles))
 	for i, r := range roles {
 		tags[i] = r.tag

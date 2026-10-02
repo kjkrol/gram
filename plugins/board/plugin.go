@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -285,8 +286,12 @@ func (p *Plugin) Populate() error {
 		if e.Tags != 0 {
 			brd.cells.Tag(e.Cell, e.Tags)
 		}
-		if e.Roles != 0 {
-			brd.cells.Cast(e.Cell, e.Roles)
+		var roles tag.Tags[rule.Roles]
+		for _, r := range e.Roles {
+			roles = roles.With(r.Tag())
+		}
+		if roles != 0 {
+			brd.cells.Cast(e.Cell, roles)
 		}
 		if e.Wired != nil {
 			brd.cells.Wire(e.Cell, e.Wired)

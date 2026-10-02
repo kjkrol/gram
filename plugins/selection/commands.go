@@ -35,11 +35,11 @@ type Marquee struct {
 type Follow struct{ Camera camera.Camera }
 
 // Apply is the command to put Effect on every Selected unit of the player who gives it, as its
-// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from. Only, unless
-// empty, narrows it to the units playing one of those roles (rule.Plays).
+// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from. One a role's
+// Abilities issue goes to the units playing the role alone.
 type Apply struct {
 	Effect effect.Effect
-	Only   tag.Tags[rule.Roles]
+	only   tag.Tags[rule.Roles] // empty: every selected unit
 }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
@@ -49,13 +49,13 @@ func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.applies}
 }
 
-// Abilities are the bindings of what the roles can do (rule.Role.Can): each its trigger into an
-// Apply of its effect, Only to the units playing its role, under its label — for a player's Bind.
-func (p *Plugin) Abilities(roles ...*rule.Role) []control.Binding {
+// Abilities are the bindings of what the roles can do (rule.Part.Can): each its trigger into an
+// Apply of its effect to the units playing its role, under its label — for a player's Bind.
+func (p *Plugin) Abilities(roles ...*rule.Part) []control.Binding {
 	var bindings []control.Binding
 	for _, r := range roles {
 		for _, a := range r.Abilities() {
-			apply := Apply{Effect: a.Effect, Only: tag.Tags[rule.Roles](0).With(a.Role.Tag())}
+			apply := Apply{Effect: a.Effect, only: tag.Tags[rule.Roles](0).With(r.Tag())}
 			bindings = append(bindings, control.Command(a.Trigger, a.Label, func(control.Context) (Apply, bool) { return apply, true }))
 		}
 	}

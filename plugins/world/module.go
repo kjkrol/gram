@@ -106,6 +106,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
+	for _, name := range rule.RoleNames() { // the roles by name, as a save carries them
+		w.kinds.DefineTag[rule.Roles](name)
+	}
 	w.wiresRunnable = ecs.RegSys(w.wires.system()) // first: whatever is wired is made after its wire
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
