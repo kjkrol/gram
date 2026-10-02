@@ -42,9 +42,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }
 // leaves the ground before the ridge clear, veils the ground behind it, strokes the cone's edge
 // and leaves what lies outside the cone alone.
 func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
@@ -97,9 +95,7 @@ func (wall) Version() uint64 { return 3 }
 // ground along the camera's lines of sight: a wall without end hides what lies behind it, and on a
 // wrapping world a view reaching over the seam is laid on past it.
 func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, aabbworld.Torus)
 	v := newViews()
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
@@ -126,5 +122,13 @@ func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	}
 	if !stroked {
 		t.Error("the view reaching over the seam is not laid on past it")
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

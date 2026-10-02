@@ -66,9 +66,7 @@ func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 
 // Drawn on the GPU the rain leaves streaks on a clear screen, and a dry sky nothing.
 func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	weather := air.Weather{Rain: 1}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
@@ -92,5 +90,13 @@ func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
 	weather = air.Weather{}
 	if n := lit(); n != 0 {
 		t.Errorf("a dry sky covers %d pixels", n)
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }

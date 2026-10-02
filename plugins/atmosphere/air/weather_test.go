@@ -138,10 +138,16 @@ func TestWeather_HandsTheFrameTheAirAndTheFog(t *testing.T) {
 	if fog, want := got["Fog"], air.Overcast(sun.Sky, 0.6); fog[0] != want[0] || fog[2] != want[2] {
 		t.Errorf("the fog is %v, want the sky under the clouds %v", fog, want)
 	}
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	needGPU(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// needGPU readies a device without a window; a machine without one skips.
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
 	}
 }
