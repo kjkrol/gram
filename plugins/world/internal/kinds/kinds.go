@@ -63,7 +63,13 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	}
 	r := Kind{Name: name, TypeID: kind.ID(len(k.order)), SpriteID: k.NewSprite(), Row: row}
 	var positions, velocities int
+	seen := make(map[reflect.Type]bool, len(spec))
 	for _, c := range spec {
+		if t := comp.TypeOf(c); seen[t] {
+			panic(fmt.Sprintf("world: kind %q carries %v twice; give each component once", name, t))
+		} else {
+			seen[t] = true
+		}
 		if _, z := c.(comp.Template[entity.Z]); z && !k.heights {
 			panic(fmt.Sprintf("world: kind %q carries a Z in a flat world; set world.Config.Heights", name))
 		}

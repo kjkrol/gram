@@ -312,3 +312,9 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
+
+// Role defines the role named name in this world's kinds — saved by name, like a tag — for the
+// rules its players obey and what they can do (rule.Role); a kind plays it through rule.Plays.
+func (p *Plugin) Role(name string) *rule.Role {
+	return rule.NewRole(name, p.kinds.DefineTag[rule.Roles](name))
+}

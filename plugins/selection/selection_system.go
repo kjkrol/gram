@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -40,6 +41,7 @@ type SelectionSystem struct {
 	query  *goke.Query
 	marks  goke.Comp[tag.Tags[Family]]
 	owners goke.OptComp[tag.Tags[owner.Family]]
+	roles  goke.OptComp[tag.Tags[rule.Roles]]
 
 	lookup     *goke.Query
 	lookupBase goke.Comp[world.Base]
@@ -55,7 +57,7 @@ func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, 
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Build()
+	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Optional(&s.roles).Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
 
@@ -92,20 +94,22 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.applies != nil {
 		s.applies.Drain(func(i control.Issued[Apply]) {
 			if i.Command.Effect != (effect.Effect{}) {
-				s.eachSelected(i.Player, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
+				s.eachSelected(i.Player, i.Command.Only, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
 			}
 		})
 	}
 }
 
-// eachSelected calls fn with every Selectable entity player by owns and has Selected.
-func (s *SelectionSystem) eachSelected(by control.PlayerID, fn func(uid.UID64)) {
+// eachSelected calls fn with every Selectable entity player by owns and has Selected — playing one
+// of only's roles, unless only is empty.
+func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[rule.Roles], fn func(uid.UID64)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
-		marks, owners := s.marks.Slice(cursor), s.owners.Slice(cursor)
+		marks, owners, roles := s.marks.Slice(cursor), s.owners.Slice(cursor), s.roles.Slice(cursor)
 		for i, id := range cursor.IDs {
-			if marks[i].Has(s.tags.Selectable) && marks[i].Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
+			if marks[i].Has(s.tags.Selectable) && marks[i].Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) &&
+				(only == 0 || (roles != nil && roles[i]&only != 0)) {
 				fn(id)
 			}
 		}
