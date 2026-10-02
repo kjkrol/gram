@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
 )
 
@@ -11,7 +12,7 @@ import (
 func TestHook_RefusesARuleOfAnotherMoment(t *testing.T) {
 	p := testPlugin()
 	other := rule.On("of another moment", rule.All, func(m *rule.Moment[struct{}]) rule.Step { return m.Steps() })
-	if err := p.Hook(other); !errors.Is(err, rule.ErrUnhosted) {
+	if err := p.Hook(other); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}
 }

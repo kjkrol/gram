@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
 )
 
@@ -19,19 +20,19 @@ type module struct {
 	space *aabbworld.Space
 	ecs   *goke.ECS
 
-	pairs    *rule.PairHost[Meeting]
-	entities *rule.EachHost[Struck]
+	pairs    *plugin.PairRules[Meeting]
+	entities *plugin.Rules[Struck]
 
 	system  goke.Runnable
 	fieldOf func() Field
 	stats   *ContactStats
 	log     *log.Logger
-	clock   *clock.Clock    // the world's; nil, run at once
-	tick    rule.TickSource // the world's, for the rules
+	clock   *clock.Clock      // the world's; nil, run at once
+	tick    plugin.TickSource // the world's, for the rules
 	built   bool
 }
 
-func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *rule.PairHost[Meeting], entities *rule.EachHost[Struck]) *module {
+func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck]) *module {
 	return &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
 }
 
@@ -70,13 +71,13 @@ func (m *module) LoadComps() []goke.CompToken {
 // =================================================================
 
 // hostAll hands each rule to whichever host takes it, stopping at the first neither does.
-func hostAll(pairs *rule.PairHost[Meeting], entities *rule.EachHost[Struck], rules []rule.Rule) error {
+func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], rules []rule.Rule) error {
 	for _, b := range rules {
 		err := pairs.Add(b)
-		if errors.Is(err, rule.ErrUnhosted) {
+		if errors.Is(err, plugin.ErrUnhosted) {
 			err = entities.Add(b)
 		}
-		if errors.Is(err, rule.ErrUnhosted) {
+		if errors.Is(err, plugin.ErrUnhosted) {
 			return fmt.Errorf("%w in collision — it takes a rule of Meeting or of Struck", err)
 		}
 		if err != nil {

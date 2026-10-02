@@ -32,7 +32,7 @@ type body struct {
 	lastGoal  bool     // its order has no goal queued behind the one it heads for
 	waitedOut bool     // its Hold ran out, the way still closed
 	cornered  bool     // its Detour found no way round
-	minded    bool     // it has a tree (plan.Mind), told Blocked and Arrived
+	minded    bool     // it has a tree (steps.Mind), told Blocked and Arrived
 	cell      cell.ID  // the cell it stands on
 	facing    geom.Vec // the way it faces, standing too
 	z         world.Z

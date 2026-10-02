@@ -1,7 +1,6 @@
 package selection
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -9,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
@@ -51,7 +49,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
-	sys.applies = &p.applies
+	sys.applies, sys.effects = &p.applies, p.worldPlugin.Effects()
 	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)
 	return nil
@@ -78,11 +76,3 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — selection has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Hook reports ErrUnhosted — selection hosts no rules.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		return fmt.Errorf("%w: %T in %s", rule.ErrUnhosted, b, p.Name())
-	}
-	return nil
-}

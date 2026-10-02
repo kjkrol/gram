@@ -20,8 +20,8 @@
 // # Rules
 //
 // A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
-// pass, written with package rule (rule.On) and run by its hosts (rule.EachHost, rule.PairHost,
-// rule.ListHost) inside that pass. Package rule holds the rule, the hosts and the Tick a host hands
+// pass, written with package rule (rule.On) and run by its hosts (plugin.Rules, plugin.PairRules,
+// plugin.StepRules) inside that pass. Package rule holds the rule, the hosts and the Tick a host hands
 // its rules. Hook before Use.
 //
 // # Commands

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
@@ -34,7 +35,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 	if err := carrier.Carry(&dodges); err != nil {
 		t.Fatal(err)
 	}
-	h := &rule.EachHost[nudge]{}
+	h := &plugin.Rules[nudge]{}
 	if err := h.Add(rule.On("dodge", rule.All, func(m *rule.Moment[nudge]) rule.Step { return m.Order(dodge{}) })); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 		q := qb.Build()
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
-			h.Run(rule.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
+			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
 				return nudge{self: cur.IDs[i], by: cur.IDs[1-i]}
 			})
 		}
@@ -80,7 +81,7 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 	if err := carrier.Carry(&dodges, &braces); err != nil {
 		t.Fatal(err)
 	}
-	h := &rule.EachHost[nudge]{}
+	h := &plugin.Rules[nudge]{}
 	if err := h.Add(rule.On("dodge or brace", rule.All, func(m *rule.Moment[nudge]) rule.Step {
 		return m.OneOf(m.Order(dodge{}), m.Order(brace{}))
 	})); err != nil {
@@ -98,7 +99,7 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 		q := qb.Build()
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
-			h.Run(rule.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
+			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
 				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: i == 0}
 			})
 		}
@@ -124,7 +125,7 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 		if err := carrier.Carry(&dodges); err != nil {
 			t.Fatal(err)
 		}
-		h := &rule.EachHost[nudge]{}
+		h := &plugin.Rules[nudge]{}
 		if err := h.Add(rule.On("dodge now and then", rule.All, func(m *rule.Moment[nudge]) rule.Step {
 			return m.Chance(p, m.Order(dodge{}))
 		})); err != nil {
@@ -142,7 +143,7 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			h.Bind(qb)
 			q := qb.Build()
 			for k := range steps {
-				tick := rule.Tick{Dt: time.Millisecond, Commands: &carrier, Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
+				tick := plugin.Tick{Dt: time.Millisecond, Commands: &carrier, Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
 				for q.All(); q.Next(); {
 					cur := q.Cursor()
 					h.Run(tick, cur, func(i int) nudge { return nudge{self: cur.IDs[i], by: cur.IDs[1-i]} })

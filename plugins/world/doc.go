@@ -95,7 +95,7 @@
 // it the players' commands, and a plan or a rule (Order) the commands its entities give
 // themselves, each taken to the queue of the plugin that handles it. [Plugin.Carry] takes a
 // plugin.CommandHandler's queues; the engine carries every one a stage uses, and a host's
-// rule.Tick hands the carrier to its rules. Nothing is dropped: a command waits for its
+// plugin.Tick hands the carrier to its rules. Nothing is dropped: a command waits for its
 // handler's pass — given after it, for the next frame's.
 //
 // # Clock, Systems and Effects

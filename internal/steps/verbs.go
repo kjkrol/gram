@@ -1,4 +1,4 @@
-package engine
+package steps
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func NewApply(e effect.Effect) Step {
-	return leaf{sign: fmt.Sprintf("apply(%d)", e.ID()), make: func() exec { return apply{e: e} }}
+	return leaf{sign: fmt.Sprintf("apply(%d)", e.Mark()), make: func() exec { return apply{e: e} }}
 }
 
 type apply struct {
@@ -22,16 +22,12 @@ func (a apply) tick(c *ctx, _ int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	if c.instant {
-		a.e.Cast(c.cb, c.id)
-	} else {
-		c.sys.effects.Cast(c.cb, c.id, a.e)
-	}
+	c.effects().Cast(c.cb, c.id, a.e)
 	return Success
 }
 
 func NewKeep(e effect.Effect) Step {
-	return leaf{sign: fmt.Sprintf("keep(%d)", e.ID()), make: func() exec { return hold{e: e} }}
+	return leaf{sign: fmt.Sprintf("keep(%d)", e.Mark()), make: func() exec { return hold{e: e} }}
 }
 
 type hold struct{ e effect.Effect }
@@ -57,7 +53,7 @@ func (h hold) tick(c *ctx, at int, _ []int) Status {
 		return Failure
 	}
 	if c.instant {
-		h.e.CastFor(c.cb, c.id, 2*c.pass.Dt)
+		c.effects().CastFor(c.cb, c.id, h.e, 2*c.pass.Dt)
 		return Success
 	}
 	on := c.sys.effects.Has(c.id, h.e)
@@ -79,7 +75,7 @@ func (h hold) halt(c *ctx, at int) {
 }
 
 func NewDispel(e effect.Effect) Step {
-	return leaf{sign: fmt.Sprintf("dispel(%d)", e.ID()), make: func() exec { return dispel{e: e} }}
+	return leaf{sign: fmt.Sprintf("dispel(%d)", e.Mark()), make: func() exec { return dispel{e: e} }}
 }
 
 type dispel struct {
@@ -93,11 +89,7 @@ func (d dispel) tick(c *ctx, _ int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	if c.instant {
-		d.e.Dispel(c.id)
-	} else {
-		c.sys.effects.Dispel(c.id, d.e)
-	}
+	c.effects().Dispel(c.id, d.e)
 	return Success
 }
 
@@ -143,7 +135,7 @@ func draw(seed uint64, t time.Duration, id, salt uint64) float64 {
 }
 
 func NewDuring(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("during(%d)", e.ID()), make: func() exec { return during{e: e} }}
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("during(%d)", e.Mark()), make: func() exec { return during{e: e} }}
 }
 
 // during runs its step while the world — its own entity, the clock's — is under the effect.
@@ -168,11 +160,11 @@ func (d during) tick(c *ctx, _ int, kids []int) Status {
 }
 
 func NewUnless(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.ID()), make: func() exec { return under{e: e, not: true} }}
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.Mark()), make: func() exec { return under{e: e, not: true} }}
 }
 
 func NewUnder(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("under(%d)", e.ID()), make: func() exec { return under{e: e} }}
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("under(%d)", e.Mark()), make: func() exec { return under{e: e} }}
 }
 
 type under struct {
@@ -187,13 +179,7 @@ func (u under) tick(c *ctx, _ int, kids []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	on := false
-	if c.instant {
-		on = u.e.On(c.id)
-	} else {
-		on = c.sys.effects.Has(c.id, u.e)
-	}
-	if on == u.not {
+	if c.effects().Has(c.id, u.e) == u.not {
 		return Failure
 	}
 	return c.run(kids[0])

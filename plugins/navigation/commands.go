@@ -26,7 +26,7 @@ type LookAt struct {
 }
 
 // The commands a unit gives itself among others (Order in a rule or a plan), carried out for
-// that unit alone; those that name whom they are about are told it as they are given (rule.Aimed).
+// that unit alone; those that name whom they are about are told it as they are given (plugin.Aimed).
 type (
 	// StepAside has a unit standing step off the way of Of, beside, where the ground takes it and
 	// nobody stands — never into water or a hole, off a cliff or onto a step (yieldClimb) — and stay
@@ -47,6 +47,13 @@ type (
 	Settle struct{ Beside uid.UID64 }
 	// Stop ends a unit's order where it stands, as come to the end of it.
 	Stop struct{}
+)
+
+var (
+	_ plugin.Aimed = (*StepAside)(nil)
+	_ plugin.Aimed = (*Detour)(nil)
+	_ plugin.Aimed = (*Pass)(nil)
+	_ plugin.Aimed = (*Settle)(nil)
 )
 
 // Aim tells the command whose way it is.

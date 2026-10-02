@@ -7,7 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
 
@@ -33,7 +33,7 @@ var _ goke.System = (*exitSystem)(nil)
 // is back inside loses the mark.
 type exitSystem struct {
 	w    *module
-	host *rule.EachHost[Leaving]
+	host *plugin.Rules[Leaving]
 
 	query   *goke.Query
 	base    goke.Comp[Base]
@@ -47,7 +47,7 @@ type exitSystem struct {
 	bases []Base
 }
 
-func newExitSystem(w *module, host *rule.EachHost[Leaving]) *exitSystem {
+func newExitSystem(w *module, host *plugin.Rules[Leaving]) *exitSystem {
 	return &exitSystem{w: w, host: host}
 }
 

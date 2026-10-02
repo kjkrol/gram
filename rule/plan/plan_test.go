@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"github.com/kjkrol/gram/internal/steps"
 	"testing"
 	"time"
 
@@ -35,9 +36,9 @@ type rig struct {
 func newRig(t *testing.T, given comp.Comp) *rig {
 	t.Helper()
 	r := &rig{t: t, ecs: goke.New(), ids: map[string]goke.CompID{}, toys: newToys()}
-	template := given.(comp.Template[plan.Mind])
-	c := plan.NewPlans(func() time.Duration { return r.now }, nil, 0, nil, &r.toys.carrier)
-	var mind goke.Comp[plan.Mind]
+	template := given.(comp.Template[steps.Mind])
+	c := steps.NewPlans(func() time.Duration { return r.now }, nil, 0, nil, &r.toys.carrier)
+	var mind goke.Comp[steps.Mind]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.ids["alarm"], r.ids["poke"], r.ids["mood"] = si.RegComp[alarm](), si.RegComp[poke](), si.RegComp[mood]()
 		r.toys.init(si)

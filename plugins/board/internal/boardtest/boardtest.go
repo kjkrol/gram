@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -84,7 +85,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 	terrain(bw.Board.Res.Logic.Board)
 	for _, b := range rules {
 		err := bw.Board.Hook(b)
-		if errors.Is(err, rule.ErrUnhosted) {
+		if errors.Is(err, plugin.ErrUnhosted) {
 			err = c.Hook(b)
 		}
 		if err != nil {

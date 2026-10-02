@@ -19,8 +19,8 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 
-	pairs    rule.PairHost[Meeting]
-	entities rule.EachHost[Struck]
+	pairs    plugin.PairRules[Meeting]
+	entities plugin.Rules[Struck]
 	field    Field // the solid ground, nil for none
 	stats    *ContactStats
 	log      *log.Logger

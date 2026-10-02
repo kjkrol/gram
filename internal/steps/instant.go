@@ -1,4 +1,4 @@
-package engine
+package steps
 
 import (
 	"fmt"
@@ -6,19 +6,29 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
-// Pass is what a rule is told of the pass it fires in: the carrier its commands go to, the tick's
-// length, the game time the step ends at, the world's seed and own entity, and the places round
-// a moment, its host's to say.
+// Pass is what a rule is told of the pass it fires in: the carrier its commands go to, the world's
+// effects, the tick's length, the game time the step ends at, the world's seed and own entity,
+// and the places round a moment, its system's to say.
 type Pass struct {
 	Commands *control.Carrier
+	Effects  *effect.Effects
 	Dt       time.Duration
 	Time     time.Duration
 	Seed     uint64
 	World    uid.UID64
 	Around   func(moment any, rings int, each func(uid.UID64))
+}
+
+// effects is the world's effects: the plans' own, or those the rule's pass was given.
+func (c *ctx) effects() *effect.Effects {
+	if c.sys != nil {
+		return c.sys.effects
+	}
+	return c.pass.Effects
 }
 
 // instantExec is a step a rule may run: done within its pass, keeping nothing.

@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -20,9 +21,9 @@ import (
 type Rules struct {
 	grid     grid.Grid
 	cells    *terrain.Cells
-	tick     rule.TickSource // the world's
-	standing rule.EachHost[unit.Standing]
-	now      rule.EachHost[cell.Now]
+	tick     plugin.TickSource // the world's
+	standing plugin.Rules[unit.Standing]
+	now      plugin.Rules[cell.Now]
 	rings    rings
 	slope    func(p, dir geom.Vec, d cell.Domain) float64 // the Map's, for every unit's Pace
 
@@ -34,14 +35,14 @@ type Rules struct {
 
 // New is the rules of the board over g with its cells, run in the Ticks tick makes; slope is the
 // board's Map's, what a unit's Pace goes by besides the cost of the cell under it.
-func New(g grid.Grid, cells *terrain.Cells, tick rule.TickSource, slope func(p, dir geom.Vec, d cell.Domain) float64) *Rules {
+func New(g grid.Grid, cells *terrain.Cells, tick plugin.TickSource, slope func(p, dir geom.Vec, d cell.Domain) float64) *Rules {
 	return &Rules{grid: g, cells: cells, tick: tick, slope: slope}
 }
 
-// Hook hosts r, a rule of a unit.Standing or of a cell.Now; rule.ErrUnhosted for any other.
+// Hook hosts r, a rule of a unit.Standing or of a cell.Now; plugin.ErrUnhosted for any other.
 func (r *Rules) Hook(b rule.Rule) error {
 	err := r.standing.Add(b)
-	if errors.Is(err, rule.ErrUnhosted) {
+	if errors.Is(err, plugin.ErrUnhosted) {
 		err = r.now.Add(b)
 	}
 	return err

@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -24,7 +25,6 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -76,11 +76,9 @@ func NewPlugin(cfg Config) *Plugin {
 	p.view = p.newView(p.Res.Camera.Bounds)
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
-	if t := kinds.DefineTag[effect.States](effect.ChangedName); t != effect.Changed {
-		panic(fmt.Sprintf("world: the effects' markers have tags of their own before %q", effect.ChangedName))
-	}
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
-	m.plans = plan.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
+	m.moments.effects = m.effects
+	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
@@ -102,7 +100,7 @@ func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
 
 // Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation: the
 // world's carrier of commands, the game time the step ends at and the world's seed.
-func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) rule.Tick { return p.module.tick(cb, d) }
+func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick { return p.module.tick(cb, d) }
 
 // HasHeights reports whether this world has heights — see Config.Heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
@@ -221,7 +219,7 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 }
 
 // Commands is what takes the commands the world's entities give themselves to their handlers:
-// a host's rule.Tick carries it.
+// a host's plugin.Tick carries it.
 func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
 
 // DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
@@ -252,9 +250,9 @@ func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		var err error
-		hosts := []func(rule.Rule) error{p.module.movers.Add, p.module.leavers.Add, p.module.moments.host.Add}
+		hosts := []func(any) error{p.module.movers.Add, p.module.leavers.Add, p.module.moments.host.Add}
 		for _, add := range hosts {
-			if err = add(b); err == nil || !errors.Is(err, rule.ErrUnhosted) {
+			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
 				break
 			}
 		}

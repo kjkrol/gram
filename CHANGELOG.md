@@ -8,6 +8,12 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**A box pushed out through an open edge leaves**
+- Collision writes the box of whoever it pushed out through an open edge to its `Pos`, as
+  aabbworld v1.10.0's `collide.Engine.Left` now tells it (a `collide.Leaver`, id and box). Before,
+  the push stayed in the index: the box kept its place over what had pushed it, was marked
+  `Outside` and unmarked every step, and was never despawned. Needs aabbworld v1.10.0.
+
 **No Go code in a rule; drawing in `render`**
 - `rule.Each`, `rule.Every` and `rule.Pair` are gone: a rule is `rule.On` alone, its Go no more
   than the conditions of `If`. What a plugin did through them is its own work in its own pass.

@@ -9,9 +9,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -23,7 +23,7 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner // the system's own, for one observer at a time
 
-	tick rule.TickSource // the world's, for the rules
+	tick plugin.TickSource // the world's, for the rules
 
 	log  *log.Logger           // a line the first time one entity sees another, nil for none
 	told map[[2]uid.UID64]bool // the pairs logged
@@ -55,14 +55,14 @@ type ScanSystem struct {
 	z         goke.OptComp[world.Z]
 
 	// host runs the pair rules registered with the plugin, inside this pass.
-	host *rule.PairHost[Sighting]
+	host *plugin.PairRules[Sighting]
 
 	jobs []job // the frame's chunks of observers
 
 	// What the host is being run over: the observer in hand, everyone it sees, and their tags.
 	observer   Sighting
 	seen       []Seen
-	seenTags   []rule.Marks
+	seenTags   []plugin.Marks
 	matched    []Seen
 	sightingOf func(matched []int) Sighting
 }
@@ -112,10 +112,10 @@ const (
 )
 
 func NewScanSystem(space *aabbworld.Space) *ScanSystem {
-	return newScanSystem(space, &rule.PairHost[Sighting]{})
+	return newScanSystem(space, &plugin.PairRules[Sighting]{})
 }
 
-func newScanSystem(space *aabbworld.Space, host *rule.PairHost[Sighting]) *ScanSystem {
+func newScanSystem(space *aabbworld.Space, host *plugin.PairRules[Sighting]) *ScanSystem {
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting
@@ -371,7 +371,7 @@ func (s *ScanSystem) gather(found *Sighted) {
 		}
 		cursor := s.lookup.Cursor()
 		tags := s.host.At(sought, cursor)
-		s.seen = append(s.seen, Seen{ID: id, Base: s.lookupBase.At(cursor), Dist: found.Dists[k], Marks: tags})
+		s.seen = append(s.seen, Seen{ID: id, Base: s.lookupBase.At(cursor), Dist: found.Dists[k]})
 		s.seenTags = append(s.seenTags, tags)
 	}
 }

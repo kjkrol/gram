@@ -23,7 +23,7 @@ type def struct {
 	stacking bool
 	grants   []grant
 	alters   []alter
-	then     ID // cast once it runs out, when follows
+	then     effectID // cast once it runs out, when follows
 	follows  bool
 }
 

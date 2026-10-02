@@ -13,5 +13,5 @@ type States struct{}
 // plugins' passes.
 const Changed tag.Tag[States] = 0
 
-// ChangedName is the name the world defines Changed under, as the saves know it.
-const ChangedName = "effect.changed"
+// changedName is the name the world defines Changed under, as the saves know it.
+const changedName = "effect.changed"

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -204,11 +205,11 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	met := rule.On("met", rule.Between(tag.Any, tag.Any), func(m *rule.Moment[collision.Meeting]) rule.Step { return m.Order(heard{}) })
-	if err := brd.Hook(met); !errors.Is(err, rule.ErrUnhosted) {
+	if err := brd.Hook(met); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Between on board: %v, want ErrUnhosted", err)
 	}
 	struck := rule.On("struck", rule.Having[unit.Mover](), func(m *rule.Moment[collision.Struck]) rule.Step { return m.Order(heard{}) })
-	if err := brd.Hook(struck); !errors.Is(err, rule.ErrUnhosted) {
+	if err := brd.Hook(struck); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
 	}
 	ecs := installWorldAndBoard(t, w, brd, grid)
@@ -216,7 +217,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	if told := only(t, orders.told()); !told["fell"] {
 		t.Errorf("a land unit spawned over a hole told %v, want fell", told)
 	}
-	if err := brd.Hook(footing(grid)); !errors.Is(err, rule.ErrHostBuilt) {
+	if err := brd.Hook(footing(grid)); !errors.Is(err, plugin.ErrHostBuilt) {
 		t.Errorf("registering after Setup: %v, want ErrHostBuilt", err)
 	}
 }

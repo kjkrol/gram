@@ -1542,14 +1542,21 @@ A finding on the way: collision marks a box `Outside` by its pushed place in the
 `Pos` keeps the place before the push (it is not written back for a box that left). The world's
 exit pass reads `Pos`, so a Leaving rule hears of such a box every tick while the mark comes off
 and goes back on. Running the rules only for boxes out by `Pos` broke collision's open-edge test,
-so the exit pass was left as it was; see Questions.
+so the exit pass was left as it was.
+
+### A box pushed out through an open edge (2026-10-02)
+
+aabbworld's engine listed a box pushed out through an open edge by id alone (`Left`) and did not
+report it `Moved`, so collision could not learn where it went: its `Pos` stayed over the wall, the
+next Rebuild put it back there, the wall pushed it out in the index again, and the box — marked
+`Outside` by collision, unmarked by the world's exit pass that reads `Pos` — was never despawned,
+striking the wall every step. Probed: alive and overlapping after 60 steps with no rule hooked.
+The user chose to break aabbworld's API rather than add a `Moved` call: `Left` returns
+`[]collide.Leaver{ID, Box}` (aabbworld v1.10.0, no v2), and collision writes the box after `Tick`,
+asking no ground — leaving the world wins over the board's footing.
 
 ## Questions for review
 
-- **A box collision pushes out by an open edge keeps its old `Pos`.** The index has it out and
-  collision marks it `Outside`; the world's exit pass finds it inside by its `Pos`, takes the mark
-  off, and collision puts it back the next tick — a Leaving rule hears of it every tick, and with
-  none hooked it is never despawned. Should collision write the pushed box back for a leaver too?
 
 - **`world.Leaving`: a moment nobody uses.** The world hands it to rules every tick an entity is
   past an open edge, and despawns the leaver when no rule is hooked. No game or demo hooks one;

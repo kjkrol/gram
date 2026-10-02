@@ -37,7 +37,8 @@ type triggerStage struct {
 	bullet, target tag.Tag[roles]
 	unit           kind.Of[spot]
 	base           goke.Comp[world.Base]
-	active         goke.OptComp[effect.Active]
+	states         goke.OptComp[tag.Tags[effect.States]]
+	tallies        goke.OptComp[tally]
 	marks          goke.OptComp[tag.Tags[roles]]
 	query          *goke.Query
 	stack          game.Scenes
@@ -63,6 +64,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		}),
 		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
 		comp.Const(collision.Collider{}),
+		comp.Const(tally{}),
 		comp.Load(func(s spot) tag.Tags[roles] {
 			if s.bullet {
 				return tag.Tags[roles](0).With(g.bullet)
@@ -77,7 +79,7 @@ type triggerProbe struct{ g *triggerStage }
 
 func (p triggerProbe) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		p.g.query = si.NewQueryBuilder(&p.g.base).Optional(&p.g.active, &p.g.marks).Build()
+		p.g.query = si.NewQueryBuilder(&p.g.base).Optional(&p.g.states, &p.g.tallies, &p.g.marks).Build()
 	}}}
 }
 
@@ -99,23 +101,28 @@ func (g *triggerStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// each calls fn with every unit: where it is, whether it is the bullet, and how many of e it holds.
-func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bullet bool, under int)) {
+// each calls fn with every unit: where it is, whether it is the bullet, and whether it is under
+// e, its marker on.
+func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bullet bool, under bool)) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
-		actives, marks := g.active.Slice(cur), g.marks.Slice(cur)
+		states, marks := g.states.Slice(cur), g.marks.Slice(cur)
 		for i, id := range cur.IDs {
-			n := 0
-			if actives != nil {
-				for _, s := range actives[i].Slots {
-					if s.State != effect.Empty && s.Kind == e.ID() {
-						n++
-					}
-				}
-			}
-			fn(id, g.base.Slice(cur)[i].Pos.TopLeft.X, marks != nil && marks[i].Has(g.bullet), n)
+			under := e != (effect.Effect{}) && states != nil && states[i].Has(e.Mark())
+			fn(id, g.base.Slice(cur)[i].Pos.TopLeft.X, marks != nil && marks[i].Has(g.bullet), under)
 		}
 	}
+}
+
+// tallied is how many of the counting effects the units run, together.
+func (g *triggerStage) tallied() int {
+	n := 0
+	for g.query.All(); g.query.Next(); {
+		for _, t := range g.tallies.Slice(g.query.Cursor()) {
+			n += t.N
+		}
+	}
+	return n
 }
 
 func runTriggers(t *testing.T, g *triggerStage, d time.Duration) {
@@ -139,9 +146,9 @@ func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 		}))
 	}
 	runTriggers(t, g, 300*time.Millisecond)
-	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under int) {
-		if (under > 0) != bullet {
-			t.Errorf("the bullet %v is marked %v; want the bullet marked alone", bullet, under > 0)
+	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+		if under != bullet {
+			t.Errorf("the bullet %v is marked %v; want the bullet marked alone", bullet, under)
 		}
 	})
 }
@@ -158,8 +165,8 @@ func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
 	}
 	runTriggers(t, g, 300*time.Millisecond)
 	n := 0
-	g.each(marked, func(_ uid.UID64, _ float64, _ bool, under int) {
-		if under > 0 {
+	g.each(marked, func(_ uid.UID64, _ float64, _ bool, under bool) {
+		if under {
 			n++
 		}
 	})
@@ -180,9 +187,9 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 		}))
 	}
 	runTriggers(t, g, 700*time.Millisecond)
-	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under int) {
-		if (under > 0) == bullet {
-			t.Errorf("the bullet %v is marked %v; want the target marked alone", bullet, under > 0)
+	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+		if under == bullet {
+			t.Errorf("the bullet %v is marked %v; want the target marked alone", bullet, under)
 		}
 	})
 }
@@ -190,19 +197,17 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 // An effect is a rule's memory: with Unless on a mark that lasts 400 ms, what it guards runs
 // about once in 400 ms.
 func TestRule_AnEffectIsItsMemory(t *testing.T) {
-	var mark, tally effect.Effect
+	var mark, tallying effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 1}}}
 	g.hook = func(g *triggerStage) error {
 		mark = g.world.Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
-		tally = g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking()})
+		tallying = g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		return g.world.Hook(rule.On("once a while", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Unless(mark, m.Steps(m.Apply(mark), m.Apply(tally)))
+			return m.Unless(mark, m.Steps(m.Apply(mark), m.Apply(tallying)))
 		}))
 	}
 	runTriggers(t, g, time.Second)
-	count := 0
-	g.each(tally, func(_ uid.UID64, _ float64, _ bool, under int) { count = under })
-	if count < 2 || count > 4 {
+	if count := g.tallied(); count < 2 || count > 4 {
 		t.Errorf("in a second the guarded body ran %d times, want about once in 400 ms: 2 to 4", count)
 	}
 }
@@ -218,7 +223,7 @@ func TestRule_OrdersCommands(t *testing.T) {
 	}
 	runTriggers(t, g, 200*time.Millisecond)
 	n := 0
-	g.each(effect.Effect{}, func(_ uid.UID64, _ float64, bullet bool, _ int) {
+	g.each(effect.Effect{}, func(_ uid.UID64, _ float64, bullet bool, _ bool) {
 		n++
 		if bullet {
 			t.Error("the bullet is still in the world, want it despawned by its own command")
@@ -250,9 +255,9 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			}))
 		}
 		runTriggers(t, g, 700*time.Millisecond)
-		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under int) {
-			if (under > 0) != ignite {
-				t.Errorf("ignited %v: the bullet %v is burning %v; want %v", ignite, bullet, under > 0, ignite)
+		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+			if under != ignite {
+				t.Errorf("ignited %v: the bullet %v is burning %v; want %v", ignite, bullet, under, ignite)
 			}
 		})
 	}

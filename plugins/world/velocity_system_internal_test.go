@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
@@ -24,15 +25,15 @@ func velocityTick(t *testing.T, share float64, rules ...rule.Rule) (paced, unpac
 	if err := commands.Carry(&given); err != nil {
 		t.Fatal(err)
 	}
-	host := &rule.EachHost[Moving]{}
+	host := &plugin.Rules[Moving]{}
 	for _, r := range rules {
 		if err := host.Add(r); err != nil {
 			t.Fatal(err)
 		}
 	}
 	sys := newVelocitySystem(host)
-	sys.tick = func(cb *goke.CmdBuf, dt time.Duration) rule.Tick {
-		return rule.Tick{CmdBuf: cb, Dt: dt, Commands: &commands}
+	sys.tick = func(cb *goke.CmdBuf, dt time.Duration) plugin.Tick {
+		return plugin.Tick{CmdBuf: cb, Dt: dt, Commands: &commands}
 	}
 
 	ecs := goke.New()

@@ -24,7 +24,7 @@ type effectSystem struct {
 	states  *tagColumn[States] // the markers: Changed and each effect's own
 	columns map[reflect.Type]column
 	touched map[reflect.Type]bool // the altered components of the entity in hand, reused
-	thens   []ID                  // the Thens of the entity in hand, reused
+	thens   []effectID            // the Thens of the entity in hand, reused
 
 	// lookup finds one entity's Active for Cast and Dispel outside the walk.
 	lookup       *goke.Query
@@ -103,11 +103,11 @@ func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.
 	for k := range a.Slots {
 		slot := &a.Slots[k]
 		switch slot.State {
-		case Pending:
+		case slotPending:
 			if s.begin(cb, cursor, i, id, slot, touched) {
-				slot.State = Running
+				slot.State = slotRunning
 			}
-		case Running:
+		case slotRunning:
 			if slot.Left != Forever {
 				slot.Left -= d
 				if slot.Left <= 0 {
@@ -130,7 +130,7 @@ func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.
 
 // begin applies a slot's grants and marks its alters for recompute; false while a granted
 // family is not on the entity yet — the missing ones are attached and the slot waits a tick.
-func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slot *Slot, touched map[reflect.Type]bool) bool {
+func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slot *effectSlot, touched map[reflect.Type]bool) bool {
 	d := &(*s.defs)[slot.Kind]
 	ready := true
 	for k, g := range d.grants {
@@ -171,11 +171,11 @@ func (s *effectSystem) end(cursor *goke.Cursor, i int, id uid.UID64, a *Active, 
 	if d.follows && !a.Slots[k].Dispelled {
 		s.thens = append(s.thens, d.then)
 	}
-	a.Slots[k] = Slot{}
+	a.Slots[k] = effectSlot{}
 	for _, g := range d.grants {
 		bits := g.bits
 		for _, other := range a.Slots {
-			if other.State != Running {
+			if other.State != slotRunning {
 				continue
 			}
 			for _, og := range (*s.defs)[other.Kind].grants {
@@ -206,7 +206,7 @@ func (s *effectSystem) recompute(cursor *goke.Cursor, i int, id uid.UID64, a *Ac
 	}
 	applied := false
 	for _, slot := range a.Slots {
-		if slot.State != Running {
+		if slot.State != slotRunning {
 			continue
 		}
 		for _, alt := range (*s.defs)[slot.Kind].alters {
@@ -223,47 +223,47 @@ func (s *effectSystem) recompute(cursor *goke.Cursor, i int, id uid.UID64, a *Ac
 
 // cast puts effect on id for left, refreshing a slot it already holds unless it stacks — a slot
 // dispelled this step is taken back; an entity without Active gets one attached, its slot pending.
-func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect ID, left time.Duration) {
+func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect effectID, left time.Duration) {
 	if s.lookup.Seek(id) {
 		s.queue(s.lookupActive.At(s.lookup.Cursor()), effect, left)
 		return
 	}
 	var a Active
-	a.Slots[0] = Slot{Kind: effect, Left: left, State: Pending}
+	a.Slots[0] = effectSlot{Kind: effect, Left: left, State: slotPending}
 	cb.AddOne(id, s.activeID, a)
 }
 
 // queue puts effect on a for left: a slot it holds refreshed unless it stacks, else a free one
 // pending; with none free nothing happens.
-func (s *effectSystem) queue(a *Active, effect ID, left time.Duration) {
+func (s *effectSystem) queue(a *Active, effect effectID, left time.Duration) {
 	if k := a.slot(effect); k >= 0 && !(*s.defs)[effect].stacking {
 		a.Slots[k].Left, a.Slots[k].Dispelled = left, false
 		return
 	}
 	if k := a.free(); k >= 0 {
-		a.Slots[k] = Slot{Kind: effect, Left: left, State: Pending}
+		a.Slots[k] = effectSlot{Kind: effect, Left: left, State: slotPending}
 	}
 }
 
 // dispel ends effect on id at the next tick, its Then not cast.
-func (s *effectSystem) dispel(id uid.UID64, effect ID) {
+func (s *effectSystem) dispel(id uid.UID64, effect effectID) {
 	if !s.lookup.Seek(id) {
 		return
 	}
 	a := s.lookupActive.At(s.lookup.Cursor())
 	for k := range a.Slots {
-		if a.Slots[k].State != Empty && a.Slots[k].Kind == effect {
+		if a.Slots[k].State != slotEmpty && a.Slots[k].Kind == effect {
 			a.Slots[k].Left, a.Slots[k].Dispelled = 0, true
-			if a.Slots[k].State == Pending {
-				a.Slots[k] = Slot{}
+			if a.Slots[k].State == slotPending {
+				a.Slots[k] = effectSlot{}
 			}
 		}
 	}
 }
 
 // has reports whether id is under effect.
-func (s *effectSystem) has(id uid.UID64, effect ID) bool {
-	return s.lookup.Seek(id) && s.lookupActive.At(s.lookup.Cursor()).Has(effect)
+func (s *effectSystem) has(id uid.UID64, effect effectID) bool {
+	return s.lookup.Seek(id) && s.lookupActive.At(s.lookup.Cursor()).has(effect)
 }
 
 // tagWriter is what a grant's column can do.

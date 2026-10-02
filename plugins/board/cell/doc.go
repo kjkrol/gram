@@ -23,7 +23,7 @@
 // A cell carries for good the game's tags of places ([Family]: a [Tag], [Tags]) — a trapdoor, a
 // plate, a zone — given in the Layout (Entry.Tags). [Now] is the cell at a step as a rule gets it:
 // the board runs the rules of it hooked on its plugin for every cell, filtered
-// by those tags or by effects' markers (rule.Self); it is rule.Placed, so a rule's Here acts on the
+// by those tags or by effects' markers (rule.Self); it is plugin.Placed, so a rule's Here acts on the
 // cell and Around on the rings round it.
 //
 // # Occupancy

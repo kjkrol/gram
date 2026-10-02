@@ -35,7 +35,7 @@ type Plugin struct {
 	given  givenQueues
 	finder *pathFinder
 
-	touches  rule.PairHost[Touch]
+	touches  plugin.PairRules[Touch]
 	crowd    []rule.Rule // the rules of the crowd, Crowd unless crowdSet
 	crowdSet bool
 

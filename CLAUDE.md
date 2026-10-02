@@ -716,7 +716,9 @@ rule a pair, made in a loop).
   and is its `Handler`) over the space's items: the engine pairs up whoever carries
   `CanCollide` and may touch within a step, tests the pairs exactly, pushes the overlapping apart and reports each
   pushed box (`Moved`), which the `collisionSystem` writes back to `Base.Pos` by `Seek` —
-  whoever it pushed out through an open edge (`Left()`) is marked `world.Outside`. Every overlap first
+  whoever it pushed out through an open edge (`Left()`, a `collide.Leaver` with the box it came to
+  rest at, wholly past the edge) has that box written to `Base.Pos` too — no ground asked — and is
+  marked `world.Outside`, so the world's exit pass despawns it or tells its Leaving rules. Every overlap first
   passes the `collisionSystem`'s `Touch`: both sides are resolved by `Seek`, and a side
   that lost its `Collider` since the last rebuild vetoes the pair, is marked
   `Plain`, and the space is rebuilt after the tick (so it partners nobody again).

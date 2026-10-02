@@ -1,6 +1,7 @@
 package steering
 
 import (
+	"github.com/kjkrol/gram/plugin"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -11,7 +12,7 @@ import (
 // The commands a steered entity gives itself (Order in a rule or a plan), carried out by the
 // System as a Request on its Helm. An entity heeds one a step: the first Away it gave, else the
 // first Toward, else the first Turn. Away and Toward are told whom they are about as they are
-// given (rule.Aimed).
+// given (plugin.Aimed).
 type (
 	// Away heads the entity away from From.
 	Away struct{ From uid.UID64 }
@@ -19,6 +20,11 @@ type (
 	Toward struct{ To uid.UID64 }
 	// Turn heads the entity Angle radians off the way it goes, from +X towards +Y.
 	Turn struct{ Angle float64 }
+)
+
+var (
+	_ plugin.Aimed = (*Away)(nil)
+	_ plugin.Aimed = (*Toward)(nil)
 )
 
 // Aim tells the command whom to head away from.

@@ -1,6 +1,7 @@
 package world_test
 
 import (
+	"github.com/kjkrol/gram/internal/steps"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ type treeStage struct {
 }
 
 type treeProbe struct {
-	mind  goke.Comp[plan.Mind]
+	mind  goke.Comp[steps.Mind]
 	query *goke.Query
 }
 

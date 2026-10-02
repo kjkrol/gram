@@ -55,7 +55,6 @@ type rig struct {
 	steer   goke.Comp[steering.Steering]
 	look    goke.Comp[world.Appearance]
 	marks   goke.OptComp[tag.Tags[moods]]
-	active  goke.OptComp[effect.Active]
 	states  goke.OptComp[tag.Tags[effect.States]]
 	course  goke.OptComp[steering.Course]
 	casting func(cb *goke.CmdBuf)
@@ -100,7 +99,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).Optional(&r.marks, &r.active, &r.states, &r.course).Build()
+		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).Optional(&r.marks, &r.states, &r.course).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	caster := ctx.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
@@ -130,9 +129,8 @@ func (r *rig) cast(fx effect.Effect) {
 	r.casting = func(cb *goke.CmdBuf) { r.fx.Cast(cb, r.id, fx) }
 }
 
-// state reads the entity back: its speed, sprite, tags and whether it is under any effect.
-// state is the entity's speed, sprite, whether it is angry, and whether an effect is on it — its
-// Active stays once it came, empty when none is.
+// state is the entity's speed, sprite, whether it is angry, and whether an effect is on it: the
+// marker of one, besides Changed.
 func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
 	for r.query.All(); r.query.Next(); {
 		cur := r.query.Cursor()
@@ -141,10 +139,8 @@ func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
 		if m := r.marks.Slice(cur); m != nil {
 			angry = m[0].Has(r.angry)
 		}
-		if a := r.active.Slice(cur); a != nil {
-			for _, s := range a[0].Slots {
-				active = active || s.State != effect.Empty
-			}
+		if s := r.states.Slice(cur); s != nil {
+			active = s[0].Without(effect.Changed) != 0
 		}
 	}
 	return

@@ -29,6 +29,7 @@ const pickReach = 160
 type SelectionSystem struct {
 	selects *control.Queue[Select]
 	applies *control.Queue[Apply] // when the plugin wires them
+	effects *effect.Effects       // the world's, which Apply casts
 	space   *aabbworld.Space
 	tags    Tags
 
@@ -91,7 +92,7 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.applies != nil {
 		s.applies.Drain(func(i control.Issued[Apply]) {
 			if i.Command.Effect != (effect.Effect{}) {
-				s.eachSelected(i.Player, func(id uid.UID64) { i.Command.Effect.Cast(cb, id) })
+				s.eachSelected(i.Player, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
 			}
 		})
 	}

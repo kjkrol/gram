@@ -31,7 +31,7 @@ type Plugin struct {
 	log         *log.Logger           // a line the first time one entity sees another, nil for none
 	cones       control.Queue[Cones]
 
-	sightings rule.PairHost[Sighting]
+	sightings plugin.PairRules[Sighting]
 	drawing   render.Rules // which views are drawn; none, every one
 }
 

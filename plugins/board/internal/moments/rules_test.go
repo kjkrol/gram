@@ -192,7 +192,7 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 			})}
 		})
 		start, _ := pw.brd.CellEntity(pw.middle)
-		pw.casting = func(cb *goke.CmdBuf) { pw.scorched.Cast(cb, start) }
+		pw.casting = func(cb *goke.CmdBuf) { pw.fx.Cast(cb, start, pw.scorched) }
 		grown := 0
 		for tick := 1; tick <= 40; tick++ {
 			pw.tick(1)

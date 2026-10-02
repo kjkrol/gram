@@ -209,7 +209,7 @@ func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, m
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
-			fx.Cast(cb, id)
+			w.effects.Cast(cb, id, fx)
 		}
 	}
 }
@@ -219,7 +219,7 @@ func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) 
 	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && fx.On(id) && may(c) {
-			fx.Dispel(id)
+			w.effects.Dispel(id, fx)
 		}
 	}
 }

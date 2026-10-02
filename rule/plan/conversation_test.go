@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"github.com/kjkrol/gram/internal/steps"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ var asker = plan.New("asker", func(a *plan.Actor) rule.Step {
 // refuses otherwise.
 var giver = plan.New("giver", func(a *plan.Actor) rule.Step {
 	return a.OneOf(
-		a.On[plan.Asked[pass]]("asked to let pass", func(a *plan.Actor) rule.Step {
+		a.OnAsked[pass]("asked to let pass", func(a *plan.Actor) rule.Step {
 			return a.OneOf(
 				a.If(room.free, a.Steps(a.Agree[pass](), a.Order(jump{High: true}))),
 				a.If(room.byAlly, a.Relay[pass]()),
@@ -65,7 +66,7 @@ type talk struct {
 	needID goke.CompID
 	roomID goke.CompID
 	look   *goke.Query
-	asked  goke.OptComp[plan.Asked[pass]]
+	asked  goke.OptComp[steps.Asked[pass]]
 	toys   *toys
 }
 
@@ -76,16 +77,16 @@ type body struct{ Size int }
 func newTalk(t *testing.T, plans ...any) *talk {
 	t.Helper()
 	k := &talk{t: t, ecs: goke.New(), toys: newToys()}
-	var minds []plan.Mind
+	var minds []steps.Mind
 	for _, p := range plans {
 		if p == nil {
-			minds = append(minds, plan.Mind{})
+			minds = append(minds, steps.Mind{})
 			continue
 		}
-		minds = append(minds, p.(comp.Template[plan.Mind]).Resolve(nil))
+		minds = append(minds, p.(comp.Template[steps.Mind]).Resolve(nil))
 	}
-	c := plan.NewPlans(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
-	var mind goke.Comp[plan.Mind]
+	c := steps.NewPlans(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
+	var mind goke.Comp[steps.Mind]
 	var plain goke.Comp[body]
 	k.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		k.needID, k.roomID = si.RegComp[need](), si.RegComp[room]()
@@ -244,7 +245,7 @@ func TestRelay_ANoComesBackAlongTheChain(t *testing.T) {
 // A chain ends at MaxChain, and never comes back to one on it: the last one refuses, and the no
 // comes back.
 func TestRelay_TheChainEndsAtItsLimitAndNeverLoops(t *testing.T) {
-	n := plan.MaxChain + 3
+	n := steps.MaxChain + 3
 	plans := []any{asker}
 	for range n {
 		plans = append(plans, giver)
@@ -264,8 +265,8 @@ func TestRelay_TheChainEndsAtItsLimitAndNeverLoops(t *testing.T) {
 			}
 		}
 	}
-	if furthest != plan.MaxChain+1 {
-		t.Errorf("the ask got as far as entity %d, want %d: past the asker, %d links", furthest, plan.MaxChain+1, plan.MaxChain)
+	if furthest != steps.MaxChain+1 {
+		t.Errorf("the ask got as far as entity %d, want %d: past the asker, %d links", furthest, steps.MaxChain+1, steps.MaxChain)
 	}
 	if _, _, fleeing, _ := k.is(0); !fleeing {
 		t.Error("the chain ended, and the asker does not flee")
@@ -289,7 +290,7 @@ func TestAsked_IsDroppedAfterItsLife(t *testing.T) {
 	if asked, _, _, _ := k.is(1); !asked {
 		t.Fatal("not asked")
 	}
-	k.tick(int(plan.AskLife/(100*time.Millisecond)) + 2)
+	k.tick(int(steps.AskLife/(100*time.Millisecond)) + 2)
 	if asked, _, _, _ := k.is(1); asked {
 		t.Error("an ask nobody took up outlived AskLife")
 	}

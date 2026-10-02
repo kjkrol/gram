@@ -30,7 +30,7 @@
 // effect for as long as its branch runs and gives way — its branch fails — when someone else
 // takes it off. Order gives a command for the actor and hands back a [Command]: its Until waits
 // for what comes of it, a fact — navigation.Arrived — and its Stay keeps the branch, so that a
-// reactive branch gives it once, not every tick. A command that is rule.Aimed is told the subject
+// reactive branch gives it once, not every tick. A command that is plugin.Aimed is told the subject
 // of the fact it stands under: whom the actor was blocked by, who asked.
 //
 // # Facts

@@ -43,8 +43,8 @@
 // Every step the board runs the rules hooked on it ([Plugin.Hook]): of a unit.Standing for every
 // entity on the board — the cell under it, its kind and the game's tags of its place, its box and
 // domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
-// cell.Now for every cell: its entity, which cell, its kind now. Both are rule.Placed, data alone:
-// the board tells a rule, in its Tick, which cells lie round (rule.Tick.Around), and a rule's
+// cell.Now for every cell: its entity, which cell, its kind now. Both are plugin.Placed, data alone:
+// the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. Rules of a cell.Now filter
 // cells by the game's tags of places (rule.Self: a trapdoor, a plate, a zone), and a Standing

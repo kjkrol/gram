@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
@@ -219,7 +220,7 @@ func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 		"a pair made for another host":   fromElsewhere(true),
 		"an entity made for another one": fromElsewhere(false),
 	} {
-		if err := engine.Hook(b); !errors.Is(err, rule.ErrUnhosted) {
+		if err := engine.Hook(b); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("%s: Hook = %v, want ErrUnhosted", name, err)
 		}
 	}
@@ -231,7 +232,7 @@ func TestHook_RefusesOneThatComesTooLate(t *testing.T) {
 	ecs.Setup()
 	engine.RegSystems(ecs)
 
-	if err := engine.Hook(bulletsAgainstTargets()...); !errors.Is(err, rule.ErrHostBuilt) {
+	if err := engine.Hook(bulletsAgainstTargets()...); !errors.Is(err, plugin.ErrHostBuilt) {
 		t.Errorf("Hook after the systems were built = %v, want ErrHostBuilt", err)
 	}
 }
@@ -243,7 +244,7 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 		refused = engine.Hook(heardOf("before", bullet, target), fromElsewhere(true), heardOf("after", bullet, target))
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
-	if !errors.Is(refused, rule.ErrUnhosted) {
+	if !errors.Is(refused, plugin.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", refused)
 	}
 	if len(got) != 1 || got[0].rule != "before" {

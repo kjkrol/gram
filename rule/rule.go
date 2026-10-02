@@ -1,25 +1,18 @@
 package rule
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule/internal/engine"
+	"github.com/kjkrol/gram/internal/steps"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
 
 // Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
 // standing on the board, one seeing another, two striking — built with On and hooked with the
-// plugin's Hook. The moment's type says which plugin hosts it; another refuses it with
-// ErrUnhosted.
+// plugin's Hook. The moment's type says which plugin hosts it; another refuses it.
 type Rule interface{ rule() }
-
-// ErrUnhosted is what Hook reports for a rule the plugin cannot run.
-var ErrUnhosted = errors.New("rule: rule cannot be hosted here")
-
-// ErrHostBuilt is what hooking a rule reports once its host's queries exist.
-var ErrHostBuilt = errors.New("rule: rule hooked after its host was built")
 
 // On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
 // board, one seeing another, two striking — for whom filter lets through, it runs the steps body
@@ -32,7 +25,7 @@ func On[P any](name string, filter Filter, body func(m *Moment[P]) Step) Rule {
 
 // Filter is whom a rule fires for: All, Self, Between or Having.
 type Filter struct {
-	self, other pairSide
+	self, other plugin.Side
 	paired      bool  // Self or Between
 	others      bool  // Between
 	mine        *side // Self, for a moment that is not Met
@@ -44,77 +37,77 @@ var All Filter
 
 // Self lets through an entity carrying t.
 func Self[F any](t tag.Tag[F]) Filter {
-	return Filter{self: pairSideOf(t), other: anyPairSide, paired: true,
-		mine: &side{tags: func() ruleState { return stateOf[tag.Tags[F]]() },
+	return Filter{self: plugin.SideOf(t), paired: true,
+		mine: &side{tags: func() state { return stateOf[tag.Tags[F]]() },
 			carries: func(state any) bool { return state.(*tag.Tags[F]).Has(t) }}}
 }
 
 // Between lets through a pair whose entity carries a and whose other carries b — tag.Any for
 // either — for a moment that is Met.
 func Between[FA, FB any](a tag.Tag[FA], b tag.Tag[FB]) Filter {
-	return Filter{self: pairSideOf(a), other: pairSideOf(b), paired: true, others: true}
+	return Filter{self: plugin.SideOf(a), other: plugin.SideOf(b), paired: true, others: true}
 }
 
 // Having lets through an entity carrying the component T.
 func Having[T any]() Filter {
-	return Filter{need: &having{state: func() ruleState { return stateOf[T]() }}}
+	return Filter{need: &having{state: func() state { return stateOf[T]() }}}
 }
 
 // side is a Self filter; on a moment that is not Met it reads the entity's tags as the rule's
 // state.
 type side struct {
-	tags    func() ruleState
+	tags    func() state
 	carries func(state any) bool
 }
 
 // having is a Having filter.
-type having struct{ state func() ruleState }
+type having struct{ state func() state }
 
 // fired is a rule's body, run on each moment its plugin hands it.
 type fired[P any] struct {
-	run     *engine.Instant
+	run     *steps.Instant
 	current P
 	about   bool // P is About an entity
 	subject bool // P names a Subject, whom an Aimed command is about
 }
 
-func (f *fired[P]) fire(t Tick, _ any, about P) {
+func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	f.current = about
 	var id, subject uid.UID64
 	var aimed bool
 	if f.about {
-		id = any(&f.current).(About).Who() // a pointer: no copy to the heap
+		id = any(&f.current).(plugin.About).Who() // a pointer: no copy to the heap
 	}
 	if f.subject {
-		subject, aimed = any(&f.current).(Subject).Subject()
+		subject, aimed = any(&f.current).(plugin.Subject).Subject()
 	}
-	p := engine.Pass{Commands: t.Commands, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around}
+	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around}
 	f.run.Fire(p, t.CmdBuf, id, f.about, subject, aimed)
 }
 
-// build is the rule named name over root, for whom filter lets through, as its plugin's host
-// takes it.
+// build is the rule named name over root, for whom filter lets through, as its plugin's
+// rule-driven system takes it.
 func build[P any](name string, filter Filter, root Step) Rule {
 	f := &fired[P]{}
-	f.run = engine.NewInstant(name, root, &f.current)
-	_, f.about = any(&f.current).(About)
-	_, f.subject = any(&f.current).(Subject)
-	_, met := any(*new(P)).(Met)
+	f.run = steps.NewInstant(name, root, &f.current)
+	_, f.about = any(&f.current).(plugin.About)
+	_, f.subject = any(&f.current).(plugin.Subject)
+	_, met := any(*new(P)).(plugin.Met)
 	switch {
 	case filter.need != nil:
-		return newEachWith[P](filter.need.state(), f.fire)
+		return &eachWith[P]{s: filter.need.state(), react: f.fire}
 	case filter.paired && !met:
 		if filter.mine == nil || filter.others {
 			panic(fmt.Sprintf("rule: %q: Between needs a moment with others (Met)", name))
 		}
 		carries := filter.mine.carries
-		return newEachWith[P](filter.mine.tags(), func(t Tick, state any, about P) {
+		return &eachWith[P]{s: filter.mine.tags(), react: func(t plugin.Tick, state any, about P) {
 			if carries(state) {
 				f.fire(t, nil, about)
 			}
-		})
+		}}
 	case filter.paired || met:
-		return pairOf[P](filter.self, filter.other, func(t Tick, about P) { f.fire(t, nil, about) })
+		return &pair[P]{self: filter.self, other: filter.other, react: func(t plugin.Tick, about P) { f.fire(t, nil, about) }}
 	}
-	return &every[P]{react: func(t Tick, about P) { f.fire(t, nil, about) }}
+	return &every[P]{react: func(t plugin.Tick, about P) { f.fire(t, nil, about) }}
 }

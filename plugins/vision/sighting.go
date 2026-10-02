@@ -2,7 +2,6 @@ package vision
 
 import (
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,11 +33,9 @@ func (s Sighting) Whom(each func(uid.UID64)) {
 	}
 }
 
-// Seen is one entity in an observer's view: which, where and how it moves, how far off — and
-// which tags it carries, of the families the plugin's rules name (plugin.Carries).
+// Seen is one entity in an observer's view: which, where and how it moves, how far off.
 type Seen struct {
 	ID   uid.UID64
 	Base *world.Base
 	Dist float32
-	rule.Marks
 }

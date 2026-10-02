@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
@@ -23,7 +24,7 @@ type Climate struct {
 	change   control.Queue[Change]
 	set      control.Queue[Set]
 	report   report
-	rules    rule.EachHost[Weathering]
+	rules    plugin.Rules[Weathering]
 	running  Running
 }
 

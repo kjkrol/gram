@@ -13,13 +13,13 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/internal/steps"
+	"github.com/kjkrol/gram/plugin"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -39,8 +39,8 @@ type module struct {
 
 	kinds *Kinds
 
-	leavers *rule.EachHost[Leaving]
-	movers  *rule.EachHost[Moving]
+	leavers *plugin.Rules[Leaving]
+	movers  *plugin.Rules[Moving]
 	drawing render.Rules // the renderer's
 
 	steer            *steering.System
@@ -62,7 +62,7 @@ type module struct {
 	momentsRunnable goke.Runnable
 
 	// the entities' plans, run first in every step of the simulation
-	plans         *plan.Plans
+	plans         *steps.Plans
 	plansRunnable goke.Runnable
 
 	// commands takes the commands the entities give themselves to the plugins that handle them;
@@ -79,7 +79,7 @@ var _ goke.Module = (*module)(nil)
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
-		leavers: &rule.EachHost[Leaving]{}, movers: &rule.EachHost[Moving]{},
+		leavers: &plugin.Rules[Leaving]{}, movers: &plugin.Rules[Moving]{},
 		clock: clk, steer: steering.NewSystem()}
 	w.moments = moments{clock: clk, tick: w.tick, applies: &w.applies, dispels: &w.dispels}
 	return w
@@ -87,9 +87,9 @@ func newModule(cfg Config) *module {
 
 // tick is the Tick of a pass over d of the simulation: the world's carrier, the game time the
 // step ends at and the world's seed.
-func (w *module) tick(cb *goke.CmdBuf, d time.Duration) rule.Tick {
-	return rule.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Time: w.clock.Time() + d, Seed: w.config.Seed,
-		World: w.clock.Entity()}
+func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
+	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity()}
 }
 
 // =================================================================

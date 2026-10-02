@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,8 +14,8 @@ var _ goke.System = (*velocitySystem)(nil)
 // velocitySystem scales every entity's speed, after Steering wrote the base speed and before
 // movement: by its steering.Pace, the ground's, then as the rules of a Moving say.
 type velocitySystem struct {
-	host  *rule.EachHost[Moving]
-	tick  rule.TickSource
+	host  *plugin.Rules[Moving]
+	tick  plugin.TickSource
 	query *goke.Query
 	base  goke.Comp[Base]
 	pace  goke.OptComp[steering.Pace]
@@ -25,7 +25,7 @@ type velocitySystem struct {
 	about func(i int) Moving // at, bound once so a tick allocates no method value
 }
 
-func newVelocitySystem(host *rule.EachHost[Moving]) *velocitySystem {
+func newVelocitySystem(host *plugin.Rules[Moving]) *velocitySystem {
 	s := &velocitySystem{host: host}
 	s.about = s.at
 	return s
@@ -39,7 +39,7 @@ func (s *velocitySystem) Init(si *goke.SysInit) {
 
 func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.host.Empty()
-	var tick rule.Tick
+	var tick plugin.Tick
 	if hosted {
 		tick = s.tick.Of(cb, d)
 	}

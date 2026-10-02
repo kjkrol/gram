@@ -16,7 +16,7 @@ type rings struct {
 
 // around tells each the entity of every cell within rings of where a moment of the board stands —
 // the cells under a Standing's box, a cell.Now's own cell — those first: the board's
-// rule.Tick.Around, for a rule's Here and Around.
+// plugin.Tick.Around, for a rule's Here and Around.
 func (r *Rules) around(moment any, rings int, each func(uid.UID64)) {
 	var seed func(add func(cell.ID))
 	switch m := moment.(type) {
