@@ -94,7 +94,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer; call before Use.
+// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer, until the Stage's
+// ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		if err := p.sightings.Add(b); err != nil {

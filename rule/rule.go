@@ -58,10 +58,15 @@ func hookOn(among []any, r Rule) error {
 // place of r. A rule of a moment of the world as a whole (a clock.Moment) walks no entities, and
 // its host refuses it narrowed. Within tag.Any is r.
 func Within[F any](t tag.Tag[F], r Rule) Rule {
+	return within(t, r, fmt.Sprintf("within tag %d of %v", t, reflect.TypeFor[F]()))
+}
+
+// within is Within, the narrowed rule's String saying how: desc.
+func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
 	}
-	return r.narrowed(narrowing{side: plugin.SideOf(t), carrier: carrierOf(t)})
+	return r.narrowed(narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc})
 }
 
 // On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
@@ -122,7 +127,11 @@ func (s *side) cond() cond { return cond{mk: s.tags, holds: s.carries} }
 type narrowing struct {
 	side    plugin.Side
 	carrier *side
+	desc    string // what the narrowed rule's String adds
 }
+
+// label is the narrowed rule's String: of a rule labelled l.
+func (n narrowing) label(l string) string { return l + ", " + n.desc }
 
 // having is a Having filter.
 type having struct{ state func() state }
@@ -173,18 +182,21 @@ func build[P any](name string, filter Filter, root Step) Rule {
 	return &every[P]{label: label, react: react}
 }
 
-func (e *every[P]) narrowed(n narrowing) Rule { return newEachWith(e.label, e.react, n.carrier.cond()) }
+func (e *every[P]) narrowed(n narrowing) Rule {
+	return newEachWith(n.label(e.label), e.react, n.carrier.cond())
+}
 
 func (e *eachWith[P]) narrowed(n narrowing) Rule {
 	conds := make([]cond, 0, len(e.conds)+1)
 	for _, c := range e.conds {
 		conds = append(conds, cond{mk: c.mk, holds: c.holds})
 	}
-	return newEachWith(e.label, e.react, append(conds, n.carrier.cond())...)
+	return newEachWith(n.label(e.label), e.react, append(conds, n.carrier.cond())...)
 }
 
 func (p *pair[P]) narrowed(n narrowing) Rule {
 	q := *p
+	q.label = n.label(p.label)
 	q.within = append(slices.Clone(p.within), n.side)
 	return &q
 }

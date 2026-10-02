@@ -176,7 +176,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
-// and of a cell.Now, fired every step for every cell; hook them before Use.
+// and of a cell.Now, fired every step for every cell; hook them until the Stage's ecs.Setup —
+// before or after Use — or hand them to its Initializer's Hook.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, r := range rules {
 		if err := p.rules.Hook(r); err != nil {

@@ -41,7 +41,7 @@ func (r *Role) Tag() tag.Tag[Roles] { return r.tag }
 // Obeys adds rules those playing the role obey: each Within the role's tag, hooked with Rules.
 func (r *Role) Obeys(rules ...Rule) *Role {
 	for _, b := range rules {
-		r.rules = append(r.rules, Within(r.tag, b))
+		r.rules = append(r.rules, within(r.tag, b, "for the role "+r.name))
 	}
 	return r
 }

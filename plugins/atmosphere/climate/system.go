@@ -31,17 +31,13 @@ type weatherSystem struct {
 	query   *goke.Query
 	now     goke.Comp[Weather]
 	spawn   goke.Comp[Weather]
-	host    *plugin.Rules[Weathering]
-	profile Profile                // the zone's climate in numbers
-	about   func(i int) Weathering // what a rule hears, bound once so a tick allocates nothing
-	told    Weathering
+	host    *plugin.StepRules[Weathering]
+	profile Profile // the zone's climate in numbers
 	current air.Weather // the air as the last step left it, what Climate.Air gives
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *plugin.Rules[Weathering], running *Running) *weatherSystem {
-	s := &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: rules, profile: cfg.Zone.Profile()}
-	s.about = func(int) Weathering { return s.told }
-	return s
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *plugin.StepRules[Weathering], running *Running) *weatherSystem {
+	return &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: rules, profile: cfg.Zone.Profile()}
 }
 
 // snowsBelow is the temperature, degrees Celsius, below which what falls comes down as snow.
@@ -51,9 +47,8 @@ const snowsBelow = 1
 const wander = 0.05
 
 func (s *weatherSystem) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&s.now)
-	s.host.Bind(qb)
-	s.query = qb.Build()
+	s.host.Bind()
+	s.query = si.NewQueryBuilder(&s.now).Build()
 	for s.query.All(); s.query.Next(); {
 		return // a loaded game brought its weather
 	}
@@ -108,8 +103,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.current = now
 		if !s.host.Empty() {
 			t := s.world.Tick(cb, d)
-			s.told = Weathering{Weather: now, Season: season, World: t.World}
-			s.host.Run(t, cursor, s.about)
+			s.host.Run(t, Weathering{Weather: now, Season: season, World: t.World})
 		}
 		return
 	}

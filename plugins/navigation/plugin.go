@@ -160,8 +160,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — navigation has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Touch, a pair, beside the rules of the crowd; call before
-// Use.
+// Hook hosts rules (rule.On) of Touch, a pair, beside the rules of the crowd, until the Stage's
+// ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		if err := p.touches.Add(b); err != nil {

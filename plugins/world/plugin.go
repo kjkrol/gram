@@ -248,7 +248,8 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
 // Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge) and a clock.Moment (every step). Call before Use.
+// an entity is Outside an open edge) and a clock.Moment (every step), until the Stage's ecs.Setup;
+// a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
 		var err error

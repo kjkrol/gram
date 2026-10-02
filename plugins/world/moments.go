@@ -26,7 +26,7 @@ type moments struct {
 }
 
 func (m *moments) system() goke.System {
-	return goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
+	return goke.SystemFn{OnInit: func(*goke.SysInit) { m.host.Bind() }, OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
 		m.applies.Drain(func(i control.Issued[Apply]) {
 			if i.Command.Effect != (effect.Effect{}) {
 				m.effects.Cast(cb, m.clock.Entity(), i.Command.Effect)

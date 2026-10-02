@@ -73,10 +73,10 @@ type PairRules[P any] struct {
 func (r *PairRules[P]) Add(rule any) error {
 	p, ok := rule.(pairRule[P])
 	if !ok {
-		return fmt.Errorf("%w: %T", ErrUnhosted, rule)
+		return fmt.Errorf("%w: %v", ErrUnhosted, rule)
 	}
 	if r.bound {
-		return fmt.Errorf("%w: %T", ErrHostBuilt, rule)
+		return fmt.Errorf("%w: %v", ErrHostBuilt, rule)
 	}
 	a, b := p.PairSides()
 	held := paired[P]{rule: p, a: a, b: b, fa: r.familyOf(a), fb: r.familyOf(b),
@@ -86,7 +86,6 @@ func (r *PairRules[P]) Add(rule any) error {
 			held.within = append(held.within, s)
 			held.fw = append(held.fw, r.familyOf(s))
 		}
-		held.same = held.same && len(held.within) == 0
 	}
 	r.rules = append(r.rules, held)
 	return nil
