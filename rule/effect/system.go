@@ -31,10 +31,23 @@ type effectSystem struct {
 	lookupActive goke.Comp[Active]
 	activeID     goke.CompID
 	built        bool
+	// fresh are the Actives on their way to entities under no effect yet, by entity, until the
+	// next pass: every cast on one before its Active lands joins the one being added.
+	fresh map[uid.UID64]Active
+	// attaching are the families on their way to entities lacking them this pass, by entity and
+	// family, with the tags every effect attaching one gave it: the add assigned last carries all.
+	attaching map[attachment]uint64
+}
+
+// attachment is one family on its way to one entity.
+type attachment struct {
+	id     uid.UID64
+	family reflect.Type
 }
 
 func newEffectSystem(defs *[]def, originals *originals) *effectSystem {
-	return &effectSystem{defs: defs, originals: originals, columns: map[reflect.Type]column{}, touched: map[reflect.Type]bool{}}
+	return &effectSystem{defs: defs, originals: originals, columns: map[reflect.Type]column{}, touched: map[reflect.Type]bool{},
+		fresh: map[uid.UID64]Active{}, attaching: map[attachment]uint64{}}
 }
 
 func (s *effectSystem) Init(si *goke.SysInit) {
@@ -63,6 +76,8 @@ func (s *effectSystem) Init(si *goke.SysInit) {
 }
 
 func (s *effectSystem) Update(cb *goke.CmdBuf, d time.Duration) {
+	clear(s.fresh)
+	clear(s.attaching)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -83,7 +98,7 @@ func (s *effectSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 func (s *effectSystem) mark(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, changed bool) {
 	if !s.states.present(cursor) {
 		if changed {
-			s.states.attach(cb, id, uint64(tag.Tags[States](0).With(Changed)))
+			s.attach(cb, id, reflect.TypeFor[States](), uint64(tag.Tags[States](0).With(Changed)))
 		}
 		return
 	}
@@ -129,7 +144,8 @@ func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.
 }
 
 // begin applies a slot's grants and marks its alters for recompute; false while a granted
-// family is not on the entity yet — the missing ones are attached and the slot waits a tick.
+// family is not on the entity yet — the missing ones are attached with the grant's tags on, and
+// the slot waits a tick.
 func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slot *effectSlot, touched map[reflect.Type]bool) bool {
 	d := &(*s.defs)[slot.Kind]
 	ready := true
@@ -137,7 +153,7 @@ func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid
 		if s.columns[g.family].present(cursor) || attachedBefore(d.grants[:k], g.family) {
 			continue
 		}
-		s.columns[g.family].(tagWriter).attach(cb, id, g.bits)
+		s.attach(cb, id, g.family, g.bits)
 		ready = false
 	}
 	if !ready {
@@ -152,6 +168,14 @@ func (s *effectSystem) begin(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid
 		}
 	}
 	return true
+}
+
+// attach gives id the family with bits on, joined to whatever else attached it this pass.
+func (s *effectSystem) attach(cb *goke.CmdBuf, id uid.UID64, family reflect.Type, bits uint64) {
+	key := attachment{id: id, family: family}
+	bits |= s.attaching[key]
+	s.attaching[key] = bits
+	s.columns[family].(tagWriter).attach(cb, id, bits)
 }
 
 // attachedBefore reports whether one of grants is of family: attached once, as one component.
@@ -222,14 +246,16 @@ func (s *effectSystem) recompute(cursor *goke.Cursor, i int, id uid.UID64, a *Ac
 }
 
 // cast puts effect on id for left, refreshing a slot it already holds unless it stacks — a slot
-// dispelled this step is taken back; an entity without Active gets one attached, its slot pending.
+// dispelled this step is taken back; an entity without Active gets one attached, its slots
+// pending: every cast before it lands joins it, the add assigned last carrying them all.
 func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect effectID, left time.Duration) {
 	if s.lookup.Seek(id) {
 		s.queue(s.lookupActive.At(s.lookup.Cursor()), effect, left)
 		return
 	}
-	var a Active
-	a.Slots[0] = effectSlot{Kind: effect, Left: left, State: slotPending}
+	a := s.fresh[id]
+	s.queue(&a, effect, left)
+	s.fresh[id] = a
 	cb.AddOne(id, s.activeID, a)
 }
 
