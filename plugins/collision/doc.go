@@ -18,7 +18,7 @@
 // # Solid ground
 //
 // Given a [Field] (the board's Solid cells, board.Plugin.WithCollision or [Plugin.WithField]) the engine also
-// pushes every movable collider out of the solid ground on its world.Layers, through the side of
+// pushes every movable collider out of the solid ground on its world.Layers and, with heights, in its [Band], through the side of
 // a cell facing open ground. A contact with the ground bounces off it as off an infinite mass and
 // is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed.
 // pair rules meet entities only.

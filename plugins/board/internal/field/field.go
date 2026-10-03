@@ -26,7 +26,7 @@ type Field struct {
 	grid     grid.Grid
 	square   *grids.Square // the grid when it is square, walked exactly; nil otherwise
 	cells    *terrain.Cells
-	heights  bool                    // the world has heights: cover spans the cells' bands
+	heights  bool                    // the world has heights: cover and solid cells span the cells' bands
 	altitude func(c cell.ID) float64 // a cell's ground level, the Map's
 	boxes    []geom.AABB             // scratch for the boxes of a cell
 	// veils holds by ordinal the cover of every cell (Ready), good while the cells' changes and
@@ -42,7 +42,7 @@ func New(g grid.Grid, cells *terrain.Cells, altitude func(c cell.ID) float64) *F
 	return &Field{grid: g, square: sq, cells: cells, altitude: altitude}
 }
 
-// SetHeights says whether the world has heights, so cover spans the cells' bands.
+// SetHeights says whether the world has heights, so cover and solid cells span the cells' bands.
 func (f *Field) SetHeights(heights bool) { f.heights = heights }
 
 // Walk is the cover of the board along a ray — the Cover contract: every cell whose kind has
