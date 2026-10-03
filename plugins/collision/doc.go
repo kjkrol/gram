@@ -47,6 +47,24 @@
 // and sight reads Z its own way (an entity without one is a point on the ground, a veiled cell a
 // band from its level up), never through these bands. Overhang minds no height.
 //
+// # Swept entities
+//
+// An entity that moves itself further in a step than the world's cap allows — a shot — carries a
+// [Sweep]: where its centre was as the step began, its box where it ended, written by whoever
+// moves it, its Base.Vel zero. For the tick collision hands the space the whole stretch between
+// the two, so the broad phase pairs it with everything on the path, refines each pair to the
+// segment of its step against the other's box as it stands (a slanting path misses what lies in
+// the stretch but off the segment; the other's own motion in the step is ignored), does the same
+// with the solid ground box by box, and keeps the nearest contact alone — a pair or the ground —
+// dropping the rest: one hit a step. Both sides' [Contact]s say where along the step it lies
+// (Along, 0 to 1; 1 for a contact of no swept entity) and that it was only detected (Sensed). A
+// swept entity is a sensor whatever its Physics: never pushed, never pushing, no bounce; two
+// swept entities pass through each other; a sweep passes through the one it is told to Ignore
+// (its shooter). After the tick the space holds the entity's own box again, so nothing but
+// collision ever sees the stretch — at the cost of a rebuild of the space on either side of the
+// tick while anything is swept. Its band in a world with heights is the one at the step's end. A
+// wrapping world refuses a Sweep: a step must not cross a seam.
+//
 // # Collider and Physics
 //
 // [Collider] is all it takes to take part; it also holds what the entity struck the tick before

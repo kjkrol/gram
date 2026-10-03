@@ -800,7 +800,14 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Struck` per entity that struck something the tick before, with what it struck (one that struck
   nothing is not told: the walk over the colliders runs `plugin.Rules.RunWhere`; the contacts lie in
   `Collider` for good, so no component comes or goes).
-  Counting and logging the contacts is collision's own work in its pass:
+  A `collision.Sweep{From, Ignore, Ignoring}` on an entity that moves itself further than the step cap (a
+  shot, its `Base.Vel` zero) has the space hold the stretch of its step for the tick: the engine pairs
+  the stretch, `resolve` refines each pair to the segment (`response.Sweep`, slab test), the ground
+  box by box (`solidField.segment`), and `nearest` keeps one contact a step; `Contact.Along` says
+  where along the step on both sides, `Sensed` that nobody was pushed; a swept entity is a sensor
+  whatever its `Physics`, two swept pass through each other, the one it `Ignore`s too; the space is
+  rebuilt with the stretch before the tick and without after (`rebuild(stretch)`); a wrapping world
+  refuses it. Counting and logging the contacts is collision's own work in its pass:
   `collision.NewPlugin(w).WithStats(&stats)` (a `collision.ContactStats`, its `Reporter` for the
   telemetry) and `WithLog(log.Default())`. Ready-made rules are in the flat `collision/hooks`
   package — `Hook(hooks.ShowHits(hit))`, and `HitOverlay(hit, with)` for the world's `Draw`; a

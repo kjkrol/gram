@@ -64,6 +64,7 @@ func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Collider](),
 		goke.LoadComp[Physics](),
+		goke.LoadComp[Sweep](),
 	}
 }
 
