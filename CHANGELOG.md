@@ -8,6 +8,13 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Driving by hand**
+- `navigation.Drive{Ahead, Turn}` steers the player's selected units by hand for the tick:
+  `navigation.DriveBindings()` are W, S, A and D held, for a game to bind in place of the camera's
+  own keys on them. A unit driven carries the marker `navigation.Driving`; a tick without a Drive
+  brakes it and, once it stands or has an order, its `Driven` is taken off, so it steps aside
+  again. A contact only sensed — a shot — bumps no unit under orders.
+
 **Spawn in the running game**
 - The command `world.Spawn{Entry}` adds an entity of a kind to the running world, as `Seed` does
   before the game; `world.Plugin.Spawn` gives it as the game's own. The world's spawn system

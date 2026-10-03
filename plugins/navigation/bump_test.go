@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ type roadUnit struct {
 	owner         control.PlayerID // who owns it; nobody for Nobody
 	plan          comp.Comp        // it acts by this plan
 	group         uint32           // the group of its order
+	sensor        bool             // a Collider without Physics: only ever detected
+	loose         bool             // no At, no Mover: a body in the world, not a unit of the board
 }
 
 type roadWorld struct {
@@ -95,11 +98,18 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: cellBox(rw.grid, u.start, 22)} }),
 			comp.Const(world.Velocity{}),
 			comp.Const(profile),
-			comp.Load(func(u roadUnit) unit.At { return unit.At{Cell: u.start} }),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(domain)),
-			comp.Const(collision.Physics{}),
-			comp.Const(unit.Mover{Domain: domain}),
+		}
+		if !u.loose {
+			s = append(s, comp.Load(func(u roadUnit) unit.At { return unit.At{Cell: u.start} }), comp.Const(unit.Mover{Domain: domain}))
+		}
+		if !u.sensor {
+			physics := collision.Physics{}
+			if u.loose { // scenery: nothing shifts it
+				physics.Mass = math.Inf(1)
+			}
+			s = append(s, comp.Const(physics))
 		}
 		if ordered {
 			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target, Group: u.group} }))
@@ -367,5 +377,32 @@ func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
 	}
 	if dir.Y < 0.9 {
 		t.Errorf("heading %v, want it turned south towards the point", dir)
+	}
+}
+
+// A contact only sensed — a sensor, a shot — bumps nobody: the unit under orders walks on through
+// it on its first route and arrives; a body in the way, one the planner knew nothing of, still bumps
+// it into stopping and planning again (and again: the planner never sees a body off the occupancy).
+func TestBump_ASensedContactBumpsNobody(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		sensor bool
+		bumped bool
+	}{{"a sensor on the road", true, false}, {"a body on the road", false, true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			rw := newRoadWorld(t, 10, []roadUnit{{start: 0}})
+			units := []roadUnit{
+				{start: rw.at(0, 1), target: rw.at(9, 1), ordered: true},
+				{start: rw.at(3, 1), sensor: tc.sensor, loose: true},
+			}
+			rw = newRoadWorld(t, 10, units)
+			ticks, replans := rw.run(units, 10*time.Second)
+			if bumped := replans[rw.byRow[0]] > 1; bumped != tc.bumped {
+				t.Errorf("the walker went round what it struck: %v, want %v (replans %v)", bumped, tc.bumped, replans)
+			}
+			if arrived := ticks < 60*10; arrived == tc.bumped {
+				t.Errorf("the walker arrived within 10 s: %v, want %v (through a sensor, never past a body)", arrived, !tc.bumped)
+			}
+		})
 	}
 }

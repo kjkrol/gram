@@ -874,7 +874,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   and give up the same way, and the solid ground struck is stepped round. Struck bodily under
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
-  `bumps` set at Install by the spacing: `anyBump` under cells, `groundBump` the terrain alone
+  `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
   under bodies), no rule hooked on collision. Occupancy is seeded from `At` + `Mover` at Setup. `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
@@ -882,6 +882,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
   user asked for it to learn by striking. Pushes are collision's and keep units on their ground
   whatever the rules (see collision).
+  A `Drive{Ahead, Turn}` command steers every `Selected` entity the player owns by hand for the tick
+  (`DriveBindings()`: W/S/A/D held, bound by a game in place of the camera's keys; several a tick add
+  up): the `moveCommandSystem` writes its `steering.Driven` and the marker `Driving`, a tick without
+  a Drive writes a zero Driven (braking) and the `driveSystem` takes the Driven off once the unit
+  stands or has an order, so it steps aside again; a Driven navigation did not give is left alone.
   A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
   by an entity for itself (`Order`), that entity alone (`LookAt` too); a
   `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.

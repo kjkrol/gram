@@ -38,7 +38,7 @@ func (s *navigationSystem) bump() {
 			}
 			o := &orders[i]
 			if s.bumps == anyBump {
-				if o.Cooldown == 0 {
+				if o.Cooldown == 0 && struckSomething(contacts) {
 					o.Bumped = true
 				}
 				continue
@@ -61,4 +61,14 @@ func struck(o *MoveOrder, contacts []collision.Contact) {
 		return // no ground struck, or squeezed from both sides: nothing to answer
 	}
 	o.Bumped, o.Struck, o.Hit, o.HitUnit = true, geom.NewVec(n.X/l, n.Y/l), 0, false
+}
+
+// struckSomething reports a contact that was not only sensed: a sensor, a shot, blocks nobody.
+func struckSomething(contacts []collision.Contact) bool {
+	for _, c := range contacts {
+		if !c.Sensed {
+			return true
+		}
+	}
+	return false
 }

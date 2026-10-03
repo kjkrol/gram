@@ -31,6 +31,7 @@ type Plugin struct {
 
 	moves  control.Queue[MoveTo]
 	looks  control.Queue[LookAt]
+	drives control.Queue[Drive]
 	routes control.Queue[Routes]
 	given  givenQueues
 	finder *pathFinder
@@ -54,6 +55,9 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
 	if t := worldPlugin.Kinds().DefineTag[States](enteredName); t != Entered {
 		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", enteredName))
+	}
+	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
+		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", drivingName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
@@ -97,6 +101,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
+	moveCommandSystem.drives = &p.drives
 	if p.collision != nil {
 		navSys.bumps = anyBump
 		if p.spacing == BodySpacing {
