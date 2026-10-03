@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
@@ -71,11 +70,14 @@ type module struct {
 	plansRunnable goke.Runnable
 
 	// commands takes the commands the entities give themselves to the plugins that handle them;
-	// despawns are the world's own
+	// spawns and despawns are the world's own
 	commands control.Carrier
+	spawns   control.Queue[Spawn]
 	despawns control.Queue[Despawn]
 	applies  control.Queue[Apply]
 	dispels  control.Queue[Dispel]
+
+	spawnRunnable goke.Runnable
 }
 
 var _ goke.Module = (*module)(nil)
@@ -110,6 +112,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 		w.kinds.DefineTag[rule.Roles](name)
 	}
 	w.wiresRunnable = ecs.RegSys(w.wires.system()) // first: the wires' Signals land with the step's effects
+	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
 	velocity.tick = w.tick
@@ -124,9 +127,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 }
 
 // RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
-// move in the tactical pause too. In the simulation, every step: the entities' plans, steering,
-// the Moving rules, movement, then the leavers, then the effect. The sync after movement lands
-// the Outside marks, so a leaver is dealt with the step it left.
+// move in the tactical pause too. In the simulation, every step: the entities' plans, the Spawns
+// given, steering, the Moving rules, movement, then the leavers, then the effect. The sync after
+// movement lands the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.viewRunnable, d)
@@ -139,6 +142,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	clear(w.despawned)
 	ctx.Run(w.plansRunnable, step)
 	ctx.Sync()
+	ctx.Run(w.spawnRunnable, step)
 	ctx.Run(w.steeringRunnable, step)
 	ctx.Run(w.velocityRunnable, step)
 	ctx.Run(w.moveRunnable, step)
@@ -180,12 +184,13 @@ func (w *module) LoadComps() []goke.CompToken {
 // plugin.PostLoader contract
 // =================================================================
 
-// PostLoad recomputes Count and hands the space every loaded entity.
+// PostLoad recomputes the counts and hands the space every loaded entity.
 func (w *module) PostLoad() goke.System {
 	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		w.kinds.r.RemapTypes(si)
 		w.kinds.r.RemapTags(si)
-		w.telemetry.Count = len(w.reindex(si))
+		w.spawnedCount = len(w.reindex(si))
+		w.telemetry.Count = w.spawnedCount
 	}}
 }
 
@@ -211,17 +216,18 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 	w.telemetry.Count--
 }
 
-// populate queues a spawn of one entity of k per row, each row feeding k's Loads.
+// populate queues a spawn of one entity of k per row, each row feeding k's Loads: at Setup, a
+// row of a size outside the bounds panics before any entity is made.
 func (w *module) populate(k ikinds.Kind, rows []any) {
 	count := len(rows)
-	writers := []comp.Spawner{
-		comp.Const(Appearance{SpriteID: k.SpriteID}).Spawner(),
-	}
-	for _, c := range k.Comps {
-		writers = append(writers, c.Spawner())
-	}
+	writers := writersOf(k)
 
 	w.seeds = append(w.seeds, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		for i, row := range rows {
+			if err := w.sizeOf(k.Position.Resolve(row)); err != nil {
+				panic(fmt.Sprintf("world: kind %q, entry %d: %v", k.Name, i, err))
+			}
+		}
 		w.reserve(count)
 		w.telemetry.Count += count
 
@@ -230,34 +236,9 @@ func (w *module) populate(k ikinds.Kind, rows []any) {
 		for _, wr := range writers {
 			comps = append(comps, wr.Columns()...)
 		}
-		factory := si.NewFactory(comps...)
-
-		factory.Create(count)
-		index := 0
-		for factory.Next() {
-			bases := baseComp.Slice(&factory.Cursor)
-			for i, id := range factory.IDs {
-				row := rows[index]
-				pos := k.Position.Resolve(row)
-				w.validateSize(id, pos)
-				bases[i] = Base{Pos: pos, Vel: k.Velocity.Resolve(row), TypeID: k.TypeID}
-				w.space.Place(&bases[i].Pos.AABB)
-				for _, wr := range writers {
-					wr.Write(&factory.Cursor, i, row, id)
-				}
-				index++
-			}
-		}
+		w.spawnRows(si.NewFactory(comps...), &baseComp, writers, k, rows)
 		w.reindex(si)
 	}})
-}
-
-func (w *module) validateSize(id uid.UID64, pos Position) {
-	if pos.Size.X < float64(w.config.Entities.MinSize) || pos.Size.X > float64(w.config.Entities.MaxSize) ||
-		pos.Size.Y < float64(w.config.Entities.MinSize) || pos.Size.Y > float64(w.config.Entities.MaxSize) {
-		panic(fmt.Sprintf("world: entity %d size %vx%v outside declared bounds [%d, %d]",
-			id, pos.Size.X, pos.Size.Y, w.config.Entities.MinSize, w.config.Entities.MaxSize))
-	}
 }
 
 func (w *module) reserve(count int) {

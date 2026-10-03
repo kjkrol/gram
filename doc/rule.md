@@ -106,7 +106,8 @@ moment and what narrowed it: `"fall in" of unit.Standing, for the role mortal`; 
 - **Command** — `Order(cmd)` gives the entity's command, the same one a player gives
   (`navigation.MoveTo`, `world.Despawn`), queued for the plugin that handles its type, and goes on
   at once: **fire and forget**. The handler carries it out for the entity alone
-  (`control.Issued.ByEntity`). The world keeps a stage's one carrier (`control.Carrier`,
+  (`control.Issued.ByEntity`); `world.Spawn{Entry}` is the one that makes another entity, of the
+  Entry fixed as the rule is written (a nest laying an egg where it stands). The world keeps a stage's one carrier (`control.Carrier`,
   `world.Plugin.Commands`): the players give it theirs, the entities theirs; the engine carries
   every `plugin.CommandHandler` a stage uses, and a plugin's `plugin.Tick` hands the carrier to its
   rules. Nothing is dropped: a command waits for its handler's pass — given after it, for the next

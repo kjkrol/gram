@@ -71,7 +71,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Stages and Scenes** | `game` | Named Stages with their own ECS and lifecycle (`Init`/`Restore`/`Spawn`/`Update`); Scenes with layered renderers and input; a live Composition of what is shown and which Scene is active |
 | **Plugins and rules** | `plugin` | The one extension contract; rules hooked on the plugin whose pass catches their moment, pairs too, run by its hosts (`Rules`, `PairRules`, `StepRules`) with a `Tick` |
 | **Behaviour** | `rule` | One vocabulary: rules at a plugin's moments, hooked with `ctx.Hook` on whichever plugin hosts them; roles a kind or a cell plays — the rules they obey, the abilities a player casts; wires by name from levers, plates and switches to what they drive; plans a kind's entities follow, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
-| **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds; `Config.Heights` for a world with heights |
+| **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds, before the game and during it (`Spawn`); `Config.Heights` for a world with heights |
 | **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
 | **Kinds** | `entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
 | **Collisions** | `plugins/collision` | Collision over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, `Meeting`/`Struck` for rules |
@@ -395,7 +395,8 @@ A unit over a board is defined through `board.NewUnits[Row](brd, size, at)`:
 what the plugins in the game bring by default (a `Collider`, a `Physics`, a `Velocity`) and what
 they require (`At`, `Mover`, `Steering`), a Spec missing one panicking by plugin and reason.
 `Spawn` puts entries on the world's roster with `Seed`; the engine spawns them only when
-`Restore` loaded nothing; mid-game, components come and go through effects and the plugins' facts. Kinds
+`Restore` loaded nothing; mid-game the command `world.Spawn{Entry}` adds an entity of a kind the
+same way, and components come and go through effects and the plugins' facts. Kinds
 tell save files every component type their entities carry, so a game's own tags and state
 survive a save without being registered anywhere else.
 
@@ -420,7 +421,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`rule/effect`](rule/effect/doc.go) | Temporary changes to entities — tags granted, components altered and restored — cast from anywhere, lasting in game time; the rules of the clock's moments |
 | [`rule`](rule/doc.go) | Rules at a plugin's moments, in one vocabulary ([the story](doc/rule.md)): `On(name, filter, func(m *Moment[P]) Step)`, filters `All`, `Self`, `Between`, `Having`, the Moment's steps (`Apply`, `Keep`, `Unless`, `Order`, `OnWire`, `WhileWire`, `Playing`…); roles (`Role`, `Obeys`, `Can`, `Plays`) and wires (`Wire`, `Key`, `Switch`, `Wired`) |
 | [`rule/plan`](rule/plan/doc.go) | What an entity does over time: `New(name, func(a *Actor) Step)` given to a kind (`OneOf`, `Steps`, `If`, `When`, `On`, `Until`, `Ask`), `Command`, the asks, `Mind`; run by the world |
-| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Despawn`, `Apply`/`Dispel` on the world itself, wires (`Wire`), the carrier of the commands entities give themselves, the entity renderer drawing as the rules given to `Draw` say (`Facing`); it runs the core's systems (the clock's, the plans', the effects'); its register of kinds and tags and its flat look in `plugins/world/internal` |
+| [`plugins/world`](plugins/world/doc.go) | The foundation: `Base`, the shared `Space` and camera, movement under the edge rules, kinds, `Seed`/`Populate`, `Spawn`, `Despawn`, `Apply`/`Dispel` on the world itself, wires (`Wire`), the carrier of the commands entities give themselves, the entity renderer drawing as the rules given to `Draw` say (`Facing`); it runs the core's systems (the clock's, the plans', the effects'); its register of kinds and tags and its flat look in `plugins/world/internal` |
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; the commands an entity gives itself (`Away`, `Toward`, `Turn`); `Pace`, the ground's share of its speed; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |

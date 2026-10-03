@@ -95,7 +95,7 @@
 //	                                and wires (Wire, Wired)    (→ control, plugin, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Despawn, wires, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Spawn, Despawn, wires, the carrier of commands, Camera; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)

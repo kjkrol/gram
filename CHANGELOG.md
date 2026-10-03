@@ -8,6 +8,13 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Spawn in the running game**
+- The command `world.Spawn{Entry}` adds an entity of a kind to the running world, as `Seed` does
+  before the game; `world.Plugin.Spawn` gives it as the game's own. The world's spawn system
+  carries it out at the next step of the simulation, after the plans, refusing with a log line an
+  unknown kind, a wrong row, a full world, a size out of bounds or a box past an open edge. After
+  a load the room left under `Config.Entities.MaxCount` is counted from what was loaded.
+
 **Swept entities**
 - `collision.Sweep` marks an entity that moves itself further in a step than the world's cap: the
   space holds the stretch of its step for the tick, every pair and every solid box on the path is

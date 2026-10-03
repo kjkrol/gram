@@ -601,7 +601,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
-  hosts instead of anyone binding it twice — plus Appearance, entity spawning and
+  hosts instead of anyone binding it twice — plus Appearance, entity spawning before the game
+  (`Seed`/`Populate`) and during it (the command `world.Spawn{Entry}`, `Plugin.Spawn`: the world's
+  own system makes the entity at the next step of the simulation after the plans, refusing with a
+  log line an unknown kind, a wrong row, a full world, a bad size or a box past an open edge; a
+  rule may `Order` one of a fixed Entry) and
   `Despawn` (components come and go mid-game through effects and the plugins' facts;
   `Attach`/`Detach`/`Declare` and `Bodies` were removed on 2026-10-01, no game used them) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
