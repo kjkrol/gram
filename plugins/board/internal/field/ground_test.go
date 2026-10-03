@@ -294,7 +294,7 @@ func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := boardtest.SquareWorld(t, boardtest.Mover{})
 	w := bw.World.Res.Config.Space.Width
 	var mid collision.FieldBox
-	bw.Board.Cover().(collision.Field).Solid(world.Layers(cell.Land), geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float64(w), boardtest.CellSize), func(fb collision.FieldBox) bool {
+	bw.Board.Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float64(w), boardtest.CellSize), func(fb collision.FieldBox) bool {
 		if fb.Cell == uint64(gap) {
 			mid = fb
 		}

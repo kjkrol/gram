@@ -93,9 +93,10 @@
 // The board is the ground: ground.Heights is the height of the ground at a point, the Map's — a
 // topography's relief — and nil on a flat map ([Plugin.Heights]); ground.Cover is what stands on
 // the board and holds sight back ([Plugin.Cover], a ground.Readied too); and the Solid cells are
-// the solid ground collision pushes colliders out of, the cells a kind does not take the ground it
-// never pushes one over (a collision.Field, [Plugin.WithCollision]). The board's field, inside it,
-// is both. Sight takes them with vision.Plugin.WithBoard. The world knows none of it: it
+// the solid ground collision pushes colliders out of — in a world with heights each standing
+// from below up to its kind's Height over its level, a collision.Band the entity's own must meet,
+// one of no Height at every height — the cells a kind does not take the ground it never pushes
+// one over (a collision.Field, [Plugin.WithCollision]). The board's field, inside it, is both. Sight takes them with vision.Plugin.WithBoard. The world knows none of it: it
 // knows its entities.
 //
 // A cell.Occupancy tracks who holds each cell and in which domains, gating and recording every

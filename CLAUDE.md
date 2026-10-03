@@ -588,7 +588,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
   `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`world.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
+  geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights the two
+  span (`collision.Band`, `BandOf`) overlap, the ground stops an entity only in a solid cell whose
+  band — from below up to its kind's `Height` over its level — meets the entity's; whatever says no
+  height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
+  `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
   them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
@@ -745,8 +749,8 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
   (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
-  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid` and keep out one
-  of the entity's layers, sides open towards open ground; a hex gives the boxes of
+  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid`, keep out one
+  of the entity's layers and, with heights, stand in its `collision.Band`, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by
   `Plugin.WithCollision`, and sight's `ground.Cover` (`Walk`: the cells along a ray whose `Veils`
   meet the observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`),
@@ -778,7 +782,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
   split. With a `collision.Field` (the contract a board fills: the board's solid cells) the engine, built in `Init` with
-  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
+  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers` and in its `Band`; the
   `collisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
   never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:

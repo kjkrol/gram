@@ -25,7 +25,8 @@
 // entity is on, one bit each, read by collision and
 // sight: two entities meet only where they share a bit, and one carrying none is on every plane.
 // Config.Heights gives the world heights: entities carry a [Z] (bottom and rise), which the board
-// in relief (plugins/topography) writes from its ground; a flat world refuses a Z. The world knows
+// in relief (plugins/topography) writes from its ground, sight follows and collision minds (two
+// meet only where the heights they span overlap); a flat world refuses a Z. The world knows
 // its entities and nothing else: the ground is the board's, the sky the atmosphere's.
 // The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]) and the shared camera
 // ([Plugin.Camera]; the players plugin moves it through Pan and Zoom commands).

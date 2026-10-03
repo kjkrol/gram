@@ -29,6 +29,24 @@
 // over such ground is not written back. Ground turning to water under an entity is no push: it
 // stays there, fallen in.
 //
+// # Heights
+//
+// In a world with heights (world.Config.Heights) collision follows the entities' Z: a pair meets
+// only where the heights the two span, their [Band]s ([BandOf] a Z: its bottom to its top), share
+// a stretch, and the ground stops an entity only in a solid cell whose own band meets the entity's
+// — the Field is asked for the entity's band beside its layers. A wall of a Height stands from
+// below up to its top, so nothing passes under one on a slope and a shot over its top goes on; one
+// of no Height stands at every height, as it does on the flat. Whatever says no height — an
+// entity without a Z or with a Height of 0 — spans [Everywhere] and meets everything, as Layers 0
+// meets every plane: the game does not use Z for it, so the test does not apply. Two bands meeting
+// only at an edge do not meet (a crate on a platform). Layers and heights hold together, both must
+// agree. In a flat world every band is Everywhere and nothing changes. What follows from it: two
+// short units on stepped or sloped ground, their bands apart, pass each other — a game that wants
+// them to meet declares their true height; in a topography world only entities carrying a
+// unit.Mover get their Altitude written each step, any other collider keeps the Z it spawned with;
+// and sight reads Z its own way (an entity without one is a point on the ground, a veiled cell a
+// band from its level up), never through these bands. Overhang minds no height.
+//
 // # Collider and Physics
 //
 // [Collider] is all it takes to take part; it also holds what the entity struck the tick before

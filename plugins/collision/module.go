@@ -25,6 +25,7 @@ type module struct {
 
 	system  goke.Runnable
 	fieldOf func() Field
+	heights bool // the world has heights: the system minds every Band
 	stats   *ContactStats
 	log     *log.Logger
 	clock   *clock.Clock      // the world's; nil, run at once
@@ -89,7 +90,7 @@ func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], r
 
 func (m *module) build() {
 	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
-	s.stats, s.log = m.stats, m.log
+	s.stats, s.log, s.heights = m.stats, m.log, m.heights
 	s.tickOf = m.tick
 	m.system = m.ecs.RegSys(s)
 	m.built = true

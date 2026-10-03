@@ -8,6 +8,15 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Collision with heights**
+- In a world with heights a pair of colliders meets only where the heights the two span overlap
+  (`collision.Band`, `BandOf`, `Everywhere`), and the ground stops an entity only in a solid cell
+  whose own band — from below up to its kind's `Height` over its level — meets the entity's:
+  `collision.Field.Solid` takes the entity's band beside its layers. Whatever says no height (no
+  `Z`, a `Height` of 0, a solid kind without `Height`) spans every height and meets all; a flat
+  world asks none of it. Two short units on stepped or sloped ground, their bands apart, now pass
+  each other.
+
 **Rules hooked by the Stage; roles and wires**
 - `game.Initializer.Hook(rules...)` hooks each rule, and every rule of a role, on the plugin in use
   that hosts its moment, after the plugins are used and before `Init` returns; a rule none hosts is

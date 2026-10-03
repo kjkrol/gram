@@ -38,9 +38,11 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **Arbitration** — the planner and a reaction (`Flee`) steering one unit in one tick: to start
   with, the reaction wins the tick and the planner re-plans; summed weighted requests only if that
   fails somewhere real.
-- **Collision with heights** — two entities meet where their `world.Layers` share a bit; a veto by
-  `Z` overlap would let collision follow height (a hawk landing, a projectile clearing a wall) — a
-  real change to the solver, when a game needs it.
+- **A wall on a steep slope** — collision stops an entity in a solid cell whose band, from below up
+  to its kind's `Height` over the cell's level, meets the entity's; on a slope steeper than that
+  `Height` over half a cell a unit coming downhill may be partly inside the cell before its band
+  meets, and the push out, through the shallowest open side, may put it on the far side. No demo
+  has a solid cell on a slope; a wall's band from the lowest corner, or a sealed side, when one does.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 

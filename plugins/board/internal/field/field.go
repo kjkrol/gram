@@ -175,15 +175,15 @@ func (f *Field) walkSteps(origin, dir geom.Vec, length float64, blockers world.L
 	}
 }
 
-// Solid is the solid ground of the board round box for an entity on layers — the collision.Field
-// contract: every cell whose kind is Solid and keeps one of those layers out, as its boxes. On a
-// square grid a side is open where the neighbour across it is not solid for the entity, and the
-// boxes lie in box's frame across a wrapping seam; any other grid gives its cell boxes open all
-// round.
-func (f *Field) Solid(layers world.Layers, box geom.AABB, visit func(collide.FieldBox) bool) {
+// Solid is the solid ground of the board round box for an entity on layers spanning band — the
+// collision.Field contract: every cell whose kind is Solid, keeps one of those layers out and
+// stands in the band, as its boxes. On a square grid a side is open where the neighbour across it
+// is not solid for the entity, one under or over it among them, and the boxes lie in box's frame
+// across a wrapping seam; any other grid gives its cell boxes open all round.
+func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	sq := f.square
 	if sq == nil {
-		f.solidCells(layers, box, visit)
+		f.solidCells(layers, band, box, visit)
 		return
 	}
 	size := float64(sq.CellSize)
@@ -195,7 +195,7 @@ func (f *Field) Solid(layers world.Layers, box geom.AABB, visit func(collide.Fie
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			c, ok := f.square.Fold(x, y)
-			if !ok || !solidFor(f.cells.KindOf(c), layers) {
+			if !ok || !f.stops(c, layers, band) {
 				continue
 			}
 			var open collide.Sides
@@ -203,7 +203,7 @@ func (f *Field) Solid(layers world.Layers, box geom.AABB, visit func(collide.Fie
 				dx, dy int64
 				side   collide.Sides
 			}{{-1, 0, collide.Left}, {1, 0, collide.Right}, {0, -1, collide.Top}, {0, 1, collide.Bottom}} {
-				if nc, ok := f.square.Fold(x+n.dx, y+n.dy); !ok || !solidFor(f.cells.KindOf(nc), layers) {
+				if nc, ok := f.square.Fold(x+n.dx, y+n.dy); !ok || !f.stops(nc, layers, band) {
 					open |= n.side
 				}
 			}
@@ -272,11 +272,11 @@ func overlap(a, b geom.AABB) float64 {
 }
 
 // solidCells is Solid over a grid other than square: the boxes of every solid cell under box.
-func (f *Field) solidCells(layers world.Layers, box geom.AABB, visit func(collide.FieldBox) bool) {
+func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
 	f.grid.CellsUnder(box, func(c cell.ID) {
-		if done || !solidFor(f.cells.KindOf(c), layers) {
+		if done || !f.stops(c, layers, band) {
 			return
 		}
 		f.boxes = f.grid.CellBoxes(c, f.boxes[:0])
@@ -287,6 +287,23 @@ func (f *Field) solidCells(layers world.Layers, box geom.AABB, visit func(collid
 			}
 		}
 	})
+}
+
+// stops reports whether c stops an entity on layers spanning band: its kind is solid for the
+// layers and, where the world has heights, its band meets the entity's.
+func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool {
+	k := f.cells.KindOf(c)
+	return solidFor(k, layers) && f.solidBand(c, k).Meets(band)
+}
+
+// solidBand is the heights a solid cell of kind k stands in: from below up to Height over its
+// level, so nothing passes under a wall on a slope; Everywhere in a flat world, or for a kind
+// without a Height, which stands at every height as it does on the flat.
+func (f *Field) solidBand(c cell.ID, k *cell.Kind) collision.Band {
+	if !f.heights || k.Height <= 0 {
+		return collision.Everywhere
+	}
+	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + k.Height}
 }
 
 // solidFor reports whether cells of k stop an entity on layers: Solid, keeping out a layer it is on.

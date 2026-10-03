@@ -202,7 +202,7 @@ func (bw *World) Snapshot() []geom.AABB {
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
-	bw.Board.Cover().(collision.Field).Solid(layers, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
+	bw.Board.Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
 		out = append(out, fb.Box)
 		return true
 	})

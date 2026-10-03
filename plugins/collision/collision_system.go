@@ -54,6 +54,7 @@ type collisionSystem struct {
 	lookupCollider goke.Comp[Collider]
 	lookupPhysics  goke.OptComp[Physics]
 	lookupLayers   goke.OptComp[world.Layers]
+	lookupZ        goke.OptComp[world.Z]
 	lookupHot      bool
 
 	// pair is the contact being settled; contacts is what this tick confirmed.
@@ -65,6 +66,7 @@ type collisionSystem struct {
 	// fieldOf resolves the solid ground when the engine is built; ground is the side it shows a
 	// contact, immovable and still.
 	fieldOf func() Field
+	heights bool          // the world has heights: a pair meets where its Bands do, the ground too
 	stats   *ContactStats // counted into, nil for none
 	log     *log.Logger   // a line per contact, nil for none
 	field   solidField
@@ -93,7 +95,8 @@ func (h *handler) ContactField(id uid.UID64, cell uint64, pen geom.Vec) {
 	(*collisionSystem)(h).contactGround(id, cell, pen)
 }
 
-// solidField is the Field as the engine asks for it: for an entity, on its Layers.
+// solidField is the Field as the engine asks for it: for an entity, on its Layers and, in a world
+// with heights, in its Band.
 type solidField struct {
 	field Field
 	d     *collisionSystem
@@ -101,8 +104,17 @@ type solidField struct {
 
 func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.FieldBox) bool) {
 	if f.d.seek(id) {
-		f.field.Solid(world.LayersOf(f.d.lookupLayers.At(f.d.lookup.Cursor())), box, visit)
+		cur := f.d.lookup.Cursor()
+		f.field.Solid(world.LayersOf(f.d.lookupLayers.At(cur)), f.d.bandAt(cur), box, visit)
 	}
+}
+
+// bandAt is the band the entity under the lookup's cursor spans: Everywhere in a flat world.
+func (d *collisionSystem) bandAt(cur *goke.Cursor) Band {
+	if !d.heights {
+		return Everywhere
+	}
+	return BandOf(d.lookupZ.At(cur))
 }
 
 // sought is the one query the system offers its hosted rules.
@@ -133,7 +145,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 
 	d.all = si.NewQueryBuilder(&d.allBase).Build()
 
-	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).Optional(&d.lookupPhysics, &d.lookupLayers)
+	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ)
 	d.between.Bind(seek)
 	d.lookup = seek.Build()
 }
@@ -241,6 +253,7 @@ type contactSide struct {
 	// Physics is nil for a side that is only ever detected.
 	Physics *Physics
 	Layers  world.Layers
+	Band    Band // the heights it spans; Everywhere in a flat world
 }
 
 // side is s as the impulse takes it.
@@ -254,7 +267,7 @@ func (s contactSide) body() response.Body {
 }
 
 // resolve looks both sides of an overlapping pair up; a lost Collider vetoes, and so do two sides
-// on no common plane.
+// on no common plane and, in a world with heights, two whose Bands do not meet.
 func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
 	sideA, tagsA, ok := d.side(a)
 	if !ok {
@@ -264,7 +277,7 @@ func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool)
 	if !ok {
 		return pen, false
 	}
-	if !sideA.Layers.Meets(sideB.Layers) {
+	if !sideA.Layers.Meets(sideB.Layers) || !sideA.Band.Meets(sideB.Band) {
 		return pen, false
 	}
 	d.pair = pairSides{A: sideA, B: sideB, tagsA: tagsA, tagsB: tagsB}
@@ -294,7 +307,7 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, plugin.Marks, bool) {
 	return contactSide{
 		Entity: id, Base: d.lookupBase.At(cur),
 		Collider: d.lookupCollider.At(cur), Physics: d.lookupPhysics.At(cur),
-		Layers: world.LayersOf(d.lookupLayers.At(cur)),
+		Layers: world.LayersOf(d.lookupLayers.At(cur)), Band: d.bandAt(cur),
 	}, d.between.At(sought, cur), true
 }
 
