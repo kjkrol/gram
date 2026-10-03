@@ -165,7 +165,7 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 
 var east = geom.NewVec(1, 0)
 
-// A shot of 4 flying 60 in a tick, fifteen times its own step, strikes a box of 10 on its path:
+// A shot of 4 flying 60 in a tick, thirty times its own step, strikes a box of 10 on its path:
 // both sides record the contact, only detected, where along the step the two first touched; the
 // box is not pushed, the shot's own box is where it ended, and the space holds it there alone.
 func TestSweep_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
@@ -272,12 +272,12 @@ func TestSweep_ASlantingPathMissesWhatLiesBesideIt(t *testing.T) {
 	}
 }
 
-// Two swept entities pass through each other: shots fired one after another on one line never
-// strike each other.
+// Two swept entities pass through each other: a shot fired after another on one line, faster,
+// whose segment crosses where the first ended, never strikes it.
 func TestSweep_TwoSweptPassThroughEachOther(t *testing.T) {
-	out, _ := sweptRun(t, 0, nil, 2,
+	out, _ := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
-		piece{x: 90, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
+		piece{x: 90, y: 500, size: 4, fly: &flight{Dir: east, Step: 80}},
 	)
 	if len(out[0].contacts) != 0 || len(out[1].contacts) != 0 {
 		t.Errorf("the shots have %d and %d contacts, want none", len(out[0].contacts), len(out[1].contacts))
@@ -348,17 +348,51 @@ func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
 }
 
 // A cell of several boxes, a hex's, is struck where the segment crosses one of them, though the
-// first of them lies off the path.
+// first of them, inside the stretch of the step, lies off the slanting segment.
 func TestSweep_ACellOfSeveralBoxesIsStruckWhereTheSegmentCrossesIt(t *testing.T) {
 	cell := &boxesField{boxes: []collision.FieldBox{
-		{Box: geom.NewAABBAt(geom.NewVec(120, 520), 32, 20), Cell: 7, Open: allSides}, // off the path
-		{Box: geom.NewAABBAt(geom.NewVec(120, 490), 32, 30), Cell: 7, Open: allSides}, // on it
+		{Box: geom.NewAABBAt(geom.NewVec(130, 500), 18, 10), Cell: 7, Open: allSides}, // in the stretch, off the segment
+		{Box: geom.NewAABBAt(geom.NewVec(120, 520), 10, 10), Cell: 7, Open: allSides}, // on it
 	}}
+	slant := geom.NewVec(math.Sqrt2/2, math.Sqrt2/2)
 	out, _ := sweptRun(t, 0, cell, 1,
-		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
+		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: slant, Step: 60}},
 	)
-	if got := out[0].contacts; len(got) != 1 || !got[0].Terrain || got[0].Cell != 7 {
-		t.Errorf("the shot's contacts are %+v, want the cell struck once", got)
+	got := out[0].contacts
+	if len(got) != 1 || !got[0].Terrain || got[0].Cell != 7 {
+		t.Fatalf("the shot's contacts are %+v, want the cell struck once", got)
+	}
+	if want := 16 * math.Sqrt2 / 60; math.Abs(got[0].Along-want) > 1e-9 {
+		t.Errorf("struck %v along the step, want %v: where the segment reaches the box on it", got[0].Along, want)
+	}
+}
+
+// A cell of several boxes is told of at the nearest of them along the step, not the first the
+// Field hands over: a hex entered through a cap is struck at the cap, and so beats a box that
+// stands behind the cap but before the hex's middle.
+func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
+	cell := &boxesField{boxes: []collision.FieldBox{
+		{Box: geom.NewAABBAt(geom.NewVec(130, 490), 20, 30), Cell: 7, Open: allSides}, // the middle, handed first
+		{Box: geom.NewAABBAt(geom.NewVec(120, 490), 10, 30), Cell: 7, Open: allSides}, // the cap, nearer
+	}}
+	out, stats := sweptRun(t, 0, cell, 1,
+		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
+		piece{x: 122, y: 498, size: 10, mass: 1}, // behind the cap, before the middle
+	)
+	shot, box := out[0], out[1]
+	if len(shot.contacts) != 1 || !shot.contacts[0].Terrain || shot.contacts[0].Cell != 7 {
+		t.Fatalf("the shot's contacts are %+v, want the cell alone", shot.contacts)
+	}
+	if hit := shot.contacts[0]; math.Abs(hit.Along-16.0/60) > 1e-9 || hit.Normal != geom.NewVec(-1, 0) {
+		t.Errorf("struck %v along the step, the way out %v; want 16/60 at the cap, the way back west", hit.Along, hit.Normal)
+	}
+	for _, c := range box.contacts {
+		if !c.Terrain && c.Other == shot.id {
+			t.Errorf("the box behind the cap was struck by the shot: %+v, want the wall to take it", c)
+		}
+	}
+	if stats.Counter != 0 {
+		t.Errorf("%d pairs counted, want none", stats.Counter)
 	}
 }
 

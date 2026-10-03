@@ -27,8 +27,9 @@ argument's full path, which moved.
   space holds the stretch of its step for the tick, every pair and every solid box on the path is
   refined to the segment, and the nearest contact alone stays. `Contact.Along` says where along the
   step it lies, `Contact.Sensed` that the contact was only detected. A swept entity is a sensor
-  whatever its `Physics`; two swept pass through each other; a wrapping world refuses it. Saves
-  carrying a `Collider` from before do not load: `Contact` grew.
+  whatever its `Physics`; two swept pass through each other; `Sweep.Ignore` (with `Ignoring`) is
+  the one entity it passes through, its shooter; a wrapping world refuses it. Saves carrying a
+  `Collider` from before do not load: `Contact` grew.
 
 **Collision with heights**
 - In a world with heights a pair of colliders meets only where the heights the two span overlap

@@ -43,6 +43,9 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   `Height` over half a cell a unit coming downhill may be partly inside the cell before its band
   meets, and the push out, through the shallowest open side, may put it on the far side. No demo
   has a solid cell on a slope; a wall's band from the lowest corner, or a sealed side, when one does.
+- **A sweep across the seam** — a swept entity (`collision.Sweep`) in a wrapping world: its
+  stretch in the space as the fragments the seam cuts it into, the segment refined per image.
+  Collision refuses one today, with a panic at the first it meets.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 

@@ -115,8 +115,9 @@ func (h *handler) ContactField(id uid.UID64, cell uint64, pen geom.Vec) {
 }
 
 // solidField is the Field as the engine asks for it: for an entity, on its Layers and, in a world
-// with heights, in its Band; for a swept one along its step, each solid box the segment meets
-// alone, with where along it (along) and the way out (normal) for the contact.
+// with heights, in its Band; for a swept one along its step, each solid cell the segment meets
+// alone, at the nearest of its boxes, with where along the step (along) and the way out (normal)
+// for the contact.
 type solidField struct {
 	field Field
 	d     *collisionSystem
@@ -128,6 +129,13 @@ type solidField struct {
 	normal         geom.Vec
 	inner          func(collide.FieldBox) bool
 	hit            func(collide.FieldBox) bool // the method value, bound once
+
+	// the cell in hand: its nearest box met so far, told once the walk leaves the cell
+	held       bool
+	stopped    bool // the visit ended the walk
+	best       collide.FieldBox
+	bestAlong  float64
+	bestNormal geom.Vec
 }
 
 func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.FieldBox) bool) {
@@ -144,19 +152,41 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 	}
 	pos := f.d.lookupBase.At(cur).Pos
 	f.swept, f.from, f.to, f.half, f.inner = true, sw.From, pos.Center(), halfOf(pos), visit
+	f.held, f.stopped = false, false
 	f.field.Solid(layers, band, box, f.hit)
+	if f.held && !f.stopped {
+		f.tell()
+	}
 	f.inner = nil
 }
 
 // segment is one solid box as a swept entity's step meets it: skipped where the segment misses
-// it, else visited with where along the step and the way out noted for the contact.
+// it, else held as its cell's nearest so far — a Field hands a cell's boxes one after another —
+// and the cell told of as the walk moves on to another.
 func (f *solidField) segment(fb collide.FieldBox) bool {
 	along, normal, ok := response.Sweep(f.from, f.to, f.half, fb.Box)
 	if !ok {
 		return true
 	}
-	f.along, f.normal = along, normal
-	return f.inner(fb)
+	if f.held && fb.Cell != f.best.Cell && !f.tell() {
+		return false
+	}
+	if !f.held || along < f.bestAlong {
+		f.held, f.best, f.bestAlong, f.bestNormal = true, fb, along, normal
+	}
+	return true
+}
+
+// tell visits the cell held at its nearest box, where along the step and the way out noted for
+// the contact, and lets it go; false when the visit ends the walk.
+func (f *solidField) tell() bool {
+	f.held = false
+	f.along, f.normal = f.bestAlong, f.bestNormal
+	if !f.inner(f.best) {
+		f.stopped = true
+		return false
+	}
+	return true
 }
 
 // bandAt is the band the entity under the lookup's cursor spans: Everywhere in a flat world.

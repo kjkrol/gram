@@ -128,20 +128,40 @@ type flight struct {
 	Step float64
 }
 
-// flyer moves every swept shot before the world's pass, as a bullet plugin would: it writes the
-// Sweep's From and flies the shot its step.
+// flyer moves every swept shot before the world's pass, as a bullet plugin would — it writes the
+// Sweep's From and flies the shot its step, turning at the edges — and turns every box back at
+// the edges too: the world is closed, as the sweeps need, and a box stopping whole at its edge
+// would pile up there, the scene no longer the Tick scene's.
 type flyer struct {
 	q     *goke.Query
 	base  goke.Comp[world.Base]
 	sweep goke.Comp[collision.Sweep]
 	fl    goke.Comp[flight]
+
+	boxes *goke.Query
+	bbase goke.Comp[world.Base]
 }
 
 func (f *flyer) Init(si *goke.SysInit) {
 	f.q = si.NewQueryBuilder(&f.base, &f.sweep, &f.fl).Build()
+	f.boxes = si.NewQueryBuilder(&f.bbase).Include(goke.Include[collision.Physics]()).Build()
 }
 
 func (f *flyer) Update(*goke.CmdBuf, time.Duration) {
+	for f.boxes.All(); f.boxes.Next(); {
+		bases := f.bbase.Slice(f.boxes.Cursor())
+		for i := range bases {
+			b := &bases[i]
+			v, pos := b.Vel.Delta(), b.Pos
+			if (pos.TopLeft.X <= 0 && v.X < 0) || (pos.TopLeft.X+pos.Size.X >= sceneWidth && v.X > 0) {
+				v.X = -v.X
+			}
+			if (pos.TopLeft.Y <= 0 && v.Y < 0) || (pos.TopLeft.Y+pos.Size.Y >= sceneHeight && v.Y > 0) {
+				v.Y = -v.Y
+			}
+			b.Vel.SetDelta(v)
+		}
+	}
 	for f.q.All(); f.q.Next(); {
 		cur := f.q.Cursor()
 		bases, sweeps, flights := f.base.Slice(cur), f.sweep.Slice(cur), f.fl.Slice(cur)
