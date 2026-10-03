@@ -1093,6 +1093,34 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
+- **`bullet`** — shots as entities of the world: `bullet.NewShots(w).Define(name, Body{Size, Speed,
+  Range, Gravity, Lands}, extra...)` is an `Ammo`, a kind whose entities carry a `Collider` without
+  `Physics` (a sensor), a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the plugin's
+  `Flight` (`At`, `Dir`, `Range`, `Flown`, `Climb`, `Shooter`, `Ending`, `Other`, `Cell`,
+  `Landed`), the shooter's owners and, with heights, a `Z`. `Shoot{Ammo, At, Targeted}` (a
+  `plugin.CommandHandler`, no default bindings; `plugin.Aimed`) fires from every `Selected` unit
+  the player owns, or from the entity that gave it itself, at the muzzle just outside its box,
+  towards `At`, the subject aimed at, else the way it faces (`Vel.Dir`), from its `Eye.Level`, the
+  middle of its `Z`, or 0; a thrown shot (`Gravity`) gets the `Climb` that brings it down where it
+  goes to on the ground `WithGround(board.Heights)` gives, within its `Range`; it is spawned by
+  `world.Spawn` at the next step. The `flightSystem` runs in the simulation **before the world**
+  (`Stage.Update` calls `bullet.RunPlan` first): it flies every shot its `Speed` along `Dir` past
+  the world's step cap, writing the `Sweep.From` and the box (`Space.MoveTo`) and a thrown one's
+  `Z.Altitude`, noting the `Ending` where the step reached the `Range` (`Spent`, `Grounded`), the
+  ground, a closed edge (`Edge`) or an open one (`Left`); the next step, once collision has tested
+  that step, the nearest contact in the `Collider` (`Along`) lands the shot just short of it
+  (`Struck`/`Other`, `Wall`/`Cell`), else the `Ending` lands it: `Landed`, the `Sweep` and
+  `Collider` taken off, a `Landing` for the rules hosted (`plugin.Rules`, its `Subject` the entity
+  struck, so `ForOther` acts on it — `internal/steps` lets `ForOther` act on a Subject where a
+  moment met nobody); a shot whose `Body` does not `Lands` lies one more step (for the effects its
+  landing cast) and is despawned; one that `Left` is marked `world.Outside` for the world's exit
+  pass. A landed shot that `Lands` is a `Resting` every step; `Burst{Radius}`, an entity's own
+  (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
+  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
+  despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
+  collision's. A weapon — ammo, reloading, who carries it — is the game's rules and effects
+  (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
+  Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
 
