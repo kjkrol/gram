@@ -96,6 +96,13 @@ func (k *Registry) Kind(name string) (Kind, bool) {
 	return r, ok
 }
 
+// Each calls fn with every kind, in the order defined: their TypeIDs count up from 0.
+func (k *Registry) Each(fn func(Kind)) {
+	for _, name := range k.order {
+		fn(k.entries[name])
+	}
+}
+
 // DefineTag registers name in family F and returns its tag, assigned by call order within the
 // family.
 func DefineTag[F any](k *Registry, name string) tag.Tag[F] {

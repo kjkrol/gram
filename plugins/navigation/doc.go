@@ -116,6 +116,14 @@
 // step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
 // cell by cell, with Entered.
 //
+// A player's hand is the command [Drive]: every tick a key is held ([DriveBindings], W, S, A and D,
+// which a game binds in place of the camera's own keys on them) the player's selected units get
+// their Driven written, several Drives in a tick adding up, and the marker [Driving]; a tick
+// without one brakes a Driving unit, and once it stands — or has an order to go on with — its
+// Driven is taken off, so it steps aside for others again. A Driven navigation did not give, a
+// camera's, is left alone. A unit under orders struck by what was only sensed — a shot, a sensor —
+// is not Bumped by it: a sensor blocks nobody.
+//
 // # Renderer
 //
 // [Plugin.WithRenderer] builds the renderer of routes, drawing, for every selected entity, its goals

@@ -75,7 +75,8 @@ func (m *Moment[P]) Playing(role *Part, step Step) Step {
 func (m *Moment[P]) Order[C any](cmd C) Step { return steps.NewOrder(cmd) }
 
 // ForOther runs step on each of the others the moment met — whom the entity saw, whom it struck —
-// in place of the entity: an effect applied there, a command ordered for it.
+// or on the one a moment of the entity alone names as its Subject (a Landing's entity struck), in
+// place of the entity: an effect applied there, a command ordered for it.
 func (m *Moment[P]) ForOther(step Step) Step {
 	return steps.NewForOther(step)
 }

@@ -62,8 +62,9 @@
 // stepping as many times as the time gone says; a frame that falls behind runs at most five steps
 // and drops the rest, so the game slows down instead of spiralling. What is drawn goes by the
 // clock's Shown time, which runs on between the steps, so it moves every frame. Each step calls the active Scene's HandleEvents, then Stage.Update, where the game
-// runs its plugins' RunPlan in the order it needs — world first, then whatever reads the world's
-// space (collision, vision, ...), as the examples do.
+// runs its plugins' RunPlan in the order it needs — the world before whatever reads its space
+// (collision, vision, ...), and before it only what moves entities itself (bullet, so that the
+// same step's collision tests its flights), as the examples do.
 //
 // # Persistence
 //
@@ -95,7 +96,7 @@
 //	                                and wires (Wire, Wired)    (→ control, plugin, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Despawn, wires, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Spawn, Despawn, wires, the carrier of commands, Camera; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
@@ -105,6 +106,7 @@
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/hooks, plugins/vision/hooks — ready-made rules                       (→ their plugin, world, rule)
 //	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
+//	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
@@ -119,7 +121,7 @@
 //	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/hooks
+//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere, plugins/*/hooks
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,

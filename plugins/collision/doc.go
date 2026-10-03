@@ -18,7 +18,7 @@
 // # Solid ground
 //
 // Given a [Field] (the board's Solid cells, board.Plugin.WithCollision or [Plugin.WithField]) the engine also
-// pushes every movable collider out of the solid ground on its world.Layers, through the side of
+// pushes every movable collider out of the solid ground on its world.Layers and, with heights, in its [Band], through the side of
 // a cell facing open ground. A contact with the ground bounces off it as off an infinite mass and
 // is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed.
 // pair rules meet entities only.
@@ -28,6 +28,42 @@
 // off the ground, the other goes the whole way; a box the tick's later passes would leave further
 // over such ground is not written back. Ground turning to water under an entity is no push: it
 // stays there, fallen in.
+//
+// # Heights
+//
+// In a world with heights (world.Config.Heights) collision follows the entities' Z: a pair meets
+// only where the heights the two span, their [Band]s ([BandOf] a Z: its bottom to its top), share
+// a stretch, and the ground stops an entity only in a solid cell whose own band meets the entity's
+// — the Field is asked for the entity's band beside its layers. A wall of a Height stands from
+// below up to its top, so nothing passes under one on a slope and a shot over its top goes on; one
+// of no Height stands at every height, as it does on the flat. Whatever says no height — an
+// entity without a Z or with a Height of 0 — spans [Everywhere] and meets everything, as Layers 0
+// meets every plane: the game does not use Z for it, so the test does not apply. Two bands meeting
+// only at an edge do not meet (a crate on a platform). Layers and heights hold together, both must
+// agree. In a flat world every band is Everywhere and nothing changes. What follows from it: two
+// short units on stepped or sloped ground, their bands apart, pass each other — a game that wants
+// them to meet declares their true height; in a topography world only entities carrying a
+// unit.Mover get their Altitude written each step, any other collider keeps the Z it spawned with;
+// and sight reads Z its own way (an entity without one is a point on the ground, a veiled cell a
+// band from its level up), never through these bands. Overhang minds no height.
+//
+// # Swept entities
+//
+// An entity that moves itself further in a step than the world's cap allows — a shot — carries a
+// [Sweep]: where its centre was as the step began, its box where it ended, written by whoever
+// moves it, its Base.Vel zero. For the tick collision hands the space the whole stretch between
+// the two, so the broad phase pairs it with everything on the path, refines each pair to the
+// segment of its step against the other's box as it stands (a slanting path misses what lies in
+// the stretch but off the segment; the other's own motion in the step is ignored), does the same
+// with the solid ground box by box, and keeps the nearest contact alone — a pair or the ground —
+// dropping the rest: one hit a step. Both sides' [Contact]s say where along the step it lies
+// (Along, 0 to 1; 1 for a contact of no swept entity) and that it was only detected (Sensed). A
+// swept entity is a sensor whatever its Physics: never pushed, never pushing, no bounce; two
+// swept entities pass through each other; a sweep passes through the one it is told to Ignore
+// (its shooter). After the tick the space holds the entity's own box again, so nothing but
+// collision ever sees the stretch — at the cost of a rebuild of the space on either side of the
+// tick while anything is swept. Its band in a world with heights is the one at the step's end. A
+// wrapping world refuses a Sweep: a step must not cross a seam.
 //
 // # Collider and Physics
 //

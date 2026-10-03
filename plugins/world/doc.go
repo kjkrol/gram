@@ -25,7 +25,8 @@
 // entity is on, one bit each, read by collision and
 // sight: two entities meet only where they share a bit, and one carrying none is on every plane.
 // Config.Heights gives the world heights: entities carry a [Z] (bottom and rise), which the board
-// in relief (plugins/topography) writes from its ground; a flat world refuses a Z. The world knows
+// in relief (plugins/topography) writes from its ground, sight follows and collision minds (two
+// meet only where the heights they span overlap); a flat world refuses a Z. The world knows
 // its entities and nothing else: the ground is the board's, the sky the atmosphere's.
 // The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]) and the shared camera
 // ([Plugin.Camera]; the players plugin moves it through Pan and Zoom commands).
@@ -68,7 +69,8 @@
 // kind owns ([Kinds.NewSprite]) and tells saves every component type its kinds carry, and the
 // kinds' and the tags' names, so a load is remapped to this build's order. A Stage's
 // Spawn puts entities on the roster with [Plugin.Seed]; the engine calls [Plugin.Populate] only
-// when nothing was restored. [GridPlacement] arranges a population on a regular grid.
+// when nothing was restored. [GridPlacement] arranges a population on a regular grid. In the
+// running game the command [Spawn] adds an entity of a kind the same way (below).
 //
 // A kind's Spec gives each component type once: kind.Define panics naming the kind and the type
 // given twice, and wants a Position and a Velocity exactly once. Two comp.Tagged of one family are
@@ -90,7 +92,21 @@
 // (rule.RoleNames), so a save carries the roles an entity plays by name, like any tag: make the
 // roles in Init.
 //
-// # Despawn and Apply
+// # Spawn, Despawn and Apply
+//
+// The command [Spawn] adds an entity of a kind to the running world, its Loads read off the row
+// of the Entry given, as Seed does before the game: a player or the game's code gives it
+// ([Plugin.Spawn], as control.Nobody), a plugin's handler too (a shot fired), or an entity for
+// itself (Order in a rule or a plan, the Entry fixed as the rule is written: a building raising a
+// recruit at its gate). The world's own system carries it out at the next step of the
+// simulation, after the plans — so a plan's Order lands the same step, none in the tactical
+// pause — refusing with a log line, never a panic, an unknown kind, a wrong row, a world that is
+// full (Config.Entities.MaxCount), a size out of bounds or a box wholly past an open edge; at a
+// closed edge the box is stopped inside, as at Populate. A Spawn still queued when the game is
+// saved is lost, as every command is. A unit of a board spawned this way is not entered in the
+// board's occupancy, which navigation seeds at Setup. Ids are given out again after a despawn,
+// last freed first, and a Sync empties the systems' buffers in no fixed order, so two systems
+// despawning in one step may hand later spawns other ids in a replay.
 //
 // [Plugin.Despawn] removes an entity at the end of the tick, and an entity gives itself the
 // command [Despawn] to go (Order in a plan or a rule). The command [Apply] puts an effect on the

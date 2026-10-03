@@ -186,6 +186,32 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 	}
 }
 
+// Two effects cast in one pass on an entity under none yet, carrying no family of theirs, both
+// land: the Active on its way carries them both, the families attached carry both their tags,
+// and both begin a tick later.
+func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
+	var haste, mark effect.Effect
+	r := newRig(t, false, func(r *rig) {
+		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		mark = r.fx.Define("mark", effect.Spec{effect.Lasts(3 * tick), effect.Grant(r.angry)})
+	})
+	r.casting = func(cb *goke.CmdBuf) {
+		r.fx.Cast(cb, r.id, haste)
+		r.fx.Cast(cb, r.id, mark)
+	}
+	r.tick() // the Active lands with both; the markers' family is attached with both on
+	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
+		t.Errorf("haste %v mark %v after the first tick, want both markers on as their family is attached", r.marked(haste.Mark()), r.marked(mark.Mark()))
+	}
+	r.tick()
+	if speed, _, angry, _ := r.state(); speed != 20 || !angry {
+		t.Errorf("speed %v angry %v, want 20 and true: both effects cast at once on it", speed, angry)
+	}
+	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
+		t.Errorf("haste %v mark %v, want both markers on", r.marked(haste.Mark()), r.marked(mark.Mark()))
+	}
+}
+
 func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, true, func(r *rig) {

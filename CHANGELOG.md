@@ -8,6 +8,61 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Demos**
+- `examples/bullet-demo`: a soldier on WSAD (`navigation.DriveBindings`) shoots rounds with Space
+  the way it faces and throws grenades with G at the cursor, over a low wall and into a high one;
+  a wound, a fuse and its bang are effects, the shots' doings rules of `collision.Meeting`,
+  `bullet.Landing`, `Resting` and `Blast`.
+
+**Bullets**
+- `plugins/bullet`: shots as entities of the world a `Shoot` spawns at a unit's muzzle — by a
+  player from its selected units, by an entity for itself, aimed at a moment's subject — defined
+  by `bullet.NewShots(w).Define(name, Body{Size, Speed, Range, Gravity, Lands})` as an `Ammo`,
+  flown by the plugin every step past the world's step cap and swept by collision, in an arc when
+  thrown, landing where collision found a contact, at their range, on the ground or at an edge:
+  a `Landing` for the rules (Struck with Other, Wall with Cell, Grounded, Left), the shot gone
+  unless it `Lands`; a landed shot a `Resting` every step until a `Burst`, a `Blast` for every
+  entity within its radius. A weapon is the game's: rules and effects over them.
+
+**Effects**
+- Several effects cast in one pass on an entity under none yet all land: the `Active` on its way
+  to the entity carries every one of them, where only the last cast did, and a tag family they
+  attach to it carries every one's tags, where only the last attached did.
+- A rule's `ForOther` on a moment of one entity naming a Subject — a bullet `Landing`'s entity
+  struck — acts on that one, as on the others a pair's moment met.
+
+**Driving by hand**
+- `navigation.Drive{Ahead, Turn}` steers the player's selected units by hand for the tick:
+  `navigation.DriveBindings()` are W, S, A and D held, for a game to bind in place of the camera's
+  own keys on them. A unit driven carries the marker `navigation.Driving`; a tick without a Drive
+  brakes it and, once it stands or has an order, its `Driven` is taken off, so it steps aside
+  again. A contact only sensed — a shot — bumps no unit under orders.
+
+**Spawn in the running game**
+- The command `world.Spawn{Entry}` adds an entity of a kind to the running world, as `Seed` does
+  before the game; `world.Plugin.Spawn` gives it as the game's own. The world's spawn system
+  carries it out at the next step of the simulation, after the plans, refusing with a log line an
+  unknown kind, a wrong row, a full world, a size out of bounds or a box past an open edge. After
+  a load the room left under `Config.Entities.MaxCount` is counted from what was loaded.
+
+**Swept entities**
+- `collision.Sweep` marks an entity that moves itself further in a step than the world's cap: the
+  space holds the stretch of its step for the tick, every pair and every solid box on the path is
+  refined to the segment, and the nearest contact alone stays. `Contact.Along` says where along the
+  step it lies, `Contact.Sensed` that the contact was only detected. A swept entity is a sensor
+  whatever its `Physics`; two swept pass through each other; `Sweep.Ignore` (with `Ignoring`) is
+  the one entity it passes through, its shooter; a wrapping world refuses it. Saves carrying a
+  `Collider` from before do not load: `Contact` grew.
+
+**Collision with heights**
+- In a world with heights a pair of colliders meets only where the heights the two span overlap
+  (`collision.Band`, `BandOf`, `Everywhere`), and the ground stops an entity only in a solid cell
+  whose own band — from below up to its kind's `Height` over its level — meets the entity's:
+  `collision.Field.Solid` takes the entity's band beside its layers. Whatever says no height (no
+  `Z`, a `Height` of 0, a solid kind without `Height`) spans every height and meets all; a flat
+  world asks none of it. Two short units on stepped or sloped ground, their bands apart, now pass
+  each other.
+
 **Rules hooked by the Stage; roles and wires**
 - `game.Initializer.Hook(rules...)` hooks each rule, and every rule of a role, on the plugin in use
   that hosts its moment, after the plugins are used and before `Init` returns; a rule none hosts is

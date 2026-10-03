@@ -197,16 +197,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan runs world's tick — call it first from your own Stage.Update: the clock's commands and
-// the views at once, and movement, the leavers and the effects in every step of the simulation.
+// RunPlan runs world's tick — call it from your own Stage.Update before whatever reads the
+// world's space, after only what moves entities itself (bullet): the clock's commands and the
+// views at once, and movement, the leavers and the effects in every step of the simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's, Despawn's, Apply's, Dispel's and the steering's (steering.Away, Toward,
-// Turn) — for the players plugin, which carries the world's commands itself.
+// Queues are the clock's, Spawn's, Despawn's, Apply's, Dispel's, the wires' Signal's and the
+// steering's (steering.Away, Toward, Turn) — for the players plugin, which carries the world's
+// commands itself.
 func (p *Plugin) Queues() []control.CommandQueue {
-	q := append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies, &p.module.dispels, &p.module.wires.signals)
+	q := append(p.module.clock.Queues(), &p.module.spawns, &p.module.despawns, &p.module.applies, &p.module.dispels, &p.module.wires.signals)
 	return append(q, p.module.steer.Queues()...)
 }
 
@@ -306,6 +308,14 @@ func (p *Plugin) Populate() error {
 	}
 	p.seeded = nil
 	return nil
+}
+
+// Spawn adds entities of their kinds to the running world, as the game's own (control.Nobody):
+// the command [Spawn] for each, carried out at the world's next step of the simulation.
+func (p *Plugin) Spawn(entries ...kind.Entry) {
+	for _, e := range entries {
+		p.module.spawns.Add(control.Nobody, Spawn{Entry: e})
+	}
 }
 
 // Despawn takes an entity out of the ECS at the end of the tick.

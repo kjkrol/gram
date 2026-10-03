@@ -35,6 +35,7 @@ make demo-navigation-hex                                           # the same on
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
+make demo-bullet                                                   # a soldier on WSAD shoots rounds (Space) and throws grenades (G): the bullet plugin, wounds and fuses as effects
 make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
@@ -588,7 +589,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
   `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`world.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
+  geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights the two
+  span (`collision.Band`, `BandOf`) overlap, the ground stops an entity only in a solid cell whose
+  band — from below up to its kind's `Height` over its level — meets the entity's; whatever says no
+  height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
+  `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
   them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
@@ -597,7 +602,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
-  hosts instead of anyone binding it twice — plus Appearance, entity spawning and
+  hosts instead of anyone binding it twice — plus Appearance, entity spawning before the game
+  (`Seed`/`Populate`) and during it (the command `world.Spawn{Entry}`, `Plugin.Spawn`: the world's
+  own system makes the entity at the next step of the simulation after the plans, refusing with a
+  log line an unknown kind, a wrong row, a full world, a bad size or a box past an open edge; a
+  rule may `Order` one of a fixed Entry) and
   `Despawn` (components come and go mid-game through effects and the plugins' facts;
   `Attach`/`Detach`/`Declare` and `Bodies` were removed on 2026-10-01, no game used them) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
@@ -745,8 +754,8 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
   (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
-  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid` and keep out one
-  of the entity's layers, sides open towards open ground; a hex gives the boxes of
+  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid`, keep out one
+  of the entity's layers and, with heights, stand in its `collision.Band`, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by
   `Plugin.WithCollision`, and sight's `ground.Cover` (`Walk`: the cells along a ray whose `Veils`
   meet the observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`),
@@ -778,7 +787,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
   split. With a `collision.Field` (the contract a board fills: the board's solid cells) the engine, built in `Init` with
-  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
+  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers` and in its `Band`; the
   `collisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
   never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:
@@ -796,7 +805,14 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Struck` per entity that struck something the tick before, with what it struck (one that struck
   nothing is not told: the walk over the colliders runs `plugin.Rules.RunWhere`; the contacts lie in
   `Collider` for good, so no component comes or goes).
-  Counting and logging the contacts is collision's own work in its pass:
+  A `collision.Sweep{From, Ignore, Ignoring}` on an entity that moves itself further than the step cap (a
+  shot, its `Base.Vel` zero) has the space hold the stretch of its step for the tick: the engine pairs
+  the stretch, `resolve` refines each pair to the segment (`response.Sweep`, slab test), the ground
+  box by box (`solidField.segment`), and `nearest` keeps one contact a step; `Contact.Along` says
+  where along the step on both sides, `Sensed` that nobody was pushed; a swept entity is a sensor
+  whatever its `Physics`, two swept pass through each other, the one it `Ignore`s too; the space is
+  rebuilt with the stretch before the tick and without after (`rebuild(stretch)`); a wrapping world
+  refuses it. Counting and logging the contacts is collision's own work in its pass:
   `collision.NewPlugin(w).WithStats(&stats)` (a `collision.ContactStats`, its `Reporter` for the
   telemetry) and `WithLog(log.Default())`. Ready-made rules are in the flat `collision/hooks`
   package — `Hook(hooks.ShowHits(hit))`, and `HitOverlay(hit, with)` for the world's `Draw`; a
@@ -859,7 +875,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   and give up the same way, and the solid ground struck is stepped round. Struck bodily under
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
-  `bumps` set at Install by the spacing: `anyBump` under cells, `groundBump` the terrain alone
+  `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
   under bodies), no rule hooked on collision. Occupancy is seeded from `At` + `Mover` at Setup. `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
@@ -867,6 +883,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
   user asked for it to learn by striking. Pushes are collision's and keep units on their ground
   whatever the rules (see collision).
+  A `Drive{Ahead, Turn}` command steers every `Selected` entity the player owns by hand for the tick
+  (`DriveBindings()`: W/S/A/D held, bound by a game in place of the camera's keys; several a tick add
+  up): the `moveCommandSystem` writes its `steering.Driven` and the marker `Driving`, a tick without
+  a Drive writes a zero Driven (braking) and the `driveSystem` takes the Driven off once the unit
+  stands or has an order, so it steps aside again; a Driven navigation did not give is left alone.
   A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
   by an entity for itself (`Order`), that entity alone (`LookAt` too); a
   `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
@@ -1072,6 +1093,34 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
+- **`bullet`** — shots as entities of the world: `bullet.NewShots(w).Define(name, Body{Size, Speed,
+  Range, Gravity, Lands}, extra...)` is an `Ammo`, a kind whose entities carry a `Collider` without
+  `Physics` (a sensor), a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the plugin's
+  `Flight` (`At`, `Dir`, `Range`, `Flown`, `Climb`, `Shooter`, `Ending`, `Other`, `Cell`,
+  `Landed`), the shooter's owners and, with heights, a `Z`. `Shoot{Ammo, At, Targeted}` (a
+  `plugin.CommandHandler`, no default bindings; `plugin.Aimed`) fires from every `Selected` unit
+  the player owns, or from the entity that gave it itself, at the muzzle just outside its box,
+  towards `At`, the subject aimed at, else the way it faces (`Vel.Dir`), from its `Eye.Level`, the
+  middle of its `Z`, or 0; a thrown shot (`Gravity`) gets the `Climb` that brings it down where it
+  goes to on the ground `WithGround(board.Heights)` gives, within its `Range`; it is spawned by
+  `world.Spawn` at the next step. The `flightSystem` runs in the simulation **before the world**
+  (`Stage.Update` calls `bullet.RunPlan` first): it flies every shot its `Speed` along `Dir` past
+  the world's step cap, writing the `Sweep.From` and the box (`Space.MoveTo`) and a thrown one's
+  `Z.Altitude`, noting the `Ending` where the step reached the `Range` (`Spent`, `Grounded`), the
+  ground, a closed edge (`Edge`) or an open one (`Left`); the next step, once collision has tested
+  that step, the nearest contact in the `Collider` (`Along`) lands the shot just short of it
+  (`Struck`/`Other`, `Wall`/`Cell`), else the `Ending` lands it: `Landed`, the `Sweep` and
+  `Collider` taken off, a `Landing` for the rules hosted (`plugin.Rules`, its `Subject` the entity
+  struck, so `ForOther` acts on it — `internal/steps` lets `ForOther` act on a Subject where a
+  moment met nobody); a shot whose `Body` does not `Lands` lies one more step (for the effects its
+  landing cast) and is despawned; one that `Left` is marked `world.Outside` for the world's exit
+  pass. A landed shot that `Lands` is a `Resting` every step; `Burst{Radius}`, an entity's own
+  (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
+  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
+  despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
+  collision's. A weapon — ammo, reloading, who carries it — is the game's rules and effects
+  (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
+  Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
 

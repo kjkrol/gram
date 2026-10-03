@@ -29,7 +29,9 @@ type Kind struct {
 	// Zero veils everyone.
 	Veils Domain
 	// Height is what stands on the cell (a wall, a forest) in a world with heights; a flat world refuses
-	// it — see world.Config.Heights. The ground under it is the topography's.
+	// it — see world.Config.Heights. The ground under it is the topography's. It is how far up a
+	// veil holds sight back and, for a Solid kind, how high the wall collision stops entities at:
+	// a Solid kind of no Height stands at every height.
 	Height float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
 	// effect sets it when the wind blows.
