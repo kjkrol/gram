@@ -62,8 +62,9 @@
 // stepping as many times as the time gone says; a frame that falls behind runs at most five steps
 // and drops the rest, so the game slows down instead of spiralling. What is drawn goes by the
 // clock's Shown time, which runs on between the steps, so it moves every frame. Each step calls the active Scene's HandleEvents, then Stage.Update, where the game
-// runs its plugins' RunPlan in the order it needs — world first, then whatever reads the world's
-// space (collision, vision, ...), as the examples do.
+// runs its plugins' RunPlan in the order it needs — the world before whatever reads its space
+// (collision, vision, ...), and before it only what moves entities itself (bullet, so that the
+// same step's collision tests its flights), as the examples do.
 //
 // # Persistence
 //
@@ -105,6 +106,7 @@
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
 //	          plugins/collision/hooks, plugins/vision/hooks — ready-made rules                       (→ their plugin, world, rule)
 //	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
+//	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
@@ -119,7 +121,7 @@
 //	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/topography, plugins/atmosphere, plugins/*/hooks
+//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere, plugins/*/hooks
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,

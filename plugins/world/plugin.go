@@ -197,8 +197,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan runs world's tick — call it first from your own Stage.Update: the clock's commands and
-// the views at once, and movement, the leavers and the effects in every step of the simulation.
+// RunPlan runs world's tick — call it from your own Stage.Update before whatever reads the
+// world's space, after only what moves entities itself (bullet): the clock's commands and the
+// views at once, and movement, the leavers and the effects in every step of the simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }

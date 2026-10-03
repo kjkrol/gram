@@ -46,6 +46,11 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **A sweep across the seam** — a swept entity (`collision.Sweep`) in a wrapping world: its
   stretch in the space as the fragments the seam cuts it into, the segment refined per image.
   Collision refuses one today, with a panic at the first it meets.
+- **Shots that go on** — a shot through its target (`Body.Pierces`: the nearest contact a Landing
+  that does not end the flight), a trail drawn behind it, a mine that feels a tread (a landed
+  shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
+- **A unit spawned in the game on the board** — `world.Spawn` of a unit with `At` and `Mover` does
+  not enter it into the board's `cell.Occupancy` (navigation seeds it at Setup alone).
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 

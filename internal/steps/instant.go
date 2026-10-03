@@ -94,7 +94,8 @@ func (r *Instant) Fire(p Pass, cb *goke.CmdBuf, id uid.UID64, entity bool, subje
 	c.run(0)
 }
 
-// NewForOther runs step on each of the others the moment met, in place of the entity.
+// NewForOther runs step on each of the others the moment met — or on its subject, for a moment of
+// one entity naming one — in place of the entity.
 func NewForOther(step Step) Step {
 	return composite{kids: []Step{step}, sign: "forother", make: func() exec { return forOther{} }}
 }
@@ -134,17 +135,24 @@ type forOther struct{ basic }
 func (forOther) instant() {}
 
 func (forOther) tick(c *ctx, _ int, kids []int) Status {
-	m, ok := c.payload.(met)
-	if !ok || !c.entity {
+	if !c.entity {
 		return Failure
 	}
 	self, st := c.id, Failure
-	m.Whom(func(other uid.UID64) {
-		c.id = other
-		if c.run(kids[0]) == Success {
-			st = Success
+	switch m := c.payload.(type) {
+	case met:
+		m.Whom(func(other uid.UID64) {
+			c.id = other
+			if c.run(kids[0]) == Success {
+				st = Success
+			}
+		})
+	case subject:
+		if other, ok := m.Subject(); ok {
+			c.id = other
+			st = c.run(kids[0])
 		}
-	})
+	}
 	c.id = self
 	return st
 }

@@ -8,6 +8,29 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Demos**
+- `examples/bullet-demo`: a soldier on WSAD (`navigation.DriveBindings`) shoots rounds with Space
+  the way it faces and throws grenades with G at the cursor, over a low wall and into a high one;
+  a wound, a fuse and its bang are effects, the shots' doings rules of `collision.Meeting`,
+  `bullet.Landing`, `Resting` and `Blast`.
+
+**Bullets**
+- `plugins/bullet`: shots as entities of the world a `Shoot` spawns at a unit's muzzle — by a
+  player from its selected units, by an entity for itself, aimed at a moment's subject — defined
+  by `bullet.NewShots(w).Define(name, Body{Size, Speed, Range, Gravity, Lands})` as an `Ammo`,
+  flown by the plugin every step past the world's step cap and swept by collision, in an arc when
+  thrown, landing where collision found a contact, at their range, on the ground or at an edge:
+  a `Landing` for the rules (Struck with Other, Wall with Cell, Grounded, Left), the shot gone
+  unless it `Lands`; a landed shot a `Resting` every step until a `Burst`, a `Blast` for every
+  entity within its radius. A weapon is the game's: rules and effects over them.
+
+**Effects**
+- Several effects cast in one pass on an entity under none yet all land: the `Active` on its way
+  to the entity carries every one of them, where only the last cast did, and a tag family they
+  attach to it carries every one's tags, where only the last attached did.
+- A rule's `ForOther` on a moment of one entity naming a Subject — a bullet `Landing`'s entity
+  struck — acts on that one, as on the others a pair's moment met.
+
 **Driving by hand**
 - `navigation.Drive{Ahead, Turn}` steers the player's selected units by hand for the tick:
   `navigation.DriveBindings()` are W, S, A and D held, for a game to bind in place of the camera's

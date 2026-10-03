@@ -157,7 +157,12 @@ command from a binding:
 - `world.Apply{Effect}` puts it on the world itself — its own entity, the clock's — a state of the
   whole game: an alarm, night called. A rule or a plan may `Order` it too;
 - a wire's `Key` and `Switch` put it on the wire's own entity: a lever pulled, a switch flipped
-  (below, "Wires").
+  (below, "Wires");
+- `bullet.Shoot{Ammo}` fires a shot from the player's own selected units, the way each faces or
+  at a point (`Targeted`); a rule or a plan orders it the same way, for its entity, aimed at its
+  moment's subject. What the shot does is rules of collision's `Meeting` and bullet's `Landing`,
+  `Resting` and `Blast`: a wound an effect `ForOther`, a fuse an effect on the grenade that
+  `Then` bangs, a `Burst` ordered under it.
 
 Rules and plans read the world's states with `During(e, step)`, as they read an entity's with
 `Under` and its wire's with `WhileWire`:
