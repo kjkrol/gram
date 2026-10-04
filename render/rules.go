@@ -16,8 +16,8 @@ type Appearance struct {
 }
 
 // Rule is how a renderer draws the entities it draws, settled for each of them every frame, in
-// the order given: what it is drawn with (Over, As, With) and whether it is drawn (Show). A
-// rule reads one component of the entity, T, and holds only for one carrying it.
+// the order given: what it is drawn with (Over, As, Swap, With) and whether it is drawn (Show).
+// A rule reads one component of the entity, T, and holds only for one carrying it.
 type Rule interface {
 	bind(qb *goke.QueryBuilder, cols columns)
 	run(cur *goke.Cursor, layers [][]Appearance, shown []bool)
@@ -34,9 +34,21 @@ func As[T any](with Appearance, when ...func(T) bool) Rule {
 	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) { (*l)[0] = with }}
 }
 
-// With reworks the sprite of every entity carrying T through fn, which sees the T it carries.
-func With[T any](fn func(Appearance, T) Appearance) Rule {
-	return &dressing[T]{dress: func(l *[]Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
+// Swap draws every entity carrying T, where each of when holds, as the twin of the sprite it
+// would be drawn with — a kind's own look under a state, keyed by its sprite, so a Swap after a
+// facing rule has a twin a way faced — and one with no twin as it is.
+func Swap[T any](twins map[SpriteID]SpriteID, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) {
+		if id, ok := twins[(*l)[0].SpriteID]; ok {
+			(*l)[0].SpriteID = id
+		}
+	}}
+}
+
+// With reworks the sprite of every entity carrying T through fn, which sees the T it carries,
+// where each of when holds.
+func With[T any](fn func(Appearance, T) Appearance, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
 }
 
 // Show draws every entity carrying T where each of when holds; once a Show rule is given, a
