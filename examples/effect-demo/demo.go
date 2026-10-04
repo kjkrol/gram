@@ -3,8 +3,9 @@
 // reaches, and it thaws some seconds after she has gone. She is fast on her own snow; a walker
 // can cross the lake on her trail while it lasts — slipping, so it brakes badly and may not stop
 // before ice that melts ahead of it — and a boat, whose brakes are weak, sails onto the ice it saw
-// coming and is frozen in — pale, still, immovable — until the ice melts. Everything temporary
-// here is an effect.
+// coming and is frozen in — still, immovable, in its own frozen look, as each kind has one — until
+// the ice melts. Everything temporary here is an effect; how a kind looks under one is a drawing
+// rule, a sprite a kind, swapped in while the effect's marker is on.
 package main
 
 import (
@@ -97,6 +98,7 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 
 	frost, frozen, slip effect.Effect
+	frozenLook          map[render.SpriteID]render.SpriteID // a kind's sprite → its look frozen in
 	witch, walker, boat kind.Of[unitRow]
 	stack               game.Scenes
 }
@@ -172,9 +174,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		}),
 	})
 
-	paleSprite := s.world.Kinds().NewSprite()
+	// frozen turns the weight and the steering of whoever is caught in the ice; how it looks
+	// frozen is its kind's, a drawing rule (LOOKS below)
 	s.frozen = effects.Define("frozen", effect.Spec{
-		effect.Alter(func(a *world.Appearance) { a.SpriteID = paleSprite }),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }), // stuck fast: nobody shoves it
 		effect.Alter(func(st *steering.Steering) { st.Halted = true }),    // nor does it move
 	})
@@ -182,6 +184,19 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.slip = effects.Define("slip", effect.Spec{
 		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }), // ice: brakes barely bite
 	})
+
+	// -----
+	// LOOKS: how each kind looks frozen in — a sprite of its own, swapped in by a drawing rule
+	// while the effect's marker is on; the state is the effect's, the look the kind's
+	kinds := s.world.Kinds()
+	s.frozenLook = map[render.SpriteID]render.SpriteID{
+		s.witch.SpriteID():  kinds.NewSprite(),
+		s.walker.SpriteID(): kinds.NewSprite(),
+		s.boat.SpriteID():   kinds.NewSprite(),
+	}
+	if err := s.world.Draw(render.Swap(s.frozenLook, s.frozen.Mark().In)); err != nil {
+		return err
+	}
 
 	// -----------------
 	// board hook
@@ -202,9 +217,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	// ------
-	// WTF ?!
-	main := &mainScene{stage: s, paleSprite: paleSprite}
+	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
 		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
@@ -278,8 +291,6 @@ func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
 type mainScene struct {
 	stage *mainStage
 	keys  players.SceneKeys
-
-	paleSprite render.SpriteID
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -293,7 +304,13 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.RegisterAt(s.witch.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255}))
 	worldAtlas.RegisterAt(s.walker.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
 	worldAtlas.RegisterAt(s.boat.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255}))
-	worldAtlas.RegisterAt(m.paleSprite, EntitySize, render.Solid(color.RGBA{R: 190, G: 220, B: 245, A: 255}))
+	ice := color.RGBA{R: 190, G: 220, B: 245, A: 255}
+	worldAtlas.RegisterAt(s.frozenLook[s.witch.SpriteID()], EntitySize, render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})) // the witch gone white
+	worldAtlas.RegisterAt(s.frozenLook[s.walker.SpriteID()], EntitySize, render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255}))  // the walker rimed
+	worldAtlas.RegisterAt(s.frozenLook[s.boat.SpriteID()], EntitySize, func(dst *render.Canvas, size int) {                         // the boat in a rim of ice
+		render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
+		render.Border(ice)(dst, size)
+	})
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

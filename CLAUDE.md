@@ -80,7 +80,7 @@ inside that plugin's own pass; its filter, the second argument, says whom it fir
 conditions of `If`: what it does is steps, commands and effects (2026-10-02). What a plugin does
 of its own — terrain pace, logging, counting contacts, the weather on the board — is its own work
 in its own pass, never a rule; the one place rules are Go is drawing (`render.Rule`: `render.Over`,
-`As`, `With`, `Show`, run every frame by `render.Rules` inside the world's and vision's renderers,
+`As`, `Swap`, `With`, `Show`, run every frame by `render.Rules` inside the world's and vision's renderers,
 given with `world.Plugin.Draw` and `vision.Plugin.Draw`). The tag families join the host's queries as optional
 components, so a rule costs no query, and rules over one component share its column (`plugin.Own`
 shares the host's own). The moment's type —
@@ -535,7 +535,11 @@ public API is small. A new behaviour adds a moment, a fact or a command where
 perception or an action is missing, and writes the rule with `rule`; it never adds a
 branch to a system, and never a system per behaviour: rules ride a pass the plugin makes anyway.
 A rule holds no Go code but its conditions; what a plugin does of its own (a pace, a log, a
-count) is its own pass's work. Drawing alone is Go (`render.Rule`).
+count) is its own pass's work. Drawing alone is Go (`render.Rule`). How a kind looks under a state
+is a drawing rule, not the effect's: `render.Swap(twins, e.Mark().In)` draws each kind as its own
+sprite under the effect's marker (a table a state, a sprite a kind; effect-demo's frozen witch,
+walker and boat), `render.Over(x, e.Mark().In)` one overlay for all; an `Alter(Appearance)` is one
+look for every kind, and `Facing` overwrites it every frame.
 
 A game is written the same way: its **states are effects** (burning, frozen, alarmed),
 each with its own marker (`Effect.Mark()`) that rules of any plugin filter by; its
@@ -620,8 +624,10 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
   its own system just before the effects' pass). How entities are drawn is `world.Plugin.Draw`
   (`render.Rule`s, every frame, in order: `world.Facing` — a `render.With` over `Base` —,
-  `render.With`, `As`, `Over`, `Show`; `world.Appearance` is `render.Appearance`; shown by
-  `examples/appearance-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
+  `render.With`, `As`, `Over`, `Swap` (a kind's own look under a state: a sprite a kind, swapped
+  in under an effect's marker, after `Facing` a twin a way faced), `Show`, each with conditions;
+  `world.Appearance` is `render.Appearance`; shown by `examples/appearance-demo` and the frozen
+  kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
   the steering system asks its `Helm`, one a step — and `world.Apply`/`world.Dispel`, an effect
   put on or taken off the world's own entity: a state of the whole game, a switch a player

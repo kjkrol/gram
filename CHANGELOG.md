@@ -8,6 +8,14 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Drawing**
+- `render.Swap(twins, when...)` draws an entity as the twin of the sprite it would be drawn with,
+  from a table a sprite a kind: a kind's own look under a state, swapped in under the effect's
+  marker (`e.Mark().In`), a twin a way faced after `Facing`, a kind with no twin left as it is;
+  two states compose in the order the rules are given. `render.With` takes conditions too.
+  `examples/effect-demo` freezes each kind in its own look this way, the `frozen` effect left to
+  the knobs it turns; `Alter(Appearance)` remains one look for every kind.
+
 **Demos**
 - `examples/bullet-demo`: a soldier on WSAD (`navigation.DriveBindings`) shoots rounds with Space
   the way it faces and throws grenades with G at the cursor, over a low wall and into a high one;

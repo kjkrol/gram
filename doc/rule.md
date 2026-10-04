@@ -326,9 +326,19 @@ rule.On("vision.chase", rule.Between(tags.Predator, tags.Prey), func(m *rule.Mom
 A switch of a behaviour for the whole game is an effect on the world (`world.Apply`,
 `world.Dispel`), the rule running `During` it: `vhooks.Flee(tags, fleeing)`.
 
-How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `With` and `Show`,
-given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every frame.
-They read a component and decide nothing in the game.
+How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap`, `With` and
+`Show`, given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every
+frame. They read a component and decide nothing in the game.
+
+**The look of a state.** A state is an effect: what it does to the knobs, and its marker. How an
+entity looks under it is the kind's, settled at drawing: `render.Swap(twins, frozen.Mark().In)`
+draws each kind as its own sprite under the marker — the table a sprite a kind, a twin a way
+faced after `Facing` — and leaves a kind with no twin as it is; `render.Over(crust, e.Mark().In)`
+lays one look over every kind; `Show` hides. Two states compose in the order the rules are given.
+This is what Unreal's Gameplay Ability System calls a cue: the effect grants a tag, each class
+reacts to it cosmetically; the effect never touches the look. An `Alter(Appearance)` remains a
+knob for one look for every kind (`examples/effect-demo` froze everyone pale before; now each kind
+freezes in its own look).
 
 ## Dispel and order
 
