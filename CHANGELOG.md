@@ -8,6 +8,11 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**By name**
+- Defining registers and hands nothing back; the handle is `Named(name)`, and a game keeps its
+  names as constants. `Effects.Define(name, spec)` returns nothing: `Effects.Named(name)` is the
+  effect.
+
 **No hooking**
 - A game hands its rules to nobody. `game.Initializer.Hook` and every plugin's `Hook` are gone: a
   rule is a role's, a role is played, and once `Init` returns the engine gives the rules of every

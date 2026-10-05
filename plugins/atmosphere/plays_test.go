@@ -38,7 +38,10 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 				a, ecs = atmosphere.NewPlugin(w, atmosphere.Config{}), ctx.ECS()
 				return ctx.Use(a)
 			}).
-			Effects(func() { noted = w.Effects().Define("noted", effect.Spec{}) }).
+			Effects(func() {
+				w.Effects().Define("noted", effect.Spec{})
+				noted = w.Effects().Named("noted")
+			}).
 			Rules(func() {
 				weatherwise := rule.Role("weatherwise").Obeys(
 					rule.Then[climate.Weathering]("note the weather", rule.All, rule.Keep(noted)))

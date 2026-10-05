@@ -39,7 +39,8 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	}
 	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
 		brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-		m.open = w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
+		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
+		m.open = w.Effects().Named("open")
 		plate := rule.Role("plate").Obeys(
 			rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 		brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
@@ -195,7 +196,8 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 				if err := brd.Populate(); err != nil {
 					t.Fatal(err)
 				}
-				if err := w.Triggers(tc.cmd(w.Effects().Define("open", effect.Spec{}))); err != nil {
+				w.Effects().Define("open", effect.Spec{})
+				if err := w.Triggers(tc.cmd(w.Effects().Named("open"))); err != nil {
 					t.Fatal(err)
 				}
 				return nil

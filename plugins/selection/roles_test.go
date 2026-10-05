@@ -57,8 +57,10 @@ func newSquad(t *testing.T) *squad {
 	sel := selection.NewPlugin(w)
 	s := &squad{t: t, w: w, sel: sel, players: players.NewPlugin(w, sel), kinds: map[string]kind.Of[soldier]{}}
 	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
-	s.haste = w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
-	s.rally = w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
+	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	s.haste = w.Effects().Named("haste")
+	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
+	s.rally = w.Effects().Named("rally")
 	s.names = map[effect.Effect]string{s.haste: "haste", s.rally: "rally"}
 	s.mortal, s.hasty = rule.Role("mortal"), rule.Role("hasty")
 	tags := sel.Tags()

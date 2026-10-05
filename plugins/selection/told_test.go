@@ -50,7 +50,8 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
-	c.haste = c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	c.haste = c.w.Effects().Named("haste")
 	c.w.Seed(entries(c, unit)...)
 	if err := c.w.Populate(); err != nil {
 		t.Fatal(err)

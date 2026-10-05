@@ -49,10 +49,14 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 	g.sky = world.NewSelf(g.world, "test.sky", comp.Const(dial{Level: 1}))
 	ctx.Setup(g)
 	fx := g.world.Effects()
-	g.storm = fx.Define("storm", effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })})
-	g.lit = fx.Define("lit", effect.Spec{})
+	fx.Define("storm", effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })})
+	g.storm = fx.Named("storm")
+	fx.Define("lit", effect.Spec{})
+	g.lit = fx.Named("lit")
 	for i := range 10 {
-		g.states = append(g.states, fx.Define(fmt.Sprintf("state %d", i), effect.Spec{effect.Lasts(time.Hour)}))
+		name := fmt.Sprintf("state %d", i)
+		fx.Define(name, effect.Spec{effect.Lasts(time.Hour)})
+		g.states = append(g.states, fx.Named(name))
 	}
 	watcher := rule.Role("sky watcher").Obeys(
 		rule.Then[world.Moving]("lit by the storm", rule.All, rule.While(g.sky, g.storm, rule.Keep(g.lit))))

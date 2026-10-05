@@ -35,7 +35,8 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		})
 		night := w.Kinds().DefineTag[clock.Phase]("night")
 		fx := w.Effects()
-		dusk := fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
+		fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
+		dusk := fx.Named("dusk")
 		var orders heards
 		if err := w.Carry(&orders); err != nil {
 			t.Fatal(err)

@@ -168,12 +168,13 @@ func (r *rig) marked(t tag.Tag[effect.States]) bool {
 func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 	var rage effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		rage = r.fx.Define("rage", effect.Spec{
+		r.fx.Define("rage", effect.Spec{
 			effect.Lasts(3 * tick),
 			effect.Grant(r.angry),
 			effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
 			effect.Alter(func(a *world.Appearance) { a.SpriteID = 7 }),
 		})
+		rage = r.fx.Named("rage")
 	})
 	r.cast(rage)
 	r.tick() // cast lands and the slot begins, the effects pass running after the cast
@@ -201,8 +202,10 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, false, func(r *rig) {
-		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
-		mark = r.fx.Define("mark", effect.Spec{effect.Lasts(3 * tick), effect.Grant(r.angry)})
+		r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Named("haste")
+		r.fx.Define("mark", effect.Spec{effect.Lasts(3 * tick), effect.Grant(r.angry)})
+		mark = r.fx.Named("mark")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
 		r.fx.Cast(cb, r.id, haste)
@@ -224,8 +227,10 @@ func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
-		mark = r.fx.Define("mark", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
+		r.fx.Define("haste", effect.Spec{effect.Lasts(3 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Named("haste")
+		r.fx.Define("mark", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
+		mark = r.fx.Named("mark")
 	})
 	r.cast(haste)
 	r.tick() // lands and begins: the speed is rewritten
@@ -254,8 +259,10 @@ func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 func TestEffects_TwoEffectsGrantingOneTagKeepItTillTheLast(t *testing.T) {
 	var rage, fury effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		rage = r.fx.Define("rage", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
-		fury = r.fx.Define("fury", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
+		r.fx.Define("rage", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
+		rage = r.fx.Named("rage")
+		r.fx.Define("fury", effect.Spec{effect.Lasts(4 * tick), effect.Grant(r.angry)})
+		fury = r.fx.Named("fury")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
 		r.fx.Cast(cb, r.id, rage)
@@ -278,7 +285,8 @@ func TestEffects_TwoEffectsGrantingOneTagKeepItTillTheLast(t *testing.T) {
 func TestEffects_StackedCastsKeepTheMarkerTillTheLast(t *testing.T) {
 	var sting effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		sting = r.fx.Define("sting", effect.Spec{effect.Lasts(2 * tick), effect.Stacking()})
+		r.fx.Define("sting", effect.Spec{effect.Lasts(2 * tick), effect.Stacking()})
+		sting = r.fx.Named("sting")
 	})
 	r.cast(sting)
 	r.tick() // the first begins: two ticks left
@@ -297,8 +305,10 @@ func TestEffects_StackedCastsKeepTheMarkerTillTheLast(t *testing.T) {
 func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 	var burn, ash effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		ash = r.fx.Define("ash", effect.Spec{effect.Lasts(2 * tick)})
-		burn = r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+		r.fx.Define("ash", effect.Spec{effect.Lasts(2 * tick)})
+		ash = r.fx.Named("ash")
+		r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+		burn = r.fx.Named("burn")
 	})
 	r.cast(burn)
 	r.tick() // begins
@@ -331,8 +341,10 @@ func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 	var burn, ash effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		ash = r.fx.Define("ash", effect.Spec{effect.Lasts(tick)})
-		burn = r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+		r.fx.Define("ash", effect.Spec{effect.Lasts(tick)})
+		ash = r.fx.Named("ash")
+		r.fx.Define("burn", effect.Spec{effect.Lasts(2 * tick), effect.Then(ash)})
+		burn = r.fx.Named("burn")
 	})
 	r.cast(burn)
 	r.tick()
@@ -352,8 +364,10 @@ func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 	var haste, slow effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(5 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
-		slow = r.fx.Define("slow", effect.Spec{effect.Lasts(2 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 0.5 })})
+		r.fx.Define("haste", effect.Spec{effect.Lasts(5 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Named("haste")
+		r.fx.Define("slow", effect.Spec{effect.Lasts(2 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 0.5 })})
+		slow = r.fx.Named("slow")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
 		r.fx.Cast(cb, r.id, haste)
@@ -381,8 +395,10 @@ func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 func TestEffects_RecastRefreshesUnlessStacking(t *testing.T) {
 	var short, stacks effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		short = r.fx.Define("short", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
-		stacks = r.fx.Define("stacks", effect.Spec{effect.Lasts(2 * tick), effect.Stacking(), effect.Alter(func(s *steering.Steering) { s.MaxSpeed++ })})
+		r.fx.Define("short", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
+		short = r.fx.Named("short")
+		r.fx.Define("stacks", effect.Spec{effect.Lasts(2 * tick), effect.Stacking(), effect.Alter(func(s *steering.Steering) { s.MaxSpeed++ })})
+		stacks = r.fx.Named("stacks")
 	})
 	r.cast(short)
 	r.tick() // begins with two ticks left
@@ -409,7 +425,8 @@ func TestEffects_RecastRefreshesUnlessStacking(t *testing.T) {
 func TestEffects_ForeverLastsUntilDispel(t *testing.T) {
 	var curse effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		curse = r.fx.Define("curse", effect.Spec{effect.Grant(r.angry)})
+		r.fx.Define("curse", effect.Spec{effect.Grant(r.angry)})
+		curse = r.fx.Named("curse")
 	})
 	r.cast(curse)
 	for range 30 {
@@ -431,7 +448,8 @@ func TestEffects_ForeverLastsUntilDispel(t *testing.T) {
 func TestEffects_GrantAttachesAMissingFamily(t *testing.T) {
 	var rage effect.Effect
 	r := newRig(t, false, func(r *rig) {
-		rage = r.fx.Define("rage", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
+		r.fx.Define("rage", effect.Spec{effect.Lasts(2 * tick), effect.Grant(r.angry)})
+		rage = r.fx.Named("rage")
 	})
 	r.cast(rage)
 	r.tick() // Active attached, the family attached for next tick
@@ -478,7 +496,8 @@ func (r *rig) withCourse(fn func(c *steering.Course)) {
 func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 	var haste effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		haste = r.fx.Define("haste", effect.Spec{effect.Lasts(2 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		r.fx.Define("haste", effect.Spec{effect.Lasts(2 * tick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		haste = r.fx.Named("haste")
 	})
 	r.cast(haste)
 	r.tick() // begins
@@ -502,7 +521,8 @@ func TestEffects_Named_IsTheEffectDefined(t *testing.T) {
 	var burning effect.Effect
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("wet", effect.Spec{})
-		burning = r.fx.Define("burning", effect.Spec{})
+		r.fx.Define("burning", effect.Spec{})
+		burning = r.fx.Named("burning")
 	})
 	if got := r.fx.Named("burning"); got != burning {
 		t.Errorf("Named(burning) = %+v, want %+v", got, burning)
@@ -520,8 +540,10 @@ func TestEffects_Named_IsTheEffectDefined(t *testing.T) {
 func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
 	var burning, wet effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		wet = r.fx.Define("wet", effect.Spec{})
-		burning = r.fx.Define("burning", effect.Spec{})
+		r.fx.Define("wet", effect.Spec{})
+		wet = r.fx.Named("wet")
+		r.fx.Define("burning", effect.Spec{})
+		burning = r.fx.Named("burning")
 	})
 	next := render.SpriteID(10)
 	r.fx.Sprites(func() render.SpriteID { next++; return next - 1 })
@@ -556,7 +578,8 @@ func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
 func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T) {
 	var snow effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		snow = r.fx.Define("snow", effect.Spec{effect.Lasts(2 * tick)})
+		r.fx.Define("snow", effect.Spec{effect.Lasts(2 * tick)})
+		snow = r.fx.Named("snow")
 		snow.Shows()
 	})
 	r.cast(snow)

@@ -30,7 +30,8 @@ func TestRule_DispelTakesOffWhatAnotherRuleKeepsTillItsNextStep(t *testing.T) {
 	var glow effect.Effect
 	douse := false
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
 		hookGlow(r, glow, effect.Effect{}, &douse)
 	})
 	r.tick()
@@ -55,8 +56,10 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	var glow, shield effect.Effect
 	douse := false
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
-		shield = r.fx.Define("shield", effect.Spec{effect.Lasts(3 * tick)})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
+		r.fx.Define("shield", effect.Spec{effect.Lasts(3 * tick)})
+		shield = r.fx.Named("shield")
 		hookGlow(r, glow, shield, &douse)
 	})
 	r.tick()
@@ -82,7 +85,8 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	var glow effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
 		r.comps = append(r.comps, plan.New("douse in a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(3*tick), a.Dispel(glow), a.Idle())
 		}))
@@ -105,8 +109,10 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	var glow, gaveWay effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
-		gaveWay = r.fx.Define("gave way", effect.Spec{})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
+		r.fx.Define("gave way", effect.Spec{})
+		gaveWay = r.fx.Named("gave way")
 		r.comps = append(r.comps, plan.New("glow till doused", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Not(a.Keep(glow)), a.Apply(gaveWay), a.Idle())
 		}))
@@ -132,8 +138,10 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	for _, planned := range []bool{false, true} {
 		var lever, open effect.Effect
 		r := newRig(t, true, func(r *rig) {
-			lever = r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
-			open = r.fx.Define("open", effect.Spec{})
+			r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
+			lever = r.fx.Named("lever")
+			r.fx.Define("open", effect.Spec{})
+			open = r.fx.Named("open")
 			if planned {
 				r.comps = append(r.comps, plan.New("open while pulled", func(a *plan.Actor) rule.Step {
 					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())

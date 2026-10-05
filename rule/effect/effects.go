@@ -44,8 +44,9 @@ func New(name func(name string) tag.Tag[States]) *Effects {
 const markerPrefix = "effect."
 
 // Define registers an effect under name, with its own marker on while it runs (Effect.Mark);
-// call it in Init, before the game runs.
-func (e *Effects) Define(name string, spec Spec) Effect {
+// call it in Init, before the game runs. It hands nothing back: Named is the effect, for whoever
+// builds on it.
+func (e *Effects) Define(name string, spec Spec) {
 	if e.guard != nil {
 		e.guard(name)
 	}
@@ -72,11 +73,11 @@ func (e *Effects) Define(name string, spec Spec) Effect {
 		e.byName = map[string]effectID{}
 	}
 	e.byName[name] = id
-	return Effect{owner: e, id: id, mark: mark}
 }
 
 // Named is the effect defined as name, for whoever builds on it in Init or in a scene's Layers —
-// rules, looks, bindings keep the Effect itself, never the name; an unknown name panics.
+// rules, looks, commands; a game keeps its names as constants, and what runs keeps the Effect
+// itself, never the name. An unknown name panics.
 func (e *Effects) Named(name string) Effect {
 	id, ok := e.byName[name]
 	if !ok {

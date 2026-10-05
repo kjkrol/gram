@@ -356,8 +356,10 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	}})
 	roundTag := r.w.Kinds().DefineTag[family]("round")
 	ammo := round(r, true, roundTag)
-	hit := r.fx.Define("hit", effect.Spec{effect.Lasts(time.Minute)})
-	told := r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
+	r.fx.Define("hit", effect.Spec{effect.Lasts(time.Minute)})
+	hit := r.fx.Named("hit")
+	r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
+	told := r.fx.Named("told")
 	if err := r.obey(rule.Then[collision.Meeting]("hit", rule.Between(roundTag, tag.Any), rule.ForOther(rule.Apply(hit)))); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +391,8 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	}})
 	roundTag := r.w.Kinds().DefineTag[family]("round")
 	ammo := round(r, false, roundTag)
-	scored := r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
+	r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
+	scored := r.fx.Named("scored")
 	if err := r.obey(rule.Then[bullet.Landing]("scored", rule.Self(roundTag), rule.Apply(scored))); err != nil { // on the shot itself: harmless, it lies a step
 		t.Fatal(err)
 	}
@@ -468,7 +471,8 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	}})
 	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
 	grenade := r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
-	hurt := r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
+	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
+	hurt := r.fx.Named("hurt")
 	if err := r.obey(
 		rule.Then[bullet.Resting]("burst", rule.Self(grenadeTag), rule.Order(bullet.Burst{Radius: 40})),
 		rule.Then[bullet.Blast]("blast", rule.Between(grenadeTag, tag.Any), rule.ForOther(rule.Apply(hurt))),
@@ -540,7 +544,8 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 	t.Run("open", func(t *testing.T) {
 		r := newRig(t, scene{edges: aabbworld.OpenX, pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
 		ammo := round(r, true)
-		gone := r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
+		r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
+		gone := r.fx.Named("gone")
 		if err := r.obey(rule.Then[world.Leaving]("leaving", rule.All, rule.Apply(gone))); err != nil {
 			t.Fatal(err)
 		}

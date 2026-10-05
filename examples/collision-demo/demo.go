@@ -153,7 +153,8 @@ func (s *mainStage) definePlayer() error {
 
 // defineEffects says the one state: hit, for a moment after an entity struck another.
 func (s *mainStage) defineEffects() {
-	s.hit = s.world.Effects().Define("hit", effect.Spec{effect.Lasts(hitDuration)})
+	s.world.Effects().Define("hit", effect.Spec{effect.Lasts(hitDuration)})
+	s.hit = s.world.Effects().Named("hit")
 }
 
 // defineRules says the one role: a body striking something is hit.

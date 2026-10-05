@@ -49,7 +49,8 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
 	cw.brd.Res.Logic.Board.SetAll(cw.grass)
 	snow := cw.snow
-	cw.frost = cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})
+	cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})
+	cw.frost = cw.fx.Named("frost")
 
 	ctx := boardtest.NewInstallCtx()
 	for _, install := range []func() error{

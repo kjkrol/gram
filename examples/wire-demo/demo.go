@@ -183,16 +183,20 @@ func (s *mainStage) defineEffects() {
 	pit, _ := s.board.CellKinds().Get("pit")
 	gateway, _ := s.board.CellKinds().Get("gateway")
 	fx := s.world.Effects()
-	s.effects.open = fx.Define("open", effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-	s.effects.ajar = fx.Define("ajar", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
+	fx.Define("open", effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.effects.open = fx.Named("open")
+	fx.Define("ajar", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
+	s.effects.ajar = fx.Named("ajar")
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
-	s.effects.haste = fx.Define("haste", effect.Spec{
+	fx.Define("haste", effect.Spec{
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
-	s.effects.pull = fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
+	s.effects.haste = fx.Named("haste")
+	fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
+	s.effects.pull = fx.Named("pull")
 }
 
 // defineRoles says what sets a command off, and what the units can do and suffer. A plate stood on

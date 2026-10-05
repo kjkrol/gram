@@ -170,7 +170,8 @@ func (s *mainStage) defineCells() {
 // defineEffects says the one state: a trapdoor open, a pit, for a while after it was last opened.
 func (s *mainStage) defineEffects() {
 	pit, _ := s.board.CellKinds().Get("pit")
-	s.open = s.world.Effects().Define("open", effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.world.Effects().Define("open", effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.open = s.world.Effects().Named("open")
 }
 
 // defineRules says the roles: a plate stood on sets off its command, and a mortal standing where

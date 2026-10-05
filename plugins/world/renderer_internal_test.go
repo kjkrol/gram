@@ -115,8 +115,10 @@ func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 // kinds', a second renderer adds nothing twice, and an effect's first look after it is refused.
 func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	p := testPlugin()
-	frozen := p.Effects().Define("frozen", effect.Spec{})
-	wet := p.Effects().Define("wet", effect.Spec{})
+	p.Effects().Define("frozen", effect.Spec{})
+	frozen := p.Effects().Named("frozen")
+	p.Effects().Define("wet", effect.Spec{})
+	wet := p.Effects().Named("wet")
 	free := p.Kinds().NewSprite()
 	if got := frozen.Look(0); got != free+1 {
 		t.Errorf("frozen's look = %d, want the world's next slot %d", got, free+1)

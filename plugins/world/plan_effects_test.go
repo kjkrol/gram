@@ -111,7 +111,8 @@ func step(t *testing.T, e *engine.Engine, d time.Duration) {
 func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	var held effect.Effect
 	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
-		held = fx.Define("held", effect.Spec{})
+		fx.Define("held", effect.Spec{})
+		held = fx.Named("held")
 		return plan.New("hold a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(
 				a.Not(a.Timeout(300*time.Millisecond, a.Keep(held))),
@@ -134,8 +135,10 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 func TestPlan_UnlessKeepsItsMemoryInAnEffect(t *testing.T) {
 	var marked, tallying effect.Effect
 	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
-		marked = fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
-		tallying = fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
+		marked = fx.Named("marked")
+		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		tallying = fx.Named("tally")
 		return plan.New("tally once a while", func(a *plan.Actor) rule.Step {
 			return a.OneOf(
 				a.Unless(marked, a.Steps(a.Apply(marked), a.Apply(tallying))),

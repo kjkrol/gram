@@ -118,18 +118,21 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 	for _, name := range cfg.Sway {
 		ww.swaying[cell.Named(name)] = true
 	}
-	ww.snow = fx.Define("snow", effect.Spec{effect.Alter(func(g *cell.Ground) {
+	fx.Define("snow", effect.Spec{effect.Alter(func(g *cell.Ground) {
 		if under, ok := ww.snowy[g.Kind.Name]; ok {
 			under.Sway = g.Kind.Sway // what sways goes on swaying under snow
 			g.Kind = under
 		}
 	})})
-	ww.ice = fx.Define("ice", effect.Spec{effect.Alter(func(g *cell.Ground) {
+	ww.snow = fx.Named("snow")
+	fx.Define("ice", effect.Spec{effect.Alter(func(g *cell.Ground) {
 		if g.Kind.Name == ww.water && ww.cfg.Ice != "" {
 			g.Kind = ww.frozen
 		}
 	})})
-	ww.sway = fx.Define("sway", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
+	ww.ice = fx.Named("ice")
+	fx.Define("sway", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
+	ww.sway = fx.Named("sway")
 	return ww, nil
 }
 

@@ -9,7 +9,8 @@
 //
 // # Spec, the marker, Grant and Alter
 //
-// [Effects.Define] registers an effect from a [Spec] and gives it its own marker of [States],
+// [Effects.Define] registers an effect from a [Spec] under a name — it hands nothing back, and
+// [Effects.Named] is the effect wherever it is built on — and gives it its own marker of [States],
 // named "effect.<name>" and saved by name: on while the effect runs, off when the last of its
 // casts ends — [Effect.Mark], for rule.Self(burning.Mark()) in any plugin. [Lasts] is how long a
 // cast holds (without it, until Dispel); [Stacking] lets casts pile up instead of refreshing;

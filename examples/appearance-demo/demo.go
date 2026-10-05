@@ -169,8 +169,10 @@ func (s *mainStage) definePlayer() error {
 // defineEffects says the two states: rage is a state of the whole game, R puts it on the world;
 // angry is what each entity feels while it lasts, its Mood turned.
 func (s *mainStage) defineEffects() {
-	s.rage = s.world.Effects().Define("rage", effect.Spec{effect.Lasts(rageFor)})
-	s.angry = s.world.Effects().Define("angry", effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+	s.world.Effects().Define("rage", effect.Spec{effect.Lasts(rageFor)})
+	s.rage = s.world.Effects().Named("rage")
+	s.world.Effects().Define("angry", effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+	s.angry = s.world.Effects().Named("angry")
 }
 
 // defineRules says the one role: the moody are angry while the world is in a rage.

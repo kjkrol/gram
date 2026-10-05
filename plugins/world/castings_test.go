@@ -40,7 +40,8 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 	cfg.Entities.MaxCount = 3
 	g.world, g.ecs = ctx.UseWorld(cfg), ctx.ECS()
 	ctx.Setup(g)
-	g.alert = g.world.Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
+	g.world.Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
+	g.alert = g.world.Effects().Named("alert")
 	g.unit = kind.Define[float64](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
@@ -143,7 +144,8 @@ func TestCasting_NamesSurviveASaveAndALoad(t *testing.T) {
 // A command that names nobody is refused as it is handed over.
 func TestCommands_RefuseACommandForNobody(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
-	if err := w.Triggers(rule.Cast(w.Effects().Define("alert", effect.Spec{}))); err == nil {
+	w.Effects().Define("alert", effect.Spec{})
+	if err := w.Triggers(rule.Cast(w.Effects().Named("alert"))); err == nil {
 		t.Error("a Cast with no On was taken, want an error")
 	}
 }

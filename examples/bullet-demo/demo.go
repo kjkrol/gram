@@ -185,13 +185,16 @@ func (s *mainStage) defineCells() {
 // a fuse, which bangs when it is up.
 func (s *mainStage) defineEffects() {
 	s.paleSprite, s.sparkSprite = s.world.Kinds().NewSprite(), s.world.Kinds().NewSprite()
-	s.wounded = s.effects.Define("wounded", effect.Spec{
+	s.effects.Define("wounded", effect.Spec{
 		effect.Lasts(woundLasts),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
-	s.bang = s.effects.Define("bang", effect.Spec{effect.Lasts(time.Second / TPS)})
-	s.fuse = s.effects.Define("fuse", effect.Spec{effect.Lasts(fuseLength), effect.Then(s.bang)})
+	s.wounded = s.effects.Named("wounded")
+	s.effects.Define("bang", effect.Spec{effect.Lasts(time.Second / TPS)})
+	s.bang = s.effects.Named("bang")
+	s.effects.Define("fuse", effect.Spec{effect.Lasts(fuseLength), effect.Then(s.bang)})
+	s.fuse = s.effects.Named("fuse")
 }
 
 // defineRules says who can be wounded and what each shot does to them: a round striking a mortal

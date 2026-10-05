@@ -175,14 +175,16 @@ func (s *mainStage) defineCells() {
 func (s *mainStage) defineEffects() {
 	pit, _ := s.board.CellKinds().Get("pit")
 	fx := s.world.Effects()
-	s.open = fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.open = fx.Named("open")
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
-	s.haste = fx.Define("haste", effect.Spec{
+	fx.Define("haste", effect.Spec{
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
+	s.haste = fx.Named("haste")
 }
 
 // defineRules says the one role: a mortal standing where nothing holds it falls in.

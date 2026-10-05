@@ -55,7 +55,8 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	sel := selection.NewPlugin(w)
-	haste := w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	haste := w.Effects().Named("haste")
 	tags := sel.Tags()
 	k := kind.Define[unit](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(u unit) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(u.x, 100), 10, 10)} }),

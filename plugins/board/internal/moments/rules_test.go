@@ -38,7 +38,8 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
 	})
 	pw.w, pw.fx = w, w.Effects()
-	pw.scorched = pw.fx.Define("scorched", effect.Spec{})
+	pw.fx.Define("scorched", effect.Spec{})
+	pw.scorched = pw.fx.Named("scorched")
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	pw.brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	rules := hook(pw)

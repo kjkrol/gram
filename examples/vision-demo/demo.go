@@ -139,8 +139,10 @@ func (s *mainStage) definePlayer() error {
 // defineEffects says the states: the prey fleeing, a state of the whole game; the hunter having
 // looked round.
 func (s *mainStage) defineEffects() {
-	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
-	s.looked = s.world.Effects().Define("looked", effect.Spec{effect.Lasts(hunterLooksEvery)})
+	s.world.Effects().Define("fleeing", effect.Spec{})
+	s.fleeing = s.world.Effects().Named("fleeing")
+	s.world.Effects().Define("looked", effect.Spec{effect.Lasts(hunterLooksEvery)})
+	s.looked = s.world.Effects().Named("looked")
 }
 
 // defineRoles says who does what: the hunter goes after the prey it sees, looks round when it sees

@@ -59,7 +59,8 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	red := render.Light{1, 0.2, 0.2}
 	var blood effect.Effect
 	n := newNight(t, calendar.Config{Start: time.Hour}, func(n *night) { // one in the morning
-		blood = n.w.Effects().Define("blood moon", effect.Spec{effect.Alter(func(m *sky.Moon) { m.Color = red })})
+		n.w.Effects().Define("blood moon", effect.Spec{effect.Alter(func(m *sky.Moon) { m.Color = red })})
+		blood = n.w.Effects().Named("blood moon")
 	}, nil)
 	n.ecs.Tick(tick)
 	pale := n.a.Sun().Color
@@ -91,8 +92,10 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	var risen, full effect.Effect
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
 	n := newNight(t, calendar.Config{Day: day}, func(n *night) {
-		risen = n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
-		full = n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})
+		n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
+		risen = n.w.Effects().Named("risen")
+		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})
+		full = n.w.Effects().Named("full risen")
 	}, func(n *night) {
 		n.a.Plays(rule.Role("moon watcher").Obeys(
 			rule.Then[sky.Moonrise]("a rise", rule.All, rule.Apply(risen)),
