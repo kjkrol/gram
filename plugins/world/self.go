@@ -63,7 +63,7 @@ func (s *Self) Changed() bool { return s.w.module.selves.changed(s.id) }
 func (*Self) Target() {}
 
 // Route is c for the plugin's entity, found by its name: the world carries it out.
-func (s *Self) Route(c rule.Casting) any {
+func (s *Self) Route(c rule.Command) any {
 	c.Whom = entity.Named(s.name)
 	return c
 }

@@ -149,7 +149,7 @@ type bodyView struct {
 }
 
 func bodies(ecs *goke.ECS, s *mainStage) bodyView {
-	view := bodyView{prey: s.hunted.Tag(), hunter: s.predator.Tag()}
+	view := bodyView{prey: s.world.Roles().Named(PreyRole).Tag(), hunter: s.world.Roles().Named(PredatorRole).Tag()}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
 	}})
@@ -238,17 +238,19 @@ func headingOf(view bodyView, id uid.UID64) (dir geom.Vec, alive bool) {
 // The prey flee from the start; A has the player take the fleeing off the world, and put it back.
 func TestStage_ASwitchesTheFleeingOffAndOn(t *testing.T) {
 	ecs, stage := buildStage(t)
-	fleeing := func() bool { return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.fleeing) }
+	fleeing := func() bool {
+		return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.world.Effects().Named(FleeingEf))
+	}
 	ecs.Tick(time.Second / TPS)
 	if !fleeing() {
 		t.Fatal("no fleeing on the world from the start")
 	}
-	stage.switchFleeing()
+	stage.world.Carrier().Put(stage.player.ID, stage.world.Commands().Named(FleeCmd)) // what the A key gives
 	ecs.Tick(time.Second / TPS)
 	if fleeing() {
 		t.Fatal("the fleeing still on after A")
 	}
-	stage.switchFleeing()
+	stage.world.Carrier().Put(stage.player.ID, stage.world.Commands().Named(FleeCmd)) // what the A key gives
 	ecs.Tick(time.Second / TPS)
 	if !fleeing() {
 		t.Error("no fleeing after A again")

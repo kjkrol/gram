@@ -61,10 +61,12 @@ type Plugin struct {
 	rules       *moments.Rules
 	workers     int                             // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 	plays       map[string]tag.Tags[rule.Roles] // the roles the cells of a kind play, by its name
+	grids       control.Queue[Grid]             // the Grid commands given, until the next tick
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds a board over g with the given occupancy cap, slowing worldPlugin's entities.
 // It is drawn and priced by the simple map until WithMap sets another.
@@ -121,7 +123,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan, in the simulation, notices what effects did to the cells and reports where everyone
 // stands; call it after collision's RunPlan.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.grids.Drain(func(control.Issued[Grid]) {
+		if p.Res.Render != nil {
+			p.Res.Render.ToggleShowGridLines()
+		}
+	})
+	p.module.RunPlan(ctx, d)
+}
 
 // WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
 // given nil, from the board's own atlas of the kinds' Colors and drawn sprites.

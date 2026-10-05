@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"log"
 	"slices"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -32,9 +32,9 @@ const (
 type GameplayStage struct {
 	game.Stage // defined a section at a time: NewGameplayStage
 
-	world *world.Plugin
-	mover kind.Of[world.Position]
-	panel *panelScene
+	world   *world.Plugin
+	players *players.Plugin
+	panel   *panelScene
 
 	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
 	SaveBasePath string
@@ -46,6 +46,7 @@ func NewGameplayStage(saveBasePath string) *GameplayStage {
 	g := &GameplayStage{SaveBasePath: saveBasePath}
 	g.Stage = stage.New("gameplay").
 		Plugins(g.usePlugins).
+		Players(g.definePlayer).
 		Kinds(g.defineKinds).
 		Scenes(g.defineScenes).
 		Shows("world", "hud").
@@ -62,25 +63,28 @@ func (g *GameplayStage) basePath() string {
 	return saveBasePath
 }
 
-func (g *GameplayStage) usePlugins(ctx game.Initializer) {
+func (g *GameplayStage) usePlugins(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
+	g.players = players.NewPlugin(g.world).WithSaves(g.basePath())
+	return ctx.Use(g.players)
+}
+
+func (g *GameplayStage) definePlayer() error {
+	return g.players.Local("player").Bind(g.players.Defaults()...)
 }
 
 func (g *GameplayStage) defineKinds() {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
-	kind.Define[world.Position](g.world.Kinds(), "mover", kind.Spec{
+	kind.Define[world.Position](g.world.Kinds(), MoverKind, kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(velocity),
 	})
-	g.mover = kind.Named[world.Position](g.world.Kinds(), "mover")
 }
 
-// defineScenes makes the world, the panel over it and the HUD: the world and the HUD are shown as
-// the Stage starts (Shows), the panel when asked for.
 func (g *GameplayStage) defineScenes() []game.Scene {
 	g.panel = &panelScene{stage: g}
 	return []game.Scene{&worldScene{stage: g}, g.panel, &hudScene{stage: g}}
@@ -104,35 +108,15 @@ func (g *GameplayStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = g.mover.Entry(placement.Place(i, EntityCount))
+		entries[i] = kind.Named[world.Position](g.world.Kinds(), MoverKind).Entry(placement.Place(i, EntityCount))
 	}
 	g.world.Seed(entries...)
 }
 
 func (g *GameplayStage) update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
+	g.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// handleGlobalKeys handles quit/pause/save — shared by worldScene and panelScene.
-func handleGlobalKeys(events *control.InputEvents, runtime game.Runtime, basePath string) {
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case control.KeyEscape:
-			runtime.Quit()
-		case control.KeySpace:
-			runtime.TogglePause()
-		case control.KeyF5:
-			if err := runtime.Persistence().Save(basePath, ""); err != nil {
-				log.Printf("save: %v", err)
-			} else {
-				log.Print("saved (composition included: panel visibility survives Load)")
-			}
-		}
-	}
 }
 
 // =========================== Scene ===========================
@@ -149,7 +133,7 @@ func (w *worldScene) Layers() []render.Layer {
 	s := w.stage
 
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(s.mover.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.RegisterAt(kind.Named[world.Position](s.world.Kinds(), MoverKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
@@ -165,7 +149,7 @@ func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	handleGlobalKeys(events, runtime, w.stage.basePath())
+	w.stage.players.Handle(events, runtime, composition)
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Show(w.stage.panel.Name())
@@ -186,7 +170,7 @@ func (p *panelScene) Name() string { return "panel" }
 func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRenderer{}} }
 
 func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	handleGlobalKeys(events, runtime, p.stage.basePath())
+	p.stage.players.Handle(events, runtime, composition)
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Hide(p.Name())
@@ -226,5 +210,5 @@ func (r *hudRenderer) Init(*goke.SysInit) {}
 
 func (r *hudRenderer) Draw(screen *render.Image) {
 	active := r.stage.Stack().Composition().Active()
-	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
+	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save, K: keys)", active), 8, ScreenHeight-20)
 }

@@ -9,9 +9,44 @@ left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]`
 argument's full path, which moved.
 
 **By name**
-- Defining registers and hands nothing back; the handle is `Named(name)`, and a game keeps its
-  names as constants. `Effects.Define(name, spec)` returns nothing: `Effects.Named(name)` is the
-  effect.
+- Defining registers and hands nothing back; the handle is `Named(name)`, wherever a thing is
+  built on, and a game keeps its names as constants — every demo has a `names.go`, each name with a
+  suffix saying what it is (`Ef`, `Cmd`, `Role`, `Plan`, `Kind`, `Cell`), and its
+  Stage's struct holds plugins alone. The default weathers have names: `weather.Clear`, `Fair`,
+  `Cloudy`, `Rain`, `Storm`.
+- Effects: `Effects.Define(name, spec)` returns nothing, `Effects.Named(name)` is the effect.
+- Roles: `world.Plugin.Roles()` — `Define(name, rules...)`, `Named(name)`. `rule.Role` is gone
+  (`rule.NewPart` is the world's).
+- Plans: `world.Plugin.Plans()` — `Define(name, body)`, `Named(name)` the component of a kind.
+  `plan.New` is gone.
+- Commands: `world.Plugin.Commands()` — `Define(name, cmd)`, `Named(name)`.
+  `game.Initializer.Commands` and `world.Plugin.Triggers` are gone.
+- Kinds: `kind.Define`, `board.Units.Define` and `bullet.Shots.Define` return nothing;
+  `kind.Named[P](reg, name)`, `Units.Named(name)` and `Shots.Named(name)` are the kinds, the row
+  type checked against the definition.
+- Nothing a game defines is the program's: the roles' tags and the plans' register were global
+  and are each Stage's now (its world's). Two Stages may use one name for different things, and a
+  Stage binds only the plans it defines.
+
+**Commands**
+- The register of a Stage's commands about effects is `world.Plugin.Commands()` (it was
+  `Castings`), the type `rule.Command` (it was `rule.Casting`); the world's carrier is
+  `world.Plugin.Carrier()` (it was `Commands()`).
+- A command kept in a register is given to a key only as the register hands it back:
+  `control.Give` panics for a `rule.Command` made on the spot.
+- What a plugin gives is in its root package's `commands.go`: `board.Grid` (B shows and hides the
+  grid), `players.Quit` (Shift+Esc), `players.ShowShortcuts` (K), `players.Save` (F5, given
+  `WithSaves`), beside `Pan`, `Zoom` and `Give`; `atmosphere.Freeze`, `Later`, `Earlier`,
+  `ChangeWeather`, `SetWeather` in place of `sky.Freeze`/`Later`/`Earlier` and
+  `climate.Change`/`Set`; `world.Pause`, `Faster`, `Slower` in place of the clock's. The parts keep
+  methods (`clock.TogglePause`, `sky.Shift`, `climate.Change`), no commands.
+- A scene hands its input to `players.Plugin.Handle(events, runtime, composition)`, which also
+  carries out `Quit`, `ShowShortcuts` and `Save` and runs the game's own keys
+  (`Plugin.OwnKeys`). The list of shortcuts is the players' own scene, in every Stage that uses
+  them (`game.Scenic`): `Plugin.Shortcuts(keys)` is gone.
+- The default keys are the same in every demo and none repeats them: Space pauses (the world's
+  tactical pause), Shift+Esc quits, K lists the keys, B the grid, F5 saves. `bullet-demo` fires
+  on F.
 
 **No hooking**
 - A game hands its rules to nobody. `game.Initializer.Hook` and every plugin's `Hook` are gone: a
@@ -384,7 +419,7 @@ argument's full path, which moved.
   from the world (`world.Plugin.Tick`, a `plugin.TickSource`) with `Time` and `Seed`. A **command** is what an entity gives itself, `Order(cmd)`, the same command a
   player gives, fire and forget — in a plan a `Command` whose `.Until[F](…)` or `.Stay()` gives it
   once in a reactive branch: the world carries it (`control.Carrier`,
-  `world.Plugin.Carry`/`Commands`; the engine carries every `plugin.CommandHandler` a stage uses,
+  `world.Plugin.Carry`/`Carrier`; the engine carries every `plugin.CommandHandler` a stage uses,
   `plugin.Tick.Commands` hands it to rules), the handler told who gave it
   (`control.Issued.Entity`, `ByEntity`; `CommandQueue.PutFrom`, `Queue.AddFrom`); an `Aimed`
   command is told the `Subject` of the fact it stands under or of the rule's moment. A **fact** is

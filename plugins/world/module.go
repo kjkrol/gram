@@ -67,8 +67,8 @@ type module struct {
 	selves selves
 
 	// the commands about effects, for those named, grouped and the world itself
-	castings         castings
-	castingsRunnable goke.Runnable
+	effectCmds         effectCommands
+	effectCmdsRunnable goke.Runnable
 
 	// the entities' plans, run first in every step of the simulation
 	plans         *steps.Plans
@@ -77,6 +77,9 @@ type module struct {
 	// commands takes the commands the entities give themselves to the plugins that handle them;
 	// spawns and despawns are the world's own
 	commands control.Carrier
+	pauses   control.Queue[Pause]
+	fasters  control.Queue[Faster]
+	slowers  control.Queue[Slower]
 	spawns   control.Queue[Spawn]
 	despawns control.Queue[Despawn]
 
@@ -99,7 +102,7 @@ func newModule(cfg Config) *module {
 // step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
 	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.castings.RolesOf}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
 }
 
 // =================================================================
@@ -111,8 +114,8 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
-	ecs.RegSys(w.selves.system())                        // before the clock's, which finds its State on the world's own
-	w.castingsRunnable = ecs.RegSys(w.castings.system()) // first: a step's commands land with its effects
+	ecs.RegSys(w.selves.system())                            // before the clock's, which finds its State on the world's own
+	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system()) // first: a step's commands land with its effects
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
@@ -132,6 +135,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 // given, steering, the Moving rules, movement, then the leavers, then the effect. The sync after
 // movement lands the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	w.pauses.Drain(func(control.Issued[Pause]) { w.clock.TogglePause() })
+	w.fasters.Drain(func(control.Issued[Faster]) { w.clock.Faster() })
+	w.slowers.Drain(func(control.Issued[Slower]) { w.clock.Slower() })
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
@@ -150,7 +156,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Sync()
 	ctx.Run(w.exitRunnable, step)
 	ctx.Sync()
-	ctx.Run(w.castingsRunnable, step)
+	ctx.Run(w.effectCmdsRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
 	ctx.Sync()
 	w.effects.Module().RunPlan(ctx, step)

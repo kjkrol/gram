@@ -157,7 +157,7 @@ func TestLever_OpensItsTrapdoorsUnderWhoeverStandsOnThem(t *testing.T) {
 	if len(caught) == 0 {
 		t.Fatal("nobody walked onto the west strip in twenty seconds")
 	}
-	s.world.Commands().Put(s.player.ID, s.pulls[0])
+	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(pullCmd(levers[0].name)))
 	s.tick(TPS / 2)
 	alive := s.alive()
 	for id := range caught {
@@ -186,12 +186,12 @@ func TestHaste_HastensTheSelectedScouts(t *testing.T) {
 	s := buildStage(t)
 	s.tick(1)
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), ScreenWidth, ScreenHeight)
-	s.world.Commands().Put(s.player.ID, selection.Select{Box: everywhere})
-	s.world.Commands().Put(s.player.ID, s.hasten)
+	s.world.Carrier().Put(s.player.ID, selection.Select{Box: everywhere})
+	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(HastenCmd))
 	s.tick(2)
 	hastened := 0
 	for id := range s.alive() {
-		if s.haste.On(id) {
+		if s.world.Effects().Named(HasteEf).On(id) {
 			hastened++
 		}
 	}

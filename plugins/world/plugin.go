@@ -45,8 +45,8 @@ type Plugin struct {
 	module   *module
 	roles    Roles
 	plans    Plans
-	castings Castings
-	*Self    // the world's own entity, the clock's: what entity.World names
+	named    Commands // the commands about effects, by name
+	*Self             // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
@@ -84,15 +84,15 @@ func NewPlugin(cfg Config) *Plugin {
 	m.effects.Sprites(kinds.NewSprite)
 	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
 	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
-	m.castings.effects, m.castings.world, m.castings.commands = m.effects, m.clock.Entity, &m.commands
+	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
-	m.plans.Roles(m.castings.RolesOf)
+	m.plans.Roles(m.effectCmds.RolesOf)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
-	p.roles.w, p.plans.w, p.castings.w = p, p, p
+	p.roles.w, p.plans.w, p.named.w = p, p, p
 	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
@@ -233,14 +233,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's, Spawn's, Despawn's, the commands' about effects (rule.Casting,
-// rule.Triggered) and the steering's (steering.Away, Toward, Turn) — for the players plugin, which
-// carries the world's commands itself.
-func (p *Plugin) Queues() []control.CommandQueue {
-	q := append(p.module.clock.Queues(), &p.module.spawns, &p.module.despawns, &p.module.castings.queue, &p.module.castings.triggers)
-	return append(q, p.module.steer.Queues()...)
-}
-
 // Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the
 // queues of handlers; the engine carries every plugin.CommandHandler it is given with Use.
 func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
@@ -252,12 +244,9 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	return nil
 }
 
-// Commands is what takes the commands the world's entities give themselves to their handlers:
+// Carrier is what takes the commands the world's entities give themselves to their handlers:
 // a host's plugin.Tick carries it.
-func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
-
-// DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
-func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.DefaultBindings() }
+func (p *Plugin) Carrier() *control.Carrier { return &p.module.commands }
 
 // WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas;
 // the looks the effects were given (effect.Effect.Look) are swapped in after the rules of Draw.
@@ -357,6 +346,6 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
 
-// Castings are the commands about effects of this Stage, by name: where a game defines them and
+// Commands are the commands about effects of this Stage, by name: where a game defines them and
 // finds them again.
-func (p *Plugin) Castings() *Castings { return &p.castings }
+func (p *Plugin) Commands() *Commands { return &p.named }

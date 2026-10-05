@@ -2,7 +2,6 @@ package climate
 
 import (
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -19,8 +18,7 @@ type Climate struct {
 	world    *world.Plugin
 	calendar *calendar.Calendar
 	sys      *weatherSystem
-	change   control.Queue[Change]
-	set      control.Queue[Set]
+	asked    []string // the changes asked for since the last step: a state's name, "" for the next
 	report   report
 	rules    plugin.StepRules[Weathering]
 	about    func() uid.UID64 // whose entity a Weathering is about
@@ -74,9 +72,21 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation; it finds or makes the
 // weather's entity in its own Init. Call it once.
 func (c *Climate) System() goke.System {
-	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.rules, &c.running)
+	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
 	c.sys.about = c.about
 	return c.sys
+}
+
+// Change has the weather go on to the next state at the next step of the simulation, thrown as
+// when one runs out.
+func (c *Climate) Change() { c.asked = append(c.asked, "") }
+
+// Set has the weather go into the state named name at the next step of the simulation; a name
+// the climate lacks changes nothing.
+func (c *Climate) Set(name string) {
+	if name != "" {
+		c.asked = append(c.asked, name)
+	}
 }
 
 // About says whose entity a Weathering is about — the atmosphere's own; the world's without it.

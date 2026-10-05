@@ -87,10 +87,12 @@
 // same tick. Rules name tags with the filters Self and Between (package rule); the marker
 // components of old are gone.
 //
-// A role (rule.Role) is a tag of the family rule.Roles, one name one tag across the program. The
-// world defines the name of every role made so far in its kinds as the Stage's ECS is set up
-// (rule.RoleNames), so a save carries the roles an entity plays by name, like any tag: make the
-// roles in Init. The world plays roles itself ([Plugin.Plays]): the rules of a clock.Moment they
+// What a game defines is the Stage's, by name, and the world keeps the registers: [Roles]
+// ([Plugin.Roles]), [Plans] ([Plugin.Plans]), [Commands] ([Plugin.Commands]), beside the effects
+// ([Plugin.Effects]) and the kinds ([Plugin.Kinds]). Define says a thing and hands nothing back;
+// Named is the thing wherever it is built on; a name defined twice, or asked for unknown, panics.
+// A role is a tag of the family rule.Roles, one name one tag of this world's, defined in its kinds
+// as the role is, so a save carries the roles an entity plays by name, like any tag. The world plays roles itself ([Plugin.Plays]): the rules of a clock.Moment they
 // obey fire every step.
 //
 // # A plugin's own entity
@@ -103,6 +105,12 @@
 // fire while it plays their role — and learns from Changed that its knobs were turned. The
 // world's own is the clock's entity, which entity.World names. The entities are made as the
 // Stage's ECS is set up and found again by their names in a loaded game.
+//
+// # Commands
+//
+// The world's commands are in commands.go: [Spawn] and [Despawn], the clock's — [Pause] (Space),
+// [Faster] and [Slower] (] and [), which the world carries out on its clock — beside the commands about effects a Stage defines by name
+// ([Commands]). [Plugin.Carrier] is what takes every command to the plugin that carries it out.
 //
 // # Spawn, Despawn and Apply
 //
@@ -128,14 +136,14 @@
 //
 // # Commands about effects, names and groups
 //
-// The world carries out the commands about effects (rule.Casting: rule.Cast, Lift, Toggle) for the
+// The world carries out the commands about effects (rule.Command: rule.Cast, Lift, Toggle) for the
 // targets of package entity: those Named, those in a Group, the World itself. Every entity it
 // spawns carries an entity.Label — its name and group, hashed, none by default — given by its
 // kind.Entry (Named, InGroup) and saved with it; a board's cells called something carry one too.
 // The system, the first of every step, finds the entities a command says by their Label, nets a
 // step's commands of one effect on one entity — a switch flipped twice stays as it was — and casts
 // or dispels with the step's effects. An entity's rule.Trigger gives every command whose By names
-// it; a Stage hands those to its Initializer's Commands ([Plugin.Triggers] for the engine), and
+// it; a Stage defines those in its [Commands], and
 // as the first step begins a name a command says that nobody bears, or one two bear, panics.
 // The same system tells the rules and the plans which roles an entity plays (plugin.Tick.Roles,
 // for Playing).

@@ -25,8 +25,8 @@
 //
 // # Commands, phases and the display
 //
-// Space toggles the tactical pause, ] and [ move the tempo ([Clock.DefaultBindings]); the players
-// plugin carries them through the world. The clock's entity carries a family of [Phase] tags that
+// [Clock.TogglePause] is the tactical pause, [Clock.Faster] and [Clock.Slower] move the tempo:
+// what the world's commands Pause (Space), Faster and Slower (] and [) ask. The clock's entity carries a family of [Phase] tags that
 // effects cast on it switch on and off — a rule asks [Clock.In] whether a phase holds. A
 // rule of the clock's [Moment] fires once every step of the simulation; [At] and [Every] hold
 // in the steps reaching a time.

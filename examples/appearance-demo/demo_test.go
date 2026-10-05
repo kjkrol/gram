@@ -178,9 +178,9 @@ func (ds *drawnStage) want(e shown, angry bool) []render.SpriteID {
 		sprite = s.angrySprite[e.heading]
 	}
 	switch e.kind {
-	case s.ghost.ID():
+	case kind.Named[walker](s.world.Kinds(), GhostKind).ID():
 		return []render.SpriteID{s.spook}
-	case s.leader.ID():
+	case kind.Named[walker](s.world.Kinds(), LeaderKind).ID():
 		return []render.SpriteID{sprite, s.crown}
 	}
 	return []render.SpriteID{sprite}
@@ -198,7 +198,7 @@ func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
 		}
 	}
 
-	if !ds.stage.world.Commands().Put(1, rule.Cast(ds.stage.rage).On(entity.World)) {
+	if !ds.stage.world.Carrier().Put(1, rule.Cast(ds.stage.world.Effects().Named(RageEf)).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 	ds.tick(5)

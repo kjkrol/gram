@@ -78,11 +78,22 @@
 //
 // # Scene keys and the shortcuts
 //
-// Keys that are no command to a plugin — quit, save, a debug toggle — are the Scene's: [SceneKeys]
-// lists them with labels and what they do, and [SceneKeys.Handle] runs them from the Scene's
-// HandleEvents. [Plugin.Shortcuts] is a ready scene listing every key of the game — the local
-// players' bindings, grouped by the plugin whose command each issues, and the scene's keys under
-// "Game" — over the dimmed screen, the game held in the engine's pause while it is up; a game adds
-// it to its stack, opens it on K ([Shortcuts.Open]) and Esc or K closes it. [Written] is a rule
-// as such a list writes it.
+// A scene showing the world hands its input to [Plugin.Handle] and nothing else: the bindings
+// turn it into commands, and the two of the players' own that need the engine are carried out
+// there — [Quit] (Shift+Esc), [ShowShortcuts] (K) and, in a game that said where it saves
+// ([Plugin.WithSaves]), [Save] (F5): default keys like the camera's, the same in every game. Keys
+// that are no command to a plugin — a debug toggle — are the game's own: [SceneKeys] lists them
+// with labels and what they do, given to [Plugin.OwnKeys], and Handle runs them. [Shortcuts] is
+// the players' own scene listing every key of the game — the local players' bindings, grouped by
+// the plugin whose command each issues, and under "Game" the game's own keys, Quit and the list's
+// — over the dimmed screen, the game held in the engine's pause while it is up; every Stage that
+// uses the players has it in its stack ([Plugin.Scenes], game.Scenic), and Esc or K closes it.
+// [Written] is a rule as such a list writes it.
+//
+// # Commands
+//
+// The players' own commands are in commands.go: [Pan] and [Zoom] move a player's camera, [Give]
+// makes an entity a player's, [Quit] ends the game, [ShowShortcuts] opens the list of keys and
+// [Save] writes the game. [GameBindings] are the keys of the last three's first two, for a game
+// that binds its own camera keys.
 package players

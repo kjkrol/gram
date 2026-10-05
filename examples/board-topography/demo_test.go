@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -32,7 +33,7 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 	if s.player.ID != 1 || s.rival.ID != 2 {
 		t.Errorf("the player is %d, the rival %d; want players 1 and 2", s.player.ID, s.rival.ID)
 	}
-	if s.rivals.SpriteID() == s.unit.SpriteID() {
+	if kind.Named[unitRow](s.world.Kinds(), RivalKind).SpriteID() == kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID() {
 		t.Error("the rival's walkers are drawn as the player's")
 	}
 }

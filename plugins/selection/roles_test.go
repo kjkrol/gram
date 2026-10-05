@@ -237,8 +237,8 @@ func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID),
-		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", rule.Cast(s.haste).On(s.sel.Selected(s.hasty))),
-		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals", rule.Cast(s.rally).On(s.sel.Selected(s.mortal))))
+		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.named("hasten", rule.Cast(s.haste).On(s.sel.Selected(s.hasty)))),
+		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals", s.named("rally", rule.Cast(s.rally).On(s.sel.Selected(s.mortal)))))
 	s.press(control.KeyJ)
 	s.expect(s.haste, "my scout", "my veteran")
 	s.expect(s.rally)
@@ -267,7 +267,7 @@ func TestSelected_LiftAndToggle(t *testing.T) {
 func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at", rule.Cast(s.haste).On(s.sel.Pointed()))
+	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at", s.named("cure", rule.Cast(s.haste).On(s.sel.Pointed())))
 	point := func(x, y float64) {
 		cmd, ok := cure.Build(control.Context{Player: s.me.ID, Camera: s.w.Res.Camera, Cursor: geom.NewVec(x, y)})
 		if !ok {
@@ -283,4 +283,10 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s.expect(s.haste, "the rival's scout")
 	point(305, 105) // my idle scout, at 300
 	s.expect(s.haste, "the rival's scout", "my idle scout")
+}
+
+// named defines cmd in the world's register and hands it back as a key takes it.
+func (s *squad) named(name string, cmd rule.Command) rule.Command {
+	s.w.Commands().Define(name, cmd)
+	return s.w.Commands().Named(name)
 }

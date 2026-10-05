@@ -74,8 +74,8 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			})
 			w.Clock().Replay(rc, d)
 		})
-		for _, cmd := range map[float32][]any{4: {clock.Faster{}, clock.Faster{}}, 0.5: {clock.Slower{}}}[tempo] {
-			if !w.Commands().Put(1, cmd) {
+		for _, cmd := range map[float32][]any{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
+			if !w.Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}
 		}

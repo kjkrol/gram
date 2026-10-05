@@ -3,13 +3,13 @@
 // tactical pause, going with the tempo, saved with the game. Its steps are those of package rule,
 // and the ones that last.
 //
-//	s.world.Plans().Define(Patrol, func(a *plan.Actor) rule.Step {
+//	s.world.Plans().Define(PatrolPlan, func(a *plan.Actor) rule.Step {
 //		return a.Steps(
 //			a.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
 //			a.Order(navigation.MoveTo{Cell: west}).Until[navigation.Arrived](),
 //		)
 //	})
-//	units.Define(Guard, land, profile, s.world.Plans().Named(Patrol))
+//	units.Define(GuardKind, land, profile, s.world.Plans().Named(PatrolPlan))
 //
 // # Plans
 //

@@ -57,7 +57,7 @@ func hands(rw *roadWorld) func() map[uid.UID64]hand {
 }
 
 func (rw *roadWorld) drive(by control.PlayerID, cmd Drive) {
-	if !rw.nav.worldPlugin.Commands().Put(by, cmd) {
+	if !rw.nav.worldPlugin.Carrier().Put(by, cmd) {
 		rw.t.Fatal("the world carries no Drive")
 	}
 }

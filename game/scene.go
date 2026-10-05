@@ -22,6 +22,12 @@ type Scene interface {
 	Focusable() bool
 }
 
+// Scenic is a plugin with scenes of its own — the players' list of shortcuts: a Stage defined in
+// sections has them in its stack after the game's own, hidden until something shows them.
+type Scenic interface {
+	Scenes() []Scene
+}
+
 // Viewer is a Scene showing the world: its WorldRenderers are drawn once per viewport it gives
 // for the screen, every frame — a player's camera over the whole screen, two halves of a split
 // screen, a minimap in a corner. A scene with world layers must be one.

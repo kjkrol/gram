@@ -5,9 +5,15 @@
 // holds is an effect (package rule/effect). The package is gram's core, beside entity and clock;
 // the systems a plugin runs the rules of its moments with are package plugin's.
 //
-//	mortal := rule.Role("mortal").Obeys(rule.Then[unit.Standing]("fall in", rule.All,
+//	roles := s.world.Roles()
+//	roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All,
 //		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-//	s.scout = units.Define("scout", land, profile, rule.Plays(mortal))
+//	units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole)))
+//
+// What a game defines is its Stage's, by name: defining registers and hands nothing back, and
+// Named is the handle wherever a thing is built on — the roles (world.Roles), the effects
+// (effect.Effects), the plans (world.Plans), the commands (world.Commands), the kinds (kind.Named).
+// A game keeps its names as constants, so a name mistyped does not compile.
 //
 // # Rules
 //
@@ -62,11 +68,11 @@
 // their role, its own entity carrying the role's tag. [While] runs a step while a plugin's entity
 // is under an effect, as [During] does for the world's. [Then] is On without
 // the body, its steps the package's own functions ([If], [OneOf], [Apply], [Around]…), its
-// conditions predicates of the moment ([Not] turns one round). A program names 64 roles at most, one name one tag, which every world saves by the name.
-// A role's String is "the role mortal".
+// conditions predicates of the moment ([Not] turns one round). A Stage names 64 roles at most, one
+// name one tag of its world's, saved by the name. A role's String is "the role mortal".
 //
-//	hasty := rule.Role("hasty")
-//	s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
+//	roles.Define(HastyRole)
+//	units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
 //
 // Obeys narrows each rule on top of its own filter: a rule of Self(hungry.Mark()) obeyed by mortal
 // fires for a mortal entity under hungry; on a moment that is Met, for the pairs whose own entity
@@ -74,18 +80,17 @@
 // at most once a pair (a navigation.Touch is each unit's own, a vision.Sighting each observer's).
 // An entity playing two roles that obey the same rule obeys it once for each. A rule of a moment
 // of the world as a whole, a clock.Moment or a climate.Weathering, is run once a step, walking no
-// entities: filtered or narrowed, its host refuses it with plugin.ErrUnhosted — say it with
-// During, or in a rule over entities.
+// entities: it takes no filter, and fires while the plugin whose moment it is plays its role.
 //
 // Playing(role, step) runs a step while the entity plays the role; inside Here or Around it asks
 // the place turned to, so a unit pulls the lever beside it and nothing else there:
-// Around(1, Playing(lever, Trigger())). A Part's Tag and Rules, [Roles] (the family) and
-// [RoleNames] are for the plugins that give roles.
+// Around(1, Playing(lever, Trigger())). A Part's Tag and Rules, [NewPart] and [Roles] (the
+// family) are for the plugins that give roles.
 //
 // # Commands
 //
 // What somebody asks for — a player's key, a script, an AI, a rule's Order — is a command, and a
-// command about an effect is a [Casting], written as a sentence: [Cast] puts the effect on,
+// command about an effect is a [Command], written as a sentence: [Cast] puts the effect on,
 // [Lift] takes it off, [Toggle] switches it; On says whom it is for, For how long a Cast lasts in
 // place of the effect's Spec, By who sets it off.
 //
@@ -104,16 +109,16 @@
 // takes the effect off them all where any is under it; commands of one effect for one entity in
 // one step are netted.
 //
-// [Trigger] is the step by which an entity sets commands off: every Casting whose By names it or
+// [Trigger] is the step by which an entity sets commands off: every Command whose By names it or
 // its group is given, so a role says only that a plate stood on triggers, and the command says
-// what that opens. The game hands its commands to the Initializer's Commands: those with a By
+// what that opens. The game defines its commands by name in its world (world.Commands): those with a By
 // are kept for Trigger, and every name they say is checked as the game starts — a name nobody
 // bears, or one two bear, stops it there.
 //
-//	plate := rule.Role("plate").Obeys(rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-//	s.board.Plays("plate", plate)
-//	s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest))
-//	return ctx.Commands(openWest, flipGate)
+//	roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+//	s.board.Plays("plate", roles.Named(PlateRole))
+//	cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")).By(entity.Named("west lever")))
+//	s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", cmds.Named(OpenWestCmd)))
 //	// Spawn: cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}
 //	//        cell.Entry{Kind: "lever", Cell: l, Name: "west lever"}
 //

@@ -29,7 +29,7 @@ rule.Then[unit.Standing]("in the ice", rule.All, rule.OneOf(
 	))
 
 // a plan: what a unit does over time
-plan.New("patrol", func(a *plan.Actor) rule.Step {
+s.world.Plans().Define(PatrolPlan, func(a *plan.Actor) rule.Step {
 	return a.Steps(
 		a.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
 		a.Wait(10 * time.Second),
@@ -53,8 +53,16 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
           rule.Order(world.Despawn{}),
       )))
   ```
-- `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its entities:
-  `units.Define("unit", …, patrol)`. Its name is what a save knows it by.
+- `s.world.Plans().Define(name, func(a *plan.Actor) rule.Step)` says a plan, and
+  `s.world.Plans().Named(name)` is the component a kind gives its entities:
+  `units.Define(GuardKind, …, plans.Named(PatrolPlan))`. Its name is what a save knows it by.
+- **Defining registers and hands nothing back.** Effects (`world.Effects`), roles (`world.Roles`),
+  plans (`world.Plans`), commands (`world.Commands`) and kinds (`kind.Define`, `units.Define`) are
+  each defined under a name in the Stage's world, and `Named(name)` is the thing wherever it is
+  built on. A game keeps its names as constants (a `names.go`), each with a suffix saying what it
+  names — `BloodMoonEf`, `BleedCmd`, `MortalRole`, `PatrolPlan`, `ScoutKind`, `GrassCell` — so a
+  name mistyped does not compile, and a Stage's struct holds its plugins alone. Each Stage has registers of its own:
+  nothing a game defines is the program's.
 - A function writing part of a plan takes the Actor as its own (a rule's steps are plain functions):
   `func whenBlocked(a *plan.Actor) rule.Step`. A plugin ships no ready-made
   reactions: it gives moments and their conditions, the game writes the rule.
@@ -80,13 +88,14 @@ Nobody hands a rule to a plugin: there is no hooking. A rule is obeyed by a role
 played — by a kind of unit, by a kind of cell, by a plugin:
 
 ```go
-mortal := rule.Role("mortal").Obeys(fallIn)     // a rule of unit.Standing: the board's
-plate := rule.Role("plate").Obeys(press)        // a rule of cell.Now: the board's
-nightly := rule.Role("nightly").Obeys(atDusk)   // a rule of clock.Moment: the world's
+roles := s.world.Roles()
+roles.Define(MortalRole, fallIn)   // a rule of unit.Standing: the board's
+roles.Define(PlateRole, press)     // a rule of cell.Now: the board's
+roles.Define(NightlyRole, atDusk)  // a rule of clock.Moment: the world's
 
-s.scout = units.Define("scout", land, profile, rule.Plays(mortal)) // a kind of unit plays it
-s.board.Plays("plate", plate)                                      // a kind of cell
-s.world.Plays(nightly)                                             // the world itself
+units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole))) // a kind of unit plays it
+s.board.Plays("plate", roles.Named(PlateRole))                          // a kind of cell
+s.world.Plays(roles.Named(NightlyRole))                                 // the world itself
 ```
 
 Once the Stage's `Init` returns, the engine gives every rule of every role somebody plays to the
@@ -102,9 +111,9 @@ its knobs, its roles and the effects it is under — as many at once as a game d
 of the sky is an effect on the atmosphere, as a state of the whole game is one on the world:
 
 ```go
-bloodMoon := fx.Define("blood moon", effect.Spec{effect.Lasts(night), effect.Alter(func(m *sky.Moon) { … })})
-bleed := rule.Cast(bloodMoon).On(s.atmosphere)                  // the plugin is whom the command is for
-rule.While(s.atmosphere, bloodMoon, rule.Keep(frenzied))        // … and a rule reads its state
+fx.Define(BloodMoonEf, effect.Spec{effect.Lasts(night), effect.Alter(func(m *sky.Moon) { … })})
+cmds.Define(BleedCmd, rule.Cast(fx.Named(BloodMoonEf)).On(s.atmosphere))      // the plugin is whom the command is for
+rule.While(s.atmosphere, fx.Named(BloodMoonEf), rule.Keep(fx.Named(FrenziedEf))) // … and a rule reads its state
 ```
 
 ## The five words
@@ -117,7 +126,7 @@ rule.While(s.atmosphere, bloodMoon, rule.Keep(frenzied))        // … and a rul
   is not to be had in a rule: a Moment has no such method, and one made by an Actor is refused as
   the rule is made. A rule remembers nothing of its own, and runs no Go code of its own: there is no
   step for it. What the steps cannot say is a moment, a step or a knob the plugin still lacks.
-- **Plan** — what a kind's entities do over time. It remembers its place (its mind, a component `plan.New` gives: the steps
+- **Plan** — what a kind's entities do over time. It remembers its place (its mind, a component `world.Plans.Named` gives: the steps
   running, each one's place and start on the world's clock), waits (`Wait`, `Until`), talks to
   other entities (`Ask`), and is saved with the game. `OneOf` is a reactive choice, `Steps` a
   sequence with memory; the Actor's `When[F]` and `On[F]` open a branch on a fact, `If` reads one.
@@ -173,7 +182,7 @@ rule.While(s.atmosphere, bloodMoon, rule.Keep(frenzied))        // … and a rul
 ## Commands
 
 Whatever somebody asks for — a player's key, a script, an AI, a rule's `Order` — is a command, and
-a command about an effect is one sentence (`rule.Casting`):
+a command about an effect is one sentence (`rule.Command`):
 
 ```go
 openWest := rule.Cast(open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
@@ -196,11 +205,13 @@ freeze   := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
 
 An entity is called by what makes it: a cell by its `cell.Entry{Name, Group}`, a unit by its
 `kind.Entry` (`Named`, `InGroup`); a name is one entity's, a group many's, and both are saved. The
-game hands its commands to `ctx.Commands(cmds...)`: those with a `By` are kept for `Trigger`, and
+game defines its commands by name in `s.world.Commands()` (`Define(name, cmd)`, in the Commands
+section; `Named(name)` is the command for a key): those with a `By` are kept for `Trigger`, and
 every name they say is checked as the game starts — a name nobody bears, or one two bear, stops it
 there. A command is given the same way whoever gives it:
 
 ```go
+openWest := s.world.Commands().Named(OpenWestCmd)
 s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest)) // a key
 s.players.Issue(ai, openWest)                                                                      // an AI, a script
 rule.Order(openWest)                                                                               // a rule, a plan
@@ -218,10 +229,11 @@ Rules and plans read the world's states with `During(e, step)`, as they read an 
 `Under`:
 
 ```go
-alarmed := fx.Define("alarm", effect.Spec{effect.Lasts(30 * time.Second)})
-alert := fx.Define("alert", effect.Spec{effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 1.5 })})
-s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm", rule.Cast(alarmed).On(entity.World)))
-guard := rule.Role("guard").Obeys(rule.Then[unit.Standing]("hurry", rule.All, rule.During(alarmed, rule.Keep(alert))))
+fx.Define(AlarmEf, effect.Spec{effect.Lasts(30 * time.Second)})
+fx.Define(AlertEf, effect.Spec{effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 1.5 })})
+roles.Define(GuardRole, rule.Then[unit.Standing]("hurry", rule.All, rule.During(fx.Named(AlarmEf), rule.Keep(fx.Named(AlertEf)))))
+cmds.Define(SoundAlarmCmd, rule.Cast(fx.Named(AlarmEf)).On(entity.World))
+s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm", cmds.Named(SoundAlarmCmd)))
 ```
 
 The guards hurry while the alarm sounds and slow down once it is over: `Keep` holds `alert` only
@@ -234,24 +246,26 @@ in less.
 ## Roles
 
 A **role** is a behaviour several kinds share, said once: the rules those playing it obey.
-`rule.Role(name)` makes it; `Obeys(rules...)` adds rules, each narrowed to the role's players. A
+`s.world.Roles().Define(name, rules...)` says it, each rule narrowed to the role's players, and
+`Roles().Named(name)` is the role; each Stage's world has its own roles, 64 at most. A
 kind plays its roles through `rule.Plays(roles...)`, a cell through its kind
 (`board.Plugin.Plays(kind, roles...)`), a plugin through its own `Plays`, and a command may be for
 those playing it alone
 (`selection.Selected(role)`):
 
 ```go
-fx := s.world.Effects()
-haste := fx.Define("haste", effect.Spec{effect.Lasts(3 * time.Second),
+fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
+fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 	effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 2 })})
 
-mortal := rule.Role("mortal").Obeys(rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-hasty := rule.Role("hasty")
+roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+roles.Define(HastyRole)
 
-s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
-s.porter = units.Define("porter", land, laden, rule.Plays(mortal))
-s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
-	rule.Cast(haste).On(s.selection.Selected(hasty))))
+cmds.Define(HastenCmd, rule.Cast(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))))
+
+units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
+units.Define(PorterKind, land, laden, rule.Plays(roles.Named(MortalRole)))
+s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", cmds.Named(HastenCmd)))
 
 // Spawn: a unit is told whose it is and that it may be selected as it is made
 mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
@@ -419,7 +433,7 @@ func goRound() rule.Rule {
 
 `StepAside`, `Pass`, `Detour` and `Settle` are `Aimed`: each is told the moment's subject, the
 unit touched. A game adds its own rules as a role's, for the units playing it —
-`rule.Role("guard").Obeys(rule.Then[Touch]("hold the line", rule.All, …))` — or gives its own set in place
+`roles.Define(GuardRole, rule.Then[Touch]("hold the line", rule.All, …))` — or gives its own set in place
 of the crowd's with `WithCrowd`.
 
 ## A game: states as effects
@@ -440,19 +454,20 @@ A game built on the plugins is written in three parts, and none of them is Go co
 Example — fire, across collision, the board and the world, on units and on the ground alike:
 
 ```go
-fx := w.Effects()
-smouldering := fx.Define("smouldering", effect.Spec{effect.Lasts(20 * time.Second)})
-burning := fx.Define("burning", effect.Spec{
+fx, roles := s.world.Effects(), s.world.Roles()
+fx.Define(SmoulderingEf, effect.Spec{effect.Lasts(20 * time.Second)})
+fx.Define(BurningEf, effect.Spec{
 	effect.Lasts(8 * time.Second),
-	effect.Then(smouldering),                                    // burnt out, it smoulders
+	effect.Then(fx.Named(SmoulderingEf)),                          // burnt out, it smoulders
 	effect.Alter(func(a *world.Appearance) { a.SpriteID = flames }), // a unit drawn burning,
 	effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 1.5 }),  // running about;
 	effect.Alter(func(g *cell.Ground) { g.Kind = embers }),         // a cell's ground aflame
 })
-doused := fx.Define("doused", effect.Spec{effect.Lasts(10 * time.Second)})
+fx.Define(DousedEf, effect.Spec{effect.Lasts(10 * time.Second)})
+burning, smouldering, doused := fx.Named(BurningEf), fx.Named(SmoulderingEf), fx.Named(DousedEf)
 
 // whatever can burn plays one role: the units' kinds and the kinds of cell alike
-flammable := rule.Role("flammable").Obeys(
+roles.Define(FlammableRole,
 	// fire spreads to whom a burning one touches, now and then, unless they are wet
 	rule.Then[collision.Meeting]("fire spreads", rule.Between(burning.Mark(), tag.Any),
 		rule.ForOther(rule.Unless(doused, rule.Chance(0.3, rule.Apply(burning))))),
@@ -465,9 +480,9 @@ flammable := rule.Role("flammable").Obeys(
 	// burning ground sets the cells round it alight now and then — not one burning or burnt out
 	rule.Then[cell.Now]("fire spreads over the ground", rule.Self(burning.Mark()), rule.Around(1, rule.Unless(burning, rule.Unless(smouldering, rule.Chance(0.05, rule.Apply(burning)))))),
 )
-s.board.Plays("grass", flammable)
-s.board.Plays("forest", flammable)
-s.walker = units.Define("walker", land, profile, rule.Plays(flammable))
+s.board.Plays("grass", roles.Named(FlammableRole))
+s.board.Plays("forest", roles.Named(FlammableRole))
+units.Define(WalkerKind, land, profile, rule.Plays(roles.Named(FlammableRole)))
 
 func inWater(s unit.Standing) bool { return s.Kind.Admits(cell.Water) }
 ```

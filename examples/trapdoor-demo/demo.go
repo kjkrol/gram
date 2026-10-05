@@ -97,8 +97,6 @@ type unitRow struct{ start, to cell.ID }
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
-	mortal *rule.Part // whoever plays it falls in where nothing holds it
-
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -106,16 +104,9 @@ type mainStage struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the scouts are its
-	shortcuts *players.Shortcuts
 	brd       *board.Board
 
-	pulls       []rule.Casting // each lever's command, in the order of levers
-	hasten      rule.Casting
-	open, haste effect.Effect
 	hasteSprite render.SpriteID
-
-	scout    kind.Of[unitRow]
-	wanderer kind.Of[unitRow]
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -148,7 +139,7 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.brd = s.board.Res.Logic.Board
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -164,108 +155,83 @@ func (s *mainStage) definePlayer() error {
 
 func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("boards"), Cost: 1, Allows: cell.Land}, // a trapdoor shut
-		cell.Kind{Name: cell.Named("pit"), Cost: 1},                       // holds nobody
+		cell.Kind{Name: cell.Named(GrassCell), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named(BoardsCell), Cost: 1, Allows: cell.Land}, // a trapdoor shut
+		cell.Kind{Name: cell.Named(PitCell), Cost: 1},                       // holds nobody
 	)
 }
 
-// defineEffects says the states: a trapdoor open, a pit; a scout hastened, twice as fast and drawn
-// bright.
 func (s *mainStage) defineEffects() {
-	pit, _ := s.board.CellKinds().Get("pit")
+	pit, _ := s.board.CellKinds().Get(PitCell)
 	fx := s.world.Effects()
-	fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-	s.open = fx.Named("open")
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
-	fx.Define("haste", effect.Spec{
+	fx.Define(HasteEf, effect.Spec{
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
-	s.haste = fx.Named("haste")
 }
 
-// defineRules says the one role: a mortal standing where nothing holds it falls in.
 func (s *mainStage) defineRules() {
-	s.world.Roles().Define("mortal",
+	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-	s.mortal = s.world.Roles().Named("mortal")
 }
 
-// defineCommands names what can be asked for: each lever opens its own strip of trapdoors, a group
-// of cells, for a while; the selected scouts are hastened.
 func (s *mainStage) defineCommands() {
-	cmds := s.world.Castings()
+	cmds := s.world.Commands()
 	for _, l := range levers {
-		cmds.Define("pull "+l.name, rule.Cast(s.open).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
-		s.pulls = append(s.pulls, cmds.Named("pull "+l.name))
+		cmds.Define(pullCmd(l.name), rule.Cast(s.world.Effects().Named(OpenEf)).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
 	}
-	cmds.Define("hasten", rule.Cast(s.haste).On(s.selection.Selected()))
-	s.hasten = cmds.Named("hasten")
+	cmds.Define(HastenCmd, rule.Cast(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }
 
-// bindKeys gives the player its keys: 1 and 2 pull the levers, J hastens the selected scouts.
 func (s *mainStage) bindKeys() error {
-	for i, l := range levers {
-		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", s.pulls[i])); err != nil {
+	for _, l := range levers {
+		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", s.world.Commands().Named(pullCmd(l.name)))); err != nil {
 			return err
 		}
 	}
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.hasten))
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.world.Commands().Named(HastenCmd)))
 }
 
 func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
-	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
-	main.keys = players.SceneKeys{
-		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
-	}
-	s.shortcuts = s.players.Shortcuts(main.keys)
-	return []game.Scene{main, s.shortcuts}
+	return []game.Scene{main}
 }
 
-// defineKinds says what this game's entities are: the player's scouts, and the wanderers,
-// nobody's, each walking its row from one side of the meadow to the other and back, over both
-// strips.
 func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	land := unit.Mover{Domain: cell.Land}
-	units.Define("scout", land, profile, rule.Plays(s.mortal))
-	s.scout = units.Named("scout")
+	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
-	units.Define("wanderer", land, profile,
+	units.Define(WandererKind, land, profile,
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }),
-		rule.Plays(s.mortal))
-	s.wanderer = units.Named("wanderer")
+		rule.Plays(s.world.Roles().Named(MortalRole)))
 }
 
 func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 
-// layOut lays the strips of trapdoors, each a group its lever's command names.
 func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for _, l := range levers {
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := l.left; x <= l.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: s.cellAt(x, y), Group: "trapdoors " + l.name})
+				cells = append(cells, cell.Entry{Kind: BoardsCell, Cell: s.cellAt(x, y), Group: "trapdoors " + l.name})
 			}
 		}
 	}
-	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-// placeUnits puts the player's scouts at the bottom and the wanderers, nobody's, on their rows.
 func (s *mainStage) placeUnits() {
 	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
 	}
 }
 
@@ -283,7 +249,6 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 
 type mainScene struct {
 	stage *mainStage
-	keys  players.SceneKeys
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -294,18 +259,18 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.scout.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
 	worldAtlas.RegisterAt(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
-	worldAtlas.RegisterAt(s.wanderer.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
-		"grass":  {R: 60, G: 95, B: 60, A: 255},
-		"boards": {R: 120, G: 90, B: 55, A: 255},
-		"pit":    {R: 15, G: 12, B: 20, A: 255},
+		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
+		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
+		PitCell:    {R: 15, G: 12, B: 20, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
@@ -325,8 +290,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	m.keys.Handle(events, runtime, composition)
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

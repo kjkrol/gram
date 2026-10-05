@@ -44,7 +44,7 @@ func (m *module) SetupSystems() []goke.System {
 		var missing []string
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {
-				if !m.p.worldPlugin.Commands().Takes(b.Command()) {
+				if !m.p.worldPlugin.Carrier().Takes(b.Command()) {
 					missing = append(missing, fmt.Sprintf("%v (%q for %s)", b.Command(), b.Label, pl.Name))
 				}
 			}

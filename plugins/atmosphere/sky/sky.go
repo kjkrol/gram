@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
@@ -27,9 +26,6 @@ type Sky struct {
 	hour     float32         // the frozen light's time of day
 	step     int             // the step whose light the world has; -1 before the first
 	at       calendar.Moment // going on: the moment whose light the world has
-	freeze   control.Queue[Freeze]
-	later    control.Queue[Later]
-	earlier  control.Queue[Earlier]
 }
 
 // New is the sky of the day and the season cal's, as cfg says, the sun going as it goes latitude
@@ -117,15 +113,13 @@ func (s *Sky) Shift(by float32) {
 	}
 }
 
-// halfHour is what Later and Earlier move the frozen light by.
-const halfHour = float32(1) / 48
+// HalfHour is half an hour as a part of the day: what the atmosphere's Later and Earlier Shift a
+// frozen light by.
+const HalfHour = float32(1) / 48
 
-// Update carries out the commands and sets the light to the hour's, by the calendar's or the
+// Update sets the light to the hour's, by the calendar's or the
 // frozen one: as it goes, or whenever it moves onto another step.
 func (s *Sky) Update() {
-	s.freeze.Drain(func(control.Issued[Freeze]) { s.SetFrozen(!s.frozen) })
-	s.later.Drain(func(control.Issued[Later]) { s.Shift(halfHour) })
-	s.earlier.Drain(func(control.Issued[Earlier]) { s.Shift(-halfHour) })
 	m := s.calendar.Now()
 	if s.frozen {
 		m.Time = s.hour
@@ -169,30 +163,6 @@ func (y *system) Update(*goke.CmdBuf, time.Duration) {
 		break
 	}
 	y.s.Update()
-}
-
-// Freeze stops the light at the hour it stands, or lets a frozen light go with the calendar
-// again; Later and Earlier move a frozen light half an hour on or back.
-type (
-	Freeze  struct{}
-	Later   struct{}
-	Earlier struct{}
-)
-
-// Queues are where Freeze, Later and Earlier land.
-func (s *Sky) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&s.freeze, &s.later, &s.earlier}
-}
-
-// DefaultBindings: P freezes the light and lets it go, Shift+] and Shift+[ move a frozen light half
-// an hour on and back.
-func (s *Sky) DefaultBindings() []control.Binding {
-	shift := control.Mods{Shift: true}
-	return []control.Binding{
-		control.Command(control.KeyPress{Key: control.KeyP}, "Freeze the light of the day", func(control.Context) (Freeze, bool) { return Freeze{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketRight, Mods: shift}, "Frozen light half an hour later", func(control.Context) (Later, bool) { return Later{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketLeft, Mods: shift}, "Frozen light half an hour earlier", func(control.Context) (Earlier, bool) { return Earlier{}, true }),
-	}
 }
 
 // dayPart is the part of the day the hour on the clock's face at is, 0 to 1.

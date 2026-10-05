@@ -9,7 +9,7 @@
 //			Cells(s.defineCells).       // the kinds of cells
 //			Effects(s.defineEffects).   // the states
 //			Rules(s.defineRules).       // the roles, the rules, the plans
-//			Commands(s.defineCommands). // what can be asked for (ctx.Commands)
+//			Commands(s.defineCommands). // what can be asked for
 //			Kinds(s.defineKinds).       // the kinds of units
 //			Controls(s.bindKeys).       // the game's own keys, each a command
 //			Looks(s.defineLooks).       // the drawing rules
@@ -36,14 +36,22 @@
 // The Stage so defined keeps its name, makes the stack of the scenes Scenes hands back, shows the
 // first — or those [AfterScenes.Shows] names — and tracks the stack's Composition for the saves;
 // it starts fresh unless [AfterShows.Restore] says how it resumes, and seeds a fresh game with
-// Layout, then Units. The engine hands the rules of the roles played to the plugins catching their moments.
+// Layout, then Units. The engine hands the rules of the roles played to the plugins catching
+// their moments.
+//
+// # By name
+//
+// A section defines its things under names and hands nothing on: an effect, a role, a plan, a
+// command, a kind is registered in the Stage's world (Define) and taken back by its name (Named)
+// in whichever later section builds on it. A game keeps the names as constants, so a name
+// mistyped does not compile, and its Stage's struct holds its plugins and players alone.
 //
 // # A thing in its section
 //
 // As a section begins the Stage tells the engine (package plugin/section), and the plugins refuse
 // what is defined in another: a plugin used outside Plugins, a kind of cell outside Cells, an
-// effect outside Effects, roles given to a plugin or a kind of cell outside Rules, commands handed over outside Commands, a
-// kind of unit outside Kinds, keys bound outside Players and Controls, drawing rules outside
+// effect outside Effects, a role or a plan outside Rules, a command outside Commands, a kind of
+// unit outside Kinds, keys bound outside Players and Controls, drawing rules outside
 // Looks, a board seeded outside Layout, units outside Units. Plugins takes anything, for the
 // plugins define what is their own as they are made. A Stage written by hand — its own Init,
 // Spawn and Update — is in no section, and nothing is refused.

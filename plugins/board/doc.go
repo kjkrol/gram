@@ -58,6 +58,11 @@
 // slope of the ground under it — which the world's velocity pass goes by from the next step;
 // WithLog has a line written for each unit fallen where its domain may not be.
 //
+// # Commands
+//
+// [Grid] shows the board's grid, or hides it — a look, not saved — on B by default: hand the
+// board to players.NewPlugin for the key.
+//
 // # Ways
 //
 // A cell.Way is what runs across a cell over its ground — a brook, a river, a road: a band Width

@@ -76,9 +76,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// State  persisting arbitrary game-owned state across a save/load cycle.
-type State struct{ Saves int }
-
 const (
 	entityColors = 7
 	entityShapes = 4
@@ -90,23 +87,18 @@ type body struct {
 	vel world.Velocity
 }
 
-// entityKindName names the kind drawn with color ci and shape si.
-func entityKindName(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
+// bodyKind names the kind drawn with color ci and shape si.
+func bodyKind(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
-
-	body *rule.Part // whoever plays it shows the hits it takes
 
 	world     *world.Plugin
 	collision *collision.Plugin
 
 	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
-	kinds     [entityColors][entityShapes]kind.Of[body]
 	hitSprite render.SpriteID
-	hit       effect.Effect
 
-	state          *State
 	collisionStats collision.ContactStats
 
 	players *players.Plugin
@@ -135,38 +127,30 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
-	s.players = players.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.state = &State{}
 	return nil
 }
 
-// definePlayer makes the player and its camera's keys: drag with the middle button, scroll with
-// the wheel, push an edge.
 func (s *mainStage) definePlayer() error {
 	return s.players.Local("player").Bind(s.players.Defaults()...)
 }
 
-// defineEffects says the one state: hit, for a moment after an entity struck another.
 func (s *mainStage) defineEffects() {
-	s.world.Effects().Define("hit", effect.Spec{effect.Lasts(hitDuration)})
-	s.hit = s.world.Effects().Named("hit")
+	s.world.Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
 }
 
-// defineRules says the one role: a body striking something is hit.
 func (s *mainStage) defineRules() {
-	s.world.Roles().Define("body",
-		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.hit)))
-	s.body = s.world.Roles().Named("body")
+	s.world.Roles().Define(BodyRole,
+		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.world.Effects().Named(HitEf))))
 }
 
-// defineLooks has whoever is hit drawn under the hit's overlay.
 func (s *mainStage) defineLooks() error {
-	return s.world.Draw(render.Over(world.Appearance{SpriteID: s.hitSprite}, s.hit.Mark().In))
+	return s.world.Draw(render.Over(world.Appearance{SpriteID: s.hitSprite}, s.world.Effects().Named(HitEf).Mark().In))
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
@@ -181,38 +165,35 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	if !slices.Contains(saves, "") {
 		return false, nil
 	}
-	if err := p.Load(saveBasePath, "", s.state); err != nil {
+	if err := p.Load(saveBasePath, ""); err != nil {
 		return false, err
 	}
-	log.Printf("loaded saved world (save #%d)", s.state.Saves)
+	log.Print("loaded saved world")
 	return true, nil
 }
 
-// defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	for ci := range entityColors {
 		for si := range entityShapes {
-			kind.Define[body](kinds, entityKindName(ci, si), kind.Spec{
+			kind.Define[body](kinds, bodyKind(ci, si), kind.Spec{
 				comp.Load(func(b body) world.Position { return b.pos }),
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{Restitution: 1}),
-				rule.Plays(s.body),
+				rule.Plays(s.world.Roles().Named(BodyRole)),
 			})
-			s.kinds[ci][si] = kind.Named[body](kinds, entityKindName(ci, si))
 		}
 	}
 	s.hitSprite = s.world.Kinds().NewSprite() // the overlay's atlas slot, no kind's
 }
 
-// placeUnits says who is there when the game starts fresh.
 func (s *mainStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = s.kinds[rng.IntN(entityColors)][rng.IntN(entityShapes)].Entry(
+		entries[i] = kind.Named[body](s.world.Kinds(), bodyKind(rng.IntN(entityColors), rng.IntN(entityShapes))).Entry(
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)
@@ -253,7 +234,7 @@ func (m *mainScene) Layers() []render.Layer {
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.RegisterAt(s.kinds[ci][si].SpriteID(), int(RectSize), shape(c))
+			atlas.RegisterAt(kind.Named[body](s.world.Kinds(), bodyKind(ci, si)).SpriteID(), int(RectSize), shape(c))
 		}
 	}
 
@@ -278,24 +259,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	s := m.stage
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case control.KeyEscape:
-			runtime.Quit()
-		case control.KeyF5:
-			s.state.Saves++
-			if err := runtime.Persistence().Save(saveBasePath, "", s.state); err != nil {
-				log.Printf("save: %v", err)
-				continue
-			}
-			log.Printf("saved (save #%d)", s.state.Saves)
-		}
-	}
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

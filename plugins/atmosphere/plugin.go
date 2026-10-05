@@ -40,12 +40,18 @@ type Plugin struct {
 
 	cfg         Config
 	worldPlugin *world.Plugin
-	calendar    *calendar.Calendar
-	sky         *sky.Sky
-	climate     *climate.Climate
-	weathering  *weathering.Weathering
-	module      *module
-	running     Running
+
+	freezes    control.Queue[Freeze]
+	laters     control.Queue[Later]
+	earliers   control.Queue[Earlier]
+	changes    control.Queue[ChangeWeather]
+	sets       control.Queue[SetWeather]
+	calendar   *calendar.Calendar
+	sky        *sky.Sky
+	climate    *climate.Climate
+	weathering *weathering.Weathering
+	module     *module
+	running    Running
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -120,7 +126,10 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan runs the atmosphere's tick: the light at once, the weather in every step of the
 // simulation. Call it after the world's, before the world is drawn.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.carryOut()
+	p.module.RunPlan(ctx, d)
+}
 
 // WithRenderer is a no-op: the sky and what falls are drawn in plain colours.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
@@ -158,21 +167,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil: the weather is its own entity, saved with the ECS; the calendar is the
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// =================================================================
-// plugin.CommandHandler contract
-// =================================================================
-
-// Queues are the sky's and the climate's.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return append(p.sky.Queues(), p.climate.Queues()...)
-}
-
-// DefaultBindings: P freezes the light, Shift+] and Shift+[ move a frozen light half an hour,
-// Shift+W changes the weather.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return append(p.sky.DefaultBindings(), p.climate.DefaultBindings()...)
-}
 
 // =================================================================
 // module

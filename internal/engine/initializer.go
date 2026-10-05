@@ -85,6 +85,18 @@ func (c *initializer) use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
+// PluginScenes are the scenes of the plugins used so far that have their own (game.Scenic), in
+// the order of Use: for the Stage's stack.
+func (c *initializer) PluginScenes() []game.Scene {
+	var scenes []game.Scene
+	for _, v := range c.host.tracked {
+		if s, ok := v.(game.Scenic); ok {
+			scenes = append(scenes, s.Scenes()...)
+		}
+	}
+	return scenes
+}
+
 // Hosts keeps the hosts of the rules of the moments a plugin catches, in the order of Use.
 func (c *initializer) Hosts(hosts ...plugin.Host) { c.hosts = append(c.hosts, hosts...) }
 

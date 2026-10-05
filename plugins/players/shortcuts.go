@@ -47,7 +47,8 @@ const ShortcutsName = "gram.shortcuts"
 // Shortcuts is the scene listing every key of the game: the local players' bindings, grouped by
 // the plugin whose command each issues, and the game's own SceneKeys under "Game" with the
 // engine's F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K closes it.
-// Add it to the game's stack (game.NewStack) and open it from the main scene with Open on K.
+// It is the players' own scene, in every Stage that uses them (Plugin.Scenes); K opens it (the
+// command ShowShortcuts, a default key), given the scene hands its input to Plugin.Handle.
 type Shortcuts struct {
 	p     *Plugin
 	keys  SceneKeys
@@ -57,12 +58,23 @@ type Shortcuts struct {
 
 var _ game.Scene = (*Shortcuts)(nil)
 
-// Shortcuts is the shortcuts scene over the players' bindings and the game's own keys.
-func (p *Plugin) Shortcuts(keys SceneKeys) *Shortcuts {
-	s := &Shortcuts{p: p, keys: keys}
+// newShortcuts is the players' own scene listing the keys.
+func newShortcuts(p *Plugin) *Shortcuts {
+	s := &Shortcuts{p: p}
 	s.layer = &shortcutsLayer{s: s}
 	return s
 }
+
+// OwnKeys gives the game's own keys — a debug toggle, something no plugin's command does — run by
+// Handle and listed under "Game" with the players'. Call it before the Stage is set up.
+func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
+	p.shortcuts.keys = keys
+	return p
+}
+
+// Scenes is the players' one scene of their own, the list of shortcuts: the Stage has it in its
+// stack — see game.Scenic.
+func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts} }
 
 // Open shows the scene on top and holds the game paused while it is up.
 func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
@@ -106,6 +118,7 @@ type group struct {
 func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler][]string{}
 	seen := map[string]bool{}
+	var game []string
 	for _, pl := range s.p.Locals() {
 		mode := camera.ModeOf(pl.Camera)
 		for _, b := range pl.Bindings() {
@@ -117,6 +130,10 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
+			if c := b.Command(); c == reflect.TypeFor[Quit]() || c == reflect.TypeFor[ShowShortcuts]() {
+				game = append(game, line) // the players' own, but the game's as a player sees it
+				continue
+			}
 			h := s.p.handlerOf(b.Command())
 			byHandler[h] = append(byHandler[h], line)
 		}
@@ -130,7 +147,7 @@ func (s *Shortcuts) groups() []group {
 	if lines := byHandler[nil]; len(lines) > 0 {
 		out = append(out, group{name: "Other", lines: lines})
 	}
-	g := group{name: "Game"}
+	g := group{name: "Game", lines: game}
 	for _, k := range s.keys {
 		g.lines = append(g.lines, fmt.Sprintf("%-22s %s", Written(control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}), k.Label))
 	}

@@ -69,7 +69,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	}
 	give := func(cmd any) {
 		t.Helper()
-		if !n.w.Commands().Put(control.Nobody, cmd) {
+		if !n.w.Carrier().Put(control.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)
 		}
 		for range 3 {

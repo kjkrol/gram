@@ -60,8 +60,6 @@ const (
 	saveBasePath = "board"
 )
 
-type State struct{ Saves int }
-
 // =========================== Game ===========================
 
 // Demo is the board demo — exactly one Stage (mainStage below).
@@ -88,8 +86,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
-	mortal *rule.Part // whoever plays it falls in where nothing holds it
-
 	world      *world.Plugin
 	board      *board.Plugin
 	nav        *navigation.Plugin
@@ -97,11 +93,8 @@ type mainStage struct {
 	selection  *selection.Plugin
 	players    *players.Plugin
 	player     *players.Player // the one at this keyboard: the units are its
-	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	unit       kind.Of[unitRow]
-	state      *State
 	weather    weathering.Config // how the weather lies on the island
 	stops      []cell.ID         // where the units start, as the layout says
 }
@@ -142,14 +135,13 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	// A temperate island whose weather is thrown anew every run.
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.vision)
+	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.vision).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.vision, s.atmosphere, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
 	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
-	s.state = &State{}
 	return nil
 }
 
@@ -158,43 +150,23 @@ func (s *mainStage) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-// defineCells creates the island's kinds, and the snowy ones and ice the weather turns them into.
 func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(island.Kinds(0)...)
 	s.weather = s.defineClimate()
 }
 
-// defineEffects has the weather work on the board: snow, ice and what sways are its effects.
 func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
 
-// defineRules says the one role: a mortal in the water drowns.
 func (s *mainStage) defineRules() {
-	s.world.Roles().Define("mortal",
+	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-	s.mortal = s.world.Roles().Named("mortal")
 }
 
-// defineLooks has the views drawn be the selected units' alone.
 func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{stage: s, tps: ctx.TPS()}
-	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
-	main.keys = players.SceneKeys{
-		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
-		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
-			s.state.Saves++
-			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
-				log.Printf("save: %v", err)
-				return
-			}
-			log.Printf("saved (save #%d)", s.state.Saves)
-		}},
-	}
-	s.shortcuts = s.players.Shortcuts(main.keys)
-	return []game.Scene{main, s.shortcuts}
+	return []game.Scene{main}
 }
 
 func (s *mainStage) restore(p game.Persistence) (bool, error) {
@@ -205,42 +177,37 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	if !slices.Contains(saves, "") {
 		return false, nil
 	}
-	if err := p.Load(saveBasePath, "", s.state); err != nil {
+	if err := p.Load(saveBasePath, ""); err != nil {
 		return false, err
 	}
-	log.Printf("loaded the saved island (save #%d)", s.state.Saves)
+	log.Print("loaded the saved island")
 	return true, nil
 }
 
 // unit is the row the unit kind spawns from: where it starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
-// defineKinds says what this game's entities are, fresh or restored: walkers with sight cones.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order,
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
-		rule.Plays(s.mortal),
+		rule.Plays(s.world.Roles().Named(MortalRole)),
 	)
-	s.unit = units.Named("unit")
 }
 
-// layOut lays the island out; the heights are a topography's, the simple map is flat.
 func (s *mainStage) layOut() {
 	layout, _, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
 }
 
-// placeUnits puts a unit at every stop, the player's and selected, bound for the one across the
-// island.
 func (s *mainStage) placeUnits() {
 	entries := make([]kind.Entry, 0, len(s.stops))
 	for i, from := range s.stops {
-		entries = append(entries, s.unit.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+		entries = append(entries, kind.Named[unitRow](s.world.Kinds(), UnitKind).Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
 	}
 	s.world.Seed(entries...)
 }
@@ -273,7 +240,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.unit.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -297,8 +264,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	m.keys.Handle(events, runtime, composition)
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

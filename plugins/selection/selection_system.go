@@ -26,17 +26,17 @@ const pickReach = 160
 // flipped in place, seen the same tick — the player who gave one selecting and unselecting only
 // what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
 // where the world's Look draws them through the command's camera. After the Selects, a command for
-// the selected or the one pointed at (rule.Casting) is carried out.
+// the selected or the one pointed at (rule.Command) is carried out.
 type SelectionSystem struct {
-	selects  *control.Queue[Select]
-	castings *control.Queue[casting] // when the plugin wires them
-	effects  *effect.Effects         // the world's, which a command casts and takes off
-	whom     []uid.UID64             // a command's targets, scratch
-	allows   *control.Queue[Allow]
-	forbids  *control.Queue[Forbid]
-	marksID  goke.CompID
-	space    *aabbworld.Space
-	tags     Tags
+	selects    *control.Queue[Select]
+	effectCmds *control.Queue[effectCommand] // when the plugin wires them
+	effects    *effect.Effects               // the world's, which a command casts and takes off
+	whom       []uid.UID64                   // a command's targets, scratch
+	allows     *control.Queue[Allow]
+	forbids    *control.Queue[Forbid]
+	marksID    goke.CompID
+	space      *aabbworld.Space
+	tags       Tags
 
 	// The boxes being dragged, when the plugin wires them: Marquee shows one, Select hides it.
 	marqueeQueue *control.Queue[Marquee]
@@ -96,8 +96,8 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		}
 		s.applySelection(hit, cmd.Additive, i.Player)
 	})
-	if s.castings != nil {
-		s.castings.Drain(func(i control.Issued[casting]) { s.carry(cb, i.Player, i.Command) })
+	if s.effectCmds != nil {
+		s.effectCmds.Drain(func(i control.Issued[effectCommand]) { s.carry(cb, i.Player, i.Command) })
 	}
 	if s.allows != nil {
 		s.allows.Drain(func(i control.Issued[Allow]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, true, i.Command.Selected) })
@@ -138,7 +138,7 @@ func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UI
 }
 
 // carry does what c says to whom it is for: the player's selected units, or the one pointed at.
-func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c casting) {
+func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCommand) {
 	e := c.cmd.Effect
 	if e == (effect.Effect{}) {
 		return
@@ -175,7 +175,7 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c casting)
 
 // pointed is the entity drawn under the cursor c was given with, the nearest to the ground point
 // under it; none for a command given without a cursor.
-func (s *SelectionSystem) pointed(c casting) (uid.UID64, bool) {
+func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
 	if !c.aimed || c.camera == nil {
 		return 0, false
 	}

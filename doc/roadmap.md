@@ -30,8 +30,6 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
   `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
   plugin's doc: its moments, its commands, its knobs.
-- **Default keys from the plugins** — the list of shortcuts (K), quit (Shift+Esc) and the grid (B)
-  given by the players' and the board's plugins rather than every demo's scene.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:

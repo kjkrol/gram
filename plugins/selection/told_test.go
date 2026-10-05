@@ -104,9 +104,9 @@ func (c *camp) ids() map[float64]uid.UID64 {
 func (c *camp) reached(by control.PlayerID) map[float64]bool {
 	c.t.Helper()
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
-	c.w.Commands().Put(by, selection.Select{Box: everywhere})
+	c.w.Carrier().Put(by, selection.Select{Box: everywhere})
 	c.tick()
-	c.w.Commands().Put(by, rule.Cast(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, rule.Cast(c.haste).On(c.sel.Selected()))
 	c.tick()
 	out := map[float64]bool{}
 	for x, id := range c.ids() {
@@ -114,9 +114,9 @@ func (c *camp) reached(by control.PlayerID) map[float64]bool {
 			out[x] = true
 		}
 	}
-	c.w.Commands().Put(by, rule.Lift(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, rule.Lift(c.haste).On(c.sel.Selected()))
 	c.tick()
-	c.w.Commands().Put(by, selection.Select{IDs: []uid.UID64{}})
+	c.w.Carrier().Put(by, selection.Select{IDs: []uid.UID64{}})
 	c.tick()
 	return out
 }
@@ -164,8 +164,8 @@ func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
 		}
 	})
 	ids := c.ids()
-	c.w.Commands().PutFrom(ids[100], players.Give{To: c.two.ID})
-	c.w.Commands().PutFrom(ids[200], selection.Forbid{})
+	c.w.Carrier().PutFrom(ids[100], players.Give{To: c.two.ID})
+	c.w.Carrier().PutFrom(ids[200], selection.Forbid{})
 	c.tick()
 	if got := c.reached(c.one.ID); !only(got) {
 		t.Errorf("player one reaches %v, want none: one unit given away, the other forbidden", got)
@@ -183,7 +183,7 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 		}
 	})
-	c.w.Commands().Put(c.one.ID, rule.Cast(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(c.one.ID, rule.Cast(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
 	if !c.haste.On(ids[100]) || c.haste.On(ids[200]) {

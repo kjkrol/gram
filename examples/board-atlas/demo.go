@@ -78,8 +78,6 @@ type mainStage struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
-	shortcuts *players.Shortcuts
-	unit      kind.Of[unitRow]
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -108,7 +106,7 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -125,22 +123,16 @@ func (s *mainStage) definePlayer() error {
 func (s *mainStage) defineCells() {
 	// the kinds carry colours too, for a board drawn without an atlas of the game's
 	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}},
-		cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}},
-		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}},
-		cell.Kind{Name: cell.Named("wood"), Cost: 4, Allows: cell.Land, Veil: 0.6, Color: color.RGBA{R: 40, G: 100, B: 50, A: 255}},
+		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}},
+		cell.Kind{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}},
+		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}},
+		cell.Kind{Name: cell.Named(WoodCell), Cost: 4, Allows: cell.Land, Veil: 0.6, Color: color.RGBA{R: 40, G: 100, B: 50, A: 255}},
 	)
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{stage: s, tps: ctx.TPS()}
-	main.keys = players.SceneKeys{
-		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
-	}
-	s.shortcuts = s.players.Shortcuts(main.keys)
-	return []game.Scene{main, s.shortcuts}
+	return []game.Scene{main}
 }
 
 type unitRow struct{ start, target cell.ID }
@@ -149,9 +141,8 @@ func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order)
-	s.unit = units.Named("unit")
 }
 
 // corners are where the units start, each bound for the opposite one.
@@ -163,19 +154,17 @@ func (s *mainStage) at(x, y int) cell.ID {
 	return c
 }
 
-// layOut lays the meadow out: a pond in the middle, a wood in the north-east, and a road round the
-// pond from corner to corner as a way over the grass.
 func (s *mainStage) layOut() {
 	brd, at := s.board.Res.Logic.Board, s.at
-	layout := board.Layout{Default: "grass"}
+	layout := board.Layout{Default: GrassCell}
 	for y := 5; y < 11; y++ {
 		for x := 9; x < 15; x++ {
-			layout.Cells = append(layout.Cells, cell.Entry{Kind: "water", Cell: at(x, y)})
+			layout.Cells = append(layout.Cells, cell.Entry{Kind: WaterCell, Cell: at(x, y)})
 		}
 	}
 	for y := 1; y < 6; y++ {
 		for x := 16; x < 22; x++ {
-			layout.Cells = append(layout.Cells, cell.Entry{Kind: "wood", Cell: at(x, y)})
+			layout.Cells = append(layout.Cells, cell.Entry{Kind: WoodCell, Cell: at(x, y)})
 		}
 	}
 	// the road: a ring round the pond, and spurs out to the corners
@@ -192,7 +181,7 @@ func (s *mainStage) layOut() {
 	for y := 11; y >= 4; y-- {
 		ring = append(ring, at(7, y))
 	}
-	road, _ := s.board.CellKinds().Get("road")
+	road, _ := s.board.CellKinds().Get(RoadCell)
 	link := func(a, b cell.ID) {
 		if bit, ok := grid.Link(brd, a, b); ok {
 			w := layoutWay(&layout, a, road)
@@ -223,12 +212,11 @@ func (s *mainStage) layOut() {
 	s.board.Seed(layout)
 }
 
-// placeUnits puts a unit in every corner, the player's and selected, bound for the opposite one.
 func (s *mainStage) placeUnits() {
 	var entries []kind.Entry
 	for k, c := range corners {
 		o := corners[(k+2)%4]
-		entries = append(entries, s.unit.Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+		entries = append(entries, kind.Named[unitRow](s.world.Kinds(), UnitKind).Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
 	}
 	s.world.Seed(entries...)
 }
@@ -265,7 +253,6 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 
 type mainScene struct {
 	stage *mainStage
-	keys  players.SceneKeys
 	tps   *game.TPS
 }
 
@@ -276,7 +263,7 @@ func (m *mainScene) Name() string { return "main" }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.unit.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -284,10 +271,10 @@ func (m *mainScene) Layers() []render.Layer {
 	kinds := s.board.CellKinds()
 	atlas := render.NewAtlas()
 	for name, draw := range map[string]render.SpriteDrawer{
-		"grass": striped(color.RGBA{R: 96, G: 150, B: 70, A: 255}, color.RGBA{R: 108, G: 162, B: 78, A: 255}),
-		"water": rippled(color.RGBA{R: 50, G: 100, B: 180, A: 255}, color.RGBA{R: 80, G: 130, B: 205, A: 255}),
-		"road":  cobbled(color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}),
-		"wood":  treed(color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}),
+		GrassCell: striped(color.RGBA{R: 96, G: 150, B: 70, A: 255}, color.RGBA{R: 108, G: 162, B: 78, A: 255}),
+		WaterCell: rippled(color.RGBA{R: 50, G: 100, B: 180, A: 255}, color.RGBA{R: 80, G: 130, B: 205, A: 255}),
+		RoadCell:  cobbled(color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}),
+		WoodCell:  treed(color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}),
 	} {
 		k, _ := kinds.Get(name)
 		atlas.RegisterAt(k.SpriteID, CellSize, draw)
@@ -309,8 +296,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	m.keys.Handle(events, runtime, composition)
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

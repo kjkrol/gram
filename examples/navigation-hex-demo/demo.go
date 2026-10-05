@@ -49,8 +49,6 @@ var (
 	ScreenHeight = int(math.Ceil(HexSize * (1.5*(GridHeight-1) + 2)))
 )
 
-type State struct{ Saves int }
-
 // =========================== Game ===========================
 
 // Demo is the navigation demo on a hex board — exactly one Stage (mainStage below).
@@ -85,9 +83,6 @@ type mainStage struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
-	shortcuts *players.Shortcuts
-	red, blue kind.Of[unitRow]
-	state     *State
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -116,13 +111,12 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.state = &State{}
 	return nil
 }
 
@@ -135,32 +129,20 @@ func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
-		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},
-		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(rt game.Runtime, _ game.Composition) { rt.Quit() }},
-		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
 			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
 			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
 		}},
-		{Key: control.KeyF5, Label: "Save the game", Do: func(rt game.Runtime, _ game.Composition) {
-			s.state.Saves++
-			if err := rt.Persistence().Save(saveBasePath, "", s.state); err != nil {
-				log.Printf("save: %v", err)
-				return
-			}
-			log.Printf("saved (save #%d)", s.state.Saves)
-		}},
 	}
-	s.shortcuts = s.players.Shortcuts(main.keys)
-	return []game.Scene{main, s.shortcuts}
+	s.players.OwnKeys(main.keys)
+	return []game.Scene{main}
 }
 
-// defineCells defines every terrain kind the board can hold.
 func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
-		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
+		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
+		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land},
 	)
 }
 
@@ -172,17 +154,16 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	if !slices.Contains(saves, "") {
 		return false, nil
 	}
-	if err := p.Load(saveBasePath, "", s.state); err != nil {
+	if err := p.Load(saveBasePath, ""); err != nil {
 		return false, err
 	}
-	log.Printf("loaded saved board (save #%d)", s.state.Saves)
+	log.Print("loaded saved board")
 	return true, nil
 }
 
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
-// defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
@@ -190,10 +171,8 @@ func (s *mainStage) defineKinds() {
 	own := []comp.Comp{
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 	}
-	units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
-	s.red = units.Named("red")
-	units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
-	s.blue = units.Named("blue")
+	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
+	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
 // cellAt is the cell at column x, row y.
@@ -202,29 +181,27 @@ func (s *mainStage) cellAt(x, y uint32) cell.ID {
 	return c
 }
 
-// layOut is the board a fresh game starts on.
 func (s *mainStage) layOut() {
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
 	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
 	var cells []cell.Entry
 	for r := uint32(1); r < GridHeight; r++ {
-		cells = append(cells, cell.Entry{Kind: "wall", Cell: s.cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: s.cellAt(wallCol, r)})
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: "road", Cell: s.cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: "road", Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: "road", Cell: s.cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadRight, r)})
 	}
-	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-// placeUnits puts the two units in place, the player's and selected from the start.
 func (s *mainStage) placeUnits() {
 	mine := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		s.red.Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine...),
-		s.blue.Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine...),
+		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine...),
+		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine...),
 	)
 }
 
@@ -253,15 +230,15 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.red.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(s.blue.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	kinds := s.board.CellKinds()
-	grass, _ := kinds.Get("grass")
-	wall, _ := kinds.Get("wall")
-	road, _ := kinds.Get("road")
+	grass, _ := kinds.Get(GrassCell)
+	wall, _ := kinds.Get(WallCell)
+	road, _ := kinds.Get(RoadCell)
 	boardAtlas := render.NewAtlas()
 	boardAtlas.RegisterAt(grass.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
 	boardAtlas.RegisterAt(wall.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
@@ -282,8 +259,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	m.keys.Handle(events, runtime, composition)
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }
@@ -301,7 +277,7 @@ const (
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road, _ := kinds.Get("road")
+	road, _ := kinds.Get(RoadCell)
 	for q := roadLeft + 1; q < roadRight; q++ {
 		c, _ := brd.CellIndex(q, shortcutRow)
 		brd.Set(c, road)

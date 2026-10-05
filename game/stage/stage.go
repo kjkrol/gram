@@ -106,6 +106,10 @@ func (b built) Init(ctx game.Initializer) error {
 			return fmt.Errorf("stage %q, %v: %w", d.name, section.Scenes, err)
 		}
 	}
+	first := len(scenes) > 0
+	if p, ok := ctx.(interface{ PluginScenes() []game.Scene }); ok {
+		scenes = append(scenes, p.PluginScenes()...) // the plugins' own, hidden until shown
+	}
 	stack, err := game.NewStack(scenes...)
 	if err != nil {
 		return fmt.Errorf("stage %q: %w", d.name, err)
@@ -113,7 +117,7 @@ func (b built) Init(ctx game.Initializer) error {
 	d.stack = stack
 	composition := stack.Composition()
 	shows := d.shows
-	if shows == nil && len(scenes) > 0 {
+	if shows == nil && first {
 		shows = []string{scenes[0].Name()}
 	}
 	for _, name := range shows {

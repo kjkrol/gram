@@ -31,19 +31,28 @@ type State struct {
 	Often  [4]float32
 }
 
+// The names of the Default weathers: what climate.Config.Start and climate.Set say.
+const (
+	Clear  = "clear"
+	Fair   = "fair"
+	Cloudy = "cloudy"
+	Rain   = "rain"
+	Storm  = "storm"
+)
+
 // Default goes from a clear sky to a fair one, a few big heaps of cloud far apart, to clouds, to
 // rain — snow when it is cold enough — and now and then to a storm, most often in summer, and back.
 var Default = []State{
-	{Name: "clear", Wind: [2]float32{4, 14}, Warmth: 1, Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second},
-		Next: map[string]float32{"fair": 1}},
-	{Name: "fair", Wind: [2]float32{4, 14}, Clouds: [2]float32{0.03, 0.25}, Billow: [2]float32{0.85, 1}, Warmth: 1, Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second},
-		Next: map[string]float32{"clear": 1, "cloudy": 1}},
-	{Name: "cloudy", Wind: [2]float32{10, 25}, Clouds: [2]float32{0.4, 0.7}, Billow: [2]float32{0, 1}, Lasts: [2]time.Duration{40 * time.Second, 90 * time.Second},
-		Next: map[string]float32{"fair": 1, "rain": 1}},
-	{Name: "rain", Wind: [2]float32{15, 30}, Clouds: [2]float32{0.75, 0.9}, Billow: [2]float32{0.3, 1}, Falls: 0.6, Warmth: -1, Lasts: [2]time.Duration{30 * time.Second, 60 * time.Second},
-		Next: map[string]float32{"cloudy": 2, "storm": 0.5}},
-	{Name: "storm", Wind: [2]float32{35, 55}, Clouds: [2]float32{0.9, 1}, Billow: [2]float32{0.7, 1}, Falls: 1, Warmth: -3, Lasts: [2]time.Duration{20 * time.Second, 40 * time.Second},
-		Next: map[string]float32{"rain": 1}, Often: [4]float32{calendar.Spring: 0.6, calendar.Summer: 1.5, calendar.Autumn: 0.8, calendar.Winter: 0.3}},
+	{Name: Clear, Wind: [2]float32{4, 14}, Warmth: 1, Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second},
+		Next: map[string]float32{Fair: 1}},
+	{Name: Fair, Wind: [2]float32{4, 14}, Clouds: [2]float32{0.03, 0.25}, Billow: [2]float32{0.85, 1}, Warmth: 1, Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second},
+		Next: map[string]float32{Clear: 1, Cloudy: 1}},
+	{Name: Cloudy, Wind: [2]float32{10, 25}, Clouds: [2]float32{0.4, 0.7}, Billow: [2]float32{0, 1}, Lasts: [2]time.Duration{40 * time.Second, 90 * time.Second},
+		Next: map[string]float32{Fair: 1, Rain: 1}},
+	{Name: Rain, Wind: [2]float32{15, 30}, Clouds: [2]float32{0.75, 0.9}, Billow: [2]float32{0.3, 1}, Falls: 0.6, Warmth: -1, Lasts: [2]time.Duration{30 * time.Second, 60 * time.Second},
+		Next: map[string]float32{Cloudy: 2, Storm: 0.5}},
+	{Name: Storm, Wind: [2]float32{35, 55}, Clouds: [2]float32{0.9, 1}, Billow: [2]float32{0.7, 1}, Falls: 1, Warmth: -3, Lasts: [2]time.Duration{20 * time.Second, 40 * time.Second},
+		Next: map[string]float32{Rain: 1}, Often: [4]float32{calendar.Spring: 0.6, calendar.Summer: 1.5, calendar.Autumn: 0.8, calendar.Winter: 0.3}},
 }
 
 // Likely is how likely s comes in season: its Often for it, 1 when it has none for any.

@@ -85,8 +85,6 @@ type mainStage struct {
 	players    *players.Plugin
 	redPlayer  *players.Player
 	bluePlayer *players.Player
-	redBlock   kind.Of[block]
-	blueBlock  kind.Of[block]
 	drives     control.Queue[Drive]
 	drive      goke.Runnable
 	follow     goke.Runnable
@@ -134,7 +132,7 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s)
+	s.players = players.NewPlugin(s.world, s.board, s)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -146,7 +144,6 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-// definePlayers makes the two players at the keyboard, each with a camera of its own.
 func (s *mainStage) definePlayers() {
 	s.redPlayer = s.players.Local("red").OwnCamera()
 	s.bluePlayer = s.players.Local("blue").OwnCamera()
@@ -154,14 +151,17 @@ func (s *mainStage) definePlayers() {
 
 func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("floor"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
+		cell.Kind{Name: cell.Named(FloorCell), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
 	)
 }
 
-// bindKeys gives each player its keys: W, S, A and D drive red, the arrows blue.
 func (s *mainStage) bindKeys() error {
 	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
+		return err
+	}
+	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
+	if err := s.redPlayer.Bind(append(players.GameBindings(), s.world.DefaultBindings()...)...); err != nil {
 		return err
 	}
 	return s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
@@ -192,10 +192,8 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
 	// each block is its player's: it takes that player's Drive alone
-	units.Define("red", unit.Mover{Domain: cell.Land}, profile)
-	s.redBlock = units.Named("red")
-	units.Define("blue", unit.Mover{Domain: cell.Land}, profile)
-	s.blueBlock = units.Named("blue")
+	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
+	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
 // cellAt is the cell at column x, row y.
@@ -204,11 +202,10 @@ func (s *mainStage) cellAt(x, y uint32) cell.ID {
 	return c
 }
 
-// layOut lays out the arena: walls round it and a few pillars and walls inside.
 func (s *mainStage) layOut() {
 	cellAt := s.cellAt
 	var cells []cell.Entry
-	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(x, y)}) }
+	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
 	for x := uint32(0); x < GridWidth; x++ {
 		wall(x, 0)
 		wall(x, GridHeight-1)
@@ -230,15 +227,13 @@ func (s *mainStage) layOut() {
 		wall(p[0], p[1]+1)
 		wall(p[0]+1, p[1]+1)
 	}
-	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
+	s.board.Seed(board.Layout{Default: FloorCell, Cells: cells})
 }
 
-// placeUnits puts a block for each player in opposite corners, each its player's: it takes that
-// player's Drive alone.
 func (s *mainStage) placeUnits() {
 	s.world.Seed(
-		s.redBlock.Entry(block{start: s.cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
-		s.blueBlock.Entry(block{start: s.cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
+		kind.Named[block](s.world.Kinds(), RedKind).Entry(block{start: s.cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
+		kind.Named[block](s.world.Kinds(), BlueKind).Entry(block{start: s.cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
 	)
 }
 
@@ -349,13 +344,13 @@ func (m *mainScene) Focusable() bool { return true }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(s.redBlock.SpriteID(), BlockSize, render.Solid(colorRed))
-	worldAtlas.RegisterAt(s.blueBlock.SpriteID(), BlockSize, render.Solid(colorBlue))
+	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), RedKind).SpriteID(), BlockSize, render.Solid(colorRed))
+	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), BlueKind).SpriteID(), BlockSize, render.Solid(colorBlue))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	floor, _ := s.board.CellKinds().Get("floor")
-	wall, _ := s.board.CellKinds().Get("wall")
+	floor, _ := s.board.CellKinds().Get(FloorCell)
+	wall, _ := s.board.CellKinds().Get(WallCell)
 	boardAtlas := render.NewAtlas()
 	boardAtlas.RegisterAt(floor.SpriteID, CellSize, render.Solid(colorFloor))
 	boardAtlas.RegisterAt(wall.SpriteID, CellSize, render.Solid(colorWall))
@@ -375,19 +370,8 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return vps
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case control.KeyEscape:
-			runtime.Quit()
-		case control.KeySpace:
-			runtime.TogglePause()
-		}
-	}
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 // divider draws the line between the halves, at the left edge of the right one, as the scene last

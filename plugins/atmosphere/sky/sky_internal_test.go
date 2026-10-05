@@ -102,7 +102,7 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 // half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
-	r.sky.freeze.Add(0, Freeze{})
+	r.sky.SetFrozen(!r.sky.Frozen())
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
 	if !r.sky.Frozen() || r.sky.Hour() != 0.5 || r.sky.Sun() != firstDay(0.5) {
@@ -111,19 +111,19 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	if m := r.sky.calendar.Now(); !near(m.Time, 0.75) {
 		t.Errorf("the calendar stands at %v, want 18:00: the day goes on under the frozen light", m.Time)
 	}
-	r.sky.later.Add(0, Later{})
-	r.sky.later.Add(0, Later{})
-	r.sky.earlier.Add(0, Earlier{})
+	r.sky.Shift(HalfHour)
+	r.sky.Shift(HalfHour)
+	r.sky.Shift(-HalfHour)
 	r.tick(0)
 	if !near(r.sky.Hour(), 12.5/24) {
 		t.Errorf("two half hours on and one back the light is at %v, want 12:30", r.sky.Hour())
 	}
-	r.sky.later.Add(0, Later{})
+	r.sky.Shift(HalfHour)
 	r.tick(0)
 	if r.sky.Sun() != firstDay(13.0/24) { // the sun moves by the day's steps, hours here
 		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", r.sky.Sun())
 	}
-	r.sky.freeze.Add(0, Freeze{})
+	r.sky.SetFrozen(!r.sky.Frozen())
 	r.tick(0)
 	if r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
 		t.Errorf("let go, the light is %+v, want the calendar's 18:00 at once", r.sky.Sun())
@@ -132,8 +132,8 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 
 func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
 	r := skyOf(t, Config{}, calendar.Config{Start: 15 * time.Minute})
-	r.sky.freeze.Add(0, Freeze{})
-	r.sky.earlier.Add(0, Earlier{})
+	r.sky.SetFrozen(!r.sky.Frozen())
+	r.sky.Shift(-HalfHour)
 	r.tick(0)
 	if !near(r.sky.Hour(), 23.75/24) {
 		t.Errorf("half an hour back from 00:15 the light is at %v, want 23:45", r.sky.Hour())

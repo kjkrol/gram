@@ -1,19 +1,9 @@
 package players
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
-
-// Pan moves the player's camera by screen pixels, the same at any zoom.
-type Pan struct{ Dx, Dy float32 }
-
-// Zoom scales the player's camera about the world point At: a Factor above 1 zooms in, below 1 out.
-type Zoom struct {
-	Factor float32
-	At     geom.Vec
-}
 
 const (
 	// EdgeMargin is how close to a window edge, in pixels, the cursor scrolls the camera.

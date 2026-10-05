@@ -1,6 +1,7 @@
 package control
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -172,8 +173,13 @@ func Command[C any](trigger Trigger, label string, build func(c Context) (C, boo
 type Contextual interface{ In(c Context) any }
 
 // Give is a Binding issuing cmd whenever trigger fires: a command the game named beforehand. One
-// that is Routed is given as its handler takes it, one that is Contextual for the Context.
+// that is Routed is given as its handler takes it, one that is Contextual for the Context. A
+// command kept in a register (a rule.Command, the world's Commands) must come from it: one made
+// on the spot panics.
 func Give(trigger Trigger, label string, cmd any) Binding {
+	if d, ok := cmd.(interface{ Defined() bool }); ok && !d.Defined() {
+		panic(fmt.Sprintf("control: the key for %q is given a command no register holds: define it by name first (world.Commands) and give what Named hands back", label))
+	}
 	cmd = Unwrap(cmd)
 	return Binding{Trigger: trigger, Label: label, command: reflect.TypeOf(cmd), build: func(c Context) (any, bool) {
 		if in, ok := cmd.(Contextual); ok {

@@ -172,7 +172,7 @@ func (s *testStage) onRow(row uint32) []uid.UID64 {
 // belongs to: "west", "east", "gate", "elsewhere" for none.
 func (s *testStage) opened() map[string]int {
 	out := map[string]int{}
-	pit, gateway := cell.Named("pit"), cell.Named("gateway")
+	pit, gateway := cell.Named(PitCell), cell.Named(GatewayCell)
 	for c := range cell.ID(s.brd.CellCount()) {
 		if k := s.brd.Kind(c).Name; k != pit && k != gateway {
 			continue
@@ -301,11 +301,11 @@ func TestGate_LetsTheScoutsOutOnlyWhileOpen(t *testing.T) {
 	s := buildStage(t)
 	s.tick(1)
 	scout := s.onRow(yardRow)[0]
-	s.world.Commands().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scout}})
+	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scout}})
 	s.tick(1)
 	meadow, _ := s.brd.CellIndex(GridWidth/2, 9) // between the strips, off the wanderers' rows
 	send := func() {
-		s.world.Commands().Put(s.player.ID, navigation.MoveTo{Cell: meadow, At: s.brd.CellCenter(meadow)})
+		s.world.Carrier().Put(s.player.ID, navigation.MoveTo{Cell: meadow, At: s.brd.CellCenter(meadow)})
 	}
 	row := func() (y uint32, alive bool) {
 		s.each(func(id uid.UID64, _, at uint32, _ bool) {
@@ -336,13 +336,13 @@ func TestHaste_OnlyTheSelectedScoutsPlayingHasty(t *testing.T) {
 	s := buildStage(t)
 	s.tick(1)
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), ScreenWidth, ScreenHeight)
-	s.world.Commands().Put(s.player.ID, selection.Select{Box: everywhere})
+	s.world.Carrier().Put(s.player.ID, selection.Select{Box: everywhere})
 	s.tick(1)
 	s.press(control.KeyJ)
 	s.tick(2)
 	var scouts, porters, selectedPorters, others int
 	s.each(func(id uid.UID64, _, y uint32, selected bool) {
-		hastened := s.effects.haste.On(id)
+		hastened := s.world.Effects().Named(HasteEf).On(id)
 		switch {
 		case y == yardRow && hastened && selected:
 			scouts++
@@ -383,7 +383,7 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	far, _ := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], far)
 	s.tick(1)
-	s.world.Commands().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scouts[0]}})
+	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scouts[0]}})
 	s.tick(1)
 	s.press(control.KeyU)
 	s.tick(TPS / 4)

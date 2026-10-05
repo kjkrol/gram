@@ -167,8 +167,8 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got, want := len(r.p.Defaults()), len(players.CameraBindings())+len(r.w.DefaultBindings()); got != want {
-		t.Errorf("Defaults has %d bindings, want the camera's and the world's clock's %d (the general suggests none)", got, want)
+	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings()); got != want {
+		t.Errorf("Defaults has %d bindings, want the players' own and the world's clock's %d (the general suggests none)", got, want)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)

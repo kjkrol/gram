@@ -4,20 +4,27 @@ import "github.com/kjkrol/gram/plugins/atmosphere/climate"
 
 // Running is which of the atmosphere's workings go on, each to switch off to see the rest without
 // it, at the start (Config.Running) or as the game goes (Plugin.SetRunning); none of it is saved.
-//   - Day: the day goes on, the sun and the moon crossing the sky with the calendar; off, the
-//     light stands at the hour it has, as P freezes it.
-//   - Weather: one weather follows another as the climate throws them; off, the weather now stays,
-//     though Shift+W still changes it.
-//   - Wind: the wind blows, carrying the clouds, swaying what sways, slanting the rain; off, the
-//     air stands still.
-//   - Clouds: the clouds cover the sky and shade the ground; off, the sky is clear.
-//   - Falls: rain and snow fall; off, nothing falls.
-//   - Weathering: the weather works on the board, snow lying, water freezing; off, the ground
-//     stays as it is.
-//   - Stars: the stars come out at night.
-//   - Moon: the moon shows on the sky and lights the night.
 type Running struct {
-	Day, Weather, Wind, Clouds, Falls, Weathering, Stars, Moon bool
+	// Day: the day goes on, the sun and the moon crossing the sky with the calendar; off, the
+	// light stands at the hour it has, as P freezes it.
+	Day bool
+	// Weather: one weather follows another as the climate throws them; off, the weather now
+	// stays, though Shift+W still changes it.
+	Weather bool
+	// Wind: the wind blows, carrying the clouds, swaying what sways, slanting the rain; off, the
+	// air stands still.
+	Wind bool
+	// Clouds: the clouds cover the sky and shade the ground; off, the sky is clear.
+	Clouds bool
+	// Falls: rain and snow fall; off, nothing falls.
+	Falls bool
+	// Weathering: the weather works on the board, snow lying, water freezing; off, the ground
+	// stays as it is.
+	Weathering bool
+	// Stars: the stars come out at night.
+	Stars bool
+	// Moon: the moon shows on the sky and lights the night.
+	Moon bool
 }
 
 // AllRunning is Running with all of it going on: what an atmosphere has when its Config says

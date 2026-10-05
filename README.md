@@ -109,6 +109,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -138,39 +139,51 @@ type box struct {
 	vel world.Velocity
 }
 
+// BoxKind is the name the one kind of unit is defined by, and found by again.
+const BoxKind = "box"
+
 // arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
-	boxes     kind.Of[box]
+	players   *players.Plugin
 	stats     collision.ContactStats
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — players, cells, effects, rules — is left out.
+// section this game has no use for — cells, effects, rules — is left out.
 func newArena() game.Stage {
 	a := &arena{}
 	return stage.New("arena").
 		Plugins(a.usePlugins).
+		Players(a.definePlayer).
 		Kinds(a.defineKinds).
 		Scenes(a.defineScenes).
 		Units(a.placeUnits).
 		Update(a.update)
 }
 
-// usePlugins makes the world and the collision plugin counting its contacts.
 func (a *arena) usePlugins(ctx game.Initializer) error {
 	a.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	return ctx.Use(a.collision)
+	a.players = players.NewPlugin(a.world)
+	if err := ctx.Use(a.collision); err != nil {
+		return err
+	}
+	return ctx.Use(a.players)
 }
 
-// defineKinds says what a box is.
+// definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
+// K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
+func (a *arena) definePlayer() error {
+	return a.players.Local("player").Bind(a.players.Defaults()...)
+}
+
 func (a *arena) defineKinds() {
-	a.boxes = kind.Define[box](a.world.Kinds(), "box", kind.Spec{
+	kind.Define[box](a.world.Kinds(), BoxKind, kind.Spec{
 		comp.Load(func(b box) world.Position { return b.pos }),
 		comp.Load(func(b box) world.Velocity { return b.vel }),
 		comp.Const(collision.Collider{}),
@@ -178,12 +191,10 @@ func (a *arena) defineKinds() {
 	})
 }
 
-// defineScenes makes the one Scene, shown as the Stage starts.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{&view{arena: a, tps: ctx.TPS()}}
 }
 
-// placeUnits scatters the boxes on a grid, each heading somewhere at random.
 func (a *arena) placeUnits() {
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
@@ -191,15 +202,15 @@ func (a *arena) placeUnits() {
 	for i := range entries {
 		var vel world.Velocity
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
-		entries[i] = a.boxes.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
+		entries[i] = kind.Named[box](a.world.Kinds(), BoxKind).Entry(box{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
 }
 
-// update is one tick: move, then collide.
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
@@ -214,7 +225,7 @@ func (v *view) Focusable() bool { return true }
 
 func (v *view) Layers() []render.Layer {
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(v.arena.boxes.SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.RegisterAt(kind.Named[box](v.arena.world.Kinds(), BoxKind).SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 
@@ -231,12 +242,8 @@ func (v *view) Viewports(screen geom.AABB) []render.Viewport {
 	return render.Whole(v.arena.world.Camera(), screen)
 }
 
-func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == control.KeyEscape {
-			runtime.Quit()
-		}
-	}
+func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	v.arena.players.Handle(events, runtime, composition)
 }
 ```
 
@@ -278,7 +285,7 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 | [`board-topography`](examples/board-topography) | The same island in relief through the topography: a range of peaks and a plateau lit by the sun, sea cliffs, streams and rivers whose water runs and falls, roads over bridges, slower up the slopes and routed round them, the ground shaped under the cursor; seen isometrically, from above or in perspective, Tab goes round; units billboards, the hawk 40 up looking over what a walker's cone climbs and stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
 | [`board-atlas`](examples/board-atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
 | [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
-| [`bullet-demo`](examples/bullet-demo) | A soldier on WSAD shoots: Space fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
+| [`bullet-demo`](examples/bullet-demo) | A soldier on WSAD shoots: F fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
 | [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of cells that is its strip, the haste one for the selected | `make demo-trapdoor` |
 | [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a cell with a name, which stood on sets off the command that names it | `make demo-pressure-plate` |
 | [`wire-demo`](examples/wire-demo) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of cells, the lever and the plate cells with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
@@ -336,10 +343,11 @@ commits to either. Game logic that reacts to what a plugin finds is a *rule*, ru
 the plugin that catches its moment:
 
 ```go
-prey := rule.Role("prey")
-predator := rule.Role("predator").Obeys(
-	rule.Then[collision.Meeting]("caught", rule.Other(prey), rule.ForOther(rule.Order(world.Despawn{}))))
-s.hunter = kind.Define[body](kinds, "hunter", kind.Spec{…, rule.Plays(predator)})
+roles := s.world.Roles()
+roles.Define(PreyRole)
+roles.Define(PredatorRole,
+	rule.Then[collision.Meeting]("caught", rule.Other(roles.Named(PreyRole)), rule.ForOther(rule.Order(world.Despawn{}))))
+kind.Define[body](kinds, HunterKind, kind.Spec{…, rule.Plays(roles.Named(PredatorRole))})
 ```
 
 fires for every pair a predator meets whose other plays `prey`, and has the prey give itself a
@@ -349,7 +357,7 @@ somebody plays to the plugin in use that catches their moment — a `Meeting` to
 rule none catches is an error, never a silent no-op. A tag is a
 bit of a family — one `tag.Tags[F]` component per family, named through `Kinds.DefineTag`, given
 to a kind with `comp.Tagged` — so markers cost no component types of their own. What lasts over
-ticks is a *plan* a kind gives its entities, `plan.New(name, func(a *plan.Actor) rule.Step {…})`,
+ticks is a *plan* a kind gives its entities, `s.world.Plans().Define(name, func(a *plan.Actor) rule.Step {…})`,
 of the same steps; both cast *effects* that hold for a while and give *commands* for their entity
 (`a.Order(navigation.MoveTo{…})`), and a plan waits for the *facts* a plugin tells it
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
@@ -369,8 +377,12 @@ or a network issue, the world what the entities give themselves.
 ## Roles and commands
 
 A *role* is a behaviour an entity plays — mortal, hasty, a plate — not a group:
-`rule.Role(name).Obeys(rules...)` fires the rules for those playing it alone, on top of their own
-filters. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
+`s.world.Roles().Define(name, rules...)` fires the rules for those playing it alone, on top of their own
+filters. **Defining registers and hands nothing back**: effects, roles, plans, commands and kinds are
+each defined under a name in the Stage's world and taken back with `Named(name)` wherever they are
+built on — a game keeps its names as constants, each with a suffix saying what it names (`Ef` an
+effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell), and a
+Stage's struct holds its plugins and nothing else. Each Stage has its own registers. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
 (`board.Plugin.Plays(kind, roles...)`), the world and the atmosphere through their own `Plays` —
 for the rules of a `clock.Moment` and of the weather. A plugin is an entity of the world too
 (`world.Self`), called by its name: it carries the plugin's knobs and the effects it is under, so
@@ -381,35 +393,51 @@ one about an effect is a sentence: put it on (`rule.Cast`), take it off (`Lift`)
 selected units or the one pointed at (`On`), set off by the entity named (`By`):
 
 ```go
-fx := s.world.Effects()
-open := fx.Define("open", effect.Spec{effect.Lasts(2 * time.Second),
+// the names, in one place: a name mistyped does not compile
+const (
+	OpenEf, HasteEf                   = "open", "haste"
+	MortalRole, HastyRole, PlateRole  = "mortal", "hasty", "plate"
+	OpenWestCmd, OpenEastCmd          = "open west", "open east"
+	HastenCmd                         = "hasten"
+	ScoutKind                         = "scout"
+	PlateCell, BoardsCell             = "plate", "boards"
+)
+
+fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
+
+// Effects
+fx.Define(OpenEf, effect.Spec{effect.Lasts(2 * time.Second),
 	effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-haste := fx.Define("haste", effect.Spec{effect.Lasts(3 * time.Second),
+fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 	effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 2 })})
 
-mortal := rule.Role("mortal").Obeys(rule.Then[unit.Standing]("fall in", rule.All,
+// Rules
+roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All,
 	rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-hasty := rule.Role("hasty")
-plate := rule.Role("plate").Obeys(rule.Then[cell.Now]("press", rule.All,
+roles.Define(HastyRole)
+roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All,
 	rule.If(cell.Now.Stood, rule.Trigger())))
+s.board.Plays(PlateCell, roles.Named(PlateRole)) // every cell laid as a plate plays it
 
-openWest := rule.Cast(open).On(entity.Group("west trapdoors"))
-openEast := rule.Cast(open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
-hasten := rule.Cast(haste).On(s.selection.Selected(hasty))
+// Commands
+cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")))
+cmds.Define(OpenEastCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).By(entity.Named("plate")))
+cmds.Define(HastenCmd, rule.Cast(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))))
 
-s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
+// Kinds
+units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
+
+// Controls
 s.player.Bind(
-	control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest),
-	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
-s.board.Plays("plate", plate) // every cell laid as a plate plays it
-return ctx.Commands(openWest, openEast)
+	control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", cmds.Named(OpenWestCmd)),
+	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", cmds.Named(HastenCmd)))
 
-// Spawn: a unit is told whose it is and that it may be selected, as it is made
-s.world.Seed(s.scout.Entry(row).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+// Units: a unit is told whose it is and that it may be selected, as it is made
+s.world.Seed(units.Named(ScoutKind).Entry(row).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 
-// Spawn: the cells are called what the commands call them
-cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}
-cell.Entry{Kind: "plate", Cell: p, Roles: []*rule.Part{plate}, Name: "plate"}
+// Layout: the cells are called what the commands call them
+cell.Entry{Kind: BoardsCell, Cell: c, Group: "west trapdoors"}
+cell.Entry{Kind: PlateCell, Cell: p, Name: "plate"}
 ```
 
 1 opens every cell in the group "west trapdoors" for two seconds under whoever stands there; the

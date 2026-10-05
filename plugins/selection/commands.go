@@ -42,10 +42,10 @@ type Allow struct{ Selected bool }
 // under construction, one carried off.
 type Forbid struct{}
 
-// casting is a rule.Casting for the selected units, or for the one pointed at, as the selection
+// effectCommand is a rule.Command for the selected units, or for the one pointed at, as the selection
 // carries it out: what Selected and Pointed route a command to.
-type casting struct {
-	cmd     rule.Casting
+type effectCommand struct {
+	cmd     rule.Command
 	only    tag.Tags[rule.Roles] // the selected playing one of these; empty: every one
 	pointed bool
 	aimed   bool // In told where the cursor was
@@ -54,8 +54,8 @@ type casting struct {
 	camera  camera.Camera
 }
 
-// In is the casting as given with the cursor where c has it: whom Pointed means.
-func (c casting) In(ctx control.Context) any {
+// In is the command as given with the cursor where c has it: whom Pointed means.
+func (c effectCommand) In(ctx control.Context) any {
 	c.aimed, c.at, c.camera = true, ctx.World(ctx.Cursor), ctx.Camera
 	c.screen = control.ScreenRect(ctx.Cursor, ctx.Cursor)
 	return c
@@ -69,7 +69,9 @@ type target struct {
 
 func (target) Target() {}
 
-func (t target) Route(c rule.Casting) any { return casting{cmd: c, only: t.only, pointed: t.pointed} }
+func (t target) Route(c rule.Command) any {
+	return effectCommand{cmd: c, only: t.only, pointed: t.pointed}
+}
 
 func (t target) String() string {
 	if t.pointed {
@@ -98,7 +100,7 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // Queues are where Select, Follow, Allow, Forbid and the commands for the selected and the pointed
 // at land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.castings, &p.allows, &p.forbids}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.effectCmds, &p.allows, &p.forbids}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it

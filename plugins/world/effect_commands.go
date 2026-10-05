@@ -13,14 +13,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// castings carries out the commands about effects (rule.Casting) for those the world can find —
+// effectCommands carries out the commands about effects (rule.Command) for those the world can find —
 // the entities named or grouped (entity.Label), the world itself — and gives the ones an entity
 // sets off (rule.Triggered) for it. It tells a rule's Playing the roles an entity plays, too.
-type castings struct {
-	queue    control.Queue[rule.Casting]
+type effectCommands struct {
+	queue    control.Queue[rule.Command]
 	triggers control.Queue[rule.Triggered]
-	sourced  []rule.Casting // those a Trigger sets off: their Source names somebody
-	known    []rule.Casting // every command the game handed over, checked once the game stands
+	sourced  []rule.Command // those a Trigger sets off: their Source names somebody
+	known    []rule.Command // every command the game handed over, checked once the game stands
 	checked  bool
 	effects  *effect.Effects
 	world    func() uid.UID64 // the world's own entity
@@ -45,7 +45,7 @@ type flip struct {
 
 // take keeps the commands a game handed over: those with a Source for Trigger, all of them to
 // check the names they say once the game stands.
-func (c *castings) take(cmds ...rule.Casting) error {
+func (c *effectCommands) take(cmds ...rule.Command) error {
 	for _, cmd := range cmds {
 		if cmd.Whom == nil {
 			return fmt.Errorf("world: %v names nobody: say whom with On", cmd)
@@ -59,7 +59,7 @@ func (c *castings) take(cmds ...rule.Casting) error {
 }
 
 // RolesOf is the roles id plays, a bit each: what a rule's Playing asks.
-func (c *castings) RolesOf(id uid.UID64) uint64 {
+func (c *effectCommands) RolesOf(id uid.UID64) uint64 {
 	if c.plays == nil || !c.plays.Seek(id) {
 		return 0
 	}
@@ -67,7 +67,7 @@ func (c *castings) RolesOf(id uid.UID64) uint64 {
 }
 
 // system carries out the step's commands: first those the entities set off, then those given.
-func (c *castings) system() goke.System {
+func (c *effectCommands) system() goke.System {
 	return goke.SystemFn{
 		OnInit: func(si *goke.SysInit) {
 			c.labelled = si.NewQueryBuilder(&c.label).Build()
@@ -94,7 +94,7 @@ func (c *castings) system() goke.System {
 					}
 				}
 			})
-			c.queue.Drain(func(i control.Issued[rule.Casting]) { c.carry(i.Command) })
+			c.queue.Drain(func(i control.Issued[rule.Command]) { c.carry(i.Command) })
 			for _, f := range c.flips {
 				switch {
 				case f.on && (f.cast || !f.was) && f.lasts > 0:
@@ -111,7 +111,7 @@ func (c *castings) system() goke.System {
 }
 
 // carry notes what cmd does to each entity it is for; a Toggle looks at them all first.
-func (c *castings) carry(cmd rule.Casting) {
+func (c *effectCommands) carry(cmd rule.Command) {
 	whom, ok := cmd.Whom.(entity.Whom)
 	if !ok || cmd.Effect == (effect.Effect{}) {
 		return
@@ -143,7 +143,7 @@ func (c *castings) carry(cmd rule.Casting) {
 }
 
 // flipOf is the step's note of e on id, begun as the entity stands.
-func (c *castings) flipOf(id uid.UID64, e effect.Effect) *flip {
+func (c *effectCommands) flipOf(id uid.UID64, e effect.Effect) *flip {
 	for i := range c.flips {
 		if c.flips[i].id == id && c.flips[i].e == e {
 			return &c.flips[i]
@@ -155,7 +155,7 @@ func (c *castings) flipOf(id uid.UID64, e effect.Effect) *flip {
 }
 
 // each calls fn with every labelled entity.
-func (c *castings) each(fn func(id uid.UID64, l entity.Label)) {
+func (c *effectCommands) each(fn func(id uid.UID64, l entity.Label)) {
 	for c.labelled.All(); c.labelled.Next(); {
 		cur := c.labelled.Cursor()
 		for i, l := range c.label.Slice(cur) {
@@ -166,7 +166,7 @@ func (c *castings) each(fn func(id uid.UID64, l entity.Label)) {
 
 // check panics for a name two entities bear and for a name or a group a command the game handed
 // over says that nobody bears: a slip of the pen, found as the game's first step begins.
-func (c *castings) check() {
+func (c *effectCommands) check() {
 	names := map[uint64]int{}
 	var labels []entity.Label
 	c.each(func(_ uid.UID64, l entity.Label) {
@@ -175,7 +175,7 @@ func (c *castings) check() {
 			names[l.Name]++
 		}
 	})
-	said := func(w entity.Whom, cmd rule.Casting) {
+	said := func(w entity.Whom, cmd rule.Command) {
 		w.Each(func(what string, borne func(entity.Label) bool) {
 			n := 0
 			for _, l := range labels {

@@ -50,8 +50,8 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 	})
 	g.unit = kind.Named[float64](g.world.Kinds(), "unit")
-	g.world.Castings().Define("alert the captain", rule.Cast(g.alert).On(entity.Named("captain")))
-	g.world.Castings().Define("alert the guards", rule.Cast(g.alert).On(entity.Group("guards")))
+	g.world.Commands().Define("alert the captain", rule.Cast(g.alert).On(entity.Named("captain")))
+	g.world.Commands().Define("alert the guards", rule.Cast(g.alert).On(entity.Group("guards")))
 	return nil
 }
 
@@ -87,7 +87,7 @@ func (g *guardStage) Stack() game.Scenes {
 // give gives cmd as nobody and ticks it through.
 func (g *guardStage) give(t *testing.T, cmd any) {
 	t.Helper()
-	if !g.world.Commands().Put(control.Nobody, cmd) {
+	if !g.world.Carrier().Put(control.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	for range 2 {
@@ -111,7 +111,7 @@ func (g *guardStage) alerted() map[float64]bool {
 
 // A command reaches the unit that bears the name it says, the units in the group it says, or the
 // world itself, and nobody else.
-func TestCasting_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
+func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	g := &guardStage{}
 	runGuards(t, g)
 
@@ -132,7 +132,7 @@ func TestCasting_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 }
 
 // What the units are called is saved with them: a loaded game's captain is still the one found.
-func TestCasting_NamesSurviveASaveAndALoad(t *testing.T) {
+func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	path := t.TempDir() + "/save"
 	if err := runGuards(t, &guardStage{}).Persistence().Save(path, ""); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -147,22 +147,22 @@ func TestCasting_NamesSurviveASaveAndALoad(t *testing.T) {
 
 // A Stage's commands are found by the names they were defined under; one that names nobody, a
 // name defined twice, a name unknown and no name at all are refused, by name.
-func TestCastings_AreDefinedOnceAndFoundByName(t *testing.T) {
+func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Effects().Define("alert", effect.Spec{})
 	alert := w.Effects().Named("alert")
-	w.Castings().Define("alarm", rule.Cast(alert).On(entity.World).For(time.Minute))
-	if got := w.Castings().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(entity.Whom).IsWorld() {
+	w.Commands().Define("alarm", rule.Cast(alert).On(entity.World).For(time.Minute))
+	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(entity.Whom).IsWorld() {
 		t.Errorf("the command found is %+v, want the one defined", got)
 	}
 	for name, c := range map[string]struct {
 		do   func()
 		want string
 	}{
-		"for nobody":    {func() { w.Castings().Define("idle", rule.Cast(alert)) }, "names nobody"},
-		"defined twice": {func() { w.Castings().Define("alarm", rule.Lift(alert).On(entity.World)) }, `"alarm" is defined already`},
-		"unknown":       {func() { w.Castings().Named("retreat") }, `no command is defined as "retreat"`},
-		"no name":       {func() { w.Castings().Define("", rule.Cast(alert).On(entity.World)) }, "needs a name"},
+		"for nobody":    {func() { w.Commands().Define("idle", rule.Cast(alert)) }, "names nobody"},
+		"defined twice": {func() { w.Commands().Define("alarm", rule.Lift(alert).On(entity.World)) }, `"alarm" is defined already`},
+		"unknown":       {func() { w.Commands().Named("retreat") }, `no command is defined as "retreat"`},
+		"no name":       {func() { w.Commands().Define("", rule.Cast(alert).On(entity.World)) }, "needs a name"},
 	} {
 		if msg := panicMessage(t, c.do); !strings.Contains(msg, c.want) {
 			t.Errorf("%s: panic %q, want it to say %s", name, msg, c.want)

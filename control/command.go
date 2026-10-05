@@ -124,7 +124,7 @@ func (c *Carrier) Empty() bool {
 }
 
 // Routed is a command written one way and carried as another: Routed is the command its handler
-// takes — a rule.Casting, by whom it is for.
+// takes — a rule.Command, by whom it is for.
 type Routed interface{ Routed() any }
 
 // Unwrap is cmd as its handler takes it: itself, or what a Routed command says.

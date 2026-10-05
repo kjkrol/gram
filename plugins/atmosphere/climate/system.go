@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -25,9 +24,8 @@ type weatherSystem struct {
 	cfg      Config
 	world    *world.Plugin
 	calendar *calendar.Calendar
-	change   *control.Queue[Change]
-	set      *control.Queue[Set]
-	running  *Running // which of the workings go on, the Climate's
+	asked    *[]string // the Climate's: the changes asked for, carried out in the next step
+	running  *Running  // which of the workings go on, the Climate's
 
 	query   *goke.Query
 	now     goke.Comp[Weather]
@@ -38,8 +36,8 @@ type weatherSystem struct {
 	current air.Weather      // the air as the last step left it, what Climate.Air gives
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *plugin.StepRules[Weathering], running *Running) *weatherSystem {
-	return &weatherSystem{cfg: cfg, world: w, calendar: cal, change: change, set: set, running: running, host: rules, profile: cfg.Zone.Profile()}
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *plugin.StepRules[Weathering], running *Running) *weatherSystem {
+	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running, host: rules, profile: cfg.Zone.Profile()}
 }
 
 // snowsBelow is the temperature, degrees Celsius, below which what falls comes down as snow.
@@ -88,12 +86,14 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		if w.State == unbegun {
 			s.begin(w, m)
 		}
-		s.change.Drain(func(control.Issued[Change]) { s.enter(w, s.next(w, season)) })
-		s.set.Drain(func(i control.Issued[Set]) {
-			if at := s.cfg.index(i.Command.Name); at >= 0 {
+		for _, name := range *s.asked {
+			if name == "" {
+				s.enter(w, s.next(w, season))
+			} else if at := s.cfg.index(name); at >= 0 {
 				s.enter(w, at)
 			}
-		})
+		}
+		*s.asked = (*s.asked)[:0]
 		dt := float32(d.Seconds())
 		if s.running.Changes {
 			if w.Left -= dt; w.Left <= 0 {

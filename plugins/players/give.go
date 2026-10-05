@@ -9,11 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 )
 
-// Give is the command by which an entity becomes To's — its alone, whoever's it was; Nobody's for
-// control.Nobody. An entity gives it itself: as it is made (kind.Entry.Told), or in a rule or a
-// plan — captured, converted. Its units take commands from that player alone from then on.
-type Give struct{ To control.PlayerID }
-
 var _ goke.System = (*giveSystem)(nil)
 
 // giveSystem carries out the Gives: the one owner of the entity that gave it.

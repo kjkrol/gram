@@ -44,7 +44,7 @@
 // lasts over ticks is a kind's plan, of the same steps (package rule): it casts effects and orders
 // commands — the same as a player's — for its entity.
 //
-// A role (rule.Role) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
+// A role (world.Roles) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
 // the rules it obeys fire for those playing it alone. A kind plays roles through one component
 // (rule.Plays), a cell through its kind (board.Plugin.Plays), the world and the atmosphere, for the
 // moments of the world as a whole, through their own Plays. What somebody

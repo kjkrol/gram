@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/hosts"
@@ -124,7 +125,7 @@ func (s *testStage) wandererOn(c cell.ID) uid.UID64 {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
-			if s.base.Slice(cur)[k].TypeID == s.wanderer.ID() && s.base.Slice(cur)[k].Pos.Center() == s.brd.CellCenter(c) {
+			if s.base.Slice(cur)[k].TypeID == kind.Named[unitRow](s.world.Kinds(), WandererKind).ID() && s.base.Slice(cur)[k].Pos.Center() == s.brd.CellCenter(c) {
 				return id
 			}
 		}
@@ -145,7 +146,7 @@ func (s *testStage) state(id uid.UID64) (alive, wounded bool) {
 			}
 			alive = true
 			if m := s.marks.Slice(cur); m != nil {
-				wounded = m[k].Has(s.wounded.Mark())
+				wounded = m[k].Has(s.effects.Named(WoundedEf).Mark())
 			}
 		}
 	}
@@ -170,7 +171,7 @@ func TestShoot_ARoundWoundsTheWandererOnTheRoad(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(8, roadRow))
 	for i := 0; i < 5*TPS; i++ {
 		if i%15 == 0 {
-			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.round}); err != nil {
+			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(RoundKind)}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -190,7 +191,7 @@ func TestThrow_AGrenadeBurstsBehindTheHighWall(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(9, 4))
 	at := s.brd.CellCenter(s.cellAt(10, 4))
 	s.tick(1) // the soldier is told whose it is and selected as it is made: carried out in the first tick
-	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.grenade, At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
+	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(GrenadeKind), At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
 		t.Fatal(err)
 	}
 	s.tick(1)

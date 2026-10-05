@@ -148,7 +148,7 @@ func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) 
 func TestCarrier_ATreesCommandsGoWithinTheirFrame(t *testing.T) {
 	s := &carrierStage{}
 	run(t, s, 30, func() {
-		if !s.world.Commands().Empty() {
+		if !s.world.Carrier().Empty() {
 			t.Fatalf("a command waits past the frame at %v of game time", s.world.Clock().Time())
 		}
 	})

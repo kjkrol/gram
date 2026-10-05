@@ -29,9 +29,9 @@
 // shadows and nights are dark. The light goes on tick by tick, or, where the Config asks for steps,
 // moves a step at a time — for whoever works out much anew whenever the sun moves.
 //
-// The light can be frozen: [Freeze] (P) stops it at the hour it stands, or lets it go with the
-// calendar again; [Later] and [Earlier] (Shift+] and Shift+[) move a frozen light half an hour on
-// or back. Only the light freezes — the calendar, the weather and the schedule go on — and it is
+// The light can be frozen: [Sky.SetFrozen] stops it at the hour it stands, or lets it go with the
+// calendar again, and [Sky.Shift] moves a frozen light — what the atmosphere's commands Freeze
+// (P), Later and Earlier (Shift+] and Shift+[, [HalfHour] each) ask. Only the light freezes — the calendar, the weather and the schedule go on — and it is
 // a look at the world, like the camera's turn: it changes at once, in the tactical pause too, and
 // is not saved with the game. Let go, the light is the hour's again at once.
 //

@@ -1,7 +1,7 @@
 // Package collision detects overlaps between world entities each tick and records what each
 // struck on its Collider. An entity takes part while it carries Collider; one also carrying
 // Physics is pushed apart and bounces. Reactions are rules (rule.Then) of a Meeting, a pair, or of
-// a Struck, obeyed by the roles its entities play (rule.Role).
+// a Struck, obeyed by the roles its entities play (world.Roles).
 //
 // # Plugin and its system
 //

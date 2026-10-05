@@ -11,17 +11,17 @@ import (
 // Colors is how each kind of the island looks: the sea, the grounds, the running water, the roads
 // and the forest.
 var Colors = map[string]color.RGBA{
-	"water":  {R: 40, G: 90, B: 170, A: 255},
-	"earth":  {R: 110, G: 150, B: 75, A: 255},
-	"sand":   {R: 215, G: 195, B: 140, A: 255},
-	"rock":   {R: 130, G: 125, B: 120, A: 255},
-	"brook":  {R: 90, G: 145, B: 205, A: 255},
-	"stream": {R: 90, G: 145, B: 205, A: 255},
-	"river":  {R: 90, G: 145, B: 205, A: 255},
-	"ford":   {R: 90, G: 145, B: 205, A: 255},
-	"road":   {R: 165, G: 135, B: 95, A: 255},
-	"bridge": {R: 115, G: 85, B: 55, A: 255},
-	"forest": {R: 30, G: 90, B: 45, A: 255},
+	WaterCell:  {R: 40, G: 90, B: 170, A: 255},
+	EarthCell:  {R: 110, G: 150, B: 75, A: 255},
+	SandCell:   {R: 215, G: 195, B: 140, A: 255},
+	RockCell:   {R: 130, G: 125, B: 120, A: 255},
+	BrookCell:  {R: 90, G: 145, B: 205, A: 255},
+	StreamCell: {R: 90, G: 145, B: 205, A: 255},
+	RiverCell:  {R: 90, G: 145, B: 205, A: 255},
+	FordCell:   {R: 90, G: 145, B: 205, A: 255},
+	RoadCell:   {R: 165, G: 135, B: 95, A: 255},
+	BridgeCell: {R: 115, G: 85, B: 55, A: 255},
+	ForestCell: {R: 30, G: 90, B: 45, A: 255},
 }
 
 // Kinds are the island's kinds, in their Colors, for a board's dictionary: the sea; the grounds
@@ -31,18 +31,18 @@ var Colors = map[string]color.RGBA{
 // Only a world with heights takes what stands on a cell: forest is how tall the forest stands, in
 // world units, 0 on a flat map.
 func Kinds(forest float64) []cell.Kind {
-	trees := cell.Kind{Name: cell.Named("forest"), Cost: 7.5, Allows: cell.Land | cell.Air, Veil: 0.6, Height: forest}.Costing(cell.Air, 1)
+	trees := cell.Kind{Name: cell.Named(ForestCell), Cost: 7.5, Allows: cell.Land | cell.Air, Veil: 0.6, Height: forest}.Costing(cell.Air, 1)
 	kinds := []cell.Kind{
-		{Name: cell.Named("water"), Cost: 1, Allows: cell.Water | cell.Air},
-		cell.Kind{Name: cell.Named("earth"), Cost: 2.5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named("sand"), Cost: 4, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named("rock"), Cost: 3.25, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named("brook"), Cost: 3.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
-		cell.Kind{Name: cell.Named("stream"), Cost: 5, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
-		{Name: cell.Named("river"), Cost: 1, Allows: cell.Water | cell.Air},
-		cell.Kind{Name: cell.Named("ford"), Cost: 6.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
-		{Name: cell.Named("road"), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
-		{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
+		{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water | cell.Air},
+		cell.Kind{Name: cell.Named(EarthCell), Cost: 2.5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named(SandCell), Cost: 4, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named(RockCell), Cost: 3.25, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
+		cell.Kind{Name: cell.Named(BrookCell), Cost: 3.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		cell.Kind{Name: cell.Named(StreamCell), Cost: 5, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		{Name: cell.Named(RiverCell), Cost: 1, Allows: cell.Water | cell.Air},
+		cell.Kind{Name: cell.Named(FordCell), Cost: 6.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
+		{Name: cell.Named(BridgeCell), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
 		trees,
 	}
 	for i := range kinds {
@@ -54,12 +54,12 @@ func Kinds(forest float64) []cell.Kind {
 // Style gives t the island's looks in relief: the sea glinting under the grounds, which blend into
 // one another, and the running water running, taking on the sea's colour towards its mouth.
 func Style(t *topography.Plugin) *topography.Plugin {
-	return t.Style("water", painter.Style{Under: true, Shine: 0.9}).
-		Style("earth", painter.Style{Spread: 0.3}).
-		Style("sand", painter.Style{Spread: 0.35}).
-		Style("rock", painter.Style{Spread: 0.25}).
-		Style("brook", painter.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
-		Style("stream", painter.Style{Shine: 0.9, Flow: 30, MixWith: "water"}).
-		Style("river", painter.Style{Shine: 0.9, Flow: 22, MixWith: "water"}).
-		Style("ford", painter.Style{Shine: 0.9, Flow: 22, MixWith: "water"})
+	return t.Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
+		Style(EarthCell, painter.Style{Spread: 0.3}).
+		Style(SandCell, painter.Style{Spread: 0.35}).
+		Style(RockCell, painter.Style{Spread: 0.25}).
+		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
+		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
+		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
+		Style(FordCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
 }

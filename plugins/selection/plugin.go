@@ -20,7 +20,7 @@ type Plugin struct {
 	selects      control.Queue[Select]
 	marqueeQueue control.Queue[Marquee]
 	follows      control.Queue[Follow]
-	castings     control.Queue[casting]
+	effectCmds   control.Queue[effectCommand]
 	allows       control.Queue[Allow]
 	forbids      control.Queue[Forbid]
 	marquees     marquees
@@ -60,7 +60,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
-	sys.castings, sys.effects = &p.castings, p.worldPlugin.Effects()
+	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Effects()
 	sys.allows, sys.forbids = &p.allows, &p.forbids
 	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
 	ctx.UseModule(p.module)

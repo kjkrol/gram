@@ -139,7 +139,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	draw := func(s *sectioned, _ game.Initializer) error { return s.world.Draw() }
 	commands := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("lit", effect.Spec{})
-		s.world.Castings().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
+		s.world.Commands().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
 		return nil
 	}
 	for name, tc := range map[string]struct {

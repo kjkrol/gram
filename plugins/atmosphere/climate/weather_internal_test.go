@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -110,34 +109,22 @@ func TestWeather_BeginsInItsStartLastsAndGoesOnAsItsWeightsSay(t *testing.T) {
 
 func TestWeather_ChangeAndSetGoOnAtOnce(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
-	r.c.change.Add(control.Nobody, Change{})
+	r.c.Change()
 	r.tick(time.Millisecond)
 	if r.now().State != 1 {
 		t.Errorf("after Change the state is %d, want the next", r.now().State)
 	}
-	r.c.set.Add(control.Nobody, Set{Name: "clear"})
-	r.c.set.Add(control.Nobody, Set{Name: "fog"})
+	r.c.Set("clear")
+	r.c.Set("fog")
 	r.tick(time.Millisecond)
 	if r.now().State != 0 {
 		t.Errorf("after Set clear (and an unknown fog) the state is %d, want clear", r.now().State)
 	}
 }
 
-// Shift+W changes the weather with the camera free only: riding in a unit, W with Shift sprints.
-func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
-	r := weatherOf(t, twoStates(), calendar.Summer)
-	bds := r.c.DefaultBindings()
-	if len(bds) != 1 {
-		t.Fatalf("%d bindings, want the one to change the weather", len(bds))
-	}
-	if !bds[0].Holds(camera.Free) || bds[0].Holds(camera.FirstPerson) {
-		t.Errorf("Shift+W holds free %v, riding %v; want free only", bds[0].Holds(camera.Free), bds[0].Holds(camera.FirstPerson))
-	}
-}
-
 func TestWeather_TheWindCarriesTheClouds(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
-	r.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	r.c.Set("cloudy")
 	r.run(5 * time.Second) // blown up to 20
 	before := r.now().Drift
 	r.run(10 * time.Second)
@@ -157,7 +144,7 @@ func TestClimate_RunningLeavesOutWhatIsStopped(t *testing.T) {
 	if w := r.now(); w.State != 0 {
 		t.Fatalf("the weather changes stopped, it went on to state %d", w.State)
 	}
-	r.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	r.c.Set("cloudy")
 	r.run(10 * time.Second)
 	w, a := r.now(), r.c.Air()
 	if w.State != 1 || w.Clouds < 0.5 || w.Rain < 0.3 {
@@ -175,13 +162,13 @@ func TestClimate_RunningLeavesOutWhatIsStopped(t *testing.T) {
 
 func TestWeather_IsColdInWinterWarmInSummerAndSnowsWhenCold(t *testing.T) {
 	winter := weatherOf(t, twoStates(), calendar.Winter)
-	winter.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	winter.c.Set("cloudy")
 	winter.run(20 * time.Second)
 	if w := winter.now(); w.Temperature >= 0 || w.Rain > 0.01 || w.Snow < 0.4 {
 		t.Errorf("in midwinter it is %v°, rain %v, snow %v; want below freezing and snowing", w.Temperature, w.Rain, w.Snow)
 	}
 	summer := weatherOf(t, twoStates(), calendar.Summer)
-	summer.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	summer.c.Set("cloudy")
 	summer.run(20 * time.Second)
 	if w := summer.now(); w.Temperature < 10 || w.Snow > 0.01 || w.Rain < 0.4 {
 		t.Errorf("in midsummer it is %v°, rain %v, snow %v; want warm and raining", w.Temperature, w.Rain, w.Snow)
@@ -209,9 +196,9 @@ func TestWeather_AStateComesOnlyInItsSeasonsAndTheSameSeedGoesTheSameWay(t *test
 	seen := map[int32]bool{}
 	r := weatherOf(t, cfg, calendar.Summer)
 	for range 40 {
-		r.c.set.Add(control.Nobody, Set{Name: "clear"})
+		r.c.Set("clear")
 		r.tick(time.Millisecond)
-		r.c.change.Add(control.Nobody, Change{})
+		r.c.Change()
 		r.tick(time.Millisecond)
 		seen[r.now().State] = true
 	}
@@ -220,8 +207,8 @@ func TestWeather_AStateComesOnlyInItsSeasonsAndTheSameSeedGoesTheSameWay(t *test
 	}
 	a, b := weatherOf(t, cfg, calendar.Winter), weatherOf(t, cfg, calendar.Winter)
 	for range 20 {
-		a.c.change.Add(control.Nobody, Change{})
-		b.c.change.Add(control.Nobody, Change{})
+		a.c.Change()
+		b.c.Change()
 		a.tick(time.Millisecond)
 		b.tick(time.Millisecond)
 		if a.now().State != b.now().State {
@@ -233,7 +220,7 @@ func TestWeather_AStateComesOnlyInItsSeasonsAndTheSameSeedGoesTheSameWay(t *test
 func TestReport_SaysTheWeatherTheWindAndTheSnow(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Winter)
 	rep := &report{names: []string{"clear", "cloudy"}, query: r.sys.query, now: r.sys.now}
-	r.c.set.Add(control.Nobody, Set{Name: "cloudy"})
+	r.c.Set("cloudy")
 	r.run(20 * time.Second)
 	var got string
 	rep.Report(func(label, value string) { got = label + ": " + value })
@@ -273,7 +260,7 @@ func TestWeather_BegunInWinterIsColdAtOnce(t *testing.T) {
 // the rules hear the step.
 func TestWeather_GoesByTheStepsOfTheSimulation(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
-	r.c.set.Add(control.Nobody, Set{Name: "cloudy"}) // a minute long
+	r.c.Set("cloudy") // a minute long
 	r.tick(time.Millisecond)
 	left := r.now().Left
 	r.tick(5 * time.Second)

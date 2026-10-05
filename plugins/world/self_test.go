@@ -102,7 +102,7 @@ func (g *skyStage) Stack() game.Scenes {
 func (g *skyStage) give(t *testing.T, cmds ...any) {
 	t.Helper()
 	for _, cmd := range cmds {
-		if !g.world.Commands().Put(control.Nobody, cmd) {
+		if !g.world.Carrier().Put(control.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)
 		}
 	}
@@ -153,7 +153,7 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	}
 	scout := g.theScout(t)
 
-	if !g.world.Commands().Put(control.Nobody, rule.Cast(g.storm).On(g.sky)) {
+	if !g.world.Carrier().Put(control.Nobody, rule.Cast(g.storm).On(g.sky)) {
 		t.Fatal("the world carries no command for a plugin")
 	}
 	g.ecs.Tick(time.Second / 60)

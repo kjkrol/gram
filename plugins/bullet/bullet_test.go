@@ -326,7 +326,7 @@ func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 			r := newRig(t, scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: tc.facing, speed: 600}}})
 			ammo := round(r, true)
 			r.start()
-			if !r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo}) {
+			if !r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo}) {
 				t.Fatal("the world does not carry a Shoot")
 			}
 			r.tick(1)
@@ -369,7 +369,7 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	for i := 0; i < 60 && !r.unit(1).marks.Has(told.Mark()); i++ {
 		r.tick(1)
 	}
@@ -399,7 +399,7 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	landed := -1
 	for i := 0; i < 60; i++ {
 		r.tick(1)
@@ -430,7 +430,7 @@ func TestShoot_ATargetInTheLastStretchOfTheRangeIsStruck(t *testing.T) {
 	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 95, Lands: true})
 	ammo := r.arms.Named("short")
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(13)
 	shot := r.theShot()
 	if f := shot.flight; !f.Landed || f.Ending != bullet.Struck || f.Other != r.ids[1] {
@@ -444,7 +444,7 @@ func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
 	ammo := r.arms.Named("short")
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(11) // spawned, then ten steps of ten
 	shot := r.theShot()
 	if f := shot.flight; f.Landed || f.Ending != bullet.Spent || math.Abs(f.Flown-100) > 1e-3 {
@@ -485,7 +485,7 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade})
 	r.tick(60)
 	for k, want := range []bool{false, true, true, false} {
 		if got := r.unit(k).marks.Has(hurt.Mark()); got != want {
@@ -513,7 +513,7 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 			r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
 			grenade := r.arms.Named("grenade")
 			r.start()
-			r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110), Targeted: true})
+			r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110), Targeted: true})
 			peak := 0.0
 			for i := 0; i < 90; i++ {
 				r.tick(1)
@@ -556,7 +556,7 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 			t.Fatal(err)
 		}
 		r.start()
-		r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+		r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 		r.tick(14)
 		shot := r.theShot()
 		if f := shot.flight; !f.Landed || f.Ending != bullet.Left || !shot.marks.Has(gone.Mark()) {
@@ -567,7 +567,7 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		r := newRig(t, scene{pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
 		ammo := round(r, true)
 		r.start()
-		r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+		r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 		r.tick(14)
 		shot := r.theShot()
 		if f := shot.flight; !f.Landed || f.Ending != bullet.Edge || f.At.X+2 != 400 {
@@ -587,7 +587,7 @@ func TestShoot_APlayerFiresFromItsSelectedUnitsAlone(t *testing.T) {
 	}})
 	ammo := round(r, true)
 	r.start()
-	if !r.w.Commands().Put(1, bullet.Shoot{Ammo: ammo}) {
+	if !r.w.Carrier().Put(1, bullet.Shoot{Ammo: ammo}) {
 		t.Fatal("the world does not carry a Shoot")
 	}
 	r.tick(1)
@@ -608,7 +608,7 @@ func TestShoot_AimedGoesAtTheSubject(t *testing.T) {
 	r.start()
 	cmd := bullet.Shoot{Ammo: ammo}
 	cmd.Aim(r.ids[1])
-	r.w.Commands().PutFrom(r.ids[0], cmd)
+	r.w.Carrier().PutFrom(r.ids[0], cmd)
 	r.tick(1)
 	if shot := r.theShot(); shot.flight.Dir != geom.NewVec(0, 1) {
 		t.Errorf("the shot flies %v, want south, at the one aimed at", shot.flight.Dir)
@@ -643,7 +643,7 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
 	ammo := r.arms.Named("short")
 	r.start()
-	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(4)
 	before := r.theShot()
 	path := t.TempDir() + "/save.bin"

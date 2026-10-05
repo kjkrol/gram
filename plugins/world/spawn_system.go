@@ -14,17 +14,6 @@ import (
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 )
 
-// Spawn is the command to add an entity of a kind to the running world, as Seed does before the
-// game: the kind's Loads read the row of its Entry, as given. A player, the game's code
-// (control.Nobody, Plugin.Spawn) or an entity (Order in a rule or a plan: a building raising a
-// recruit at its gate, the Entry fixed as the rule is written) gives it; it is carried out at the
-// world's next step of the simulation — the same step for a plan's Order, none in the tactical
-// pause — and refused with a log line, never a panic, for an unknown kind, a wrong row, a world
-// that is full (Config.Entities.MaxCount), a size out of bounds or a box wholly past an open edge;
-// at a closed edge the box is stopped inside, as at Populate. A Load that panics is the game's
-// own bug, as it is at Populate.
-type Spawn struct{ Entry kind.Entry }
-
 var _ goke.System = (*spawnSystem)(nil)
 
 // spawnSystem carries out the Spawns given since the last step: one Factory a kind, built once

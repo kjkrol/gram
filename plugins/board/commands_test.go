@@ -24,7 +24,7 @@ type meadow struct {
 	lever, plate             cell.ID
 	west, east               []cell.ID
 	open                     effect.Effect
-	openWest, openEast, flip rule.Casting
+	openWest, openEast, flip rule.Command
 }
 
 func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
@@ -63,8 +63,8 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		m.openWest = rule.Cast(m.open).On(entity.Group("west doors")).By(entity.Named("lever"))
 		m.openEast = rule.Cast(m.open).On(entity.Group("east doors")).By(entity.Named("plate"))
 		m.flip = rule.Toggle(m.open).On(entity.Named("lever", "plate")).For(time.Hour)
-		for name, cmd := range map[string]rule.Casting{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
-			w.Castings().Define(name, cmd)
+		for name, cmd := range map[string]rule.Command{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
+			w.Commands().Define(name, cmd)
 		}
 		return plate.Rules()
 	}, units)
@@ -74,7 +74,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 // give gives cmd as nobody and ticks it through.
 func (m *meadow) give(t *testing.T, cmd any) {
 	t.Helper()
-	if !m.World.World.Commands().Put(control.Nobody, cmd) {
+	if !m.World.World.Carrier().Put(control.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	m.Tick()
@@ -143,7 +143,7 @@ func TestToggle_SwitchesThoseItNames(t *testing.T) {
 	if n := m.under(m.lever, m.plate); n != 0 {
 		t.Fatalf("flipped off: %d of the two named under it, want none", n)
 	}
-	m.World.World.Commands().Put(control.Nobody, m.flip)
+	m.World.World.Carrier().Put(control.Nobody, m.flip)
 	m.give(t, m.flip)
 	if n := m.under(m.lever, m.plate); n != 0 {
 		t.Errorf("flipped twice in a step: %d under it, want them as they were, off", n)
@@ -172,17 +172,17 @@ func (*meadow) plateCell() cell.ID {
 func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 	for name, tc := range map[string]struct {
 		cells []cell.Entry
-		cmd   func(e effect.Effect) rule.Casting
+		cmd   func(e effect.Effect) rule.Command
 		want  string
 	}{
 		"nobody is called so": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}},
-			cmd:   func(e effect.Effect) rule.Casting { return rule.Cast(e).On(entity.Named("levr")) },
+			cmd:   func(e effect.Effect) rule.Command { return rule.Cast(e).On(entity.Named("levr")) },
 			want:  `"levr"`,
 		},
 		"two bear one name": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}, {Cell: 1, Name: "lever"}},
-			cmd:   func(e effect.Effect) rule.Casting { return rule.Cast(e).On(entity.Named("lever")) },
+			cmd:   func(e effect.Effect) rule.Command { return rule.Cast(e).On(entity.Named("lever")) },
 			want:  "one name",
 		},
 	} {
@@ -198,7 +198,7 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 					t.Fatal(err)
 				}
 				w.Effects().Define("open", effect.Spec{})
-				w.Castings().Define("open", tc.cmd(w.Effects().Named("open")))
+				w.Commands().Define("open", tc.cmd(w.Effects().Named("open")))
 				return nil
 			}, nil)
 			defer func() {
