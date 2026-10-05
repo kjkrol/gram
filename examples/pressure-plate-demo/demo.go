@@ -214,11 +214,13 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	land := unit.Mover{Domain: cell.Land}
-	s.scout = units.Define("scout", land, profile, rule.Plays(s.mortal))
+	units.Define("scout", land, profile, rule.Plays(s.mortal))
+	s.scout = units.Named("scout")
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
-	s.wanderer = units.Define("wanderer", land, profile,
+	units.Define("wanderer", land, profile,
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }),
 		rule.Plays(s.mortal))
+	s.wanderer = units.Named("wanderer")
 }
 
 func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }

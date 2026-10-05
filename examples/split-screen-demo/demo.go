@@ -192,8 +192,10 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
 	// each block is its player's: it takes that player's Drive alone
-	s.redBlock = units.Define("red", unit.Mover{Domain: cell.Land}, profile)
-	s.blueBlock = units.Define("blue", unit.Mover{Domain: cell.Land}, profile)
+	units.Define("red", unit.Mover{Domain: cell.Land}, profile)
+	s.redBlock = units.Named("red")
+	units.Define("blue", unit.Mover{Domain: cell.Land}, profile)
+	s.blueBlock = units.Named("blue")
 }
 
 // cellAt is the cell at column x, row y.

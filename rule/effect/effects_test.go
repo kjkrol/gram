@@ -97,7 +97,8 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		spec = append(spec, comp.Tagged[moods](), comp.Marks[effect.States]())
 	}
 	spec = append(spec, r.comps...)
-	unit := kind.Define[struct{}](r.w.Kinds(), "unit", spec)
+	kind.Define[struct{}](r.w.Kinds(), "unit", spec)
+	unit := kind.Named[struct{}](r.w.Kinds(), "unit")
 	r.w.Seed(unit.Entry(struct{}{}))
 	if err := r.w.Populate(); err != nil {
 		t.Fatal(err)

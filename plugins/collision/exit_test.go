@@ -39,7 +39,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 		rules = append(rules, rule.Then[world.Leaving]("left", rule.All, rule.Order(heard{})))
 	}
 	c := collision.NewPlugin(w)
-	boxes := kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
+	kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b pushedOut) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
@@ -50,6 +50,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 			return collision.Physics{}
 		}),
 	})
+	boxes := kind.Named[pushedOut](w.Kinds(), "box")
 	w.Seed(boxes.Entry(pushedOut{x: 0, wall: true}), boxes.Entry(pushedOut{x: -9}))
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)

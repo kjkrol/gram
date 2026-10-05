@@ -195,9 +195,12 @@ func (s *mainStage) defineKinds() {
 			rule.Plays(s.moody),
 		}, more...)
 	}
-	s.walker = kind.Define[walker](kinds, "walker", spec())
-	s.ghost = kind.Define[walker](kinds, "ghost", spec(comp.Const(Ghost{})))
-	s.leader = kind.Define[walker](kinds, "leader", spec(comp.Const(Leader{})))
+	kind.Define[walker](kinds, "walker", spec())
+	s.walker = kind.Named[walker](kinds, "walker")
+	kind.Define[walker](kinds, "ghost", spec(comp.Const(Ghost{})))
+	s.ghost = kind.Named[walker](kinds, "ghost")
+	kind.Define[walker](kinds, "leader", spec(comp.Const(Leader{})))
+	s.leader = kind.Named[walker](kinds, "leader")
 	for h := range s.facing {
 		s.facing[h], s.angrySprite[h] = kinds.NewSprite(), kinds.NewSprite()
 	}

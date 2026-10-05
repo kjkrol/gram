@@ -190,8 +190,10 @@ func (s *mainStage) defineKinds() {
 	own := []comp.Comp{
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
 	}
-	s.red = units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
-	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
+	units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
+	s.red = units.Named("red")
+	units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
+	s.blue = units.Named("blue")
 }
 
 // cellAt is the cell at column x, row y.

@@ -41,12 +41,13 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
 	})
-	unit := kind.Define[float64](c.w.Kinds(), "unit", kind.Spec{
+	kind.Define[float64](c.w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
+	unit := kind.Named[float64](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
@@ -196,10 +197,11 @@ func TestTold_ACommandNobodyCarriesOutIsRefused(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
 	})
-	unit := kind.Define[float64](w.Kinds(), "unit", kind.Spec{
+	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 	})
+	unit := kind.Named[float64](w.Kinds(), "unit")
 	w.Seed(unit.Entry(0).Told(selection.Allow{})) // no selection plugin in use
 	if err := w.Populate(); err == nil {
 		t.Error("Populate took an entry told a command nobody carries out, want an error")

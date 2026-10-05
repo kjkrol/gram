@@ -72,10 +72,11 @@ func (g *GameplayStage) usePlugins(ctx game.Initializer) {
 func (g *GameplayStage) defineKinds() {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
-	g.mover = kind.Define[world.Position](g.world.Kinds(), "mover", kind.Spec{
+	kind.Define[world.Position](g.world.Kinds(), "mover", kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(velocity),
 	})
+	g.mover = kind.Named[world.Position](g.world.Kinds(), "mover")
 }
 
 // defineScenes makes the world, the panel over it and the HUD: the world and the HUD are shown as

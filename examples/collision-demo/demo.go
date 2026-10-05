@@ -193,13 +193,14 @@ func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	for ci := range entityColors {
 		for si := range entityShapes {
-			s.kinds[ci][si] = kind.Define[body](kinds, entityKindName(ci, si), kind.Spec{
+			kind.Define[body](kinds, entityKindName(ci, si), kind.Spec{
 				comp.Load(func(b body) world.Position { return b.pos }),
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{Restitution: 1}),
 				rule.Plays(s.body),
 			})
+			s.kinds[ci][si] = kind.Named[body](kinds, entityKindName(ci, si))
 		}
 	}
 	s.hitSprite = s.world.Kinds().NewSprite() // the overlay's atlas slot, no kind's

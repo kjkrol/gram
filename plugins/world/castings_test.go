@@ -43,12 +43,13 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g)
 	g.world.Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
 	g.alert = g.world.Effects().Named("alert")
-	g.unit = kind.Define[float64](g.world.Kinds(), "unit", kind.Spec{
+	kind.Define[float64](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
+	g.unit = kind.Named[float64](g.world.Kinds(), "unit")
 	g.world.Castings().Define("alert the captain", rule.Cast(g.alert).On(entity.Named("captain")))
 	g.world.Castings().Define("alert the guards", rule.Cast(g.alert).On(entity.Group("guards")))
 	return nil

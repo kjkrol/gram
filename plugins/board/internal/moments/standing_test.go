@@ -44,14 +44,15 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 		f(ctx)
 	}
 	start, _ := grid.CellIndex(1, 1)
-	w.Seed(kind.Define[boardtest.Mover](w.Kinds(), "unit", kind.Spec{
+	kind.Define[boardtest.Mover](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(m boardtest.Mover) world.Position {
 			return world.Position{AABB: boardtest.CellBox(grid, m.Here, boardtest.UnitSize)}
 		}),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(m boardtest.Mover) unit.At { return unit.At{Cell: m.Here} }),
 		comp.Const(unit.Mover{Domain: cell.Land}),
-	}).Entry(boardtest.Mover{Here: start}))
+	})
+	w.Seed(kind.Named[boardtest.Mover](w.Kinds(), "unit").Entry(boardtest.Mover{Here: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

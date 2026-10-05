@@ -96,8 +96,10 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		}
 		return s
 	}
-	red := kind.Define[unitRow](w.Kinds(), "red", spec(false))
-	blue := kind.Define[unitRow](w.Kinds(), "blue", spec(true))
+	kind.Define[unitRow](w.Kinds(), "red", spec(false))
+	red := kind.Named[unitRow](w.Kinds(), "red")
+	kind.Define[unitRow](w.Kinds(), "blue", spec(true))
+	blue := kind.Named[unitRow](w.Kinds(), "blue")
 	w.Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

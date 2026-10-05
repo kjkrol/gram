@@ -50,10 +50,11 @@ func (g *typeStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	g.kinds = map[string]kind.Of[struct{}]{}
 	for _, name := range g.order {
-		g.kinds[name] = kind.Define[struct{}](g.world.Kinds(), name, kind.Spec{
+		kind.Define[struct{}](g.world.Kinds(), name, kind.Spec{
 			comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 			comp.Const(world.Velocity{}),
 		})
+		g.kinds[name] = kind.Named[struct{}](g.world.Kinds(), name)
 	}
 	return nil
 }

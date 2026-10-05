@@ -49,7 +49,8 @@ func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugi
 		spec = append(spec, comp.Const(collision.Physics{Restitution: 1}))
 		rows = []slider{{x: 100, speed: 5}, {x: 105, speed: -5}}
 	}
-	k := kind.Define[slider](w.Kinds(), "slider", spec)
+	kind.Define[slider](w.Kinds(), "slider", spec)
+	k := kind.Named[slider](w.Kinds(), "slider")
 	for _, r := range rows {
 		w.Seed(k.Entry(r))
 	}

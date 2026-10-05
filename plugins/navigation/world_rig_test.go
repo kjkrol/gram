@@ -91,7 +91,8 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
-		k := kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
+		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
+		k := kind.Named[navUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}

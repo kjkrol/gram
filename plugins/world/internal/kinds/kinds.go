@@ -90,6 +90,12 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	return r.TypeID, r.SpriteID
 }
 
+// Lookup is the kind registered as name — see kind.Registry.
+func (k *Registry) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, bool) {
+	r, ok := k.entries[name]
+	return r.TypeID, r.SpriteID, r.Row, ok
+}
+
 // Kind is the kind registered as name.
 func (k *Registry) Kind(name string) (Kind, bool) {
 	r, ok := k.entries[name]

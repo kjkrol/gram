@@ -84,7 +84,8 @@ func newSquad(t *testing.T) *squad {
 		if len(roles) > 0 {
 			spec = append(spec, rule.Plays(roles...))
 		}
-		s.kinds[name] = kind.Define[soldier](w.Kinds(), name, spec)
+		kind.Define[soldier](w.Kinds(), name, spec)
+		s.kinds[name] = kind.Named[soldier](w.Kinds(), name)
 	}
 	define("scout", s.hasty)
 	define("guard", s.mortal)

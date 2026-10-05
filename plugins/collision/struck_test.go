@@ -30,11 +30,12 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 	))); err != nil {
 		t.Fatal(err)
 	}
-	town := kind.Define[float64](w.Kinds(), "town", kind.Spec{
+	kind.Define[float64](w.Kinds(), "town", kind.Spec{
 		comp.Load(func(x float64) world.Position { return posAt(x, 100, 10, 10) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 	})
+	town := kind.Named[float64](w.Kinds(), "town")
 	w.Seed(town.Entry(100), town.Entry(105), town.Entry(500))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

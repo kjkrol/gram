@@ -36,12 +36,13 @@ func (g *effectStage) Name() string { return "stage" }
 func (g *effectStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	ctx.Setup(effectProbe{g})
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "glower", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "glower", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Const(tally{}),
 		g.plan(g.world.Effects()).on(g.world),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "glower")
 	return nil
 }
 

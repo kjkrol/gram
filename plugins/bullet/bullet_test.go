@@ -159,7 +159,8 @@ func newRig(t *testing.T, sc scene) *rig {
 			return world.Eye{}
 		}))
 	}
-	r.units = kind.Define[piece](w.Kinds(), "unit", spec)
+	kind.Define[piece](w.Kinds(), "unit", spec)
+	r.units = kind.Named[piece](w.Kinds(), "unit")
 	for _, p := range sc.pieces {
 		w.Seed(r.units.Entry(p))
 	}
@@ -293,7 +294,8 @@ var east = geom.NewVec(1, 0)
 
 // round is the tests' plain shot: 4 across, 600 a second — ten a step, five times its own cap.
 func round(r *rig, lands bool, tags ...tag.Tag[family]) bullet.Ammo {
-	return r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands}, comp.Tagged(tags...))
+	r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands}, comp.Tagged(tags...))
+	return r.arms.Named("round")
 }
 
 const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
@@ -425,7 +427,8 @@ func TestShoot_ATargetInTheLastStretchOfTheRangeIsStruck(t *testing.T) {
 		{x: 100, y: 100, size: 20, facing: east},
 		{x: 219, y: 105, size: 10}, // the muzzle is at 123, the range of 95 ends at 218: the shot's last step, a half one, reaches it
 	}})
-	ammo := r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 95, Lands: true})
+	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 95, Lands: true})
+	ammo := r.arms.Named("short")
 	r.start()
 	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(13)
@@ -438,7 +441,8 @@ func TestShoot_ATargetInTheLastStretchOfTheRangeIsStruck(t *testing.T) {
 // A shot with nothing on its path flies its Range, lands a step later and, Landing, lies there.
 func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: east}}})
-	ammo := r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
+	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
+	ammo := r.arms.Named("short")
 	r.start()
 	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(11) // spawned, then ten steps of ten
@@ -470,7 +474,8 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 		{x: 295, y: 105, size: 10}, // 79 beyond
 	}})
 	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
-	grenade := r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
+	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
+	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
 	if err := r.obey(
@@ -505,7 +510,8 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 			r := newRig(t, scene{heights: true, eyes: true, field: wall, pieces: []piece{
 				{x: 100, y: 100, size: 20, facing: east, z: world.Z{Height: 20}, eye: &world.Eye{Height: 16}},
 			}})
-			grenade := r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
+			r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
+			grenade := r.arms.Named("grenade")
 			r.start()
 			r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110), Targeted: true})
 			peak := 0.0
@@ -634,7 +640,8 @@ func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	sc := scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: east}}}
 	r := newRig(t, sc)
-	ammo := r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
+	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
+	ammo := r.arms.Named("short")
 	r.start()
 	r.w.Commands().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(4)

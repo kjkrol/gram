@@ -151,7 +151,8 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 			spec = append(spec, comp.Const(*u.Sight), comp.Const(vision.Sighted{}), comp.Const(u.Eye))
 		}
 		name := string(rune('a' + i))
-		bw.World.Seed(kind.Define[Mover](bw.World.Kinds(), name, spec).Entry(u))
+		kind.Define[Mover](bw.World.Kinds(), name, spec)
+		bw.World.Seed(kind.Named[Mover](bw.World.Kinds(), name).Entry(u))
 	}
 	if err := bw.World.Populate(); err != nil {
 		t.Fatal(err)

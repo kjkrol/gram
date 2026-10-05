@@ -67,12 +67,13 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}
-	boxes := kind.Define[body](w.Kinds(), "box", kind.Spec{
+	kind.Define[body](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(r body) world.Position { return r.pos }),
 		comp.Load(func(r body) world.Velocity { return r.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
+	boxes := kind.Named[body](w.Kinds(), "box")
 	placement := world.NewGridPlacement(sceneWidth, sceneHeight, rect)
 	entries := make([]kind.Entry, count)
 	for i := range entries {
@@ -203,19 +204,21 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}
-	boxes := kind.Define[body](w.Kinds(), "box", kind.Spec{
+	kind.Define[body](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(r body) world.Position { return r.pos }),
 		comp.Load(func(r body) world.Velocity { return r.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
-	bullets := kind.Define[shot](w.Kinds(), "shot", kind.Spec{
+	boxes := kind.Named[body](w.Kinds(), "box")
+	kind.Define[shot](w.Kinds(), "shot", kind.Spec{
 		comp.Load(func(r shot) world.Position { return r.pos }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(r shot) collision.Sweep { return collision.Sweep{From: r.pos.Center()} }),
 		comp.Load(func(r shot) flight { return flight{Dir: r.dir, Step: 60} }),
 	})
+	bullets := kind.Named[shot](w.Kinds(), "shot")
 	placement := world.NewGridPlacement(sceneWidth, sceneHeight, rect)
 	entries := make([]kind.Entry, 0, count+shots)
 	for i := range count {

@@ -276,18 +276,21 @@ func (s *mainStage) defineKinds() {
 	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	mortal := rule.Plays(s.mortal)
-	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, walker,
+	units.Define("unit", unit.Mover{Domain: cell.Land}, walker,
 		order,
 		sight, eye, mortal,
 	)
-	s.plateau = units.Define("plateau", unit.Mover{Domain: cell.Land}, walker,
+	s.unit = units.Named("unit")
+	units.Define("plateau", unit.Mover{Domain: cell.Land}, walker,
 		sight, eye, mortal,
 	)
-	s.rivals = units.Define("rival", unit.Mover{Domain: cell.Land}, walker,
+	s.plateau = units.Named("plateau")
+	units.Define("rival", unit.Mover{Domain: cell.Land}, walker,
 		order,
 		sight, eye, mortal,
 	)
-	s.hawk = units.Define("hawk",
+	s.rivals = units.Named("rival")
+	units.Define("hawk",
 		unit.Mover{
 			Domain:    cell.Air,
 			Lift:      scale.Units(300),
@@ -304,6 +307,7 @@ func (s *mainStage) defineKinds() {
 		order,
 		sight, eye,
 	)
+	s.hawk = units.Named("hawk")
 }
 
 func (s *mainStage) layOut() {

@@ -49,17 +49,19 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	s.world.Plans().Define("leaver", func(a *plan.Actor) rule.Step {
 		return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
 	})
-	s.leaver = kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
+	kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		s.world.Plans().Named("leaver"),
 	})
-	s.box = kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
+	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")
+	kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 		rule.Plays(fragile),
 	})
+	s.box = kind.Named[float64](s.world.Kinds(), "box")
 	s.players = players.NewPlugin(s.world)
 	s.players.Local("first")
 	ctx.Setup(carrierProbe{s})

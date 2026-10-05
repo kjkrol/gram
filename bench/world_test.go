@@ -35,12 +35,13 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
 		Camera:   camera.Config{ViewportWidth: view, ViewportHeight: view},
 	})
-	movers := kind.Define[mover](w.Kinds(), "mover", kind.Spec{
+	kind.Define[mover](w.Kinds(), "mover", kind.Spec{
 		comp.Load(func(m mover) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(m.x, m.y), 20, 20)}
 		}),
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0), Value: 60}),
 	})
+	movers := kind.Named[mover](w.Kinds(), "mover")
 	side := 1
 	for side*side < n {
 		side++

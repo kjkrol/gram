@@ -43,7 +43,8 @@ func (s *sectioned) useWorld(ctx game.Initializer) {
 
 func (s *sectioned) defineUnit() {
 	s.note("kinds")
-	s.unit = kind.Define[struct{}](s.world.Kinds(), "unit", walkerSpec())
+	kind.Define[struct{}](s.world.Kinds(), "unit", walkerSpec())
+	s.unit = kind.Named[struct{}](s.world.Kinds(), "unit")
 }
 
 func walkerSpec() kind.Spec {

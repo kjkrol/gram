@@ -21,6 +21,8 @@ const MaxKinds = 1 << 8
 // Registry is where kinds are kept — a world's, reached through world.Plugin.Kinds.
 type Registry interface {
 	Register(name string, row reflect.Type, spec Spec) (ID, render.SpriteID)
+	// Lookup is the kind registered as name: its ID, its sprite and the type of its rows.
+	Lookup(name string) (id ID, sprite render.SpriteID, row reflect.Type, ok bool)
 }
 
 // Of is one defined kind, whose entities are each described by a row of type P.
@@ -31,14 +33,27 @@ type Of[P any] struct {
 }
 
 // Define registers spec under name as a kind whose rows are P; a Load of another row type panics.
-func Define[P any](reg Registry, name string, spec Spec) Of[P] {
+// It hands nothing back: Named is the kind, for whoever spawns its entities.
+func Define[P any](reg Registry, name string, spec Spec) {
 	row := reflect.TypeFor[P]()
 	for _, c := range spec {
 		if read := comp.RowOf(c); read != nil && read != row {
 			panic(fmt.Sprintf("kind: %q: a Load reads %v, but its rows are %v", name, read, row))
 		}
 	}
-	id, sprite := reg.Register(name, row, spec)
+	reg.Register(name, row, spec)
+}
+
+// Named is the kind defined as name, whose rows are P; an unknown name, or a kind of other rows,
+// panics.
+func Named[P any](reg Registry, name string) Of[P] {
+	id, sprite, row, ok := reg.Lookup(name)
+	if !ok {
+		panic(fmt.Sprintf("kind: no kind is defined as %q", name))
+	}
+	if want := reflect.TypeFor[P](); row != want {
+		panic(fmt.Sprintf("kind: %q is asked for with rows of %v, but its rows are %v", name, want, row))
+	}
 	return Of[P]{name: name, id: id, sprite: sprite}
 }
 

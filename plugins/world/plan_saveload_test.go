@@ -51,11 +51,12 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 			return a.Steps(a.Wait(10*time.Millisecond), a.Wait(time.Hour), a.Order(world.Despawn{}))
 		})
 	}
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		sentry.on(g.world),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "sentry")
 	return nil
 }
 

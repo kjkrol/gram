@@ -69,13 +69,17 @@ const (
 // its box, a Collider (a sensor: only ever detected), a collision.Sweep that passes through its
 // shooter, its Body and Flight, its shooter's owners, and in a world with heights a Z. extra may
 // carry tags and Layers, never the owners' family nor what the kind gives itself.
-type Shots struct{ w *world.Plugin }
+type Shots struct {
+	w      *world.Plugin
+	bodies map[string]Body // what each kind of shot flies as, by its name
+}
 
 // NewShots defines kinds of shots on w's kinds.
 func NewShots(w *world.Plugin) *Shots { return &Shots{w: w} }
 
-// Define registers the kind of shot named name with body and extra; the Ammo it is, for Shoot.
-func (s *Shots) Define(name string, body Body, extra ...comp.Comp) Ammo {
+// Define registers the kind of shot named name with body and extra; Named is the Ammo it is, for
+// Shoot.
+func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 	if body.Size <= 0 || body.Speed <= 0 || body.Range <= 0 {
 		panic(fmt.Sprintf("bullet: ammo %q: Size, Speed and Range must be positive, got %+v", name, body))
 	}
@@ -97,7 +101,20 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) Ammo {
 		spec = append(spec, comp.Load(func(r Shot) world.Z { return world.Z{Altitude: r.Altitude, Height: body.Size} }))
 	}
 	spec = append(spec, extra...)
-	return Ammo{kind: kind.Define[Shot](s.w.Kinds(), name, spec), body: body}
+	kind.Define[Shot](s.w.Kinds(), name, spec)
+	if s.bodies == nil {
+		s.bodies = map[string]Body{}
+	}
+	s.bodies[name] = body
+}
+
+// Named is the kind of shot defined as name, as Shoot names it; an unknown name panics.
+func (s *Shots) Named(name string) Ammo {
+	body, ok := s.bodies[name]
+	if !ok {
+		panic(fmt.Sprintf("bullet: no ammo is defined as %q", name))
+	}
+	return Ammo{kind: kind.Named[Shot](s.w.Kinds(), name), body: body}
 }
 
 // Ammo is a kind of shot, as Shoot names it.

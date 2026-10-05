@@ -22,8 +22,10 @@ import (
 func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	var walker, hawk kind.Of[topotest.Recruit]
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		walker = units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
-		hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10})
+		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		walker = units.Named("walker")
+		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10})
+		hawk = units.Named("hawk")
 		onHill, _ := grid.CellIndex(2, 1)
 		onGrass, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{walker.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onHill}), walker.Entry(topotest.Recruit{Start: onGrass})}
@@ -56,7 +58,8 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 // stays under its Ceiling; let go, it keeps its height over the ground again.
 func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		hawk := units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
+		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
+		hawk := units.Named("hawk")
 		onGrass, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onGrass})}
 	})
@@ -122,8 +125,10 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	var hawk, low kind.Of[topotest.Recruit]
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 41}, steering.Steering{MaxSpeed: 10})
-		low = units.Define("low", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 1}, steering.Steering{MaxSpeed: 10})
+		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 41}, steering.Steering{MaxSpeed: 10})
+		hawk = units.Named("hawk")
+		units.Define("low", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 1}, steering.Steering{MaxSpeed: 10})
+		low = units.Named("low")
 		onHill, _ := grid.CellIndex(2, 1)
 		onGrass, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onGrass}), low.Entry(topotest.Recruit{Start: onHill})}

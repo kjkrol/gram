@@ -41,11 +41,12 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 	s.players.Local("first")
 	second := s.players.Add("second")
 	ctx.Setup(ownersProbe{s})
-	s.unit = kind.Define[struct{}](s.world.Kinds(), "unit", kind.Spec{
+	kind.Define[struct{}](s.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Tagged(owner.Of(second.ID)),
 	})
+	s.unit = kind.Named[struct{}](s.world.Kinds(), "unit")
 	return ctx.Use(s.players)
 }
 

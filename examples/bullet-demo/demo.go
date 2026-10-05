@@ -254,13 +254,17 @@ func (s *mainStage) defineKinds() {
 	// The ammo: a round flies ten cells a second over ten cells, spent as it lands; a grenade is
 	// thrown in an arc and lies where it comes down.
 	shots := bullet.NewShots(s.world)
-	s.round = shots.Define("round", bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(s.shot))
-	s.grenade = shots.Define("grenade", bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(s.thrown))
+	shots.Define("round", bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(s.shot))
+	s.round = shots.Named("round")
+	shots.Define("grenade", bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(s.thrown))
+	s.grenade = shots.Named("grenade")
 	mortal := rule.Plays(s.mortal)
-	s.soldier = units.Define("soldier", unit.Mover{Domain: cell.Land}, profile, mortal,
+	units.Define("soldier", unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
-	s.wanderer = units.Define("wanderer", unit.Mover{Domain: cell.Land}, profile, mortal,
+	s.soldier = units.Named("soldier")
+	units.Define("wanderer", unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+	s.wanderer = units.Named("wanderer")
 }
 
 // layOut lays the road, the pond and the two walls.

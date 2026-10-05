@@ -137,7 +137,8 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 				spec = append(spec, comp.Const(vision.SightOutline{}))
 			}
 		}
-		w.Seed(kind.Define[spawn](w.Kinds(), kindName(i), spec).Entry(s))
+		kind.Define[spawn](w.Kinds(), kindName(i), spec)
+		w.Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)

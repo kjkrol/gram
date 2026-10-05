@@ -27,10 +27,11 @@ func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[th
 		Space:    SpaceCfg{Width: 1000, Height: 1000, Edges: edges},
 		Entities: EntitiesCfg{MaxCount: n, MinSize: 5, MaxSize: 20},
 	})
-	things := kind.Define[thing](p.Kinds(), "thing", kind.Spec{
+	kind.Define[thing](p.Kinds(), "thing", kind.Spec{
 		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
 		comp.Const(Velocity{}),
 	})
+	things := kind.Named[thing](p.Kinds(), "thing")
 	base := new(goke.Comp[Base])
 	var q *goke.Query
 	ecs := goke.New()
@@ -69,10 +70,11 @@ func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, aabbworld.OpenX, 3)
 	wm := p.module
-	others := kind.Define[int](p.Kinds(), "other", kind.Spec{
+	kind.Define[int](p.Kinds(), "other", kind.Spec{
 		comp.Const(Position{AABB: plane.NewAABB(geom.NewVec(1, 1), 10, 10)}),
 		comp.Const(Velocity{}),
 	})
+	others := kind.Named[int](p.Kinds(), "other")
 	wm.commands.Put(control.Nobody, Spawn{Entry: others.Entry(7)})                                // defined after the set-up: no factory
 	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 50})})  // too big
 	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 1200, y: 100, size: 10})}) // past the open edge
@@ -160,10 +162,11 @@ func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 		Space:    SpaceCfg{Width: 1000, Height: 1000},
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 5, MaxSize: 20},
 	})
-	kinds := kind.Define[thing](loaded.Kinds(), "thing", kind.Spec{
+	kind.Define[thing](loaded.Kinds(), "thing", kind.Spec{
 		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
 		comp.Const(Velocity{}),
 	})
+	kinds := kind.Named[thing](loaded.Kinds(), "thing")
 	ecs2 := goke.New()
 	if err := ecs2.Load(path, loaded.module.LoadComps()...); err != nil {
 		t.Fatal(err)
@@ -195,10 +198,11 @@ func TestSpawn_PopulateStillRefusesASizeOutOfBounds(t *testing.T) {
 		Space:    SpaceCfg{Width: 1000, Height: 1000},
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 5, MaxSize: 20},
 	})
-	things := kind.Define[thing](p.Kinds(), "thing", kind.Spec{
+	kind.Define[thing](p.Kinds(), "thing", kind.Spec{
 		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
 		comp.Const(Velocity{}),
 	})
+	things := kind.Named[thing](p.Kinds(), "thing")
 	p.Seed(things.Entry(thing{x: 100, y: 100, size: 50}))
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)

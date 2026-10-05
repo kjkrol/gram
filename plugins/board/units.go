@@ -37,7 +37,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // the Lift it keeps above the ground), its steering profile and whatever else the game gives its
 // entities. It is kind.Define with the board's part filled in and the world's roster checked; a
 // unit standing off the board panics when spawned.
-func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) kind.Of[P] {
+func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
 	brd := u.brd.Res.Logic.Board
 	heights := u.brd.worldPlugin.HasHeights()
 	if !heights && mover.Lift != 0 {
@@ -64,5 +64,10 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 		own = append(own, comp.Const(world.Z{Height: u.shape.Height})) // Altitude is the board's to write
 	}
 	spec := u.brd.worldPlugin.Roster().Unit.Spec(append(own, extra...)...)
-	return kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
+	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
+}
+
+// Named is the kind of unit defined as name: kind.Named over the world's kinds.
+func (u *Units[P]) Named(name string) kind.Of[P] {
+	return kind.Named[P](u.brd.worldPlugin.Kinds(), name)
 }

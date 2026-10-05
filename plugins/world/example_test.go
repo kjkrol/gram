@@ -13,10 +13,11 @@ func ExamplePlugin_Seed() {
 	})
 	placement := world.NewGridPlacement(800, 600, 8)
 
-	dot := kind.Define[world.Position](plugin.Kinds(), "dot", kind.Spec{
+	kind.Define[world.Position](plugin.Kinds(), "dot", kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(world.Velocity{}),
 	})
+	dot := kind.Named[world.Position](plugin.Kinds(), "dot")
 
 	for i := range 10 {
 		plugin.Seed(dot.Entry(placement.Place(i, 10)))

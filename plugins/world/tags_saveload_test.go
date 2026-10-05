@@ -57,11 +57,12 @@ func (g *tagStage) Init(ctx game.Initializer) error {
 	for _, name := range g.carries {
 		tags = append(tags, g.tags[name])
 	}
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Tagged(tags...),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "unit")
 	return nil
 }
 

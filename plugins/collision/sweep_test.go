@@ -116,7 +116,8 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 		if b.shooter {
 			spec = append(spec, comp.Const(shooter{}))
 		}
-		kinds[i] = kind.Define[piece](w.Kinds(), "piece"+string(rune('a'+i)), spec)
+		kind.Define[piece](w.Kinds(), "piece"+string(rune('a'+i)), spec)
+		kinds[i] = kind.Named[piece](w.Kinds(), "piece"+string(rune('a'+i)))
 		w.Seed(kinds[i].Entry(b))
 	}
 	if err := w.Populate(); err != nil {
@@ -203,13 +204,14 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 4, MaxSize: 4},
 	})
 	c := collision.NewPlugin(w)
-	shots := kind.Define[piece](w.Kinds(), "shot", kind.Spec{
+	kind.Define[piece](w.Kinds(), "shot", kind.Spec{
 		comp.Load(func(b piece) world.Position { return posAt(b.x, b.y, b.size, b.size) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(b piece) collision.Sweep { return collision.Sweep{From: geom.NewVec(b.x+2, b.y+2)} }),
 		comp.Const(flight{Dir: east, Step: 60}),
 	})
+	shots := kind.Named[piece](w.Kinds(), "shot")
 	w.Seed(shots.Entry(piece{x: 100, y: 500, size: 4}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

@@ -58,7 +58,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	haste := w.Effects().Named("haste")
 	tags := sel.Tags()
-	k := kind.Define[unit](w.Kinds(), "unit", kind.Spec{
+	kind.Define[unit](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(u unit) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(u.x, 100), 10, 10)} }),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(u unit) tag.Tags[selection.Family] {
@@ -70,6 +70,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 		}),
 		comp.Load(func(u unit) tag.Tags[owner.Family] { return tag.Tags[owner.Family](0).With(owner.Of(u.by)) }),
 	})
+	k := kind.Named[unit](w.Kinds(), "unit")
 	units := []unit{{x: 100, by: 1, selected: true}, {x: 300, by: 1}, {x: 500, by: 2, selected: true}}
 	for _, u := range units {
 		w.Seed(k.Entry(u))

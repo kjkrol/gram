@@ -24,7 +24,7 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 2, MaxSize: 100},
 	})
 	c := collision.NewPlugin(w)
-	runners := kind.Define[runner](w.Kinds(), "runner", kind.Spec{
+	kind.Define[runner](w.Kinds(), "runner", kind.Spec{
 		comp.Load(func(r runner) world.Position { return posAt(r.x, 500-r.side/2, r.side, r.side) }),
 		comp.Load(func(r runner) world.Velocity {
 			return world.Velocity{Dir: geom.NewVec(r.heading, 0), Value: 100000}
@@ -32,6 +32,7 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{}),
 	})
+	runners := kind.Named[runner](w.Kinds(), "runner")
 	small, big := runner{x: 1000, side: 2, heading: 1}, runner{x: 1600, side: 100, heading: -1}
 	w.Seed(runners.Entry(small), runners.Entry(big))
 	if err := w.Populate(); err != nil {

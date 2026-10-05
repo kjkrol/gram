@@ -44,6 +44,11 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 	return k.r.Register(name, row, spec)
 }
 
+// Lookup is the kind registered as name — see kind.Registry.
+func (k *Kinds) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, bool) {
+	return k.r.Lookup(name)
+}
+
 // Play notes roles somebody plays who is no kind of the world's — a cell's kind, a plugin: for
 // the plugins, as a kind's own are noted when it is defined.
 func (k *Kinds) Play(roles ...*rule.Part) {

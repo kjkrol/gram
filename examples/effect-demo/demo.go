@@ -204,9 +204,12 @@ func (s *mainStage) defineKinds() {
 		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
 	}
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.witch = units.Define("witch", unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), order, rule.Plays(s.witchy, s.mortal))
-	s.walker = units.Define("walker", unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), rule.Plays(s.mortal))
-	s.boat = units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(s.mortal))
+	units.Define("witch", unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), order, rule.Plays(s.witchy, s.mortal))
+	s.witch = units.Named("witch")
+	units.Define("walker", unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), rule.Plays(s.mortal))
+	s.walker = units.Named("walker")
+	units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(s.mortal))
+	s.boat = units.Named("boat")
 }
 
 func (s *mainStage) defineScenes() []game.Scene {

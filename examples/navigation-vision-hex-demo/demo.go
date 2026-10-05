@@ -184,14 +184,15 @@ func (s *mainStage) defineKinds() {
 	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
-		s.kinds = append(s.kinds, units.Define(name, unit.Mover{Domain: cell.Land}, scout, order,
-			sight, eye(1.5)))
+		units.Define(name, unit.Mover{Domain: cell.Land}, scout, order, sight, eye(1.5))
+		s.kinds = append(s.kinds, units.Named(name))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
-	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
+	units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
 		sight, eye(1))
+	s.hawk = units.Named("hawk")
 }
 
 // cellAt is the cell at column x, row y.

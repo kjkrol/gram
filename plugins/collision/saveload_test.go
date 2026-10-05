@@ -69,11 +69,12 @@ func TestSaveLoadCycle(t *testing.T) {
 	defineKinds := func(wp *world.Plugin) []kind.Entry {
 		var entries []kind.Entry
 		for i := range count {
-			of := kind.Define[body](wp.Kinds(), fmt.Sprintf("k%d", i), kind.Spec{
+			kind.Define[body](wp.Kinds(), fmt.Sprintf("k%d", i), kind.Spec{
 				comp.Load(func(b body) world.Position { return b.pos }),
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 			})
+			of := kind.Named[body](wp.Kinds(), fmt.Sprintf("k%d", i))
 			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float64(10 * (i + 1))}}))
 		}
 		return entries

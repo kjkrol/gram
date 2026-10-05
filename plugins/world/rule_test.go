@@ -67,7 +67,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	g.world.Roles().Define("trigger unit", g.rules...)
-	g.unit = kind.Define[spot](g.world.Kinds(), "unit", kind.Spec{
+	kind.Define[spot](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(s spot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x, 100), 10, 10)}
 		}),
@@ -82,6 +82,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 			return tag.Tags[roles](0).With(g.target)
 		}),
 	})
+	g.unit = kind.Named[spot](g.world.Kinds(), "unit")
 	return ctx.Use(g.coll)
 }
 

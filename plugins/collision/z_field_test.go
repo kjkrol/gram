@@ -54,13 +54,14 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 				Heights:  true,
 			})
 			c := collision.NewPlugin(w).WithField(tc.field)
-			runner := kind.Define[raised](w.Kinds(), "runner", kind.Spec{
+			kind.Define[raised](w.Kinds(), "runner", kind.Spec{
 				comp.Load(func(r raised) world.Position { return posAt(r.x, 500, 10, 10) }),
 				comp.Const(world.Velocity{Dir: geom.NewVec(1, 0), Value: 300}),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{}),
 				comp.Const(tc.z),
 			})
+			runner := kind.Named[raised](w.Kinds(), "runner")
 			w.Seed(runner.Entry(raised{x: 180}))
 			if err := w.Populate(); err != nil {
 				t.Fatal(err)

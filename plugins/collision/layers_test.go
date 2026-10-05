@@ -27,13 +27,14 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	})
 	var stats collision.ContactStats
 	c := collision.NewPlugin(w).WithStats(&stats)
-	boxes := kind.Define[layered](w.Kinds(), "box", kind.Spec{
+	kind.Define[layered](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(b layered) world.Layers { return b.layers }),
 		comp.Const(collision.Physics{}),
 	})
+	boxes := kind.Named[layered](w.Kinds(), "box")
 	w.Seed(boxes.Entry(layered{x: 100, layers: a}), boxes.Entry(layered{x: 104, layers: b}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

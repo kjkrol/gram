@@ -68,12 +68,13 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	for _, name := range g.carries {
 		carries = append(carries, g.mood[name])
 	}
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		rule.Plays(plays...),
 		comp.Tagged(carries...),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "unit")
 	return nil
 }
 

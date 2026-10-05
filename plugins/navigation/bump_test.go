@@ -130,7 +130,8 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	kindIDs := make([]kind.ID, len(units))
 	for i, u := range units {
-		k := kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
+		kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
+		k := kind.Named[roadUnit](w.Kinds(), string(rune('a'+i)))
 		kindIDs[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}

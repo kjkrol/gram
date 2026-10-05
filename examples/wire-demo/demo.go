@@ -266,11 +266,14 @@ func (s *mainStage) defineKinds() {
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	laden := steering.Steering{MaxSpeed: UnitSpeed * 3 / 4, Accel: UnitSpeed, V0: UnitSpeed / 4, TurnRate: 0.1}
 	land := unit.Mover{Domain: cell.Land}
-	s.scout = units.Define("scout", land, profile, rule.Plays(s.roles.hasty, s.roles.handy, s.roles.mortal))
-	s.porter = units.Define("porter", land, laden, rule.Plays(s.roles.mortal))
+	units.Define("scout", land, profile, rule.Plays(s.roles.hasty, s.roles.handy, s.roles.mortal))
+	s.scout = units.Named("scout")
+	units.Define("porter", land, laden, rule.Plays(s.roles.mortal))
+	s.porter = units.Named("porter")
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
-	s.wanderer = units.Define("wanderer", land, profile, rule.Plays(s.roles.mortal),
+	units.Define("wanderer", land, profile, rule.Plays(s.roles.mortal),
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+	s.wanderer = units.Named("wanderer")
 }
 
 func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }

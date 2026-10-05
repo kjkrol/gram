@@ -47,12 +47,13 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		t.Fatal(err)
 	}
 	if withUnit {
-		k := kind.Define[struct{}](w.Kinds(), "unit", kind.Spec{
+		kind.Define[struct{}](w.Kinds(), "unit", kind.Spec{
 			comp.Const(world.Position{AABB: boardtest.CellBox(grid, pw.middle, 8)}),
 			comp.Const(world.Velocity{}),
 			comp.Const(unit.At{Cell: pw.middle}),
 			comp.Const(unit.Mover{Domain: cell.Land}),
 		})
+		k := kind.Named[struct{}](w.Kinds(), "unit")
 		w.Seed(k.Entry(struct{}{}))
 		if err := w.Populate(); err != nil {
 			t.Fatal(err)

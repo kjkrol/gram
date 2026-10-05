@@ -79,12 +79,13 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 
 // defineKinds says what a box is.
 func (a *arena) defineKinds() {
-	a.boxes = kind.Define[box](a.world.Kinds(), "box", kind.Spec{
+	kind.Define[box](a.world.Kinds(), "box", kind.Spec{
 		comp.Load(func(b box) world.Position { return b.pos }),
 		comp.Load(func(b box) world.Velocity { return b.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
+	a.boxes = kind.Named[box](a.world.Kinds(), "box")
 }
 
 // defineScenes makes the one Scene, shown as the Stage starts.

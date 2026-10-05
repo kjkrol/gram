@@ -180,15 +180,17 @@ func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
-	s.prey = kind.Define[body](kinds, "prey", append(sees(),
+	kind.Define[body](kinds, "prey", append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
 		rule.Plays(s.skittish, s.hunted),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
-	s.hunter = kind.Define[body](kinds, "hunter", append(sees(),
+	s.prey = kind.Named[body](kinds, "prey")
+	kind.Define[body](kinds, "hunter", append(sees(),
 		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
 		rule.Plays(s.predator),
 	))
+	s.hunter = kind.Named[body](kinds, "hunter")
 }
 
 // sees is what every kind here shares: a place, a heading, a cone looking that way, a collider.

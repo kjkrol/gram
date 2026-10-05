@@ -58,7 +58,8 @@ func (s *hookStage) Init(ctx game.Initializer) error {
 		}
 		spec = append(spec, rule.Plays(parts...))
 	}
-	s.walker = kind.Define[struct{}](s.world.Kinds(), "walker", spec)
+	kind.Define[struct{}](s.world.Kinds(), "walker", spec)
+	s.walker = kind.Named[struct{}](s.world.Kinds(), "walker")
 	return nil
 }
 
