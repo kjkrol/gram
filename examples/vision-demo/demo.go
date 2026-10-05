@@ -22,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
-	vrules "github.com/kjkrol/gram/plugins/vision/rules"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
@@ -141,16 +140,27 @@ func (s *mainStage) definePlayer() error {
 // looked round.
 func (s *mainStage) defineEffects() {
 	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
-	s.looked = vrules.Looked(s.world, hunterLooksEvery)
+	s.looked = s.world.Effects().Define("looked", effect.Spec{effect.Lasts(hunterLooksEvery)})
 }
 
 // defineRoles says who does what: the hunter goes after the prey it sees, looks round when it sees
 // none, and takes the one it catches; the prey steer clear of the hunter and of each other.
 func (s *mainStage) defineRoles() {
 	s.hunted = rule.Role("prey")
-	s.predator = rule.Role("predator").Obeys(vrules.Chase(s.hunted), vrules.Search(s.hunted, s.looked),
+	quarter := steering.Turn{Angle: math.Pi / 2}
+	s.predator = rule.Role("predator").Obeys(
+		rule.Then[vision.Sighting]("chase", rule.Other(s.hunted), rule.Order(steering.Toward{})),
+		// seeing none, it turns a quarter aside, either way, once every while it has looked
+		rule.Then[vision.Sighting]("search", rule.Other(s.hunted),
+			rule.If(vision.Sighting.Nobody, rule.Unless(s.looked, rule.Steps(
+				rule.Apply(s.looked),
+				rule.OneOf(rule.Chance(0.5, rule.Order(quarter)), rule.Order(steering.Turn{Angle: -quarter.Angle})))))),
 		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{}))))
-	s.skittish = rule.Role("skittish").Obeys(vrules.Flee(s.predator, s.fleeing)...)
+	s.skittish = rule.Role("skittish").Obeys(
+		rule.Then[vision.Sighting]("flee the hunter", rule.Other(s.predator),
+			rule.During(s.fleeing, rule.Order(steering.Away{}))),
+		rule.Then[vision.Sighting]("give way", rule.All,
+			rule.During(s.fleeing, rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))))
 }
 
 // defineCommands names the one thing to ask for: the prey flee, or stop fleeing.

@@ -20,8 +20,9 @@ argument's full path, which moved.
 - The world and the atmosphere play roles (`world.Plugin.Plays`, `atmosphere.Plugin.Plays`): a
   rule of a `clock.Moment` or a `climate.Weathering` fires while the plugin plays its role;
   `plugin.StepRules` takes a role's rule.
-- `plugins/collision/hooks` and `plugins/vision/hooks` are `plugins/collision/rules` and
-  `plugins/vision/rules` (imported as `crules`, `vrules`).
+- `plugins/collision/hooks` and `plugins/vision/hooks` are gone: a plugin ships no ready-made
+  reactions. The collision and vision demos write theirs in rules; `vision.Sighting.Nobody` and
+  `Sighting.Closing` are the conditions they need.
 
 **A plugin is an entity**
 - Every plugin has one entity of its own in the world, called by the plugin's name

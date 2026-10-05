@@ -56,8 +56,8 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
 - `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its entities:
   `units.Define("unit", …, patrol)`. Its name is what a save knows it by.
 - A function writing part of a plan takes the Actor as its own (a rule's steps are plain functions):
-  `func whenBlocked(a *plan.Actor) rule.Step`. Ready-made rules come whole, in a plugin's `rules`
-  package: `rule.Role("body").Obeys(crules.ShowHits(hit))`.
+  `func whenBlocked(a *plan.Actor) rule.Step`. A plugin ships no ready-made
+  reactions: it gives moments and their conditions, the game writes the rule.
 
 ## Filters
 
@@ -125,8 +125,8 @@ rule.While(s.atmosphere, bloodMoon, rule.Keep(frenzied))        // … and a rul
   `Alter`), with its own marker, on while it runs (`Mark()`). `Apply` casts it; `Keep` holds it as
   long as its branch runs, or as long as a rule keeps firing it; `Dispel` takes it off. **An
   effect's presence is state**: `Unless(alarmed, …)` is "at most once a while", a memory for rules
-  that keep none, and its marker is what rules of other plugins filter by. Collision's hit is one
-  (`crules.Hit`, cast by `ShowHits`, drawn by `HitOverlay` over `rule.Self(hit.Mark())`).
+  that keep none, and its marker is what rules of other plugins filter by. The collision demo's hit is one
+  (applied at every `collision.Struck`, drawn by `render.Over(overlay, hit.Mark().In)`).
 - **Command** — `Order(cmd)` gives the entity's command, the same one a player gives
   (`navigation.MoveTo`, `world.Despawn`), queued for the plugin that handles its type, and goes on
   at once: **fire and forget**. The handler carries it out for the entity alone
@@ -321,14 +321,15 @@ its own work in a pass it makes anyway, never a rule of another plugin's moment 
 
 Steering is commands an entity gives itself: `steering.Away{}` and `steering.Toward{}`, aimed at
 the moment's subject — a `Sighting`'s nearest seen; an aimed command fails while the moment
-names nobody — and `steering.Turn{Angle}`. `vrules.Flee`, `Chase` and `Search` are written so:
+names nobody — and `steering.Turn{Angle}`. The vision demo's hunter and prey are written so:
 
 ```go
-rule.Then[vision.Sighting]("vision.chase", rule.Between(tags.Predator, tags.Prey), rule.Order(steering.Toward{}))
+rule.Then[vision.Sighting]("chase", rule.Other(prey), rule.Order(steering.Toward{}))
+rule.Then[vision.Sighting]("give way", rule.All, rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))
 ```
 
 A switch of a behaviour for the whole game is an effect on the world (`rule.Cast`, `Lift` or
-`Toggle` on `entity.World`), the rule running `During` it: `vrules.Flee(threat, fleeing)`.
+`Toggle` on `entity.World`), the rule running `During` it (the vision demo's fleeing).
 
 How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap`, `With` and
 `Show`, given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every

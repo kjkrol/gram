@@ -355,8 +355,9 @@ of the same steps; both cast *effects* that hold for a while and give *commands*
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
 `cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is the one place
-rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). Ready-made rules
-live in `plugins/collision/rules` and `plugins/vision/rules`, whole, for a role to obey; navigation's
+rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). A plugin ships no
+ready-made reactions — it gives moments and their conditions (`unit.Standing.Fallen`,
+`vision.Sighting.Closing`), and the game says what follows; navigation's
 crowd is its own rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to
 with its roles or replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
 out, rules and plans say what to do when. What a player *wants* is a
@@ -460,9 +461,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`game/stage`](game/stage/doc.go) | A Stage defined a section at a time, in one order the compiler keeps: `New(name).Plugins(…).Players(…)…Update(…)`; [`plugin/section`](plugin/section/section.go) names the parts, for a plugin refusing what is defined out of its place |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
-| [`plugins/collision/rules`](plugins/collision/rules/doc.go) | Ready-made rules: `ShowHits` with `HitOverlay` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
-| [`plugins/vision/rules`](plugins/vision/rules/doc.go) | Ready-made rules: `Flee`, `Chase`, `Search` |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`; rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
 | [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, the moment `Now` (`Stood`); `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
@@ -483,7 +482,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 control ───┘ (→ camera)                   │  ▲
                                           ▼  │
-                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/*/rules ──► plugins/players
+                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet ──► plugins/players
 ```
 
 Outside the module: [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,

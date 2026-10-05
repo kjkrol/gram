@@ -13,7 +13,6 @@ import (
 )
 
 // Plugin wires the collision engine into a Game — optional, borrows world.Plugin's own Space.
-// Must never import collision/rules: a game's roles obey those.
 type Plugin struct {
 	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
 

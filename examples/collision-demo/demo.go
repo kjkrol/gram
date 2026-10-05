@@ -19,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	crules "github.com/kjkrol/gram/plugins/collision/rules"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -153,14 +152,19 @@ func (s *mainStage) definePlayer() error {
 }
 
 // defineEffects says the one state: hit, for a moment after an entity struck another.
-func (s *mainStage) defineEffects() { s.hit = crules.Hit(s.world, hitDuration) }
+func (s *mainStage) defineEffects() {
+	s.hit = s.world.Effects().Define("hit", effect.Spec{effect.Lasts(hitDuration)})
+}
 
 // defineRules says the one role: a body striking something is hit.
-func (s *mainStage) defineRules() { s.body = rule.Role("body").Obeys(crules.ShowHits(s.hit)) }
+func (s *mainStage) defineRules() {
+	s.body = rule.Role("body").Obeys(
+		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.hit)))
+}
 
 // defineLooks has whoever is hit drawn under the hit's overlay.
 func (s *mainStage) defineLooks() error {
-	return s.world.Draw(crules.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite}))
+	return s.world.Draw(render.Over(world.Appearance{SpriteID: s.hitSprite}, s.hit.Mark().In))
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {

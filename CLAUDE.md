@@ -850,13 +850,12 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   rebuilt with the stretch before the tick and without after (`rebuild(stretch)`); a wrapping world
   refuses it. Counting and logging the contacts is collision's own work in its pass:
   `collision.NewPlugin(w).WithStats(&stats)` (a `collision.ContactStats`, its `Reporter` for the
-  telemetry) and `WithLog(log.Default())`. Ready-made rules are in the flat `collision/rules`
-  package (imported as `crules`) — `rule.Role("body").Obeys(crules.ShowHits(hit))`, and
-  `HitOverlay(hit, with)` for the world's `Draw`; a game's own is a role obeying
-  `rule.Then[collision.Meeting](name, rule.Between(a, b), step)`;
-  the hit is an effect
-  (`crules.Hit(w, d)` → `effect.Effect`, cast by `ShowHits(hit)` at every `Struck`, drawn
-  by `HitOverlay(hit, with)` — `render.Over(with, hit.Mark().In)` — which reads its marker). `Collider` is the plugin's one
+  telemetry) and `WithLog(log.Default())`. A reaction is the game's: a role obeying
+  `rule.Then[collision.Meeting](name, rule.Between(a, b), step)` or one of a `Struck` (the collision
+  demo's hit: an effect applied at every `Struck`, drawn by `render.Over(with, hit.Mark().In)`).
+  **No plugin ships ready-made reactions** (`collision/rules` and `vision/rules`, once `hooks`, were
+  removed on 2026-10-05 at the user's word: an effect named by the library and a reaction of one
+  game are no reuse; a plugin gives moments and their conditions). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. The route finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`,
@@ -1019,9 +1018,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   a plan hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch from
   giving it every tick. One type, `rule.Step`, for both; a function writing part of a rule or a
   plan takes the Actor (`func whenBlocked(a *plan.Actor) rule.Step`), of a rule nothing: its steps are
-  plain functions; ready-made
-  rules are whole, in a plugin's `rules` package (`crules.ShowHits(hit)`, `vrules.Flee(threat,
-  fleeing)…`). Plans run first in every simulation step
+  plain functions; no plugin
+  ships ready-made rules. Plans run first in every simulation step
   (`steps.Plans`, made by the world); the world hosts no other decision pass (`world.Behavior`, a
   bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
@@ -1127,12 +1125,9 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   a tick per observer carrying `a` (`rule.Between(a, b)`), with everything in view carrying `b`
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
-  fails with none in view. Ready-made rules live in the flat `vision/rules` package
-  (rules for a game's roles to obey: `Flee(threat, fleeing)` — two rules, away from the nearest one
-  playing threat, else from the nearest one closing, `During` a world effect the game puts on and takes off with
-  a command for `entity.World`; `Chase(prey)` — `Toward` the nearest one playing prey; `Search(prey,
-  vrules.Looked(w, d))` — a quarter `Turn` either way, `Unless` it looked within `d`); imported as
-  `vrules`, collision's as `crules`. `WithLog(log.Default())` writes a line the
+  fails with none in view. Its conditions for a rule's `If` are
+  `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
+  collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
   `render.Show` rules given to `vision.Plugin.Draw` pick some (`render.Show(selected.In)`). A
   `plugin.CommandHandler`: the views start hidden and

@@ -112,7 +112,6 @@
 //	          plugins/selection   — a Select command into a Selected tag; the roles' abilities     (→ world, rule, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	          plugins/collision/rules, plugins/vision/rules — ready-made rules                       (→ their plugin, world, rule)
 //	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
 //	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
@@ -129,7 +128,7 @@
 //	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere, plugins/*/rules
+//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,
