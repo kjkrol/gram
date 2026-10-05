@@ -163,7 +163,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the component types effects owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[Active](), goke.LoadComp[tag.Tags[States]]()}
+	return []goke.CompToken{goke.LoadComp[Active](), goke.LoadComp[Wide](), goke.LoadComp[tag.Tags[States]]()}
 }
 
 // Persisted returns the saved originals for Persistence.Save and Load.

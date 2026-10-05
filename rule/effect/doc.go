@@ -22,7 +22,9 @@
 //
 // # Active, Cast and Dispel
 //
-// [Active] is what an entity is under: up to [maxEffects] slots, saved with it. [Effects.Cast]
+// [Active] is what an entity is under: up to [maxEffects] slots, saved with it; [Wide] is the
+// same with a slot for every effect a game may define, what a plugin's own entity carries
+// (world.Self). [Effects.Cast]
 // and [Effects.CastFor] put an effect on an entity — attaching Active when it has none — and the
 // change lands with the effects' next pass; a cast after a Dispel in the same step takes the slot
 // back. [Effects.Dispel] ends one with that pass; [Effects.Has] asks; the handle's [Effect.Cast],

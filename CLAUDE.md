@@ -109,11 +109,24 @@ one rule obeys it once per role). A kind plays roles through one component,
 `rule.Plays(roles...)` (a `rule.Played`; a kind carrying a component type twice panics), a cell
 through its kind (`board.Plugin.Plays(kind, roles...)`, in the Rules section: every cell the Layout
 lays as that kind carries the roles' tags; `cell.Entry.Roles` is gone), a plugin through its own
-`Plays` (`world.Plugin.Plays`, `atmosphere.Plugin.Plays`; all three note the roles with
+`Plays` (`world.Self.Plays`, which every plugin embeds; all three note the roles with
 `world.Kinds.Play`). A rule of a moment of the world as a whole — `clock.Moment`,
 `climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step walking no entities —
-takes no filter and fires while the entity the moment is about plays its role (`Tick.Roles`; the
-world's own roles are a mask in its castings until plugins get entities of their own). `Part.Tag`/`Rules`, `rule.Roles` and
+takes no filter and fires while the entity the moment is about plays its role (`Tick.Roles`:
+the plugin's own entity carries the role's tag). **A plugin is an entity** (since 2026-10-05,
+`plugins/world/self.go`): `world.NewSelf(w, name, knobs...)`, called in the plugin's `NewPlugin`
+and embedded as `*world.Self` (all ten: the world's own is the clock's entity, made with the
+clock's `State` as its knob so the clock's system finds it), is one entity called by the plugin's
+name (`entity.Label`), carrying its knobs (`comp.Comp`s, listed for the saves by the world), the
+effects' markers, `tag.Tags[rule.Roles]` and an `effect.Wide` — a slot for every definable effect,
+where a unit's or a cell's `Active` holds 8; the effect system walks both (`walk`, `slotsOf`).
+The world's first system (`selves.system`) finds them by name in a loaded game, writing the roles
+declared now, and makes the rest. `Self` is a `rule.Router`: `rule.Cast(e).On(s.atmosphere)` is
+routed as a Casting for `entity.Named(name)`, which the world carries out; `Self.Entity()`,
+`Self.Changed()` (its `effect.Changed`: the convention by which a plugin works costly things
+anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
+`rule.While(plugin, e, step)` is `During` for a plugin's entity (`steps.NewWhile`). One thing of a
+kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
 `rule.RoleNames` are for plugins. **Commands** ask: what somebody wants done about an effect is one
 `rule.Casting` written as a sentence (`rule/command.go`, since 2026-10-05, in place of wires,
 `world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Cast(e)` puts it on,
@@ -405,9 +418,10 @@ the day, and `State.Warmth`, the day the calendar's), what falls coming down as 
 `snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
 `air.Weather`; `atmosphere.Plugin.Air()`; `Climate.SetRunning` leaves out what is stopped) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
-tactical pause stops it. It hosts rules of `Weathering` (`plugin.StepRules`: no filter, no role; fired every step
-with the weather and season, about the world's own entity — the clock's — so an effect a rule
-applies is a state of the whole game; `atmosphere.Plugin.Plays`). `Change`
+tactical pause stops it. It hosts rules of `Weathering` (`plugin.StepRules`: no filter; fired every step
+with the weather and season, about the atmosphere's own entity (`Climate.About`; the world's for a
+climate run alone) — so they fire while the atmosphere plays their role (`atmosphere.Plugin.Plays`,
+its `world.Self`'s) and an effect a rule applies is a state of the atmosphere). `Change`
 (Shift+W) and `Set{Name}`. `atmosphere/precipitation` is what falls (screen-space streaks and
 flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, depth +∞);
 `atmosphere.Plugin.Precipitation()`. `atmosphere/weathering` is what the weather does to a board:

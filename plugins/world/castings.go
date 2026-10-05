@@ -30,7 +30,6 @@ type castings struct {
 
 	labelled *goke.Query // every entity with a Label
 	label    goke.Comp[entity.Label]
-	own      uint64      // the roles the world itself plays, a bit each
 	plays    *goke.Query // every entity playing roles, sought by RolesOf
 	playsC   goke.Comp[tag.Tags[rule.Roles]]
 }
@@ -61,14 +60,10 @@ func (c *castings) take(cmds ...rule.Casting) error {
 
 // RolesOf is the roles id plays, a bit each: what a rule's Playing asks.
 func (c *castings) RolesOf(id uid.UID64) uint64 {
-	var roles uint64
-	if c.own != 0 && id == c.world() {
-		roles = c.own
-	}
 	if c.plays == nil || !c.plays.Seek(id) {
-		return roles
+		return 0
 	}
-	return roles | uint64(*c.playsC.At(c.plays.Cursor()))
+	return uint64(*c.playsC.At(c.plays.Cursor()))
 }
 
 // system carries out the step's commands: first those the entities set off, then those given.

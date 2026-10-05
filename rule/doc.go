@@ -57,9 +57,10 @@
 // group; whose a unit is, its squad, whether it is selected are tags of families of their own, for
 // Self and Between. [Part.Obeys] adds the rules those playing it obey. [Plays] is the component of an entity playing
 // roles, for a kind's Spec: every role in one, so a kind names Plays once. A cell plays the roles
-// of its kind (board.Plugin.Plays), and a plugin those it is given (world.Plugin.Plays,
-// atmosphere.Plugin.Plays): the rules of a moment of the world as a whole — a clock.Moment, a
-// climate.Weathering — fire while the plugin whose moment it is plays their role. [Then] is On without
+// of its kind (board.Plugin.Plays), and a plugin those it is given (its Plays, world.Self's): the rules of a moment of the world as a
+// whole — a clock.Moment, a climate.Weathering — fire while the plugin whose moment it is plays
+// their role, its own entity carrying the role's tag. [While] runs a step while a plugin's entity
+// is under an effect, as [During] does for the world's. [Then] is On without
 // the body, its steps the package's own functions ([If], [OneOf], [Apply], [Around]…), its
 // conditions predicates of the moment ([Not] turns one round). A program names 64 roles at most, one name one tag, which every world saves by the name.
 // A role's String is "the role mortal".

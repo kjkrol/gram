@@ -19,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Config is the atmosphere: the Calendar's days and year, the Sky's sun and light, the Climate's
@@ -36,6 +35,8 @@ type Config struct {
 // over it, its climate and weather, what falls, and — laid on a board — what the weather does to
 // the ground.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	cfg         Config
 	worldPlugin *world.Plugin
 	calendar    *calendar.Calendar
@@ -53,8 +54,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.atmosphere"), cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {
 		r = *cfg.Running
@@ -154,10 +156,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil: the weather is its own entity, saved with the ECS; the calendar is the
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Plays has the atmosphere play roles: the rules of a climate.Weathering they obey fire every
-// step with the weather. Call it where the Stage defines its rules.
-func (p *Plugin) Plays(roles ...*rule.Part) { p.worldPlugin.Plays(roles...) }
 
 // =================================================================
 // plugin.CommandHandler contract

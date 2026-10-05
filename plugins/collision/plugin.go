@@ -15,6 +15,8 @@ import (
 // Plugin wires the collision engine into a Game — optional, borrows world.Plugin's own Space.
 // Must never import collision/rules: a game's roles obey those.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	module      *module
 
@@ -31,7 +33,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	worldPlugin.Roster().Unit.Default(comp.Const(Collider{}))
 	worldPlugin.Roster().Unit.Default(comp.Const(Physics{}))
-	return &Plugin{worldPlugin: worldPlugin}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.collision"), worldPlugin: worldPlugin}
 }
 
 // =================================================================

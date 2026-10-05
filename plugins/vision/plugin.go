@@ -18,6 +18,8 @@ import (
 // Plugin wires vision into a Stage over world.Plugin's space.
 // It publishes what entities can see; what to do about it is a rule's business.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	module      *module
 	renderer    *Renderer
@@ -41,7 +43,7 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
 // start hidden — see Cones.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{worldPlugin: worldPlugin, hidden: true}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.vision"), worldPlugin: worldPlugin, hidden: true}
 }
 
 // =================================================================

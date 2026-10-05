@@ -63,6 +63,9 @@ type module struct {
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
+	// the plugins' own entities, the world's among them: made first of all
+	selves selves
+
 	// the commands about effects, for those named, grouped and the world itself
 	castings         castings
 	castingsRunnable goke.Runnable
@@ -111,6 +114,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	for _, name := range rule.RoleNames() { // the roles by name, as a save carries them
 		w.kinds.DefineTag[rule.Roles](name)
 	}
+	ecs.RegSys(w.selves.system())                        // before the clock's, which finds its State on the world's own
 	w.castingsRunnable = ecs.RegSys(w.castings.system()) // first: a step's commands land with its effects
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.steeringRunnable = ecs.RegSys(w.steer)
@@ -171,11 +175,11 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Z](),
 		goke.LoadComp[Eye](),
 		goke.LoadComp[steering.Driven](),
-		goke.LoadComp[clock.State](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[entity.Label](),
 		goke.LoadComp[tag.Tags[rule.Roles]](),
 	}, w.effects.Module().LoadComps()...)
+	tokens = append(tokens, w.selves.tokens()...)
 	return append(tokens, w.plans.LoadComps()...)
 }
 

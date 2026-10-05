@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*weatherSystem)(nil)
@@ -32,8 +33,9 @@ type weatherSystem struct {
 	now     goke.Comp[Weather]
 	spawn   goke.Comp[Weather]
 	host    *plugin.StepRules[Weathering]
-	profile Profile     // the zone's climate in numbers
-	current air.Weather // the air as the last step left it, what Climate.Air gives
+	about   func() uid.UID64 // whose entity a Weathering is about; nil for the world's
+	profile Profile          // the zone's climate in numbers
+	current air.Weather      // the air as the last step left it, what Climate.Air gives
 }
 
 func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, change *control.Queue[Change], set *control.Queue[Set], rules *plugin.StepRules[Weathering], running *Running) *weatherSystem {
@@ -103,7 +105,11 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.current = now
 		if !s.host.Empty() {
 			t := s.world.Tick(cb, d)
-			s.host.Run(t, Weathering{Weather: now, Season: season, World: t.World})
+			about := t.World
+			if s.about != nil {
+				about = s.about()
+			}
+			s.host.Run(t, Weathering{Weather: now, Season: season, Self: about})
 		}
 		return
 	}

@@ -28,7 +28,8 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 	if a.Sky().Frozen() || !a.Sky().Moon() || a.Climate().Running() != climate.AllRunning() || a.Running() != AllRunning() {
 		t.Errorf("set going, the atmosphere runs %+v", a.Running())
 	}
-	if all := NewPlugin(w, Config{}).Running(); all != AllRunning() {
+	other := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
+	if all := NewPlugin(other, Config{}).Running(); all != AllRunning() {
 		t.Errorf("a Config without Running runs %+v, want all of it", all)
 	}
 }

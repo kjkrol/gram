@@ -14,6 +14,8 @@ import (
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin  *world.Plugin
 	selects      control.Queue[Select]
 	marqueeQueue control.Queue[Marquee]
@@ -39,7 +41,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		Followed:   reg.DefineTag[Family]("selection.followed"),
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
-	return &Plugin{worldPlugin: worldPlugin, tags: tags}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.selection"), worldPlugin: worldPlugin, tags: tags}
 }
 
 // Tags returns selection's tags: for the plugins reading who is Selected.

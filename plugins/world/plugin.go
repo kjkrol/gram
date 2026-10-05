@@ -44,6 +44,7 @@ func (r *Resources) Persisted() []any { return r.Camera.Persisted() }
 type Plugin struct {
 	Res      Resources
 	module   *module
+	*Self    // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
@@ -89,6 +90,7 @@ func NewPlugin(cfg Config) *Plugin {
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
+	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
 
@@ -276,16 +278,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
-
-// Plays has the world play roles: the rules of a clock.Moment they obey fire every step, being
-// of the world's own entity, the clock's. Call it where the Stage defines its rules.
-func (p *Plugin) Plays(roles ...*rule.Part) {
-	p.must("the world given roles", section.Rules)
-	p.kinds.Play(roles...)
-	for _, r := range roles {
-		p.module.castings.own |= 1 << r.Tag()
-	}
-}
 
 // Draw has the world's renderer draw its entities as rules say, every frame, in the order given
 // (render.Over, As, With, Show; Facing); call before Use.

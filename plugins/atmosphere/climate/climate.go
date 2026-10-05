@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Climate is the climate of a world: where in the world it lies, and its weather going from one
@@ -22,6 +23,7 @@ type Climate struct {
 	set      control.Queue[Set]
 	report   report
 	rules    plugin.StepRules[Weathering]
+	about    func() uid.UID64 // whose entity a Weathering is about
 	running  Running
 }
 
@@ -73,8 +75,13 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // weather's entity in its own Init. Call it once.
 func (c *Climate) System() goke.System {
 	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.rules, &c.running)
+	c.sys.about = c.about
 	return c.sys
 }
+
+// About says whose entity a Weathering is about — the atmosphere's own; the world's without it.
+// Call it before System.
+func (c *Climate) About(self func() uid.UID64) { c.about = self }
 
 // LoadComps lists the weather's one component — see goke.CompProvider.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }

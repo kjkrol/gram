@@ -151,8 +151,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
 		r.w.Commands().Put(1, rule.Cast(lever).On(entity.World))
-		r.tick() // the lever is put on the world
-		r.tick()
+		r.tick() // the lever is put on the world, which carries its markers from the start
 		r.tick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
 			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))

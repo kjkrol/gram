@@ -27,6 +27,8 @@ var ErrUnknownCommand = errors.New("players: no plugin listens for this command"
 // each to the handler that defines it: a player's bindings, an AI or a network issue a command,
 // and it lands in its handler's queue.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	handlers    []plugin.CommandHandler
 	players     []*Player
@@ -57,7 +59,7 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 		}
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
-	p := &Plugin{worldPlugin: worldPlugin}
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.players"), worldPlugin: worldPlugin}
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	if err := worldPlugin.Carry(p.handlers...); err != nil {
 		panic(fmt.Sprintf("players: %v", err))

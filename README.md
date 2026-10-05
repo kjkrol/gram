@@ -371,7 +371,10 @@ A *role* is a behaviour an entity plays — mortal, hasty, a plate — not a gro
 `rule.Role(name).Obeys(rules...)` fires the rules for those playing it alone, on top of their own
 filters. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
 (`board.Plugin.Plays(kind, roles...)`), the world and the atmosphere through their own `Plays` —
-for the rules of a `clock.Moment` and of the weather. What somebody asks for is a *command*, and
+for the rules of a `clock.Moment` and of the weather. A plugin is an entity of the world too
+(`world.Self`), called by its name: it carries the plugin's knobs and the effects it is under, so
+a state of the sky is an effect on the atmosphere — `rule.Cast(bloodMoon).On(s.atmosphere)`,
+read back by `rule.While(s.atmosphere, bloodMoon, step)`. What somebody asks for is a *command*, and
 one about an effect is a sentence: put it on (`rule.Cast`), take it off (`Lift`) or switch it
 (`Toggle`), for the entities bearing a name, those in a group, the world itself, the player's
 selected units or the one pointed at (`On`), set off by the entity named (`By`):

@@ -43,6 +43,8 @@ type Resources struct {
 
 // Plugin wires a Board into a Game; it depends on world, and hands collision its solid ground.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	Res Resources
 
 	occupancy cell.Occupancy
@@ -70,6 +72,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
+		Self:        world.NewSelf(worldPlugin, "gram.board"),
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),

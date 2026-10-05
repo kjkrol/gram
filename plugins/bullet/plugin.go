@@ -22,6 +22,8 @@ import (
 // every step — until a Burst, a Blast for every entity within its radius. Depends on world,
 // collision (a shot is a sensor of its) and selection (whom a player's Shoot fires from).
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
 	ground      func() ground.Heights // nil: the ground lies at 0
@@ -40,7 +42,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // NewPlugin builds the bullet plugin over w, firing a player's Shoot from the units sel marks
 // Selected; make it after collision, which the shots are sensors of.
 func NewPlugin(w *world.Plugin, sel *selection.Plugin) *Plugin {
-	return &Plugin{worldPlugin: w, selected: sel.Tags().Selected}
+	return &Plugin{Self: world.NewSelf(w, "gram.bullet"), worldPlugin: w, selected: sel.Tags().Selected}
 }
 
 // WithGround gives the plugin the ground a thrown shot comes down on, read as needed — the board's

@@ -22,6 +22,8 @@ import (
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
 // and defines the MoveTo command; WithRenderer draws the remaining route.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	boardPlugin *board.Plugin
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
@@ -61,7 +63,7 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
-	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.navigation"), boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
 // =================================================================

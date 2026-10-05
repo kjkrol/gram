@@ -3,6 +3,7 @@ package rule
 import (
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/uid"
 )
 
 // Step is a part of a rule or a plan: made by the package's functions (If, OneOf, Apply, Around…)
@@ -49,6 +50,12 @@ func Under(e effect.Effect, step Step) Step { return steps.NewUnder(e, step) }
 
 // During runs step while the world is under the effect, and fails while it is not.
 func During(e effect.Effect, step Step) Step { return steps.NewDuring(e, step) }
+
+// While runs step while whose own entity is under the effect, and fails while it is not: a
+// plugin's (world.Self) — While(s.atmosphere, bloodMoon, …) — as During is the world's.
+func While(whose interface{ Entity() uid.UID64 }, e effect.Effect, step Step) Step {
+	return steps.NewWhile(whose.Entity, e, step)
+}
 
 // Playing runs step while the entity — inside Here or Around, the place turned to — plays role.
 func Playing(role *Part, step Step) Step { return steps.NewPlaying(uint8(role.tag), step) }

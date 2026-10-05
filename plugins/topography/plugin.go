@@ -71,6 +71,8 @@ type Config struct {
 // cameras turned, tilted, fastened behind a unit and, in perspective, put at a point of the world.
 // It is the board's Map and the world's Ground.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	cfg         Config
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
@@ -112,7 +114,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
 	brd := boardPlugin.Res.Logic.Board
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.topography"), cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
 		climbing: cfg.Climbing}
 	if p.climbing == (relief.Climbing{}) {
 		p.climbing = relief.DefaultClimbing

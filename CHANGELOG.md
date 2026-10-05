@@ -23,6 +23,20 @@ argument's full path, which moved.
 - `plugins/collision/hooks` and `plugins/vision/hooks` are `plugins/collision/rules` and
   `plugins/vision/rules` (imported as `crules`, `vrules`).
 
+**A plugin is an entity**
+- Every plugin has one entity of its own in the world, called by the plugin's name
+  (`world.Self`, made with `world.NewSelf(w, name, knobs...)` and embedded in the plugin): it
+  carries the plugin's knobs, the roles the plugin plays and the effects it is under. A plugin is
+  whom a command may be for — `rule.Cast(e).On(s.atmosphere)` — plays roles (`Plays`), and learns
+  its knobs were turned from `Changed`. Made as the Stage is set up, found again by its name in a
+  loaded game.
+- The world is no exception: its own entity is the clock's, named by `entity.World` and by the
+  plugin alike. `rule.While(plugin, e, step)` is `During` for any plugin's entity.
+- A `climate.Weathering` is about the atmosphere's entity, no longer the world's: an effect its
+  rule applies is a state of the atmosphere.
+- A plugin's entity holds every effect at once (`effect.Wide`); units and cells still hold eight.
+- Saves made before do not load: the clock's entity bears a name now.
+
 **A Stage defined in sections**
 - `game/stage`: `stage.New(name).Plugins(f).Players(f).Cells(f).Effects(f).Rules(f).Commands(f).
   Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`

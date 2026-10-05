@@ -97,6 +97,16 @@ name, its moment and its role: `"fall in" of unit.Standing, for the role mortal`
 moment of the world as a whole (`clock.Moment`, `climate.Weathering`) fires while the plugin
 whose moment it is plays the rule's role.
 
+A plugin is an entity too (`world.Self`): one of its own, called by the plugin's name, carrying
+its knobs, its roles and the effects it is under — as many at once as a game defines. So a state
+of the sky is an effect on the atmosphere, as a state of the whole game is one on the world:
+
+```go
+bloodMoon := fx.Define("blood moon", effect.Spec{effect.Lasts(night), effect.Alter(func(m *sky.Moon) { … })})
+bleed := rule.Cast(bloodMoon).On(s.atmosphere)                  // the plugin is whom the command is for
+rule.While(s.atmosphere, bloodMoon, rule.Keep(frenzied))        // … and a rule reads its state
+```
+
 ## The five words
 
 - **Rule** — a moment a plugin catches: a `unit.Standing` or a `cell.Now`, a `vision.Sighting`, a

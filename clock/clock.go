@@ -74,6 +74,10 @@ func New(cfg Config) *Clock {
 	return c
 }
 
+// State is the clock as it stands: what its entity carries. For the world, which makes that
+// entity as its own.
+func (c *Clock) State() State { return c.state }
+
 // Time is the game time gone by.
 func (c *Clock) Time() time.Duration { return c.state.Time }
 

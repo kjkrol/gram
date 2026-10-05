@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/uid"
 )
 
 func NewApply(e effect.Effect) Step {
@@ -138,17 +139,26 @@ func NewDuring(e effect.Effect, node Step) Step {
 	return composite{kids: []Step{node}, sign: fmt.Sprintf("during(%d)", e.Mark()), make: func() exec { return during{e: e} }}
 }
 
-// during runs its step while the world — its own entity, the clock's — is under the effect.
+// NewWhile is NewDuring for the entity of names in place of the world's: a plugin's own.
+func NewWhile(of func() uid.UID64, e effect.Effect, node Step) Step {
+	return composite{kids: []Step{node}, sign: fmt.Sprintf("while(%d)", e.Mark()), make: func() exec { return during{e: e, of: of} }}
+}
+
+// during runs its step while the world — its own entity, the clock's — is under the effect, or,
+// given of, while that entity is.
 type during struct {
 	basic
-	e effect.Effect
+	e  effect.Effect
+	of func() uid.UID64
 }
 
 func (during) instant() {}
 
 func (d during) tick(c *ctx, _ int, kids []int) Status {
 	on := false
-	if c.instant {
+	if d.of != nil {
+		on = d.e.On(d.of())
+	} else if c.instant {
 		on = d.e.On(c.pass.World)
 	} else if c.sys.world != nil {
 		on = c.sys.effects.Has(c.sys.world(), d.e)
