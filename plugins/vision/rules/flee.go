@@ -1,4 +1,4 @@
-package hooks
+package rules
 
 import (
 	"math"
@@ -16,7 +16,7 @@ const onCourse = 0.5
 // Flee is the rules of those who steer clear: head away from the nearest one playing threat in
 // view, else from the nearest one in view when either is heading at the other; both run During
 // fleeing, a state of the world (rule.Cast on entity.World). A role obeys them, in this order:
-// rule.Role("skittish").Obeys(hooks.Flee(threat, fleeing)...).
+// rule.Role("skittish").Obeys(vrules.Flee(threat, fleeing)...).
 func Flee(threat *rule.Part, fleeing effect.Effect) []rule.Rule {
 	return []rule.Rule{
 		rule.Then[vision.Sighting]("vision.flee a threat", rule.Other(threat), rule.During(fleeing, rule.Order(steering.Away{}))),

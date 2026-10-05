@@ -41,9 +41,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 	pw.scorched = pw.fx.Define("scorched", effect.Spec{})
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	pw.brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-	if err := pw.brd.Hook(hook(pw)...); err != nil {
-		t.Fatal(err)
-	}
+	rules := hook(pw)
 	if err := pw.brd.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +62,9 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		t.Fatal(err)
 	}
 	if err := pw.brd.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ctx.Deliver(rules...); err != nil {
 		t.Fatal(err)
 	}
 	systems := ctx.Systems()
@@ -208,24 +209,22 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	}
 }
 
-// A cell plays the roles the Layout gives it, and a rule a role obeys fires for those cells
-// alone; a cell.Entry without a Kind keeps the Default.
+// A cell plays the roles of the kind the Layout lays it as, and a rule a role obeys fires for
+// those cells alone.
 func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	a, _ := grid.CellIndex(1, 1)
 	b, _ := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		marked := rule.Role("marked").Obeys(rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
-		roles := []*rule.Part{marked}
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: a, Roles: roles}, {Cell: b, Roles: roles}}})
+		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("marked"), Cost: 1, Allows: cell.Land})
+		pw.brd.Plays("marked", marked)
+		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
 		return marked.Rules()
 	})
 	pw.tick(3)
 	if got := pw.under(pw.scorched); !sameCells(got, map[cell.ID]bool{a: true, b: true}) {
 		t.Errorf("scorched %v, want the two marked cells %d and %d alone", got, a, b)
-	}
-	if k := pw.brd.Res.Logic.Board.Kind(a); k.Name.String() != "grass" {
-		t.Errorf("a marked cell is %q, want the grass it was: a cell.Entry without a Kind keeps it", k.Name)
 	}
 }
 
@@ -236,7 +235,9 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	middle, _ := grid.CellIndex(3, 3)
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
 		plate := rule.Role("plate")
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: middle, Roles: []*rule.Part{plate}}}})
+		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
+		pw.brd.Plays("plate", plate)
+		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
 		return []rule.Rule{rule.Then[unit.Standing]("press", rule.All, rule.Here(rule.Playing(plate, rule.Apply(pw.scorched))))}
 	})
 	pw.tick(3)

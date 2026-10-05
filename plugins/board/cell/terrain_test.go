@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Cast adds roles to those a cell plays, Label calls it, the last given; neither moves the
+// Cast has a cell play roles and Label calls it, each the last given; neither moves the
 // terrain's Version, and other cells play nothing and are called nothing.
 func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 	const trapdoor, plate tag.Tag[rule.Roles] = 0, 5
@@ -17,12 +17,12 @@ func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 	v := m.Version()
 
 	m.Cast(3, tag.Tags[rule.Roles](0).With(trapdoor))
-	m.Cast(3, tag.Tags[rule.Roles](0).With(plate))
+	m.Cast(3, tag.Tags[rule.Roles](0).With(trapdoor, plate))
 	m.Label(3, entity.LabelOf("east lever", ""))
 	m.Label(3, entity.LabelOf("west lever", "levers"))
 
 	if got, want := m.Roles[3], tag.Tags[rule.Roles](0).With(trapdoor, plate); got != want {
-		t.Errorf("cell 3 plays %b, want %b: Cast adds to the roles it plays", got, want)
+		t.Errorf("cell 3 plays %b, want %b, what it was cast last", got, want)
 	}
 	if got, want := m.Labels[3], entity.LabelOf("west lever", "levers"); got != want {
 		t.Errorf("cell 3 is called %v, want %v, what it was called last", got, want)

@@ -3,8 +3,8 @@
 // plate — while someone stands on it, and a second after, its trapdoors are open and every
 // unfortunate on one falls in. A plate is a cell with a name, playing the role plate: stood on, it
 // Triggers, and the command that names it opens the group of cells that is its strip (rule.Cast,
-// entity.Named, entity.Group). All of it is defined here, in the game, and the rules hooked with
-// ctx.Hook.
+// entity.Named, entity.Group). All of it is defined here, in the game; the rules are roles',
+// played by the plate's kind of cell and by the units' kinds.
 package main
 
 import (
@@ -96,6 +96,8 @@ type unitRow struct{ start, to cell.ID }
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	mortal *rule.Part // whoever plays it falls in where nothing holds it
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -171,13 +173,14 @@ func (s *mainStage) defineEffects() {
 	s.open = s.world.Effects().Define("open", effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 }
 
-// defineRules says the rules: a plate stood on sets off its command, and whoever stands where
-// nothing holds it falls in.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
+// defineRules says the roles: a plate stood on sets off its command, and a mortal standing where
+// nothing holds it falls in. Every cell laid as a plate plays the plate.
+func (s *mainStage) defineRules() {
 	s.plate = rule.Role("plate").Obeys(
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-	return ctx.Hook(s.plate, rule.Then[unit.Standing]("fall in", rule.All,
-		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.board.Plays("plate", s.plate)
 }
 
 // defineCommands names what can be asked for: each plate opens its own strip of trapdoors, a group
@@ -209,10 +212,11 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	land := unit.Mover{Domain: cell.Land}
-	s.scout = units.Define("scout", land, profile)
+	s.scout = units.Define("scout", land, profile, rule.Plays(s.mortal))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile,
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }),
+		rule.Plays(s.mortal))
 }
 
 func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
@@ -221,7 +225,7 @@ func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y);
 func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for _, g := range groups {
-		cells = append(cells, cell.Entry{Kind: "plate", Cell: s.cellAt(g.plate, plateRow), Roles: []*rule.Part{s.plate}, Name: "plate " + g.name})
+		cells = append(cells, cell.Entry{Kind: "plate", Cell: s.cellAt(g.plate, plateRow), Name: "plate " + g.name})
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := g.left; x <= g.left+1; x++ {
 				cells = append(cells, cell.Entry{Kind: "boards", Cell: s.cellAt(x, y), Group: "trapdoors " + g.name})

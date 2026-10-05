@@ -16,11 +16,12 @@
 // A [TerrainMap] is terrain in plain maps — kinds, ways, crossings, tags, roles and labels by cell:
 // a board's seed until the ECS makes every cell an entity out of it, and a [Terrain] of its own
 // where no board is wanted. The board's Layout names kinds by name: an [Entry] per cell, a
-// [WayEntry] per way or crossing. An Entry also gives its cell, for good, the roles it plays
-// (Entry.Roles), whose rules it obeys, and what it is called — a Name of its own, a Group it shares
-// — which its entity carries as an entity.Label and commands find it by (entity.Named, Group):
+// [WayEntry] per way or crossing. An Entry also gives its cell, for good, what it is called — a Name of its own, a
+// Group it shares — which its entity carries as an entity.Label and commands find it by
+// (entity.Named, Group); the roles it plays, whose rules it obeys, are its kind's
+// (board.Plugin.Plays):
 //
-//	cell.Entry{Kind: "plate", Cell: c, Roles: []*rule.Part{plate}, Name: "plate"}
+//	cell.Entry{Kind: "plate", Cell: c, Name: "plate"}
 //	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
 //
 // # Now

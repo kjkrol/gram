@@ -43,8 +43,7 @@
 //
 // # Rules
 //
-// Every step the board runs the rules hooked on it ([Plugin.Hook], or game.Initializer.Hook, which
-// finds the board for them): of a unit.Standing for every entity on the board — the cell under it,
+// Every step the board runs the rules of its moments, which the roles obey: of a unit.Standing for every entity on the board — the cell under it,
 // its kind and the game's tags of its place, its box and domain; Standing.Fallen where the domain
 // may not be, a unit pushed into the sea — and of a cell.Now for every cell: its entity, which
 // cell, its kind now, and whether the centre of an entity carrying unit.At lies on it this step
@@ -52,7 +51,7 @@
 // the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. A unit's Standing tells the effects on the cell
-// under it (Standing.States, unit.Over). A cell playing a role obeys the role's rules (rule.Part.Obeys: a
+// under it (Standing.States, unit.Over). A cell plays the roles of its kind ([Plugin.Plays]) and obeys their rules (rule.Part.Obeys: a
 // plate, a lever), and a command finds a cell by its name or its group (entity.Named, entity.Group):
 // a plate stood on Triggers, and the command its name sets off opens the group of trapdoors. In the same
 // pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the

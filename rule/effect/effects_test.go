@@ -12,15 +12,19 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -60,6 +64,7 @@ type rig struct {
 	course  goke.OptComp[steering.Course]
 	casting func(cb *goke.CmdBuf)
 	comps   []comp.Comp // more of the entity's kind: a plan
+	rules   []rule.Rule // what the world's hosts are handed once it is installed
 }
 
 // newRig builds the rig; define adds effects before Install and may read the rig's tags. Without
@@ -77,6 +82,9 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 
 	ctx := &installCtx{ecs: goke.New()}
 	if err := r.w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ctx.Deliver(r.rules...); err != nil {
 		t.Fatal(err)
 	}
 	spec := kind.Spec{
@@ -565,3 +573,10 @@ func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T
 		t.Error("the step it ended left Changed off")
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

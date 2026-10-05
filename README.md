@@ -43,9 +43,9 @@ pathfinding and mouse selection, and a game adds its own the same way. Formerly 
 - **A Stage owns its ECS.** Each Stage gets a fresh world the moment it is entered, so a menu
   Stage sits idle with no gameplay entities until the player starts.
 - **Behaviour is rules.** Game logic reacting to what a plugin finds is a rule run inside that
-  plugin's own pass; the moment's type says whose it is, `ctx.Hook` hooks it there, and a rule no
-  plugin in use hosts is an error, never a silent no-op. Roles say who obeys a rule, a command
-  what a lever drives.
+  plugin's own pass; the moment's type says whose it is, and nobody hands it over: a rule is a
+  role's, a role is played, and the engine gives it to the plugin catching its moment — one no
+  plugin in use catches is an error, never a silent no-op. A command says what a lever drives.
 - **Kinds say what an entity is.** A kind is the list of components its entities carry, each
   constant or read from the entity's own row; it also tells save files what to expect.
 - **Saves survive change.** Persisted resources are matched by name, never by position, so a
@@ -69,8 +69,8 @@ cgo. Without a GPU the tests that draw skip themselves.
 | Capability | Package | What you get |
 |:---|:---|:---|
 | **Stages and Scenes** | `game` | Named Stages with their own ECS and lifecycle (`Init`/`Restore`/`Spawn`/`Update`); Scenes with layered renderers and input; a live Composition of what is shown and which Scene is active |
-| **Plugins and rules** | `plugin` | The one extension contract; rules hooked on the plugin whose pass catches their moment, pairs too, run by its hosts (`Rules`, `PairRules`, `StepRules`) with a `Tick` |
-| **Behaviour** | `rule` | One vocabulary: rules at a plugin's moments, hooked with `ctx.Hook` on whichever plugin hosts them; roles a kind or a cell plays — the rules they obey; commands written as sentences, for entities found by name or group — a lever, a plate, a switch and what they drive; plans a kind's entities follow, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
+| **Plugins and rules** | `plugin` | The one extension contract; rules run in the pass of the plugin that catches their moment, pairs too, by its hosts (`Rules`, `PairRules`, `StepRules`) with a `Tick` |
+| **Behaviour** | `rule` | One vocabulary: rules at a plugin's moments; roles a kind, a kind of cell or a plugin plays — the rules they obey, handed by the engine to whichever plugin catches their moments; commands written as sentences, for entities found by name or group — a lever, a plate, a switch and what they drive; plans a kind's entities follow, effects that hold, commands an entity gives itself as a player would, facts plugins tell it |
 | **World** | `plugins/world` | Every entity's `Base` (position, velocity, kind, capabilities); movement under stop, wrap or open edges; the shared spatial index and camera; spawning from kinds, before the game and during it (`Spawn`); `Config.Heights` for a world with heights |
 | **Steering and views** | `plugins/world/steering`, `plugins/world/view` | A `Steering` profile turned into heading and speed each tick; a `View` of what a camera sees |
 | **Kinds** | `entity/kind` | `Define` a kind from a `Spec` of `Const` and `Load` components; `Entry` rows onto the roster |
@@ -336,15 +336,17 @@ commits to either. Game logic that reacts to what a plugin finds is a *rule*, ru
 the plugin that catches its moment:
 
 ```go
-caught := rule.Then[collision.Meeting]("caught", rule.Between(predator, prey), rule.ForOther(rule.Order(world.Despawn{})))
-return ctx.Hook(caught)
+prey := rule.Role("prey")
+predator := rule.Role("predator").Obeys(
+	rule.Then[collision.Meeting]("caught", rule.Other(prey), rule.ForOther(rule.Order(world.Despawn{}))))
+s.hunter = kind.Define[body](kinds, "hunter", kind.Spec{…, rule.Plays(predator)})
 ```
 
-fires for every pair it meets where one entity carries tag `predator` and the other `prey`, and
-has the prey give itself a `Despawn`; `rule.All` would fire for every pair, `rule.Self(tag)` for
-every entity carrying a tag. `ctx.Hook`, in `Init` once the plugins are used, hooks each rule on
-the plugin in use that hosts its moment — a `Meeting` on collision — and a rule none hosts is an
-error, never a silent no-op. A tag is a
+fires for every pair a predator meets whose other plays `prey`, and has the prey give itself a
+`Despawn`; `rule.All` would fire for every pair, `rule.Self(tag)` for every entity carrying a tag.
+Nobody hands the rule to collision: once `Init` returns, the engine gives the rules of every role
+somebody plays to the plugin in use that catches their moment — a `Meeting` to collision — and a
+rule none catches is an error, never a silent no-op. A tag is a
 bit of a family — one `tag.Tags[F]` component per family, named through `Kinds.DefineTag`, given
 to a kind with `comp.Tagged` — so markers cost no component types of their own. What lasts over
 ticks is a *plan* a kind gives its entities, `plan.New(name, func(a *plan.Actor) rule.Step {…})`,
@@ -354,9 +356,9 @@ of the same steps; both cast *effects* that hold for a while and give *commands*
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
 `cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is the one place
 rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). Ready-made rules
-live in `plugins/collision/hooks` and `plugins/vision/hooks`, whole, to `ctx.Hook`; navigation's
+live in `plugins/collision/rules` and `plugins/vision/rules`, whole, for a role to obey; navigation's
 crowd is its own rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to
-with `ctx.Hook` or replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
+with its roles or replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
 out, rules and plans say what to do when. What a player *wants* is a
 command too: the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a
 `plugin.CommandHandler` that keeps its `control.Queue` and drains it in its own pass; the
@@ -367,8 +369,9 @@ or a network issue, the world what the entities give themselves.
 
 A *role* is a behaviour an entity plays — mortal, hasty, a plate — not a group:
 `rule.Role(name).Obeys(rules...)` fires the rules for those playing it alone, on top of their own
-filters. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its
-`cell.Entry.Roles`, and a role is hooked like a rule. What somebody asks for is a *command*, and
+filters. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
+(`board.Plugin.Plays(kind, roles...)`), the world and the atmosphere through their own `Plays` —
+for the rules of a `clock.Moment` and of the weather. What somebody asks for is a *command*, and
 one about an effect is a sentence: put it on (`rule.Cast`), take it off (`Lift`) or switch it
 (`Toggle`), for the entities bearing a name, those in a group, the world itself, the player's
 selected units or the one pointed at (`On`), set off by the entity named (`By`):
@@ -394,10 +397,8 @@ s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
 s.player.Bind(
 	control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest),
 	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
-if err := ctx.Commands(openWest, openEast); err != nil {
-	return err
-}
-return ctx.Hook(mortal, hasty, plate)
+s.board.Plays("plate", plate) // every cell laid as a plate plays it
+return ctx.Commands(openWest, openEast)
 
 // Spawn: a unit is told whose it is and that it may be selected, as it is made
 s.world.Seed(s.scout.Entry(row).Told(players.Give{To: s.player.ID}, selection.Allow{}))
@@ -442,7 +443,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
 | [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued` (by a player or an entity), `Carrier`, `Binding`, `Command`, the triggers of bindings |
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers; `Appearance` and the drawing rules (`Over`, `As`, `With`, `Show`) a renderer runs every frame through `Rules` |
-| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Restorer`; the hosts a plugin runs the rules hooked on it with (`Rules`, `PairRules`, `StepRules`), the `Tick` they hand them, `Marks`, and what a moment is (`About`, `Met`, `Placed`, `Aimed`) |
+| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Restorer`; the hosts a plugin runs the rules of its moments with (`Rules`, `PairRules`, `StepRules`), the `Tick` they hand them, `Marks`, and what a moment is (`About`, `Met`, `Placed`, `Aimed`) |
 | [`entity/tag`](entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
 | [`entity/kind`](entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`; the world re-exports them |
@@ -456,9 +457,9 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
 | [`game/stage`](game/stage/doc.go) | A Stage defined a section at a time, in one order the compiler keeps: `New(name).Plugins(…).Players(…)…Update(…)`; [`plugin/section`](plugin/section/section.go) names the parts, for a plugin refusing what is defined out of its place |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
-| [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made rules: `ShowHits` with `HitOverlay` |
+| [`plugins/collision/rules`](plugins/collision/rules/doc.go) | Ready-made rules: `ShowHits` with `HitOverlay` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
-| [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made rules: `Flee`, `Chase`, `Search`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
+| [`plugins/vision/rules`](plugins/vision/rules/doc.go) | Ready-made rules: `Flee`, `Chase`, `Search` |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`; rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
 | [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, the moment `Now` (`Stood`); `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
@@ -479,7 +480,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 control ───┘ (→ camera)                   │  ▲
                                           ▼  │
-                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/*/hooks ──► plugins/players
+                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/*/rules ──► plugins/players
 ```
 
 Outside the module: [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,

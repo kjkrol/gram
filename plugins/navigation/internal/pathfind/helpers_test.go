@@ -2,8 +2,11 @@ package pathfind
 
 import (
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -64,6 +67,7 @@ func openTerrain() *cell.TerrainMap {
 
 // stubInstallCtx is a minimal plugin.Installer for tests that call Install directly.
 type stubInstallCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -81,3 +85,10 @@ func (c *stubInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
 	return c.ecs.RegSys(factory())
 }
 func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *stubInstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

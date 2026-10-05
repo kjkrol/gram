@@ -1,8 +1,6 @@
 package climate
 
 import (
-	"fmt"
-
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -10,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Climate is the climate of a world: where in the world it lies, and its weather going from one
@@ -82,14 +79,9 @@ func (c *Climate) System() goke.System {
 // LoadComps lists the weather's one component — see goke.CompProvider.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
-// Host hosts a rule of Weathering, fired every step with the weather, until the system's Init: a
-// moment of the world as a whole, so a filtered or narrowed rule is refused (plugin.ErrUnhosted).
-func (c *Climate) Host(b rule.Rule) error {
-	if err := c.rules.Add(b); err != nil {
-		return fmt.Errorf("%w in the climate — it takes a rule of Weathering", err)
-	}
-	return nil
-}
+// Rules takes the rules of Weathering, fired every step with the weather: a moment of the world
+// as a whole, so its rules are of a role the atmosphere plays.
+func (c *Climate) Rules() plugin.Host { return &c.rules }
 
 // Reporter is the weather's line for a render.TelemetryRenderer.
 func (c *Climate) Reporter() render.Reporter { return &c.report }

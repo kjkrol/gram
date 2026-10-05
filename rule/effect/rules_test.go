@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/gram/rule/plan"
 )
 
-// hookGlow hooks on the world a rule keeping glow on while it fires, then a rule dispelling it at
+// hookGlow has the world's units obey a rule keeping glow on while it fires, then a rule dispelling it at
 // the steps douse says — with shield, the dispeller casts it first and the keeper keeps off it.
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
 	keep, put := rule.Keep(glow), rule.Dispel(glow)
@@ -19,12 +19,9 @@ func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
 		put = rule.Steps(rule.Apply(shield), rule.Dispel(glow))
 	}
 	dousing := func(world.Moving) bool { return *douse }
-	if err := r.w.Hook(
+	r.rules = append(r.rules,
 		rule.Then[world.Moving]("glow", rule.All, keep),
-		rule.Then[world.Moving]("douse", rule.All, rule.If(dousing, put)),
-	); err != nil {
-		r.t.Fatal(err)
-	}
+		rule.Then[world.Moving]("douse", rule.All, rule.If(dousing, put)))
 }
 
 // A rule's Dispel takes off an effect another rule keeps; the keeper, its cause going on, has it
@@ -143,9 +140,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 				}))
 				return
 			}
-			if err := r.w.Hook(rule.Then[world.Moving]("open while pulled", rule.All, rule.During(lever, rule.Keep(open)))); err != nil {
-				r.t.Fatal(err)
-			}
+			r.rules = append(r.rules, rule.Then[world.Moving]("open while pulled", rule.All, rule.During(lever, rule.Keep(open))))
 		})
 		if err := r.w.Carry(r.w); err != nil {
 			t.Fatal(err)

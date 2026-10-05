@@ -13,8 +13,8 @@ import (
 type Roles struct{}
 
 // Part is a role an entity plays, as Role makes it: the rules those playing it obey (Obeys). Give
-// it to a kind with Plays, to a cell with cell.Entry.Roles, and hook it with the Stage's
-// Initializer, like a rule.
+// it to a kind with Plays, to a kind of cell with board.Plugin.Plays, to a plugin with its own
+// Plays: the engine hands the rules of a role somebody plays to the plugins catching their moments.
 type Part struct {
 	name  string
 	tag   tag.Tag[Roles]
@@ -68,7 +68,7 @@ func (r *Part) Obeys(rules ...Rule) *Part {
 // Tag is the role's tag of Roles: for the plugins giving it and reading it.
 func (r *Part) Tag() tag.Tag[Roles] { return r.tag }
 
-// Rules are the rules the role's players obey: what hooking the role hooks.
+// Rules are the rules the role's players obey: what the engine hands the plugins.
 func (r *Part) Rules() []Rule { return slices.Clone(r.rules) }
 
 // String names the role.
@@ -87,8 +87,8 @@ func (r *Part) narrowed(n narrowing) Rule {
 }
 
 // Plays is the component of an entity playing roles, for a kind's Spec: every role it plays in
-// one, so a kind names Plays once. A role some kind plays is hooked with the Stage's plugins once
-// Init returns, as if the Stage had hooked it.
+// one, so a kind names Plays once. The rules of a role some kind plays reach the plugins catching
+// their moments once the Stage's Init returns.
 func Plays(roles ...*Part) Played {
 	tags := make([]tag.Tag[Roles], len(roles))
 	for i, r := range roles {
@@ -103,5 +103,5 @@ type Played struct {
 	parts []*Part
 }
 
-// Parts are the roles played: for the world, which tells the engine what to hook.
+// Parts are the roles played: for the world, which tells the engine whose rules to hand over.
 func (p Played) Parts() []*Part { return slices.Clone(p.parts) }

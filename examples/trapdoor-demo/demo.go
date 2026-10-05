@@ -4,7 +4,8 @@
 // own scouts too. The scouts are clicked about as anywhere; J hastens the selected ones for a
 // while, to get off a strip in time. A lever is a command: open the group of cells that is its
 // strip, for a while (rule.Cast, entity.Group); the haste a command for the selected
-// (selection.Selected). All of it is defined here, in the game, and the rules hooked with ctx.Hook.
+// (selection.Selected). All of it is defined here, in the game; the rules are a role's, played by
+// the kinds.
 package main
 
 import (
@@ -96,6 +97,8 @@ type unitRow struct{ start, to cell.ID }
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	mortal *rule.Part // whoever plays it falls in where nothing holds it
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -182,9 +185,10 @@ func (s *mainStage) defineEffects() {
 	})
 }
 
-// defineRules says the one rule: whoever stands where nothing holds it falls in.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
-	return ctx.Hook(rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+// defineRules says the one role: a mortal standing where nothing holds it falls in.
+func (s *mainStage) defineRules() {
+	s.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
 // defineCommands names what can be asked for: each lever opens its own strip of trapdoors, a group
@@ -226,10 +230,11 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	land := unit.Mover{Domain: cell.Land}
-	s.scout = units.Define("scout", land, profile)
+	s.scout = units.Define("scout", land, profile, rule.Plays(s.mortal))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile,
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }),
+		rule.Plays(s.mortal))
 }
 
 func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }

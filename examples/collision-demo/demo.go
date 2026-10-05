@@ -19,10 +19,11 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/hooks"
+	crules "github.com/kjkrol/gram/plugins/collision/rules"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -96,6 +97,8 @@ func entityKindName(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, 
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	body *rule.Part // whoever plays it shows the hits it takes
+
 	world     *world.Plugin
 	collision *collision.Plugin
 
@@ -150,14 +153,14 @@ func (s *mainStage) definePlayer() error {
 }
 
 // defineEffects says the one state: hit, for a moment after an entity struck another.
-func (s *mainStage) defineEffects() { s.hit = hooks.Hit(s.world, hitDuration) }
+func (s *mainStage) defineEffects() { s.hit = crules.Hit(s.world, hitDuration) }
 
-// defineRules says the one rule: whoever strikes something is hit.
-func (s *mainStage) defineRules(ctx game.Initializer) error { return ctx.Hook(hooks.ShowHits(s.hit)) }
+// defineRules says the one role: a body striking something is hit.
+func (s *mainStage) defineRules() { s.body = rule.Role("body").Obeys(crules.ShowHits(s.hit)) }
 
 // defineLooks has whoever is hit drawn under the hit's overlay.
 func (s *mainStage) defineLooks() error {
-	return s.world.Draw(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite}))
+	return s.world.Draw(crules.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite}))
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
@@ -189,6 +192,7 @@ func (s *mainStage) defineKinds() {
 				comp.Load(func(b body) world.Velocity { return b.vel }),
 				comp.Const(collision.Collider{}),
 				comp.Const(collision.Physics{Restitution: 1}),
+				rule.Plays(s.body),
 			})
 		}
 	}

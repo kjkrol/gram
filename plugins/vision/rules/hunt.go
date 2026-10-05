@@ -1,4 +1,4 @@
-package hooks
+package rules
 
 import (
 	"math"
@@ -12,7 +12,7 @@ import (
 )
 
 // Chase is the rule of those who hunt: head at the nearest one playing prey in view. A role
-// obeys it: rule.Role("predator").Obeys(hooks.Chase(prey)).
+// obeys it: rule.Role("predator").Obeys(vrules.Chase(prey)).
 func Chase(prey *rule.Part) rule.Rule {
 	return rule.Then[vision.Sighting]("vision.chase", rule.Other(prey), rule.Order(steering.Toward{}))
 }

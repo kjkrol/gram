@@ -8,10 +8,11 @@ same day: behaviors, effects and trees had grown three ways of saying the same t
 was `conduct`, then `act` (rules were "triggers", plans "trees"); on 2026-10-01 it took the names
 it has: two constructors, each taking a function that writes the steps. The same day effects got
 their own markers, `Dispel`, `Then` and `Chance`, so that a game is written as states and the
-rules connecting them (below, "A game: states as effects"). On 2026-10-02 a Stage came to hook its
-rules itself (`ctx.Hook`) and entities to obey them by the roles they play; on 2026-10-05 what
-somebody asks for became one command written as a sentence, for entities found by name or group
-(below, "Hooking", "Roles", "Commands").
+rules connecting them (below, "A game: states as effects"). On 2026-10-02 entities came to obey rules by
+the roles they play; on 2026-10-05 what somebody asks for became one command written as a
+sentence, for entities found by name or group, and hooking went: nobody hands a rule to a plugin,
+the engine gives the rules of the roles played to the plugins catching their moments (below, "Who
+gets a rule", "Roles", "Commands").
 
 ## Two constructors
 
@@ -37,8 +38,8 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
 })
 ```
 
-- `rule.Then[P](name, filter, step)` is a `rule.Rule` for the plugin that catches `P`, hooked
-  through the Stage's `ctx.Hook` (below, "Hooking"): its steps are the package's own functions (`rule.If`, `OneOf`, `Steps`, `Apply`,
+- `rule.Then[P](name, filter, step)` is a `rule.Rule` for the plugin that catches `P`, obeyed by a
+  role (below, "Who gets a rule"): its steps are the package's own functions (`rule.If`, `OneOf`, `Steps`, `Apply`,
   `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`, `ForOther`, `Here`, `Around`,
   `Playing`, `Trigger`), its conditions predicates of the moment — a method as a value
   (`unit.Standing.Fallen`), a plugin's own (`unit.On(ice)`), `rule.Not(pred)`; an `If` inside an
@@ -55,8 +56,8 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
 - `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its entities:
   `units.Define("unit", …, patrol)`. Its name is what a save knows it by.
 - A function writing part of a plan takes the Actor as its own (a rule's steps are plain functions):
-  `func whenBlocked(a *plan.Actor) rule.Step`. Ready-made rules come whole, in a plugin's `hooks`
-  package: `ctx.Hook(chooks.ShowHits(hit))`.
+  `func whenBlocked(a *plan.Actor) rule.Step`. Ready-made rules come whole, in a plugin's `rules`
+  package: `rule.Role("body").Obeys(crules.ShowHits(hit))`.
 
 ## Filters
 
@@ -73,26 +74,28 @@ The second argument of `rule.Then` says whom the rule fires for, read before its
 The plugin checks the filter on the tag bits of each entity, so a rule that does not concern one
 costs nothing for it. A role narrows a rule further, on top of its filter (below, "Roles").
 
-## Hooking
+## Who gets a rule
 
-A Stage hooks its rules through its Initializer, once its plugins are used and before `Init`
-returns: `ctx.Hook(rules...)` hands each rule, and every rule of a role, to the plugin in use that
-hosts its moment, trying them in the order they were used. The Stage need not know which plugin
-hosts what:
+Nobody hands a rule to a plugin: there is no hooking. A rule is obeyed by a role, and a role is
+played — by a kind of unit, by a kind of cell, by a plugin:
 
 ```go
-func (s *mainStage) Init(ctx game.Initializer) error {
-	// … ctx.UseWorld, ctx.Use(s.collision), ctx.Use(s.board), ctx.Use(s.vision)
-	return ctx.Hook(fireSpreads, whereItBurns, mortal, hasty)
-}
+mortal := rule.Role("mortal").Obeys(fallIn)     // a rule of unit.Standing: the board's
+plate := rule.Role("plate").Obeys(press)        // a rule of cell.Now: the board's
+nightly := rule.Role("nightly").Obeys(atDusk)   // a rule of clock.Moment: the world's
+
+s.scout = units.Define("scout", land, profile, rule.Plays(mortal)) // a kind of unit plays it
+s.board.Plays("plate", plate)                                      // a kind of cell
+s.world.Plays(nightly)                                             // the world itself
 ```
 
-A rule no plugin in use hosts is an error wrapping `plugin.ErrUnhosted`; a plugin used after the
-`Hook` is not tried. A plugin's own `Hook` takes the rules of its moments too, before or after
-`Use`, until the Stage's `ecs.Setup` builds its systems — later is `plugin.ErrHostBuilt` — but not
-a role, which goes through `ctx.Hook`. An error names the rule by its `String`, its name, its
-moment and what narrowed it: `"fall in" of unit.Standing, for the role mortal`; a role's is
-`the role mortal`.
+Once the Stage's `Init` returns, the engine gives every rule of every role somebody plays to the
+plugin in use that catches its moment, trying the plugins in the order they were used
+(`plugin.Installer.Hosts` is how a plugin says what it catches). A rule no plugin in use catches
+fails `Init` with an error wrapping `plugin.ErrUnhosted`, naming the rule by its `String` — its
+name, its moment and its role: `"fall in" of unit.Standing, for the role mortal`. A rule of a
+moment of the world as a whole (`clock.Moment`, `climate.Weathering`) fires while the plugin
+whose moment it is plays the rule's role.
 
 ## The five words
 
@@ -113,7 +116,7 @@ moment and what narrowed it: `"fall in" of unit.Standing, for the role mortal`; 
   long as its branch runs, or as long as a rule keeps firing it; `Dispel` takes it off. **An
   effect's presence is state**: `Unless(alarmed, …)` is "at most once a while", a memory for rules
   that keep none, and its marker is what rules of other plugins filter by. Collision's hit is one
-  (`hooks.Hit`, cast by `ShowHits`, drawn by `HitOverlay` over `rule.Self(hit.Mark())`).
+  (`crules.Hit`, cast by `ShowHits`, drawn by `HitOverlay` over `rule.Self(hit.Mark())`).
 - **Command** — `Order(cmd)` gives the entity's command, the same one a player gives
   (`navigation.MoveTo`, `world.Despawn`), queued for the plugin that handles its type, and goes on
   at once: **fire and forget**. The handler carries it out for the entity alone
@@ -222,9 +225,9 @@ in less.
 
 A **role** is a behaviour several kinds share, said once: the rules those playing it obey.
 `rule.Role(name)` makes it; `Obeys(rules...)` adds rules, each narrowed to the role's players. A
-kind plays its roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`. A role is
-hooked like a rule — one a kind plays by the engine itself once `Init` returns, so only a role
-cells alone play needs `ctx.Hook` — and a command may be for those playing it alone
+kind plays its roles through `rule.Plays(roles...)`, a cell through its kind
+(`board.Plugin.Plays(kind, roles...)`), a plugin through its own `Plays`, and a command may be for
+those playing it alone
 (`selection.Selected(role)`):
 
 ```go
@@ -239,7 +242,6 @@ s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
 s.porter = units.Define("porter", land, laden, rule.Plays(mortal))
 s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
 	rule.Cast(haste).On(s.selection.Selected(hasty))))
-return ctx.Hook(mortal, hasty)
 
 // Spawn: a unit is told whose it is and that it may be selected as it is made
 mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
@@ -297,7 +299,7 @@ stale state with it. A new knob goes into the component a plugin reads, never in
 ## No Go code in a rule
 
 A rule holds no Go code of its own but the conditions of `If`. What a plugin does of its own is
-its own work in a pass it makes anyway, never a rule hooked on another plugin (2026-10-02):
+its own work in a pass it makes anyway, never a rule of another plugin's moment (2026-10-02):
 
 - the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
   and the slope of the cell under it — and the world's velocity pass multiplies the speed by it,
@@ -309,14 +311,14 @@ its own work in a pass it makes anyway, never a rule hooked on another plugin (2
 
 Steering is commands an entity gives itself: `steering.Away{}` and `steering.Toward{}`, aimed at
 the moment's subject — a `Sighting`'s nearest seen; an aimed command fails while the moment
-names nobody — and `steering.Turn{Angle}`. `vhooks.Flee`, `Chase` and `Search` are written so:
+names nobody — and `steering.Turn{Angle}`. `vrules.Flee`, `Chase` and `Search` are written so:
 
 ```go
 rule.Then[vision.Sighting]("vision.chase", rule.Between(tags.Predator, tags.Prey), rule.Order(steering.Toward{}))
 ```
 
 A switch of a behaviour for the whole game is an effect on the world (`rule.Cast`, `Lift` or
-`Toggle` on `entity.World`), the rule running `During` it: `vhooks.Flee(tags, fleeing)`.
+`Toggle` on `entity.World`), the rule running `During` it: `vrules.Flee(threat, fleeing)`.
 
 How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap`, `With` and
 `Show`, given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every
@@ -353,7 +355,7 @@ Many rules may touch one effect, from several plugins. What happens is fixed:
 - A plan's `Keep` gives way when someone else takes its effect off: the branch fails and the plan
   goes on to what it does next.
 - A cast after a `Dispel` in the same step takes the slot back.
-- In a step, rules of one moment run in the order they were hooked; moments, in the order of
+- In a step, rules of one moment run in the order their roles came to be played; moments, in the order of
   their plugins' passes — that is the systems' order, not something a rule picks. Every cast and
   `Dispel` of a step lands together in the effects' pass at its end.
 
@@ -375,8 +377,8 @@ gives up an order that makes no headway, whatever the rules and the plans do.
    of them as facts.
 3. Write the plan from short named branches and give it to the kinds. A plan holds at most
    `MaxSteps` (128) steps.
-4. Keep the defaults a plugin hooks itself unexported; a game adds its own with `ctx.Hook`, a
-   behaviour several kinds share as a role.
+4. Keep the defaults a plugin gives its own host unexported; a game adds its own as roles its
+   kinds play.
 5. Test the scenario as ticks: who is where, which facts, which commands, until it ends.
 
 Example — navigation's crowd, the rules of units among others, as in StarCraft II. Navigation
@@ -405,7 +407,7 @@ func goRound() rule.Rule {
 ```
 
 `StepAside`, `Pass`, `Detour` and `Settle` are `Aimed`: each is told the moment's subject, the
-unit touched. A game adds its own rules through `ctx.Hook` — a role's for the units playing it,
+unit touched. A game adds its own rules as a role's, for the units playing it —
 `rule.Role("guard").Obeys(rule.Then[Touch]("hold the line", rule.All, …))` — or gives its own set in place
 of the crowd's with `WithCrowd`.
 
@@ -416,7 +418,7 @@ A game built on the plugins is written in three parts, and none of them is Go co
 1. **States are effects.** Burning, frozen, alarmed, doused, a lever pulled: each defined once,
    for a while or for good, with its own marker on while it runs, on a unit, a cell or the world.
    One effect may lead to the next (`Then`).
-2. **Rules connect.** A rule hooked on a plugin turns its moment — a touch, a sighting, where one
+2. **Rules connect.** A rule turns a plugin's moment — a touch, a sighting, where one
    stands — into effects: `Apply`, `Keep`, `Dispel`, narrowed by a marker (`rule.Self`,
    `rule.Between`) or obeyed by a role, guarded by another (`Unless`), now and then (`Chance`).
 3. **Plugins give knobs.** What an effect changes is a component a plugin reads — `Steering`,
@@ -438,7 +440,8 @@ burning := fx.Define("burning", effect.Spec{
 })
 doused := fx.Define("doused", effect.Spec{effect.Lasts(10 * time.Second)})
 
-ctx.Hook(
+// whatever can burn plays one role: the units' kinds and the kinds of cell alike
+flammable := rule.Role("flammable").Obeys(
 	// fire spreads to whom a burning one touches, now and then, unless they are wet
 	rule.Then[collision.Meeting]("fire spreads", rule.Between(burning.Mark(), tag.Any),
 		rule.ForOther(rule.Unless(doused, rule.Chance(0.3, rule.Apply(burning))))),
@@ -451,11 +454,14 @@ ctx.Hook(
 	// burning ground sets the cells round it alight now and then — not one burning or burnt out
 	rule.Then[cell.Now]("fire spreads over the ground", rule.Self(burning.Mark()), rule.Around(1, rule.Unless(burning, rule.Unless(smouldering, rule.Chance(0.05, rule.Apply(burning)))))),
 )
+s.board.Plays("grass", flammable)
+s.board.Plays("forest", flammable)
+s.walker = units.Define("walker", land, profile, rule.Plays(flammable))
 
 func inWater(s unit.Standing) bool { return s.Kind.Admits(cell.Water) }
 ```
 
-`ctx.Hook` hands the first rule to collision and the other two to the board: the Stage names no
+The engine hands the first rule to collision and the other two to the board: the game names no
 plugin. One effect serves units and cells: an `Alter` of a component the entity does not carry is
 passed over. `Around` takes in the places stood on too — a cell itself — so the spreading rule
 keeps off what burns already, or a cell would keep itself burning for ever.

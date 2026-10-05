@@ -24,7 +24,7 @@ type heards struct{ control.Queue[heard] }
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// Rules of the clock's Moment, fired by the world, fire once at their time and every period after
+// Rules of the clock's Moment, of a role the world plays, fire once at their time and every period after
 // their offset, on the clock's time — at any tempo and never in the pause — and an effect one
 // applies lands on the clock's entity, switching a phase on until it ends.
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
@@ -40,19 +40,21 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		if err := w.Carry(&orders); err != nil {
 			t.Fatal(err)
 		}
-		err := w.Hook(
+		// the world plays the role whose rules these are; a role it does not play stays silent
+		w.Plays(rule.Role("clockwork").Obeys(
 			rule.Then[clock.Moment]("once", rule.All, rule.If(clock.At(5*tick), rule.Order(heard{Rule: "once"}))),
 			rule.Then[clock.Moment]("daily", rule.All, rule.If(clock.Every(4*tick, 2*tick), rule.Order(heard{Rule: "daily"}))),
 			rule.Then[clock.Moment]("dusk", rule.All, rule.If(clock.At(3*tick), rule.Apply(dusk))),
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		))
+		unplayed := rule.Role("unplayed").Obeys(rule.Then[clock.Moment]("never", rule.All, rule.Order(heard{Rule: "never"})))
 		fired := map[string][]time.Duration{}
 		var inNight []bool
 
 		ctx := &installCtx{ecs: goke.New()}
 		if err := w.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := ctx.Deliver(append(w.Kinds().Played(), unplayed)...); err != nil {
 			t.Fatal(err)
 		}
 		var systems []goke.System
@@ -77,6 +79,9 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		ticks := int(12 / tempo)
 		for range ticks {
 			ctx.ecs.Tick(tick)
+		}
+		if never := fired["never"]; len(never) != 0 {
+			t.Errorf("tempo %g: the rule of a role the world does not play fired at %v, want never", tempo, never)
 		}
 		once, daily := fired["once"], fired["daily"]
 		if len(once) != 1 || once[0] != 5*tick {

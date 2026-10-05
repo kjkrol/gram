@@ -46,8 +46,8 @@
 // [Resting] is told every step for a landed shot that Lands; [Burst] is the command a resting
 // shot gives itself (Order in a rule of its Resting, say under an effect a fuse's Then cast) and
 // [Blast] what every entity within the Burst's Radius is to the pair rules, with its Distance
-// from the shot; the shot is gone. Hook them with [Plugin.Hook] or the Stage's. The Meeting of a
-// shot and what it struck is collision's, for the rules hooked there — a shot striking is
+// from the shot; the shot is gone. They are rules of the roles the shots play. The Meeting of a
+// shot and what it struck is collision's, for its rules — a shot striking is
 // detected, never pushed, so what it struck feels no push either.
 //
 // # A weapon is the game's

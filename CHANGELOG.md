@@ -8,6 +8,21 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**No hooking**
+- A game hands its rules to nobody. `game.Initializer.Hook` and every plugin's `Hook` are gone: a
+  rule is a role's, a role is played, and once `Init` returns the engine gives the rules of every
+  role played to the plugin in use that catches their moment (`plugin.ErrUnhosted` for one none
+  catches, naming the rule and its role).
+- A plugin tells the engine the hosts of its moments' rules in `Install`:
+  `plugin.Installer.Hosts(hosts...)`, a `plugin.Host` being a `Rules`, a `PairRules` or a
+  `StepRules`.
+- A kind of cell plays roles: `board.Plugin.Plays(kind, roles...)`; `cell.Entry.Roles` is gone.
+- The world and the atmosphere play roles (`world.Plugin.Plays`, `atmosphere.Plugin.Plays`): a
+  rule of a `clock.Moment` or a `climate.Weathering` fires while the plugin plays its role;
+  `plugin.StepRules` takes a role's rule.
+- `plugins/collision/hooks` and `plugins/vision/hooks` are `plugins/collision/rules` and
+  `plugins/vision/rules` (imported as `crules`, `vrules`).
+
 **A Stage defined in sections**
 - `game/stage`: `stage.New(name).Plugins(f).Players(f).Cells(f).Effects(f).Rules(f).Commands(f).
   Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
@@ -16,7 +31,7 @@ argument's full path, which moved.
   but `Update`. The Stage keeps its name, makes its stack, shows the first scene and tracks the
   Composition itself.
 - What is defined out of its section is refused (`plugin/section`): a plugin used outside
-  Plugins, a kind of cell outside Cells, an effect outside Effects, rules hooked outside Rules,
+  Plugins, a kind of cell outside Cells, an effect outside Effects, roles given to a plugin or a kind of cell outside Rules,
   commands outside Commands, a kind of unit outside Kinds, keys bound outside Players and
   Controls, drawing rules outside Looks, the board seeded outside Layout, units outside Units.
   Plugins takes anything; a Stage with an `Init` of its own is checked for nothing.

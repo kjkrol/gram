@@ -11,7 +11,7 @@ type Step = steps.Step
 
 // Then is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
 // board, one seeing another, two striking — for whom filter lets through, it runs step, done
-// within the pass alone. Hook it with game.Initializer.Hook, which finds the plugin that catches
+// within the pass alone. Have a role obey it (Role, Part.Obeys): the engine finds the plugin that catches
 // P. A rule keeps no memory of its own: an effect's presence is its memory. A step a moment of P
 // cannot run — a Here or an Around where P is not Placed, an If over another moment — panics by
 // the rule's name.

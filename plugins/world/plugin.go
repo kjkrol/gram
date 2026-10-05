@@ -1,7 +1,6 @@
 package world
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -212,6 +211,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
+	ctx.Hosts(p.module.movers, p.module.leavers, &p.module.moments.host)
 	return nil
 }
 
@@ -277,23 +277,14 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
-// Hook hosts rules (rule.Then) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge) and a clock.Moment (every step), until the Stage's ecs.Setup;
-// a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		var err error
-		hosts := []func(any) error{p.module.movers.Add, p.module.leavers.Add, p.module.moments.host.Add}
-		for _, add := range hosts {
-			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
-				break
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Moving, Leaving or clock.Moment", err, p.Name())
-		}
+// Plays has the world play roles: the rules of a clock.Moment they obey fire every step, being
+// of the world's own entity, the clock's. Call it where the Stage defines its rules.
+func (p *Plugin) Plays(roles ...*rule.Part) {
+	p.must("the world given roles", section.Rules)
+	p.kinds.Play(roles...)
+	for _, r := range roles {
+		p.module.castings.own |= 1 << r.Tag()
 	}
-	return nil
 }
 
 // Draw has the world's renderer draw its entities as rules say, every frame, in the order given

@@ -12,8 +12,8 @@ import (
 )
 
 // Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
-// standing on the board, one seeing another, two striking — built with Then and hooked through the
-// Stage's Initializer (game.Initializer.Hook). The moment's type says which plugin hosts it;
+// standing on the board, one seeing another, two striking — built with Then and obeyed by a role
+// (Role, Part.Obeys). The moment's type says which plugin hosts it;
 // another refuses it. String is its name and its moment.
 type Rule interface {
 	fmt.Stringer
@@ -28,7 +28,11 @@ func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
 	}
-	return r.narrowed(narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc})
+	n := narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc}
+	if role, ok := any(t).(tag.Tag[Roles]); ok {
+		n.role = 1 << role
+	}
+	return r.narrowed(n)
 }
 
 // Filter is whom a rule fires for: All, Self, Between or Having.
@@ -86,6 +90,7 @@ type narrowing struct {
 	side    plugin.Side
 	carrier *side
 	desc    string // what the narrowed rule's String adds
+	role    uint64 // the tag's bit, for a role's
 }
 
 // label is the narrowed rule's String: of a rule labelled l.
@@ -141,7 +146,19 @@ func build[P any](name string, filter Filter, root Step) Rule {
 }
 
 func (e *every[P]) narrowed(n narrowing) Rule {
-	return newEachWith(n.label(e.label), e.react, n.carrier.cond())
+	each := newEachWith(n.label(e.label), e.react, n.carrier.cond())
+	if n.role == 0 {
+		return each
+	}
+	return &played[P]{eachWith: each, roles: n.role}
+}
+
+func (p *played[P]) narrowed(n narrowing) Rule {
+	each := p.eachWith.narrowed(n).(*eachWith[P])
+	if n.role == 0 {
+		return each
+	}
+	return &played[P]{eachWith: each, roles: p.roles | n.role}
 }
 
 func (e *eachWith[P]) narrowed(n narrowing) Rule {

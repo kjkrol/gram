@@ -34,10 +34,9 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	if err := w.Carry(orders); err != nil {
 		t.Fatal(err)
 	}
+	var rules []rule.Rule
 	if hooked {
-		if err := w.Hook(rule.Then[world.Leaving]("left", rule.All, rule.Order(heard{}))); err != nil {
-			t.Fatal(err)
-		}
+		rules = append(rules, rule.Then[world.Leaving]("left", rule.All, rule.Order(heard{})))
 	}
 	c := collision.NewPlugin(w)
 	boxes := kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
@@ -57,7 +56,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	}
 	base := &goke.Comp[world.Base]{}
 	var q *goke.Query
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(base).Build() }})
+	ecs := collisiontest.StartObeying(t, w, c, rules, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(base).Build() }})
 	return ecs, orders, q, base
 }
 

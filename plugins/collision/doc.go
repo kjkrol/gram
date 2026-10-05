@@ -1,7 +1,7 @@
 // Package collision detects overlaps between world entities each tick and records what each
 // struck on its Collider. An entity takes part while it carries Collider; one also carrying
 // Physics is pushed apart and bounces. Reactions are rules (rule.Then) of a Meeting, a pair, or of
-// a Struck, hooked through the Stage's ctx.Hook (game.Initializer.Hook) or Plugin.Hook.
+// a Struck, obeyed by the roles its entities play (rule.Role).
 //
 // # Plugin and its system
 //
@@ -86,6 +86,6 @@
 // seen from Self: who it met, the impulse exchanged (zero when only detected) and the way Self
 // left Other. A rule of a [Struck] is handed one per entity that struck something the tick
 // before: which it is and what it struck; an entity that struck nothing is not told. Ready-made
-// rules are in plugins/collision/hooks; this package never imports it. [Plugin.WithStats] counts the contacts into a [ContactStats], [Plugin.WithLog]
+// rules are in plugins/collision/rules; this package never imports it. [Plugin.WithStats] counts the contacts into a [ContactStats], [Plugin.WithLog]
 // writes a line for each — the plugin's own work in its pass.
 package collision

@@ -11,7 +11,7 @@ import (
 // Standing is where an entity on the board stands this tick: the cell under its centre, that
 // cell's kind and the effects on it, its box (Grid.CellsUnder lists
 // every cell it touches) and the domains it moves in (its Mover's; Land without one). The board
-// hosts rules of it (board.Plugin.Hook).
+// hosts rules of it (a role's, rule.Role).
 type Standing struct {
 	ID     uid.UID64
 	Cell   cell.ID

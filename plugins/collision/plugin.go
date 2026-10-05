@@ -10,11 +10,10 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin wires the collision engine into a Game — optional, borrows world.Plugin's own Space.
-// Must never import collision/hooks; a game registers those with Hook.
+// Must never import collision/rules: a game's roles obey those.
 type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
@@ -48,6 +47,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
+	ctx.Hosts(&p.pairs, &p.entities)
 	return nil
 }
 
@@ -85,9 +85,3 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — collision has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Hook hosts rules (rule.Then) of Meeting, a pair, or of Struck, until the Stage's ecs.Setup — before
-// or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	return hostAll(&p.pairs, &p.entities, rules)
-}

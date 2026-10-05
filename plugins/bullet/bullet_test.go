@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/bullet"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -27,6 +28,7 @@ import (
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -81,6 +83,7 @@ type scene struct {
 // rig is a world of units with collision and bullet, ticked by hand: bullet before the world,
 // as a Stage's Update runs them.
 type rig struct {
+	rules  []rule.Rule // for start to deliver
 	t      *testing.T
 	pieces []piece
 	w      *world.Plugin
@@ -163,6 +166,12 @@ func newRig(t *testing.T, sc scene) *rig {
 	return r
 }
 
+// obey keeps rules for start to hand to the hosts of their moments.
+func (r *rig) obey(rules ...rule.Rule) error {
+	r.rules = append(r.rules, rules...)
+	return nil
+}
+
 // start installs the plugins and sets the world up; the ammo and the rules are defined before.
 func (r *rig) start() {
 	t := r.t
@@ -178,6 +187,9 @@ func (r *rig) start() {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := ctx.Deliver(r.rules...); err != nil {
+		t.Fatal(err)
 	}
 	systems := append(ctx.systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.base).Optional(&r.coll).Optional(&r.flight).Optional(&r.z).Optional(&r.marks).Optional(&r.owned).Build()
@@ -346,10 +358,10 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	ammo := round(r, true, roundTag)
 	hit := r.fx.Define("hit", effect.Spec{effect.Lasts(time.Minute)})
 	told := r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
-	if err := r.c.Hook(rule.Then[collision.Meeting]("hit", rule.Between(roundTag, tag.Any), rule.ForOther(rule.Apply(hit)))); err != nil {
+	if err := r.obey(rule.Then[collision.Meeting]("hit", rule.Between(roundTag, tag.Any), rule.ForOther(rule.Apply(hit)))); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.b.Hook(rule.Then[bullet.Landing]("told", rule.Self(roundTag), rule.If(func(l bullet.Landing) bool { return l.Struck }, rule.ForOther(rule.Apply(told))))); err != nil {
+	if err := r.obey(rule.Then[bullet.Landing]("told", rule.Self(roundTag), rule.If(func(l bullet.Landing) bool { return l.Struck }, rule.ForOther(rule.Apply(told))))); err != nil {
 		t.Fatal(err)
 	}
 	r.start()
@@ -378,7 +390,7 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	roundTag := r.w.Kinds().DefineTag[family]("round")
 	ammo := round(r, false, roundTag)
 	scored := r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
-	if err := r.b.Hook(rule.Then[bullet.Landing]("scored", rule.Self(roundTag), rule.Apply(scored))); err != nil { // on the shot itself: harmless, it lies a step
+	if err := r.obey(rule.Then[bullet.Landing]("scored", rule.Self(roundTag), rule.Apply(scored))); err != nil { // on the shot itself: harmless, it lies a step
 		t.Fatal(err)
 	}
 	r.start()
@@ -457,7 +469,7 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
 	grenade := r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
 	hurt := r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
-	if err := r.b.Hook(
+	if err := r.obey(
 		rule.Then[bullet.Resting]("burst", rule.Self(grenadeTag), rule.Order(bullet.Burst{Radius: 40})),
 		rule.Then[bullet.Blast]("blast", rule.Between(grenadeTag, tag.Any), rule.ForOther(rule.Apply(hurt))),
 	); err != nil {
@@ -529,7 +541,7 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		r := newRig(t, scene{edges: aabbworld.OpenX, pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
 		ammo := round(r, true)
 		gone := r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
-		if err := r.w.Hook(rule.Then[world.Leaving]("leaving", rule.All, rule.Apply(gone))); err != nil {
+		if err := r.obey(rule.Then[world.Leaving]("leaving", rule.All, rule.Apply(gone))); err != nil {
 			t.Fatal(err)
 		}
 		r.start()
@@ -669,3 +681,10 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 		t.Errorf("after the load the flight is %+v, want flown on to its range and landed", *f)
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

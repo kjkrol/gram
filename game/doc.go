@@ -17,7 +17,7 @@
 //
 // A [Stage] is one self-contained context the game can be in, with its own plugins and its own
 // goke ECS, both built fresh when the Stage is entered. Init installs plugins through the
-// Initializer, may call UseWorld once and hooks the game's rules; Restore resumes from a save or
+// Initializer, may call UseWorld once and defines the game's roles and rules; Restore resumes from a save or
 // reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
 // Update advances the simulation one tick by running the plugins' RunPlan in the order the game
 // needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand: package
@@ -45,11 +45,11 @@
 // engine's measured tick counter. It embeds plugin.Installer, so a Stage may wire ECS modules and
 // systems of its own the way a plugin does.
 //
-// Hook hooks each rule, and every rule of a role (rule.Role), on the plugin in use that hosts its
-// moment — a unit.Standing's on the board, a vision.Sighting's on vision — so a Stage need not know
-// which plugin hosts what. Call it once the plugins are Used, before Init returns:
-// ctx.Hook(mortal, hasty, trapdoor). A rule no plugin in use hosts is an error wrapping
-// plugin.ErrUnhosted, naming the rule.
+// A Stage hands its rules to nobody: a rule is a role's (rule.Role), a role is played — by a kind
+// (rule.Plays), by a kind of cell (board.Plugin.Plays), by a plugin (world.Plugin.Plays) — and once
+// Init returns the engine gives the rules of every role played to the plugin in use that catches
+// their moment, a unit.Standing's to the board, a vision.Sighting's to vision. A rule no plugin
+// in use catches fails Init with an error wrapping plugin.ErrUnhosted, naming the rule.
 //
 // # Runtime
 //

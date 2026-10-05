@@ -113,6 +113,8 @@ type walker struct {
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	moody *rule.Part // whoever plays it is angry while the world rages
+
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
@@ -171,9 +173,10 @@ func (s *mainStage) defineEffects() {
 	s.angry = s.world.Effects().Define("angry", effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
 }
 
-// defineRules says the one rule: everyone is angry while the world is in a rage.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
-	return ctx.Hook(rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.rage, rule.Keep(s.angry))))
+// defineRules says the one role: the moody are angry while the world is in a rage.
+func (s *mainStage) defineRules() {
+	s.moody = rule.Role("moody").Obeys(
+		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.rage, rule.Keep(s.angry))))
 }
 
 // defineKinds says the three kinds, and the sprites the drawing rules choose among.
@@ -186,6 +189,7 @@ func (s *mainStage) defineKinds() {
 			comp.Const(Mood{}),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{Restitution: 1}),
+			rule.Plays(s.moody),
 		}, more...)
 	}
 	s.walker = kind.Define[walker](kinds, "walker", spec())

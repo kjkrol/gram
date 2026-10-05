@@ -2,7 +2,6 @@ package bullet
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -13,14 +12,13 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin fires shots and flies them: a Shoot spawns a shot of its Ammo — a kind of the world —
 // at a unit's muzzle, every step of the simulation flies each shot its Body's speed along its
 // way, past the world's step cap and swept by collision, or in an arc, and ends the flight where
 // collision found a contact, at its Range, on the ground or at an edge: a Landing for the rules
-// hooked here, the shot gone unless its Body Lands. A landed shot lies where it ended — a Resting
+// it hosts, the shot gone unless its Body Lands. A landed shot lies where it ended — a Resting
 // every step — until a Burst, a Blast for every entity within its radius. Depends on world,
 // collision (a shot is a sensor of its) and selection (whom a player's Shoot fires from).
 type Plugin struct {
@@ -66,6 +64,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module = newModule(p, ctx.ECS())
 	ctx.UseModule(p.module)
+	ctx.Hosts(&p.landings, &p.restings, &p.blasts)
 	return nil
 }
 
@@ -84,24 +83,3 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — a shot's state is on its entity.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Hook hosts rules (rule.Then) of a Landing, a Resting or a Blast, until the Stage's ecs.Setup —
-// before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, r := range rules {
-		err := p.landings.Add(r)
-		if errors.Is(err, plugin.ErrUnhosted) {
-			err = p.restings.Add(r)
-		}
-		if errors.Is(err, plugin.ErrUnhosted) {
-			err = p.blasts.Add(r)
-		}
-		if errors.Is(err, plugin.ErrUnhosted) {
-			return fmt.Errorf("%w in bullet — it takes a rule of Landing, of Resting or of Blast", err)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}

@@ -51,7 +51,8 @@ func (s AfterCells) Effects[F Step](f F) AfterEffects {
 
 type AfterEffects struct{ AfterRules }
 
-// Rules defines the roles, the rules and the plans, and hooks them (ctx.Hook).
+// Rules defines the roles with the rules they obey, the plans, and who plays what beyond the
+// units' kinds: a kind of cell (board.Plugin.Plays), a plugin (world.Plugin.Plays).
 func (s AfterEffects) Rules[F Step](f F) AfterRules {
 	s.d.add(section.Rules, stepOf(f))
 	return s.AfterRules

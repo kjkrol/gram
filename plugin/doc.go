@@ -8,26 +8,26 @@
 // that queues its ECS wiring, a RunPlan the game calls once a tick in the order it needs, and
 // optional faces: WithRenderer and Renderer for what it draws, EventHandler for the input it
 // reads (the players plugin's, in practice: other plugins take commands, not input), Serializable
-// for the state it saves, Hook for the rules it hosts. A
+// for the state it saves. A
 // [Builtin] plugin is one the engine installs itself, such as the world; Use refuses it.
 //
 // # Installer
 //
-// [Installer] is ECS wiring and nothing else: UseModule, Setup, RegSys, ECS. Install only queues;
+// [Installer] is ECS wiring — UseModule, Setup, RegSys, ECS — and Hosts, which tells the engine
+// the hosts of the rules of the moments the plugin catches. Install only queues;
 // the engine flushes every plugin's wiring in one ecs.Setup after the Stage's Init. Cross-plugin
 // data comes from constructor injection, not from the Installer.
 //
 // # Rules
 //
-// A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
-// pass, written with package rule (rule.Then), a role's rules among them. Its Hook takes them before
-// or after Use until the Stage's ecs.Setup builds its systems, and refuses a rule of a moment it
-// does not catch with an error wrapping [ErrUnhosted], one too late with [ErrHostBuilt]. A Stage
-// hands its rules to game.Initializer.Hook, which tries the plugins in use in the order they were
-// Used and hooks each rule on the first that does not refuse it with ErrUnhosted: a Hook wraps
-// ErrUnhosted for that alone, as any other error stops the Stage's Hook at once. The errors name
-// the rule by its String — "fall in" of unit.Standing, for the role mortal — and a plugin's Hook
-// adds its Name and the moments it does take (world: Moving, Leaving or clock.Moment).
+// A plugin hosts the rules of the moments it catches in its own pass, written with package rule
+// (rule.Then) and obeyed by roles. It has no way in for a game's rules: in Install it tells the
+// engine its hosts (Installer.Hosts; a [Host] is a Rules, a PairRules or a StepRules), and once
+// the Stage's Init returns the engine hands the rules of every role somebody plays to the hosts,
+// in the order their plugins were Used, each rule to the first that does not refuse it with
+// [ErrUnhosted]; any other error — [ErrHostBuilt] for one handed over after ecs.Setup — stops
+// the Stage. A rule none takes is ErrUnhosted, named by its String: "fall in" of unit.Standing,
+// for the role mortal. A plugin's own rules (navigation's crowd) it adds to its host itself.
 //
 // It runs them inside that pass: [Rules] over the entities it walks (Bind adds the columns the
 // rules read to its query, Run or RunWhere over each chunk; [Own] shares a column it reads itself),

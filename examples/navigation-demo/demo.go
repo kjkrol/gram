@@ -71,6 +71,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	mortal *rule.Part // whoever plays it falls in where nothing holds it
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -125,9 +127,10 @@ func (s *mainStage) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-// defineRules says the one rule: whoever stands where nothing holds it falls in.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
-	return ctx.Hook(rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+// defineRules says the one role: a mortal standing where nothing holds it falls in.
+func (s *mainStage) defineRules() {
+	s.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
 func (s *mainStage) defineScenes() []game.Scene {
@@ -189,6 +192,7 @@ func (s *mainStage) defineKinds() {
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	own := []comp.Comp{
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
+		rule.Plays(s.mortal),
 	}
 	s.red = units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
 	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)

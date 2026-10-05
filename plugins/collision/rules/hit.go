@@ -1,4 +1,4 @@
-package hooks
+package rules
 
 import (
 	"time"
@@ -16,7 +16,7 @@ func Hit(w *world.Plugin, d time.Duration) effect.Effect {
 	return w.Effects().Define("hit", effect.Spec{effect.Lasts(d)})
 }
 
-// ShowHits casts the hit on an entity that struck something, afresh every tick it strikes; hook it
+// ShowHits casts the hit on an entity that struck something, afresh every tick it strikes; have a role obey it
 // on collision.
 func ShowHits(hit effect.Effect) rule.Rule {
 	return rule.Then[collision.Struck]("collision.show hits", rule.All, rule.Apply(hit))

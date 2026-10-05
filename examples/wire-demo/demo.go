@@ -197,7 +197,7 @@ func (s *mainStage) defineEffects() {
 
 // defineRoles says what sets a command off, and what the units can do and suffer. A plate stood on
 // and a lever pulled Trigger; which command that is, the command says (By).
-func (s *mainStage) defineRoles(ctx game.Initializer) error {
+func (s *mainStage) defineRoles() {
 	s.roles.plate = rule.Role("plate").Obeys(
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 	s.roles.lever = rule.Role("lever") // does nothing of its own: a handy unit beside it pulls it
@@ -207,7 +207,9 @@ func (s *mainStage) defineRoles(ctx game.Initializer) error {
 			rule.Under(s.effects.pull, rule.Around(1, rule.Playing(s.roles.lever, rule.Trigger())))))
 	s.roles.mortal = rule.Role("mortal").Obeys(
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-	return ctx.Hook(s.roles.plate, s.roles.handy, s.roles.mortal)
+	// the cells laid as a plate and as a lever play those roles
+	s.board.Plays("plate", s.roles.plate)
+	s.board.Plays("lever", s.roles.lever)
 }
 
 // defineCommands names all that can be asked for in this game, each saying whom it is for and,
@@ -264,7 +266,6 @@ func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y);
 // layOut lays the strips of trapdoors, each a group, the fence with the gate, the plate and the
 // lever, each called what the commands call them.
 func (s *mainStage) layOut() {
-	playing := func(r *rule.Part) []*rule.Part { return []*rule.Part{r} }
 	var cells []cell.Entry
 	strips := []struct {
 		group string
@@ -284,8 +285,8 @@ func (s *mainStage) layOut() {
 			cells = append(cells, cell.Entry{Kind: "fence", Cell: s.cellAt(x, fenceRow)})
 		}
 	}
-	cells = append(cells, cell.Entry{Kind: "plate", Cell: s.cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Name: "plate"})
-	cells = append(cells, cell.Entry{Kind: "lever", Cell: s.cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Name: "west lever"})
+	cells = append(cells, cell.Entry{Kind: "plate", Cell: s.cellAt(plateCol, yardRow), Name: "plate"})
+	cells = append(cells, cell.Entry{Kind: "lever", Cell: s.cellAt(leverCol, yardRow), Name: "west lever"})
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 }
 

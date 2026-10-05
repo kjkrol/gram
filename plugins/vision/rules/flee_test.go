@@ -1,4 +1,4 @@
-package hooks_test
+package rules_test
 
 import (
 	"math"
@@ -14,7 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/vision"
-	"github.com/kjkrol/gram/plugins/vision/hooks"
+	vrules "github.com/kjkrol/gram/plugins/vision/rules"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
@@ -51,10 +51,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 	v := vision.NewPlugin(w)
 	threat := rule.Role("threat")
 	fleeing := w.Effects().Define("fleeing", effect.Spec{})
-	skittish := rule.Role("skittish").Obeys(hooks.Flee(threat, fleeing)...)
-	if err := v.Hook(skittish.Rules()...); err != nil {
-		t.Fatalf("Hook: %v", err)
-	}
+	skittish := rule.Role("skittish").Obeys(vrules.Flee(threat, fleeing)...)
 	if on && !w.Commands().Put(control.Nobody, rule.Cast(fleeing).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
@@ -65,6 +62,9 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 	}
 	if err := v.Install(ctx); err != nil {
 		t.Fatalf("vision Install: %v", err)
+	}
+	if err := ctx.Deliver(skittish); err != nil {
+		t.Fatalf("Deliver: %v", err)
 	}
 
 	runners := kind.Define[fleeBody](w.Kinds(), "runner", kind.Spec{

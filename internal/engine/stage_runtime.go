@@ -38,7 +38,7 @@ func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 	if err := stage.Init(ctx); err != nil {
 		return nil, err
 	}
-	if err := ctx.hookPlayed(); err != nil {
+	if err := ctx.deliver(); err != nil {
 		return nil, err
 	}
 

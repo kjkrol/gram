@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -10,16 +8,19 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 // stageInit is a game.Initializer that drives the real Stage without a window;
 // Scene.Layers() is left out.
 type stageInit struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -50,8 +51,6 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)
 	return p.Install(c)
 }
-
-func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
 func (c *stageInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
 
@@ -85,6 +84,9 @@ func buildStage(t *testing.T) *testStage {
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
+	}
+	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		t.Fatalf("roles: %v", err)
 	}
 	if err := s.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -220,3 +222,10 @@ func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	half := float64(size) / 2
 	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *stageInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *stageInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

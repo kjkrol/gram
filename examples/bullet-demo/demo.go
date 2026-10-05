@@ -197,7 +197,7 @@ func (s *mainStage) defineEffects() {
 // defineRules says who can be wounded and what each shot does to them: a round striking a mortal
 // wounds it, or takes it if wounded already; a grenade landing lights its fuse, bangs as the fuse
 // is up, and its blast takes whoever stands within a cell and wounds the rest within its radius.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
+func (s *mainStage) defineRules() {
 	s.mortal = rule.Role("mortal")
 	s.shot = rule.Role("round").Obeys(
 		rule.Then[collision.Meeting]("shot", rule.Other(s.mortal),
@@ -207,8 +207,7 @@ func (s *mainStage) defineRules(ctx game.Initializer) error {
 		rule.Then[bullet.Blast]("blast", rule.Other(s.mortal), rule.ForOther(rule.OneOf(
 			rule.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, rule.Order(world.Despawn{})),
 			rule.Apply(s.wounded),
-		))))
-	return ctx.Hook(s.shot, s.thrown,
+		))),
 		rule.Then[bullet.Resting]("bang", rule.Self(s.bang.Mark()), rule.Order(bullet.Burst{Radius: blastRadius})))
 }
 

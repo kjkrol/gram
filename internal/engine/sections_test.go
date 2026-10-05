@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -123,8 +124,9 @@ func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	type part func(s *sectioned, ctx game.Initializer) error
 	useAPlugin := func(s *sectioned, ctx game.Initializer) error { return ctx.Use(&stubPlugin{name: "late"}) }
-	hook := func(s *sectioned, ctx game.Initializer) error {
-		return ctx.Hook(rule.Then[world.Moving]("leave", rule.All, rule.Order(world.Despawn{})))
+	plays := func(s *sectioned, _ game.Initializer) error {
+		s.world.Plays(rule.Role("sectioned").Obeys(rule.Then[clock.Moment]("leave", rule.All, rule.Order(world.Despawn{}))))
+		return nil
 	}
 	effectDefined := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("glow", effect.Spec{})
@@ -139,12 +141,12 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		kinds  bool   // done in Kinds, a wrong place, rather than in Effects
 		panics bool
 	}{
-		"a plugin used":       {do: useAPlugin, wants: "Plugins"},
-		"rules hooked":        {do: hook, wants: "Rules", kinds: true},
-		"an effect defined":   {do: effectDefined, wants: "Effects", kinds: true, panics: true},
-		"a kind defined":      {do: kindDefined, wants: "Kinds", panics: true},
-		"drawing rules given": {do: draw, wants: "Looks"},
-		"commands handed":     {do: commands, wants: "Commands"},
+		"a plugin used":         {do: useAPlugin, wants: "Plugins"},
+		"the world given roles": {do: plays, wants: "Rules", kinds: true, panics: true},
+		"an effect defined":     {do: effectDefined, wants: "Effects", kinds: true, panics: true},
+		"a kind defined":        {do: kindDefined, wants: "Kinds", panics: true},
+		"drawing rules given":   {do: draw, wants: "Looks"},
+		"commands handed":       {do: commands, wants: "Commands"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &sectioned{}

@@ -1,4 +1,4 @@
-package hooks_test
+package rules_test
 
 import (
 	"testing"
@@ -10,10 +10,11 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	crules "github.com/kjkrol/gram/plugins/collision/rules"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -42,14 +43,11 @@ func newHits(t *testing.T, boxes ...box) *hits {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: len(boxes), MinSize: 10, MaxSize: 10},
 	})
-	h.hit = hooks.Hit(h.w, 100*time.Millisecond)
-	if err := h.drawing.Add(hooks.HitOverlay(h.hit, flash)); err != nil {
+	h.hit = crules.Hit(h.w, 100*time.Millisecond)
+	if err := h.drawing.Add(crules.HitOverlay(h.hit, flash)); err != nil {
 		t.Fatal(err)
 	}
 	c := collision.NewPlugin(h.w)
-	if err := c.Hook(hooks.ShowHits(h.hit)); err != nil {
-		t.Fatal(err)
-	}
 	unit := kind.Define[box](h.w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b box) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(b.x, 100), 10, 10)} }),
 		comp.Load(func(b box) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: b.vx} }),
@@ -61,7 +59,7 @@ func newHits(t *testing.T, boxes ...box) *hits {
 	if err := h.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	h.ecs = collisiontest.Start(t, h.w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	h.ecs = collisiontest.StartObeying(t, h.w, c, []rule.Rule{crules.ShowHits(h.hit)}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		qb := si.NewQueryBuilder(&h.base)
 		h.drawing.Bind(qb)
 		h.drawn = qb.Build()

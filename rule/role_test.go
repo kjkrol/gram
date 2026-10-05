@@ -1,7 +1,6 @@
 package rule_test
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -240,19 +238,32 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 	}
 }
 
-// A rule of the world as a whole walks no entities: obeyed by a role, the step host refuses it.
-func TestRole_Obeys_ARuleOfAStepIsRefusedByItsHost(t *testing.T) {
-	toll := tellOf[clock.Moment]("toll", rule.All)
-	var h plugin.StepRules[clock.Moment]
-	if err := h.Add(toll); err != nil {
-		t.Fatalf("the rule itself: Add = %v, want it taken", err)
+// A rule of the world as a whole walks no entities: obeyed by a role, its step host takes it and
+// runs it while the entity the moment is about plays the role — every role, for a rule of two.
+func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testing.T) {
+	early, late := rule.Role("step early"), rule.Role("step late")
+	toll := tellOf[standing]("toll", rule.All)
+	carrier, q := listen(t)
+	h := &plugin.StepRules[standing]{}
+	both := late.Obeys(early.Obeys(toll).Rules()[0]).Rules()[0]
+	for _, r := range []rule.Rule{early.Rules()[0], both} {
+		if err := h.Add(r); err != nil {
+			t.Fatalf("Add of %v = %v, want it taken", r, err)
+		}
 	}
-	mortal := rule.Role("mortal").Obeys(toll)
-	if len(mortal.Rules()) != 1 {
-		t.Fatalf("the role obeys %d rules, want 1", len(mortal.Rules()))
+	roles := map[uid.UID64]uint64{1: 1 << early.Tag(), 2: 1 << late.Tag(), 3: 1<<early.Tag() | 1<<late.Tag()}
+	tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier, Roles: func(id uid.UID64) uint64 { return roles[id] }}
+	for _, id := range []uid.UID64{1, 2, 3, 4} {
+		h.Run(tick, standing{who: id})
 	}
-	if err := h.Add(mortal.Rules()[0]); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Add of the role's rule = %v, want plugin.ErrUnhosted", err)
+	var got []uid.UID64
+	q.Drain(func(i control.Issued[heard]) { got = append(got, i.Entity) })
+	if !slices.Equal(got, []uid.UID64{1, 3, 3}) {
+		t.Errorf("the roles' rules fired for %v; want [1 3 3]: early's for 1 and 3, the rule of both for 3 alone", got)
+	}
+	h.Run(plugin.Tick{Dt: time.Millisecond, Commands: carrier}, standing{who: 1})
+	if !q.Empty() {
+		t.Error("with nobody telling the roles the rules fired; want none")
 	}
 }
 

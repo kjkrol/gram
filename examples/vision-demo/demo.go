@@ -22,7 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
-	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
+	vrules "github.com/kjkrol/gram/plugins/vision/rules"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
@@ -141,17 +141,16 @@ func (s *mainStage) definePlayer() error {
 // looked round.
 func (s *mainStage) defineEffects() {
 	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
-	s.looked = vhooks.Looked(s.world, hunterLooksEvery)
+	s.looked = vrules.Looked(s.world, hunterLooksEvery)
 }
 
 // defineRoles says who does what: the hunter goes after the prey it sees, looks round when it sees
 // none, and takes the one it catches; the prey steer clear of the hunter and of each other.
-func (s *mainStage) defineRoles(ctx game.Initializer) error {
+func (s *mainStage) defineRoles() {
 	s.hunted = rule.Role("prey")
-	s.predator = rule.Role("predator").Obeys(vhooks.Chase(s.hunted), vhooks.Search(s.hunted, s.looked),
+	s.predator = rule.Role("predator").Obeys(vrules.Chase(s.hunted), vrules.Search(s.hunted, s.looked),
 		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{}))))
-	s.skittish = rule.Role("skittish").Obeys(vhooks.Flee(s.predator, s.fleeing)...)
-	return ctx.Hook(s.predator, s.skittish)
+	s.skittish = rule.Role("skittish").Obeys(vrules.Flee(s.predator, s.fleeing)...)
 }
 
 // defineCommands names the one thing to ask for: the prey flee, or stop fleeing.

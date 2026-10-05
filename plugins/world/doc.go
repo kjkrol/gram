@@ -18,8 +18,8 @@
 // a wrapping one, may leave by an open one); the [EntitiesCfg] bounds how many entities the world
 // holds and the sizes they spawn with; the camera.Config sizes the camera. An entity wholly past
 // an open edge carries [Outside] — put on by whoever moved it there, the world's move or collision's
-// solver — and every tick it does, the rules of a [Leaving] hooked on it (ctx.Hook or
-// [Plugin.Hook]) hear of it; with none hooked it is despawned. Put back inside, it
+// solver — and every tick it does, the rules of a [Leaving] the roles obey hear of it;
+// with none it is despawned. Put back inside, it
 // loses the mark. [Plugin.Roster] is what the plugins in the game ask of a unit's kind — see
 // package kind; world requires a Position and brings a Velocity. [Layers] are the planes an
 // entity is on, one bit each, read by collision and
@@ -90,7 +90,8 @@
 // A role (rule.Role) is a tag of the family rule.Roles, one name one tag across the program. The
 // world defines the name of every role made so far in its kinds as the Stage's ECS is set up
 // (rule.RoleNames), so a save carries the roles an entity plays by name, like any tag: make the
-// roles in Init.
+// roles in Init. The world plays roles itself ([Plugin.Plays]): the rules of a clock.Moment they
+// obey fire every step.
 //
 // # Spawn, Despawn and Apply
 //
@@ -145,10 +146,7 @@
 // first in each step, and the effects (package rule/effect, [Plugin.Effects]), which last in game
 // time and fire the rules of the clock's moments (clock.Moment) every step. A clock.Moment is of
 // the world as a whole, run once a step (plugin.StepRules): a rule of it takes no filter and
-// obeys no role — [Plugin.Hook] refuses one filtered or narrowed with plugin.ErrUnhosted; read the
-// world's effects with During, or write the rule over entities. A Stage hooks rules through its
-// Initializer (game.Initializer.Hook), which finds the world for a Moving, a Leaving or a
-// clock.Moment.
+// fires while the world plays its role ([Plugin.Plays]); read the world's effects with During.
 //
 // [Plugin.RunPlan] runs the tick: at once, the clock's commands and the cameras' views; then, as
 // the simulation the clock replays as many times as the tempo says and not at all in the pause,

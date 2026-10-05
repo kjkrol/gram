@@ -1,7 +1,6 @@
 package atmosphere
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -111,6 +110,7 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
+	ctx.Hosts(p.climate.Rules())
 	return nil
 }
 
@@ -155,16 +155,9 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.Then) of climate.Weathering, fired every step with the weather, until the
-// Stage's ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		if err := p.climate.Host(b); err != nil {
-			return fmt.Errorf("%w in %s", err, p.Name())
-		}
-	}
-	return nil
-}
+// Plays has the atmosphere play roles: the rules of a climate.Weathering they obey fire every
+// step with the weather. Call it where the Stage defines its rules.
+func (p *Plugin) Plays(roles ...*rule.Part) { p.worldPlugin.Plays(roles...) }
 
 // =================================================================
 // plugin.CommandHandler contract

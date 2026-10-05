@@ -84,6 +84,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type mainStage struct {
 	game.Stage
 
+	mortal *rule.Part // whoever plays it falls in where nothing holds it
+
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
@@ -192,8 +194,10 @@ func (s *mainStage) defineCells() {
 
 func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
 
-func (s *mainStage) defineRules(ctx game.Initializer) error {
-	return ctx.Hook(rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+// defineRules says the one role: a mortal in the water drowns.
+func (s *mainStage) defineRules() {
+	s.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
 func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
@@ -241,16 +245,17 @@ func (s *mainStage) defineKinds() {
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 960, Ahead: true})
 	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
 	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	mortal := rule.Plays(s.mortal)
 	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, walker,
 		order,
-		sight, eye,
+		sight, eye, mortal,
 	)
 	s.plateau = units.Define("plateau", unit.Mover{Domain: cell.Land}, walker,
-		sight, eye,
+		sight, eye, mortal,
 	)
 	s.rivals = units.Define("rival", unit.Mover{Domain: cell.Land}, walker,
 		order,
-		sight, eye,
+		sight, eye, mortal,
 	)
 	s.hawk = units.Define("hawk",
 		unit.Mover{

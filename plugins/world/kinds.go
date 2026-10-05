@@ -18,7 +18,7 @@ import (
 // that defines them in another order still loads.
 type Kinds struct {
 	r      *ikinds.Registry
-	played []*rule.Part      // the roles its kinds play, each once
+	played []rule.Rule       // the roles played, each once
 	guard  func(name string) // panics for a kind defined out of its section; nil for none
 }
 
@@ -38,19 +38,25 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 	}
 	for _, c := range spec {
 		if p, ok := c.(rule.Played); ok {
-			for _, part := range p.Parts() {
-				if !slices.Contains(k.played, part) {
-					k.played = append(k.played, part)
-				}
-			}
+			k.Play(p.Parts()...)
 		}
 	}
 	return k.r.Register(name, row, spec)
 }
 
-// Played are the roles the kinds defined so far play, each once: what the engine hooks once a
-// Stage's Init returns.
-func (k *Kinds) Played() []*rule.Part { return slices.Clone(k.played) }
+// Play notes roles somebody plays who is no kind of the world's — a cell's kind, a plugin: for
+// the plugins, as a kind's own are noted when it is defined.
+func (k *Kinds) Play(roles ...*rule.Part) {
+	for _, part := range roles {
+		if !slices.Contains(k.played, rule.Rule(part)) {
+			k.played = append(k.played, part)
+		}
+	}
+}
+
+// Played are the roles played so far, each once: what the engine hands the hosts of their rules'
+// moments once a Stage's Init returns.
+func (k *Kinds) Played() []rule.Rule { return slices.Clone(k.played) }
 
 // DefineTag registers name in family F and returns its tag, assigned by call order within the
 // family; a save records the names, so a build that defines them in another order still loads.

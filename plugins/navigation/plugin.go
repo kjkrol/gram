@@ -93,9 +93,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if !p.crowdSet {
 		rules = crowd()
 	}
-	if err := p.Hook(rules...); err != nil {
-		return err
+	for _, r := range rules {
+		if err := p.touches.Add(r); err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
+		}
 	}
+	ctx.Hosts(&p.touches)
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
@@ -164,17 +167,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — navigation has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Hook hosts rules (rule.Then) of Touch, a pair, beside the rules of the crowd, until the Stage's
-// ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		if err := p.touches.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
-		}
-	}
-	return nil
-}
 
 // =================================================================
 // navigation-specific

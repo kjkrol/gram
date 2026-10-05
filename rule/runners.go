@@ -102,6 +102,19 @@ func (e *eachWith[P]) holds(cursor *goke.Cursor, i int) bool {
 	return true
 }
 
+// played is a rule over every entity narrowed to roles alone: over entities it reads their tags
+// as any narrowed rule does, and once a step (plugin.StepRules) it fires while the moment's entity
+// plays the roles.
+type played[P any] struct {
+	*eachWith[P]
+	roles uint64
+}
+
+func (p *played[P]) RunOnce(t plugin.Tick, about P) { p.react(t, about) }
+
+// OnceRoles are the roles the moment's entity must play, a bit each.
+func (p *played[P]) OnceRoles() uint64 { return p.roles }
+
 type pair[P any] struct {
 	label       string
 	self, other plugin.Side

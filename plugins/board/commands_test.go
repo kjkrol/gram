@@ -42,9 +42,11 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		m.open = w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		plate := rule.Role("plate").Obeys(
 			rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+		brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
+		brd.Plays("plate", plate)
 		cells := []cell.Entry{
 			{Cell: m.lever, Name: "lever"},
-			{Cell: m.plate, Name: "plate", Roles: []*rule.Part{plate}},
+			{Kind: "plate", Cell: m.plate, Name: "plate"},
 		}
 		for _, c := range m.west {
 			cells = append(cells, cell.Entry{Cell: c, Group: "west doors"})

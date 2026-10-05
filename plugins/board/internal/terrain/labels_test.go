@@ -105,7 +105,7 @@ func cellGrids() map[string]grid.Grid {
 	}
 }
 
-// The Layout's roles, names and groups reach the cell entities: every cell carries its roles, none
+// The kinds' roles and the Layout's names and groups reach the cell entities: every cell carries its roles, none
 // for most; only the cells called something carry a Label; and the cells labelled apart are still
 // each its own cell's entity, of the kind the seed gave it.
 func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
@@ -122,12 +122,17 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 			snow := cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
 			_, _, brd, probe := installCells(t, g, func(w *world.Plugin, brd *board.Plugin) {
 				trapdoor, plate = rule.Role("trapdoor"), rule.Role("plate")
-				brd.Res.Logic.Board.Set(b, snow)
+				land := func(name string) cell.Kind { return cell.Kind{Name: cell.Named(name), Cost: 1, Allows: cell.Land} }
+				brd.CellKinds().Create(land("door"), land("plate"), land("both"))
+				brd.Plays("door", trapdoor)
+				brd.Plays("plate", plate)
+				brd.Plays("both", trapdoor, plate)
+				brd.Res.Logic.Board.Set(e, snow)
 				brd.Seed(board.Layout{Cells: []cell.Entry{
-					{Cell: a, Roles: []*rule.Part{trapdoor}, Group: "west"},
-					{Cell: b, Roles: []*rule.Part{plate}, Name: "plate", Group: "west"},
-					{Cell: c, Roles: []*rule.Part{trapdoor, plate}, Group: "east"},
-					{Cell: d, Roles: []*rule.Part{trapdoor}},
+					{Kind: "door", Cell: a, Group: "west"},
+					{Kind: "plate", Cell: b, Name: "plate", Group: "west"},
+					{Kind: "both", Cell: c, Group: "east"},
+					{Kind: "door", Cell: d},
 					{Cell: e, Name: "lever"},
 				}})
 			})
@@ -155,11 +160,11 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 					t.Errorf("cell %d's entity is %d, the one holding its Plot %d", at, id, st.id)
 				}
 			}
-			if k := brd.Res.Logic.Board.Kind(b); k != snow {
-				t.Errorf("labelled cell %d is %q, want the snow the seed gave it", b, k.Name)
+			if k := brd.Res.Logic.Board.Kind(e); k != snow {
+				t.Errorf("labelled cell %d is %q, want the snow the seed gave it", e, k.Name)
 			}
-			if k := brd.Res.Logic.Board.Kind(a); k.Name.String() != "grass" {
-				t.Errorf("labelled cell %d is %q, want grass", a, k.Name)
+			if k := brd.Res.Logic.Board.Kind(a); k.Name.String() != "door" {
+				t.Errorf("labelled cell %d is %q, want the door the Layout laid", a, k.Name)
 			}
 		})
 	}

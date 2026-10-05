@@ -55,7 +55,7 @@
 // # Crowd
 //
 // How units get on among others is rules: rules of the moment [Touch], which the plugin hosts
-// (ctx.Hook, or [Plugin.Hook]; rule.Then over a Touch). Navigation perceives and carries out; the
+// (rule.Then over a Touch, obeyed by a role). Navigation perceives and carries out; the
 // rules decide. A Touch is two units touching, handed to each of the two every tick they do:
 // whether each is on the move or giving way, whether they are allies (players/owner.Allies) or of
 // one MoveTo — the order each is under ([MoveOrder].Group), or the last it came to the end of
@@ -68,14 +68,14 @@
 // for the way ahead to clear, a while at most; [Settle] stands beside the goal; [Stop] ends the
 // order where the unit stands, as come to the end of it.
 //
-// The crowd's rules, the plugin's own, are StarCraft II's, hooked unless a game gives its own
+// The crowd's rules, the plugin's own, are StarCraft II's, obeyed unless a game gives its own
 // ([Plugin.WithCrowd]): an ally standing makes way and stays aside while the one on the move goes
 // on past it; one on the move stops on touching one of its order that has arrived, so a group
 // gathers round its point and nobody fights for its exact spot; one on the goal who does not make
 // way — a stranger, an ally with no room — has the unit stand beside it; anyone else in the way is
 // gone round — with no way round, the unit steps aside a while; of two head on the first waits. A
-// game's own rules of Touch — narrowed by tags as any rule's — go beside them (ctx.Hook, or
-// [Plugin.Hook]). Whatever the rules, navigation keeps the last word: a unit making no headway
+// game's own rules of Touch — narrowed by tags as any rule's — go beside them, obeyed by the
+// roles its units play. Whatever the rules, navigation keeps the last word: a unit making no headway
 // plans afresh and, after a few stalls, stands where it is. A unit with a plan (package rule) is
 // told the facts [Blocked] while someone blocks it and, once its order is over, [Arrived]; a
 // [MoveTo] or [LookAt] it gives itself orders it alone.

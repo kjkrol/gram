@@ -48,12 +48,12 @@
 //
 // # Sighting
 //
-// A rule of a [Sighting] hooked here (rule.Then[vision.Sighting](name, rule.Between(a, b), …)) is
+// A rule of a [Sighting] (rule.Then[vision.Sighting](name, rule.Between(a, b), …)) is
 // run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base and Sight,
 // and everything in view carrying b as [Seen] values nearest first — a directed pair, grouped by
 // observer, run even when nothing is in view. Its Subject is the nearest one seen: an Aimed
 // command — steering.Away, steering.Toward — is about it, and fails while none is in view.
-// Ready-made rules, and their tags, are in plugins/vision/hooks.
+// Ready-made rules, and their tags, are in plugins/vision/rules.
 //
 // # SightOutline and Renderer
 //

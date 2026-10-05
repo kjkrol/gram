@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -30,7 +31,7 @@ func TestTrodden_MarkedOnlyWhileACellNowRuleIsHooked(t *testing.T) {
 	} {
 		r := New(g, cells, nil, flat)
 		for _, b := range c.rules {
-			if err := r.Hook(b); err != nil {
+			if err := hosts.Deliver(r.Hosts(), b); err != nil {
 				t.Fatal(err)
 			}
 		}

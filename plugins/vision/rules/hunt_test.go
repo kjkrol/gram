@@ -1,4 +1,4 @@
-package hooks_test
+package rules_test
 
 import (
 	"math"
@@ -12,7 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/vision"
-	"github.com/kjkrol/gram/plugins/vision/hooks"
+	vrules "github.com/kjkrol/gram/plugins/vision/rules"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
@@ -42,12 +42,9 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 	})
 	v := vision.NewPlugin(w)
 	preyRole := rule.Role("prey")
-	predator := rule.Role("predator").Obeys(hooks.Chase(preyRole))
+	predator := rule.Role("predator").Obeys(vrules.Chase(preyRole))
 	if lookEvery > 0 {
-		predator.Obeys(hooks.Search(preyRole, hooks.Looked(w, lookEvery)))
-	}
-	if err := v.Hook(predator.Rules()...); err != nil {
-		t.Fatalf("Hook: %v", err)
+		predator.Obeys(vrules.Search(preyRole, vrules.Looked(w, lookEvery)))
 	}
 
 	ctx := &installCtx{ecs: goke.New()}
@@ -56,6 +53,9 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 	}
 	if err := v.Install(ctx); err != nil {
 		t.Fatalf("vision Install: %v", err)
+	}
+	if err := ctx.Deliver(predator); err != nil {
+		t.Fatalf("Deliver: %v", err)
 	}
 
 	hunters := kind.Define[huntBody](w.Kinds(), "hunter", kind.Spec{

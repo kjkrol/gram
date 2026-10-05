@@ -57,7 +57,8 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 	rules       *moments.Rules
-	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
+	workers     int                             // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
+	plays       map[string]tag.Tags[rule.Roles] // the roles the cells of a kind play, by its name
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -111,6 +112,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		clock:     p.worldPlugin.Clock(),
 	}
 	ctx.UseModule(p.module)
+	ctx.Hosts(p.rules.Hosts()...)
 	return nil
 }
 
@@ -188,21 +190,27 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.Then) of a unit.Standing, fired every step for every entity on the board,
-// and of a cell.Now, fired every step for every cell; hook them until the Stage's ecs.Setup —
-// before or after Use — or hand them to its Initializer's Hook.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, r := range rules {
-		if err := p.rules.Hook(r); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of unit.Standing or cell.Now", err, p.Name())
-		}
-	}
-	return nil
-}
-
 // =================================================================
 // board-specific
 // =================================================================
+
+// Plays has every cell the Layout lays as the kind named kind play roles, for good: the rules of
+// a cell.Now they obey fire for those cells alone. Call it where the Stage defines its rules.
+func (p *Plugin) Plays(kind string, roles ...*rule.Part) {
+	if err := p.worldPlugin.InSection(fmt.Sprintf("cell kind %q given roles", kind), section.Rules); err != nil {
+		panic("board: " + err.Error())
+	}
+	if _, ok := p.kinds.Get(kind); !ok {
+		panic(fmt.Sprintf("board: unknown cell kind %q given roles", kind))
+	}
+	if p.plays == nil {
+		p.plays = make(map[string]tag.Tags[rule.Roles])
+	}
+	for _, r := range roles {
+		p.plays[kind] = p.plays[kind].With(r.Tag())
+	}
+	p.worldPlugin.Kinds().Play(roles...)
+}
 
 // WithMap has the board drawn and priced by m — a topography's — in place of the simple map.
 // Call before Use.
@@ -318,17 +326,11 @@ func (p *Plugin) Populate() error {
 		if e.Kind != "" {
 			brd.Set(e.Cell, cells[i])
 		}
-		var roles tag.Tags[rule.Roles]
-		for _, r := range e.Roles {
-			roles = roles.With(r.Tag())
-		}
-		if roles != 0 {
-			brd.cells.Cast(e.Cell, roles)
-		}
 		if e.Name != "" || e.Group != "" {
 			brd.cells.Label(e.Cell, entity.LabelOf(e.Name, e.Group))
 		}
 	}
+	p.cast()
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])
 	}
@@ -337,6 +339,22 @@ func (p *Plugin) Populate() error {
 	}
 	p.seeded = nil
 	return nil
+}
+
+// cast gives every cell the roles its kind plays, as the Layout lays it.
+func (p *Plugin) cast() {
+	if len(p.plays) == 0 {
+		return
+	}
+	brd := p.Res.Logic.Board
+	if roles := p.plays[p.seeded.Default]; roles != 0 {
+		brd.Grid.EachCell(func(c cell.ID) { brd.cells.Cast(c, roles) })
+	}
+	for _, e := range p.seeded.Cells {
+		if e.Kind != "" {
+			brd.cells.Cast(e.Cell, p.plays[e.Kind])
+		}
+	}
 }
 
 // =================================================================

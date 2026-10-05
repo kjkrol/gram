@@ -82,12 +82,17 @@ func (t *TerrainMap) SetCrossing(c ID, x Crossing) {
 	t.version++
 }
 
-// Cast has c play roles besides those it plays; the terrain's Version stays as it was.
+// Cast has c play roles, none for 0, in place of those it played; the terrain's Version stays as
+// it was.
 func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
+	if roles == 0 {
+		delete(t.Roles, c)
+		return
+	}
 	if t.Roles == nil {
 		t.Roles = make(map[ID]tag.Tags[rule.Roles])
 	}
-	t.Roles[c] |= roles
+	t.Roles[c] = roles
 }
 
 // Label calls c as l says; the terrain's Version stays as it was.

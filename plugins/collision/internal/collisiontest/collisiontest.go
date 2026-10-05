@@ -7,12 +7,16 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type InstallCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -48,8 +52,15 @@ func (c *InstallCtx) Systems() []goke.System {
 func (c *InstallCtx) Tracked() []any { return c.tracked }
 
 // Start installs w and c on a new ECS, sets their systems up and then each of after, and plans
-// Step. Seed, populate and hook before it.
+// Step. Seed and populate before it.
 func Start(t testing.TB, w *world.Plugin, c *collision.Plugin, after ...goke.System) *goke.ECS {
+	t.Helper()
+	return StartObeying(t, w, c, nil, after...)
+}
+
+// StartObeying is Start with rules handed to the hosts of their moments once the plugins are
+// installed.
+func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []rule.Rule, after ...goke.System) *goke.ECS {
 	t.Helper()
 	ctx := NewInstallCtx(goke.New())
 	if err := w.Install(ctx); err != nil {
@@ -57,6 +68,9 @@ func Start(t testing.TB, w *world.Plugin, c *collision.Plugin, after ...goke.Sys
 	}
 	if err := c.Install(ctx); err != nil {
 		t.Fatalf("collision Install: %v", err)
+	}
+	if err := ctx.Deliver(rules...); err != nil {
+		t.Fatalf("rules: %v", err)
 	}
 	ctx.ecs.Setup(append(ctx.Systems(), after...)...)
 	ctx.ecs.SetPlan(Step(w, c))
@@ -72,3 +86,10 @@ func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration)
 		w.Clock().Replay(rc, d)
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

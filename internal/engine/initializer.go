@@ -3,10 +3,10 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
@@ -20,10 +20,8 @@ type initializer struct {
 	tps   *game.TPS
 	// handlers are the plugin.CommandHandlers used before the world, for it to carry
 	handlers []plugin.CommandHandler
-	// used are the plugins installed so far, in the order they were: the hosts Hook tries
-	used []any
-	// hooked are the roles the Stage hooked itself: hookPlayed leaves them alone
-	hooked []*rule.Part
+	// hosts take the rules of the moments the plugins used so far catch, in the order of Use
+	hosts []plugin.Host
 	// part is the section of the Stage's definition under way, for one built in sections
 	part section.Part
 
@@ -86,25 +84,11 @@ func (c *initializer) use(p plugin.Plugin) error {
 			return fmt.Errorf("gram: %q: %w", p.Name(), err)
 		}
 	}
-	if err := p.Install(c); err != nil {
-		return err
-	}
-	c.used = append(c.used, p)
-	return nil
+	return p.Install(c)
 }
 
-// Hook hooks each rule on the first plugin used that hosts its moment.
-func (c *initializer) Hook(rules ...rule.Rule) error {
-	if err := section.Check(c, "rules hooked", section.Rules); err != nil {
-		return err
-	}
-	for _, r := range rules {
-		if role, ok := r.(*rule.Part); ok {
-			c.hooked = append(c.hooked, role)
-		}
-	}
-	return HookOn(c.used, rules...)
-}
+// Hosts keeps the hosts of the rules of the moments a plugin catches, in the order of Use.
+func (c *initializer) Hosts(hosts ...plugin.Host) { c.hosts = append(c.hosts, hosts...) }
 
 // Commands hands the world the game's commands about effects.
 func (c *initializer) Commands(cmds ...rule.Casting) error {
@@ -117,65 +101,13 @@ func (c *initializer) Commands(cmds ...rule.Casting) error {
 	return c.world.Triggers(cmds...)
 }
 
-// hookPlayed hooks every role a kind of the world plays that the Stage did not hook itself: what
-// the engine does once Init returns.
-func (c *initializer) hookPlayed() error {
+// deliver hands the rules of every role somebody plays — a kind, a cell, a plugin — to the host
+// of their moment: what the engine does once Init returns.
+func (c *initializer) deliver() error {
 	if c.world == nil {
 		return nil
 	}
-	was := c.part
-	if was != section.Anytime {
-		c.part = section.Rules // the engine's own hooking, whatever the Stage has got to
-		defer func() { c.part = was }()
-	}
-	for _, role := range c.world.Kinds().Played() {
-		if slices.Contains(c.hooked, role) {
-			continue
-		}
-		if err := c.Hook(role); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// host is a plugin hosting rules: its Hook refuses a rule of a moment it does not catch with
-// plugin.ErrUnhosted.
-type host interface {
-	Hook(rules ...rule.Rule) error
-}
-
-// HookOn hooks each rule — a role's, each of its rules — on the first of among that hosts it,
-// trying the next while one refuses it with plugin.ErrUnhosted: what game.Initializer.Hook does
-// over the plugins a Stage uses. A rule none takes is plugin.ErrUnhosted; any other error stops
-// at once.
-func HookOn(among []any, rules ...rule.Rule) error {
-	for _, r := range rules {
-		if role, ok := r.(*rule.Part); ok {
-			if err := HookOn(among, role.Rules()...); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := hookOn(among, r); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func hookOn(among []any, r rule.Rule) error {
-	for _, a := range among {
-		h, ok := a.(host)
-		if !ok {
-			continue
-		}
-		err := h.Hook(r)
-		if err == nil || !errors.Is(err, plugin.ErrUnhosted) {
-			return err
-		}
-	}
-	return fmt.Errorf("%w: no plugin in use hosts the rule %v", plugin.ErrUnhosted, r)
+	return hosts.Deliver(c.hosts, c.world.Kinds().Played()...)
 }
 
 // Track registers s for Save and Load under its Go type name.

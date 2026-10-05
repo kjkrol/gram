@@ -48,7 +48,7 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.c.Host(rule.Then[Weathering]("winter", rule.All, rule.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, rule.Order(winterNow{})))); err != nil {
+	if err := r.c.Rules().Add(rule.Then[Weathering]("winter", rule.All, rule.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, rule.Order(winterNow{})))); err != nil {
 		t.Fatal(err)
 	}
 	r.sys = r.c.System().(*weatherSystem)
@@ -293,21 +293,22 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 	}
 }
 
-// The weather is a moment of the world as a whole: a rule of it filtered or narrowed to a role has
-// no entity to read and is refused, never hooked to fire for nobody.
-func TestClimate_RefusesAFilteredOrNarrowedRule(t *testing.T) {
+// The climate takes rules of every weather, a role's too, and refuses a filtered one: a moment of
+// the world as a whole has no entity's components to read.
+func TestClimate_TakesARolesRuleAndRefusesAFilteredOne(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	c := New(w, calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute}), Config{})
 	every := rule.Then[Weathering]("any weather", rule.All, rule.Order(winterNow{}))
-	for name, r := range map[string]rule.Rule{
-		"narrowed": rule.Role("climate sheltered").Obeys(every).Rules()[0],
-		"having":   rule.Then[Weathering]("having", rule.Having[Weather](), rule.Order(winterNow{})),
-	} {
-		if err := c.Host(r); !errors.Is(err, plugin.ErrUnhosted) {
-			t.Errorf("%s: Host = %v; want plugin.ErrUnhosted", name, err)
-		}
+	having := rule.Then[Weathering]("having", rule.Having[Weather](), rule.Order(winterNow{}))
+	if err := c.Rules().Add(having); !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Add of a filtered rule = %v; want plugin.ErrUnhosted", err)
 	}
-	if err := c.Host(every); err != nil {
-		t.Errorf("Host of a rule of every weather = %v; want it taken", err)
+	for name, r := range map[string]rule.Rule{
+		"every":  every,
+		"a role": rule.Role("climate sheltered").Obeys(every).Rules()[0],
+	} {
+		if err := c.Rules().Add(r); err != nil {
+			t.Errorf("%s: Add = %v; want it taken", name, err)
+		}
 	}
 }

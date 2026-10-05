@@ -1,12 +1,12 @@
-// Package hooks holds ready-made rules of what an entity sees, for the roles of a game to obey:
+// Package rules holds ready-made rules of what an entity sees, for the roles of a game to obey:
 // Flee gives way to what is on a collision course and runs from a threat, Chase goes after the
 // nearest prey and Search looks round when there is none. They steer only by the commands an
 // entity gives itself (steering.Away, Toward, Turn). A game wanting something else writes its own
 // rule of a vision.Sighting (rule.Then).
 //
 //	prey := rule.Role("prey")
-//	predator := rule.Role("predator").Obeys(hooks.Chase(prey), hooks.Search(prey, looked))
-//	skittish := rule.Role("skittish").Obeys(hooks.Flee(predator, fleeing)...)
+//	predator := rule.Role("predator").Obeys(vrules.Chase(prey), vrules.Search(prey, looked))
+//	skittish := rule.Role("skittish").Obeys(vrules.Flee(predator, fleeing)...)
 //
 // # Flee
 //
@@ -19,5 +19,5 @@
 //
 // [Chase] has those obeying it head at the nearest one in view playing the role given. [Search]
 // has one that sees none turn a quarter aside, once every while the effect [Looked] defines
-// lasts. A file using both collision's and vision's hooks imports them as chooks and vhooks.
-package hooks
+// lasts. Import the package as vrules, collision's as crules.
+package rules

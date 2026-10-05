@@ -41,9 +41,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.Hook(rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{}))); err != nil {
-		return err
-	}
+	fragile := rule.Role("fragile").Obeys(rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{})))
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
@@ -58,6 +56,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
+		rule.Plays(fragile),
 	})
 	s.players = players.NewPlugin(s.world)
 	s.players.Local("first")

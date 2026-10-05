@@ -1,4 +1,4 @@
-package engine_test
+package hosts_test
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
@@ -52,48 +52,41 @@ func noteOf[P any](name string, filter rule.Filter) rule.Rule {
 // narrowed is r for the players of a role alone, as a role's Obeys makes it.
 func narrowed(r rule.Rule) rule.Rule { return rule.Role("hookon scout").Obeys(r).Rules()[0] }
 
-// host is a made-up plugin hosting the rules its adder takes — a plugin.Rules, PairRules or
-// StepRules — wrapping a refusal in its own name, as the built-in plugins' Hook does.
+// host is a made-up plugin's host of rules over the one its adder is — a plugin.Rules, PairRules
+// or StepRules — counting what it is asked and keeping what it took.
 type host struct {
 	name  string
-	adds  interface{ Add(rule any) error }
+	adds  plugin.Host
 	asked int
 	took  []rule.Rule
 }
 
-func (h *host) Hook(rules ...rule.Rule) error {
-	for _, r := range rules {
-		h.asked++
-		if err := h.adds.Add(r); err != nil {
-			return fmt.Errorf("%w in %s", err, h.name)
-		}
-		h.took = append(h.took, r)
+func (h *host) Add(r any) error {
+	h.asked++
+	if err := h.adds.Add(r); err != nil {
+		return fmt.Errorf("%w in %s", err, h.name)
 	}
+	h.took = append(h.took, r.(rule.Rule))
 	return nil
 }
 
-// broken is a made-up plugin whose Hook fails for another reason than the moment.
+// broken is a made-up host failing for another reason than the moment.
 type broken struct{ asked int }
 
 var errBroken = errors.New("broken host")
 
-func (b *broken) Hook(...rule.Rule) error {
+func (b *broken) Add(any) error {
 	b.asked++
 	return errBroken
 }
 
-// otherHook has a Hook of another shape: no host of rules.
-type otherHook struct{}
-
-func (otherHook) Hook(...any) error { panic("no host of rules: never asked") }
-
-// HookOn hooks each rule on the host of its moment, skipping whatever is no Host and whoever
-// refuses the rule's moment, and never asks a host after the one that took it.
-func TestHookOn_HooksEachRuleOnTheHostOfItsMoment(t *testing.T) {
+// Deliver hands each rule to the host of its moment, skipping whoever refuses the rule's moment,
+// and never asks a host after the one that took it.
+func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	glances := &host{name: "glances", adds: &plugin.PairRules[glance]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	among := []any{nil, "not a host", otherHook{}, glances, dawns, pokes}
+	among := []plugin.Host{glances, dawns, pokes}
 
 	wake := noteOf[dawn]("wake", rule.All)
 	spot := noteOf[poke]("spot", rule.Self(hunter))
@@ -102,8 +95,8 @@ func TestHookOn_HooksEachRuleOnTheHostOfItsMoment(t *testing.T) {
 	scouting := narrowed(drown)
 	scoutStare := narrowed(stare)
 
-	if err := engine.HookOn(among, wake, spot, stare, drown, scouting, scoutStare); err != nil {
-		t.Fatalf("HookOn = %v", err)
+	if err := hosts.Deliver(among, wake, spot, stare, drown, scouting, scoutStare); err != nil {
+		t.Fatalf("Deliver = %v", err)
 	}
 	for _, c := range []struct {
 		h     *host
@@ -124,38 +117,38 @@ func TestHookOn_HooksEachRuleOnTheHostOfItsMoment(t *testing.T) {
 }
 
 // Of two hosts of one moment the first has the rule; the second is never asked.
-func TestHookOn_TheFirstHostToTakeTheRuleHasIt(t *testing.T) {
+func TestDeliver_TheFirstHostToTakeTheRuleHasIt(t *testing.T) {
 	first := &host{name: "first", adds: &plugin.Rules[poke]{}}
 	second := &host{name: "second", adds: &plugin.Rules[poke]{}}
 	drown := noteOf[poke]("drown", rule.All)
 
-	if err := engine.HookOn([]any{first, second}, drown); err != nil {
-		t.Fatalf("HookOn = %v", err)
+	if err := hosts.Deliver([]plugin.Host{first, second}, drown); err != nil {
+		t.Fatalf("Deliver = %v", err)
 	}
 	if !slices.Equal(first.took, []rule.Rule{drown}) || second.asked != 0 {
 		t.Errorf("first took %v, second was asked %d times; want first to take it, second never asked", first.took, second.asked)
 	}
 }
 
-// Any error but plugin.ErrUnhosted stops HookOn at once: no later host is asked, no later rule
+// Any error but plugin.ErrUnhosted stops Deliver at once: no later host is asked, no later rule
 // tried.
-func TestHookOn_StopsAtAnotherError(t *testing.T) {
+func TestDeliver_StopsAtAnotherError(t *testing.T) {
 	b := &broken{}
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	drown, spot := noteOf[poke]("drown", rule.All), noteOf[poke]("spot", rule.Self(hunter))
 
-	err := engine.HookOn([]any{b, pokes}, drown, spot)
+	err := hosts.Deliver([]plugin.Host{b, pokes}, drown, spot)
 	if !errors.Is(err, errBroken) || errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("HookOn = %v; want the broken host's error, not plugin.ErrUnhosted", err)
+		t.Errorf("Deliver = %v; want the broken host's error, not plugin.ErrUnhosted", err)
 	}
 	if b.asked != 1 || pokes.asked != 0 {
 		t.Errorf("the broken host was asked %d times, the next %d; want once and never", b.asked, pokes.asked)
 	}
 }
 
-// A host whose system is built refuses with plugin.ErrHostBuilt: HookOn reports it and asks no
+// A host whose system is built refuses with plugin.ErrHostBuilt: Deliver reports it and asks no
 // later host, though one would take the rule.
-func TestHookOn_StopsAtAHostAlreadyBuilt(t *testing.T) {
+func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 	bound := &plugin.Rules[poke]{}
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var tokens goke.Comp[token]
@@ -164,40 +157,38 @@ func TestHookOn_StopsAtAHostAlreadyBuilt(t *testing.T) {
 	built := &host{name: "built", adds: bound}
 	later := &host{name: "later", adds: &plugin.Rules[poke]{}}
 
-	err := engine.HookOn([]any{built, later}, noteOf[poke]("drown", rule.All))
+	err := hosts.Deliver([]plugin.Host{built, later}, noteOf[poke]("drown", rule.All))
 	if !errors.Is(err, plugin.ErrHostBuilt) {
-		t.Errorf("HookOn = %v; want plugin.ErrHostBuilt", err)
+		t.Errorf("Deliver = %v; want plugin.ErrHostBuilt", err)
 	}
 	if later.asked != 0 {
 		t.Errorf("the later host was asked %d times; want never", later.asked)
 	}
 }
 
-// A rule no host takes is plugin.ErrUnhosted naming the rule — a narrowed rule of the world as a
-// whole among them — and so is any rule among no hosts at all.
-func TestHookOn_RefusesARuleNoHostTakes(t *testing.T) {
+// A rule no host takes is plugin.ErrUnhosted naming the rule, and so is any rule among no hosts
+// at all.
+func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
 	stare := noteOf[glance]("stare", rule.Between(hunter, hunted))
-	narrowedWake := narrowed(noteOf[dawn]("wake", rule.All))
 
 	for _, c := range []struct {
 		name  string
-		among []any
+		among []plugin.Host
 		r     rule.Rule
 	}{
-		{"a moment nobody hosts", []any{pokes, "not a host", dawns}, stare},
-		{"a narrowed rule of the world", []any{pokes, dawns}, narrowedWake},
+		{"a moment nobody hosts", []plugin.Host{pokes, dawns}, stare},
+		{"a filtered rule of the world", []plugin.Host{pokes, dawns}, noteOf[dawn]("wake", rule.Having[token]())},
 		{"no hosts", nil, stare},
-		{"nothing that is a host", []any{"not a host", otherHook{}}, stare},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := engine.HookOn(c.among, c.r)
+			err := hosts.Deliver(c.among, c.r)
 			if !errors.Is(err, plugin.ErrUnhosted) {
-				t.Fatalf("HookOn = %v; want plugin.ErrUnhosted", err)
+				t.Fatalf("Deliver = %v; want plugin.ErrUnhosted", err)
 			}
 			if !strings.Contains(err.Error(), c.r.String()) {
-				t.Errorf("HookOn = %q; want it naming the rule %s", err, c.r)
+				t.Errorf("Deliver = %q; want it naming the rule %s", err, c.r)
 			}
 		})
 	}
@@ -206,9 +197,24 @@ func TestHookOn_RefusesARuleNoHostTakes(t *testing.T) {
 	}
 }
 
-// No rules is nothing to hook.
-func TestHookOn_NoRulesIsNothing(t *testing.T) {
-	if err := engine.HookOn(nil); err != nil {
-		t.Errorf("HookOn(nil) = %v; want nil", err)
+// A role's rule of the world as a whole is taken by the host of its moment, and a role is
+// delivered rule by rule.
+func TestDeliver_ARoleIsDeliveredRuleByRule(t *testing.T) {
+	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
+	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
+	role := rule.Role("hosts early").Obeys(noteOf[dawn]("wake", rule.All), noteOf[poke]("drown", rule.All))
+
+	if err := hosts.Deliver([]plugin.Host{pokes, dawns}, role); err != nil {
+		t.Fatalf("Deliver = %v", err)
+	}
+	if len(dawns.took) != 1 || len(pokes.took) != 1 {
+		t.Errorf("dawns took %v, pokes %v; want one rule of the role each", dawns.took, pokes.took)
+	}
+}
+
+// No rules is nothing to deliver.
+func TestDeliver_NoRulesIsNothing(t *testing.T) {
+	if err := hosts.Deliver(nil); err != nil {
+		t.Errorf("Deliver(nil) = %v; want nil", err)
 	}
 }

@@ -1,13 +1,13 @@
 // Package rule is how a game says what its entities do at the moments the plugins catch: a [Rule]
 // made with [On], its steps casting effects and giving commands, fired for whom its filter lets
-// through or, obeyed through a [Role], for those playing it, and hooked through the Stage's
-// Initializer (game.Initializer.Hook) on the plugin that catches its moment. What an entity does over time is a plan (package rule/plan); a change that
+// through and, obeyed through a [Role], for those playing it; the engine hands it to the plugin
+// that catches its moment. What an entity does over time is a plan (package rule/plan); a change that
 // holds is an effect (package rule/effect). The package is gram's core, beside entity and clock;
-// the systems a plugin runs the rules hooked on it with are package plugin's.
+// the systems a plugin runs the rules of its moments with are package plugin's.
 //
 //	mortal := rule.Role("mortal").Obeys(rule.Then[unit.Standing]("fall in", rule.All,
 //		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-//	return ctx.Hook(mortal)
+//	s.scout = units.Define("scout", land, profile, rule.Plays(mortal))
 //
 // # Rules
 //
@@ -37,21 +37,19 @@
 // Apply casts an effect on the entity, lasting as its Spec says; Keep holds one for as long as the
 // rule keeps firing it; Dispel takes one off. A rule keeping an effect someone dispelled has it
 // back the step after; a dispeller that is to win casts a shield the keeper checks with Unless.
-// In a step, rules of one moment run in the order they were hooked, moments in the order of their
+// In a step, rules of one moment run in the order their roles came to be played, moments in the order of their
 // plugins' passes, and every cast and Dispel lands together in the effects' pass. Order gives a
 // command for the entity — the same a player gives, queued for the plugin that handles its type
 // (navigation.MoveTo, world.Despawn) — and does well at once; one that is [plugin.Aimed] is told
 // the [plugin.Subject] of the moment, whom the entity touched or struck. The world carries the
 // commands (world.Plugin.Carry).
 //
-// # Hooking
+// # Who gets a rule
 //
-// A Stage hooks its rules and roles with its Initializer's Hook once its plugins are Used, before
-// Init returns: each rule, and every rule of a role, goes to the plugin in use that hosts its
-// moment, so the Stage need not know which plugin hosts what. A rule no plugin in use hosts is an
-// error wrapping [plugin.ErrUnhosted]. A plugin's own Hook takes the rules of its moments too,
-// before or after Use, until the Stage's ecs.Setup builds its systems; later is
-// [plugin.ErrHostBuilt].
+// Nobody hands a rule to a plugin. A rule is obeyed by a role, a role is played, and once a
+// Stage's Init returns the engine gives every rule of every role played to the plugin in use that
+// catches its moment, so a game need not know which plugin catches what. A rule no plugin in use
+// catches is an error wrapping [plugin.ErrUnhosted], naming the rule and its role.
 //
 // # Roles
 //
@@ -59,15 +57,15 @@
 // group; whose a unit is, its squad, whether it is selected are tags of families of their own, for
 // Self and Between. [Part.Obeys] adds the rules those playing it obey. [Plays] is the component of an entity playing
 // roles, for a kind's Spec: every role in one, so a kind names Plays once. A cell plays the roles
-// of its cell.Entry.Roles. A Part is a Rule for the Initializer's Hook, which hooks every rule it
-// obeys; the engine hooks a role some kind plays itself, once Init returns. [Then] is On without
+// of its kind (board.Plugin.Plays), and a plugin those it is given (world.Plugin.Plays,
+// atmosphere.Plugin.Plays): the rules of a moment of the world as a whole — a clock.Moment, a
+// climate.Weathering — fire while the plugin whose moment it is plays their role. [Then] is On without
 // the body, its steps the package's own functions ([If], [OneOf], [Apply], [Around]…), its
 // conditions predicates of the moment ([Not] turns one round). A program names 64 roles at most, one name one tag, which every world saves by the name.
 // A role's String is "the role mortal".
 //
 //	hasty := rule.Role("hasty")
 //	s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
-//	return ctx.Hook(mortal, hasty)
 //
 // Obeys narrows each rule on top of its own filter: a rule of Self(hungry.Mark()) obeyed by mortal
 // fires for a mortal entity under hungry; on a moment that is Met, for the pairs whose own entity
@@ -112,14 +110,15 @@
 // bears, or one two bear, stops it there.
 //
 //	plate := rule.Role("plate").Obeys(rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+//	s.board.Plays("plate", plate)
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest))
 //	return ctx.Commands(openWest, flipGate)
 //	// Spawn: cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}
-//	//        cell.Entry{Kind: "lever", Cell: l, Roles: []*rule.Part{lever}, Name: "west lever"}
+//	//        cell.Entry{Kind: "lever", Cell: l, Name: "west lever"}
 //
 // # Hosts
 //
-// A plugin runs the rules hooked on it inside a pass it makes anyway, so one walk over its
+// A plugin runs the rules of its moments inside a pass it makes anyway, so one walk over its
 // entities runs them all and a rule costs no query of its own: [plugin.Rules] over entities,
 // [plugin.PairRules] over pairs, [plugin.StepRules] once a step, each handing its rules a
 // [plugin.Tick] made by the world's [plugin.TickSource] (world.Plugin.Tick). The steps themselves

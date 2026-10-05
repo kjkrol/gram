@@ -6,7 +6,7 @@ import (
 
 // crowd is how units get on among others, as in StarCraft II: one standing makes way for an ally
 // on the move and stays aside, while that one goes on; one on the move stops on touching one of
-// its order that has arrived, and goes round anyone else in its way. The plugin hooks it unless a
+// its order that has arrived, and goes round anyone else in its way. The plugin has every unit obey it unless a
 // game gives its own (Plugin.WithCrowd).
 func crowd() []rule.Rule {
 	return []rule.Rule{makeWay(), joinTheGroup(), goRound()}

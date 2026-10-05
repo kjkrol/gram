@@ -31,7 +31,7 @@ var east = geom.NewVec(1, 0)
 
 // installWorldAndBoard installs w and brd alone, with one land unit at cell (1,1), and returns
 // the ECS ticking world then board.
-func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid grid.Grid) *goke.ECS {
+func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid grid.Grid, installed ...func(ctx *boardtest.InstallCtx)) *goke.ECS {
 	t.Helper()
 	ctx := boardtest.NewInstallCtx()
 	if err := w.Install(ctx); err != nil {
@@ -39,6 +39,9 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	}
 	if err := brd.Install(ctx); err != nil {
 		t.Fatal(err)
+	}
+	for _, f := range installed {
+		f(ctx)
 	}
 	start, _ := grid.CellIndex(1, 1)
 	w.Seed(kind.Define[boardtest.Mover](w.Kinds(), "unit", kind.Spec{
@@ -197,23 +200,26 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	orders := carried(t, w, &heards{})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("hole"), Cost: 1})
-	if err := brd.Hook(footing(grid)); err != nil {
-		t.Fatal(err)
-	}
-	met := rule.Then[collision.Meeting]("met", rule.Between(tag.Any, tag.Any), rule.Order(heard{}))
-	if err := brd.Hook(met); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Between on board: %v, want ErrUnhosted", err)
-	}
-	struck := rule.Then[collision.Struck]("struck", rule.Having[unit.Mover](), rule.Order(heard{}))
-	if err := brd.Hook(struck); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
-	}
-	ecs := installWorldAndBoard(t, w, brd, grid)
+	var hosts *boardtest.InstallCtx
+	ecs := installWorldAndBoard(t, w, brd, grid, func(ctx *boardtest.InstallCtx) {
+		hosts = ctx
+		if err := ctx.Deliver(footing(grid)); err != nil {
+			t.Fatal(err)
+		}
+		met := rule.Then[collision.Meeting]("met", rule.Between(tag.Any, tag.Any), rule.Order(heard{}))
+		if err := ctx.Deliver(met); !errors.Is(err, plugin.ErrUnhosted) {
+			t.Errorf("Between on board: %v, want ErrUnhosted", err)
+		}
+		struck := rule.Then[collision.Struck]("struck", rule.Having[unit.Mover](), rule.Order(heard{}))
+		if err := ctx.Deliver(struck); !errors.Is(err, plugin.ErrUnhosted) {
+			t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
+		}
+	})
 	ecs.Tick(tickLen)
 	if told := only(t, orders.told()); !told["fell"] {
 		t.Errorf("a land unit spawned over a hole told %v, want fell", told)
 	}
-	if err := brd.Hook(footing(grid)); !errors.Is(err, plugin.ErrHostBuilt) {
+	if err := hosts.Deliver(footing(grid)); !errors.Is(err, plugin.ErrHostBuilt) {
 		t.Errorf("registering after Setup: %v, want ErrHostBuilt", err)
 	}
 }

@@ -88,6 +88,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type mainStage struct {
 	game.Stage // defined a section at a time: newStage
 
+	mortal *rule.Part // whoever plays it falls in where nothing holds it
+
 	world      *world.Plugin
 	board      *board.Plugin
 	nav        *navigation.Plugin
@@ -165,9 +167,10 @@ func (s *mainStage) defineCells() {
 // defineEffects has the weather work on the board: snow, ice and what sways are its effects.
 func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
 
-// defineRules says the one rule: a walker in the water drowns.
-func (s *mainStage) defineRules(ctx game.Initializer) error {
-	return ctx.Hook(rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+// defineRules says the one role: a mortal in the water drowns.
+func (s *mainStage) defineRules() {
+	s.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
 // defineLooks has the views drawn be the selected units' alone.
@@ -219,6 +222,7 @@ func (s *mainStage) defineKinds() {
 	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order,
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
+		rule.Plays(s.mortal),
 	)
 }
 

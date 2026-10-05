@@ -175,7 +175,8 @@ func (s *mainStage) defineRoles() {
 	frost, iced := effects.Named("frost"), effects.Named("iced")
 	frozen, slip := effects.Named("frozen"), effects.Named("slip")
 
-	s.lake = rule.Role("lake") // the lake's cells play it: where the witch's winter is ice
+	s.lake = rule.Role("lake") // the water plays it: where the witch's winter is ice
+	s.board.Plays("water", s.lake)
 	s.witchy = rule.Role("witch").Obeys(
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(s.lake, rule.Apply(iced)),
@@ -220,7 +221,7 @@ func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, cell.Entry{Kind: "water", Cell: s.cellAt(x, y), Roles: []*rule.Part{s.lake}})
+			cells = append(cells, cell.Entry{Kind: "water", Cell: s.cellAt(x, y)})
 		}
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
