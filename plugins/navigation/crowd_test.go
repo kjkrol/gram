@@ -215,12 +215,12 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	patrol := plan.New("navigation test patrol", func(a *plan.Actor) rule.Step {
+	patrol := &writtenPlan{"navigation test patrol", func(a *plan.Actor) rule.Step {
 		return a.Steps(
 			a.Order(MoveTo{Cell: east}).Until[Arrived](),
 			a.Order(MoveTo{Cell: west}).Until[Arrived](),
 		)
-	})
+	}}
 	rw = newRoadWorld(t, 10, []roadUnit{
 		{start: rw.at(0, 1), owner: 1, selected: true, plan: patrol},
 		{start: rw.at(0, 0), owner: 1, selected: true},
@@ -354,9 +354,7 @@ func with(t Touch, fn func(*Touch)) Touch {
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
-	forAll := rule.On("player 2 makes way for all", rule.Self(owner.Of(2)), func(m *rule.Moment[Touch]) rule.Step {
-		return m.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, m.Order(StepAside{}))
-	})
+	forAll := rule.Then[Touch]("player 2 makes way for all", rule.Self(owner.Of(2)), rule.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, rule.Order(StepAside{})))
 	for _, c := range []struct {
 		standing control.PlayerID
 		yields   bool

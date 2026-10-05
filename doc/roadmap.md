@@ -19,6 +19,17 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   standing for the board. `plugins/atmosphere` does weather and seasons another way (the weather
   on its own entity, snow and ice as the weathering's effects on cells, the seasons the
   calendar's over the clock): decide whether that settles it.
+- **Covers** — a state of the ground drawn over its cells (`board.Plugin.Covering`) is the simple
+  map's on a square grid: in relief (the topography's painter and its sheets), on a hex grid
+  along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
+  that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
+  ground and moves — fire, smoke — is sprites over it, not a cover.
+- **A demo of ways** — roads and a bridge as `cell.Way` and `cell.Crossing` over the ground, a unit
+  taking the road round the mud, in the dress of the effect demo.
+- **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
+  moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
+  `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
+  plugin's doc: its moments, its commands, its knobs.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
@@ -38,9 +49,19 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **Arbitration** — the planner and a reaction (`Flee`) steering one unit in one tick: to start
   with, the reaction wins the tick and the planner re-plans; summed weighted requests only if that
   fails somewhere real.
-- **Collision with heights** — two entities meet where their `world.Layers` share a bit; a veto by
-  `Z` overlap would let collision follow height (a hawk landing, a projectile clearing a wall) — a
-  real change to the solver, when a game needs it.
+- **A wall on a steep slope** — collision stops an entity in a solid cell whose band, from below up
+  to its kind's `Height` over the cell's level, meets the entity's; on a slope steeper than that
+  `Height` over half a cell a unit coming downhill may be partly inside the cell before its band
+  meets, and the push out, through the shallowest open side, may put it on the far side. No demo
+  has a solid cell on a slope; a wall's band from the lowest corner, or a sealed side, when one does.
+- **A sweep across the seam** — a swept entity (`collision.Sweep`) in a wrapping world: its
+  stretch in the space as the fragments the seam cuts it into, the segment refined per image.
+  Collision refuses one today, with a panic at the first it meets.
+- **Shots that go on** — a shot through its target (`Body.Pierces`: the nearest contact a Landing
+  that does not end the flight), a trail drawn behind it, a mine that feels a tread (a landed
+  shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
+- **A unit spawned in the game on the board** — `world.Spawn` of a unit with `At` and `Mover` does
+  not enter it into the board's `cell.Occupancy` (navigation seeds it at Setup alone).
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 
@@ -52,6 +73,9 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
+
+- **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
+  the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
 
 ## Housekeeping
 

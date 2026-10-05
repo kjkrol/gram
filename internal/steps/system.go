@@ -25,9 +25,6 @@ func NewPlans(now func() time.Duration, world func() uid.UID64, seed uint64, fx 
 	return &Plans{system: &system{now: now, world: world, seed: seed, effects: fx, commands: commands}}
 }
 
-// Wires has the plans find the wire an entity is wired to with lookup: the world's.
-func (c *Plans) Wires(lookup func(uid.UID64) (uid.UID64, bool)) { c.system.wires = lookup }
-
 // Roles has the plans find the roles an entity plays with lookup: the world's.
 func (c *Plans) Roles(lookup func(uid.UID64) uint64) { c.system.roles = lookup }
 
@@ -38,7 +35,7 @@ func (c *Plans) System() goke.System { return c.system }
 func (c *Plans) LoadComps() []goke.CompToken {
 	out := []goke.CompToken{goke.LoadComp[Mind]()}
 	seen := map[string]bool{}
-	for _, d := range definitions() {
+	for _, d := range c.system.defs {
 		for _, t := range d.load {
 			if !seen[t.Name] {
 				seen[t.Name] = true
@@ -56,8 +53,8 @@ type system struct {
 	seed     uint64           // the world's, which Chance draws from
 	effects  *effect.Effects  // the world's, which Apply, Keep and the rest cast
 	commands *control.Carrier // the world's, which Order gives to
-	wires    func(uid.UID64) (uid.UID64, bool)
 	roles    func(uid.UID64) uint64
+	defs     map[uint64]definition // the plans defined in this world, by name hashed
 	trees    map[uint64]*tree
 	facts    map[reflect.Type]any // *fact[F] by F
 	si       *goke.SysInit
@@ -74,7 +71,7 @@ type binder interface{ bind(s *system) }
 
 func (s *system) Init(si *goke.SysInit) {
 	s.si, s.facts, s.trees = si, map[reflect.Type]any{}, map[uint64]*tree{}
-	for id, d := range definitions() {
+	for id, d := range s.defs {
 		t := layOut(d.name, d.root)
 		for _, n := range t.nodes {
 			if b, ok := n.exec.(binder); ok {
@@ -138,7 +135,6 @@ type ctx struct {
 	i          int
 	id         uid.UID64
 	entity     bool // id holds whom the node acts for; a rule of a clock.Moment has none
-	wired      bool // under a plan's OnWire: a Keep is renewed every step, lapsing once it is not
 	mind       *Mind
 	tree       *tree
 	prev, next StepSet // the nodes running before this tick, and those running after it

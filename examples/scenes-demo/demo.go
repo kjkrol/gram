@@ -22,9 +22,9 @@ type Demo struct {
 var _ game.Game = (*Demo)(nil)
 
 func NewDemo() *Demo {
-	gameplay := GameplayStage{}
+	gameplay := NewGameplayStage("")
 	return &Demo{
-		gameplay: &gameplay,
+		gameplay: gameplay,
 		menu:     NewMenuStage(gameplay.Name()),
 	}
 }

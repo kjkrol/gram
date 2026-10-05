@@ -162,7 +162,7 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 			for oy := -ring; oy <= ring; oy++ {
 				for ox := -ring; ox <= ring; ox++ {
 					at := cellAt(sx+ox, sy+oy)
-					if s := soils[at]; (s == "earth" || s == "sand") && rivers.Courses[at] == water.Dry {
+					if s := soils[at]; (s == EarthCell || s == SandCell) && rivers.Courses[at] == water.Dry {
 						sx, sy = sx+ox, sy+oy
 						break search
 					}
@@ -198,7 +198,7 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 		if rivers.Courses[b] != water.Dry {
 			c += roadBridge
 		}
-		if soils[b] == "rock" {
+		if soils[b] == RockCell {
 			c *= roadRock
 		}
 		if _, laid := roads.Node(b); laid {
@@ -208,16 +208,16 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 	}
 	for k, from := range stops {
 		if path, ok := network.Route(grid, from, stops[(k+1)%len(stops)], cost); ok {
-			roads.Path(path, network.Node{Kind: "road", Width: roadWidth})
+			roads.Path(path, network.Node{Kind: RoadCell, Width: roadWidth})
 		}
 	}
-	roadWays, bridges := roads.Across(streams, "bridge")
+	roadWays, bridges := roads.Across(streams, BridgeCell)
 	ways = append(ways, roadWays...)
-	return board.Layout{Default: "water", Cells: cells, Ways: ways, Crossings: bridges}, heights, stops
+	return board.Layout{Default: WaterCell, Cells: cells, Ways: ways, Crossings: bridges}, heights, stops
 }
 
 // courses are the kinds of the ways running water lays across the ground.
-var courses = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford"}
+var courses = map[water.Course]string{water.Brook: BrookCell, water.Stream: StreamCell, water.River: RiverCell, water.Ford: FordCell}
 
 // soil is the ground of a cell whose corners stand at hs, w wide, in cells from the coast, at
 // (x, y): rock where it is steep or high, sand on the lowland by the sea and in dunes, earth
@@ -233,18 +233,18 @@ func soil(hs [4]float64, w, in, x, y float64) string {
 	steep /= w // a diagonal counted as an edge: a little steeper than it is
 	switch {
 	case steep >= rockSlope || top >= rockHeight:
-		return "rock"
+		return RockCell
 	case in <= beachWidth && top < landHeight+lowlandRoll:
 		switch n := fbm(x/6+50, y/6+20); {
 		case n > 0.52:
-			return "sand"
+			return SandCell
 		case n < 0.38:
-			return "rock"
+			return RockCell
 		}
 	case steep < duneSlope && top < landHeight+2*lowlandRoll && fbm(x/5+31, y/5+17) > 0.57:
-		return "sand"
+		return SandCell
 	}
-	return "earth"
+	return EarthCell
 }
 
 // relief is how high the ground stands over the lowland at (x, y) cells from the island's middle:

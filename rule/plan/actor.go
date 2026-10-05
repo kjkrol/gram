@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/uid"
 )
 
 // Actor is the one a plan is written for: its methods make the steps it takes over time, and its
@@ -87,17 +88,12 @@ func (a *Actor) Unless(e effect.Effect, step rule.Step) rule.Step { return steps
 func (a *Actor) Under(e effect.Effect, step rule.Step) rule.Step { return steps.NewUnder(e, step) }
 
 // During runs step while the world is under the effect — a state of the whole game, a lever
-// pulled, an alarm (world.Apply) — and fails while it is not.
+// pulled, an alarm (rule.Cast on entity.World) — and fails while it is not.
 func (a *Actor) During(e effect.Effect, step rule.Step) rule.Step { return steps.NewDuring(e, step) }
 
-// OnWire runs step on the wire the actor is wired to (rule.Wired), in place of the actor, and
-// fails for one wired to none.
-func (a *Actor) OnWire(step rule.Step) rule.Step { return steps.NewOnWire(step) }
-
-// WhileWire runs step while the wire the actor is wired to is under e, and fails while it is not,
-// or for one wired to none.
-func (a *Actor) WhileWire(e effect.Effect, step rule.Step) rule.Step {
-	return steps.NewWhileWire(e, step)
+// While runs step while whose own entity is under the effect — a plugin's (world.Self).
+func (a *Actor) While(whose interface{ Entity() uid.UID64 }, e effect.Effect, step rule.Step) rule.Step {
+	return steps.NewWhile(whose.Entity, e, step)
 }
 
 // Playing runs step while the actor plays role, and fails while it does not.

@@ -19,7 +19,8 @@ import (
 // the runs follow the ground as it is shaped.
 func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		k := units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		k := units.Named("walker")
 		start, _ := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(topotest.Recruit{Start: start})}
 	})

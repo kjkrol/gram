@@ -9,10 +9,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -26,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -40,6 +43,8 @@ type Resources struct {
 
 // Plugin wires a Board into a Game; it depends on world, and hands collision its solid ground.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	Res Resources
 
 	occupancy cell.Occupancy
@@ -48,15 +53,20 @@ type Plugin struct {
 	kinds     *terrain.Kinds
 	seeded    *Layout
 	mapping   Map
+	simple    *simpleMap // the board's own map, which lays the covers
+	covers    map[tag.Tag[effect.States]]render.SpriteID
 
 	worldPlugin *world.Plugin
 	module      *module
 	rules       *moments.Rules
-	workers     int // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
+	workers     int                             // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
+	plays       map[string]tag.Tags[rule.Roles] // the roles the cells of a kind play, by its name
+	grids       control.Queue[Grid]             // the Grid commands given, until the next tick
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds a board over g with the given occupancy cap, slowing worldPlugin's entities.
 // It is drawn and priced by the simple map until WithMap sets another.
@@ -64,14 +74,21 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
+		Self:        world.NewSelf(worldPlugin, "gram.board"),
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
+	p.kinds.Guard = func(name string) {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q created", name), section.Cells); err != nil {
+			panic("board: " + err.Error())
+		}
+	}
 	brd := NewBoard(g)
 	p.Res.Logic.Board = brd
 	brd.setHeights(worldPlugin.HasHeights())
-	p.mapping = newSimpleMap(brd)
+	p.simple = newSimpleMap(brd)
+	p.mapping = p.simple
 	brd.mapping = p.mapping
 	if ws, ok := p.Res.Logic.Board.Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
@@ -100,12 +117,20 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		clock:     p.worldPlugin.Clock(),
 	}
 	ctx.UseModule(p.module)
+	ctx.Hosts(p.rules.Hosts()...)
 	return nil
 }
 
 // RunPlan, in the simulation, notices what effects did to the cells and reports where everyone
 // stands; call it after collision's RunPlan.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.grids.Drain(func(control.Issued[Grid]) {
+		if p.Res.Render != nil {
+			p.Res.Render.ToggleShowGridLines()
+		}
+	})
+	p.module.RunPlan(ctx, d)
+}
 
 // WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
 // given nil, from the board's own atlas of the kinds' Colors and drawn sprites.
@@ -177,21 +202,27 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
-// and of a cell.Now, fired every step for every cell; hook them until the Stage's ecs.Setup —
-// before or after Use — or hand them to its Initializer's Hook.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, r := range rules {
-		if err := p.rules.Hook(r); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of unit.Standing or cell.Now", err, p.Name())
-		}
-	}
-	return nil
-}
-
 // =================================================================
 // board-specific
 // =================================================================
+
+// Plays has every cell the Layout lays as the kind named kind play roles, for good: the rules of
+// a cell.Now they obey fire for those cells alone. Call it where the Stage defines its rules.
+func (p *Plugin) Plays(kind string, roles ...*rule.Part) {
+	if err := p.worldPlugin.InSection(fmt.Sprintf("cell kind %q given roles", kind), section.Rules); err != nil {
+		panic("board: " + err.Error())
+	}
+	if _, ok := p.kinds.Get(kind); !ok {
+		panic(fmt.Sprintf("board: unknown cell kind %q given roles", kind))
+	}
+	if p.plays == nil {
+		p.plays = make(map[string]tag.Tags[rule.Roles])
+	}
+	for _, r := range roles {
+		p.plays[kind] = p.plays[kind].With(r.Tag())
+	}
+	p.worldPlugin.Kinds().Play(roles...)
+}
 
 // WithMap has the board drawn and priced by m — a topography's — in place of the simple map.
 // Call before Use.
@@ -219,13 +250,36 @@ func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Bo
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
 
+// Covering is the slot of the board's atlas laid over the cells under the effect e, along the line
+// those cells draw, not along their edges — snow on the ground, ice on the water: issued the
+// first time it is asked for, the same after. Register what it shows in the board's atlas, before
+// WithRenderer. The simple map lays it; a cell stays the kind it is.
+func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
+	if id, ok := p.covers[e.Mark()]; ok {
+		return id
+	}
+	if p.covers == nil {
+		p.covers = map[tag.Tag[effect.States]]render.SpriteID{}
+	}
+	id := p.kinds.NewSprite()
+	p.covers[e.Mark()] = id
+	p.simple.dressing.Cover(e.Mark(), id)
+	e.Shows()
+	return id
+}
+
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
+func (p *Plugin) Seed(layout Layout) {
+	if err := p.worldPlugin.InSection("the board's layout seeded", section.Layout); err != nil {
+		panic("board: " + err.Error())
+	}
+	p.seeded = &layout
+}
 
-// Populate applies the seeded Layout — kinds, the cells' tags, roles and wires, ways and crossings —
+// Populate applies the seeded Layout — kinds, the cells' tags, roles, names and groups, ways and crossings —
 // changing nothing and erroring on an unknown kind name.
 func (p *Plugin) Populate() error {
 	if p.seeded == nil {
@@ -284,20 +338,11 @@ func (p *Plugin) Populate() error {
 		if e.Kind != "" {
 			brd.Set(e.Cell, cells[i])
 		}
-		if e.Tags != 0 {
-			brd.cells.Tag(e.Cell, e.Tags)
-		}
-		var roles tag.Tags[rule.Roles]
-		for _, r := range e.Roles {
-			roles = roles.With(r.Tag())
-		}
-		if roles != 0 {
-			brd.cells.Cast(e.Cell, roles)
-		}
-		if e.Wired != nil {
-			brd.cells.Wire(e.Cell, e.Wired)
+		if e.Name != "" || e.Group != "" {
+			brd.cells.Label(e.Cell, entity.LabelOf(e.Name, e.Group))
 		}
 	}
+	p.cast()
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])
 	}
@@ -306,6 +351,22 @@ func (p *Plugin) Populate() error {
 	}
 	p.seeded = nil
 	return nil
+}
+
+// cast gives every cell the roles its kind plays, as the Layout lays it.
+func (p *Plugin) cast() {
+	if len(p.plays) == 0 {
+		return
+	}
+	brd := p.Res.Logic.Board
+	if roles := p.plays[p.seeded.Default]; roles != 0 {
+		brd.Grid.EachCell(func(c cell.ID) { brd.cells.Cast(c, roles) })
+	}
+	for _, e := range p.seeded.Cells {
+		if e.Kind != "" {
+			brd.cells.Cast(e.Cell, p.plays[e.Kind])
+		}
+	}
 }
 
 // =================================================================

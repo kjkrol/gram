@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -10,16 +8,19 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 // stageInit is a game.Initializer that drives the real Stage without a window;
 // Scene.Layers() is left out.
 type stageInit struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -51,8 +52,6 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
-func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
-
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil
@@ -69,20 +68,23 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// stage is the demo built fresh, without a window, and a view of its units.
-type stage struct {
+// testStage is the demo built fresh, without a window, and a view of its units.
+type testStage struct {
 	*mainStage
 	ecs   *goke.ECS
 	base  goke.Comp[world.Base]
 	units *goke.Query
 }
 
-func buildStage(t *testing.T) *stage {
+func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &stage{mainStage: &mainStage{}}
+	s := &testStage{mainStage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
+	}
+	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		t.Fatalf("roles: %v", err)
 	}
 	if err := s.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -105,14 +107,14 @@ func buildStage(t *testing.T) *stage {
 	return s
 }
 
-func (s *stage) tick(n int) {
+func (s *testStage) tick(n int) {
 	for range n {
 		s.ecs.Tick(time.Second / TPS)
 	}
 }
 
 // strip is every unit whose centre stands on a trapdoor of group i.
-func (s *stage) strip(i int) map[uid.UID64]bool {
+func (s *testStage) strip(i int) map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -127,12 +129,12 @@ func (s *stage) strip(i int) map[uid.UID64]bool {
 }
 
 // holds reports whether the top trapdoor of group i holds a walker.
-func (s *stage) holds(i int) bool {
+func (s *testStage) holds(i int) bool {
 	c, _ := s.brd.CellIndex(groups[i].left, stripTop)
 	return s.brd.Kind(c).Admits(cell.Land)
 }
 
-func (s *stage) alive() map[uid.UID64]bool {
+func (s *testStage) alive() map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	for s.units.All(); s.units.Next(); {
 		for _, id := range s.units.Cursor().IDs {
@@ -143,7 +145,7 @@ func (s *stage) alive() map[uid.UID64]bool {
 }
 
 // scout is a scout: a unit on the plates' row, where only the scouts start.
-func (s *stage) scout() uid.UID64 {
+func (s *testStage) scout() uid.UID64 {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
@@ -158,7 +160,7 @@ func (s *stage) scout() uid.UID64 {
 }
 
 // put moves the unit id onto cell c.
-func (s *stage) put(id uid.UID64, c cell.ID) {
+func (s *testStage) put(id uid.UID64, c cell.ID) {
 	to := cellBox(s.brd, c, EntitySize).TopLeft
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -218,3 +220,10 @@ func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	half := float64(size) / 2
 	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *stageInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *stageInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

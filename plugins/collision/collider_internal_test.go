@@ -10,7 +10,7 @@ import (
 func TestCollider_AddContact_CapsAtMaxContacts(t *testing.T) {
 	var c Collider
 	for i := range MaxContacts + 5 {
-		c.addContact(uid.UID64(i), float64(i), geom.NewVec(1, 0))
+		c.addContact(uid.UID64(i), float64(i), geom.NewVec(1, 0), 1, false)
 	}
 
 	got := c.Contacts()
@@ -26,8 +26,8 @@ func TestCollider_AddContact_CapsAtMaxContacts(t *testing.T) {
 
 func TestCollider_ClearContacts(t *testing.T) {
 	var c Collider
-	c.addContact(uid.UID64(1), 1, geom.NewVec(1, 0))
-	c.addContact(uid.UID64(2), 1, geom.NewVec(1, 0))
+	c.addContact(uid.UID64(1), 1, geom.NewVec(1, 0), 1, false)
+	c.addContact(uid.UID64(2), 1, geom.NewVec(1, 0), 1, false)
 
 	c.clearContacts()
 

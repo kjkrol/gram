@@ -35,10 +35,11 @@ make demo-navigation-hex                                           # the same on
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
+make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G): the bullet plugin, wounds and fuses as effects
 make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
-make demo-wire                                                     # three wires on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells and units playing roles
+make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -70,63 +71,131 @@ on Go 1.27.0.
 ### Plugin system
 
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`,
-`WithRenderer`, `Renderer`, `EventHandler`, `Serializable`,
-`Hook` — is the one extension point. A rule (`rule.On(name, filter, func(m *rule.Moment[P])
-rule.Step {…})`, `rule`, a `rule.Rule`) is hooked on the plugin it concerns and run
-inside that plugin's own pass; its filter, the second argument, says whom it fires for:
+`WithRenderer`, `Renderer`, `EventHandler`, `Serializable` — is the one extension point. A rule
+(`rule.Then[P](name, filter, step)`, `rule`, a `rule.Rule`) is run inside the pass of the plugin
+that catches its moment; its filter, the second argument, says whom it fires for:
 `rule.All`, `rule.Self(a)` one carrying a tag, `rule.Between(a, b)` a pair (a moment that is
 `plugin.Met`), `rule.Having[T]()` one carrying `T`. A rule holds no Go code of its own but the
 conditions of `If`: what it does is steps, commands and effects (2026-10-02). What a plugin does
 of its own — terrain pace, logging, counting contacts, the weather on the board — is its own work
 in its own pass, never a rule; the one place rules are Go is drawing (`render.Rule`: `render.Over`,
-`As`, `With`, `Show`, run every frame by `render.Rules` inside the world's and vision's renderers,
+`As`, `Swap`, `With`, `Show`, run every frame by `render.Rules` inside the world's and vision's renderers,
 given with `world.Plugin.Draw` and `vision.Plugin.Draw`). The tag families join the host's queries as optional
 components, so a rule costs no query, and rules over one component share its column (`plugin.Own`
 shares the host's own). The moment's type —
 `collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
 `world.Moving`, `clock.Moment` — is what says whose it is: a
 host refuses one made for another (`plugin.ErrUnhosted`), so hooking in the wrong place is an
-error, never a silent no-op; `rule.Rule` is a sealed interface, made by `rule.On` and `rule.Role`
+error, never a silent no-op; `rule.Rule` is a sealed interface, made by `rule.Then` and a role
 alone. A plugin
 author runs them with `plugin.Rules[P]`/`plugin.PairRules[P]`/`plugin.StepRules[P]` inside a pass the
-plugin makes anyway: one walk, many rules — never a system per behaviour. A Stage hooks its rules
-with `ctx.Hook(rules...)` (`game.Initializer.Hook`, once its plugins are used, before `Init`
-returns): each goes to the first plugin in use, in `Use` order, whose `Hook` takes it, the next
-tried while one refuses with `plugin.ErrUnhosted` (`internal/engine.HookOn`, not API; test helpers
-use it); one none takes is an error wrapping `plugin.ErrUnhosted`, naming the rule by its
-`String()` (`"drown" of unit.Standing, for the role mortal`). A plugin's own `Hook` still works,
-before or after `Use`, until the Stage's `ecs.Setup` builds its hosts (`plugin.ErrHostBuilt` after;
-`plugin.StepRules.Bind` marks one built). **Roles** say who obeys: `rule.Role(name)` is a
+plugin makes anyway: one walk, many rules — never a system per behaviour. **There is no hooking**
+(removed on 2026-10-05, at the user's word: no `ctx.Hook`, no `Plugin.Hook`, no side entrance by
+another name): a rule is a role's, a role is played, and the engine hands the rules over. A plugin
+tells the engine its hosts in `Install` (`ctx.Hosts(&p.pairs, &p.entities)`, `plugin.Installer.Hosts`;
+a `plugin.Host` is a `Rules`, a `PairRules` or a `StepRules`); once `Init` returns the engine gives
+every rule of every role played (`world.Kinds.Played`) to the first host, in `Use` order, that
+takes it, the next tried while one refuses with `plugin.ErrUnhosted` (`internal/hosts.Deliver`, not
+API; the tests' installers use it); one none takes fails `Init` with an error wrapping
+`plugin.ErrUnhosted`, naming the rule by its `String()` (`"drown" of unit.Standing, for the role
+mortal`). A plugin's own rules (navigation's crowd) it adds to its host itself; tests of a plugin's
+own package may keep a `Hook` in `export_test.go` (world, collision). **Everything a game defines is its Stage's, by name** (since 2026-10-05, the user's
+word: "definiowanie tylko rejestruje"): defining registers and hands nothing back, `Named(name)`
+is the handle wherever a thing is built on, and a game keeps its names as constants (each demo's
+`names.go`; **every name carries a suffix saying what it is**, the user's convention: `Ef` an
+effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell — one literal
+used as two things is two constants, `PlateCell` and `PlateRole`; a name worked out is a function
+named alike, `pullCmd(lever)`, `snowyCell(kind)`; `examples/island` exports its cells' names; **a name a package already gives is used from there, never
+written again in a game's dictionary** — the weathers are `weather.Clear`, `Fair`, `Cloudy`, `Rain`,
+`Storm`), its
+Stage's struct holding plugins alone. The registers are the world's, so each
+Stage has its own and nothing is the program's: `world.Effects()` (`Define(name, spec)`, `Named`),
+`world.Roles()` (`plugins/world/roles.go`: `Define(name, rules...)`, `Named` a `*rule.Part`; the
+tag from `Kinds.DefineTag[rule.Roles]`, 64 a Stage), `world.Plans()` (`plans.go`: `Define(name,
+body)`, `Named` the kind's component; the trees kept by that world's `steps.Plans`, `Plans.Define`
+— the program-wide registry bound every plan ever written into every world), `world.Commands()`
+(`commands_register.go`: `Define(name, cmd)`, `Named`), the kinds (`kind.Define[P]` returns
+nothing, `kind.Named[P](reg, name)` checks the row type against the definition through
+`Registry.Lookup`; `board.Units.Define`/`Named`, `bullet.Shots.Define`/`Named`). A name defined
+twice or asked for unknown panics by name, in `Init`. Rules are not registered: nobody refers to
+one later. `rule.Role`, `rule.RoleNames`, `plan.New`, `game.Initializer.Commands` and
+`world.Plugin.Triggers` are gone; `rule.NewPart(name, tag)` is the world's constructor, and tests
+without a world use it (the `rule` package's own tests have `Role` in `export_test.go`).
+**Roles** say who obeys: a role (`world.Roles`) is a
 `*rule.Part`, a behaviour (mortal, hasty, a trapdoor), not a group — 64 a program, one name one tag
-of the family `rule.Roles`, saved by name by every world (`rule.RoleNames`). `Part.Obeys(rules...)`
+of the family `rule.Roles`, saved by name by its world. `Part.Obeys(rules...)`
 narrows each rule to the role's players on top of its own filter (a pair rule: the pairs whose own
 entity plays it; a same-sided `collision.Meeting` rule still once a pair, `DispatchEitherWay`, while
 a `Touch` is each unit's own and a `Sighting` each observer's; an entity playing two roles that obey
-one rule obeys it once per role); `Part.Can(effect, trigger, label)` is an ability, bound by
-`selection.Plugin.Abilities(roles...)`. A Part is a Rule: `ctx.Hook(mortal, hasty)` hooks every rule
-it obeys. A kind plays roles through one component, `rule.Plays(roles...)` (a kind carrying a
-component type twice panics), a cell through `cell.Entry.Roles`. A rule of a moment of the world as
-a whole — `clock.Moment`, `climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step
-walking no entities — takes no filter and obeys no role: refused with `plugin.ErrUnhosted` (say it with
-`During`, or in a rule over entities). `Part.Tag`/`Rules`/`Abilities`, `rule.Ability`, `rule.Roles` and
-`rule.RoleNames` are for plugins. **Wires** connect: `world.Plugin.Wire(name)` is a `*rule.Wire` with
-an entity of its own (made at Setup, found again after a load by its `rule.Wiring`, the name
-hashed; defined twice or after Setup, it panics), its state an effect on that entity, so one effect
-serves any number of wires. `rule.Wired{To}`, the wire's name hashed, on an entity wires it: a cell
-through `cell.Entry.Wired`, a kind through `comp.Const(w.Wired())`;
-`Wire.Key(e, trigger, label)` is a binding pulsing it (`e` lasting as its Spec says),
-`Wire.Switch(e, trigger, label)` one toggling it (an `e` without `Lasts` holds until switched off,
-saved), both issuing a `rule.Signal` the world carries out, a step's Signals of one effect on one
-wire netted; a rule's `OnWire(step)` runs the step on the wire's entity (`OnWire(Apply(on))` drives
-it), `WhileWire(e, step)` runs it while the entity's wire is under `e` (a rule's through
-`plugin.Tick.Wires`, a plan's through the world's lookup, `steps.Plans.Wires`; both failing for an
-entity wired to none; under a plan's `OnWire` a `Keep` is renewed a step at a time, lapsing once
-its branch stops). `Playing(role, step)` runs the step while the entity plays the role, inside
+one rule obeys it once per role). A kind plays roles through one component,
+`rule.Plays(roles...)` (a `rule.Played`; a kind carrying a component type twice panics), a cell
+through its kind (`board.Plugin.Plays(kind, roles...)`, in the Rules section: every cell the Layout
+lays as that kind carries the roles' tags; `cell.Entry.Roles` is gone), a plugin through its own
+`Plays` (`world.Self.Plays`, which every plugin embeds; all three note the roles with
+`world.Kinds.Play`). A rule of a moment of the world as a whole — `clock.Moment`,
+`climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step walking no entities —
+takes no filter and fires while the entity the moment is about plays its role (`Tick.Roles`:
+the plugin's own entity carries the role's tag). **A plugin is an entity** (since 2026-10-05,
+`plugins/world/self.go`): `world.NewSelf(w, name, knobs...)`, called in the plugin's `NewPlugin`
+and embedded as `*world.Self` (all ten: the world's own is the clock's entity, made with the
+clock's `State` as its knob so the clock's system finds it), is one entity called by the plugin's
+name (`entity.Label`), carrying its knobs (`comp.Comp`s, listed for the saves by the world), the
+effects' markers, `tag.Tags[rule.Roles]` and an `effect.Wide` — a slot for every definable effect,
+where a unit's or a cell's `Active` holds 8; the effect system walks both (`walk`, `slotsOf`).
+The world's first system (`selves.system`) finds them by name in a loaded game, writing the roles
+declared now, and makes the rest. `Self` is a `rule.Router`: `rule.Cast(e).On(s.atmosphere)` is
+routed as a Command for `entity.Named(name)`, which the world carries out; `Self.Entity()`,
+`Self.Changed()` (its `effect.Changed`: the convention by which a plugin works costly things
+anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
+`rule.While(plugin, e, step)` is `During` for a plugin's entity (`steps.NewWhile`). One thing of a
+kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
+`rule.NewPart` are for plugins. **What a plugin gives is in its root package** (the user's rule, 2026-10-05):
+`commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `players.Pan`,
+`Zoom`, `Give`, `Quit` (Shift+Esc), `ShowShortcuts` (K), `Save` (F5, in a game that said where:
+`players.Plugin.WithSaves(basePath, resources...)`), `atmosphere.Freeze`/`Later`/`Earlier`/
+`ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
+**real types of the root package, never aliases** (aliases were tried and dropped the same day: two
+names for one thing, a poor godoc): the plugin keeps the queues and carries the commands out by
+its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
+`Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
+every game and no demo repeats one**: Space is the world's tactical pause (the engine's pause,
+`Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves;
+`players.GameBindings()` is K and Shift+Esc for a game that binds its own camera keys
+(split-screen). A plugin with scenes of its own is a `game.Scenic` (`Scenes()`): the engine's
+initializer gathers them (`PluginScenes`) and a Stage defined in sections has them in its stack,
+hidden — the players' list of shortcuts (`players.Shortcuts`, made in `NewPlugin`) is one, so K
+works in every game without the game adding a scene. A game's own keys that are no command
+(a debug toggle) go to `players.Plugin.OwnKeys(SceneKeys)`.
+**Commands** ask: what somebody wants done about an effect is one
+`rule.Command` written as a sentence (`rule/command.go`, since 2026-10-05, in place of wires,
+`world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Cast(e)` puts it on,
+`rule.Lift(e)` takes it off, `rule.Toggle(e)` switches it (off them all where any target is under
+it); `.On(target)` says whom, `.For(d)` how long in place of the Spec, `.By(source)` who sets it
+off. A `rule.Target` is `entity.Named(names...)` (one entity a name), `entity.Group(names...)`,
+`entity.World` (an `entity.Whom`; the world carries those out, `plugins/world/effect_commands.go`, the
+first system of a step: entities found by their `entity.Label{Name, Group}` through one query, a
+step's commands of one effect on one entity netted) or a plugin's own, a `rule.Router`
+(`selection.Plugin.Selected(roles...)`, `Pointed()`: the selection carries them out).
+`Command.Routed()` is the command its handler takes, and `control.Carrier.Put`/`PutFrom` unwrap a
+`control.Routed`, so a key (`control.Give(trigger, label, cmd)`, which hands a
+`control.Contextual` command its `Context` — the cursor, for `Pointed`), `players.Issue`, `Order`
+and `Trigger` give it one way. `rule.Trigger()` is the step by which an entity gives every
+command whose `By` names it (`rule.Triggered`, an entity's own command): a role says a plate
+stood on triggers, the command what that opens. A Stage hands its commands to
+`s.world.Commands().Define(name, cmd)` (the Commands section; the register was `Castings` and the
+type `rule.Casting` until the user's word, 2026-10-05: "komendy robimy, a nie Casting"; the
+world's carrier is `world.Plugin.Carrier()`; a command given to a key must come from the register —
+`control.Give` panics for a `rule.Command` whose `Name` the register did not set): those with
+a `By` are kept, and as the first step begins a name a command says that nobody bears, or one two
+bear, panics. An entity is called by what makes it: `cell.Entry{Name, Group}` (cells called
+something are made apart, carrying a `Label`), `kind.Entry.Named(name)`/`InGroup(group)` (every
+entity the world spawns carries a `Label`, none by default); a name is one entity's, a group
+many's, one of each at most, saved. `Playing(role, step)` runs the step while the entity plays the role, inside
 `Here`/`Around` the place turned to (`plugin.Tick.Roles`, `steps.Plans.Roles`): a handy unit pulls
-the lever beside it, not the trapdoors on its wire. Tags are bits of a family, not component types
+the lever beside it and nothing else there. Tags are bits of a family, not component types
 (`entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
-family `F` (an empty type a plugin or a game names the family by: `selection.Family`,
-`hooks.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
+family `F` (an empty type a plugin names the family by — tags are the plugins' technique, a game says roles,
+names, groups and the plugins' commands: `selection.Family`), `kinds.DefineTag[F](name)` hands out the bits by name through
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
 to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
 flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` answers
@@ -165,15 +234,15 @@ are defined in `Stage.Init` with the `entity/kind` package:
 just the list of a kind's components, each made in `kind/comp`: `comp.Const(v)` (same for all) or
 `comp.Load(func(row P) T)` (read from that entity's row), `world.Position` and
 `world.Velocity` among them (one of each, or `Define` panics by name; so does a
-`Load` over a row type other than `P`). `Define` hands back the kind itself,
+`Load` over a row type other than `P`). `kind.Named[P](reg, name)` is the kind itself,
 `kind.Of[P]`: `prey.Entry(row)` builds a roster entry for `world.Plugin.Seed`
 — the row's type is checked by the compiler — and `prey.ID()`/`SpriteID()` say
 what its entities carry and are drawn from. `kind` never imports `world`
 (`world` imports it), which is why a kind's id is `kind.ID` and the registry,
 `world.Kinds`, sits behind the `kind.Registry` interface; it also issues atlas
 slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
-every component type its kinds carry (`Kinds.LoadComps`), so a game's own tags
-and state (`hooks.Predator`, a game's own component) survive a save without being registered
+every component type its kinds carry (`Kinds.LoadComps`), so the roles a kind plays
+and a game's own components survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKinds().Create`.
 
@@ -331,7 +400,7 @@ moment — as it goes, or at every one of `Config.Steps` a day where a game asks
 south at noon, west at 18; the default `celestial.NorthWest` turns the whole path so noon is beyond the
 isometric view's sea; the path worked out for the climate's zone's latitude: declination 23.44° ×
 sin(2π·ofYear), the hour angle from noon — polar day and night past the circle), and below −0.1 of
-height the moon (`moonStrength` 0.5 × how full, `moonColor`; `Sky.SetMoon` off: none) — the strength rising and falling,
+height the moon (`sky.Moon{Color, Strength, Face}`, a knob on the atmosphere's entity the sky's system reads every tick — `DefaultMoon`: strength 0.5 × how full, a pale blue; an effect's `Alter` turns it, the light relit at once and the disc tinted through `Heavens.MoonTint`: board-topography's blood moon, cast by a rule of `sky.Moonrise` (the moon coming over the horizon by the calendar, `Sky.RiseSystem` in the simulation, about the atmosphere's entity; `Moonrise.Full`) or by M; `Sky.SetMoon` off: none) — the strength rising and falling,
 the sky's and the sun's colours and the ambient blended from the `daylight` table by the sun's
 height: blue by day, orange at sunrise and sunset, deep blue at night. The terrain bakes its shadows
 anew as the sun goes on a strip a frame (`shadeStrips` 16, a round past every tenth of a degree:
@@ -391,9 +460,10 @@ the day, and `State.Warmth`, the day the calendar's), what falls coming down as 
 `snowsBelow` 1°C, integrating `Drift`, and keeps the air as it stands (`Climate.Air()`, an
 `air.Weather`; `atmosphere.Plugin.Air()`; `Climate.SetRunning` leaves out what is stopped) — every
 step of the simulation (`Climate.System` under `clock.Simulate`), so the tempo hurries it and the
-tactical pause stops it. It hosts rules of `Weathering` (`plugin.StepRules`: no filter, no role; fired every step
-with the weather and season, about the world's own entity — the clock's — so an effect a rule
-applies is a state of the whole game; `atmosphere.Plugin.Hook`). `Change`
+tactical pause stops it. It hosts rules of `Weathering` (`plugin.StepRules`: no filter; fired every step
+with the weather and season, about the atmosphere's own entity (`Climate.About`; the world's for a
+climate run alone) — so they fire while the atmosphere plays their role (`atmosphere.Plugin.Plays`,
+its `world.Self`'s) and an effect a rule applies is a state of the atmosphere). `Change`
 (Shift+W) and `Set{Name}`. `atmosphere/precipitation` is what falls (screen-space streaks and
 flakes from a hash of their number and `Frame.Time`, tier `render.Air` 350, depth +∞);
 `atmosphere.Plugin.Precipitation()`. `atmosphere/weathering` is what the weather does to a board:
@@ -482,7 +552,7 @@ components for the saves, as it registers `steering`'s. They were the world's su
 A plugin's code lies in three layers:
 
 - **The plugin's own package — the entries**: what a game constructs and drives the plugin with:
-  `NewPlugin`, `Config`, the `With…` options, `Seed`, `Hook`, the `Plugin`'s methods and the
+  `NewPlugin`, `Config`, the `With…` options, `Seed`, `Plays`, the `Plugin`'s methods and the
   commands the plugin handles itself (`navigation.MoveTo`, `topography.View`, `topography.Raise`).
 - **Public subpackages — the vocabulary and the contracts**: the types a game and other plugins
   both name (`cell.Kind`, `unit.Mover`, `grid.Grid`, `relief.Climbing`, `painter.Style`), and the
@@ -526,15 +596,22 @@ plugin **perceives** — moments its pass catches, for rules (`unit.Standing`,
 `collision.Meeting`, `navigation.Touch`), and facts, for plans — and **carries out**
 commands (`navigation.StepAside`, `world.Despawn`), keeping the engine's own rules
 inside the handler (a unit is never stepped into water, off a cliff or into a wall).
-**Effects** hold state and a rule's memory. What to do when is **rules** (`rule.On`)
-and **plans** (`plan.New`). A plugin hooks its own defaults itself, unexported
-(navigation's crowd); a game adds its own with `Hook` or replaces them where the
+**Effects** hold state and a rule's memory. What to do when is **rules** (`rule.Then`)
+and **plans** (`world.Plans`). A plugin gives its host its own defaults itself, unexported
+(navigation's crowd); a game adds its own as roles its kinds play or replaces them where the
 plugin offers it (`navigation.Plugin.WithCrowd`). Export only what a game needs: the
 public API is small. A new behaviour adds a moment, a fact or a command where
 perception or an action is missing, and writes the rule with `rule`; it never adds a
 branch to a system, and never a system per behaviour: rules ride a pass the plugin makes anyway.
 A rule holds no Go code but its conditions; what a plugin does of its own (a pace, a log, a
-count) is its own pass's work. Drawing alone is Go (`render.Rule`).
+count) is its own pass's work. Drawing alone is Go (`render.Rule`). How a kind looks under a state
+is drawing, not the effect's Spec: `e.Look(sprite)` is the atlas slot drawn under the effect in
+place of a sprite, asked for in the scene's `Layers` as the atlas is drawn (the effect found by
+`world.Effects().Named(name)`), swapped in by `world.Plugin.WithRenderer` itself after the rules
+of `Draw` — a `render.Swap(twins, e.Mark().In)`, which draws each kind as its own
+sprite under the effect's marker (a table a state, a sprite a kind; effect-demo's frozen witch,
+walker and boat), `render.Over(x, e.Mark().In)` one overlay for all; an `Alter(Appearance)` is one
+look for every kind, and `Facing` overwrites it every frame.
 
 A game is written the same way: its **states are effects** (burning, frozen, alarmed),
 each with its own marker (`Effect.Mark()`) that rules of any plugin filter by; its
@@ -547,13 +624,11 @@ component beside it (`steering.Course` beside `Steering`, `vision.Sighted` besid
 the original, and would put back stale state too. A plugin's own effects stay private. A
 step a rule cannot say is a missing moment, step or knob, not a reason to write Go code in
 a rule (`doc/rule.md`, "A game: states as effects"). A **player acts** the same way, by
-putting an effect on something with a command from a binding: `selection.Apply{Effect}` on
-its own selected units (an ability; a role's, `Part.Can` bound by `selection.Plugin.Abilities`,
-on those playing the role alone), `world.Apply{Effect}` on the world itself (a state of
-the whole game), which rules and plans read with `During` (the trapdoor
-demo: a lever an effect each, its trapdoors cells tagged with a tag of `cell.Family` each, a
-rule a pair, made in a loop), or a `rule.Signal` on a wire (`Wire.Key`, `Wire.Switch`; the wire
-demo: every lever, plate and switch a wire, one effect for all of them and one rule a role).
+giving a command (see "Plugin system", Commands): `rule.Cast(e).On(sel.Selected(role))` on its own
+selected units playing a role, `.On(sel.Pointed())` on whoever the cursor points at,
+`.On(entity.World)` for a state of the whole game, which rules and plans read with `During`,
+`.On(entity.Group(name))` for the cells or units called so (the wire demo: a lever, a plate and a
+switch each a command for a group of cells; the trapdoor and pressure plate demos the same).
 
 ### Built-in plugins (`plugins/`)
 
@@ -566,12 +641,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   and may leave by an open one. An entity wholly past an open edge carries
   `world.Outside`, put on by whoever moved it there (the world's move pass, collision's
   solver); every tick it does, rules of a `world.Leaving`
-  hooked on the world hear of it, and with none it is despawned; back inside
+  hear of it, and with none it is despawned; back inside
   it loses the mark. An entity gives itself `world.Despawn{}` (`Order` in its plan or a rule) to go;
-  `world.Apply{Effect}` puts an effect on the world's own entity, the clock's (drained by the
-  moments' system before the clock's rules; `plugin.Tick.World` names that entity, `During`
-  reads it); the world
-  carries the commands entities give themselves (`control.Carrier`, `world.Plugin.Carry`/`Commands`;
+  a command for `entity.World` puts an effect on the world's own entity, the clock's
+  (`plugin.Tick.World` names that entity, `During` reads it); the world
+  carries the commands entities give themselves (`control.Carrier`, `world.Plugin.Carry`/`Carrier`;
   the engine carries every `plugin.CommandHandler` a stage uses, and a host's `plugin.Tick.Commands`
   hands the carrier to its rules).
   `world.Roster()` is what the plugins in the game ask of a unit's kind, gathered as the plugins
@@ -582,13 +656,17 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   missing requirement panics by plugin and reason. A plugin's requirements go in its `NewPlugin`.
   `roster.Cell` (a `kind.Template` too, as `Unit` is) is what every cell a board makes carries
   besides the board's own components — a `comp.Const`, or a `comp.Load` over the cell's `cell.ID`;
-  one the board gives itself (`Plot`, `Ground`, the tags, roles, `Wired`) panics as the cells are made.
+  one the board gives itself (`Plot`, `Ground`, the tags, roles, `entity.Label`) panics as the cells are made.
   `world.Layers` are the planes an entity is on, one bit each (none, or the component absent:
   every plane); collision and vision read it, so a hawk on `Air` and a walker on `Land` neither
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
   `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`world.Eye`) while collision stays on planes. The dimension is the game's choice in `world.Config`; no plugin
+  geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights the two
+  span (`collision.Band`, `BandOf`) overlap, the ground stops an entity only in a solid cell whose
+  band — from below up to its kind's `Height` over its level — meets the entity's; whatever says no
+  height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
+  `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
   them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
@@ -597,7 +675,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
-  hosts instead of anyone binding it twice — plus Appearance, entity spawning and
+  hosts instead of anyone binding it twice — plus Appearance, entity spawning before the game
+  (`Seed`/`Populate`) and during it (the command `world.Spawn{Entry}`, `Plugin.Spawn`: the world's
+  own system makes the entity at the next step of the simulation after the plans, refusing with a
+  log line an unknown kind, a wrong row, a full world, a bad size or a box past an open edge; a
+  rule may `Order` one of a fixed Entry) and
   `Despawn` (components come and go mid-game through effects and the plugins' facts;
   `Attach`/`Detach`/`Declare` and `Bodies` were removed on 2026-10-01, no game used them) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
@@ -605,25 +687,22 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
   root package `camera` is only the contract and the projections; the cameras, with their window
   arithmetic — wrapping on a wrapping axis, held inside the world on any other — live in
-  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts rules of three moments, all through
-  `Hook`: a `Moving` (every entity, in the velocity pass before it moves — the pass that also
+  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts rules of three moments
+  (`ctx.Hosts` in its Install): a `Moving` (every entity, in the velocity pass before it moves — the pass that also
   scales `Base.Vel.Value` by the entity's `steering.Pace`, the ground's share the board writes,
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
   its own system just before the effects' pass). How entities are drawn is `world.Plugin.Draw`
   (`render.Rule`s, every frame, in order: `world.Facing` — a `render.With` over `Base` —,
-  `render.With`, `As`, `Over`, `Show`; `world.Appearance` is `render.Appearance`; shown by
-  `examples/appearance-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
+  `render.With`, `As`, `Over`, `Swap` (a kind's own look under a state: a sprite a kind, swapped
+  in under an effect's marker, after `Facing` a twin a way faced), `Show`, each with conditions;
+  `world.Appearance` is `render.Appearance`; shown by `examples/appearance-demo` and the frozen
+  kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
-  the steering system asks its `Helm`, one a step — and `world.Apply`/`world.Dispel`, an effect
-  put on or taken off the world's own entity: a state of the whole game, a switch a player
-  flips. `world.Plugin.Wire(name)` defines a wire (`plugins/world/wires.go`): its system, the
-  world's first, finds the wires a loaded game brought, makes the rest and carries out the
-  `rule.Signal`s every step (casting the effect on the wire's entity, or dispelling it for a
-  `Toggle` when on); the world also defines the roles' tags in its kinds (`rule.RoleNames`) and
-  loads `rule.Wired`. Every `plugin.Tick` a host hands its rules comes from
+  the steering system asks its `Helm`, one a step — and the commands about effects
+  (`rule.Command`, `rule.Triggered`; `plugins/world/effect_commands.go`). The world also defines the
+  roles' tags in its kinds (as each role is defined) and loads `entity.Label`. Every `plugin.Tick` a host hands its rules comes from
   `world.Plugin.Tick(cb, d)` (a `plugin.TickSource`): the carrier, `Time` (game time at the step's
-  end), `Seed` (`world.Config.Seed`), which `Chance` draws from, `Wires`, the wire an entity is
-  wired to, and `Roles`, the roles it plays (for `Playing`). The space keeps no state of its own between ticks:
+  end), `Seed` (`world.Config.Seed`), which `Chance` draws from, and `Roles`, the roles an entity plays (for `Playing`). The space keeps no state of its own between ticks:
   the move pass (`moveSystem`, private: tests use the world plugin) moves every box under the edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
@@ -640,8 +719,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `NewUnits`; the ground the others meet is its field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
-  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the game's tags of
-  places (`cell.Family`, `cell.Tag`, `cell.Tags`), the moment `cell.Now`, the Layout's entries
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the moment `cell.Now`, the Layout's entries
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
@@ -696,7 +774,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
   its units: `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and
   `At` (its cell) from the one point `at` reads off a row, `Layers` from the domain, in a world with heights a
-  `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`, and hands back the
+  `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`; `units.Named(name)` is the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
   cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
   `Crossing`, made at Setup by the entity system of `internal/terrain` out of the seed (a
@@ -719,34 +797,43 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
-  box and the `Mover`'s domain) to the rules hooked on the board; `Standing.Fallen()` is a land
+  box and the `Mover`'s domain) to the rules of it; `Standing.Fallen()` is a land
   unit in water or in a hole, and the reaction is the game's (the demos:
-  `rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step { return m.If(unit.Standing.Fallen, m.Order(world.Despawn{})) })`,
+  `rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})))`,
   `board.Plugin.WithLog(log.Default())` writing a line for each fall). The same pass writes every
   unit with a `unit.Mover` its `steering.Pace{Share}` — 1/`CostFor` its domain of the cell under
   its centre, and the Map's slope the way it goes unless the kind is `Graded` — which the world's
-  velocity pass multiplies its speed by from the next step. Then, while a rule of it is hooked, every cell as a `cell.Now`
+  velocity pass multiplies its speed by from the next step. Then, while there is a rule of it, every cell as a `cell.Now`
   (its entity, which cell, its kind now, `Trodden`: a unit's centre lies on it this step —
   `cell.Now.Stood` for a rule's `If`, a plate pressed). Both moments are data alone and `plugin.Placed`: the
   board's `internal/moments.Rules` put their `around` into the `plugin.Tick.Around`, and
-  `m.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own),
-  `m.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
+  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own),
+  `rule.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
   reentrant) — the effect demo's
   witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
-  `Plugin.Hook` routes by the moment's type. Every cell carries for good the game's tags of
-  places, `cell.Tags` (defined by name through the world's kinds, given in the
-  `Layout` as `cell.Entry.Tags` before the cells are made — tagging panics after): a rule
-  of a `cell.Now` filters cells with `rule.Self(tag)` (the trapdoor demo's strips), and
-  `Standing.Places` are those of the cell under a unit (the pressure plate demo: whoever stands
-  on a plate orders `world.Apply`). A cell plays the roles of its `cell.Entry.Roles` (a
-  `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is wired to its `cell.Entry.Wired`
-  (a `rule.Wired`, `TerrainMap.Wired`), both for good: the wire demo's trapdoors, plate and gate. The unit's own cell component is `unit.At{Cell}` (was
+  The cells' tags of places (`cell.Tags`, `Standing.Places`)
+  were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`board.Plugin.Plays`; a
+  `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
+  and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
+  for a name walks few), both for good: the wire demo's plate, lever, trapdoors and gate. The unit's own cell component is `unit.At{Cell}` (was
   `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
-  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
-  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid` and keep out one
-  of the entity's layers, sides open towards open ground; a hex gives the boxes of
+  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A state of the ground is an adjective, the
+  kind the noun: an effect turns the kind's knobs in place (`g.Kind.Allows`, `Cost`, `Costing`) and
+  the cell stays the kind it is — a snowed road a road — while what lies on it is a **cover**:
+  `board.Plugin.Covering(e)` is a slot of the board's atlas (the kinds' numbering,
+  `terrain.Kinds.NewSprite`) laid over the cells under `e` by the simple map's dressing
+  (`internal/draw/covers.go`: the cells' `States` weighed at each tile's corners, side middles and
+  middle — `Weigh`, as the painter weighs kinds — four `Quarters` a tile through
+  `render.Frame.SpriteBlendPart`, so the line cuts across tiles; whole cells off a square grid; not
+  in relief yet), before the ways. `Covering` has the effect `Shows` (`effect.Effect.Shows`: its
+  beginning and end turn `Changed` on though it alters nothing), so the board draws anew.
+  `Board.States(c)` are a cell's effect markers, `unit.Standing.States` those of the cell under a
+  unit, `unit.Over(e)` the condition (effect-demo: snow on land, ice on water, which cell takes
+  which said by a role the lake's cells play). Terrain is never an entity in the space: the
+  board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid`, keep out one
+  of the entity's layers and, with heights, stand in its `collision.Band`, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by
   `Plugin.WithCollision`, and sight's `ground.Cover` (`Walk`: the cells along a ray whose `Veils`
   meet the observer's `Blockers`, τ = 1 - `Veil`, band from the cell's ground up by `Height`),
@@ -778,7 +865,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
   split. With a `collision.Field` (the contract a board fills: the board's solid cells) the engine, built in `Init` with
-  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers`; the
+  `Config.Field`, also pushes every movable collider out of the solid ground on its `Layers` and in its `Band`; the
   `collisionSystem` is its `FieldHandler`, bouncing off the ground as off an infinite mass and
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
   never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:
@@ -796,15 +883,21 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Struck` per entity that struck something the tick before, with what it struck (one that struck
   nothing is not told: the walk over the colliders runs `plugin.Rules.RunWhere`; the contacts lie in
   `Collider` for good, so no component comes or goes).
-  Counting and logging the contacts is collision's own work in its pass:
+  A `collision.Sweep{From, Ignore, Ignoring}` on an entity that moves itself further than the step cap (a
+  shot, its `Base.Vel` zero) has the space hold the stretch of its step for the tick: the engine pairs
+  the stretch, `resolve` refines each pair to the segment (`response.Sweep`, slab test), the ground
+  box by box (`solidField.segment`), and `nearest` keeps one contact a step; `Contact.Along` says
+  where along the step on both sides, `Sensed` that nobody was pushed; a swept entity is a sensor
+  whatever its `Physics`, two swept pass through each other, the one it `Ignore`s too; the space is
+  rebuilt with the stretch before the tick and without after (`rebuild(stretch)`); a wrapping world
+  refuses it. Counting and logging the contacts is collision's own work in its pass:
   `collision.NewPlugin(w).WithStats(&stats)` (a `collision.ContactStats`, its `Reporter` for the
-  telemetry) and `WithLog(log.Default())`. Ready-made rules are in the flat `collision/hooks`
-  package — `Hook(hooks.ShowHits(hit))`, and `HitOverlay(hit, with)` for the world's `Draw`; a
-  game's own is
-  `Hook(rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step { … }))`;
-  the hit is an effect
-  (`hooks.Hit(w, d)` → `effect.Effect`, cast by `ShowHits(hit)` at every `Struck`, drawn
-  by `HitOverlay(hit, with)` — `render.Over(with, hit.Mark().In)` — which reads its marker). `Collider` is the plugin's one
+  telemetry) and `WithLog(log.Default())`. A reaction is the game's: a role obeying
+  `rule.Then[collision.Meeting](name, rule.Between(a, b), step)` or one of a `Struck` (the collision
+  demo's hit: an effect applied at every `Struck`, drawn by `render.Over(with, hit.Mark().In)`).
+  **No plugin ships ready-made reactions** (`collision/rules` and `vision/rules`, once `hooks`, were
+  removed on 2026-10-05 at the user's word: an effect named by the library and a reaction of one
+  game are no reuse; a plugin gives moments and their conditions). `Collider` is the plugin's one
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. The route finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`,
@@ -831,8 +924,8 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `keeping` seam (`cellKeeping`, `bodyKeeping`), one `navigationSystem.Update` loop for both.
   Both plan routes blind to the others (the `pathFinder` gets `openOccupancy`); the keeping
   holds what it holds. What a unit does about another is not the keeping's: it is rules
-  (`rule.On`) of the moment `Touch` navigation hosts (`Plugin.Hook`, a `plugin.PairRules[Touch]` whose
-  tag families read on a query of their own, `marksOf`); `crowd()` (StarCraft II's, unexported) is hooked at
+  (`rule.Then`) of the moment `Touch` navigation hosts (a `plugin.PairRules[Touch]` whose
+  tag families read on a query of their own, `marksOf`); `crowd()` (StarCraft II's, unexported) is added at
   Install unless `WithCrowd(rules...)` gave others, none too. A `Touch` is two units touching —
   `BodySpacing`: the Collider's contacts (`feel`, each pair once: collision records a contact on
   the one that struck), dispatched before the chunks so their commands land the same tick;
@@ -859,14 +952,19 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   and give up the same way, and the solid ground struck is stepped round. Struck bodily under
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
-  `bumps` set at Install by the spacing: `anyBump` under cells, `groundBump` the terrain alone
-  under bodies), no rule hooked on collision. Occupancy is seeded from `At` + `Mover` at Setup. `BodySpacing`: the
+  `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
+  under bodies), no rule of collision's moments. Occupancy is seeded from `At` + `Mover` at Setup. `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
   round `MoveTo.At`, a box's width apart, far rows first) and goes cell centre to cell centre
   (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
   user asked for it to learn by striking. Pushes are collision's and keep units on their ground
   whatever the rules (see collision).
+  A `Drive{Ahead, Turn}` command steers every `Selected` entity the player owns by hand for the tick
+  (`DriveBindings()`: W/S/A/D held, bound by a game in place of the camera's keys; several a tick add
+  up): the `moveCommandSystem` writes its `steering.Driven` and the marker `Driving`, a tick without
+  a Drive writes a zero Driven (braking) and the `driveSystem` takes the Driven off once the unit
+  stands or has an order, so it steps aside again; a Driven navigation did not give is left alone.
   A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
   by an entity for itself (`Order`), that entity alone (`LookAt` too); a
   `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
@@ -882,7 +980,9 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   ground (entity ids start at 0: never use 0 as "nobody").
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
-  from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike. A
+  from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike; and
+  what an entity is called, `Label{Name, Group}` (hashed; `LabelOf`), with whom a command is for,
+  `Whom` (`Named`, `Group`, `World`; `label.go`). A
   leaf: the world's sub-packages read the components
   from it, and the world re-exports them as type aliases (`world.Base = entity.Base`, …), so
   every other plugin and a game say `world.Base` as before and the component is one type for goke
@@ -920,31 +1020,33 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   animations move every frame, not in the ticks' steps.
 - **`rule`** (core) — how entities behave, one vocabulary (`doc/rule.md`; the package was `act`,
   before it `conduct`): rules (`rule`), plans (`rule/plan`), effects (`rule/effect`), commands,
-  facts. Files: `rule.go` (`Rule`, `On`, the filters, the unexported `within` a role narrows by),
-  `moment.go` (`Moment` and its steps, `Step`), `runners.go` (the rules as the plugin's hosts run
-  them), `role.go` (`Role`, `Part` with `Obeys`/`Can`, `Plays`, `Ability`, `Roles`, `RoleNames`),
-  `wire.go` (`Wire` with `Key`/`Switch`, `Wiring`, `Wired`, `Signal`, `NewWire`). The hosts are `plugin`'s
+  facts. Files: `rule.go` (`Rule`, the filters, the unexported `within` a role narrows by),
+  `steps.go` (`Then`, the steps as functions, `Step`), `runners.go` (the rules as the plugin's hosts run
+  them), `role.go` (`Part` with `Obeys`, `NewPart`, `Plays`, `Roles`),
+  `command.go` (`Command`, `Cast`/`Lift`/`Toggle`, `Target`, `Router`, `Trigger`), `steps.go` (`Then` and the steps as functions). The hosts are `plugin`'s
   (since 2026-10-02, "Simplify rules API"): `plugin.Rules` (`rules.go`: over entities, `Own`,
   `Columns`), `plugin.PairRules` (`pair_rules.go`: pairs, `Side`, `Marks`), `plugin.StepRules`
   (once a step), `plugin.Tick`/`TickSource` (`tick.go`), the moments' faces `About`, `Met`,
   `Placed`, `Subject`, `Aimed` and `ErrUnhosted`/`ErrHostBuilt` (`moments.go`); `rule` imports
   `plugin`. The engine running the steps of rules and plans is `internal/steps`.
-  `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `rule.Rule` for the host's
-  `Hook` or the Stage's `ctx.Hook`, its `String()` its name and moment; a `*rule.Part`
-  (`rule.Role`) is one too, standing for the rules it obeys, each narrowed to its players (", for
-  the role mortal" in their String); `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its
+  `rule.Then[P](name, filter, step)` (`steps.go`) is a `rule.Rule` for a role to
+  obey, its `String()` its name and moment, its steps the package's functions
+  (`rule.If`, `OneOf`, `Apply`, `Around`…; `rule.On` with a body over a `Moment` and its methods
+  was removed on 2026-10-05: one way to write a rule), its conditions
+  predicates (`unit.Standing.Fallen`, `unit.On(kind)`, `rule.Not`), what the moment cannot run
+  refused by `steps.NewInstant` (`momentExec`); a `*rule.Part`
+  (a role) is one too, standing for the rules it obeys, each narrowed to its players (", for
+  the role mortal" in their String); `world.Plans().Define(name, func(a *plan.Actor) rule.Step)` says a plan, `Named(name)` the component a kind gives its
   entities (a `steps.Mind`, registered by its name hashed, one name one plan); the world runs the
   plans (`steps.NewPlans`). `rule.Step` is an alias of `steps.Step`; `Mind`, `Asked`, `Replied`,
-  `Chain`, `Answer` are `internal/steps`' own: `rule` and `rule/plan` are the faces of one engine. Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side),
+  `Chain`, `Answer` are `internal/steps`' own: `rule` and `rule/plan` are the faces of one engine. Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side), `Other(role)` (the other of a pair plays it),
   `Having[T]()`. Moments are `plugin.About` (`Who()`), pairs `plugin.Met` (`Whom`), standing on places
   of their own `plugin.Placed` (a marker, `Placed()`; the host tells the places round in
-  `plugin.Tick.Around`: `unit.Standing`, `cell.Now`). A Moment's
+  `plugin.Tick.Around`: `unit.Standing`, `cell.Now`). A rule's
   steps: `OneOf`, `Steps`, `If` (on the moment), `Not`, `Apply`, `Keep`, `Dispel`, `Chance`,
-  `Unless`, `Under`, `During` (the world's effects), `Order`, `ForOther`, `Here`, `Around`,
-  `OnWire`, `WhileWire` (the entity's wire: `steps.NewOnWire`/`NewWhileWire`, through
-  `steps.Pass.Wires`), `Playing(role, step)` (the entity, or the place Here/Around turned to, plays
-  the role: `steps.NewPlaying`, through `steps.Pass.Roles`/`plugin.Tick.Roles`; a plan's Actor has
-  all three) — all instant; a lasting step in a rule
+  `Unless`, `Under`, `During` (the world's effects), `Order`, `Trigger`, `ForOther`, `Here`, `Around`,
+  `Playing(role, step)` (the entity, or the place Here/Around turned to, plays
+  the role: `steps.NewPlaying`, through `steps.Pass.Roles`/`plugin.Tick.Roles`; a plan's Actor has it) — all instant; a lasting step in a rule
   is refused as it is made (`build`), and so are `Here`/`Around` on a moment that is not Placed.
   There is no step running Go code (`Call` was removed on 2026-10-01: it hid what was missing); a
   rule says what it can in steps, and a missing moment, step or knob is added to the plugin. An Actor's: the same plus `When[F](name, func…)` and
@@ -957,9 +1059,9 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   fails while the rule's moment names nobody (a `vision.Sighting` with none in view) — and in
   a plan hands back a `Command` whose `.Until[F](…)` or `.Stay()` keeps a reactive branch from
   giving it every tick. One type, `rule.Step`, for both; a function writing part of a rule or a
-  plan takes the Moment or the Actor (`func whenBlocked(a *plan.Actor) rule.Step`); ready-made
-  rules are whole, in a plugin's `hooks` package (`chooks.ShowHits(hit)`, `vhooks.Flee(tags,
-  fleeing)…`). Plans run first in every simulation step
+  plan takes the Actor (`func whenBlocked(a *plan.Actor) rule.Step`), of a rule nothing: its steps are
+  plain functions; no plugin
+  ships ready-made rules. Plans run first in every simulation step
   (`steps.Plans`, made by the world); the world hosts no other decision pass (`world.Behavior`, a
   bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
@@ -967,7 +1069,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
 - **`rule/effect`** (core) — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
-  Then(next), Grant(tags...), Alter(func(*T))})` hands back an `effect.Effect` carrying its owner
+  Then(next), Grant(tags...), Alter(func(*T))})` registers it and `e.Named(name)` is the `effect.Effect`, carrying its owner
   (`Cast`/`CastFor`/`Dispel`/`On`/`Mark`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active`
   slots saved with the entity, originals of altered components kept and saved with the game;
   effects last in game time. Every effect has its own marker of `effect.States`, "effect.<name>",
@@ -979,20 +1081,20 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `effect.Changed` on for the step after an `Alter` rewrote one of its components. A cast before
   the effects' pass lands the same step. The world fires the rules of a `clock.Moment{Last, Now}`
   every step (a `plugin.StepRules`, its own system just before the effects' pass): what happens when
-  is a rule of `clock.Moment` holding `m.If(clock.Every(period, offset), …)` or `clock.At(t)`
+  is a rule of `clock.Moment` holding `rule.If(clock.Every(period, offset), …)` or `clock.At(t)`
   (`calendar.Daily/Yearly/Seasonal` give the period and offset), fired by clock time, never again
   after a load; it casts effects or grants a `clock.Phase`.
   `board.Plugin.CellEntity(c)` is a cell's own entity, carrying its `Ground` and `Plot`, so an
   `Alter[cell.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
-  `Plugin.Tags()` (a kind's choice via `comp.Tagged`); a bit flip, seen
+  `Plugin.Tags()` (for plugins; every unit carries the family, off, and is told `Allow{}` as it is
+  made; `Plugin.IsSelected` is a drawing rule's condition); a bit flip, seen
   the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds),
   the left button held a `Marquee` (the box being dragged, drawn by its renderer in the dragging
-  camera's view until the `Select` that ends it), an `Apply{Effect}` puts the effect on the player's
-  own Selected units (no binding of its own: a game binds its abilities —
-  `Plugin.Abilities(roles...)` makes each role's `Part.Can` a binding on its trigger, under its
-  label in the K list, applying to the selected units playing the role alone), and C a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; C
+  camera's view until the `Select` that ends it), the commands about effects for its own targets (`Plugin.Selected(roles...)`, the giving
+  player's selected units, those playing a role named; `Plugin.Pointed()`, the entity drawn under
+  the cursor a key was pressed with, the nearest; `effectCommand`, unexported, is what they route to), and C a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; C
   again stops), which the `FollowSystem` keeps in the middle of the camera every tick
   (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
   keeps it. A `Select` hits and unselects only what the issuing player owns
@@ -1003,8 +1105,14 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
   by selection, navigation's `moveCommandSystem` and the topography's cameras (`theSelected`):
-  a player selects, orders and rides only its own units. A game gives a kind to a player with
-  `comp.Tagged(player.Owner())`; a side of its own (the wild, a rival) is `players.Add` owning
+  a player selects, orders and rides only its own units. A unit is a player's by the command
+  `players.Give{To}` (its one owner; `plugins/players/give.go`, the players' own system, drained
+  in their pass), which it gives itself as it is made — `kind.Entry.Told(cmds...)`, the world
+  putting an entry's commands for the new entity (`spawnRows`), refusing one no plugin carries
+  out — or later; `selection.Allow{Selected}`/`Forbid{}` the same for whether it may be selected.
+  Both families every unit carries, all off (roster defaults; attached where missing), so a kind
+  names no tag and serves several players; told at spawn, a unit is nobody's and unselectable
+  through its first step. A side of its own (the wild, a rival) is `players.Add` owning
   its units; the island's blue walkers are such a rival's.
 - **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
   `players.NewPlugin(world, s.selection, s.nav, ...)` has the world carry each one's `Queues()`
@@ -1024,8 +1132,7 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
   `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
   draws nothing, the Scene lists every layer itself. `NewPlugin` registers the owners' family
-  (`players/owner`) with the world's kinds, 64 names saved by name; `Player.Owner()` is the
-  player's tag. Its `eventHandler` is the layer from input to
+  (`players/owner`) with the world's kinds, 64 names saved by name. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.
@@ -1036,8 +1143,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   on a camera carry the player's (`selection.Select.Camera`, `Follow{Camera}`). `Player.Bind` refuses two on one
   trigger holding in one camera mode (`control.Binding.In`, `camera.ModeOf`; only bindings holding
   in the camera's mode fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
-  The Scene hands input to `players.EventHandler()`; `players.RunPlan` runs last and empties the
-  queues. Depends on `world`.
+  The Scene hands input to `players.Plugin.Handle(events, runtime, composition)` and nothing
+  else: the bindings turn it into commands, `players.Quit` (Shift+Esc) and `players.ShowShortcuts`
+  (K) — default keys of the players' own, listed under "Game" — are carried out there, having the
+  Runtime at hand, `players.Save` (F5) too, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a debug toggle) are
+  run; `players.RunPlan` runs last and empties the queues. Depends on `world`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
   space each tick fills the entity's `Sighted` (who it can see, nearest first; given by vision
   where missing — `Sight` is a knob vision only reads, `Sight.Ahead` looks the way it moves,
@@ -1060,18 +1170,43 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   a tick per observer carrying `a` (`rule.Between(a, b)`), with everything in view carrying `b`
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
-  fails with none in view. Ready-made rules live in the flat `vision/hooks` package
-  (`hooks.DefineTags`; `Flee(tags, fleeing)` — two rules, away from the nearest Threat, else from
-  the nearest one closing, `During` a world effect the game puts on and takes off with
-  `world.Apply`/`Dispel`; `Chase(tags)` — `Toward` the nearest Prey; `Search(tags,
-  hooks.Looked(w, d))` — a quarter `Turn` either way, `Unless` it looked within `d`); a file using
-  both plugins' hooks imports them as `chooks`/`vhooks`. `WithLog(log.Default())` writes a line the
+  fails with none in view. Its conditions for a rule's `If` are
+  `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
+  collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
   `render.Show` rules given to `vision.Plugin.Draw` pick some (`render.Show(selected.In)`). A
   `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
+- **`bullet`** — shots as entities of the world: `bullet.NewShots(w).Define(name, Body{Size, Speed,
+  Range, Gravity, Lands}, extra...)` is an `Ammo`, a kind whose entities carry a `Collider` without
+  `Physics` (a sensor), a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the plugin's
+  `Flight` (`At`, `Dir`, `Range`, `Flown`, `Climb`, `Shooter`, `Ending`, `Other`, `Cell`,
+  `Landed`), the shooter's owners and, with heights, a `Z`. `Shoot{Ammo, At, Targeted}` (a
+  `plugin.CommandHandler`, no default bindings; `plugin.Aimed`) fires from every `Selected` unit
+  the player owns, or from the entity that gave it itself, at the muzzle just outside its box,
+  towards `At`, the subject aimed at, else the way it faces (`Vel.Dir`), from its `Eye.Level`, the
+  middle of its `Z`, or 0; a thrown shot (`Gravity`) gets the `Climb` that brings it down where it
+  goes to on the ground `WithGround(board.Heights)` gives, within its `Range`; it is spawned by
+  `world.Spawn` at the next step. The `flightSystem` runs in the simulation **before the world**
+  (`Stage.Update` calls `bullet.RunPlan` first): it flies every shot its `Speed` along `Dir` past
+  the world's step cap, writing the `Sweep.From` and the box (`Space.MoveTo`) and a thrown one's
+  `Z.Altitude`, noting the `Ending` where the step reached the `Range` (`Spent`, `Grounded`), the
+  ground, a closed edge (`Edge`) or an open one (`Left`); the next step, once collision has tested
+  that step, the nearest contact in the `Collider` (`Along`) lands the shot just short of it
+  (`Struck`/`Other`, `Wall`/`Cell`), else the `Ending` lands it: `Landed`, the `Sweep` and
+  `Collider` taken off, a `Landing` for the rules hosted (`plugin.Rules`, its `Subject` the entity
+  struck, so `ForOther` acts on it — `internal/steps` lets `ForOther` act on a Subject where a
+  moment met nobody); a shot whose `Body` does not `Lands` lies one more step (for the effects its
+  landing cast) and is despawned; one that `Left` is marked `world.Outside` for the world's exit
+  pass. A landed shot that `Lands` is a `Resting` every step; `Burst{Radius}`, an entity's own
+  (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
+  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
+  despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
+  collision's. A weapon — ammo, reloading, who carries it — is the game's rules and effects
+  (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
+  Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
 
@@ -1098,9 +1233,8 @@ the player actually starts the game, at which point the gameplay Stage's
 `Init`/`Restore`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
 never a `plugin.Plugin` — it's the thing that *installs* plugins via
 `ctx.Use`, exactly like `Game` did before. Its `Init` gets a `game.Initializer`: `Use`,
-`UseWorld`, `Track`, `TPS`, the embedded `plugin.Installer`, and `Hook(rules...)`, which routes
-each rule — every rule of a role too — to the plugin in use hosting its moment (see "Plugin
-system"). **A `Stage` has no
+`UseWorld`, `Track`, `TPS`, the embedded `plugin.Installer`, and `Commands`; it has no way to hand a rule
+to a plugin (see "Plugin system": roles are played, the engine delivers). **A `Stage` has no
 `HandleEvents`** — input is a `Scene`'s sole responsibility (see below); a
 shortcut a game wants shared across multiple Scenes (e.g. Escape-to-quit)
 is a plain helper function each of their `HandleEvents` calls, not an
@@ -1132,6 +1266,33 @@ that's a *plugin's* capability rather than an engine primitive (camera,
 selection, navigation...) reaches a `Scene` the same way it reaches a
 sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
+
+**A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
+`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Cells(f).Effects(f).Rules(f).Commands(f)
+.Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
+hands back a `game.Stage`. Each link returns a type holding the links after it and none before
+(`Start`, `AfterPlugins`… each embedding the next), so a chain out of order does not compile, a
+link may be left out, and `Update` alone must come. A section takes a function of whatever shape
+it needs (`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
+`[]game.Scene`). The Stage so built keeps its name, makes the stack, shows the first scene or
+those `Shows` names, tracks the Composition, starts fresh without `Restore`, and seeds `Layout`
+then `Units` in `Spawn`. The order is what builds on what: players before the kinds, effects
+before the rules, roles before the commands for their players (`selection.Selected(role)`) and
+the kinds playing them, everything before the keys; what is drawn — atlases, an effect's looks, a
+board's covers — is the scene's `Layers`. A demo's stage struct embeds the `game.Stage` its
+`newStage()` builds, its sections its methods (`usePlugins`, `definePlayer`, `defineCells`,
+`defineEffects`, `defineRules`, `defineCommands`, `defineKinds`, `bindKeys`, `defineLooks`,
+`defineScenes`, `layOut`, `placeUnits`, `update`). **A thing in its section**: the Stage tells
+the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
+engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
+and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Create` (Cells),
+`Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `board.Plays`/`world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
+Controls), `world.Draw`/`vision.Draw` (Looks), `board.Seed` (Layout), `world.Seed` (Units) — by
+an error where the call returns one, a panic elsewhere, each through
+`world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as
+they are made), and a Stage written by hand is in no section: nothing is refused, so every test
+installer works as before. A plugin that needs a game's definitions takes them after it is used
+(`atmosphere.Plugin.WithWeathering` any time before the Stage is set up).
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
 gameplay entities, "Start" switching (lazily building the ECS) into a

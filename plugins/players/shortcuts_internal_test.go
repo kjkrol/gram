@@ -39,7 +39,7 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	s := p.Shortcuts(SceneKeys{{Key: control.KeyEscape, Shift: true, Label: "Quit"}})
+	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).shortcuts
 	groups := s.groups()
 	names := map[string][]string{}
 	for _, g := range groups {
@@ -54,8 +54,8 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Space") || !strings.Contains(lines, "Pause the game") {
 		t.Errorf("the world's lines %q, want the clock's Space", lines)
 	}
-	if lines := strings.Join(names["Game"], "\n"); !strings.Contains(lines, "Shift+Esc") || !strings.Contains(lines, "Quit") || !strings.Contains(lines, "F11") {
-		t.Errorf("the game's lines %q, want Shift+Esc to quit and the engine's F11", lines)
+	if lines := strings.Join(names["Game"], "\n"); !strings.Contains(lines, "Shift+Esc") || !strings.Contains(lines, "Quit") || !strings.Contains(lines, "K ") || !strings.Contains(lines, "Build a road") || !strings.Contains(lines, "F11") {
+		t.Errorf("the game's lines %q, want the players' K and Shift+Esc, the game's own R and the engine's F11", lines)
 	}
 }
 
@@ -70,7 +70,7 @@ func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	s := p.Shortcuts(nil)
+	s := p.shortcuts
 	camera := func() string {
 		for _, g := range s.groups() {
 			if g.name == "Camera" {
@@ -119,5 +119,110 @@ func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	keys.Handle(events, nil, nil)
 	if ran != "grid quit " {
 		t.Errorf("ran %q, want the quit after Shift+Esc", ran)
+	}
+}
+
+// engineStub is a game.Runtime that notes what it is asked.
+type engineStub struct {
+	game.Runtime
+	quit, paused bool
+}
+
+func (e *engineStub) Quit()        { e.quit = true }
+func (e *engineStub) Paused() bool { return e.paused }
+func (e *engineStub) Pause()       { e.paused = true }
+func (e *engineStub) Resume()      { e.paused = false }
+
+// shown is a game.Composition that notes what is shown.
+type shown struct {
+	game.Composition
+	names []string
+}
+
+func (c *shown) Show(name string) { c.names = append(c.names, name) }
+
+// Handle turns a scene's input into the players' commands and carries out those that need the
+// engine: K shows the list of shortcuts, Shift+Esc quits — Esc alone does not — and a key of the
+// game's own runs.
+func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	p := NewPlugin(w)
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+		t.Fatal(err)
+	}
+	built := 0
+	p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road", Do: func(game.Runtime, game.Composition) { built++ }}})
+	rt, comp := &engineStub{}, &shown{}
+	press := func(key control.Key, shift bool) {
+		events := &control.InputEvents{}
+		events.Modifiers.Shift = shift
+		events.AddKeyEvent(key, control.ActionPress)
+		p.Handle(events, rt, comp)
+	}
+	press(control.KeyEscape, false)
+	if rt.quit {
+		t.Fatal("Esc alone quit the game, want Shift+Esc")
+	}
+	press(control.KeyK, false)
+	if len(comp.names) != 1 || comp.names[0] != ShortcutsName || !rt.paused {
+		t.Errorf("K showed %v, paused %v; want the shortcuts shown and the game held", comp.names, rt.paused)
+	}
+	press(control.KeyR, false)
+	if built != 1 {
+		t.Errorf("the game's own R ran %d times, want once", built)
+	}
+	press(control.KeyEscape, true)
+	if !rt.quit {
+		t.Error("Shift+Esc did not quit the game")
+	}
+}
+
+// vault is a game.Persistence that notes what it is asked to save.
+type vault struct {
+	game.Persistence
+	saved []string
+}
+
+func (v *vault) Save(basePath, label string, resources ...any) error {
+	v.saved = append(v.saved, basePath)
+	return nil
+}
+
+// savingEngine is a Runtime with a vault for its Persistence.
+type savingEngine struct {
+	engineStub
+	vault vault
+}
+
+func (e *savingEngine) Persistence() game.Persistence { return &e.vault }
+
+// Save is the players' own command, on F5 in a game that said where it saves: given, the game is
+// written there. A game that said nothing has no such key.
+func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
+	cfg := world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}}
+	hasF5 := func(p *Plugin) bool {
+		for _, b := range p.Defaults() {
+			if b.Trigger == control.Trigger(control.KeyPress{Key: control.KeyF5}) {
+				return true
+			}
+		}
+		return false
+	}
+	if hasF5(NewPlugin(world.NewPlugin(cfg))) {
+		t.Error("a game that said nowhere to save has F5 among its default keys")
+	}
+	p := NewPlugin(world.NewPlugin(cfg)).WithSaves("meadow")
+	if !hasF5(p) {
+		t.Fatal("a game with saves has no F5 among its default keys")
+	}
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+		t.Fatal(err)
+	}
+	rt := &savingEngine{}
+	events := &control.InputEvents{}
+	events.AddKeyEvent(control.KeyF5, control.ActionPress)
+	p.Handle(events, rt, &shown{})
+	if len(rt.vault.saved) != 1 || rt.vault.saved[0] != "meadow" {
+		t.Errorf("F5 saved %v, want the game written under meadow once", rt.vault.saved)
 	}
 }

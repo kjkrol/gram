@@ -11,15 +11,19 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -36,24 +40,25 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// unit is a selection Apply test's unit: whose it is and whether it is selected.
+// unit is a unit of a test of the selected: whose it is and whether it is selected.
 type unit struct {
 	x        float64
 	by       control.PlayerID
 	selected bool
 }
 
-// An Apply puts its effect on the units the player who gives it owns and has selected alone: not
-// its unselected ones, not another player's selected ones.
-func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
+// A command for the selected puts its effect on the units the player who gives it owns and has
+// selected alone: not its unselected ones, not another player's selected ones.
+func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	sel := selection.NewPlugin(w)
-	haste := w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	haste := w.Effects().Named("haste")
 	tags := sel.Tags()
-	k := kind.Define[unit](w.Kinds(), "unit", kind.Spec{
+	kind.Define[unit](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(u unit) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(u.x, 100), 10, 10)} }),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(u unit) tag.Tags[selection.Family] {
@@ -65,6 +70,7 @@ func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
 		}),
 		comp.Load(func(u unit) tag.Tags[owner.Family] { return tag.Tags[owner.Family](0).With(owner.Of(u.by)) }),
 	})
+	k := kind.Named[unit](w.Kinds(), "unit")
 	units := []unit{{x: 100, by: 1, selected: true}, {x: 300, by: 1}, {x: 500, by: 2, selected: true}}
 	for _, u := range units {
 		w.Seed(k.Entry(u))
@@ -96,7 +102,7 @@ func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
 		w.Clock().Replay(rc, d)
 		rc.Sync()
 	})
-	w.Commands().Put(1, selection.Apply{Effect: haste})
+	w.Carrier().Put(1, rule.Cast(haste).On(sel.Selected()))
 	for range 2 {
 		ctx.ecs.Tick(time.Second / 10)
 	}
@@ -114,3 +120,10 @@ func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
 		}
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

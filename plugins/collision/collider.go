@@ -17,9 +17,9 @@ type Collider struct {
 // Contacts is what this entity struck the tick before, in the order confirmed.
 func (c *Collider) Contacts() []Contact { return c.Struck[:c.StruckCount] }
 
-// addContact records one confirmed contact, up to MaxContacts.
-func (c *Collider) addContact(other uid.UID64, impact float64, normal geom.Vec) {
-	c.add(Contact{Other: other, Impact: impact, Normal: normal})
+// addContact records one confirmed contact with other, up to MaxContacts.
+func (c *Collider) addContact(other uid.UID64, impact float64, normal geom.Vec, along float64, sensed bool) {
+	c.add(Contact{Other: other, Impact: impact, Normal: normal, Along: along, Sensed: sensed})
 }
 
 func (c *Collider) add(ct Contact) {

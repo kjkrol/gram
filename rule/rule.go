@@ -12,8 +12,8 @@ import (
 )
 
 // Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
-// standing on the board, one seeing another, two striking — built with On and hooked through the
-// Stage's Initializer (game.Initializer.Hook). The moment's type says which plugin hosts it;
+// standing on the board, one seeing another, two striking — built with Then and obeyed by a role
+// (Role, Part.Obeys). The moment's type says which plugin hosts it;
 // another refuses it. String is its name and its moment.
 type Rule interface {
 	fmt.Stringer
@@ -28,16 +28,11 @@ func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
 	}
-	return r.narrowed(narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc})
-}
-
-// On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
-// board, one seeing another, two striking — for whom filter lets through, it runs the steps body
-// writes for the Moment, steps done within the pass alone. Hook it with game.Initializer.Hook,
-// which finds the plugin that catches P. A rule keeps no memory of its own: an effect's presence
-// is its memory.
-func On[P any](name string, filter Filter, body func(m *Moment[P]) Step) Rule {
-	return build[P](name, filter, body(&Moment[P]{}))
+	n := narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc}
+	if role, ok := any(t).(tag.Tag[Roles]); ok {
+		n.role = 1 << role
+	}
+	return r.narrowed(n)
 }
 
 // Filter is whom a rule fires for: All, Self, Between or Having.
@@ -62,6 +57,11 @@ func Self[F any](t tag.Tag[F]) Filter {
 func Between[FA, FB any](a tag.Tag[FA], b tag.Tag[FB]) Filter {
 	return Filter{self: plugin.SideOf(a), other: plugin.SideOf(b), paired: true, others: true}
 }
+
+// Other lets through a pair whose other plays role, whoever its entity is — whom a predator
+// sees, when the role is prey — for a moment that is Met; obeyed by a role, the pairs of its
+// players with the other role's.
+func Other(role *Part) Filter { return Between(tag.Any, role.tag) }
 
 // Having lets through an entity carrying the component T.
 func Having[T any]() Filter {
@@ -90,6 +90,7 @@ type narrowing struct {
 	side    plugin.Side
 	carrier *side
 	desc    string // what the narrowed rule's String adds
+	role    uint64 // the tag's bit, for a role's
 }
 
 // label is the narrowed rule's String: of a rule labelled l.
@@ -116,7 +117,7 @@ func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	if f.subject {
 		subject, aimed = any(&f.current).(plugin.Subject).Subject()
 	}
-	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around, Wires: t.Wires, Roles: t.Roles}
+	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around, Roles: t.Roles}
 	f.run.Fire(p, t.CmdBuf, id, f.about, subject, aimed)
 }
 
@@ -145,7 +146,19 @@ func build[P any](name string, filter Filter, root Step) Rule {
 }
 
 func (e *every[P]) narrowed(n narrowing) Rule {
-	return newEachWith(n.label(e.label), e.react, n.carrier.cond())
+	each := newEachWith(n.label(e.label), e.react, n.carrier.cond())
+	if n.role == 0 {
+		return each
+	}
+	return &played[P]{eachWith: each, roles: n.role}
+}
+
+func (p *played[P]) narrowed(n narrowing) Rule {
+	each := p.eachWith.narrowed(n).(*eachWith[P])
+	if n.role == 0 {
+		return each
+	}
+	return &played[P]{eachWith: each, roles: p.roles | n.role}
 }
 
 func (e *eachWith[P]) narrowed(n narrowing) Rule {

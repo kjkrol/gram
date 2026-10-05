@@ -9,7 +9,8 @@
 //
 // # Spec, the marker, Grant and Alter
 //
-// [Effects.Define] registers an effect from a [Spec] and gives it its own marker of [States],
+// [Effects.Define] registers an effect from a [Spec] under a name — it hands nothing back, and
+// [Effects.Named] is the effect wherever it is built on — and gives it its own marker of [States],
 // named "effect.<name>" and saved by name: on while the effect runs, off when the last of its
 // casts ends — [Effect.Mark], for rule.Self(burning.Mark()) in any plugin. [Lasts] is how long a
 // cast holds (without it, until Dispel); [Stacking] lets casts pile up instead of refreshing;
@@ -22,7 +23,9 @@
 //
 // # Active, Cast and Dispel
 //
-// [Active] is what an entity is under: up to [maxEffects] slots, saved with it. [Effects.Cast]
+// [Active] is what an entity is under: up to [maxEffects] slots, saved with it; [Wide] is the
+// same with a slot for every effect a game may define, what a plugin's own entity carries
+// (world.Self). [Effects.Cast]
 // and [Effects.CastFor] put an effect on an entity — attaching Active when it has none — and the
 // change lands with the effects' next pass; a cast after a Dispel in the same step takes the slot
 // back. [Effects.Dispel] ends one with that pass; [Effects.Has] asks; the handle's [Effect.Cast],
@@ -35,5 +38,6 @@
 // the world gives them to every unit, the board to every cell, an entity without them gets them
 // at its first effect) have [Changed] on for the step after an Alter rewrote one of its components
 // — as the effect began or as it ended — so a plugin owning that component, the board with a
-// cell's ground, learns of the change without keeping a copy to compare.
+// cell's ground, learns of the change without keeping a copy to compare. An effect something is
+// drawn by ([Effect.Shows]: a board's cover) turns it on as it begins and ends, altering nothing.
 package effect

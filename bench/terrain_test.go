@@ -90,7 +90,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	}
 
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
-	walkers := kind.Define[walker](w.Kinds(), "walker", kind.Spec{
+	kind.Define[walker](w.Kinds(), "walker", kind.Spec{
 		comp.Load(func(r walker) world.Position { return r.pos }),
 		comp.Load(func(r walker) world.Velocity { return r.vel }),
 		comp.Load(func(r walker) unit.At { return unit.At{Cell: r.cell} }),
@@ -100,6 +100,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}), comp.Const(vision.Sighted{}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	})
+	walkers := kind.Named[walker](w.Kinds(), "walker")
 	entries := make([]kind.Entry, terrainUnits)
 	for i := range entries {
 		at := geom.NewVec(3+rng.Float64()*(side-16), 3+rng.Float64()*(side-16))

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -10,15 +8,17 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 // stageInit is a game.Initializer that drives the real Stage without a window;
 // Scene.Layers() is left out.
 type stageInit struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -50,8 +50,6 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
-func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
-
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil
@@ -72,10 +70,13 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 	t.Helper()
 
-	stage := &mainStage{}
+	stage := newStage()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
+	}
+	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		t.Fatalf("roles: %v", err)
 	}
 	if err := stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -100,7 +101,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 
 func TestStage_HunterEatsWhatItCatches(t *testing.T) {
 	ecs, stage := buildStage(t)
-	view := bodies(ecs, stage.tags)
+	view := bodies(ecs, stage)
 
 	if len(view.preyIDs()) != PreyCount {
 		t.Fatalf("stage spawned %d prey, want %d", len(view.preyIDs()), PreyCount)
@@ -139,16 +140,16 @@ func placeOnPrey(t *testing.T, stage *mainStage, view bodyView) uid.UID64 {
 	return caught
 }
 
-// bodyView is a live view of the hunters and the prey — one family query, told apart by tag.
+// bodyView is a live view of the hunters and the prey — one query, told apart by the roles they play.
 type bodyView struct {
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	marks goke.Comp[tag.Tags[hooks.Family]]
-	tags  hooks.Tags
+	query        *goke.Query
+	base         goke.Comp[world.Base]
+	marks        goke.Comp[tag.Tags[rule.Roles]]
+	prey, hunter tag.Tag[rule.Roles]
 }
 
-func bodies(ecs *goke.ECS, tags hooks.Tags) bodyView {
-	view := bodyView{tags: tags}
+func bodies(ecs *goke.ECS, s *mainStage) bodyView {
+	view := bodyView{prey: s.world.Roles().Named(PreyRole).Tag(), hunter: s.world.Roles().Named(PredatorRole).Tag()}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
 	}})
@@ -156,7 +157,7 @@ func bodies(ecs *goke.ECS, tags hooks.Tags) bodyView {
 }
 
 // each calls fn for every entity carrying tag.
-func (v *bodyView) each(tag tag.Tag[hooks.Family], fn func(id uid.UID64, b *world.Base)) {
+func (v *bodyView) each(tag tag.Tag[rule.Roles], fn func(id uid.UID64, b *world.Base)) {
 	v.query.All()
 	for v.query.Next() {
 		cursor := v.query.Cursor()
@@ -170,8 +171,8 @@ func (v *bodyView) each(tag tag.Tag[hooks.Family], fn func(id uid.UID64, b *worl
 	}
 }
 
-func (v *bodyView) eachPrey(fn func(id uid.UID64, b *world.Base))   { v.each(v.tags.Prey, fn) }
-func (v *bodyView) eachHunter(fn func(id uid.UID64, b *world.Base)) { v.each(v.tags.Predator, fn) }
+func (v *bodyView) eachPrey(fn func(id uid.UID64, b *world.Base))   { v.each(v.prey, fn) }
+func (v *bodyView) eachHunter(fn func(id uid.UID64, b *world.Base)) { v.each(v.hunter, fn) }
 
 // preyIDs is every prey alive.
 func (v *bodyView) preyIDs() map[uid.UID64]bool {
@@ -182,7 +183,7 @@ func (v *bodyView) preyIDs() map[uid.UID64]bool {
 
 func TestStage_PreyTurnsAwayFromTheHunterItSees(t *testing.T) {
 	ecs, stage := buildStage(t)
-	view := bodies(ecs, stage.tags)
+	view := bodies(ecs, stage)
 
 	watched, course := placeHunterAhead(t, stage, view, 60)
 
@@ -237,19 +238,28 @@ func headingOf(view bodyView, id uid.UID64) (dir geom.Vec, alive bool) {
 // The prey flee from the start; A has the player take the fleeing off the world, and put it back.
 func TestStage_ASwitchesTheFleeingOffAndOn(t *testing.T) {
 	ecs, stage := buildStage(t)
-	fleeing := func() bool { return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.fleeing) }
+	fleeing := func() bool {
+		return stage.world.Effects().Has(stage.world.Clock().Entity(), stage.world.Effects().Named(FleeingEf))
+	}
 	ecs.Tick(time.Second / TPS)
 	if !fleeing() {
 		t.Fatal("no fleeing on the world from the start")
 	}
-	stage.switchFleeing()
+	stage.world.Carrier().Put(stage.player.ID, stage.world.Commands().Named(FleeCmd)) // what the A key gives
 	ecs.Tick(time.Second / TPS)
 	if fleeing() {
 		t.Fatal("the fleeing still on after A")
 	}
-	stage.switchFleeing()
+	stage.world.Carrier().Put(stage.player.ID, stage.world.Commands().Named(FleeCmd)) // what the A key gives
 	ecs.Tick(time.Second / TPS)
 	if !fleeing() {
 		t.Error("no fleeing after A again")
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *stageInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *stageInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

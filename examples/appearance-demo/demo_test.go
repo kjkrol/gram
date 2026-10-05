@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -12,15 +10,19 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // stageInit is a game.Initializer that drives the real Stage without a window.
 type stageInit struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -51,8 +53,6 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)
 	return p.Install(c)
 }
-
-func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
@@ -107,10 +107,13 @@ type drawnStage struct {
 func newDrawnStage(t *testing.T) *drawnStage {
 	t.Helper()
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
-	ds := &drawnStage{t: t, stage: &mainStage{}}
+	ds := &drawnStage{t: t, stage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := ds.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
+	}
+	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		t.Fatalf("roles: %v", err)
 	}
 	if err := ds.stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -175,9 +178,9 @@ func (ds *drawnStage) want(e shown, angry bool) []render.SpriteID {
 		sprite = s.angrySprite[e.heading]
 	}
 	switch e.kind {
-	case s.ghost.ID():
+	case kind.Named[walker](s.world.Kinds(), GhostKind).ID():
 		return []render.SpriteID{s.spook}
-	case s.leader.ID():
+	case kind.Named[walker](s.world.Kinds(), LeaderKind).ID():
 		return []render.SpriteID{sprite, s.crown}
 	}
 	return []render.SpriteID{sprite}
@@ -195,7 +198,7 @@ func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
 		}
 	}
 
-	if !ds.stage.world.Commands().Put(1, world.Apply{Effect: ds.stage.rage}) {
+	if !ds.stage.world.Carrier().Put(1, rule.Cast(ds.stage.world.Effects().Named(RageEf)).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 	ds.tick(5)
@@ -212,3 +215,10 @@ func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
 		}
 	}
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *stageInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *stageInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

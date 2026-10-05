@@ -3,28 +3,26 @@ package effect_test
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/rule/plan"
 )
 
-// hookGlow hooks on the world a rule keeping glow on while it fires, then a rule dispelling it at
+// hookGlow has the world's units obey a rule keeping glow on while it fires, then a rule dispelling it at
 // the steps douse says — with shield, the dispeller casts it first and the keeper keeps off it.
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
-	keep := func(m *rule.Moment[world.Moving]) rule.Step { return m.Keep(glow) }
-	put := func(m *rule.Moment[world.Moving]) rule.Step { return m.Dispel(glow) }
+	keep, put := rule.Keep(glow), rule.Dispel(glow)
 	if shield != (effect.Effect{}) {
-		keep = func(m *rule.Moment[world.Moving]) rule.Step { return m.Unless(shield, m.Keep(glow)) }
-		put = func(m *rule.Moment[world.Moving]) rule.Step { return m.Steps(m.Apply(shield), m.Dispel(glow)) }
+		keep = rule.Unless(shield, rule.Keep(glow))
+		put = rule.Steps(rule.Apply(shield), rule.Dispel(glow))
 	}
 	dousing := func(world.Moving) bool { return *douse }
-	if err := r.w.Hook(
-		rule.On("glow", rule.All, keep),
-		rule.On("douse", rule.All, func(m *rule.Moment[world.Moving]) rule.Step { return m.If(dousing, put(m)) }),
-	); err != nil {
-		r.t.Fatal(err)
-	}
+	r.rules = append(r.rules,
+		rule.Then[world.Moving]("glow", rule.All, keep),
+		rule.Then[world.Moving]("douse", rule.All, rule.If(dousing, put)))
 }
 
 // A rule's Dispel takes off an effect another rule keeps; the keeper, its cause going on, has it
@@ -33,7 +31,8 @@ func TestRule_DispelTakesOffWhatAnotherRuleKeepsTillItsNextStep(t *testing.T) {
 	var glow effect.Effect
 	douse := false
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
 		hookGlow(r, glow, effect.Effect{}, &douse)
 	})
 	r.tick()
@@ -58,8 +57,10 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	var glow, shield effect.Effect
 	douse := false
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
-		shield = r.fx.Define("shield", effect.Spec{effect.Lasts(3 * tick)})
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
+		r.fx.Define("shield", effect.Spec{effect.Lasts(3 * tick)})
+		shield = r.fx.Named("shield")
 		hookGlow(r, glow, shield, &douse)
 	})
 	r.tick()
@@ -85,8 +86,9 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	var glow effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
-		r.comps = append(r.comps, plan.New("douse in a while", func(a *plan.Actor) rule.Step {
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
+		r.comps = append(r.comps, asPlan(r.w, "douse in a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(3*tick), a.Dispel(glow), a.Idle())
 		}))
 	})
@@ -108,9 +110,11 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	var glow, gaveWay effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		glow = r.fx.Define("glow", effect.Spec{})
-		gaveWay = r.fx.Define("gave way", effect.Spec{})
-		r.comps = append(r.comps, plan.New("glow till doused", func(a *plan.Actor) rule.Step {
+		r.fx.Define("glow", effect.Spec{})
+		glow = r.fx.Named("glow")
+		r.fx.Define("gave way", effect.Spec{})
+		gaveWay = r.fx.Named("gave way")
+		r.comps = append(r.comps, asPlan(r.w, "glow till doused", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Not(a.Keep(glow)), a.Apply(gaveWay), a.Idle())
 		}))
 	})
@@ -129,25 +133,23 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	}
 }
 
-// A player's world.Apply puts an effect on the world; a rule's During runs its step while the
+// A command for entity.World puts an effect on the world; a rule's During runs its step while the
 // world is under it, and a plan's alike.
 func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	for _, planned := range []bool{false, true} {
 		var lever, open effect.Effect
 		r := newRig(t, true, func(r *rig) {
-			lever = r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
-			open = r.fx.Define("open", effect.Spec{})
+			r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
+			lever = r.fx.Named("lever")
+			r.fx.Define("open", effect.Spec{})
+			open = r.fx.Named("open")
 			if planned {
-				r.comps = append(r.comps, plan.New("open while pulled", func(a *plan.Actor) rule.Step {
+				r.comps = append(r.comps, asPlan(r.w, "open while pulled", func(a *plan.Actor) rule.Step {
 					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())
 				}))
 				return
 			}
-			if err := r.w.Hook(rule.On("open while pulled", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-				return m.During(lever, m.Keep(open))
-			})); err != nil {
-				r.t.Fatal(err)
-			}
+			r.rules = append(r.rules, rule.Then[world.Moving]("open while pulled", rule.All, rule.During(lever, rule.Keep(open))))
 		})
 		if err := r.w.Carry(r.w); err != nil {
 			t.Fatal(err)
@@ -157,9 +159,8 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		if r.fx.Has(r.id, open) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
-		r.w.Commands().Put(1, world.Apply{Effect: lever})
-		r.tick() // the lever is put on the world
-		r.tick()
+		r.w.Carrier().Put(1, rule.Cast(lever).On(entity.World))
+		r.tick() // the lever is put on the world, which carries its markers from the start
 		r.tick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
 			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
@@ -171,4 +172,10 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			t.Errorf("planned %v: still open after the lever went back", planned)
 		}
 	}
+}
+
+// asPlan defines a plan in w and hands back the component of an entity following it.
+func asPlan(w *world.Plugin, name string, body func(a *plan.Actor) rule.Step) comp.Comp {
+	w.Plans().Define(name, body)
+	return w.Plans().Named(name)
 }

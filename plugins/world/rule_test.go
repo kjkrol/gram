@@ -28,10 +28,12 @@ type spot struct {
 	bullet bool
 }
 
-// triggerStage is a world with collision and units at spots; hook hooks its rules.
+// triggerStage is a world with collision and units at spots; hook gives the rules its units obey
+// (obey), all playing one role.
 type triggerStage struct {
 	spots          []spot
 	hook           func(g *triggerStage) error
+	rules          []rule.Rule
 	world          *world.Plugin
 	coll           *collision.Plugin
 	bullet, target tag.Tag[roles]
@@ -46,6 +48,12 @@ type triggerStage struct {
 
 func (g *triggerStage) Name() string { return "stage" }
 
+// obey has every unit obey rules.
+func (g *triggerStage) obey(rules ...rule.Rule) error {
+	g.rules = append(g.rules, rules...)
+	return nil
+}
+
 func (g *triggerStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -58,13 +66,15 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 	if err := g.hook(g); err != nil {
 		return err
 	}
-	g.unit = kind.Define[spot](g.world.Kinds(), "unit", kind.Spec{
+	g.world.Roles().Define("trigger unit", g.rules...)
+	kind.Define[spot](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(s spot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x, 100), 10, 10)}
 		}),
 		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
 		comp.Const(collision.Collider{}),
 		comp.Const(tally{}),
+		rule.Plays(g.world.Roles().Named("trigger unit")),
 		comp.Load(func(s spot) tag.Tags[roles] {
 			if s.bullet {
 				return tag.Tags[roles](0).With(g.bullet)
@@ -72,6 +82,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 			return tag.Tags[roles](0).With(g.target)
 		}),
 	})
+	g.unit = kind.Named[spot](g.world.Kinds(), "unit")
 	return ctx.Use(g.coll)
 }
 
@@ -140,10 +151,9 @@ func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		marked = g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		return g.world.Hook(rule.On("mark the bullet", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Apply(marked)
-		}))
+		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		marked = g.world.Effects().Named("marked")
+		return g.obey(rule.Then[world.Moving]("mark the bullet", rule.Self(g.bullet), rule.Apply(marked)))
 	}
 	runTriggers(t, g, 300*time.Millisecond)
 	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
@@ -158,10 +168,9 @@ func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		marked = g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		return g.world.Hook(rule.On("mark the colliders", rule.Having[collision.Collider](), func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Apply(marked)
-		}))
+		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		marked = g.world.Effects().Named("marked")
+		return g.obey(rule.Then[world.Moving]("mark the colliders", rule.Having[collision.Collider](), rule.Apply(marked)))
 	}
 	runTriggers(t, g, 300*time.Millisecond)
 	n := 0
@@ -181,10 +190,9 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 	g.hook = func(g *triggerStage) error {
-		marked = g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		return g.coll.Hook(rule.On("mark the target", rule.Between(g.bullet, g.target), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.ForOther(m.Apply(marked))
-		}))
+		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		marked = g.world.Effects().Named("marked")
+		return g.obey(rule.Then[collision.Meeting]("mark the target", rule.Between(g.bullet, g.target), rule.ForOther(rule.Apply(marked))))
 	}
 	runTriggers(t, g, 700*time.Millisecond)
 	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
@@ -200,11 +208,11 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	var mark, tallying effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 1}}}
 	g.hook = func(g *triggerStage) error {
-		mark = g.world.Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
-		tallying = g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
-		return g.world.Hook(rule.On("once a while", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Unless(mark, m.Steps(m.Apply(mark), m.Apply(tallying)))
-		}))
+		g.world.Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
+		mark = g.world.Effects().Named("mark")
+		g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		tallying = g.world.Effects().Named("tally")
+		return g.obey(rule.Then[world.Moving]("once a while", rule.All, rule.Unless(mark, rule.Steps(rule.Apply(mark), rule.Apply(tallying)))))
 	}
 	runTriggers(t, g, time.Second)
 	if count := g.tallied(); count < 2 || count > 4 {
@@ -217,9 +225,7 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 func TestRule_OrdersCommands(t *testing.T) {
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		return g.world.Hook(rule.On("the bullet leaves", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
-			return m.Order(world.Despawn{})
-		}))
+		return g.obey(rule.Then[world.Moving]("the bullet leaves", rule.Self(g.bullet), rule.Order(world.Despawn{})))
 	}
 	runTriggers(t, g, 200*time.Millisecond)
 	n := 0
@@ -242,17 +248,14 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 		var burning effect.Effect
 		g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 		g.hook = func(g *triggerStage) error {
-			burning = g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
+			g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
+			burning = g.world.Effects().Named("burning")
 			if ignite {
-				if err := g.world.Hook(rule.On("the bullet ignites", rule.Self(g.bullet), func(m *rule.Moment[world.Moving]) rule.Step {
-					return m.Unless(burning, m.Apply(burning))
-				})); err != nil {
+				if err := g.obey(rule.Then[world.Moving]("the bullet ignites", rule.Self(g.bullet), rule.Unless(burning, rule.Apply(burning)))); err != nil {
 					return err
 				}
 			}
-			return g.coll.Hook(rule.On("fire spreads", rule.Between(burning.Mark(), tag.Any), func(m *rule.Moment[collision.Meeting]) rule.Step {
-				return m.ForOther(m.Apply(burning))
-			}))
+			return g.obey(rule.Then[collision.Meeting]("fire spreads", rule.Between(burning.Mark(), tag.Any), rule.ForOther(rule.Apply(burning))))
 		}
 		runTriggers(t, g, 700*time.Millisecond)
 		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under bool) {

@@ -90,10 +90,23 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	return r.TypeID, r.SpriteID
 }
 
+// Lookup is the kind registered as name — see kind.Registry.
+func (k *Registry) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, bool) {
+	r, ok := k.entries[name]
+	return r.TypeID, r.SpriteID, r.Row, ok
+}
+
 // Kind is the kind registered as name.
 func (k *Registry) Kind(name string) (Kind, bool) {
 	r, ok := k.entries[name]
 	return r, ok
+}
+
+// Each calls fn with every kind, in the order defined: their TypeIDs count up from 0.
+func (k *Registry) Each(fn func(Kind)) {
+	for _, name := range k.order {
+		fn(k.entries[name])
+	}
 }
 
 // DefineTag registers name in family F and returns its tag, assigned by call order within the

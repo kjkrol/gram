@@ -25,6 +25,7 @@ type def struct {
 	alters   []alter
 	then     effectID // cast once it runs out, when follows
 	follows  bool
+	shows    bool // something is drawn by its marker: it changes the entity as it begins and ends
 }
 
 type traitFn func(d *def)

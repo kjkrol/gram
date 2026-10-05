@@ -1,14 +1,12 @@
 package world
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
@@ -19,11 +17,11 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -45,6 +43,10 @@ func (r *Resources) Persisted() []any { return r.Camera.Persisted() }
 type Plugin struct {
 	Res      Resources
 	module   *module
+	roles    Roles
+	plans    Plans
+	named    Commands // the commands about effects, by name
+	*Self             // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
@@ -53,6 +55,8 @@ type Plugin struct {
 	views    map[camera.Camera]*view.View
 	cameras  Cameras
 	look     Look
+	looked   bool // the effects' looks are among the drawing rules
+	sections any  // the Stage's Initializer, which tells the section being defined; nil before Install
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -77,18 +81,41 @@ func NewPlugin(cfg Config) *Plugin {
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
-	m.moments.effects = m.effects
-	m.wires.effects = m.effects
+	m.effects.Sprites(kinds.NewSprite)
+	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
+	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
+	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
-	m.plans.Wires(m.wires.Of)
-	m.plans.Roles(m.wires.RolesOf)
+	m.plans.Roles(m.effectCmds.RolesOf)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
+	p.roles.w, p.plans.w, p.named.w = p, p, p
+	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
+
+// InSection is an error for what when the Stage, built in sections (package game/stage), is
+// defining another part than those want names; nil for a Stage written by hand. For plugins,
+// which refuse what is defined out of its place.
+func (p *Plugin) InSection(what string, want ...section.Part) error {
+	return section.Check(p.sections, what, want...)
+}
+
+// must panics with what InSection says.
+func (p *Plugin) must(what string, want ...section.Part) {
+	if err := p.InSection(what, want...); err != nil {
+		panic("world: " + err.Error())
+	}
+}
+
+// Roles are the roles of this Stage, by name: where a game defines them and finds them again.
+func (p *Plugin) Roles() *Roles { return &p.roles }
+
+// Plans are the plans of this Stage, by name: where a game defines them and finds them again.
+func (p *Plugin) Plans() *Plans { return &p.plans }
 
 // Roster is what this world's plugins ask of the kinds a game defines; build a unit's Spec through
 // Roster().Unit.Spec.
@@ -191,23 +218,19 @@ func (p *Plugin) Restore() { p.Res.Camera.Restore() }
 func (p *Plugin) Name() string { return "gram.world" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
+	p.sections = ctx
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
+	ctx.Hosts(p.module.movers, p.module.leavers, &p.module.moments.host)
 	return nil
 }
 
-// RunPlan runs world's tick — call it first from your own Stage.Update: the clock's commands and
-// the views at once, and movement, the leavers and the effects in every step of the simulation.
+// RunPlan runs world's tick — call it from your own Stage.Update before whatever reads the
+// world's space, after only what moves entities itself (bullet): the clock's commands and the
+// views at once, and movement, the leavers and the effects in every step of the simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
-}
-
-// Queues are the clock's, Despawn's, Apply's, Dispel's and the steering's (steering.Away, Toward,
-// Turn) — for the players plugin, which carries the world's commands itself.
-func (p *Plugin) Queues() []control.CommandQueue {
-	q := append(p.module.clock.Queues(), &p.module.despawns, &p.module.applies, &p.module.dispels, &p.module.wires.signals)
-	return append(q, p.module.steer.Queues()...)
 }
 
 // Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the
@@ -221,15 +244,21 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	return nil
 }
 
-// Commands is what takes the commands the world's entities give themselves to their handlers:
+// Carrier is what takes the commands the world's entities give themselves to their handlers:
 // a host's plugin.Tick carries it.
-func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
+func (p *Plugin) Carrier() *control.Carrier { return &p.module.commands }
 
-// DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
-func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.DefaultBindings() }
-
-// WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
+// WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas;
+// the looks the effects were given (effect.Effect.Look) are swapped in after the rules of Draw.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
+	if !p.looked {
+		p.looked = true
+		p.module.effects.Looks(func(mark tag.Tag[effect.States], twins map[render.SpriteID]render.SpriteID) {
+			if err := p.module.drawing.Add(render.Swap(twins, mark.In)); err != nil {
+				panic(err)
+			}
+		})
+	}
 	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
 }
@@ -248,28 +277,12 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
-// Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
-// an entity is Outside an open edge) and a clock.Moment (every step), until the Stage's ecs.Setup;
-// a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		var err error
-		hosts := []func(any) error{p.module.movers.Add, p.module.leavers.Add, p.module.moments.host.Add}
-		for _, add := range hosts {
-			if err = add(b); err == nil || !errors.Is(err, plugin.ErrUnhosted) {
-				break
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Moving, Leaving or clock.Moment", err, p.Name())
-		}
-	}
-	return nil
-}
-
 // Draw has the world's renderer draw its entities as rules say, every frame, in the order given
 // (render.Over, As, With, Show; Facing); call before Use.
 func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.InSection("drawing rules given", section.Looks); err != nil {
+		return err
+	}
 	if err := p.module.drawing.Add(rules...); err != nil {
 		return fmt.Errorf("%w in %s", err, p.Name())
 	}
@@ -281,12 +294,16 @@ func (p *Plugin) Draw(rules ...render.Rule) error {
 // =================================================================
 
 // Seed adds entries to the entities spawned when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(entries ...kind.Entry) { p.seeded = append(p.seeded, entries...) }
+func (p *Plugin) Seed(entries ...kind.Entry) {
+	p.must("units seeded", section.Units)
+	p.seeded = append(p.seeded, entries...)
+}
 
 // Populate spawns every seeded entity, or none and an error on an unknown kind or a wrong row.
 func (p *Plugin) Populate() error {
 	var order []string
 	groups := make(map[string][]any)
+	entries := make(map[string][]kind.Entry)
 	for _, e := range p.seeded {
 		r, ok := p.kinds.r.Kind(e.Kind())
 		if !ok {
@@ -295,17 +312,29 @@ func (p *Plugin) Populate() error {
 		if got := reflect.TypeOf(e.Row()); got != r.Row {
 			return fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.Name, got, r.Row)
 		}
+		if err := p.module.handled(e); err != nil {
+			return fmt.Errorf("world: kind %q: %w", r.Name, err)
+		}
 		if _, seen := groups[r.Name]; !seen {
 			order = append(order, r.Name)
 		}
 		groups[r.Name] = append(groups[r.Name], e.Row())
+		entries[r.Name] = append(entries[r.Name], e)
 	}
 	for _, name := range order {
 		k, _ := p.kinds.r.Kind(name)
-		p.module.populate(k, groups[name])
+		p.module.populateEntries(k, groups[name], entries[name])
 	}
 	p.seeded = nil
 	return nil
+}
+
+// Spawn adds entities of their kinds to the running world, as the game's own (control.Nobody):
+// the command [Spawn] for each, carried out at the world's next step of the simulation.
+func (p *Plugin) Spawn(entries ...kind.Entry) {
+	for _, e := range entries {
+		p.module.spawns.Add(control.Nobody, Spawn{Entry: e})
+	}
 }
 
 // Despawn takes an entity out of the ECS at the end of the tick.
@@ -317,6 +346,6 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
 
-// Wire defines the wire named name — its own entity made at Setup, found again in a loaded game —
-// for keys and rules to drive and rules of what is wired to it to read (rule.Wire); call it in Init.
-func (p *Plugin) Wire(name string) *rule.Wire { return p.module.wires.define(name) }
+// Commands are the commands about effects of this Stage, by name: where a game defines them and
+// finds them again.
+func (p *Plugin) Commands() *Commands { return &p.named }

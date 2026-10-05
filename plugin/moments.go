@@ -35,8 +35,8 @@ type Subject interface{ Subject() (uid.UID64, bool) }
 // on — as it is issued: whose way to step off, whose goal to swap with.
 type Aimed interface{ Aim(who uid.UID64) }
 
-// ErrUnhosted is what a plugin's Hook reports for a rule of a moment it does not catch.
+// ErrUnhosted is what a Host reports for a rule of a moment it does not catch.
 var ErrUnhosted = errors.New("plugin: rule cannot be hosted here")
 
-// ErrHostBuilt is what hooking a rule reports once the system running it is built.
-var ErrHostBuilt = errors.New("plugin: rule hooked after its system was built")
+// ErrHostBuilt is what a Host reports for a rule handed over once the system running it is built.
+var ErrHostBuilt = errors.New("plugin: rule handed over after its system was built")

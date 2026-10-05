@@ -16,7 +16,7 @@ import (
 type Outside struct{}
 
 // Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside.
-// To reconsider: no game hooks a rule on it yet, so the world despawns every leaver — whether it
+// To reconsider: no game has a rule of it yet, so the world despawns every leaver — whether it
 // stays a moment or the world simply despawns is open (doc/refactor-notes.md, Questions for review).
 type Leaving struct {
 	ID   uid.UID64

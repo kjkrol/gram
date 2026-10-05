@@ -1,21 +1,22 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"math/rand/v2"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // benchInit is a game.Initializer that drives the real Stage without a window;
 // Scene.Layers() is left out.
 type benchInit struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -47,8 +48,6 @@ func (c *benchInit) Use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
-func (c *benchInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
-
 func (c *benchInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil
@@ -71,10 +70,13 @@ func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
 
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 
-	stage := &mainStage{}
+	stage := newStage()
 	ctx := &benchInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		tb.Fatalf("Init: %v", err)
+	}
+	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		tb.Fatalf("roles: %v", err)
 	}
 	if err := stage.Spawn(); err != nil {
 		tb.Fatalf("Spawn: %v", err)
@@ -99,3 +101,10 @@ func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
 
 // benchStep is one tick at the demo's TPS.
 const benchStep = time.Second / TPS
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *benchInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *benchInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

@@ -1,8 +1,6 @@
 package collision
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -10,7 +8,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -25,6 +22,7 @@ type module struct {
 
 	system  goke.Runnable
 	fieldOf func() Field
+	heights bool // the world has heights: the system minds every Band
 	stats   *ContactStats
 	log     *log.Logger
 	clock   *clock.Clock      // the world's; nil, run at once
@@ -63,6 +61,7 @@ func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Collider](),
 		goke.LoadComp[Physics](),
+		goke.LoadComp[Sweep](),
 	}
 }
 
@@ -70,26 +69,9 @@ func (m *module) LoadComps() []goke.CompToken {
 // collision-specific
 // =================================================================
 
-// hostAll hands each rule to whichever host takes it, stopping at the first neither does.
-func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], rules []rule.Rule) error {
-	for _, b := range rules {
-		err := pairs.Add(b)
-		if errors.Is(err, plugin.ErrUnhosted) {
-			err = entities.Add(b)
-		}
-		if errors.Is(err, plugin.ErrUnhosted) {
-			return fmt.Errorf("%w in collision — it takes a rule of Meeting or of Struck", err)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *module) build() {
 	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
-	s.stats, s.log = m.stats, m.log
+	s.stats, s.log, s.heights = m.stats, m.log, m.heights
 	s.tickOf = m.tick
 	m.system = m.ecs.RegSys(s)
 	m.built = true

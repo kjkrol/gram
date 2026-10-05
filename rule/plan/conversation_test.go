@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
@@ -30,7 +29,7 @@ func (r room) free() bool                 { return r.Free }
 func (r room) byAlly() bool               { return !r.Free && r.Beside }
 
 // asker walks on once let pass, and flees when not.
-var asker = plan.New("asker", func(a *plan.Actor) rule.Step {
+var asker = write("asker", func(a *plan.Actor) rule.Step {
 	return a.OneOf(
 		a.When[need]("needs to pass", func(a *plan.Actor) rule.Step {
 			return a.Ask[pass]("let me pass", 500*time.Millisecond,
@@ -43,7 +42,7 @@ var asker = plan.New("asker", func(a *plan.Actor) rule.Step {
 
 // giver lets pass where it has room — it jumps aside — asks its ally on where it has one, and
 // refuses otherwise.
-var giver = plan.New("giver", func(a *plan.Actor) rule.Step {
+var giver = write("giver", func(a *plan.Actor) rule.Step {
 	return a.OneOf(
 		a.OnAsked[pass]("asked to let pass", func(a *plan.Actor) rule.Step {
 			return a.OneOf(
@@ -74,18 +73,23 @@ type talk struct {
 type body struct{ Size int }
 
 // newTalk spawns an entity for each plan; nil spawns one without a mind.
-func newTalk(t *testing.T, plans ...any) *talk {
+func newTalk(t *testing.T, plans ...any) *talk { // each a written plan, or nil for a body without a mind
 	t.Helper()
 	k := &talk{t: t, ecs: goke.New(), toys: newToys()}
 	var minds []steps.Mind
+	c := steps.NewPlans(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
+	defined := map[string]steps.Mind{}
 	for _, p := range plans {
 		if p == nil {
 			minds = append(minds, steps.Mind{})
 			continue
 		}
-		minds = append(minds, p.(comp.Template[steps.Mind]).Resolve(nil))
+		w := p.(written)
+		if _, ok := defined[w.name]; !ok {
+			defined[w.name] = w.mind(c)
+		}
+		minds = append(minds, defined[w.name])
 	}
-	c := steps.NewPlans(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
 	var mind goke.Comp[steps.Mind]
 	var plain goke.Comp[body]
 	k.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -182,7 +186,7 @@ func TestAsk_ANoOrNoAnswerRunsTheRefusedBranch(t *testing.T) {
 		t.Errorf("refused, the asker walks %v, flees %v; want fleeing", walking, fleeing)
 	}
 
-	k = newTalk(t, asker, plan.New("deaf", func(a *plan.Actor) rule.Step { return a.Idle() })) // never answers
+	k = newTalk(t, asker, write("deaf", func(a *plan.Actor) rule.Step { return a.Idle() })) // never answers
 	k.need(0, 1)
 	k.tick(4)
 	if _, _, fleeing, _ := k.is(0); fleeing {
@@ -284,7 +288,7 @@ func TestRelay_TheChainEndsAtItsLimitAndNeverLoops(t *testing.T) {
 
 // An ask nobody takes up is dropped after AskLife.
 func TestAsked_IsDroppedAfterItsLife(t *testing.T) {
-	k := newTalk(t, asker, plan.New("deaf too", func(a *plan.Actor) rule.Step { return a.Idle() }))
+	k := newTalk(t, asker, write("deaf too", func(a *plan.Actor) rule.Step { return a.Idle() }))
 	k.need(0, 1)
 	k.tick(2)
 	if asked, _, _, _ := k.is(1); !asked {

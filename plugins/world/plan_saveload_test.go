@@ -21,7 +21,7 @@ import (
 // there, then gone — or loads it from loadFrom.
 type treeStage struct {
 	loadFrom string
-	plan     comp.Comp
+	plan     *written
 	world    *world.Plugin
 	unit     kind.Of[struct{}]
 	probe    *treeProbe
@@ -47,15 +47,16 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	sentry := g.plan
 	if sentry == nil {
-		sentry = plan.New("sentry", func(a *plan.Actor) rule.Step {
+		sentry = write("sentry", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(10*time.Millisecond), a.Wait(time.Hour), a.Order(world.Despawn{}))
 		})
 	}
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
-		sentry,
+		sentry.on(g.world),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "sentry")
 	return nil
 }
 
@@ -137,7 +138,7 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 // A plan orders commands as a player does: the world's own Despawn takes the entity that gives it
 // itself out of the world.
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
-	stage := &treeStage{plan: plan.New("leaver", func(a *plan.Actor) rule.Step {
+	stage := &treeStage{plan: write("leaver", func(a *plan.Actor) rule.Step {
 		return a.Steps(a.Wait(50*time.Millisecond), a.Order(world.Despawn{}))
 	})}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})
@@ -153,4 +154,18 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 	if n, _, _ := stage.minds(); n != 0 {
 		t.Errorf("%d entities with a mind after the leaver's wait, want none: it despawned itself", n)
 	}
+}
+
+// written is a plan as a test writes it, for the Stage's world to define (world.Plans).
+type written struct {
+	name string
+	body func(a *plan.Actor) rule.Step
+}
+
+func write(name string, body func(a *plan.Actor) rule.Step) *written { return &written{name, body} }
+
+// on defines the plan in w and hands back the component of an entity following it.
+func (p *written) on(w *world.Plugin) comp.Comp {
+	w.Plans().Define(p.name, p.body)
+	return w.Plans().Named(p.name)
 }

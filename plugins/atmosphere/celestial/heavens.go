@@ -9,6 +9,7 @@ package celestial
 type Heavens struct {
 	Sun, Moon [3]float32
 	Full      float32
+	MoonTint  [3]float32 // the tint of the moon's face; zero for none
 	Sphere    [3][3]float32
 	Pole      [3]float32
 	Stars     StarSky

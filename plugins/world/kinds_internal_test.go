@@ -38,7 +38,8 @@ func testPlugin() *Plugin { return NewPlugin(testWorld().config) }
 func TestPopulate_ConstAndLoadComponents(t *testing.T) {
 	p := testPlugin()
 	p.Kinds().NewSprite()
-	unit := kind.Define[int](p.Kinds(), "unit", append(statSpec(), comp.Const(spawnerTag{})))
+	kind.Define[int](p.Kinds(), "unit", append(statSpec(), comp.Const(spawnerTag{})))
+	unit := kind.Named[int](p.Kinds(), "unit")
 	p.Seed(unit.Entry(9), unit.Entry(4))
 	if err := p.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
@@ -70,14 +71,16 @@ func TestPopulate_ConstAndLoadComponents(t *testing.T) {
 
 func TestPopulate_KindsWithDifferentRowsAndComponents(t *testing.T) {
 	p := testPlugin()
-	unit := kind.Define[int](p.Kinds(), "unit", statSpec())
-	prop := kind.Define[propData](p.Kinds(), "prop", kind.Spec{
+	kind.Define[int](p.Kinds(), "unit", statSpec())
+	unit := kind.Named[int](p.Kinds(), "unit")
+	kind.Define[propData](p.Kinds(), "prop", kind.Spec{
 		comp.Load(func(d propData) Position {
 			return Position{AABB: plane.NewAABB(geom.NewVec(d.x, 0), 10, 10)}
 		}),
 		comp.Const(Velocity{}),
 		comp.Const(spawnerTag{}),
 	})
+	prop := kind.Named[propData](p.Kinds(), "prop")
 	p.Seed(unit.Entry(5), prop.Entry(propData{x: 40}), unit.Entry(6))
 	if err := p.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
@@ -110,8 +113,11 @@ func TestPopulate_KindsWithDifferentRowsAndComponents(t *testing.T) {
 
 func TestPlugin_Populate_EntryOfAKindThisWorldDoesNotHold_ErrorsWithoutSpawning(t *testing.T) {
 	p := testPlugin()
-	unit := kind.Define[int](p.Kinds(), "unit", statSpec())
-	stranger := kind.Define[int](newKinds(false), "stranger", statSpec())
+	kind.Define[int](p.Kinds(), "unit", statSpec())
+	unit := kind.Named[int](p.Kinds(), "unit")
+	elsewhere := newKinds(false)
+	kind.Define[int](elsewhere, "stranger", statSpec())
+	stranger := kind.Named[int](elsewhere, "stranger")
 	p.Seed(unit.Entry(1), stranger.Entry(1), kind.Entry{})
 
 	if err := p.Populate(); err == nil {

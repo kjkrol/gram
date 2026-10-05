@@ -5,20 +5,21 @@ package bench_test
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // headless is the least of a game.Initializer that installs plugins with no window: it queues
 // what Install asks for and hands it all to one ecs.Setup, as the engine does after Stage.Init.
 type headless struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
 	tracked []any
@@ -51,8 +52,6 @@ func (c *headless) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)
 	return p.Install(c)
 }
-
-func (c *headless) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
 func (c *headless) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
@@ -100,3 +99,10 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 const step = time.Second / 60
 
 func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *headless) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *headless) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

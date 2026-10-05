@@ -168,13 +168,14 @@ type saveTestMark struct{ Left int }
 func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 	define := func(kinds *world.Kinds) []kind.Entry {
-		marked := kind.Define[struct{}](kinds, "marked", kind.Spec{
+		kind.Define[struct{}](kinds, "marked", kind.Spec{
 			comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 			comp.Const(world.Velocity{}),
 			comp.Const(saveTestTag{}),
 			comp.Const(saveTestMark{Left: 3}),
 			comp.Const(steering.Steering{TurnRate: 0.5}),
 		})
+		marked := kind.Named[struct{}](kinds, "marked")
 		return []kind.Entry{marked.Entry(struct{}{})}
 	}
 

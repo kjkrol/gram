@@ -102,7 +102,7 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 // half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
-	r.sky.freeze.Add(0, Freeze{})
+	r.sky.SetFrozen(!r.sky.Frozen())
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
 	if !r.sky.Frozen() || r.sky.Hour() != 0.5 || r.sky.Sun() != firstDay(0.5) {
@@ -111,19 +111,19 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	if m := r.sky.calendar.Now(); !near(m.Time, 0.75) {
 		t.Errorf("the calendar stands at %v, want 18:00: the day goes on under the frozen light", m.Time)
 	}
-	r.sky.later.Add(0, Later{})
-	r.sky.later.Add(0, Later{})
-	r.sky.earlier.Add(0, Earlier{})
+	r.sky.Shift(HalfHour)
+	r.sky.Shift(HalfHour)
+	r.sky.Shift(-HalfHour)
 	r.tick(0)
 	if !near(r.sky.Hour(), 12.5/24) {
 		t.Errorf("two half hours on and one back the light is at %v, want 12:30", r.sky.Hour())
 	}
-	r.sky.later.Add(0, Later{})
+	r.sky.Shift(HalfHour)
 	r.tick(0)
 	if r.sky.Sun() != firstDay(13.0/24) { // the sun moves by the day's steps, hours here
 		t.Errorf("at 13:00 the sun is %+v, want the step's own at once", r.sky.Sun())
 	}
-	r.sky.freeze.Add(0, Freeze{})
+	r.sky.SetFrozen(!r.sky.Frozen())
 	r.tick(0)
 	if r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
 		t.Errorf("let go, the light is %+v, want the calendar's 18:00 at once", r.sky.Sun())
@@ -132,8 +132,8 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 
 func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
 	r := skyOf(t, Config{}, calendar.Config{Start: 15 * time.Minute})
-	r.sky.freeze.Add(0, Freeze{})
-	r.sky.earlier.Add(0, Earlier{})
+	r.sky.SetFrozen(!r.sky.Frozen())
+	r.sky.Shift(-HalfHour)
 	r.tick(0)
 	if !near(r.sky.Hour(), 23.75/24) {
 		t.Errorf("half an hour back from 00:15 the light is at %v, want 23:45", r.sky.Hour())
@@ -198,10 +198,10 @@ func TestSunAt_StandsHigherAndLongerInSummerThanInWinter(t *testing.T) {
 
 func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	c := defaults
-	if day := c.LightAt(0, 0.5, 0.5); day != c.SunAt(0, 0.5) {
+	if day := c.LightAt(0, 0.5, 0.5, DefaultMoon()); day != c.SunAt(0, 0.5) {
 		t.Errorf("by day the light is %+v, want the sun", day)
 	}
-	full, new := c.LightAt(0, 0, 0.5), c.LightAt(0, 0, 0)
+	full, new := c.LightAt(0, 0, 0.5, DefaultMoon()), c.LightAt(0, 0, 0, DefaultMoon())
 	if full.Strength <= 0.1 || full.Color != moonColor || full.Dir[2] <= 0 {
 		t.Errorf("at midnight under a full moon the light is %+v, want the moon high, bright and pale", full)
 	}
@@ -217,10 +217,10 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 // at night, full when opposite the sun, and the pole as high over the north as the latitude.
 func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
 	c := Config{NoonWay: celestial.South, latitude: 50}
-	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5); h.Sun != l.Dir {
+	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5, DefaultMoon()); h.Sun != l.Dir {
 		t.Errorf("at noon the heavens' sun is %v, the light's %v", h.Sun, l.Dir)
 	}
-	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5); h.Moon != l.Dir || h.Full < 0.99 {
+	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5, DefaultMoon()); h.Moon != l.Dir || h.Full < 0.99 {
 		t.Errorf("at night the heavens' moon is %v, full %v; the light's %v, want it, full", h.Moon, h.Full, l.Dir)
 	}
 	h := c.place().HeavensAt(0.2, 0.5, 0, celestial.RealStars)

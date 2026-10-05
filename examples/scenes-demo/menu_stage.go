@@ -8,46 +8,23 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/render"
 )
 
 // =========================== Stage ===========================
 
-// MenuStage is the splash/menu — no entities, no gameplay plugins.
+// MenuStage is the splash/menu — no entities, no gameplay plugins: a Stage of one scene.
 type MenuStage struct {
-	gameplayName string
-
-	stack game.Scenes
+	game.Stage // defined in sections: NewMenuStage
 }
 
 // NewMenuStage builds a MenuStage that switches to the Stage named gameplayName on start.
 func NewMenuStage(gameplayName string) *MenuStage {
-	return &MenuStage{gameplayName: gameplayName}
+	return &MenuStage{Stage: stage.New("menu").
+		Scenes(func() []game.Scene { return []game.Scene{&menuScene{gameplayName: gameplayName}} }).
+		Update(func(goke.RunCtx, time.Duration) {})}
 }
-
-var _ game.Stage = (*MenuStage)(nil)
-
-func (m *MenuStage) Name() string { return "menu" }
-
-func (m *MenuStage) Init(ctx game.Initializer) error {
-	main := &menuScene{gameplayName: m.gameplayName}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	m.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
-}
-
-func (m *MenuStage) Restore(game.Persistence) (bool, error) { return false, nil }
-
-func (m *MenuStage) Spawn() error { return nil }
-
-func (m *MenuStage) Update(goke.RunCtx, time.Duration) {}
-
-func (m *MenuStage) Stack() game.Scenes { return m.stack }
 
 // =========================== Scene ===========================
 

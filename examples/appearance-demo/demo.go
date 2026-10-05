@@ -17,9 +17,12 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -53,7 +56,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -108,38 +111,68 @@ type walker struct {
 }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
-
-	walker, ghost, leader kind.Of[walker]
 
 	// facing is the sprite of each heading, calm and angry; spook the ghost's, crown the leader's.
 	facing, angrySprite [4]render.SpriteID
 	spook, crown        render.SpriteID
 
-	rage, angry effect.Effect
-
-	stack game.Scenes
+	player *players.Player
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("appearance-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Effects(s.defineEffects).
+		Rules(s.defineRules).
+		Commands(s.defineCommands).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Looks(s.defineLooks).
+		Scenes(s.defineScenes).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "appearance-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
 	})
+	s.collision = collision.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world)
+	for _, p := range []plugin.Plugin{s.collision, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	// Two effects: rage is a state of the whole game, R puts it on the world; angry is what each
-	// entity feels while it lasts, its Mood turned.
-	s.rage = s.world.Effects().Define("rage", effect.Spec{effect.Lasts(rageFor)})
-	s.angry = s.world.Effects().Define("angry", effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
 
+func (s *mainStage) defineEffects() {
+	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
+	s.world.Effects().Define(AngryEf, effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+}
+
+func (s *mainStage) defineRules() {
+	s.world.Roles().Define(MoodyRole,
+		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.world.Effects().Named(RageEf), rule.Keep(s.world.Effects().Named(AngryEf)))))
+}
+
+func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	spec := func(more ...comp.Comp) kind.Spec {
 		return append(kind.Spec{
@@ -148,19 +181,29 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 			comp.Const(Mood{}),
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{Restitution: 1}),
+			rule.Plays(s.world.Roles().Named(MoodyRole)),
 		}, more...)
 	}
-	s.walker = kind.Define[walker](kinds, "walker", spec())
-	s.ghost = kind.Define[walker](kinds, "ghost", spec(comp.Const(Ghost{})))
-	s.leader = kind.Define[walker](kinds, "leader", spec(comp.Const(Leader{})))
+	kind.Define[walker](kinds, WalkerKind, spec())
+	kind.Define[walker](kinds, GhostKind, spec(comp.Const(Ghost{})))
+	kind.Define[walker](kinds, LeaderKind, spec(comp.Const(Leader{})))
 	for h := range s.facing {
 		s.facing[h], s.angrySprite[h] = kinds.NewSprite(), kinds.NewSprite()
 	}
 	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
+}
 
-	// The whole of the drawing, in order: the sprite of the heading, red while angry, a ghost drawn
-	// as a ghost after that — whatever it feels — and a crown on the leader.
-	if err := s.world.Draw(
+func (s *mainStage) defineCommands() {
+	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
+}
+
+func (s *mainStage) bindKeys() error {
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
+		s.world.Commands().Named(RageCmd)))
+}
+
+func (s *mainStage) defineLooks() error {
+	return s.world.Draw(
 		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
 		render.With(func(a world.Appearance, m Mood) world.Appearance {
 			if m.Angry {
@@ -174,44 +217,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		}),
 		render.As[Ghost](world.Appearance{SpriteID: s.spook}),
 		render.Over[Leader](world.Appearance{SpriteID: s.crown}),
-	); err != nil {
-		return err
-	}
-	// The rule keeping everyone angry while the world is in a rage.
-	if err := s.world.Hook(rule.On("rage spreads", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-		return m.During(s.rage, m.Keep(s.angry))
-	})); err != nil {
-		return err
-	}
+	)
+}
 
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
-	// The player's camera and R, which puts the rage on the world.
-	s.players = players.NewPlugin(s.world)
-	player := s.players.Local("player")
-	if err := player.Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := player.Bind(control.Command(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
-		func(control.Context) (world.Apply, bool) { return world.Apply{Effect: s.rage}, true })); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
-	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+func (s *mainStage) defineScenes() []game.Scene {
+	return []game.Scene{&mainScene{stage: s}}
 }
 
 // boxAt is the box of side Size round at.
@@ -219,11 +229,7 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-// Restore loads nothing: the demo starts afresh every time.
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
-
-// Spawn puts the walkers, the ghosts and the leader on a grid, each going one of the four ways.
-func (s *mainStage) Spawn() error {
+func (s *mainStage) placeUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
@@ -232,18 +238,17 @@ func (s *mainStage) Spawn() error {
 		w := walker{at: placement.Place(i, total).Center(), vel: world.Velocity{Dir: ways[rng.IntN(4)], Value: 40 + 40*rng.Float64()}}
 		switch {
 		case i < Leaders:
-			entries[i] = s.leader.Entry(w)
+			entries[i] = kind.Named[walker](s.world.Kinds(), LeaderKind).Entry(w)
 		case i < Leaders+Ghosts:
-			entries[i] = s.ghost.Entry(w)
+			entries[i] = kind.Named[walker](s.world.Kinds(), GhostKind).Entry(w)
 		default:
-			entries[i] = s.walker.Entry(w)
+			entries[i] = kind.Named[walker](s.world.Kinds(), WalkerKind).Entry(w)
 		}
 	}
 	s.world.Seed(entries...)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
@@ -273,7 +278,7 @@ func (s *mainStage) atlas() *render.Atlas {
 	calm, angry := color.RGBA{R: 70, G: 130, B: 220, A: 255}, color.RGBA{R: 220, G: 60, B: 50, A: 255}
 	nose := color.RGBA{R: 245, G: 245, B: 230, A: 255}
 	atlas := render.NewAtlas()
-	for _, sprite := range []render.SpriteID{s.walker.SpriteID(), s.ghost.SpriteID(), s.leader.SpriteID()} {
+	for _, sprite := range []render.SpriteID{kind.Named[walker](s.world.Kinds(), WalkerKind).SpriteID(), kind.Named[walker](s.world.Kinds(), GhostKind).SpriteID(), kind.Named[walker](s.world.Kinds(), LeaderKind).SpriteID()} {
 		atlas.RegisterAt(sprite, Size, render.Solid(calm))
 	}
 	for h := range s.facing {
@@ -320,13 +325,8 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == control.KeyEscape {
-			runtime.Quit()
-		}
-	}
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

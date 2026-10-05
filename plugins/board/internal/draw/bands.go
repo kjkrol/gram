@@ -6,9 +6,12 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 // bandTier puts the ways' bands over the tiles and under the grid's lines.
@@ -20,15 +23,19 @@ type Ways interface {
 	CellCenter(c cell.ID) geom.Vec
 	Way(c cell.ID) cell.Way
 	Crossing(c cell.ID) cell.Crossing
+	// States are the markers of the effects on a cell, Shape the grid's: what the covers read.
+	States(c cell.ID) tag.Tags[effect.States]
+	Shape() (grid.Shape, bool)
 }
 
-// Bands is the simple map's Dressing: it lays the ways and the crossings over the tiles as plain
+// Bands is the simple map's Dressing: it lays what lies on the cells under an effect (Cover), then the ways and the crossings over the tiles as plain
 // bands in their kinds' Colors, from the cell's middle out to the edge towards each neighbour the
 // way runs on to, as wide as the way, faded as far as it has faded. The tiles are drawn as they
 // are; a sky over the board (plugins/atmosphere) lights them.
 type Bands struct {
-	board Ways
-	pts   [][2]float32
+	board  Ways
+	pts    [][2]float32
+	covers []Cover
 }
 
 var _ look.Dressing = (*Bands)(nil)
@@ -49,6 +56,7 @@ func (*Bands) Light(*look.Tile) render.Shade { return render.Even(1) }
 func (*Bands) EvenLight() (render.Light, bool) { return render.Light{1, 1, 1}, true }
 
 func (d *Bands) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
+	d.covered(f, cam, t, depth)
 	if w := d.board.Way(t.ID); w.Runs() {
 		d.bands(f, cam, t, w, depth)
 	}

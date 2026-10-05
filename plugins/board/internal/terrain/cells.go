@@ -2,12 +2,14 @@ package terrain
 
 import (
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -192,24 +194,16 @@ func (t *Cells) SetCrossing(c cell.ID, x cell.Crossing) {
 	}
 }
 
-// Tags are the game's tags of places c carries; none off the board.
-func (t *Cells) Tags(c cell.ID) cell.Tags {
+// States are the markers of the effects on c now; none before the cells are made.
+func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
 	if t.store == nil {
-		return t.seed.Tags[c]
+		return 0
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return 0
 	}
-	return t.store.tagsOf(i)
-}
-
-// Tag gives c the tags for good; only the seed takes them, before the cells are made.
-func (t *Cells) Tag(c cell.ID, tags cell.Tags) {
-	if t.store != nil {
-		panic("board: a cell's tags are given in the Layout, before the cells are made")
-	}
-	t.seed.Tag(c, tags)
+	return t.store.statesOf(i)
 }
 
 // Cast has c play roles for good; only the seed takes them, before the cells are made.
@@ -220,12 +214,12 @@ func (t *Cells) Cast(c cell.ID, roles tag.Tags[rule.Roles]) {
 	t.seed.Cast(c, roles)
 }
 
-// Wire wires c to w for good; only the seed takes it, before the cells are made.
-func (t *Cells) Wire(c cell.ID, w *rule.Wire) {
+// Label calls c as l says for good; only the seed takes it, before the cells are made.
+func (t *Cells) Label(c cell.ID, l entity.Label) {
 	if t.store != nil {
-		panic("board: a cell's wire is given in the Layout, before the cells are made")
+		panic("board: a cell's name and group are given in the Layout, before the cells are made")
 	}
-	t.seed.Wire(c, w)
+	t.seed.Label(c, l)
 }
 
 // CellVersion counts the changes to c; it only grows, and changes to other cells leave it as it is.

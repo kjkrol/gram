@@ -2,6 +2,7 @@ package terrain
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/entity"
 	"reflect"
 	"time"
 
@@ -34,9 +35,8 @@ type entitySystem struct {
 	spawnWay    goke.Comp[cell.Way]
 	spawnCross  goke.Comp[cell.Crossing]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
-	spawnTags   goke.Comp[cell.Tags]
 	spawnRoles  goke.Comp[tag.Tags[rule.Roles]]
-	spawnWired  goke.Comp[rule.Wired]
+	spawnLabel  goke.Comp[entity.Label]
 }
 
 func (s *entitySystem) Init(si *goke.SysInit) {
@@ -45,7 +45,7 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	st.grounds = si.NewQueryBuilder(&st.ground).Build()
 	st.ways = si.NewQueryBuilder(&st.way).Build()
 	st.crossings = si.NewQueryBuilder(&st.crossing).Build()
-	st.tagged = si.NewQueryBuilder(&st.plot).Optional(&st.tags).Build()
+	st.stated = si.NewQueryBuilder(&st.plot).Optional(&st.states).Build()
 	s.active = si.NewQueryBuilder(&s.activeComp, &s.activePlot).Optional(&s.activeMarks).Build()
 
 	found := 0
@@ -69,11 +69,11 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	s.cells.made(st)
 }
 
-// spawn makes an entity for every cell out of the seed: the cells wired to a wire apart, carrying
-// their Wired besides.
+// spawn makes an entity for every cell out of the seed: the cells called something apart, carrying
+// their Label besides — few, so whoever looks for a name walks few.
 func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 	seed := s.cells.seed
-	var plain, wired []int // ordinals
+	var plain, labelled []int // ordinals
 	cells := make([]cell.ID, len(ids))
 	s.cells.grid.EachCell(func(c cell.ID) {
 		if o, ok := s.cells.Ordinal(c); ok {
@@ -81,27 +81,27 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		}
 	})
 	for o, c := range cells {
-		if seed.Wired[c] != nil {
-			wired = append(wired, o)
+		if seed.Labels[c] != (entity.Label{}) {
+			labelled = append(labelled, o)
 		} else {
 			plain = append(plain, o)
 		}
 	}
-	// the effects' markers, the game's tags of places and the roles, for good
-	columns := []goke.Addable{&s.spawnPlot, &s.spawnGround, &s.spawnWay, &s.spawnCross, &s.spawnMarks, &s.spawnTags, &s.spawnRoles}
+	// the effects' markers and the roles, for good
+	columns := []goke.Addable{&s.spawnPlot, &s.spawnGround, &s.spawnWay, &s.spawnCross, &s.spawnMarks, &s.spawnRoles}
 	for _, c := range s.templated() {
 		sp := c.Spawner()
 		s.extra = append(s.extra, sp)
 		columns = append(columns, sp.Columns()...)
 	}
 	s.make(si.NewFactory(columns...), plain, cells, ids, false)
-	if len(wired) > 0 {
-		s.make(si.NewFactory(append(columns, &s.spawnWired)...), wired, cells, ids, true)
+	if len(labelled) > 0 {
+		s.make(si.NewFactory(append(columns, &s.spawnLabel)...), labelled, cells, ids, true)
 	}
 }
 
-// make spawns the cells at ordinals with factory; wired, each with the Wired of its wire.
-func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.ID, ids []uid.UID64, wired bool) {
+// make spawns the cells at ordinals with factory; labelled, each with its Label.
+func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.ID, ids []uid.UID64, labelled bool) {
 	if len(ordinals) == 0 {
 		return
 	}
@@ -111,10 +111,10 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 	for factory.Next() {
 		cur := &factory.Cursor
 		plots, grounds, ways := s.spawnPlot.Slice(cur), s.spawnGround.Slice(cur), s.spawnWay.Slice(cur)
-		crossings, tags, roles := s.spawnCross.Slice(cur), s.spawnTags.Slice(cur), s.spawnRoles.Slice(cur)
-		var wires []rule.Wired
-		if wired {
-			wires = s.spawnWired.Slice(cur)
+		crossings, roles := s.spawnCross.Slice(cur), s.spawnRoles.Slice(cur)
+		var labels []entity.Label
+		if labelled {
+			labels = s.spawnLabel.Slice(cur)
 		}
 		for i, id := range factory.IDs {
 			o := ordinals[k]
@@ -123,14 +123,9 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 			grounds[i] = cell.Ground{Kind: seed.Kind(c)}
 			ways[i] = seed.Ways[c]
 			crossings[i] = seed.Crossings[c]
-			tags[i] = seed.Tags[c]
 			roles[i] = seed.Roles[c]
-			if wired {
-				w := seed.Wired[c]
-				if _, made := w.Entity(); !made {
-					panic(fmt.Sprintf("board: cell %d is wired to %v, which no world defined (world.Plugin.Wire)", c, w))
-				}
-				wires[i] = w.Wired()
+			if labelled {
+				labels[i] = seed.Labels[c]
 			}
 			for _, sp := range s.extra {
 				sp.Write(cur, i, c, id)
@@ -145,7 +140,7 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 var own = map[reflect.Type]bool{
 	reflect.TypeFor[cell.Plot](): true, reflect.TypeFor[cell.Ground](): true, reflect.TypeFor[cell.Way](): true,
 	reflect.TypeFor[cell.Crossing](): true, reflect.TypeFor[tag.Tags[effect.States]](): true,
-	reflect.TypeFor[cell.Tags](): true, reflect.TypeFor[tag.Tags[rule.Roles]](): true, reflect.TypeFor[rule.Wired](): true,
+	reflect.TypeFor[tag.Tags[rule.Roles]](): true, reflect.TypeFor[entity.Label](): true,
 }
 
 // templated is the template's Spec, refusing what the board gives a cell itself and a Load of

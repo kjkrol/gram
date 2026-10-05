@@ -369,7 +369,11 @@ func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField,
 			} else {
 				p.MoonNorth = [2]float32{0, -1}
 			}
-			p.MoonFace = [4]float32{moonFace[0], moonFace[1], moonFace[2], clear * (moonByDay + (1-moonByDay)*night)}
+			tint := heavens.MoonTint
+			if tint == ([3]float32{}) {
+				tint = [3]float32{1, 1, 1}
+			}
+			p.MoonFace = [4]float32{moonFace[0] * tint[0], moonFace[1] * tint[1], moonFace[2] * tint[2], clear * (moonByDay + (1-moonByDay)*night)}
 		}
 	}
 	if stars {

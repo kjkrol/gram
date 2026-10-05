@@ -25,14 +25,18 @@ const pickReach = 160
 // SelectionSystem carries out Select commands as the Selected tag on Selectable entities — a bit
 // flipped in place, seen the same tick — the player who gave one selecting and unselecting only
 // what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
-// where the world's Look draws them through the command's camera. After the Selects, an Apply puts
-// its effect on what the player has selected.
+// where the world's Look draws them through the command's camera. After the Selects, a command for
+// the selected or the one pointed at (rule.Command) is carried out.
 type SelectionSystem struct {
-	selects *control.Queue[Select]
-	applies *control.Queue[Apply] // when the plugin wires them
-	effects *effect.Effects       // the world's, which Apply casts
-	space   *aabbworld.Space
-	tags    Tags
+	selects    *control.Queue[Select]
+	effectCmds *control.Queue[effectCommand] // when the plugin wires them
+	effects    *effect.Effects               // the world's, which a command casts and takes off
+	whom       []uid.UID64                   // a command's targets, scratch
+	allows     *control.Queue[Allow]
+	forbids    *control.Queue[Forbid]
+	marksID    goke.CompID
+	space      *aabbworld.Space
+	tags       Tags
 
 	// The boxes being dragged, when the plugin wires them: Marquee shows one, Select hides it.
 	marqueeQueue *control.Queue[Marquee]
@@ -57,6 +61,7 @@ func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, 
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
+	s.marksID = si.RegComp[tag.Tags[Family]]()
 	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Optional(&s.roles).Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
@@ -91,13 +96,102 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		}
 		s.applySelection(hit, cmd.Additive, i.Player)
 	})
-	if s.applies != nil {
-		s.applies.Drain(func(i control.Issued[Apply]) {
-			if i.Command.Effect != (effect.Effect{}) {
-				s.eachSelected(i.Player, i.Command.only, func(id uid.UID64) { s.effects.Cast(cb, id, i.Command.Effect) })
-			}
-		})
+	if s.effectCmds != nil {
+		s.effectCmds.Drain(func(i control.Issued[effectCommand]) { s.carry(cb, i.Player, i.Command) })
 	}
+	if s.allows != nil {
+		s.allows.Drain(func(i control.Issued[Allow]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, true, i.Command.Selected) })
+		s.forbids.Drain(func(i control.Issued[Forbid]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, false, false) })
+	}
+}
+
+// permit makes the entity that asked selectable or not — a player's selected units, when a player
+// asked: Selectable on, with Selected when asked, or off with Selected and Followed. An entity without the family gets it.
+func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UID64, byEntity, on, selected bool) {
+	set := func(m *tag.Tags[Family]) {
+		if on {
+			*m = m.With(s.tags.Selectable)
+			if selected {
+				*m = m.With(s.tags.Selected)
+			}
+		} else {
+			*m = m.Without(s.tags.Selectable).Without(s.tags.Selected).Without(s.tags.Followed)
+		}
+	}
+	if !byEntity {
+		s.whom = s.whom[:0]
+		s.eachSelected(by, 0, func(id uid.UID64) { s.whom = append(s.whom, id) })
+		for _, id := range s.whom {
+			if s.query.Seek(id) {
+				set(s.marks.At(s.query.Cursor()))
+			}
+		}
+		return
+	}
+	if s.query.Seek(id) {
+		set(s.marks.At(s.query.Cursor()))
+	} else if on {
+		var m tag.Tags[Family]
+		set(&m)
+		cb.AddOne(id, s.marksID, m)
+	}
+}
+
+// carry does what c says to whom it is for: the player's selected units, or the one pointed at.
+func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCommand) {
+	e := c.cmd.Effect
+	if e == (effect.Effect{}) {
+		return
+	}
+	s.whom = s.whom[:0]
+	if c.pointed {
+		if id, ok := s.pointed(c); ok {
+			s.whom = append(s.whom, id)
+		}
+	} else {
+		s.eachSelected(by, c.only, func(id uid.UID64) { s.whom = append(s.whom, id) })
+	}
+	on := c.cmd.Verb == rule.Casts
+	if c.cmd.Verb == rule.Toggles {
+		on = true
+		for _, id := range s.whom {
+			if s.effects.Has(id, e) {
+				on = false
+				break
+			}
+		}
+	}
+	for _, id := range s.whom {
+		switch {
+		case !on:
+			s.effects.Dispel(id, e)
+		case c.cmd.Lasts > 0:
+			s.effects.CastFor(cb, id, e, c.cmd.Lasts)
+		default:
+			s.effects.Cast(cb, id, e)
+		}
+	}
+}
+
+// pointed is the entity drawn under the cursor c was given with, the nearest to the ground point
+// under it; none for a command given without a cursor.
+func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
+	if !c.aimed || c.camera == nil {
+		return 0, false
+	}
+	var best uid.UID64
+	found, nearest := false, 0.0
+	s.space.Query(grow(geom.NewAABBAt(c.at, 1, 1), pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
+		if !s.drawnIn(id, c.screen, c.camera) {
+			return
+		}
+		centre := s.lookupBase.At(s.lookup.Cursor()).Pos.Center()
+		dx, dy := centre.X-c.at.X, centre.Y-c.at.Y
+		if d := dx*dx + dy*dy; !found || d < nearest {
+			best, found, nearest = id, true, d
+		}
+	})
+	return best, found
 }
 
 // eachSelected calls fn with every Selectable entity player by owns and has Selected — playing one

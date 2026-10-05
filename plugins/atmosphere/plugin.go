@@ -1,12 +1,12 @@
 package atmosphere
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
@@ -20,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Config is the atmosphere: the Calendar's days and year, the Sky's sun and light, the Climate's
@@ -37,14 +36,22 @@ type Config struct {
 // over it, its climate and weather, what falls, and — laid on a board — what the weather does to
 // the ground.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	cfg         Config
 	worldPlugin *world.Plugin
-	calendar    *calendar.Calendar
-	sky         *sky.Sky
-	climate     *climate.Climate
-	weathering  *weathering.Weathering
-	module      *module
-	running     Running
+
+	freezes    control.Queue[Freeze]
+	laters     control.Queue[Later]
+	earliers   control.Queue[Earlier]
+	changes    control.Queue[ChangeWeather]
+	sets       control.Queue[SetWeather]
+	calendar   *calendar.Calendar
+	sky        *sky.Sky
+	climate    *climate.Climate
+	weathering *weathering.Weathering
+	module     *module
+	running    Running
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -54,8 +61,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.atmosphere", comp.Const(sky.DefaultMoon())), cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {
 		r = *cfg.Running
@@ -75,8 +83,9 @@ func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 // falls, how far one sees.
 func (p *Plugin) Air() air.Weather { return p.climate.Air() }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it once
-// the kinds cfg names are in brd's dictionary, before Use. A Config the board cannot take panics.
+// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it in Init,
+// once the kinds cfg names are in brd's dictionary — where the effects are defined, for it defines
+// three. A Config the board cannot take panics.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {
@@ -108,17 +117,19 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // Install wires the sky's and the weather's systems, and lays the weathering on the world's
 // schedule.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = &module{sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
-	if p.weathering != nil {
-		p.module.weathering = p.weathering.System(p.worldPlugin.Clock())
-	}
+	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
+	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Tick, p.Entity)
+	ctx.Hosts(p.climate.Rules(), p.sky.Rules())
 	return nil
 }
 
 // RunPlan runs the atmosphere's tick: the light at once, the weather in every step of the
 // simulation. Call it after the world's, before the world is drawn.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.carryOut()
+	p.module.RunPlan(ctx, d)
+}
 
 // WithRenderer is a no-op: the sky and what falls are drawn in plain colours.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
@@ -157,32 +168,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of climate.Weathering, fired every step with the weather, until the
-// Stage's ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		if err := p.climate.Host(b); err != nil {
-			return fmt.Errorf("%w in %s", err, p.Name())
-		}
-	}
-	return nil
-}
-
-// =================================================================
-// plugin.CommandHandler contract
-// =================================================================
-
-// Queues are the sky's and the climate's.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return append(p.sky.Queues(), p.climate.Queues()...)
-}
-
-// DefaultBindings: P freezes the light, Shift+] and Shift+[ move a frozen light half an hour,
-// Shift+W changes the weather.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return append(p.sky.DefaultBindings(), p.climate.DefaultBindings()...)
-}
-
 // =================================================================
 // module
 // =================================================================
@@ -195,16 +180,19 @@ type module struct {
 	comps         []goke.CompToken
 	clock         *clock.Clock
 	skyRun        goke.Runnable
+	rises         goke.System // the sky's: the rules of a Moonrise
+	risesRun      goke.Runnable
 	climateRun    goke.Runnable
-	weathering    goke.System // nil without WithWeathering
+	p             *Plugin // its weathering, given any time before the Stage is set up
 	weatheringRun goke.Runnable
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.skyRun = ecs.RegSys(m.sky)
 	m.climateRun = ecs.RegSys(m.climate)
-	if m.weathering != nil {
-		m.weatheringRun = ecs.RegSys(m.weathering)
+	m.risesRun = ecs.RegSys(m.rises)
+	if w := m.p.weathering; w != nil {
+		m.weatheringRun = ecs.RegSys(w.System(m.clock))
 	}
 }
 
@@ -213,6 +201,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.climateRun, step)
+		ctx.Run(m.risesRun, step)
 		if m.weatheringRun != nil {
 			ctx.Run(m.weatheringRun, step)
 		}

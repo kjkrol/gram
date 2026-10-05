@@ -129,7 +129,8 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
-		k := kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
+		kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
+		k := kind.Named[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
 		w.Seed(k.Entry(u))
 	}

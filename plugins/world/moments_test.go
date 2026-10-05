@@ -24,7 +24,7 @@ type heards struct{ control.Queue[heard] }
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// Rules of the clock's Moment, fired by the world, fire once at their time and every period after
+// Rules of the clock's Moment, of a role the world plays, fire once at their time and every period after
 // their offset, on the clock's time — at any tempo and never in the pause — and an effect one
 // applies lands on the clock's entity, switching a phase on until it ends.
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
@@ -35,30 +35,29 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		})
 		night := w.Kinds().DefineTag[clock.Phase]("night")
 		fx := w.Effects()
-		dusk := fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
+		fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
+		dusk := fx.Named("dusk")
 		var orders heards
 		if err := w.Carry(&orders); err != nil {
 			t.Fatal(err)
 		}
-		err := w.Hook(
-			rule.On("once", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(5*tick), r.Order(heard{Rule: "once"}))
-			}),
-			rule.On("daily", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.Every(4*tick, 2*tick), r.Order(heard{Rule: "daily"}))
-			}),
-			rule.On("dusk", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(3*tick), r.Apply(dusk))
-			}),
+		// the world plays the role whose rules these are; a role it does not play stays silent
+		w.Roles().Define("clockwork",
+			rule.Then[clock.Moment]("once", rule.All, rule.If(clock.At(5*tick), rule.Order(heard{Rule: "once"}))),
+			rule.Then[clock.Moment]("daily", rule.All, rule.If(clock.Every(4*tick, 2*tick), rule.Order(heard{Rule: "daily"}))),
+			rule.Then[clock.Moment]("dusk", rule.All, rule.If(clock.At(3*tick), rule.Apply(dusk))),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		w.Plays(w.Roles().Named("clockwork"))
+		w.Roles().Define("unplayed", rule.Then[clock.Moment]("never", rule.All, rule.Order(heard{Rule: "never"})))
+		unplayed := w.Roles().Named("unplayed")
 		fired := map[string][]time.Duration{}
 		var inNight []bool
 
 		ctx := &installCtx{ecs: goke.New()}
 		if err := w.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := ctx.Deliver(append(w.Kinds().Played(), unplayed)...); err != nil {
 			t.Fatal(err)
 		}
 		var systems []goke.System
@@ -75,14 +74,17 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			})
 			w.Clock().Replay(rc, d)
 		})
-		for _, cmd := range map[float32][]any{4: {clock.Faster{}, clock.Faster{}}, 0.5: {clock.Slower{}}}[tempo] {
-			if !w.Commands().Put(1, cmd) {
+		for _, cmd := range map[float32][]any{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
+			if !w.Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}
 		}
 		ticks := int(12 / tempo)
 		for range ticks {
 			ctx.ecs.Tick(tick)
+		}
+		if never := fired["never"]; len(never) != 0 {
+			t.Errorf("tempo %g: the rule of a role the world does not play fired at %v, want never", tempo, never)
 		}
 		once, daily := fired["once"], fired["daily"]
 		if len(once) != 1 || once[0] != 5*tick {

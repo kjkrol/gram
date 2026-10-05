@@ -41,26 +41,27 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.Hook(rule.On("gone when struck", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.Order(world.Despawn{})
-	})); err != nil {
-		return err
-	}
+	s.world.Roles().Define("fragile", rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{})))
+	fragile := s.world.Roles().Named("fragile")
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
-	s.leaver = kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
+	s.world.Plans().Define("leaver", func(a *plan.Actor) rule.Step {
+		return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
+	})
+	kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		plan.New("leaver", func(a *plan.Actor) rule.Step {
-			return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
-		}),
+		s.world.Plans().Named("leaver"),
 	})
-	s.box = kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
+	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")
+	kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
+		rule.Plays(fragile),
 	})
+	s.box = kind.Named[float64](s.world.Kinds(), "box")
 	s.players = players.NewPlugin(s.world)
 	s.players.Local("first")
 	ctx.Setup(carrierProbe{s})
@@ -147,7 +148,7 @@ func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) 
 func TestCarrier_ATreesCommandsGoWithinTheirFrame(t *testing.T) {
 	s := &carrierStage{}
 	run(t, s, 30, func() {
-		if !s.world.Commands().Empty() {
+		if !s.world.Carrier().Empty() {
 			t.Fatalf("a command waits past the frame at %v of game time", s.world.Clock().Time())
 		}
 	})

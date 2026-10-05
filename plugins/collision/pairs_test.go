@@ -72,8 +72,10 @@ func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 		comp.Load(func(b placed) world.Position { return posAt(b.x, b.y, 10, 10) }),
 		comp.Load(func(b placed) world.Velocity { return b.vel }),
 	}
-	colliders := kind.Define[placed](w.Kinds(), "collider", append(spec, comp.Const(collision.Collider{})))
-	inert := kind.Define[placed](w.Kinds(), "inert", spec)
+	kind.Define[placed](w.Kinds(), "collider", append(spec, comp.Const(collision.Collider{})))
+	colliders := kind.Named[placed](w.Kinds(), "collider")
+	kind.Define[placed](w.Kinds(), "inert", spec)
+	inert := kind.Named[placed](w.Kinds(), "inert")
 	for _, b := range boxes {
 		if b.collides {
 			w.Seed(colliders.Entry(b))

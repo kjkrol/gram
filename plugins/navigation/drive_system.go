@@ -22,7 +22,8 @@ var _ goke.System = (*driveSystem)(nil)
 // that flies, flown by hand, goes along the ground only the run of the way it is steered along,
 // the topography climbing it by the rise. A hand
 // on it ends any order it had, and without one it brakes. Its Cell and its hold on the occupancy
-// follow it cell by cell, as navigationSystem keeps an ordered entity's.
+// follow it cell by cell, as navigationSystem keeps an ordered entity's. A Driven navigation gave
+// (Driving) is taken off once no hand is on it and the entity stands, or has an order to go on.
 type driveSystem struct {
 	nav *navigationSystem
 
@@ -36,7 +37,7 @@ type driveSystem struct {
 	mover  goke.OptComp[unit.Mover]
 	states goke.OptComp[tag.Tags[States]]
 
-	orderID, statesID goke.CompID
+	orderID, statesID, drivenID goke.CompID
 }
 
 // driveTurn is how far a hand turns an entity a tick: four degrees.
@@ -50,6 +51,7 @@ func (s *driveSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Build()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.statesID = si.RegComp[tag.Tags[States]]()
+	s.drivenID = si.RegComp[steering.Driven]()
 }
 
 func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -62,6 +64,11 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
 			domain := unit.DomainAt(movers, i)
 			facing := in.Face.X != 0 || in.Face.Y != 0
+			if in == (steering.Driven{}) && states != nil && states[i].Has(Driving) && (orders != nil || st.Speed == 0) {
+				states[i] = states[i].Without(Driving) // let go: it stands, or goes on as ordered
+				cb.RemoveCompOne(id, s.drivenID)
+				continue
+			}
 			if orders != nil {
 				if in.Ahead == 0 && in.Turn == 0 && !facing {
 					continue // nobody at the wheel: the order goes on

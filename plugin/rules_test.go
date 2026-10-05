@@ -77,7 +77,7 @@ func TestRules_RunWhereSkipsWhatKeepLeavesOut(t *testing.T) {
 	}
 }
 
-// eachRule, everyRule and pairRule make rules of Go functions for these tests, as rule.On's are
+// eachRule, everyRule and pairRule make rules of Go functions for these tests, as rule.Then's are
 // made for the rule-driven systems: over a component, over every entity, over pairs.
 func eachRule[T, P any](react func(plugin.Tick, *T, P)) any { return &eachOf[T, P]{react: react} }
 

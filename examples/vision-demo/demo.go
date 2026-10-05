@@ -13,13 +13,15 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
-	vhooks "github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
@@ -52,7 +54,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -75,92 +77,99 @@ type body struct {
 }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	vision    *vision.Plugin
-	prey      kind.Of[body]
-	hunter    kind.Of[body]
 	collision *collision.Plugin
 
-	tags    vhooks.Tags
-	fleeing effect.Effect // on the world while the prey flee
-	hits    collision.ContactStats
+	// the roles: the prey steer clear of the hunter and of each other, the hunter goes after them
+	hits collision.ContactStats
 
 	players *players.Plugin
 	player  *players.Player
-
-	stack game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("vision-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Effects(s.defineEffects).
+		Rules(s.defineRoles).
+		Commands(s.defineCommands).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Scenes(s.defineScenes).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string       { return "vision-demo" }
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
 	})
-
-	s.tags = vhooks.DefineTags(s.world.Kinds())
-	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
-	looked := vhooks.Looked(s.world, hunterLooksEvery)
-	s.defineKinds()
-
 	s.vision = vision.NewPlugin(s.world)
-	if err := s.vision.Hook(append(vhooks.Flee(s.tags, s.fleeing), vhooks.Chase(s.tags), vhooks.Search(s.tags, looked))...); err != nil {
-		return err
-	}
+	s.vision.Hide(false) // the cones are what this demo shows: drawn from the start, Shift+C hides them
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
-	if err := s.collision.Hook(
-		rule.On("caught", rule.Between(s.tags.Predator, s.tags.Prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.ForOther(m.Order(world.Despawn{})) // the hunter's prey is gone
-		}),
-	); err != nil {
-		return err
-	}
-
-	if err := ctx.Use(s.vision); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
-	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
 	s.players = players.NewPlugin(s.world, s.vision)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
+	for _, p := range []plugin.Plugin{s.vision, s.collision, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
-	main := &mainScene{stage: s, tps: ctx.TPS()}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return nil
 }
 
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
 
-// defineKinds says what this game's entities are, fresh or restored.
+func (s *mainStage) defineEffects() {
+	s.world.Effects().Define(FleeingEf, effect.Spec{})
+	s.world.Effects().Define(LookedEf, effect.Spec{effect.Lasts(hunterLooksEvery)})
+}
+
+func (s *mainStage) defineRoles() {
+	s.world.Roles().Define(PreyRole)
+	quarter := steering.Turn{Angle: math.Pi / 2}
+	s.world.Roles().Define(PredatorRole,
+		rule.Then[vision.Sighting]("chase", rule.Other(s.world.Roles().Named(PreyRole)), rule.Order(steering.Toward{})),
+		// seeing none, it turns a quarter aside, either way, once every while it has looked
+		rule.Then[vision.Sighting]("search", rule.Other(s.world.Roles().Named(PreyRole)),
+			rule.If(vision.Sighting.Nobody, rule.Unless(s.world.Effects().Named(LookedEf), rule.Steps(
+				rule.Apply(s.world.Effects().Named(LookedEf)),
+				rule.OneOf(rule.Chance(0.5, rule.Order(quarter)), rule.Order(steering.Turn{Angle: -quarter.Angle})))))),
+		rule.Then[collision.Meeting]("caught", rule.Other(s.world.Roles().Named(PreyRole)), rule.ForOther(rule.Order(world.Despawn{}))))
+	s.world.Roles().Define(SkittishRole,
+		rule.Then[vision.Sighting]("flee the hunter", rule.Other(s.world.Roles().Named(PredatorRole)),
+			rule.During(s.world.Effects().Named(FleeingEf), rule.Order(steering.Away{}))),
+		rule.Then[vision.Sighting]("give way", rule.All,
+			rule.During(s.world.Effects().Named(FleeingEf), rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))))
+}
+
+func (s *mainStage) defineCommands() {
+	s.world.Commands().Define(FleeCmd, rule.Toggle(s.world.Effects().Named(FleeingEf)).On(entity.World))
+}
+
+func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&mainScene{stage: s, tps: ctx.TPS()}}
+}
+
 func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
-	s.prey = kind.Define[body](kinds, "prey", append(sees(),
+	kind.Define[body](kinds, PreyKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
-		comp.Tagged(s.tags.Skittish, s.tags.Prey),
+		rule.Plays(s.world.Roles().Named(SkittishRole), s.world.Roles().Named(PreyRole)),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
-	s.hunter = kind.Define[body](kinds, "hunter", append(sees(),
+	kind.Define[body](kinds, HunterKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
-		comp.Tagged(s.tags.Predator, s.tags.Threat),
+		rule.Plays(s.world.Roles().Named(PredatorRole)),
 	))
 }
 
@@ -178,8 +187,7 @@ func sees() kind.Spec {
 	}
 }
 
-// Spawn says who is there when the game starts fresh.
-func (s *mainStage) Spawn() error {
+func (s *mainStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1
@@ -193,15 +201,14 @@ func (s *mainStage) Spawn() error {
 
 	entries := make([]kind.Entry, 0, total)
 	for i := range PreyCount {
-		entries = append(entries, s.prey.Entry(roam(i, roamSpeed)))
+		entries = append(entries, kind.Named[body](s.world.Kinds(), PreyKind).Entry(roam(i, roamSpeed)))
 	}
-	entries = append(entries, s.hunter.Entry(roam(PreyCount, hunterSpeed)))
+	entries = append(entries, kind.Named[body](s.world.Kinds(), HunterKind).Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
-	s.world.Commands().Put(s.player.ID, world.Apply{Effect: s.fleeing}) // the prey flee from the start
-	return nil
+	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.vision.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
@@ -225,8 +232,8 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(s.prey.SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
-	atlas.RegisterAt(s.hunter.SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
+	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), PreyKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
+	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), HunterKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 	s.vision.WithRenderer(atlas)
@@ -247,26 +254,11 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 	return m.stage.players.Viewports(screen)
 }
 
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, _ game.Composition) {
-	m.stage.players.EventHandler().HandleEvents(events)
-	for _, k := range events.KeyEvents {
-		if k.Action != control.ActionPress {
-			continue
-		}
-		switch k.Key {
-		case control.KeyEscape:
-			runtime.Quit()
-		case control.KeyA:
-			m.stage.switchFleeing()
-		}
-	}
+func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	m.stage.players.Handle(events, runtime, composition)
 }
 
-// switchFleeing has the player take the fleeing off the world, or put it back on.
-func (s *mainStage) switchFleeing() {
-	var cmd any = world.Apply{Effect: s.fleeing}
-	if s.world.Effects().Has(s.world.Clock().Entity(), s.fleeing) {
-		cmd = world.Dispel{Effect: s.fleeing}
-	}
-	s.world.Commands().Put(s.player.ID, cmd)
+func (s *mainStage) bindKeys() error {
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
+		s.world.Commands().Named(FleeCmd)))
 }

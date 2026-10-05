@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -24,17 +25,13 @@ func TestTrodden_MarkedOnlyWhileACellNowRuleIsHooked(t *testing.T) {
 		rules []rule.Rule
 		want  []bool
 	}{
-		"no rules": {},
-		"rules of a Standing": {rules: []rule.Rule{rule.On("never", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-			return m.If(never, m.Order(struct{}{}))
-		})}},
-		"a rule of a cell.Now": {rules: []rule.Rule{rule.On("stood", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-			return m.If(cell.Now.Stood, m.Order(struct{}{}))
-		})}, want: []bool{false, true, false}},
+		"no rules":             {},
+		"rules of a Standing":  {rules: []rule.Rule{rule.Then[unit.Standing]("never", rule.All, rule.If(never, rule.Order(struct{}{})))}},
+		"a rule of a cell.Now": {rules: []rule.Rule{rule.Then[cell.Now]("stood", rule.All, rule.If(cell.Now.Stood, rule.Order(struct{}{})))}, want: []bool{false, true, false}},
 	} {
 		r := New(g, cells, nil, flat)
 		for _, b := range c.rules {
-			if err := r.Hook(b); err != nil {
+			if err := hosts.Deliver(r.Hosts(), b); err != nil {
 				t.Fatal(err)
 			}
 		}

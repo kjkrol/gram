@@ -1,7 +1,6 @@
 package boardtest
 
 import (
-	"errors"
 	"maps"
 	"slices"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -27,6 +27,7 @@ import (
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type InstallCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -72,7 +73,7 @@ type World struct {
 }
 
 // NewWorld is a World over g, width x height, its terrain laid by terrain, units spawned as their
-// rows say and rules hooked on the board or on collision.
+// rows say and rules handed to the hosts of their moments.
 func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...rule.Rule) *World {
 	t.Helper()
 	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []rule.Rule {
@@ -82,8 +83,8 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 }
 
 // NewWorldWith is NewWorld with the world and the board handed to prepare before they are
-// installed — to define roles and wires, seed a Layout and Populate it — and the rules it gives
-// hooked on the board or on collision.
+// installed — to define roles and commands, seed a Layout and Populate it — and the rules it gives
+// handed to the hosts of their moments.
 func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []rule.Rule, units []Mover) *World {
 	t.Helper()
 	bw := &World{t: t}
@@ -94,15 +95,6 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	c := collision.NewPlugin(bw.World)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).WithCollision(c)
 	rules := prepare(bw.World, bw.Board)
-	for _, b := range rules {
-		err := bw.Board.Hook(b)
-		if errors.Is(err, plugin.ErrUnhosted) {
-			err = c.Hook(b)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 	v := vision.NewPlugin(bw.World).WithBoard(bw.Board)
 
 	ctx := NewInstallCtx()
@@ -116,6 +108,9 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 		t.Fatal(err)
 	}
 	if err := v.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ctx.Deliver(rules...); err != nil {
 		t.Fatal(err)
 	}
 
@@ -156,7 +151,8 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 			spec = append(spec, comp.Const(*u.Sight), comp.Const(vision.Sighted{}), comp.Const(u.Eye))
 		}
 		name := string(rune('a' + i))
-		bw.World.Seed(kind.Define[Mover](bw.World.Kinds(), name, spec).Entry(u))
+		kind.Define[Mover](bw.World.Kinds(), name, spec)
+		bw.World.Seed(kind.Named[Mover](bw.World.Kinds(), name).Entry(u))
 	}
 	if err := bw.World.Populate(); err != nil {
 		t.Fatal(err)
@@ -202,7 +198,7 @@ func (bw *World) Snapshot() []geom.AABB {
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
-	bw.Board.Cover().(collision.Field).Solid(layers, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
+	bw.Board.Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
 		out = append(out, fb.Box)
 		return true
 	})
@@ -261,7 +257,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 	return SquareWorldWith(t, nil, units...)
 }
 
-// SquareWorldWith is SquareWorld with a rule hooked on the board.
+// SquareWorldWith is SquareWorld with a rule of the board's moments.
 func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
@@ -317,3 +313,10 @@ func (g OneStageGame) Props() game.Props { return g.GameProps }
 func (g OneStageGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.Stage.Name(): g.Stage}, g.Stage.Name()
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

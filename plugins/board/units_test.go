@@ -55,7 +55,8 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 
 func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 	ecs, _, grid := unitsWorld(t, func(units *board.Units[recruit]) kind.Of[recruit] {
-		return units.Define("recruit", unit.Mover{Domain: cell.Water}, steering.Steering{MaxSpeed: 10})
+		units.Define("recruit", unit.Mover{Domain: cell.Water}, steering.Steering{MaxSpeed: 10})
+		return units.Named("recruit")
 	})
 	var base goke.Comp[world.Base]
 	var at goke.Comp[unit.At]
@@ -106,7 +107,8 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(recruit) geom.Vec { return geom.NewVec(-50, -50) })
-	k := units.Define("stray", unit.Mover{Domain: cell.Land}, steering.Steering{})
+	units.Define("stray", unit.Mover{Domain: cell.Land}, steering.Steering{})
+	k := units.Named("stray")
 	ctx := boardtest.NewInstallCtx()
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)

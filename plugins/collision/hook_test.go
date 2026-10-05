@@ -129,9 +129,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 // heardOf is a rule named name of a Meeting between a and b: Self gives a heard of it, then
 // Other one more.
 func heardOf[F any](name string, a tag.Tag[roles], b tag.Tag[F]) rule.Rule {
-	return rule.On(name, rule.Between(a, b), func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.Steps(m.Order(heard{Rule: name}), m.ForOther(m.Order(heard{Rule: name, Other: true})))
-	})
+	return rule.Then[collision.Meeting](name, rule.Between(a, b), rule.Steps(rule.Order(heard{Rule: name}), rule.ForOther(rule.Order(heard{Rule: name, Other: true}))))
 }
 
 func bulletsAgainstTargets() []rule.Rule { return []rule.Rule{heardOf("bullets", bullet, target)} }
@@ -210,7 +208,7 @@ func fromElsewhere(paired bool) rule.Rule {
 	if paired {
 		filter = rule.Between(bullet, target)
 	}
-	return rule.On("elsewhere", filter, func(m *rule.Moment[elsewhere]) rule.Step { return m.Order(heard{}) })
+	return rule.Then[elsewhere]("elsewhere", filter, rule.Order(heard{}))
 }
 
 func TestHook_RefusesWhatItCannotHost(t *testing.T) {

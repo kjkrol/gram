@@ -12,7 +12,7 @@ import (
 func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, _, stops := Layout(grid)
-	if layout.Default != "water" {
+	if layout.Default != WaterCell {
 		t.Errorf("default kind %q, want water round the island", layout.Default)
 	}
 	count := map[string]int{}
@@ -22,18 +22,18 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 		kinds[e.Cell] = e.Kind
 	}
 	for k, n := range count {
-		if k != "earth" && k != "sand" && k != "rock" {
+		if k != EarthCell && k != SandCell && k != RockCell {
 			t.Errorf("%d cells of %q on the island, want earth, sand and rock alone", n, k)
 		}
 	}
-	if count["earth"] < len(layout.Cells)/2 || count["sand"] < 30 || count["rock"] < 100 {
+	if count[EarthCell] < len(layout.Cells)/2 || count[SandCell] < 30 || count[RockCell] < 100 {
 		t.Errorf("the island's ground %v, want earth mostly, beaches and rocky heights", count)
 	}
 	if len(stops) != Stops {
 		t.Errorf("%d stops, want %d", len(stops), Stops)
 	}
 	for _, s := range stops {
-		if k := kinds[s]; k != "earth" && k != "sand" {
+		if k := kinds[s]; k != EarthCell && k != SandCell {
 			t.Errorf("stop %v is %q, want earth or sand", s, k)
 		}
 	}
@@ -115,7 +115,7 @@ func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
 			kind = layout.Default
 		}
 		kinds20[kind]++
-		if kind == "water" || kind == "sea" {
+		if kind == WaterCell || kind == "sea" {
 			t.Errorf("cell (%d, %d) on the plateau is %s", x, y, kind)
 		}
 	}
@@ -136,7 +136,7 @@ func TestIslandLayout_RisesToARangeOfPeaksAndAPlateau(t *testing.T) {
 		}
 		if flat {
 			plateau++
-		} else if (e.Kind == "earth" || e.Kind == "sand") && (hi-lo)/CellSize < 0.1 {
+		} else if (e.Kind == EarthCell || e.Kind == SandCell) && (hi-lo)/CellSize < 0.1 {
 			gentle++
 		}
 	}
@@ -167,11 +167,11 @@ func TestIslandLayout_PutsEachSoilWhereItBelongs(t *testing.T) {
 			hs, top = append(hs, h), max(top, h)
 		}
 		switch e.Kind {
-		case "rock":
+		case RockCell:
 			if steep < rockSlope && top < rockHeight && top >= landHeight+lowlandRoll {
 				t.Errorf("rock at (%d, %d) on ground neither steep (%.2f) nor high (%.0f)", x, y, steep, top)
 			}
-		case "sand":
+		case SandCell:
 			if top >= landHeight+2*lowlandRoll || steep >= rockSlope {
 				t.Errorf("sand at (%d, %d) %.0f high, %.2f steep: want it low and gentle", x, y, top, steep)
 			}
@@ -189,7 +189,7 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 	}
 	for _, w := range layout.Ways {
 		if _, land := walk[w.Cell]; land {
-			walk[w.Cell] = w.Kind != "river"
+			walk[w.Cell] = w.Kind != RiverCell
 		}
 	}
 	seen := map[cell.ID]bool{stops[0]: true}
@@ -244,10 +244,10 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 			t.Errorf("a %s at %v runs %v wide, links %b", w.Kind, w.Cell, w.Width, w.Links)
 		}
 	}
-	if count["brook"] < 30 || count["stream"] < 10 || count["river"]+count["ford"] < 5 {
+	if count[BrookCell] < 30 || count[StreamCell] < 10 || count[RiverCell]+count[FordCell] < 5 {
 		t.Fatalf("running water %v, want brooks, streams and a river", count)
 	}
-	brook, stream, river := width["brook"]/float32(count["brook"]), width["stream"]/float32(count["stream"]), width["river"]/float32(count["river"])
+	brook, stream, river := width[BrookCell]/float32(count[BrookCell]), width[StreamCell]/float32(count[StreamCell]), width[RiverCell]/float32(count[RiverCell])
 	if brook >= stream || stream >= river {
 		t.Errorf("brooks run %v wide, streams %v, rivers %v; want each wider than the last", brook, stream, river)
 	}
@@ -264,7 +264,7 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 	}
 	mouths, heads := 0, 0
 	for _, w := range layout.Ways {
-		if w.Kind == "road" {
+		if w.Kind == RoadCell {
 			continue
 		}
 		if !land[w.Cell] || w.Fade != 0 || w.Mix < 0 || w.Mix > 1 {
@@ -299,14 +299,14 @@ func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 	road := map[cell.ID]cell.Links{}
 	course := map[cell.ID]cell.WayEntry{}
 	for _, w := range layout.Ways {
-		if w.Kind == "road" {
+		if w.Kind == RoadCell {
 			road[w.Cell] = w.Links
 		} else {
 			course[w.Cell] = w
 		}
 	}
 	for _, b := range layout.Crossings {
-		if b.Kind != "bridge" {
+		if b.Kind != BridgeCell {
 			t.Errorf("a %s crossing at %v, want bridges alone", b.Kind, b.Cell)
 		}
 		if _, over := course[b.Cell]; !over {
@@ -325,7 +325,7 @@ func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 		switch soil[c] {
 		case "":
 			t.Errorf("a road at %v out at sea", c)
-		case "rock":
+		case RockCell:
 			rock++
 		}
 	}

@@ -10,24 +10,29 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs the camera system and, once every plugin is installed, checks that each bound
+// module runs the camera system and the Gives and, once every plugin is installed, checks that each bound
 // command has an owner.
 type module struct {
 	p        *Plugin
 	runnable goke.Runnable
+	gives    goke.Runnable
 }
 
 // =================================================================
 // goke.Module contract
 // =================================================================
 
-func (m *module) RegSystems(ecs *goke.ECS) { m.runnable = ecs.RegSys(&cameraSystem{p: m.p}) }
+func (m *module) RegSystems(ecs *goke.ECS) {
+	m.runnable = ecs.RegSys(&cameraSystem{p: m.p})
+	m.gives = ecs.RegSys(&giveSystem{gives: &m.p.gives})
+}
 
-// RunPlan moves the cameras, then issues the KeyHeld commands of the keys still down, for the
+// RunPlan moves the cameras, hands over the units given, then issues the KeyHeld commands of the keys still down, for the
 // next tick; call it after the plugins that drain theirs. A command waits in its queue for its
 // handler's pass: nothing is dropped, whoever gave it — a player, or an entity after that pass.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
+	ctx.Run(m.gives, d)
 	ctx.Sync()
 	eventHandler{m.p}.hold()
 }
@@ -39,7 +44,7 @@ func (m *module) SetupSystems() []goke.System {
 		var missing []string
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {
-				if !m.p.worldPlugin.Commands().Takes(b.Command()) {
+				if !m.p.worldPlugin.Carrier().Takes(b.Command()) {
 					missing = append(missing, fmt.Sprintf("%v (%q for %s)", b.Command(), b.Label, pl.Name))
 				}
 			}

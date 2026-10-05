@@ -1,6 +1,7 @@
 package cell
 
 import (
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/rule"
 )
@@ -19,11 +20,10 @@ type TerrainMap struct {
 	// Kind leaves them out — the board lays them over.
 	Ways      map[ID]Way
 	Crossings map[ID]Crossing
-	// Tags are the game's tags of places the cells carry for good, the Layout's; Roles the roles they
-	// play and Wired the wires they are wired to, the Layout's too.
-	Tags  map[ID]Tags
-	Roles map[ID]tag.Tags[rule.Roles]
-	Wired map[ID]*rule.Wire
+	// Roles are the roles the cells play and Labels what they are called — a name, a group — for
+	// good, the Layout's.
+	Roles  map[ID]tag.Tags[rule.Roles]
+	Labels map[ID]entity.Label
 
 	version uint64
 }
@@ -82,28 +82,25 @@ func (t *TerrainMap) SetCrossing(c ID, x Crossing) {
 	t.version++
 }
 
-// Tag gives c the tags besides those it carries; the terrain's Version stays as it was.
-func (t *TerrainMap) Tag(c ID, tags Tags) {
-	if t.Tags == nil {
-		t.Tags = make(map[ID]Tags)
-	}
-	t.Tags[c] |= tags
-}
-
-// Cast has c play roles besides those it plays; the terrain's Version stays as it was.
+// Cast has c play roles, none for 0, in place of those it played; the terrain's Version stays as
+// it was.
 func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
+	if roles == 0 {
+		delete(t.Roles, c)
+		return
+	}
 	if t.Roles == nil {
 		t.Roles = make(map[ID]tag.Tags[rule.Roles])
 	}
-	t.Roles[c] |= roles
+	t.Roles[c] = roles
 }
 
-// Wire wires c to w; the terrain's Version stays as it was.
-func (t *TerrainMap) Wire(c ID, w *rule.Wire) {
-	if t.Wired == nil {
-		t.Wired = make(map[ID]*rule.Wire)
+// Label calls c as l says; the terrain's Version stays as it was.
+func (t *TerrainMap) Label(c ID, l entity.Label) {
+	if t.Labels == nil {
+		t.Labels = make(map[ID]entity.Label)
 	}
-	t.Wired[c] = w
+	t.Labels[c] = l
 }
 
 // SetAll resets every cell's terrain kind to kind, discarding any prior Set.

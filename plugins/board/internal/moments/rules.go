@@ -1,7 +1,6 @@
 package moments
 
 import (
-	"errors"
 	"log"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -12,12 +11,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
-// Rules are the rules hooked on a board: of a unit.Standing, run for every unit on it, and of a
-// cell.Now, run for every cell, every step one is hooked.
+// Rules are the rules of a board's moments: of a unit.Standing, run for every unit on it, and of
+// a cell.Now, run for every cell, every step there is one.
 type Rules struct {
 	grid     grid.Grid
 	cells    *terrain.Cells
@@ -40,14 +38,8 @@ func New(g grid.Grid, cells *terrain.Cells, tick plugin.TickSource, slope func(p
 	return &Rules{grid: g, cells: cells, tick: tick, slope: slope}
 }
 
-// Hook hosts r, a rule of a unit.Standing or of a cell.Now; plugin.ErrUnhosted for any other.
-func (r *Rules) Hook(b rule.Rule) error {
-	err := r.standing.Add(b)
-	if errors.Is(err, plugin.ErrUnhosted) {
-		err = r.now.Add(b)
-	}
-	return err
-}
+// Hosts take the rules of a unit.Standing and of a cell.Now.
+func (r *Rules) Hosts() []plugin.Host { return []plugin.Host{&r.standing, &r.now} }
 
 // StandingSystem walks every unit on the board in every step: it writes its Pace, the ground's,
 // logs a fall when told to and runs the rules of a unit.Standing.

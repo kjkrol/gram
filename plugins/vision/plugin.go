@@ -8,16 +8,18 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Plugin wires vision into a Stage over world.Plugin's space.
 // It publishes what entities can see; what to do about it is a rule's business.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	module      *module
 	renderer    *Renderer
@@ -41,7 +43,7 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
 // start hidden — see Cones.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{worldPlugin: worldPlugin, hidden: true}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.vision"), worldPlugin: worldPlugin, hidden: true}
 }
 
 // =================================================================
@@ -59,6 +61,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.clock = p.worldPlugin.Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
 	ctx.UseModule(p.module)
+	ctx.Hosts(&p.sightings)
 	return nil
 }
 
@@ -94,21 +97,13 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer, until the Stage's
-// ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		if err := p.sightings.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Sighting", err, p.Name())
-		}
-	}
-	return nil
-}
-
 // Draw has the views drawn as rules say, every frame: render.Show picks the observers whose views
 // are drawn — the selected ones, say (render.Show(selected.In)); with none, every one is. Call
 // before Use.
 func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.worldPlugin.InSection("drawing rules given", section.Looks); err != nil {
+		return err
+	}
 	if err := p.drawing.Add(rules...); err != nil {
 		return fmt.Errorf("%w in %s", err, p.Name())
 	}

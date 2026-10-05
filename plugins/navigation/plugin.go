@@ -22,6 +22,8 @@ import (
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
 // and defines the MoveTo command; WithRenderer draws the remaining route.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	boardPlugin *board.Plugin
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
@@ -31,6 +33,7 @@ type Plugin struct {
 
 	moves  control.Queue[MoveTo]
 	looks  control.Queue[LookAt]
+	drives control.Queue[Drive]
 	routes control.Queue[Routes]
 	given  givenQueues
 	finder *pathFinder
@@ -55,9 +58,12 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 	if t := worldPlugin.Kinds().DefineTag[States](enteredName); t != Entered {
 		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", enteredName))
 	}
+	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
+		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", drivingName))
+	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
-	return &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.navigation"), boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 }
 
 // =================================================================
@@ -89,14 +95,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if !p.crowdSet {
 		rules = crowd()
 	}
-	if err := p.Hook(rules...); err != nil {
-		return err
+	for _, r := range rules {
+		if err := p.touches.Add(r); err != nil {
+			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
+		}
 	}
+	ctx.Hosts(&p.touches)
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
+	moveCommandSystem.drives = &p.drives
 	if p.collision != nil {
 		navSys.bumps = anyBump
 		if p.spacing == BodySpacing {
@@ -159,17 +169,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is a no-op — navigation has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// Hook hosts rules (rule.On) of Touch, a pair, beside the rules of the crowd, until the Stage's
-// ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
-	for _, b := range rules {
-		if err := p.touches.Add(b); err != nil {
-			return fmt.Errorf("%w in %s — it takes a rule of Touch", err, p.Name())
-		}
-	}
-	return nil
-}
 
 // =================================================================
 // navigation-specific

@@ -71,8 +71,8 @@ func (c Config) SunAt(ofYear, t float32) Sun {
 
 // LightAt is what lights the world at ofYear and time of day t with the moon moon round from new:
 // the sun, and once it is well below the horizon the moon (celestial.Place.MoonAt), as bright as it
-// is full and stands high, in its paler light, under the night sky.
-func (c Config) LightAt(ofYear, t, moon float32) Sun {
+// is full and stands high, in the light m says, under the night sky.
+func (c Config) LightAt(ofYear, t, moon float32, m Moon) Sun {
 	c = c.withDefaults()
 	light := c.SunAt(ofYear, t)
 	sunUp := light.Dir[2]
@@ -80,8 +80,8 @@ func (c Config) LightAt(ofYear, t, moon float32) Sun {
 		return light // the sun, or its twilight
 	}
 	dir := c.place().MoonAt(ofYear, t, moon)
-	light.Dir, light.Color = dir, moonColor
-	light.Strength = moonStrength * celestial.Phase(moon) * smoothstep(0, 0.2, dir[2]) * smoothstep(-0.1, -0.25, sunUp)
+	light.Dir, light.Color = dir, m.Color
+	light.Strength = m.Strength * celestial.Phase(moon) * smoothstep(0, 0.2, dir[2]) * smoothstep(-0.1, -0.25, sunUp)
 	return light
 }
 

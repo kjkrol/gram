@@ -1,9 +1,16 @@
 package effect
 
-import "time"
+import (
+	"time"
+
+	"github.com/kjkrol/gram/entity/tag"
+)
 
 // maxEffects is how many effects one entity holds at once.
 const maxEffects = 8
+
+// wideEffects is how many effects a Wide holds at once: as many as a game may define.
+const wideEffects = tag.MaxTagsPerFamily - 1
 
 // effectID names one defined effect; Define hands them out by call order.
 type effectID uint8
@@ -36,19 +43,19 @@ const (
 	slotRunning
 )
 
-// Has reports whether effect is on the entity, pending or running.
-func (a *Active) has(effect effectID) bool {
-	for _, s := range a.Slots {
-		if s.State != slotEmpty && s.Kind == effect {
-			return true
-		}
-	}
-	return false
+// Wide is an Active with a slot for every effect a game may define: what a plugin's own entity is
+// under (world.Self), so the states of the sky or of the whole game are not held to maxEffects at
+// once. Saved with the entity.
+type Wide struct {
+	Slots [wideEffects]effectSlot
 }
 
-// slot finds the first live slot of effect, or -1.
-func (a *Active) slot(effect effectID) int {
-	for i, s := range a.Slots {
+// has reports whether effect is in slots, pending or running.
+func has(slots []effectSlot, effect effectID) bool { return slotOf(slots, effect) >= 0 }
+
+// slotOf finds the first live slot of effect, or -1.
+func slotOf(slots []effectSlot, effect effectID) int {
+	for i, s := range slots {
 		if s.State != slotEmpty && s.Kind == effect {
 			return i
 		}
@@ -57,8 +64,8 @@ func (a *Active) slot(effect effectID) int {
 }
 
 // free finds an empty slot, or -1.
-func (a *Active) free() int {
-	for i, s := range a.Slots {
+func free(slots []effectSlot) int {
+	for i, s := range slots {
 		if s.State == slotEmpty {
 			return i
 		}
@@ -67,8 +74,8 @@ func (a *Active) free() int {
 }
 
 // empty reports no live slot at all.
-func (a *Active) empty() bool {
-	for _, s := range a.Slots {
+func empty(slots []effectSlot) bool {
+	for _, s := range slots {
 		if s.State != slotEmpty {
 			return false
 		}

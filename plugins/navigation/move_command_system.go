@@ -19,37 +19,52 @@ import (
 // moveCommandSystem carries out MoveTo commands: every Selected entity of the player who gave one
 // (owner.Obeys) — or the entity that gave it itself — whose domain the target takes gets its order
 // as the keeping says — a free cell each, or a spot round the point — or with Append the target
-// queued behind the order in flight. A LookAt has every such entity stop and turn.
+// queued behind the order in flight. A LookAt has every such entity stop and turn. A Drive has
+// every such entity steered by hand this tick: its Driven written and Driving marked.
 type moveCommandSystem struct {
 	keep     keeping
 	moves    *control.Queue[MoveTo]
 	looks    *control.Queue[LookAt]
+	drives   *control.Queue[Drive] // nil: none given
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
+	// drivers are this tick's Drives summed per unit
+	drivers []driver
 
 	group   uint32 // the last group a MoveTo was given; found in the orders and LastOrders at the first
 	grouped bool
 
-	query   *goke.Query
-	cell    goke.Comp[unit.At]
-	marks   goke.Comp[tag.Tags[selection.Family]]
-	owners  goke.OptComp[tag.Tags[owner.Family]]
-	order   goke.OptComp[MoveOrder]
-	mover   goke.OptComp[unit.Mover]
-	base    goke.OptComp[world.Base]
-	z       goke.OptComp[world.Z]
-	steer   goke.OptComp[steering.Steering]
-	orderID goke.CompID
+	query    *goke.Query
+	cell     goke.Comp[unit.At]
+	marks    goke.Comp[tag.Tags[selection.Family]]
+	owners   goke.OptComp[tag.Tags[owner.Family]]
+	order    goke.OptComp[MoveOrder]
+	mover    goke.OptComp[unit.Mover]
+	base     goke.OptComp[world.Base]
+	z        goke.OptComp[world.Z]
+	steer    goke.OptComp[steering.Steering]
+	orderID  goke.CompID
+	drivenID goke.CompID
+	statesID goke.CompID
 
-	// self finds an entity that gives itself an order, selected or not
-	self      *goke.Query
-	selfCell  goke.Comp[unit.At]
-	selfOrder goke.OptComp[MoveOrder]
-	selfMover goke.OptComp[unit.Mover]
-	selfBase  goke.OptComp[world.Base]
-	selfZ     goke.OptComp[world.Z]
-	selfSteer goke.OptComp[steering.Steering]
-	selfLast  goke.OptComp[LastOrder]
+	// self finds an entity that gives itself an order, selected or not, and walks every unit for
+	// the driving
+	self       *goke.Query
+	selfCell   goke.Comp[unit.At]
+	selfOrder  goke.OptComp[MoveOrder]
+	selfMover  goke.OptComp[unit.Mover]
+	selfBase   goke.OptComp[world.Base]
+	selfZ      goke.OptComp[world.Z]
+	selfSteer  goke.OptComp[steering.Steering]
+	selfLast   goke.OptComp[LastOrder]
+	selfDriven goke.OptComp[steering.Driven]
+	selfStates goke.OptComp[tag.Tags[States]]
+}
+
+// driver is one unit's Drives of the tick, summed.
+type driver struct {
+	id          uid.UID64
+	ahead, turn int8
 }
 
 // issuer is who gave a command: a player, or an entity for itself.
@@ -80,13 +95,76 @@ func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Build()
+	s.drivenID = si.RegComp[steering.Driven]()
+	s.statesID = si.RegComp[tag.Tags[States]]()
+	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfDriven).Optional(&s.selfStates).Build()
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
 	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
+	s.drive(cb)
 }
+
+// drive sums this tick's Drives per unit and writes each one's Driven, marking it Driving; a unit
+// Driving with no Drive this tick is written a zero Driven, to brake, which driveSystem takes off
+// once it stands. A Driven navigation did not give — a camera's — is left alone.
+func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
+	s.drivers = s.drivers[:0]
+	if s.drives != nil {
+		s.drives.Drain(func(i control.Issued[Drive]) {
+			s.members(issuedBy(i), func(m member) { s.addDrive(m.id, i.Command) })
+		})
+	}
+	for s.self.All(); s.self.Next(); {
+		cur := s.self.Cursor()
+		drivens, states := s.selfDriven.Slice(cur), s.selfStates.Slice(cur)
+		for i, id := range cur.IDs {
+			d, driving := s.driver(id)
+			switch {
+			case driving:
+				in := steering.Driven{Ahead: d.ahead, Turn: d.turn}
+				if drivens != nil {
+					drivens[i] = in
+				} else {
+					cb.AddOne(id, s.drivenID, in)
+				}
+				if states != nil {
+					states[i] = states[i].With(Driving)
+				} else {
+					cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Driving))
+				}
+			case drivens != nil && states != nil && states[i].Has(Driving):
+				drivens[i] = steering.Driven{}
+			}
+		}
+	}
+}
+
+// addDrive adds cmd to the unit's Drives of the tick, each way held within -1 and 1.
+func (s *moveCommandSystem) addDrive(id uid.UID64, cmd Drive) {
+	for i := range s.drivers {
+		if s.drivers[i].id == id {
+			d := &s.drivers[i]
+			d.ahead, d.turn = clampWay(d.ahead+cmd.Ahead), clampWay(d.turn+cmd.Turn)
+			return
+		}
+	}
+	s.drivers = append(s.drivers, driver{id: id, ahead: clampWay(cmd.Ahead), turn: clampWay(cmd.Turn)})
+}
+
+// driver is the unit's Drives of the tick, if it got any.
+func (s *moveCommandSystem) driver(id uid.UID64) (driver, bool) {
+	for _, d := range s.drivers {
+		if d.id == id {
+			return d, true
+		}
+	}
+	return driver{}, false
+}
+
+// clampWay holds a way within -1 and 1.
+func clampWay(v int8) int8 { return max(min(v, 1), -1) }
 
 // members calls fn with whom a command by gave concerns: the entity that gave it itself, or every
 // Selected entity the player owns.

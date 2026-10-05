@@ -48,9 +48,11 @@ func panicsWith(t *testing.T, f func()) (msg string) {
 
 func TestKinds_Define_AssignsSpriteIDsByOrder(t *testing.T) {
 	kinds := New(false)
-	red := kind.Define[int](kinds, "red", statSpec())
+	kind.Define[int](kinds, "red", statSpec())
+	red := kind.Named[int](kinds, "red")
 	overlay := kinds.NewSprite()
-	blue := kind.Define[int](kinds, "blue", statSpec())
+	kind.Define[int](kinds, "blue", statSpec())
+	blue := kind.Named[int](kinds, "blue")
 
 	if red.SpriteID() != 0 || overlay != 1 || blue.SpriteID() != 2 {
 		t.Errorf("sprites = red %v, overlay %v, blue %v, want 0, 1, 2 — issued in call order", red.SpriteID(), overlay, blue.SpriteID())

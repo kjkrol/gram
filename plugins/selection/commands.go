@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,32 +33,74 @@ type Marquee struct {
 // Follow is the command to follow the one selected unit with Camera, or to stop following.
 type Follow struct{ Camera camera.Camera }
 
-// Apply is the command to put Effect on every Selected unit of the player who gives it, as its
-// Spec says: an ability — a sprint, a spell — which rules and knobs carry on from. One a role's
-// Abilities issue goes to the units playing the role alone.
-type Apply struct {
-	Effect effect.Effect
-	only   tag.Tags[rule.Roles] // empty: every selected unit
+// Allow is the command by which an entity may be selected from now on — Selected, selected at
+// once too: one gives it itself as it is made (kind.Entry.Told); a player's goes to the units it
+// has selected.
+type Allow struct{ Selected bool }
+
+// Forbid is the command by which an entity may be selected no longer, and is unselected: a unit
+// under construction, one carried off.
+type Forbid struct{}
+
+// effectCommand is a rule.Command for the selected units, or for the one pointed at, as the selection
+// carries it out: what Selected and Pointed route a command to.
+type effectCommand struct {
+	cmd     rule.Command
+	only    tag.Tags[rule.Roles] // the selected playing one of these; empty: every one
+	pointed bool
+	aimed   bool // In told where the cursor was
+	at      geom.Vec
+	screen  geom.AABB
+	camera  camera.Camera
 }
+
+// In is the command as given with the cursor where c has it: whom Pointed means.
+func (c effectCommand) In(ctx control.Context) any {
+	c.aimed, c.at, c.camera = true, ctx.World(ctx.Cursor), ctx.Camera
+	c.screen = control.ScreenRect(ctx.Cursor, ctx.Cursor)
+	return c
+}
+
+// target is whom a command is for, as the selection knows them.
+type target struct {
+	only    tag.Tags[rule.Roles]
+	pointed bool
+}
+
+func (target) Target() {}
+
+func (t target) Route(c rule.Command) any {
+	return effectCommand{cmd: c, only: t.only, pointed: t.pointed}
+}
+
+func (t target) String() string {
+	if t.pointed {
+		return "the one pointed at"
+	}
+	return "the selected"
+}
+
+// Selected is whom a command is for — rule.Cast(haste).On(sel.Selected(hasty)): the units the
+// player who gives it has selected, those playing one of roles alone when any is named.
+func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
+	var only tag.Tags[rule.Roles]
+	for _, r := range roles {
+		only = only.With(r.Tag())
+	}
+	return target{only: only}
+}
+
+// Pointed is whom a command is for — rule.Lift(frozen).On(sel.Pointed()): the entity under the
+// cursor as the command's key is pressed, the nearest of those drawn there; nobody for a command
+// given some other way.
+func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where Select, Follow and Apply land — for the players plugin.
+// Queues are where Select, Follow, Allow, Forbid and the commands for the selected and the pointed
+// at land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.applies}
-}
-
-// Abilities are the bindings of what the roles can do (rule.Part.Can): each its trigger into an
-// Apply of its effect to the units playing its role, under its label — for a player's Bind.
-func (p *Plugin) Abilities(roles ...*rule.Part) []control.Binding {
-	var bindings []control.Binding
-	for _, r := range roles {
-		for _, a := range r.Abilities() {
-			apply := Apply{Effect: a.Effect, only: tag.Tags[rule.Roles](0).With(r.Tag())}
-			bindings = append(bindings, control.Command(a.Trigger, a.Label, func(control.Context) (Apply, bool) { return apply, true }))
-		}
-	}
-	return bindings
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.effectCmds, &p.allows, &p.forbids}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it

@@ -43,7 +43,8 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	if outlines {
 		spec = append(spec, comp.Const(vision.SightOutline{}))
 	}
-	watchers := kind.Define[watcher](w.Kinds(), "watcher", spec)
+	kind.Define[watcher](w.Kinds(), "watcher", spec)
+	watchers := kind.Named[watcher](w.Kinds(), "watcher")
 	side := int(math.Ceil(math.Sqrt(float64(n))))
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {

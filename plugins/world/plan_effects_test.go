@@ -21,7 +21,7 @@ import (
 
 // effectStage spawns one entity whose plan plan writes with the world's effects.
 type effectStage struct {
-	plan  func(fx *effect.Effects) comp.Comp
+	plan  func(fx *effect.Effects) *written
 	world *world.Plugin
 	unit  kind.Of[struct{}]
 	marks goke.OptComp[tag.Tags[effect.States]]
@@ -36,12 +36,13 @@ func (g *effectStage) Name() string { return "stage" }
 func (g *effectStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	ctx.Setup(effectProbe{g})
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "glower", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "glower", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Const(tally{}),
-		g.plan(g.world.Effects()),
+		g.plan(g.world.Effects()).on(g.world),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "glower")
 	return nil
 }
 
@@ -110,9 +111,10 @@ func step(t *testing.T, e *engine.Engine, d time.Duration) {
 // Keep holds an effect as long as its branch runs, and takes it off when the branch gives way.
 func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	var held effect.Effect
-	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
-		held = fx.Define("held", effect.Spec{})
-		return plan.New("hold a while", func(a *plan.Actor) rule.Step {
+	g := &effectStage{plan: func(fx *effect.Effects) *written {
+		fx.Define("held", effect.Spec{})
+		held = fx.Named("held")
+		return write("hold a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(
 				a.Not(a.Timeout(300*time.Millisecond, a.Keep(held))),
 				a.Wait(time.Hour))
@@ -133,10 +135,12 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 // most once a mark's while.
 func TestPlan_UnlessKeepsItsMemoryInAnEffect(t *testing.T) {
 	var marked, tallying effect.Effect
-	g := &effectStage{plan: func(fx *effect.Effects) comp.Comp {
-		marked = fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
-		tallying = fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
-		return plan.New("tally once a while", func(a *plan.Actor) rule.Step {
+	g := &effectStage{plan: func(fx *effect.Effects) *written {
+		fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
+		marked = fx.Named("marked")
+		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		tallying = fx.Named("tally")
+		return write("tally once a while", func(a *plan.Actor) rule.Step {
 			return a.OneOf(
 				a.Unless(marked, a.Steps(a.Apply(marked), a.Apply(tallying))),
 				a.Idle())

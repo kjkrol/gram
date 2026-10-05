@@ -53,7 +53,8 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	g.role = map[string]*rule.Part{}
 	for _, name := range g.roles {
-		g.role[name] = rule.Role(name)
+		g.world.Roles().Define(name)
+		g.role[name] = g.world.Roles().Named(name)
 	}
 	g.mood = map[string]tag.Tag[moods]{}
 	for _, name := range g.moods {
@@ -67,12 +68,13 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	for _, name := range g.carries {
 		carries = append(carries, g.mood[name])
 	}
-	g.unit = kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
+	kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		rule.Plays(plays...),
 		comp.Tagged(carries...),
 	})
+	g.unit = kind.Named[struct{}](g.world.Kinds(), "unit")
 	return nil
 }
 
@@ -153,7 +155,9 @@ func TestRoles_PlayedByAKind(t *testing.T) {
 
 func TestRoles_PlaysTwiceInOneKindPanics(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
-	mortal, hasty := rule.Role("mortal"), rule.Role("hasty")
+	w.Roles().Define("mortal")
+	w.Roles().Define("hasty")
+	mortal, hasty := w.Roles().Named("mortal"), w.Roles().Named("hasty")
 
 	msg := panicMessage(t, func() {
 		kind.Define[struct{}](w.Kinds(), "scout", kind.Spec{

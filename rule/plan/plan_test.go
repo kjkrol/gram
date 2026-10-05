@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
@@ -33,11 +32,25 @@ type rig struct {
 	toys  *toys
 }
 
-func newRig(t *testing.T, given comp.Comp) *rig {
+// written is a plan as a test writes it, for its rig to define on plans of its own, as a
+// Stage's world does (world.Plans).
+type written struct {
+	name string
+	body func(a *plan.Actor) rule.Step
+}
+
+func write(name string, body func(a *plan.Actor) rule.Step) written { return written{name, body} }
+
+// mind is the Mind of an entity following w, defined on c.
+func (w written) mind(c *steps.Plans) steps.Mind {
+	return steps.Mind{Plan: c.Define(w.name, w.body(&plan.Actor{}))}
+}
+
+func newRig(t *testing.T, given written) *rig {
 	t.Helper()
 	r := &rig{t: t, ecs: goke.New(), ids: map[string]goke.CompID{}, toys: newToys()}
-	template := given.(comp.Template[steps.Mind])
 	c := steps.NewPlans(func() time.Duration { return r.now }, nil, 0, nil, &r.toys.carrier)
+	follows := given.mind(c)
 	var mind goke.Comp[steps.Mind]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.ids["alarm"], r.ids["poke"], r.ids["mood"] = si.RegComp[alarm](), si.RegComp[poke](), si.RegComp[mood]()
@@ -47,7 +60,7 @@ func newRig(t *testing.T, given comp.Comp) *rig {
 		f.Create(1)
 		f.Next()
 		r.id = f.Cursor.IDs[0]
-		mind.Slice(&f.Cursor)[0] = template.Resolve(nil)
+		mind.Slice(&f.Cursor)[0] = follows
 	}})
 	edits := r.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
 		for _, e := range r.edits {
@@ -97,7 +110,7 @@ func (r *rig) want(when, doing string, given int) {
 // Then issues its commands one after another, each once what came of the one before is told —
 // Until; a tree done begins again at the next tick.
 func TestSteps_OrdersItsCommandsOneAfterAnother(t *testing.T) {
-	r := newRig(t, plan.New("walk then jump", func(a *plan.Actor) rule.Step {
+	r := newRig(t, write("walk then jump", func(a *plan.Actor) rule.Step {
 		return a.Steps(
 			a.Order(walk{Far: 3}).Until[done](),
 			a.Order(jump{}).Until[done]())
@@ -117,7 +130,7 @@ func TestSteps_OrdersItsCommandsOneAfterAnother(t *testing.T) {
 // First is reactive: a branch earlier in its list takes over as soon as it can, and gives way back
 // when it can no more, the later one begun again.
 func TestOneOf_AnEarlierBranchTakesOverAndGivesBack(t *testing.T) {
-	r := newRig(t, plan.New("flee from alarms", func(a *plan.Actor) rule.Step {
+	r := newRig(t, write("flee from alarms", func(a *plan.Actor) rule.Step {
 		return a.OneOf(
 			a.When[alarm]("alarmed", func(a *plan.Actor) rule.Step { return a.Order(flee{}).Stay() }),
 			a.Order(walk{}).Stay(),
@@ -137,7 +150,7 @@ func TestOneOf_AnEarlierBranchTakesOverAndGivesBack(t *testing.T) {
 
 // On holds to what began with a fact that lasted a tick, until it is done.
 func TestOn_GoesOnAfterTheFactIsGone(t *testing.T) {
-	r := newRig(t, plan.New("jump when poked", func(a *plan.Actor) rule.Step {
+	r := newRig(t, write("jump when poked", func(a *plan.Actor) rule.Step {
 		return a.OneOf(
 			a.On[poke]("poked", func(a *plan.Actor) rule.Step { return a.Order(jump{}).Until[done]() }),
 			a.Idle(),
@@ -155,7 +168,7 @@ func TestOn_GoesOnAfterTheFactIsGone(t *testing.T) {
 
 // If runs its node only while its fact holds as it says.
 func TestIf_RunsWhileTheFactHolds(t *testing.T) {
-	r := newRig(t, plan.New("walk when calm", func(a *plan.Actor) rule.Step {
+	r := newRig(t, write("walk when calm", func(a *plan.Actor) rule.Step {
 		return a.OneOf(
 			a.If(mood.calm, a.Order(walk{}).Until[done]()),
 			a.Idle(),
@@ -174,7 +187,7 @@ func TestIf_RunsWhileTheFactHolds(t *testing.T) {
 // Until counts a fact given afresh, not one left from before it began; with a condition, the fact
 // coming to hold it.
 func TestUntil_WaitsForTheFactToCome(t *testing.T) {
-	r := newRig(t, plan.New("walk, then jump", func(a *plan.Actor) rule.Step {
+	r := newRig(t, write("walk, then jump", func(a *plan.Actor) rule.Step {
 		return a.Steps(
 			a.Order(walk{}).Until[done](), a.Order(jump{}).Until[done]())
 	}))
@@ -185,7 +198,7 @@ func TestUntil_WaitsForTheFactToCome(t *testing.T) {
 	r.tick(3)
 	r.want("the walk done", "jump", 2)
 
-	r = newRig(t, plan.New("jump once calm", func(a *plan.Actor) rule.Step { return a.Steps(a.Until(mood.calm), a.Order(jump{})) }))
+	r = newRig(t, write("jump once calm", func(a *plan.Actor) rule.Step { return a.Steps(a.Until(mood.calm), a.Order(jump{})) }))
 	give(r, "mood", mood{Calm: false})
 	r.tick(2)
 	r.want("upset", "", 0)
@@ -196,13 +209,13 @@ func TestUntil_WaitsForTheFactToCome(t *testing.T) {
 
 // Wait, Timeout and Cooldown go by the clock.
 func TestWaitTimeoutAndCooldown_GoByTheClock(t *testing.T) {
-	r := newRig(t, plan.New("pause, then walk", func(a *plan.Actor) rule.Step { return a.Steps(a.Wait(250*time.Millisecond), a.Order(walk{})) }))
+	r := newRig(t, write("pause, then walk", func(a *plan.Actor) rule.Step { return a.Steps(a.Wait(250*time.Millisecond), a.Order(walk{})) }))
 	r.tick(3)
 	r.want("waiting", "", 0)
 	r.tick(1)
 	r.want("the wait over", "walk", 1)
 
-	r = newRig(t, plan.New("walk at most 150 ms", func(a *plan.Actor) rule.Step {
+	r = newRig(t, write("walk at most 150 ms", func(a *plan.Actor) rule.Step {
 		return a.OneOf(
 			a.Timeout(150*time.Millisecond, a.Order(walk{}).Until[done]()),
 			a.Order(rest{}).Stay(),
@@ -213,7 +226,7 @@ func TestWaitTimeoutAndCooldown_GoByTheClock(t *testing.T) {
 	r.tick(1)
 	r.want("out of time: the next branch", "rest", 2)
 
-	r = newRig(t, plan.New("jump, then a second off", func(a *plan.Actor) rule.Step {
+	r = newRig(t, write("jump, then a second off", func(a *plan.Actor) rule.Step {
 		return a.OneOf(
 			a.Cooldown(time.Second, a.Order(jump{})),
 			a.Order(walk{}).Stay(),
@@ -229,22 +242,27 @@ func TestWaitTimeoutAndCooldown_GoByTheClock(t *testing.T) {
 	r.want("cooling down again", "walk", 4)
 }
 
-// One name is one tree: registered again alike it is taken, unlike it is refused.
-func TestPlan_OneNameIsOnePlan(t *testing.T) {
-	plan.New("the same", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(walk{})) })
-	plan.New("the same", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(walk{})) })
+// One name is one plan among a world's: defined again it is refused; another world's plans take
+// the name for a plan of their own.
+func TestPlan_OneNameIsOnePlanAWorld(t *testing.T) {
+	walking := write("the same", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(walk{})) })
+	jumping := write("the same", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(jump{})) })
+	mine, theirs := steps.NewPlans(nil, nil, 0, nil, nil), steps.NewPlans(nil, nil, 0, nil, nil)
+	if a, b := walking.mind(mine), jumping.mind(theirs); a != b {
+		t.Errorf("two worlds know the plan of one name as %v and %v, want the name hashed alike", a, b)
+	}
 	defer func() {
 		if recover() == nil {
-			t.Error("a different tree under a known name was taken, want a refusal")
+			t.Error("a name defined twice among one world's plans was taken, want a refusal")
 		}
 	}()
-	plan.New("the same", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(jump{})) })
+	walking.mind(mine)
 }
 
 // A command no plugin handles is a mistake of the game's, and panics.
 func TestOrder_ACommandNobodyHandlesPanics(t *testing.T) {
 	type fly struct{ High bool }
-	r := newRig(t, plan.New("fly", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(fly{})) }))
+	r := newRig(t, write("fly", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(fly{})) }))
 	defer func() {
 		if recover() == nil {
 			t.Error("a command nobody handles was issued, want a panic")
@@ -256,7 +274,7 @@ func TestOrder_ACommandNobodyHandlesPanics(t *testing.T) {
 // Chance draws afresh at every tick from the clock's time: a branch taken about as often as its
 // likelihood, the same in a second run.
 func TestChance_TakesItsBranchAsOftenAsItsLikelihood(t *testing.T) {
-	plan := plan.New("jump now and then", func(a *plan.Actor) rule.Step {
+	plan := write("jump now and then", func(a *plan.Actor) rule.Step {
 		return a.OneOf(a.Chance(0.25, a.Order(jump{})), a.Idle())
 	})
 	jumps := func() int {

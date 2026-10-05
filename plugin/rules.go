@@ -26,14 +26,14 @@ func (c *Columns) Of[T any]() *goke.OptComp[T] {
 	return col
 }
 
-// eachRule is a rule of a moment of one entity, as rule.On builds it: what Rules runs over a
+// eachRule is a rule of a moment of one entity, as rule.Then builds it: what Rules runs over a
 // chunk.
 type eachRule[P any] interface {
 	BindColumns(cols *Columns)
 	RunEach(t Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P)
 }
 
-// onceRule is a rule over no component, as rule.On builds one for All: what StepRules runs.
+// onceRule is a rule over no component, as rule.Then builds one for All: what StepRules runs.
 type onceRule[P any] interface {
 	RunOnce(t Tick, about P)
 }
@@ -59,7 +59,7 @@ func Own[T, P any](r *Rules[P], col *goke.OptComp[T]) {
 // Empty reports whether no rule was added.
 func (r *Rules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// Add takes a rule of P made by rule.On; ErrUnhosted for another, ErrHostBuilt after Bind.
+// Add takes a rule of P made by rule.Then; ErrUnhosted for another, ErrHostBuilt after Bind.
 func (r *Rules[P]) Add(rule any) error {
 	each, ok := rule.(eachRule[P])
 	if !ok {
@@ -97,24 +97,38 @@ func (r *Rules[P]) RunWhere(t Tick, cursor *goke.Cursor, keep func(i int) bool, 
 }
 
 // StepRules are the rules of a moment P of the world as a whole, run once a step and walking no
-// entities — the clock's, the weather's. Only rules over no component (rule.All) are taken: a
-// filtered or narrowed one has no entity to read.
+// entities — the clock's, the weather's. It takes rules over no component (rule.All): a role's
+// fire while the entity the moment is About plays the role (Tick.Roles) — the plugin whose entity
+// it is plays it.
 type StepRules[P any] struct {
-	rules []onceRule[P]
+	rules []stepRule[P]
 	bound bool
 }
 
-// Add takes a rule of P over no component made by rule.On; ErrUnhosted for another, ErrHostBuilt
-// after Bind.
+// stepRule is a rule StepRules runs, with the roles the moment's entity must play for it.
+type stepRule[P any] struct {
+	once  onceRule[P]
+	roles uint64
+}
+
+// playedRule is a rule over no component narrowed to roles, a bit each, as a role's Obeys makes it.
+type playedRule interface{ OnceRoles() uint64 }
+
+// Add takes a rule of P over no component made by rule.Then, a role's too; ErrUnhosted for
+// another, ErrHostBuilt after Bind.
 func (r *StepRules[P]) Add(rule any) error {
 	once, ok := rule.(onceRule[P])
 	if !ok {
-		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter and obeys no role)", ErrUnhosted, rule)
+		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter)", ErrUnhosted, rule)
 	}
 	if r.bound {
 		return fmt.Errorf("%w: %v", ErrHostBuilt, rule)
 	}
-	r.rules = append(r.rules, once)
+	s := stepRule[P]{once: once}
+	if p, ok := rule.(playedRule); ok {
+		s.roles = p.OnceRoles()
+	}
+	r.rules = append(r.rules, s)
 	return nil
 }
 
@@ -124,9 +138,18 @@ func (r *StepRules[P]) Bind() { r.bound = true }
 // Empty reports whether no rule was added.
 func (r *StepRules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// Run runs every rule on about.
+// Run runs every rule on about, a role's while the entity about is About plays the role.
 func (r *StepRules[P]) Run(t Tick, about P) {
-	for _, once := range r.rules {
-		once.RunOnce(t, about)
+	for _, s := range r.rules {
+		if s.roles != 0 && !plays(t, &about, s.roles) {
+			continue
+		}
+		s.once.RunOnce(t, about)
 	}
+}
+
+// plays reports whether the entity the moment is About plays every one of roles.
+func plays(t Tick, moment any, roles uint64) bool {
+	a, ok := moment.(About)
+	return ok && t.Roles != nil && t.Roles(a.Who())&roles == roles
 }

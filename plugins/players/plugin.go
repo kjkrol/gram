@@ -3,6 +3,7 @@ package players
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"reflect"
 	"slices"
@@ -12,7 +13,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -25,11 +29,20 @@ var ErrUnknownCommand = errors.New("players: no plugin listens for this command"
 // each to the handler that defines it: a player's bindings, an AI or a network issue a command,
 // and it lands in its handler's queue.
 type Plugin struct {
+	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+
 	worldPlugin *world.Plugin
 	handlers    []plugin.CommandHandler
 	players     []*Player
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
+	quits       control.Queue[Quit]
+	listings    control.Queue[ShowShortcuts]
+	saves       control.Queue[Save]
+	shortcuts   *Shortcuts // the scene listing the keys
+	savePath    string     // where Save writes; none, no saving
+	saveWith    []any      // the game's own resources saved beside the plugins'
+	gives       control.Queue[Give]
 	module      *module
 	layout      Layout
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
@@ -53,7 +66,9 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
 	}
-	p := &Plugin{worldPlugin: worldPlugin}
+	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.players"), worldPlugin: worldPlugin}
+	p.shortcuts = newShortcuts(p)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	if err := worldPlugin.Carry(p.handlers...); err != nil {
 		panic(fmt.Sprintf("players: %v", err))
@@ -71,6 +86,9 @@ func (p *Plugin) Local(name string) *Player {
 // Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
 // Issue; it looks through the world's camera until it has one of its own.
 func (p *Plugin) Add(name string) *Player {
+	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
+		panic("players: " + err.Error())
+	}
 	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View(), world: p.worldPlugin}
 	p.players = append(p.players, pl)
 	return pl
@@ -114,7 +132,7 @@ func (p *Plugin) Issue(player *Player, cmd any) error {
 	if player != nil {
 		id = player.ID
 	}
-	if !p.worldPlugin.Commands().Put(id, cmd) {
+	if !p.worldPlugin.Carrier().Put(id, cmd) {
 		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
 	}
 	return nil
@@ -133,13 +151,37 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 }
 
 // =================================================================
-// plugin.CommandHandler contract — players' own commands are Pan and Zoom
+// what a scene hands over
 // =================================================================
 
-func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.pans, &p.zooms} }
+// Handle takes a scene's input for the tick: the players' bindings turn it into commands, Quit
+// and ShowShortcuts — which need the engine — are carried out at once, and the game's own keys
+// (OwnKeys) are run. A scene showing the world calls it from its
+// HandleEvents, and nothing else.
+func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	p.EventHandler().HandleEvents(events)
+	p.quits.Drain(func(control.Issued[Quit]) { runtime.Quit() })
+	p.listings.Drain(func(control.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
+	p.saves.Drain(func(control.Issued[Save]) {
+		if p.savePath == "" {
+			return
+		}
+		if err := runtime.Persistence().Save(p.savePath, "", p.saveWith...); err != nil {
+			log.Printf("players: save: %v", err)
+			return
+		}
+		log.Printf("players: saved %q", p.savePath)
+	})
+	p.shortcuts.keys.Handle(events, runtime, composition)
+}
 
-// DefaultBindings is CameraBindings at DefaultScrollSpeed.
-func (p *Plugin) DefaultBindings() []control.Binding { return CameraBindings() }
+// WithSaves says where the game is saved — basePath, with the game's own resources beside the
+// plugins' — which gives the players the Save command its key, F5. Loading is the Stage's
+// (Restore). Call it as the plugin is made.
+func (p *Plugin) WithSaves(basePath string, resources ...any) *Plugin {
+	p.savePath, p.saveWith = basePath, resources
+	return p
+}
 
 // =================================================================
 // plugin.Plugin contract

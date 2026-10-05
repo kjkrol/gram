@@ -50,7 +50,7 @@ func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 		t.Fatal(err)
 	}
 	if hooked {
-		if err := ew.p.Hook(rule.On("left", rule.All, func(m *rule.Moment[Leaving]) rule.Step { return m.Order(left{}) })); err != nil {
+		if err := ew.p.Hook(rule.Then[Leaving]("left", rule.All, rule.Order(left{}))); err != nil {
 			t.Fatal(err)
 		}
 	}

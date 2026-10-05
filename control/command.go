@@ -82,6 +82,7 @@ func (c *Carrier) Carry(queues ...CommandQueue) error {
 
 // Put takes cmd, given by player, to the queue of its type; false when none takes it.
 func (c *Carrier) Put(player PlayerID, cmd any) bool {
+	cmd = Unwrap(cmd)
 	q, ok := c.queue(cmd)
 	if ok {
 		q.Put(player, cmd)
@@ -92,6 +93,7 @@ func (c *Carrier) Put(player PlayerID, cmd any) bool {
 // PutFrom takes cmd, given by entity for itself, to the queue of its type; false when none takes
 // it.
 func (c *Carrier) PutFrom(entity uid.UID64, cmd any) bool {
+	cmd = Unwrap(cmd)
 	q, ok := c.queue(cmd)
 	if ok {
 		q.PutFrom(entity, cmd)
@@ -119,6 +121,25 @@ func (c *Carrier) Empty() bool {
 		}
 	}
 	return true
+}
+
+// Routed is a command written one way and carried as another: Routed is the command its handler
+// takes — a rule.Command, by whom it is for.
+type Routed interface{ Routed() any }
+
+// Unwrap is cmd as its handler takes it: itself, or what a Routed command says.
+func Unwrap(cmd any) any {
+	for {
+		r, ok := cmd.(Routed)
+		if !ok {
+			return cmd
+		}
+		next := r.Routed()
+		if reflect.TypeOf(next) == reflect.TypeOf(cmd) {
+			return next
+		}
+		cmd = next
+	}
 }
 
 // queue is the queue of cmd's type.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
-	"sync"
 
 	"github.com/kjkrol/goke/v3"
 )
@@ -57,17 +56,16 @@ type definition struct {
 	load []goke.CompToken // the components of its asks, for the saves
 }
 
-// registry is every tree registered, by its name hashed.
-var registry = struct {
-	sync.Mutex
-	trees map[uint64]definition
-}{trees: map[uint64]definition{}}
-
-// Register lays root out as the plan named name — what a save knows it by — and returns its id,
-// what a Mind carries. One name is one plan: registered again, it must be alike.
-func Register(name string, root Step) uint64 {
+// Define lays root out as the plan named name — what a save knows it by — and returns its id,
+// what a Mind carries. The plans are their world's: one name is one plan there, and a name
+// defined twice, or after the plans' system is set up, panics.
+func (c *Plans) Define(name string, root Step) uint64 {
 	if name == "" {
 		panic("rule: a plan needs a name")
+	}
+	s := c.system
+	if s.si != nil {
+		panic(fmt.Sprintf("rule: the plan %q is defined after the game was set up", name))
 	}
 	root = named(name, root)
 	t := layOut(name, root)
@@ -78,15 +76,13 @@ func Register(name string, root Step) uint64 {
 		}
 	}
 	id := hash(name)
-	registry.Lock()
-	defer registry.Unlock()
-	if have, ok := registry.trees[id]; ok {
-		if have.name != name || have.sign != d.sign {
-			panic(fmt.Sprintf("rule: two different plans are named %q (or share its hash with %q)", name, have.name))
-		}
-	} else {
-		registry.trees[id] = d
+	if have, ok := s.defs[id]; ok {
+		panic(fmt.Sprintf("rule: the plan %q is defined already (or shares its hash with %q)", name, have.name))
 	}
+	if s.defs == nil {
+		s.defs = map[uint64]definition{}
+	}
+	s.defs[id] = d
 	return id
 }
 
@@ -105,15 +101,4 @@ func hash(name string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(name))
 	return h.Sum64()
-}
-
-// definitions is every tree registered so far.
-func definitions() map[uint64]definition {
-	registry.Lock()
-	defer registry.Unlock()
-	out := make(map[uint64]definition, len(registry.trees))
-	for id, d := range registry.trees {
-		out[id] = d
-	}
-	return out
 }

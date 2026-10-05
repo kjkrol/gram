@@ -1,16 +1,13 @@
 package climate
 
 import (
-	"fmt"
-
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/uid"
 )
 
 // Climate is the climate of a world: where in the world it lies, and its weather going from one
@@ -21,10 +18,10 @@ type Climate struct {
 	world    *world.Plugin
 	calendar *calendar.Calendar
 	sys      *weatherSystem
-	change   control.Queue[Change]
-	set      control.Queue[Set]
+	asked    []string // the changes asked for since the last step: a state's name, "" for the next
 	report   report
 	rules    plugin.StepRules[Weathering]
+	about    func() uid.UID64 // whose entity a Weathering is about
 	running  Running
 }
 
@@ -75,21 +72,33 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation; it finds or makes the
 // weather's entity in its own Init. Call it once.
 func (c *Climate) System() goke.System {
-	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.change, &c.set, &c.rules, &c.running)
+	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
+	c.sys.about = c.about
 	return c.sys
 }
+
+// Change has the weather go on to the next state at the next step of the simulation, thrown as
+// when one runs out.
+func (c *Climate) Change() { c.asked = append(c.asked, "") }
+
+// Set has the weather go into the state named name at the next step of the simulation; a name
+// the climate lacks changes nothing.
+func (c *Climate) Set(name string) {
+	if name != "" {
+		c.asked = append(c.asked, name)
+	}
+}
+
+// About says whose entity a Weathering is about — the atmosphere's own; the world's without it.
+// Call it before System.
+func (c *Climate) About(self func() uid.UID64) { c.about = self }
 
 // LoadComps lists the weather's one component — see goke.CompProvider.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
-// Host hosts a rule of Weathering, fired every step with the weather, until the system's Init: a
-// moment of the world as a whole, so a filtered or narrowed rule is refused (plugin.ErrUnhosted).
-func (c *Climate) Host(b rule.Rule) error {
-	if err := c.rules.Add(b); err != nil {
-		return fmt.Errorf("%w in the climate — it takes a rule of Weathering", err)
-	}
-	return nil
-}
+// Rules takes the rules of Weathering, fired every step with the weather: a moment of the world
+// as a whole, so its rules are of a role the atmosphere plays.
+func (c *Climate) Rules() plugin.Host { return &c.rules }
 
 // Reporter is the weather's line for a render.TelemetryRenderer.
 func (c *Climate) Reporter() render.Reporter { return &c.report }

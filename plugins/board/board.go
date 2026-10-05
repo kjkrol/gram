@@ -1,11 +1,13 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/field"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -64,6 +66,9 @@ func (b *Board) Set(c cell.ID, kind cell.Kind) { b.cells.Set(c, kind) }
 
 // SetAll resets every cell's terrain kind to kind.
 func (b *Board) SetAll(kind cell.Kind) { b.cells.SetAll(kind) }
+
+// States are the markers of the effects on c now: what lies on the cell, for whoever draws it.
+func (b *Board) States(c cell.ID) tag.Tags[effect.States] { return b.cells.States(c) }
 
 // Way is what runs across c; the zero Way off the board or where nothing does.
 func (b *Board) Way(c cell.ID) cell.Way { return b.cells.Way(c) }

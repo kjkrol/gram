@@ -4,8 +4,8 @@ import "github.com/kjkrol/uid"
 
 // Now is a cell at a step, as the rules the board hosts get it: the cell's entity, which cell it
 // is, and its kind now, effects on its ground included. The board runs its rules for every cell
-// every step while one is hooked; they filter cells by the game's tags of places
-// (rule.Self(trapdoor)) and by effects' markers (rule.Self(burning.Mark())).
+// every step while there is one; a role the cells play obeys them (rule.Part.Obeys), and
+// effects' markers filter them (rule.Self(burning.Mark())).
 type Now struct {
 	ID      uid.UID64 // the cell's entity
 	Cell    ID        // which cell

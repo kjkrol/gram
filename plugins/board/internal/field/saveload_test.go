@@ -84,7 +84,7 @@ func (g *fieldStage) Stack() game.Scenes {
 func (g *fieldStage) solidCells() int {
 	n := 0
 	all := geom.NewAABBAt(geom.NewVec(0, 0), 6*boardtest.CellSize, 16*boardtest.CellSize)
-	g.board.Cover().(collision.Field).Solid(world.Layers(cell.Land), all, func(collision.FieldBox) bool { n++; return true })
+	g.board.Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, all, func(collision.FieldBox) bool { n++; return true })
 	return n
 }
 

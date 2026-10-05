@@ -1,13 +1,11 @@
 package clock_test
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/control"
 )
 
 const step = time.Second / 60
@@ -117,29 +115,22 @@ func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 // clock's entity.
 func TestClock_CommandsPauseAndShiftTheTempo(t *testing.T) {
 	r := newRig(t, clock.Config{})
-	issue := func(cmd any) {
-		for _, q := range r.c.Queues() {
-			if q.Accepts() == reflect.TypeOf(cmd) {
-				q.Put(control.Nobody, cmd)
-			}
-		}
-	}
-	issue(clock.Faster{})
+	r.c.Faster()
 	r.ticks(1)
-	issue(clock.Faster{})
-	issue(clock.Faster{}) // past the end: stays at 4
+	r.c.Faster()
+	r.c.Faster() // past the end: stays at 4
 	r.ticks(1)
 	if r.c.Tempo() != 4 {
 		t.Errorf("tempo %g after three Faster, want 4", r.c.Tempo())
 	}
-	issue(clock.Pause{})
+	r.c.TogglePause()
 	r.ticks(1)
 	if !r.c.Paused() || r.c.Written() != "00:00 (paused)" {
 		t.Errorf("after Pause: paused %v, written %q", r.c.Paused(), r.c.Written())
 	}
-	issue(clock.Pause{})
+	r.c.TogglePause()
 	for range 3 {
-		issue(clock.Slower{})
+		r.c.Slower()
 	}
 	r.ticks(1)
 	if r.c.Paused() || r.c.Tempo() != 0.5 {

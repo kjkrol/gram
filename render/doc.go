@@ -79,10 +79,12 @@
 //
 // [Appearance] is the sprite an entity is drawn from and how it sways. A [Rule] says, every frame,
 // how the entities a renderer draws are drawn, each reading one component T of the entity: [Over]
-// lays a sprite on top of one carrying T, [As] draws it as another, [With] reworks its sprite
-// through a function of T, [Show] leaves out those it does not hold for; Over, As and Show take
-// conditions of T (a tag's In for a tag carried). Being no part of the game, they are written in
-// Go — the one place a rule is. A renderer runs them through [Rules]: Bind adds what they read to
-// its query, [Own] shares a column it reads itself, Run settles each chunk. The world's renderer
-// takes them (world.Plugin.Draw), the views of vision too.
+// lays a sprite on top of one carrying T, [As] draws it as another, [Swap] as the twin of its
+// sprite from a table — a kind's own look under a state, the table a sprite a kind — [With]
+// reworks its sprite through a function of T, [Show] leaves out those it does not hold for; each
+// takes conditions of T (a tag's In for a tag carried, an effect's Mark().In for a state). Being
+// no part of the game, they are written in Go — the one place a rule is. A renderer runs them
+// through [Rules]: Bind adds what they read to its query, [Own] shares a column it reads itself,
+// Run settles each chunk. The world's renderer takes them (world.Plugin.Draw), the views of
+// vision too.
 package render

@@ -12,8 +12,9 @@ type Config struct {
 	Space    SpaceCfg
 	Entities EntitiesCfg
 	Camera   camera.Config
-	// Heights gives the world heights: entities carry a Z, terrain an altitude, sight an eye. A flat
-	// world (the default) is a set of planes — see Layers — and refuses heights where it meets them.
+	// Heights gives the world heights: entities carry a Z, terrain an altitude, sight an eye, and
+	// collision meets entities only where their Zs overlap. A flat world (the default) is a set of
+	// planes — see Layers — and refuses heights where it meets them.
 	Heights bool
 	// Clock is how the tactical clock goes: its tempos, and whether a tempo is one bigger step or
 	// as many steps; the zero Config is ½, 1, 2 and 4 in steps.

@@ -9,6 +9,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -16,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Hill is the kind of a QuasiWorld's hill.
@@ -35,6 +38,7 @@ func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
 
 // InstallCtx is a plugin.Installer over a bare ECS.
 type InstallCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -173,3 +177,10 @@ func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plu
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	return w, b, grid, p
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

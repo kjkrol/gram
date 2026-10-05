@@ -10,14 +10,18 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
+	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -133,7 +137,8 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 				spec = append(spec, comp.Const(vision.SightOutline{}))
 			}
 		}
-		w.Seed(kind.Define[spawn](w.Kinds(), kindName(i), spec).Entry(s))
+		kind.Define[spawn](w.Kinds(), kindName(i), spec)
+		w.Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
@@ -346,3 +351,10 @@ func scaleOf(r *relief) world.Scale {
 	}
 	return r.scale
 }
+
+// Hosts keeps the hosts of the rules of the moments a plugin catches.
+func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+
+// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
+// does with the roles played once a Stage's Init returns.
+func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

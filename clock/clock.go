@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/uid"
 )
@@ -54,9 +53,6 @@ type Clock struct {
 	pending time.Duration // the real time the engine holds toward the next tick
 	behind  int           // ticks in a row the engine fell behind
 	slowed  bool          // the tempo was lowered for that
-	pause   control.Queue[Pause]
-	faster  control.Queue[Faster]
-	slower  control.Queue[Slower]
 	system  *system
 	changed func(State) // told after a command changed the state
 }
@@ -73,6 +69,10 @@ func New(cfg Config) *Clock {
 	c.system = &system{c: c}
 	return c
 }
+
+// State is the clock as it stands: what its entity carries. For the world, which makes that
+// entity as its own.
+func (c *Clock) State() State { return c.state }
 
 // Time is the game time gone by.
 func (c *Clock) Time() time.Duration { return c.state.Time }
@@ -170,33 +170,14 @@ func (c *Clock) tell() {
 	}
 }
 
-// Faster and Slower move the tempo up and down the Config's list; Pause toggles the tactical pause.
-type (
-	Pause  struct{}
-	Faster struct{}
-	Slower struct{}
-)
+// TogglePause holds the simulation in the tactical pause, or lets it go on.
+func (c *Clock) TogglePause() { c.state.Paused = !c.state.Paused; c.tell() }
 
-// Queues are where the clock's commands land — for the players plugin, through the world.
-func (c *Clock) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&c.pause, &c.faster, &c.slower}
-}
+// Faster moves the tempo a notch up the Config's list, Slower a notch down; neither past its end.
+func (c *Clock) Faster() { c.shift(1) }
 
-// DefaultBindings: Space pauses, ] goes faster, [ slower.
-func (c *Clock) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Command(control.KeyPress{Key: control.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
-	}
-}
-
-// drain carries out this tick's commands.
-func (c *Clock) drain() {
-	c.pause.Drain(func(control.Issued[Pause]) { c.state.Paused = !c.state.Paused; c.tell() })
-	c.faster.Drain(func(control.Issued[Faster]) { c.shift(1) })
-	c.slower.Drain(func(control.Issued[Slower]) { c.shift(-1) })
-}
+// Slower — see Faster.
+func (c *Clock) Slower() { c.shift(-1) }
 
 func (c *Clock) shift(by int) {
 	i := slices.Index(c.cfg.Tempos, c.state.Tempo) + by
@@ -238,7 +219,6 @@ func (s *system) Init(si *goke.SysInit) {
 }
 
 func (s *system) Update(_ *goke.CmdBuf, _ time.Duration) {
-	s.c.drain()
 	for s.query.All(); s.query.Next(); {
 		s.state.Slice(s.query.Cursor())[0] = s.c.state
 		return

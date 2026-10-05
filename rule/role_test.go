@@ -1,7 +1,6 @@
 package rule_test
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -9,13 +8,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -85,7 +82,7 @@ func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 
 // tellOf is a rule of P named name, for whom filter lets through: its entity gives a heard of name.
 func tellOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.On(name, filter, func(m *rule.Moment[P]) rule.Step { return m.Order(heard{Rule: name}) })
+	return rule.Then[P](name, filter, rule.Order(heard{Rule: name}))
 }
 
 // listen is a carrier of heard commands and the queue they land in.
@@ -241,19 +238,32 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 	}
 }
 
-// A rule of the world as a whole walks no entities: obeyed by a role, the step host refuses it.
-func TestRole_Obeys_ARuleOfAStepIsRefusedByItsHost(t *testing.T) {
-	toll := tellOf[clock.Moment]("toll", rule.All)
-	var h plugin.StepRules[clock.Moment]
-	if err := h.Add(toll); err != nil {
-		t.Fatalf("the rule itself: Add = %v, want it taken", err)
+// A rule of the world as a whole walks no entities: obeyed by a role, its step host takes it and
+// runs it while the entity the moment is about plays the role — every role, for a rule of two.
+func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testing.T) {
+	early, late := rule.Role("step early"), rule.Role("step late")
+	toll := tellOf[standing]("toll", rule.All)
+	carrier, q := listen(t)
+	h := &plugin.StepRules[standing]{}
+	both := late.Obeys(early.Obeys(toll).Rules()[0]).Rules()[0]
+	for _, r := range []rule.Rule{early.Rules()[0], both} {
+		if err := h.Add(r); err != nil {
+			t.Fatalf("Add of %v = %v, want it taken", r, err)
+		}
 	}
-	mortal := rule.Role("mortal").Obeys(toll)
-	if len(mortal.Rules()) != 1 {
-		t.Fatalf("the role obeys %d rules, want 1", len(mortal.Rules()))
+	roles := map[uid.UID64]uint64{1: 1 << early.Tag(), 2: 1 << late.Tag(), 3: 1<<early.Tag() | 1<<late.Tag()}
+	tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier, Roles: func(id uid.UID64) uint64 { return roles[id] }}
+	for _, id := range []uid.UID64{1, 2, 3, 4} {
+		h.Run(tick, standing{who: id})
 	}
-	if err := h.Add(mortal.Rules()[0]); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Add of the role's rule = %v, want plugin.ErrUnhosted", err)
+	var got []uid.UID64
+	q.Drain(func(i control.Issued[heard]) { got = append(got, i.Entity) })
+	if !slices.Equal(got, []uid.UID64{1, 3, 3}) {
+		t.Errorf("the roles' rules fired for %v; want [1 3 3]: early's for 1 and 3, the rule of both for 3 alone", got)
+	}
+	h.Run(plugin.Tick{Dt: time.Millisecond, Commands: carrier}, standing{who: 1})
+	if !q.Empty() {
+		t.Error("with nobody telling the roles the rules fired; want none")
 	}
 }
 
@@ -276,35 +286,6 @@ func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
 	}
 	if len(rule.Role("idle").Rules()) != 0 {
 		t.Error("a role of no rules has some")
-	}
-}
-
-// Can records each ability with its effect, trigger and label, in order; it obeys no rule
-// and gives no other role an ability.
-func TestRole_Can_RecordsAbilities(t *testing.T) {
-	var next tag.Tag[effect.States]
-	effects := effect.New(func(string) tag.Tag[effect.States] { next++; return next - 1 })
-	haste, frost := effects.Define("haste", nil), effects.Define("frost", nil)
-	mortal := rule.Role("mortal")
-	hasty := rule.Role("hasty")
-	j, k := control.KeyPress{Key: control.KeyJ}, control.KeyPress{Key: control.KeyK, Mods: control.Mods{Shift: true}}
-
-	if got := hasty.Can(haste, j, "Hasten").Can(frost, k, "Freeze"); got != hasty {
-		t.Fatalf("Can handed back %p, want the role %p", got, hasty)
-	}
-
-	want := []rule.Ability{
-		{Effect: haste, Trigger: j, Label: "Hasten"},
-		{Effect: frost, Trigger: k, Label: "Freeze"},
-	}
-	if got := hasty.Abilities(); !slices.Equal(got, want) {
-		t.Errorf("hasty.Abilities() = %+v; want %+v", got, want)
-	}
-	if len(hasty.Rules()) != 0 {
-		t.Errorf("abilities gave the role rules: %v", hasty.Rules())
-	}
-	if len(mortal.Abilities()) != 0 {
-		t.Errorf("another role has abilities: %+v", mortal.Abilities())
 	}
 }
 
@@ -345,9 +326,7 @@ func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
 	lever, trapdoor := rule.Role("playing lever"), rule.Role("playing trapdoor")
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
-	if err := h.Add(rule.On("pull", rule.All, func(m *rule.Moment[standing]) rule.Step {
-		return m.Playing(lever, m.Order(heard{Rule: "pull"}))
-	})); err != nil {
+	if err := h.Add(rule.Then[standing]("pull", rule.All, rule.Playing(lever, rule.Order(heard{Rule: "pull"})))); err != nil {
 		t.Fatal(err)
 	}
 	roles := map[uid.UID64]uint64{1: 1 << lever.Tag(), 2: 1 << trapdoor.Tag()}
