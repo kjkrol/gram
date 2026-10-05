@@ -40,6 +40,21 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
 
 - `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `rule.Rule` for the plugin that
   catches `P`, hooked through the Stage's `ctx.Hook` (below, "Hooking").
+- `rule.Then[P](name, filter, step)` is the same rule without the body: its steps are the
+  package's own functions, the twins of a Moment's methods (`rule.If`, `OneOf`, `Steps`, `Apply`,
+  `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`, `ForOther`, `Here`, `Around`,
+  `OnWire`, `WhileWire`, `Playing`), its conditions predicates of the moment — a method as a value
+  (`unit.Standing.Fallen`), a plugin's own (`unit.On(ice)`), `rule.Not(pred)`; an `If` inside an
+  `If` is both, `OneOf` either. A step the moment cannot run (an `Around` where `P` is not
+  Placed, an `If` over another moment) panics by the rule's name as the rule is made:
+
+  ```go
+  rule.Then[unit.Standing]("fallen in", rule.All,
+      rule.If(unit.Standing.Fallen, rule.OneOf(
+          rule.If(unit.On(ice), rule.Keep(frozen)),
+          rule.Order(world.Despawn{}),
+      )))
+  ```
 - `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its entities:
   `units.Define("unit", …, patrol)`. Its name is what a save knows it by.
 - A function writing part of a rule or a plan takes the Moment or the Actor as its own:
@@ -186,7 +201,8 @@ A **role** is a behaviour several kinds share, said once: the rules those playin
 their player can do with them. `rule.Role(name)` makes it; `Obeys(rules...)` adds rules, each
 narrowed to the role's players; `Can(effect, trigger, label)` adds an ability. A kind plays its
 roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`. A role is hooked like a
-rule, and `selection.Plugin.Abilities(roles...)` makes its abilities bindings — each on its
+rule — one a kind plays by the engine itself once `Init` returns, so only a role cells alone play
+needs `ctx.Hook` — and `selection.Plugin.Abilities(roles...)` makes its abilities bindings — each on its
 trigger, listed under its label in the keys (K), casting on the player's selected units playing
 the role:
 
@@ -331,7 +347,12 @@ How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap
 frame. They read a component and decide nothing in the game.
 
 **The look of a state.** A state is an effect: what it does to the knobs, and its marker. How an
-entity looks under it is the kind's, settled at drawing: `render.Swap(twins, frozen.Mark().In)`
+entity looks under it is the kind's, settled at drawing: `frozen.Look(witch.SpriteID())` is the
+atlas slot the witch is drawn from while frozen — issued the first time it is asked for, drawn
+into the atlas in the scene's `Layers`, swapped in by the world's renderer by itself
+(`world.Plugin.WithRenderer`); a scene finds its effects by name, `world.Effects().Named("frozen")`,
+at building alone. That is a `render.Swap` under the effect's marker, which a game may give
+itself for a state that is no effect: `render.Swap(twins, frozen.Mark().In)`
 draws each kind as its own sprite under the marker — the table a sprite a kind, a twin a way
 faced after `Facing` — and leaves a kind with no twin as it is; `render.Over(crust, e.Mark().In)`
 lays one look over every kind; `Show` hides. Two states compose in the order the rules are given.

@@ -105,8 +105,9 @@ entity plays it; a same-sided `collision.Meeting` rule still once a pair, `Dispa
 a `Touch` is each unit's own and a `Sighting` each observer's; an entity playing two roles that obey
 one rule obeys it once per role); `Part.Can(effect, trigger, label)` is an ability, bound by
 `selection.Plugin.Abilities(roles...)`. A Part is a Rule: `ctx.Hook(mortal, hasty)` hooks every rule
-it obeys. A kind plays roles through one component, `rule.Plays(roles...)` (a kind carrying a
-component type twice panics), a cell through `cell.Entry.Roles`. A rule of a moment of the world as
+it obeys. A kind plays roles through one component, `rule.Plays(roles...)` (a `rule.Played`; a kind
+carrying a component type twice panics) — and a role some kind plays is hooked by the engine once
+`Init` returns (`world.Kinds.Played`, `initializer.hookPlayed`; one the Stage hooked is left), a cell through `cell.Entry.Roles`. A rule of a moment of the world as
 a whole — `clock.Moment`, `climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step
 walking no entities — takes no filter and obeys no role: refused with `plugin.ErrUnhosted` (say it with
 `During`, or in a rule over entities). `Part.Tag`/`Rules`/`Abilities`, `rule.Ability`, `rule.Roles` and
@@ -536,7 +537,10 @@ perception or an action is missing, and writes the rule with `rule`; it never ad
 branch to a system, and never a system per behaviour: rules ride a pass the plugin makes anyway.
 A rule holds no Go code but its conditions; what a plugin does of its own (a pace, a log, a
 count) is its own pass's work. Drawing alone is Go (`render.Rule`). How a kind looks under a state
-is a drawing rule, not the effect's: `render.Swap(twins, e.Mark().In)` draws each kind as its own
+is drawing, not the effect's Spec: `e.Look(sprite)` is the atlas slot drawn under the effect in
+place of a sprite, asked for in the scene's `Layers` as the atlas is drawn (the effect found by
+`world.Effects().Named(name)`), swapped in by `world.Plugin.WithRenderer` itself after the rules
+of `Draw` — a `render.Swap(twins, e.Mark().In)`, which draws each kind as its own
 sprite under the effect's marker (a table a state, a sprite a kind; effect-demo's frozen witch,
 walker and boat), `render.Over(x, e.Mark().In)` one overlay for all; an `Alter(Appearance)` is one
 look for every kind, and `Facing` overwrites it every frame.
@@ -957,7 +961,11 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `Placed`, `Subject`, `Aimed` and `ErrUnhosted`/`ErrHostBuilt` (`moments.go`); `rule` imports
   `plugin`. The engine running the steps of rules and plans is `internal/steps`.
   `rule.On(name, filter, func(m *rule.Moment[P]) rule.Step)` is a `rule.Rule` for the host's
-  `Hook` or the Stage's `ctx.Hook`, its `String()` its name and moment; a `*rule.Part`
+  `Hook` or the Stage's `ctx.Hook`, its `String()` its name and moment; `rule.Then[P](name,
+  filter, step)` (`steps.go`) is the same without the body, its steps the package's functions
+  (`rule.If`, `OneOf`, `Apply`, `Around`…, twins of the Moment's methods), its conditions
+  predicates (`unit.Standing.Fallen`, `unit.On(kind)`, `rule.Not`), what the moment cannot run
+  refused by `steps.NewInstant` (`momentExec`); a `*rule.Part`
   (`rule.Role`) is one too, standing for the rules it obeys, each narrowed to its players (", for
   the role mortal" in their String); `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its
   entities (a `steps.Mind`, registered by its name hashed, one name one plan); the world runs the
@@ -1187,6 +1195,11 @@ that's a *plugin's* capability rather than an engine primitive (camera,
 selection, navigation...) reaches a `Scene` the same way it reaches a
 sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
+
+A Stage's `Init` defines the game a section at a time, each a method building on those before it
+and nothing mixed (`examples/effect-demo`): plugins, player, cells' kinds, effects, roles with
+their rules, units' kinds (`rule.Plays`), scenes; everything drawn — the atlases, the effects'
+looks — is the scene's `Layers`. Effects come before the units: a role names effects, a kind roles.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
 gameplay entities, "Start" switching (lazily building the ECS) into a

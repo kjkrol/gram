@@ -170,6 +170,13 @@ type cond[F any] struct {
 
 func (*cond[F]) instant() {}
 
+func (*cond[F]) refuses(payload any) string {
+	if _, ok := payload.(*F); ok {
+		return ""
+	}
+	return "is a condition on another moment"
+}
+
 func (i *cond[F]) bind(s *system) { i.fact = factOf[F](s) }
 
 func (i *cond[F]) tick(c *ctx, _ int, kids []int) Status {

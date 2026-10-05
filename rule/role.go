@@ -108,11 +108,21 @@ func (r *Part) narrowed(n narrowing) Rule {
 }
 
 // Plays is the component of an entity playing roles, for a kind's Spec: every role it plays in
-// one, so a kind names Plays once.
-func Plays(roles ...*Part) comp.Template[tag.Tags[Roles]] {
+// one, so a kind names Plays once. A role some kind plays is hooked with the Stage's plugins once
+// Init returns, as if the Stage had hooked it.
+func Plays(roles ...*Part) Played {
 	tags := make([]tag.Tag[Roles], len(roles))
 	for i, r := range roles {
 		tags[i] = r.tag
 	}
-	return comp.Tagged(tags...)
+	return Played{Template: comp.Tagged(tags...), parts: slices.Clone(roles)}
 }
+
+// Played is what Plays makes: the roles' tags as a kind's component, the roles kept beside them.
+type Played struct {
+	comp.Template[tag.Tags[Roles]]
+	parts []*Part
+}
+
+// Parts are the roles played: for the world, which tells the engine what to hook.
+func (p Played) Parts() []*Part { return slices.Clone(p.parts) }

@@ -8,7 +8,21 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Rules**
+- `rule.Then[P](name, filter, step)` is a rule without a body: its steps are the package's own
+  functions, the twins of a Moment's methods (`rule.If`, `OneOf`, `Steps`, `Apply`, `Keep`,
+  `Order`, `Around`…), its conditions predicates of the moment — `unit.Standing.Fallen`,
+  `unit.On(kind)`, `rule.Not(pred)`. A step its moment cannot run panics by the rule's name.
+- A role a kind plays (`rule.Plays`) is hooked by the engine once `Init` returns; `ctx.Hook`
+  remains for rules of no role and for roles cells alone play. One the Stage hooks itself is
+  hooked once.
+
 **Drawing**
+- `effect.Effect.Look(sprite)` is the atlas slot drawn under the effect in place of a sprite,
+  issued as it is first asked for — in the scene's `Layers`, where the atlas is drawn — and
+  swapped in by `world.Plugin.WithRenderer` itself, after the rules of `Draw`.
+  `effect.Effects.Named(name)` finds a defined effect again at building. `examples/effect-demo`
+  is laid out a section a thing: plugins, player, cells, effects, roles, kinds, scenes.
 - `render.Swap(twins, when...)` draws an entity as the twin of the sprite it would be drawn with,
   from a table a sprite a kind: a kind's own look under a state, swapped in under the effect's
   marker (`e.Mark().In`), a twin a way faced after `Facing`, a kind with no twin left as it is;

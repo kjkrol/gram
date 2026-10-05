@@ -11,6 +11,7 @@ import (
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -108,4 +109,24 @@ func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 			t.Errorf("drew %v, want %v under %v for each", drawn, east, crown)
 		}
 	}
+}
+
+// WithRenderer takes the effects' looks for its drawing rules: a look issues a slot past the
+// kinds', a second renderer adds nothing twice, and an effect's first look after it is refused.
+func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
+	p := testPlugin()
+	frozen := p.Effects().Define("frozen", effect.Spec{})
+	wet := p.Effects().Define("wet", effect.Spec{})
+	free := p.Kinds().NewSprite()
+	if got := frozen.Look(0); got != free+1 {
+		t.Errorf("frozen's look = %d, want the world's next slot %d", got, free+1)
+	}
+	p.WithRenderer(flatAtlas{})
+	p.WithRenderer(flatAtlas{})
+	defer func() {
+		if recover() == nil {
+			t.Error("the first look of wet after WithRenderer did not panic")
+		}
+	}()
+	wet.Look(0)
 }

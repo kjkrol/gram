@@ -53,6 +53,7 @@ type Plugin struct {
 	views    map[camera.Camera]*view.View
 	cameras  Cameras
 	look     Look
+	looked   bool // the effects' looks are among the drawing rules
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -77,6 +78,7 @@ func NewPlugin(cfg Config) *Plugin {
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
+	m.effects.Sprites(kinds.NewSprite)
 	m.moments.effects = m.effects
 	m.wires.effects = m.effects
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
@@ -230,8 +232,17 @@ func (p *Plugin) Commands() *control.Carrier { return &p.module.commands }
 // DefaultBindings are the clock's: Space pauses, ] and [ set the tempo.
 func (p *Plugin) DefaultBindings() []control.Binding { return p.module.clock.DefaultBindings() }
 
-// WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas.
+// WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas;
+// the looks the effects were given (effect.Effect.Look) are swapped in after the rules of Draw.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
+	if !p.looked {
+		p.looked = true
+		p.module.effects.Looks(func(mark tag.Tag[effect.States], twins map[render.SpriteID]render.SpriteID) {
+			if err := p.Draw(render.Swap(twins, mark.In)); err != nil {
+				panic(err)
+			}
+		})
+	}
 	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
 }

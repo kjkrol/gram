@@ -132,6 +132,42 @@ var _ host = (*hostPlugin)(nil)
 // unhostedMoment is a moment no plugin catches.
 type unhostedMoment struct{}
 
+// A role a kind plays is hooked by the engine once Init returns: its rule runs though the Stage
+// hooked nothing.
+func TestEngine_HooksTheRolesItsKindsPlay(t *testing.T) {
+	s := &hookStage{plays: []*rule.Part{rule.Role("leaver").Obeys(despawning())}}
+	before, after := runHookStage(t, s)
+
+	if before != 1 || after != 0 {
+		t.Errorf("walkers = %d after Init, %d after two ticks; want 1 then 0", before, after)
+	}
+}
+
+// A played role the Stage hooked itself is hooked once.
+func TestEngine_HooksAPlayedRoleTheStageHookedOnce(t *testing.T) {
+	host := &hostPlugin{}
+	role := rule.Role("leaver").Obeys(rule.On("lost", rule.All, func(m *rule.Moment[unhostedMoment]) rule.Step {
+		return m.Order(world.Despawn{})
+	}))
+	s := &hookStage{before: []plugin.Plugin{host}, plays: []*rule.Part{role}, rules: []rule.Rule{role}}
+	runHookStage(t, s)
+
+	if len(host.asked) != 1 {
+		t.Errorf("the host was asked %d times, want once", len(host.asked))
+	}
+}
+
+// A played role whose rule no plugin hosts fails the Stage's Init.
+func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
+	role := rule.Role("leaver").Obeys(rule.On("lost", rule.All, func(m *rule.Moment[unhostedMoment]) rule.Step {
+		return m.Order(world.Despawn{})
+	}))
+	err := NewEngine(oneStageGame{stage: &hookStage{plays: []*rule.Part{role}}}).Init()
+	if !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Init = %v, want plugin.ErrUnhosted", err)
+	}
+}
+
 func TestInitializer_Hook_WorldRunsTheRuleWithinTwoTicks(t *testing.T) {
 	s := &hookStage{rules: []rule.Rule{despawning()}}
 	before, after := runHookStage(t, s)

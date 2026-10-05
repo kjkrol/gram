@@ -60,6 +60,13 @@ func (c *ctx) effects() *effect.Effects {
 // instantExec is a step a rule may run: done within its pass, keeping nothing.
 type instantExec interface{ instant() }
 
+// momentExec is a step that runs on some moments alone: refuses says why not on the one payload
+// points to, empty where it runs.
+type momentExec interface{ refuses(payload any) string }
+
+// placed is a moment standing on places of their own (plugin.Placed).
+type placed interface{ Placed() }
+
 // Instant is a rule laid out for running at a moment, every step of it done within the pass; its
 // mind is scratch, every step entered afresh each firing.
 type Instant struct {
@@ -69,12 +76,17 @@ type Instant struct {
 }
 
 // NewInstant lays root out as the rule named name, run on the moment payload points to; it panics
-// on a step that lasts over ticks.
+// on a step that lasts over ticks and on one the moment cannot run.
 func NewInstant(name string, root Step, payload any) *Instant {
 	r := &Instant{tree: layOut(name, root)}
 	for i, n := range r.tree.nodes {
 		if _, ok := n.exec.(instantExec); !ok {
 			panic(fmt.Sprintf("rule: %q: %s lasts over ticks — it belongs to a plan", name, r.tree.signs[i]))
+		}
+		if m, ok := n.exec.(momentExec); ok {
+			if why := m.refuses(payload); why != "" {
+				panic(fmt.Sprintf("rule: %q: %s %s, not %T", name, r.tree.signs[i], why, payload))
+			}
 		}
 	}
 	_, names := payload.(subject)
@@ -114,6 +126,13 @@ type around struct {
 }
 
 func (around) instant() {}
+
+func (around) refuses(payload any) string {
+	if _, ok := payload.(placed); ok {
+		return ""
+	}
+	return "needs a moment that is Placed"
+}
 
 func (a around) tick(c *ctx, _ int, kids []int) Status {
 	if !c.entity || c.pass.Around == nil {

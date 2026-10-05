@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
@@ -20,6 +21,8 @@ type initializer struct {
 	handlers []plugin.CommandHandler
 	// used are the plugins installed so far, in the order they were: the hosts Hook tries
 	used []any
+	// hooked are the roles the Stage hooked itself: hookPlayed leaves them alone
+	hooked []*rule.Part
 
 	screenWidth, screenHeight int
 }
@@ -76,7 +79,31 @@ func (c *initializer) use(p plugin.Plugin) error {
 }
 
 // Hook hooks each rule on the first plugin used that hosts its moment.
-func (c *initializer) Hook(rules ...rule.Rule) error { return HookOn(c.used, rules...) }
+func (c *initializer) Hook(rules ...rule.Rule) error {
+	for _, r := range rules {
+		if role, ok := r.(*rule.Part); ok {
+			c.hooked = append(c.hooked, role)
+		}
+	}
+	return HookOn(c.used, rules...)
+}
+
+// hookPlayed hooks every role a kind of the world plays that the Stage did not hook itself: what
+// the engine does once Init returns.
+func (c *initializer) hookPlayed() error {
+	if c.world == nil {
+		return nil
+	}
+	for _, role := range c.world.Kinds().Played() {
+		if slices.Contains(c.hooked, role) {
+			continue
+		}
+		if err := c.Hook(role); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // host is a plugin hosting rules: its Hook refuses a rule of a moment it does not catch with
 // plugin.ErrUnhosted.

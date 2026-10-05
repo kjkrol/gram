@@ -38,6 +38,9 @@ func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 	if err := stage.Init(ctx); err != nil {
 		return nil, err
 	}
+	if err := ctx.hookPlayed(); err != nil {
+		return nil, err
+	}
 
 	restored, err := stage.Restore(&persistence{host: host})
 	if err != nil {

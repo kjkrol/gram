@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -486,4 +487,58 @@ func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 			t.Errorf("after the effect the course asks %v at %v, want north at 15 as asked while it ran", c.Want, c.WantSpeed)
 		}
 	})
+}
+
+// An effect is found again by its name, and an unknown name panics.
+func TestEffects_Named_IsTheEffectDefined(t *testing.T) {
+	var burning effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		r.fx.Define("wet", effect.Spec{})
+		burning = r.fx.Define("burning", effect.Spec{})
+	})
+	if got := r.fx.Named("burning"); got != burning {
+		t.Errorf("Named(burning) = %+v, want %+v", got, burning)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("Named of an unknown name did not panic")
+		}
+	}()
+	r.fx.Named("frozen")
+}
+
+// A look is a slot of its own a sprite, the same asked again, listed with the effect's marker;
+// an effect's first look after the looks were taken panics.
+func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
+	var burning, wet effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		wet = r.fx.Define("wet", effect.Spec{})
+		burning = r.fx.Define("burning", effect.Spec{})
+	})
+	next := render.SpriteID(10)
+	r.fx.Sprites(func() render.SpriteID { next++; return next - 1 })
+
+	a, b := burning.Look(1), burning.Look(2)
+	if a != 10 || b != 11 || burning.Look(1) != a {
+		t.Errorf("looks of 1, 2, 1 again: %d, %d, %d; want 10, 11, 10", a, b, burning.Look(1))
+	}
+	var listed int
+	r.fx.Looks(func(mark tag.Tag[effect.States], twins map[render.SpriteID]render.SpriteID) {
+		listed++
+		if mark != burning.Mark() || len(twins) != 2 || twins[1] != a || twins[2] != b {
+			t.Errorf("listed %v with %v; want burning's marker with 1→%d, 2→%d", mark, twins, a, b)
+		}
+	})
+	if listed != 1 {
+		t.Errorf("%d effects listed with looks, want burning alone", listed)
+	}
+	if c := burning.Look(3); c != 12 {
+		t.Errorf("a further look of burning = %d, want 12", c)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("the first look of wet after the looks were taken did not panic")
+		}
+	}()
+	wet.Look(1)
 }

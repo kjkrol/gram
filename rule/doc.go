@@ -64,7 +64,9 @@
 // (selection.Plugin.Abilities makes the bindings). [Plays] is the component of an entity playing
 // roles, for a kind's Spec: every role in one, so a kind names Plays once. A cell plays the roles
 // of its cell.Entry.Roles. A Part is a Rule for the Initializer's Hook, which hooks every rule it
-// obeys. A program names 64 roles at most, one name one tag, which every world saves by the name.
+// obeys; the engine hooks a role some kind plays itself, once Init returns. [Then] is On without
+// the body, its steps the package's own functions ([If], [OneOf], [Apply], [Around]…), its
+// conditions predicates of the moment ([Not] turns one round). A program names 64 roles at most, one name one tag, which every world saves by the name.
 // A role's String is "the role mortal".
 //
 //	hasty := rule.Role("hasty").Can(haste, control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts")

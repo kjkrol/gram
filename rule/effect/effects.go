@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,6 +19,12 @@ type Effects struct {
 	name      func(name string) tag.Tag[States]
 	system    *effectSystem
 	module    *module
+
+	byName  map[string]effectID
+	marks   []tag.Tag[States]                     // by effect: its own marker
+	sprite  func() render.SpriteID                // the world's issuer of atlas slots
+	looks   []map[render.SpriteID]render.SpriteID // by effect: a sprite's twin under it
+	settled bool                                  // the world took the looks for its renderer
 }
 
 // New makes the effects, naming each effect's marker with name — the world's Kinds, so the saves
@@ -54,7 +61,38 @@ func (e *Effects) Define(name string, spec Spec) Effect {
 		t.apply(&d)
 	}
 	e.defs = append(e.defs, d)
-	return Effect{owner: e, id: effectID(len(e.defs) - 1), mark: mark}
+	e.looks = append(e.looks, nil)
+	e.marks = append(e.marks, mark)
+	id := effectID(len(e.defs) - 1)
+	if e.byName == nil {
+		e.byName = map[string]effectID{}
+	}
+	e.byName[name] = id
+	return Effect{owner: e, id: id, mark: mark}
+}
+
+// Named is the effect defined as name, for whoever builds on it in Init or in a scene's Layers —
+// rules, looks, bindings keep the Effect itself, never the name; an unknown name panics.
+func (e *Effects) Named(name string) Effect {
+	id, ok := e.byName[name]
+	if !ok {
+		panic(fmt.Sprintf("effects: no effect is defined as %q", name))
+	}
+	return Effect{owner: e, id: id, mark: e.marks[id]}
+}
+
+// Sprites has the effects' looks take their atlas slots from issue. For the world.
+func (e *Effects) Sprites(issue func() render.SpriteID) { e.sprite = issue }
+
+// Looks calls each with every effect that has looks — its marker and the twins of the sprites
+// drawn under it — and settles which effects have any. For the world's renderer.
+func (e *Effects) Looks(each func(mark tag.Tag[States], twins map[render.SpriteID]render.SpriteID)) {
+	e.settled = true
+	for id, twins := range e.looks {
+		if twins != nil {
+			each(e.marks[id], twins)
+		}
+	}
 }
 
 // Cast puts effect on id for as long as its Spec says; cast again, it is refreshed unless it
@@ -129,6 +167,31 @@ type Effect struct {
 	owner *Effects
 	id    effectID
 	mark  tag.Tag[States]
+}
+
+// Look is the atlas slot drawn under the effect in place of the sprite of: issued the first time
+// it is asked for, the same after. Register what it shows in the world's atlas; the world's
+// renderer swaps it in while the effect's marker is on. An effect's first look comes before the
+// world's renderer is made (world.Plugin.WithRenderer), or it panics.
+func (e Effect) Look(of render.SpriteID) render.SpriteID {
+	o := e.owner
+	twins := o.looks[e.id]
+	if id, ok := twins[of]; ok {
+		return id
+	}
+	if o.sprite == nil {
+		panic(fmt.Sprintf("effects: %q has no looks: these effects issue no sprites", o.defs[e.id].name))
+	}
+	if twins == nil {
+		if o.settled {
+			panic(fmt.Sprintf("effects: the first look of %q comes after the world's renderer was made", o.defs[e.id].name))
+		}
+		twins = map[render.SpriteID]render.SpriteID{}
+		o.looks[e.id] = twins
+	}
+	id := o.sprite()
+	twins[of] = id
+	return id
 }
 
 // Mark is the effect's own marker, on while it runs: what rules of other plugins filter by —

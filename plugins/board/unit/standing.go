@@ -29,3 +29,6 @@ func (Standing) Placed() {}
 // Fallen reports whether the entity stands where its domain may not be: in a hole, in water on
 // foot.
 func (s Standing) Fallen() bool { return !s.Kind.Admits(s.Domain) }
+
+// On is the condition of a unit standing on a cell of the kind k, for a rule's If.
+func On(k cell.Kind) func(Standing) bool { return func(s Standing) bool { return s.Kind == k } }
