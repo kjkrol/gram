@@ -542,3 +542,26 @@ func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
 	}()
 	wet.Look(1)
 }
+
+// An effect that Shows turns Changed on as it begins and as it ends, though it alters nothing:
+// whoever draws by its marker draws anew.
+func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T) {
+	var snow effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		snow = r.fx.Define("snow", effect.Spec{effect.Lasts(2 * tick)})
+		snow.Shows()
+	})
+	r.cast(snow)
+	r.tick()
+	if !r.marked(effect.Changed) {
+		t.Error("the step it began left Changed off")
+	}
+	r.tick()
+	if r.marked(effect.Changed) {
+		t.Error("a step it ran on left Changed on")
+	}
+	r.tick()
+	if !r.marked(effect.Changed) {
+		t.Error("the step it ended left Changed off")
+	}
+}

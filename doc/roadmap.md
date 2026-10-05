@@ -19,6 +19,11 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   standing for the board. `plugins/atmosphere` does weather and seasons another way (the weather
   on its own entity, snow and ice as the weathering's effects on cells, the seasons the
   calendar's over the clock): decide whether that settles it.
+- **Covers** — a state of the ground drawn over its cells (`board.Plugin.Covering`) is the simple
+  map's on a square grid: in relief (the topography's painter and its sheets), on a hex grid
+  along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
+  that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
+  ground and moves — fire, smoke — is sprites over it, not a cover.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:

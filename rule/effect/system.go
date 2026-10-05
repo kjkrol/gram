@@ -110,22 +110,26 @@ func (s *effectSystem) mark(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.
 }
 
 // step advances one entity: begins pending slots, counts running ones down, ends the spent, and
-// casts the Thens of those that ran out; true when an Alter changed its components.
+// casts the Thens of those that ran out; true when an Alter changed its components or an effect
+// that Shows began or ended.
 func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, a *Active, d time.Duration) bool {
 	touched := s.touched
 	clear(touched)
 	s.thens = s.thens[:0]
+	shown := false
 	for k := range a.Slots {
 		slot := &a.Slots[k]
 		switch slot.State {
 		case slotPending:
 			if s.begin(cb, cursor, i, id, slot, touched) {
 				slot.State = slotRunning
+				shown = shown || (*s.defs)[slot.Kind].shows
 			}
 		case slotRunning:
 			if slot.Left != Forever {
 				slot.Left -= d
 				if slot.Left <= 0 {
+					shown = shown || (*s.defs)[slot.Kind].shows
 					s.end(cursor, i, id, a, k, touched)
 				}
 			}
@@ -140,7 +144,7 @@ func (s *effectSystem) step(cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.
 	if a.empty() {
 		s.originals.forget(id)
 	}
-	return len(touched) > 0
+	return len(touched) > 0 || shown
 }
 
 // begin applies a slot's grants and marks its alters for recompute; false while a granted

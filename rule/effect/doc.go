@@ -35,5 +35,6 @@
 // the world gives them to every unit, the board to every cell, an entity without them gets them
 // at its first effect) have [Changed] on for the step after an Alter rewrote one of its components
 // — as the effect began or as it ended — so a plugin owning that component, the board with a
-// cell's ground, learns of the change without keeping a copy to compare.
+// cell's ground, learns of the change without keeping a copy to compare. An effect something is
+// drawn by ([Effect.Shows]: a board's cover) turns it on as it begins and ends, altering nothing.
 package effect

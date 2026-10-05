@@ -118,4 +118,13 @@
 // [Plugin.WithRenderer] builds the look.Renderer over that atlas — given nil, the board's own atlas
 // of the kinds, a cell's size each — and [Plugin.WithWorkers] says how many goroutines may share a
 // frame's tiles. How the renderer composes the tiles is plugins/board/look's.
+//
+// # Covers
+//
+// A state of the ground is an effect on its cells, the cell staying the kind it is: the effect
+// turns the kind's knobs (cell.Ground) and what lies on the cell is a cover — [Plugin.Covering]
+// gives the slot of the board's atlas laid over the cells under the effect, along the line those
+// cells draw across the tiles, not along their edges (the simple map, a square grid).
+// [Board.States] are the effects on a cell; unit.Standing.States and unit.Over tell a rule of the
+// cell under a unit.
 package board

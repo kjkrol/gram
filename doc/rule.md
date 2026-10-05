@@ -346,6 +346,12 @@ How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap
 `Show`, given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every
 frame. They read a component and decide nothing in the game.
 
+**A state of the ground.** A cell stays the kind it is; an effect on it turns the kind's knobs
+(`g.Kind.Allows`, `Cost`) and is drawn as a cover, `board.Plugin.Covering(e)` — a texture a state,
+laid along a line of its own. A rule asks for the state under a unit, not for a kind:
+`rule.If(unit.Over(iced), rule.Keep(slip))`. Which cells take which state is a role they play:
+`rule.Around(1, rule.OneOf(rule.Playing(lake, rule.Apply(iced)), rule.Apply(frost)))`.
+
 **The look of a state.** A state is an effect: what it does to the knobs, and its marker. How an
 entity looks under it is the kind's, settled at drawing: `frozen.Look(witch.SpriteID())` is the
 atlas slot the witch is drawn from while frozen — issued the first time it is asked for, drawn

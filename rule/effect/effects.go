@@ -194,6 +194,10 @@ func (e Effect) Look(of render.SpriteID) render.SpriteID {
 	return id
 }
 
+// Shows says something is drawn by the effect's marker — a cover on a board's cells: the entity's
+// Changed goes on as the effect begins and ends, though it alters nothing. For plugins.
+func (e Effect) Shows() { e.owner.defs[e.id].shows = true }
+
 // Mark is the effect's own marker, on while it runs: what rules of other plugins filter by —
 // rule.Self(burning.Mark()).
 func (e Effect) Mark() tag.Tag[States] { return e.mark }

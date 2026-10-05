@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -17,11 +19,13 @@ type store struct {
 	ways      *goke.Query
 	crossings *goke.Query
 	tagged    *goke.Query
+	stated    *goke.Query
 	plot      goke.Comp[cell.Plot]
 	ground    goke.Comp[cell.Ground]
 	way       goke.Comp[cell.Way]
 	crossing  goke.Comp[cell.Crossing]
 	tags      goke.OptComp[cell.Tags]
+	states    goke.OptComp[tag.Tags[effect.States]]
 }
 
 // groundOf is the i-th cell's Ground, in place.
@@ -48,6 +52,17 @@ func (s *store) tagsOf(i int) cell.Tags {
 		return 0
 	}
 	if t := s.tags.At(s.tagged.Cursor()); t != nil {
+		return *t
+	}
+	return 0
+}
+
+// statesOf are the markers of the effects on the i-th cell.
+func (s *store) statesOf(i int) tag.Tags[effect.States] {
+	if !s.stated.SeekH(s.ids[i]) && !s.stated.Seek(s.ids[i]) {
+		return 0
+	}
+	if t := s.states.At(s.stated.Cursor()); t != nil {
 		return *t
 	}
 	return 0

@@ -46,6 +46,7 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	st.ways = si.NewQueryBuilder(&st.way).Build()
 	st.crossings = si.NewQueryBuilder(&st.crossing).Build()
 	st.tagged = si.NewQueryBuilder(&st.plot).Optional(&st.tags).Build()
+	st.stated = si.NewQueryBuilder(&st.plot).Optional(&st.states).Build()
 	s.active = si.NewQueryBuilder(&s.activeComp, &s.activePlot).Optional(&s.activeMarks).Build()
 
 	found := 0

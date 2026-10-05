@@ -1,6 +1,7 @@
-// Command effect-demo is an ice witch: an entity under orders that turns the ground round her
-// feet into snow and the water into ice — the terrain is hers to write, as far as her power
-// reaches, and it thaws some seconds after she has gone. She is fast on her own snow; a walker
+// Command effect-demo is an ice witch: an entity under orders that lays snow on the ground round
+// her feet and ice on the water — the cells stay what they are, grass, road, water; her winter is
+// an effect on them, drawn as a cover along a line of its own, and it thaws some seconds after
+// she has gone. She is fast on her own snow; a walker
 // can cross the lake on her trail while it lasts — slipping, so it brakes badly and may not stop
 // before ice that melts ahead of it — and a boat, whose brakes are weak, sails onto the ice it saw
 // coming and is frozen in — still, immovable, in its own frozen look, as each kind has one — until
@@ -93,9 +94,9 @@ type mainStage struct {
 	player    *players.Player
 	shortcuts *players.Shortcuts
 
-	witchy, mortal      *rule.Part
-	witch, walker, boat kind.Of[unitRow]
-	stack               game.Scenes
+	witchy, mortal, lake *rule.Part
+	witch, walker, boat  kind.Of[unitRow]
+	stack                game.Scenes
 }
 
 var _ game.Stage = (*mainStage)(nil)
@@ -150,25 +151,27 @@ func (s *mainStage) defineCells() {
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water},
-		cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land | Frost}.Costing(Frost, 0.5),
-		cell.Kind{Name: cell.Named("ice"), Cost: 2, Allows: cell.Land | Frost}.Costing(Frost, 0.5),
 	)
 }
 
+// defineEffects says what the ground can be under the witch — a cell stays the kind it is, the
+// effect turns its knobs — and what her winter does to the units.
 func (s *mainStage) defineEffects() {
-	snow, _ := s.board.CellKinds().Get("snow")
-	ice, _ := s.board.CellKinds().Get("ice")
 	effects := s.world.Effects()
-	effects.Define("frost", effect.Spec{
+	effects.Define("frost", effect.Spec{ // land under snow: slower, the witch's own
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
-			switch g.Kind.Name.String() {
-			// TODO: to tez nie jest do konca madre, bo nie powinien zmieniac sie typ, tego pola, ale podobnie jak dla encji powinnismy miec mapę rendition tych typow, czyli np. osniezona droga
-			case "grass", "road":
-				g.Kind = snow
-			case "water":
-				g.Kind = ice
-			}
+			g.Kind.Allows |= Frost
+			g.Kind.Cost++
+			g.Kind = g.Kind.Costing(Frost, 0.5)
+		}),
+	})
+	effects.Define("iced", effect.Spec{ // water under ice: walked over, not sailed
+		effect.Lasts(5 * time.Second),
+		effect.Alter(func(g *cell.Ground) {
+			g.Kind.Allows = cell.Land | Frost
+			g.Kind.Cost = 2
+			g.Kind = g.Kind.Costing(Frost, 0.5)
 		}),
 	})
 	effects.Define("frozen", effect.Spec{
@@ -182,21 +185,25 @@ func (s *mainStage) defineEffects() {
 
 // defineRoles says who does what: a kind playing a role obeys its rules, hooked with the kind.
 func (s *mainStage) defineRoles() {
-	ice, _ := s.board.CellKinds().Get("ice")
 	effects := s.world.Effects()
-	frost, frozen, slip := effects.Named("frost"), effects.Named("frozen"), effects.Named("slip")
+	frost, iced := effects.Named("frost"), effects.Named("iced")
+	frozen, slip := effects.Named("frozen"), effects.Named("slip")
 
+	s.lake = rule.Role("lake") // the lake's cells play it: where the witch's winter is ice
 	s.witchy = rule.Role("witch").Obeys(
-		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.Apply(frost))),
+		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
+			rule.Playing(s.lake, rule.Apply(iced)),
+			rule.Apply(frost),
+		))),
 	)
 	s.mortal = rule.Role("mortal").Obeys(
 		rule.Then[unit.Standing]("fallen in", rule.All,
 			rule.If(unit.Standing.Fallen, rule.OneOf(
-				rule.If(unit.On(ice), rule.Keep(frozen)),
+				rule.If(unit.Over(iced), rule.Keep(frozen)),
 				rule.Order(world.Despawn{}),
 			))),
 		rule.Then[unit.Standing]("on the ice", rule.All,
-			rule.If(rule.Not(unit.Standing.Fallen), rule.If(unit.On(ice), rule.Keep(slip)))),
+			rule.If(rule.Not(unit.Standing.Fallen), rule.If(unit.Over(iced), rule.Keep(slip)))),
 	)
 }
 
@@ -240,7 +247,7 @@ func (s *mainStage) Spawn() error {
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, cell.Entry{Kind: "water", Cell: cellAt(x, y)})
+			cells = append(cells, cell.Entry{Kind: "water", Cell: cellAt(x, y), Roles: []*rule.Part{s.lake}})
 		}
 	}
 	for x := uint32(1); x < GridWidth-1; x++ {
@@ -303,17 +310,22 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
+	// the board: each kind's own sprite, then what lies on the cells under an effect
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass": {R: 60, G: 95, B: 60, A: 255},
 		"road":  {R: 150, G: 130, B: 80, A: 255},
 		"water": {R: 40, G: 90, B: 170, A: 255},
-		"snow":  {R: 235, G: 240, B: 245, A: 255},
-		"ice":   {R: 170, G: 215, B: 240, A: 255},
 	} {
 		k, _ := kinds.Get(name)
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
+	}
+	for name, c := range map[string]color.RGBA{
+		"frost": {R: 235, G: 240, B: 245, A: 255}, // snow
+		"iced":  {R: 170, G: 215, B: 240, A: 255}, // ice
+	} {
+		boardAtlas.RegisterAt(s.board.Covering(effects.Named(name)), CellSize, render.Solid(c))
 	}
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

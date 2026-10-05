@@ -242,6 +242,18 @@ func (f *Frame) SpriteBlend(tier Tier, depth float32, atlas AtlasSource, id Spri
 	}
 }
 
+// SpriteBlendPart is SpriteBlend of a part of sprite id — part its left, top, right and bottom
+// as shares of the sprite, 0 to 1 — over dst: a quarter of a sprite over a quarter of a tile.
+func (f *Frame) SpriteBlendPart(tier Tier, depth float32, atlas AtlasSource, id SpriteID, part [4]float32, dst Corners, shade Shade, weight [4]float32, soft float32) {
+	u0, v0, u1, v1 := inset(atlas.UV(id))
+	src := [4]float32{u0 + (u1-u0)*part[0], v0 + (v1-v0)*part[1], u0 + (u1-u0)*part[2], v0 + (v1-v0)*part[3]}
+	f.SpritePart(tier, depth, atlas, src, dst, shade)
+	v := f.verts[len(f.verts)-4:]
+	for i := range v {
+		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
+	}
+}
+
 // GlazeBlend is Glaze drawn blended as SpriteBlend is: shown where weight is over a half, and there
 // as much as opacity says.
 func (f *Frame) GlazeBlend(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32, soft float32, opacity [4]float32) {

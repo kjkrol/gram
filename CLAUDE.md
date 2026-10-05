@@ -763,7 +763,19 @@ demo: every lever, plate and switch a wire, one effect for all of them and one r
   `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
-  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). Terrain is never an entity in the space: the
+  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A state of the ground is an adjective, the
+  kind the noun: an effect turns the kind's knobs in place (`g.Kind.Allows`, `Cost`, `Costing`) and
+  the cell stays the kind it is — a snowed road a road — while what lies on it is a **cover**:
+  `board.Plugin.Covering(e)` is a slot of the board's atlas (the kinds' numbering,
+  `terrain.Kinds.NewSprite`) laid over the cells under `e` by the simple map's dressing
+  (`internal/draw/covers.go`: the cells' `States` weighed at each tile's corners, side middles and
+  middle — `Weigh`, as the painter weighs kinds — four `Quarters` a tile through
+  `render.Frame.SpriteBlendPart`, so the line cuts across tiles; whole cells off a square grid; not
+  in relief yet), before the ways. `Covering` has the effect `Shows` (`effect.Effect.Shows`: its
+  beginning and end turn `Changed` on though it alters nothing), so the board draws anew.
+  `Board.States(c)` are a cell's effect markers, `unit.Standing.States` those of the cell under a
+  unit, `unit.Over(e)` the condition (effect-demo: snow on land, ice on water, which cell takes
+  which said by a role the lake's cells play). Terrain is never an entity in the space: the
   board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid`, keep out one
   of the entity's layers and, with heights, stand in its `collision.Band`, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by

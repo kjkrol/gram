@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -202,6 +203,18 @@ func (t *Cells) Tags(c cell.ID) cell.Tags {
 		return 0
 	}
 	return t.store.tagsOf(i)
+}
+
+// States are the markers of the effects on c now; none before the cells are made.
+func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
+	if t.store == nil {
+		return 0
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return 0
+	}
+	return t.store.statesOf(i)
 }
 
 // Tag gives c the tags for good; only the seed takes them, before the cells are made.

@@ -35,6 +35,13 @@ func (d *Kinds) Create(kinds ...cell.Kind) {
 	}
 }
 
+// NewSprite reserves a slot of the board's atlas that belongs to no kind: a cover's.
+func (d *Kinds) NewSprite() render.SpriteID {
+	id := d.next
+	d.next++
+	return id
+}
+
 func (d *Kinds) Get(name string) (cell.Kind, bool) {
 	if len(name) > cell.MaxNameLen {
 		return cell.Kind{}, false

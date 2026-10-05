@@ -17,6 +17,17 @@ argument's full path, which moved.
   remains for rules of no role and for roles cells alone play. One the Stage hooks itself is
   hooked once.
 
+**Board**
+- A state of the ground is a cover, the cell staying the kind it is: `board.Plugin.Covering(e)`
+  is a slot of the board's atlas laid over the cells under the effect `e` along a line of its
+  own — cutting the corners of a block of cells, a cell alone a diamond — not along the cells'
+  edges; on the simple map, a square grid (whole cells on any other). `Board.States(c)` and
+  `unit.Standing.States` are the effects on a cell, `unit.Over(e)` the condition of standing on
+  one under `e`; `effect.Effect.Shows` has an effect that alters nothing change its entity as it
+  begins and ends. `examples/effect-demo` keeps grass, road and water what they are: snow and ice
+  are effects turning their knobs, drawn as covers.
+- `render.Frame.SpriteBlendPart` blends a part of a sprite over a part of a tile.
+
 **Drawing**
 - `effect.Effect.Look(sprite)` is the atlas slot drawn under the effect in place of a sprite,
   issued as it is first asked for — in the scene's `Layers`, where the atlas is drawn — and

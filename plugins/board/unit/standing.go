@@ -2,7 +2,9 @@ package unit
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,7 +16,8 @@ type Standing struct {
 	ID     uid.UID64
 	Cell   cell.ID
 	Kind   cell.Kind
-	Places cell.Tags // the game's tags of the cell's place: a plate, a zone
+	Places cell.Tags               // the game's tags of the cell's place: a plate, a zone
+	States tag.Tags[effect.States] // the effects on the cell now: frozen over, snowed under
 	Box    geom.AABB
 	Domain cell.Domain
 }
@@ -32,3 +35,10 @@ func (s Standing) Fallen() bool { return !s.Kind.Admits(s.Domain) }
 
 // On is the condition of a unit standing on a cell of the kind k, for a rule's If.
 func On(k cell.Kind) func(Standing) bool { return func(s Standing) bool { return s.Kind == k } }
+
+// Over is the condition of a unit standing on a cell under the effect e, for a rule's If: the
+// ground's state, whatever its kind.
+func Over(e effect.Effect) func(Standing) bool {
+	mark := e.Mark()
+	return func(s Standing) bool { return s.States.Has(mark) }
+}

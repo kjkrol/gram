@@ -26,6 +26,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -48,6 +49,8 @@ type Plugin struct {
 	kinds     *terrain.Kinds
 	seeded    *Layout
 	mapping   Map
+	simple    *simpleMap // the board's own map, which lays the covers
+	covers    map[tag.Tag[effect.States]]render.SpriteID
 
 	worldPlugin *world.Plugin
 	module      *module
@@ -71,7 +74,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	brd := NewBoard(g)
 	p.Res.Logic.Board = brd
 	brd.setHeights(worldPlugin.HasHeights())
-	p.mapping = newSimpleMap(brd)
+	p.simple = newSimpleMap(brd)
+	p.mapping = p.simple
 	brd.mapping = p.mapping
 	if ws, ok := p.Res.Logic.Board.Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
@@ -218,6 +222,24 @@ func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Bo
 
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
+
+// Covering is the slot of the board's atlas laid over the cells under the effect e, along the line
+// those cells draw, not along their edges — snow on the ground, ice on the water: issued the
+// first time it is asked for, the same after. Register what it shows in the board's atlas, before
+// WithRenderer. The simple map lays it; a cell stays the kind it is.
+func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
+	if id, ok := p.covers[e.Mark()]; ok {
+		return id
+	}
+	if p.covers == nil {
+		p.covers = map[tag.Tag[effect.States]]render.SpriteID{}
+	}
+	id := p.kinds.NewSprite()
+	p.covers[e.Mark()] = id
+	p.simple.dressing.Cover(e.Mark(), id)
+	e.Shows()
+	return id
+}
 
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
