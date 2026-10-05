@@ -49,9 +49,10 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 1, MaxSize: 100},
 	})
 	v := vision.NewPlugin(w)
-	tags := hooks.DefineTags(w.Kinds())
+	threat := rule.Role("threat")
 	fleeing := w.Effects().Define("fleeing", effect.Spec{})
-	if err := v.Hook(hooks.Flee(tags, fleeing)...); err != nil {
+	skittish := rule.Role("skittish").Obeys(hooks.Flee(threat, fleeing)...)
+	if err := v.Hook(skittish.Rules()...); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}
 	if on && !w.Commands().Put(control.Nobody, rule.Cast(fleeing).On(entity.World)) {
@@ -71,7 +72,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 		comp.Const(world.Velocity{Dir: facing, Value: 1}),
 		comp.Const(vision.Sight{Facing: facing, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}), comp.Const(vision.Sighted{}),
 		comp.Const(steering.Steering{}), comp.Const(steering.Course{}),
-		comp.Tagged(tags.Skittish),
+		rule.Plays(skittish),
 	})
 	moving := func(d fleeBody) world.Velocity {
 		if d.dir == (geom.Vec{}) {
@@ -80,7 +81,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 		return world.Velocity{Dir: d.dir, Value: 1}
 	}
 	harmless := kind.Define[fleeBody](w.Kinds(), "threat", kind.Spec{comp.Load(fleeAt), comp.Load(moving)})
-	predators := kind.Define[fleeBody](w.Kinds(), "predator", kind.Spec{comp.Load(fleeAt), comp.Load(moving), comp.Tagged(tags.Threat)})
+	predators := kind.Define[fleeBody](w.Kinds(), "predator", kind.Spec{comp.Load(fleeAt), comp.Load(moving), rule.Plays(threat)})
 
 	w.Seed(runners.Entry(runner))
 	for _, th := range threats {
@@ -95,7 +96,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 	}
 
 	var base goke.Comp[world.Base]
-	var marks goke.Comp[tag.Tags[hooks.Family]]
+	var marks goke.Comp[tag.Tags[rule.Roles]]
 	var query *goke.Query
 	var systems []goke.System
 	for _, produce := range ctx.pending {
@@ -115,7 +116,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 	for query.Next() {
 		cur := query.Cursor()
 		for i, got := range base.Slice(cur) {
-			if marks.Slice(cur)[i].Has(tags.Skittish) {
+			if marks.Slice(cur)[i].Has(skittish.Tag()) {
 				out = got.Vel.Dir
 			}
 		}

@@ -140,7 +140,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
+	if err := s.vision.Draw(render.Show(s.selection.IsSelected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -217,7 +217,7 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
-		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
+		order,
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
 	)
 }
@@ -228,7 +228,7 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(layout)
 	entries := make([]kind.Entry, 0, len(stops))
 	for i, from := range stops {
-		entries = append(entries, s.unit.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
+		entries = append(entries, s.unit.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
 	}
 	s.world.Seed(entries...)
 	return nil

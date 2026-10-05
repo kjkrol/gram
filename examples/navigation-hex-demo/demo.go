@@ -198,7 +198,6 @@ func (s *mainStage) defineKinds() {
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	own := []comp.Comp{
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
-		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 	}
 	s.red = units.Define("red", unit.Mover{Domain: cell.Land}, profile, own...)
 	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
@@ -224,8 +223,8 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.red.Entry(unitRow{start: cellAt(3, 3), target: cellAt(GridWidth-4, 3)}),
-		s.blue.Entry(unitRow{start: cellAt(3, 9), target: cellAt(GridWidth-4, 9)}),
+		s.red.Entry(unitRow{start: cellAt(3, 3), target: cellAt(GridWidth-4, 3)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		s.blue.Entry(unitRow{start: cellAt(3, 9), target: cellAt(GridWidth-4, 9)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
 	)
 	return nil
 }

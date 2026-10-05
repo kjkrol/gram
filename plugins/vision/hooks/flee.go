@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
@@ -14,21 +13,18 @@ import (
 // onCourse is the cosine of the widest angle at which one still counts as heading at the other.
 const onCourse = 0.5
 
-// Flee has every Skittish entity head away from the nearest Threat it sees, else from the nearest
-// one in view when either is heading at the other; both rules run During fleeing, a state of the
-// world (rule.Cast on entity.World). Hook them on the vision plugin in this order.
-func Flee(tags Tags, fleeing effect.Effect) []rule.Rule {
+// Flee is the rules of those who steer clear: head away from the nearest one playing threat in
+// view, else from the nearest one in view when either is heading at the other; both run During
+// fleeing, a state of the world (rule.Cast on entity.World). A role obeys them, in this order:
+// rule.Role("skittish").Obeys(hooks.Flee(threat, fleeing)...).
+func Flee(threat *rule.Part, fleeing effect.Effect) []rule.Rule {
 	return []rule.Rule{
-		rule.On("vision.flee a threat", rule.Between(tags.Skittish, tags.Threat), func(m *rule.Moment[vision.Sighting]) rule.Step {
-			return m.During(fleeing, m.Order(steering.Away{}))
-		}),
-		rule.On("vision.give way", rule.Between(tags.Skittish, tag.Any), func(m *rule.Moment[vision.Sighting]) rule.Step {
-			return m.During(fleeing, m.If(func(s vision.Sighting) bool { return len(s.Seen) > 0 && closing(s) }, m.Order(steering.Away{})))
-		}),
+		rule.Then[vision.Sighting]("vision.flee a threat", rule.Other(threat), rule.During(fleeing, rule.Order(steering.Away{}))),
+		rule.Then[vision.Sighting]("vision.give way", rule.All,
+			rule.During(fleeing, rule.If(func(s vision.Sighting) bool { return len(s.Seen) > 0 && closing(s) }, rule.Order(steering.Away{})))),
 	}
 }
 
-// closing reports whether the observer or the nearest one it sees is heading at the other.
 func closing(s vision.Sighting) bool {
 	towards := s.Seen[0].Base.Pos.Center().Sub(s.Base.Pos.Center())
 	d := math.Hypot(towards.X, towards.Y)

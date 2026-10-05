@@ -11,26 +11,25 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// Chase has every Predator head at the nearest Prey it sees. Hook it on the vision plugin.
-func Chase(tags Tags) rule.Rule {
-	return rule.On("vision.chase", rule.Between(tags.Predator, tags.Prey), func(m *rule.Moment[vision.Sighting]) rule.Step {
-		return m.Order(steering.Toward{})
-	})
+// Chase is the rule of those who hunt: head at the nearest one playing prey in view. A role
+// obeys it: rule.Role("predator").Obeys(hooks.Chase(prey)).
+func Chase(prey *rule.Part) rule.Rule {
+	return rule.Then[vision.Sighting]("vision.chase", rule.Other(prey), rule.Order(steering.Toward{}))
 }
 
-// Looked defines on w the look round, the effect of a Predator having turned aside to search,
+// Looked defines on w the look round, the effect of a hunter having turned aside to search,
 // lasting d of game time. Define it in Init, before the kinds.
 func Looked(w *world.Plugin, d time.Duration) effect.Effect {
 	return w.Effects().Define("looked", effect.Spec{effect.Lasts(d)})
 }
 
-// Search has every Predator that sees no Prey turn a quarter aside, to whichever side the chance
-// falls, unless it still has looked about it. Hook it on the vision plugin.
-func Search(tags Tags, looked effect.Effect) rule.Rule {
-	return rule.On("vision.search", rule.Between(tags.Predator, tags.Prey), func(m *rule.Moment[vision.Sighting]) rule.Step {
-		return m.If(func(s vision.Sighting) bool { return len(s.Seen) == 0 }, m.Unless(looked, m.Steps(
-			m.Apply(looked),
-			m.OneOf(m.Chance(0.5, m.Order(steering.Turn{Angle: math.Pi / 2})), m.Order(steering.Turn{Angle: -math.Pi / 2})),
-		)))
-	})
+// Search is the rule of those who look for their prey: seeing none playing prey, turn a quarter
+// aside, to whichever side the chance falls, unless it still has looked about it. A role obeys
+// it, after Chase.
+func Search(prey *rule.Part, looked effect.Effect) rule.Rule {
+	return rule.Then[vision.Sighting]("vision.search", rule.Other(prey),
+		rule.If(func(s vision.Sighting) bool { return len(s.Seen) == 0 }, rule.Unless(looked, rule.Steps(
+			rule.Apply(looked),
+			rule.OneOf(rule.Chance(0.5, rule.Order(steering.Turn{Angle: math.Pi / 2})), rule.Order(steering.Turn{Angle: -math.Pi / 2})),
+		))))
 }

@@ -307,9 +307,6 @@ func (p *Plugin) Populate() error {
 		if e.Kind != "" {
 			brd.Set(e.Cell, cells[i])
 		}
-		if e.Tags != 0 {
-			brd.cells.Tag(e.Cell, e.Tags)
-		}
 		var roles tag.Tags[rule.Roles]
 		for _, r := range e.Roles {
 			roles = roles.With(r.Tag())

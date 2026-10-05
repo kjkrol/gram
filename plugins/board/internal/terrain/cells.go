@@ -194,18 +194,6 @@ func (t *Cells) SetCrossing(c cell.ID, x cell.Crossing) {
 	}
 }
 
-// Tags are the game's tags of places c carries; none off the board.
-func (t *Cells) Tags(c cell.ID) cell.Tags {
-	if t.store == nil {
-		return t.seed.Tags[c]
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return 0
-	}
-	return t.store.tagsOf(i)
-}
-
 // States are the markers of the effects on c now; none before the cells are made.
 func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
 	if t.store == nil {
@@ -216,14 +204,6 @@ func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
 		return 0
 	}
 	return t.store.statesOf(i)
-}
-
-// Tag gives c the tags for good; only the seed takes them, before the cells are made.
-func (t *Cells) Tag(c cell.ID, tags cell.Tags) {
-	if t.store != nil {
-		panic("board: a cell's tags are given in the Layout, before the cells are made")
-	}
-	t.seed.Tag(c, tags)
 }
 
 // Cast has c play roles for good; only the seed takes them, before the cells are made.

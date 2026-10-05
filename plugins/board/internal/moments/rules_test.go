@@ -213,19 +213,17 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	}
 }
 
-// A cell carries the game's tags of places the Layout gives it, and a rule of a cell.Now filtered by one
-// fires for those cells alone; a cell.Entry without a Kind keeps the Default.
-func TestPlaces_ARuleOfACellFiltersCellsByTheirTags(t *testing.T) {
+// A cell plays the roles the Layout gives it, and a rule a role obeys fires for those cells
+// alone; a cell.Entry without a Kind keeps the Default.
+func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	a, _ := grid.CellIndex(1, 1)
 	b, _ := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-		marked := pw.w.Kinds().DefineTag[cell.Family]("marked")
-		tags := cell.Tags(0).With(marked)
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: a, Tags: tags}, {Cell: b, Tags: tags}}})
-		return []rule.Rule{rule.On("scorch the marked", rule.Self(marked), func(m *rule.Moment[cell.Now]) rule.Step {
-			return m.Apply(pw.scorched)
-		})}
+		marked := rule.Role("marked").Obeys(rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
+		roles := []*rule.Part{marked}
+		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: a, Roles: roles}, {Cell: b, Roles: roles}}})
+		return marked.Rules()
 	})
 	pw.tick(3)
 	if got := pw.under(pw.scorched); !sameCells(got, map[cell.ID]bool{a: true, b: true}) {
@@ -236,21 +234,18 @@ func TestPlaces_ARuleOfACellFiltersCellsByTheirTags(t *testing.T) {
 	}
 }
 
-// A unit standing on a cell carries, in its Standing, the game's tags of the cell's place: a
-// plate under it, nothing elsewhere.
-func TestStanding_TellsTheTagsOfThePlaceUnderTheUnit(t *testing.T) {
+// A unit's rule reaches the place under it by the role the cell plays: a plate under it is
+// pressed, nothing elsewhere.
+func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	middle, _ := grid.CellIndex(3, 3)
-	var plate cell.Tag
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
-		plate = pw.w.Kinds().DefineTag[cell.Family]("plate")
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: middle, Tags: cell.Tags(0).With(plate)}}})
-		return []rule.Rule{rule.On("press", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-			return m.If(func(st unit.Standing) bool { return st.Places.Has(plate) }, m.Here(m.Apply(pw.scorched)))
-		})}
+		plate := rule.Role("plate")
+		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Cell: middle, Roles: []*rule.Part{plate}}}})
+		return []rule.Rule{rule.Then[unit.Standing]("press", rule.All, rule.Here(rule.Playing(plate, rule.Apply(pw.scorched))))}
 	})
 	pw.tick(3)
-	if got := pw.under(pw.scorched); !got[middle] {
-		t.Errorf("pressed %v, want the plate %d under the unit", got, middle)
+	if got := pw.under(pw.scorched); len(got) != 1 || !got[middle] {
+		t.Errorf("pressed %v, want the plate %d under the unit alone", got, middle)
 	}
 }

@@ -16,9 +16,9 @@
 //
 // # Owners
 //
-// A unit belongs to the player whose tag it carries: [Player.Owner], a tag of the owners' family
-// (plugins/players/owner), given to a kind with comp.Tagged — several players' tags on one unit
-// share it among them. [NewPlugin] registers the family with the world's kinds, a tag a player,
+// A unit belongs to the player it was given to: the command [Give], which the unit gives itself
+// as it is made (kind.Entry.Told) or later — captured, converted — sets its one owner, a tag of
+// the owners' family (plugins/players/owner) every unit carries. [NewPlugin] registers the family with the world's kinds, a tag a player,
 // saved by name. The plugins that take commands read the tag through the leaf package owner
 // (owner.Obeys), never through this plugin: a player selects, orders and rides its own units
 // alone; a unit nobody owns belongs to the virtual player control.Nobody, whom the game's code, a

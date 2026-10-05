@@ -223,12 +223,10 @@ func (s *mainStage) defineKinds() {
 	profile := func(brake float64) steering.Steering {
 		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
 	}
-	sel := comp.Tagged(s.selection.Tags().Selectable)
-	mine := comp.Tagged(s.player.Owner())
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	s.witch = units.Define("witch", unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), sel, mine, order, rule.Plays(s.witchy, s.mortal))
-	s.walker = units.Define("walker", unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), sel, mine, rule.Plays(s.mortal))
-	s.boat = units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), sel, mine, order, rule.Plays(s.mortal))
+	s.witch = units.Define("witch", unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), order, rule.Plays(s.witchy, s.mortal))
+	s.walker = units.Define("walker", unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), rule.Plays(s.mortal))
+	s.boat = units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(s.mortal))
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) error {
@@ -266,9 +264,9 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.witch.Entry(unitRow{start: cellAt(2, 8), target: cellAt(GridWidth-3, 8)}),
-		s.walker.Entry(unitRow{start: cellAt(2, 10)}),
-		s.boat.Entry(unitRow{start: cellAt(lakeRight, 8), target: cellAt(lakeLeft, 8)}), // head-on into the witch's trail
+		s.witch.Entry(unitRow{start: cellAt(2, 8), target: cellAt(GridWidth-3, 8)}).Told(players.Give{To: s.player.ID}, selection.Allow{}),
+		s.walker.Entry(unitRow{start: cellAt(2, 10)}).Told(players.Give{To: s.player.ID}, selection.Allow{}),
+		s.boat.Entry(unitRow{start: cellAt(lakeRight, 8), target: cellAt(lakeLeft, 8)}).Told(players.Give{To: s.player.ID}, selection.Allow{}), // head-on into the witch's trail
 	)
 	return nil
 }

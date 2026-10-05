@@ -25,6 +25,19 @@ argument's full path, which moved.
   load. `examples/wire-demo`, `trapdoor-demo` and `pressure-plate-demo` are written with commands
   for named cells and groups; `effect-demo` freezes whoever the cursor points at with F.
 
+**A game without tags**
+- What a plugin keeps of a unit is changed by that plugin's command: `players.Give{To}` hands it
+  to a player, `selection.Allow{Selected}` and `Forbid{}` say whether it may be selected, and
+  `kind.Entry.Told(cmds...)` has the entity give them itself as it is made — carried out in the
+  first step. A kind names no owner and no Selectable tag, so one kind serves several players.
+  `Player.Owner()` is gone; `selection.Plugin.IsSelected` is a drawing rule's condition.
+- `rule.Other(role)` lets through the pairs whose other plays a role; `vision/hooks` are rules
+  for a game's roles to obey — `Flee(threat, fleeing)`, `Chase(prey)`, `Search(prey, looked)` —
+  and `hooks.Tags`, `DefineTags` are gone.
+- The cells' tags of places are gone (`cell.Tags`, `cell.Family`, `cell.Tag`, `cell.Entry.Tags`,
+  `unit.Standing.Places`): a place is a role its cell plays, or what it is called. Saves holding
+  them do not load.
+
 **Rules**
 - `rule.Then[P](name, filter, step)` is a rule without a body: its steps are the package's own
   functions, the twins of a Moment's methods (`rule.If`, `OneOf`, `Steps`, `Apply`, `Keep`,

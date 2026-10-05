@@ -28,7 +28,7 @@
 //
 // Apply, Keep, Dispel, Unless, Under and During are a rule's, over time: a plan's Keep holds its
 // effect for as long as its branch runs and gives way — its branch fails — when someone else takes
-// it off. Trigger gives the commands the actor sets off (rule.Casting.By). Playing runs a step while the actor plays a role (rule.Plays), and fails while
+// it off. Playing runs a step while the actor plays a role (rule.Plays), and fails while
 // it does not. Order gives a command for the actor and hands back a [Command]: its Until waits for
 // what comes of it, a fact — navigation.Arrived — and its Stay keeps the branch, so that a reactive
 // branch gives it once, not every tick. A command that is plugin.Aimed is told the subject of the

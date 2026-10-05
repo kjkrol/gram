@@ -109,6 +109,24 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 	}
 }
 
+// For says how long a Cast lasts, in place of what the effect's Spec says.
+func TestCast_ForSaysHowLongItLasts(t *testing.T) {
+	m := newMeadow(t)
+	m.give(t, rule.Cast(m.open).On(entity.Named("lever")).For(time.Second))
+	for range 8 { // well past the three steps the Spec gives it
+		m.Tick()
+	}
+	if m.under(m.lever) != 1 {
+		t.Fatal("cast for a second, gone within ten steps: For did not outlast the Spec")
+	}
+	for range 60 {
+		m.Tick()
+	}
+	if m.under(m.lever) != 0 {
+		t.Error("cast for a second, still on after more than a second")
+	}
+}
+
 // A Toggle puts the effect on those it names where none is under it, takes it off them all where
 // any is, and two in one step leave them as they were.
 func TestToggle_SwitchesThoseItNames(t *testing.T) {

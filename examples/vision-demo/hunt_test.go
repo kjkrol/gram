@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"testing"
 	"time"
 
@@ -10,9 +8,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -102,7 +101,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 
 func TestStage_HunterEatsWhatItCatches(t *testing.T) {
 	ecs, stage := buildStage(t)
-	view := bodies(ecs, stage.tags)
+	view := bodies(ecs, stage)
 
 	if len(view.preyIDs()) != PreyCount {
 		t.Fatalf("stage spawned %d prey, want %d", len(view.preyIDs()), PreyCount)
@@ -141,16 +140,16 @@ func placeOnPrey(t *testing.T, stage *mainStage, view bodyView) uid.UID64 {
 	return caught
 }
 
-// bodyView is a live view of the hunters and the prey — one family query, told apart by tag.
+// bodyView is a live view of the hunters and the prey — one query, told apart by the roles they play.
 type bodyView struct {
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	marks goke.Comp[tag.Tags[hooks.Family]]
-	tags  hooks.Tags
+	query        *goke.Query
+	base         goke.Comp[world.Base]
+	marks        goke.Comp[tag.Tags[rule.Roles]]
+	prey, hunter tag.Tag[rule.Roles]
 }
 
-func bodies(ecs *goke.ECS, tags hooks.Tags) bodyView {
-	view := bodyView{tags: tags}
+func bodies(ecs *goke.ECS, s *mainStage) bodyView {
+	view := bodyView{prey: s.hunted.Tag(), hunter: s.predator.Tag()}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
 	}})
@@ -158,7 +157,7 @@ func bodies(ecs *goke.ECS, tags hooks.Tags) bodyView {
 }
 
 // each calls fn for every entity carrying tag.
-func (v *bodyView) each(tag tag.Tag[hooks.Family], fn func(id uid.UID64, b *world.Base)) {
+func (v *bodyView) each(tag tag.Tag[rule.Roles], fn func(id uid.UID64, b *world.Base)) {
 	v.query.All()
 	for v.query.Next() {
 		cursor := v.query.Cursor()
@@ -172,8 +171,8 @@ func (v *bodyView) each(tag tag.Tag[hooks.Family], fn func(id uid.UID64, b *worl
 	}
 }
 
-func (v *bodyView) eachPrey(fn func(id uid.UID64, b *world.Base))   { v.each(v.tags.Prey, fn) }
-func (v *bodyView) eachHunter(fn func(id uid.UID64, b *world.Base)) { v.each(v.tags.Predator, fn) }
+func (v *bodyView) eachPrey(fn func(id uid.UID64, b *world.Base))   { v.each(v.prey, fn) }
+func (v *bodyView) eachHunter(fn func(id uid.UID64, b *world.Base)) { v.each(v.hunter, fn) }
 
 // preyIDs is every prey alive.
 func (v *bodyView) preyIDs() map[uid.UID64]bool {
@@ -184,7 +183,7 @@ func (v *bodyView) preyIDs() map[uid.UID64]bool {
 
 func TestStage_PreyTurnsAwayFromTheHunterItSees(t *testing.T) {
 	ecs, stage := buildStage(t)
-	view := bodies(ecs, stage.tags)
+	view := bodies(ecs, stage)
 
 	watched, course := placeHunterAhead(t, stage, view, 60)
 

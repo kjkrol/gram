@@ -6,14 +6,12 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -299,7 +297,7 @@ func (p *Plugin) Seed(entries ...kind.Entry) { p.seeded = append(p.seeded, entri
 func (p *Plugin) Populate() error {
 	var order []string
 	groups := make(map[string][]any)
-	labels := make(map[string][]entity.Label)
+	entries := make(map[string][]kind.Entry)
 	for _, e := range p.seeded {
 		r, ok := p.kinds.r.Kind(e.Kind())
 		if !ok {
@@ -308,15 +306,18 @@ func (p *Plugin) Populate() error {
 		if got := reflect.TypeOf(e.Row()); got != r.Row {
 			return fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.Name, got, r.Row)
 		}
+		if err := p.module.handled(e); err != nil {
+			return fmt.Errorf("world: kind %q: %w", r.Name, err)
+		}
 		if _, seen := groups[r.Name]; !seen {
 			order = append(order, r.Name)
 		}
 		groups[r.Name] = append(groups[r.Name], e.Row())
-		labels[r.Name] = append(labels[r.Name], entity.LabelOf(e.Name(), e.Group()))
+		entries[r.Name] = append(entries[r.Name], e)
 	}
 	for _, name := range order {
 		k, _ := p.kinds.r.Kind(name)
-		p.module.populateLabelled(k, groups[name], labels[name])
+		p.module.populateEntries(k, groups[name], entries[name])
 	}
 	p.seeded = nil
 	return nil

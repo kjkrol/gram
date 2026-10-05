@@ -143,5 +143,5 @@ func (s *standingSystem) standing(i int) unit.Standing {
 		c = s.ats[i].Cell
 	}
 	cells := s.r.cells
-	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.Kind(c), Places: cells.Tags(c), States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Domain: unit.DomainAt(s.movers, i)}
+	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.Kind(c), States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Domain: unit.DomainAt(s.movers, i)}
 }

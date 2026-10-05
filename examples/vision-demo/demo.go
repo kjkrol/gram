@@ -82,9 +82,10 @@ type mainStage struct {
 	hunter    kind.Of[body]
 	collision *collision.Plugin
 
-	tags    vhooks.Tags
-	fleeing effect.Effect // on the world while the prey flee
-	hits    collision.ContactStats
+	// the roles: the prey steer clear of the hunter and of each other, the hunter goes after them
+	skittish, hunted, predator *rule.Part
+	fleeing                    effect.Effect // on the world while the prey flee
+	hits                       collision.ContactStats
 
 	players *players.Plugin
 	player  *players.Player
@@ -103,23 +104,16 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
 	})
 
-	s.tags = vhooks.DefineTags(s.world.Kinds())
 	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
 	looked := vhooks.Looked(s.world, hunterLooksEvery)
+	s.hunted = rule.Role("prey")
+	s.predator = rule.Role("predator").Obeys(vhooks.Chase(s.hunted), vhooks.Search(s.hunted, looked),
+		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{})))) // the hunter's prey is gone
+	s.skittish = rule.Role("skittish").Obeys(vhooks.Flee(s.predator, s.fleeing)...)
 	s.defineKinds()
 
 	s.vision = vision.NewPlugin(s.world)
-	if err := s.vision.Hook(append(vhooks.Flee(s.tags, s.fleeing), vhooks.Chase(s.tags), vhooks.Search(s.tags, looked))...); err != nil {
-		return err
-	}
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
-	if err := s.collision.Hook(
-		rule.On("caught", rule.Between(s.tags.Predator, s.tags.Prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.ForOther(m.Order(world.Despawn{})) // the hunter's prey is gone
-		}),
-	); err != nil {
-		return err
-	}
 
 	if err := ctx.Use(s.vision); err != nil {
 		return err
@@ -135,6 +129,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
+		return err
+	}
+	// the roles' rules, each on the plugin that hosts its moment: vision's, and collision's
+	if err := ctx.Hook(s.predator, s.skittish); err != nil {
 		return err
 	}
 
@@ -156,12 +154,12 @@ func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	s.prey = kind.Define[body](kinds, "prey", append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
-		comp.Tagged(s.tags.Skittish, s.tags.Prey),
+		rule.Plays(s.skittish, s.hunted),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
 	s.hunter = kind.Define[body](kinds, "hunter", append(sees(),
 		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
-		comp.Tagged(s.tags.Predator, s.tags.Threat),
+		rule.Plays(s.predator),
 	))
 }
 

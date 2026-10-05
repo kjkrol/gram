@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -30,8 +29,8 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := d.stage
-	if s.player.Owner() != owner.Of(1) || s.rival.Owner() != owner.Of(2) {
-		t.Errorf("the player owns by %v, the rival by %v; want players 1 and 2", s.player.Owner(), s.rival.Owner())
+	if s.player.ID != 1 || s.rival.ID != 2 {
+		t.Errorf("the player is %d, the rival %d; want players 1 and 2", s.player.ID, s.rival.ID)
 	}
 	if s.rivals.SpriteID() == s.unit.SpriteID() {
 		t.Error("the rival's walkers are drawn as the player's")

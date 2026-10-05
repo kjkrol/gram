@@ -16,8 +16,8 @@
 // the board, a vision.Sighting, a collision.Meeting or Struck, a navigation.Touch, a world.Moving
 // or Leaving, a clock.Moment, a climate.Weathering. The moment's type says which plugin hosts the
 // rule. Its [Filter], the second argument, says whom it fires for: [All], [Self] one carrying a
-// tag — an effect's marker among them — [Between] a pair whose sides carry the tags given, for a
-// moment that is [plugin.Met], [Having] one carrying a component. A Rule's String is its name, its
+// tag — an effect's marker among them — [Between] a pair whose sides carry the tags given and [Other] one
+// whose other plays a role, for a moment that is [plugin.Met], [Having] one carrying a component. A Rule's String is its name, its
 // moment and what narrowed it — "fall in" of unit.Standing, for the role mortal — and an error
 // about the rule names it so.
 //
@@ -67,8 +67,7 @@
 // A role's String is "the role mortal".
 //
 //	hasty := rule.Role("hasty")
-//	selectable, mine := comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner())
-//	s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(mortal, hasty))
+//	s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
 //	return ctx.Hook(mortal, hasty)
 //
 // Obeys narrows each rule on top of its own filter: a rule of Self(hungry.Mark()) obeyed by mortal

@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
@@ -216,10 +217,11 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 
 // populate queues a spawn of one entity of k per row, each row feeding k's Loads: at Setup, a
 // row of a size outside the bounds panics before any entity is made.
-func (w *module) populate(k ikinds.Kind, rows []any) { w.populateLabelled(k, rows, nil) }
+func (w *module) populate(k ikinds.Kind, rows []any) { w.populateEntries(k, rows, nil) }
 
-// populateLabelled is populate with each row's Label, none for nil.
-func (w *module) populateLabelled(k ikinds.Kind, rows []any, labels []entity.Label) {
+// populateEntries is populate with each row's entry — what it is called, what it is told — none
+// for nil.
+func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry) {
 	count := len(rows)
 	writers := writersOf(k)
 
@@ -238,7 +240,7 @@ func (w *module) populateLabelled(k ikinds.Kind, rows []any, labels []entity.Lab
 		for _, wr := range writers {
 			comps = append(comps, wr.Columns()...)
 		}
-		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, writers, k, rows, labels)
+		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, writers, k, rows, entries)
 		w.reindex(si)
 	}})
 }

@@ -198,7 +198,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	// sight follows the board's ground, sampled every 50 m along a ray
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
+	if err := s.vision.Draw(render.Show(s.selection.IsSelected)); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.vision); err != nil {
@@ -312,17 +312,16 @@ func (s *mainStage) defineKinds() {
 	// every unit gets on among the others by navigation's Crowd, the plugin's own rules: an ally
 	// standing makes way, a group gathers round its point, strangers are gone round
 	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, walker,
-		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
+		order,
 		sight, eye,
 	)
 	// The crowd on the plateau: the player's walkers standing, under no order and not selected.
 	s.plateau = units.Define("plateau", unit.Mover{Domain: cell.Land}, walker,
-		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
 		sight, eye,
 	)
 	// The rival's walkers are the same giants, the player's to meet, not to command.
 	s.rivals = units.Define("rival", unit.Mover{Domain: cell.Land}, walker,
-		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.rival.Owner()),
+		order,
 		sight, eye,
 	)
 	// The hawk flies 300 m above the ground on the Air plane: its eye looks over the ridges a
@@ -330,7 +329,7 @@ func (s *mainStage) defineKinds() {
 	// its height over the sea and climbs and dives the way the rider looks, never nearer the
 	// ground than its own height nor higher than 100 m under the clouds.
 	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: scale.Units(300), Clearance: scale.Units(20), Ceiling: scale.Units(air.CloudBase - 100)}, steering.Steering{MaxSpeed: UnitSpeed * 1.5, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1},
-		order, comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
+		order,
 		sight, eye,
 	)
 }
@@ -345,17 +344,17 @@ func (s *mainStage) Spawn() error {
 
 	entries := make([]kind.Entry, 0, len(stops)+1)
 	for i, from := range stops {
-		walkers := s.unit
+		walkers, whose := s.unit, []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 { // every other stop the rival's
-			walkers = s.rivals
+			walkers, whose = s.rivals, []any{players.Give{To: s.rival.ID}, selection.Allow{}}
 		}
-		entries = append(entries, walkers.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}))
+		entries = append(entries, walkers.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}).Told(whose...))
 	}
 	// The hawk crosses the island from the first stop to the one across the range.
-	entries = append(entries, s.hawk.Entry(unitRow{start: stops[0], target: stops[len(stops)/2]}))
+	entries = append(entries, s.hawk.Entry(unitRow{start: stops[0], target: stops[len(stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	// The crowd stands on the plateau's top, a cell each, nearest its middle.
 	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
-		entries = append(entries, s.plateau.Entry(unitRow{start: c, target: c}))
+		entries = append(entries, s.plateau.Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	s.world.Seed(entries...)
 	return nil

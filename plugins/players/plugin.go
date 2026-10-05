@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -30,6 +31,7 @@ type Plugin struct {
 	players     []*Player
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
+	gives       control.Queue[Give]
 	module      *module
 	layout      Layout
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
@@ -53,6 +55,7 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
 	}
+	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	if err := worldPlugin.Carry(p.handlers...); err != nil {
@@ -133,10 +136,12 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 }
 
 // =================================================================
-// plugin.CommandHandler contract — players' own commands are Pan and Zoom
+// plugin.CommandHandler contract — players' own commands are Pan, Zoom and Give
 // =================================================================
 
-func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.pans, &p.zooms} }
+func (p *Plugin) Queues() []control.CommandQueue {
+	return []control.CommandQueue{&p.pans, &p.zooms, &p.gives}
+}
 
 // DefaultBindings is CameraBindings at DefaultScrollSpeed.
 func (p *Plugin) DefaultBindings() []control.Binding { return CameraBindings() }

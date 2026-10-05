@@ -4,9 +4,10 @@
 //
 // # Selectable, Selected and SelectionSystem
 //
-// [Tags] are two bits of selection's tag [Family], from [Plugin.Tags]: Selectable marks an
-// entity the player may select — a unit, not a stretch of terrain; give it with comp.Tagged —
-// and Selected one the player has selected, flipped in place. A [Select] names entities by id or
+// [Tags] are bits of selection's tag [Family], which every unit carries, all off: Selectable
+// marks an entity the player may select — a unit told [Allow], as it is made (kind.Entry.Told) or
+// later; [Forbid] takes it back — and Selected one the player has selected, flipped in place.
+// [Plugin.Tags] is for the plugins reading them; a drawing rule asks [Plugin.IsSelected]. A [Select] names entities by id or
 // by a box in world units, additive or not, and with a Camera the screen rectangle the player
 // drew picks entities where that camera draws them; the plugin is a plugin.CommandHandler — [Plugin.Queues]
 // is the queue, [Plugin.DefaultBindings] a left drag through the player's camera — and the

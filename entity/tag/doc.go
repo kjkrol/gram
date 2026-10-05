@@ -1,6 +1,8 @@
 // Package tag is the tags an entity carries: a family's [Tags], a component of up to
-// [MaxTagsPerFamily] bits, each a [Tag] a plugin or a game defines by name through the world's
-// kinds (world.Kinds.DefineTag), saved by name; a kind gives them with comp.Tagged. It is a leaf,
+// [MaxTagsPerFamily] bits, each a [Tag] a plugin defines by name through the world's kinds
+// (world.Kinds.DefineTag), saved by name. Tags are the plugins' technique, not a game's
+// vocabulary: a game says roles (rule.Role), names and groups (entity.Named, entity.Group) and
+// the plugins' commands (players.Give, selection.Allow). It is a leaf,
 // read by the plugins and their hosts alike. [Any] stands for whatever an entity carries, for a
 // host matching pairs.
 //

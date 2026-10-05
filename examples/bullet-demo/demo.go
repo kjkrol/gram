@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -78,9 +77,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// marks is the family of the game's own tags: who can be wounded, which shot is which.
-type marks struct{}
-
 // unitRow is the row every unit spawns from: where it starts and, a wanderer, where it walks to.
 type unitRow struct{ start, to cell.ID }
 
@@ -100,7 +96,7 @@ type mainStage struct {
 
 	wounded, fuse, bang     effect.Effect
 	paleSprite, sparkSprite render.SpriteID
-	mortal                  tag.Tag[marks]
+	mortal                  *rule.Part
 	round, grenade          bullet.Ammo
 
 	soldier, wanderer kind.Of[unitRow]
@@ -165,10 +161,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	// The game's states and its tags: wounded turns a unit pale and slow; a grenade landed has
+	// The game's states: wounded turns a unit pale and slow; a grenade landed has
 	// a fuse, which bangs when it is up.
-	s.mortal = s.world.Kinds().DefineTag[marks]("mortal")
-	roundTag, grenadeTag := s.world.Kinds().DefineTag[marks]("round"), s.world.Kinds().DefineTag[marks]("grenade")
 	s.paleSprite, s.sparkSprite = s.world.Kinds().NewSprite(), s.world.Kinds().NewSprite()
 	s.wounded = s.effects.Define("wounded", effect.Spec{
 		effect.Lasts(woundLasts),
@@ -180,30 +174,27 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 
 	// The ammo: a round flies ten cells a second over ten cells, spent as it lands; a grenade is
 	// thrown in an arc and lies where it comes down.
+	// The roles: who can be wounded, and what each shot does to them — a round striking a mortal
+	// wounds it, or takes it if wounded already; a grenade landing lights its fuse, and its blast
+	// takes whoever stands within a cell and wounds the rest within its radius.
+	s.mortal = rule.Role("mortal")
+	round := rule.Role("round").Obeys(
+		rule.Then[collision.Meeting]("shot", rule.Other(s.mortal),
+			rule.ForOther(rule.OneOf(rule.Under(s.wounded, rule.Order(world.Despawn{})), rule.Apply(s.wounded)))))
+	grenade := rule.Role("grenade").Obeys(
+		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.fuse)),
+		rule.Then[bullet.Blast]("blast", rule.Other(s.mortal), rule.ForOther(rule.OneOf(
+			rule.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, rule.Order(world.Despawn{})),
+			rule.Apply(s.wounded),
+		))))
 	shots := bullet.NewShots(s.world)
-	s.round = shots.Define("round", bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, comp.Tagged(roundTag))
-	s.grenade = shots.Define("grenade", bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, comp.Tagged(grenadeTag))
+	s.round = shots.Define("round", bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(round))
+	s.grenade = shots.Define("grenade", bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(grenade))
 	s.defineKinds()
 
-	// The whole of the game's logic: a round striking a mortal wounds it, or takes it if wounded
-	// already; a grenade landing lights its fuse, bangs as the fuse is up and bursts; its blast
-	// takes whoever stands within a cell and wounds the rest within its radius.
-	if err := ctx.Hook(
-		rule.On("shot", rule.Between(roundTag, s.mortal), func(m *rule.Moment[collision.Meeting]) rule.Step {
-			return m.ForOther(m.OneOf(m.Under(s.wounded, m.Order(world.Despawn{})), m.Apply(s.wounded)))
-		}),
-		rule.On("fuse", rule.Self(grenadeTag), func(m *rule.Moment[bullet.Landing]) rule.Step {
-			return m.Apply(s.fuse)
-		}),
-		rule.On("bang", rule.Self(s.bang.Mark()), func(m *rule.Moment[bullet.Resting]) rule.Step {
-			return m.Order(bullet.Burst{Radius: blastRadius})
-		}),
-		rule.On("blast", rule.Between(grenadeTag, s.mortal), func(m *rule.Moment[bullet.Blast]) rule.Step {
-			return m.ForOther(m.OneOf(
-				m.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, m.Order(world.Despawn{})),
-				m.Apply(s.wounded),
-			))
-		}),
+	// The rules: the roles', and a grenade banging as its fuse is up, which bursts it.
+	if err := ctx.Hook(round, grenade,
+		rule.Then[bullet.Resting]("bang", rule.Self(s.bang.Mark()), rule.Order(bullet.Burst{Radius: blastRadius})),
 	); err != nil {
 		return err
 	}
@@ -269,11 +260,10 @@ func (s *mainStage) bindings() []control.Binding {
 func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
-	mortal := comp.Tagged(s.mortal)
+	mortal := rule.Plays(s.mortal)
 	s.soldier = units.Define("soldier", unit.Mover{Domain: cell.Land}, profile, mortal,
-		comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
-	s.wanderer = units.Define("wanderer", unit.Mover{Domain: cell.Land}, profile, mortal, comp.Tagged(s.wild.Owner()),
+	s.wanderer = units.Define("wanderer", unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
@@ -299,10 +289,10 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	s.world.Seed(
-		s.soldier.Entry(unitRow{start: at(3, roadRow)}),
-		s.wanderer.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}),
-		s.wanderer.Entry(unitRow{start: at(9, 12), to: at(14, 12)}),
-		s.wanderer.Entry(unitRow{start: at(9, 4), to: at(12, 4)}),
+		s.soldier.Entry(unitRow{start: at(3, roadRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		s.wanderer.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).Told(players.Give{To: s.wild.ID}),
+		s.wanderer.Entry(unitRow{start: at(9, 12), to: at(14, 12)}).Told(players.Give{To: s.wild.ID}),
+		s.wanderer.Entry(unitRow{start: at(9, 4), to: at(12, 4)}).Told(players.Give{To: s.wild.ID}),
 	)
 	return nil
 }

@@ -63,6 +63,11 @@ func Between[FA, FB any](a tag.Tag[FA], b tag.Tag[FB]) Filter {
 	return Filter{self: plugin.SideOf(a), other: plugin.SideOf(b), paired: true, others: true}
 }
 
+// Other lets through a pair whose other plays role, whoever its entity is — whom a predator
+// sees, when the role is prey — for a moment that is Met; obeyed by a role, the pairs of its
+// players with the other role's.
+func Other(role *Part) Filter { return Between(tag.Any, role.tag) }
+
 // Having lets through an entity carrying the component T.
 func Having[T any]() Filter {
 	return Filter{need: &having{state: func() state { return stateOf[T]() }}}

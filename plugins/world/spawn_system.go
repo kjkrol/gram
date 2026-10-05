@@ -47,9 +47,9 @@ type spawner struct {
 }
 
 type spawnGroup struct {
-	by     *spawner
-	rows   []any
-	labels []entity.Label
+	by      *spawner
+	rows    []any
+	entries []kind.Entry
 }
 
 func newSpawnSystem(w *module) *spawnSystem { return &spawnSystem{w: w} }
@@ -71,7 +71,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		return
 	}
 	for i := range s.groups {
-		s.groups[i].rows, s.groups[i].labels = s.groups[i].rows[:0], s.groups[i].labels[:0]
+		s.groups[i].rows, s.groups[i].entries = s.groups[i].rows[:0], s.groups[i].entries[:0]
 	}
 	s.groups, s.accepted = s.groups[:0], 0
 	s.w.spawns.Drain(func(i control.Issued[Spawn]) {
@@ -80,7 +80,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		}
 	})
 	for _, g := range s.groups {
-		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.writers, g.by.kind, g.rows, g.labels)
+		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.writers, g.by.kind, g.rows, g.entries)
 		s.w.spawnedCount += len(g.rows)
 		s.w.telemetry.Count += len(g.rows)
 	}
@@ -98,6 +98,9 @@ func (s *spawnSystem) take(e kind.Entry) error {
 	if got := reflect.TypeOf(e.Row()); got != k.Row {
 		return fmt.Errorf("kind %q: the entry carries a %v, its rows are %v", k.Name, got, k.Row)
 	}
+	if err := s.w.handled(e); err != nil {
+		return fmt.Errorf("kind %q: %w", k.Name, err)
+	}
 	row := e.Row()
 	pos := k.Position.Resolve(row)
 	if err := s.w.sizeOf(pos); err != nil {
@@ -110,14 +113,14 @@ func (s *spawnSystem) take(e kind.Entry) error {
 		return fmt.Errorf("kind %q: the world is full, Config.Entities.MaxCount %d", k.Name, s.w.config.Entities.MaxCount)
 	}
 	s.accepted++
-	by, label := s.kinds[k.TypeID], entity.LabelOf(e.Name(), e.Group())
+	by := s.kinds[k.TypeID]
 	for i := range s.groups {
 		if s.groups[i].by == by {
-			s.groups[i].rows, s.groups[i].labels = append(s.groups[i].rows, row), append(s.groups[i].labels, label)
+			s.groups[i].rows, s.groups[i].entries = append(s.groups[i].rows, row), append(s.groups[i].entries, e)
 			return nil
 		}
 	}
-	s.groups = append(s.groups, spawnGroup{by: by, rows: []any{row}, labels: []entity.Label{label}})
+	s.groups = append(s.groups, spawnGroup{by: by, rows: []any{row}, entries: []kind.Entry{e}})
 	return nil
 }
 
@@ -133,17 +136,22 @@ func writersOf(k ikinds.Kind) []comp.Spawner {
 	return writers
 }
 
-// spawnRows makes one entity of k a row through factory — its Base from the row, its Label, placed in the
+// spawnRows makes one entity of k a row through factory — its Base from the row, its Label and
+// the commands its entry tells it, placed in the
 // space, the writers' columns from the row — the rows checked beforehand.
-func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[entity.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, labels []entity.Label) {
+func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[entity.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
 	factory.Create(len(rows))
 	index := 0
 	for factory.Next() {
 		bases, named := base.Slice(&factory.Cursor), label.Slice(&factory.Cursor)
 		for i, id := range factory.IDs {
 			row := rows[index]
-			if labels != nil {
-				named[i] = labels[index]
+			if entries != nil {
+				e := entries[index]
+				named[i] = entity.LabelOf(e.Name(), e.Group())
+				for _, cmd := range e.Commands() {
+					w.commands.PutFrom(id, cmd)
+				}
 			}
 			bases[i] = Base{Pos: k.Position.Resolve(row), Vel: k.Velocity.Resolve(row), TypeID: k.TypeID}
 			w.space.Place(&bases[i].Pos.AABB)
@@ -160,6 +168,16 @@ func (w *module) sizeOf(pos Position) error {
 	min, max := float64(w.config.Entities.MinSize), float64(w.config.Entities.MaxSize)
 	if pos.Size.X < min || pos.Size.X > max || pos.Size.Y < min || pos.Size.Y > max {
 		return fmt.Errorf("size %vx%v outside declared bounds [%d, %d]", pos.Size.X, pos.Size.Y, w.config.Entities.MinSize, w.config.Entities.MaxSize)
+	}
+	return nil
+}
+
+// handled is an error for a command e tells its entity that no plugin in use carries out.
+func (w *module) handled(e kind.Entry) error {
+	for _, cmd := range e.Commands() {
+		if t := reflect.TypeOf(control.Unwrap(cmd)); !w.commands.Takes(t) {
+			return fmt.Errorf("the entry tells its entity a %v, which no plugin in use carries out", t)
+		}
 	}
 	return nil
 }

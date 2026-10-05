@@ -152,7 +152,7 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
 	s.unit = units.Define("unit", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
-		order, comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()))
+		order)
 }
 
 // Spawn lays the meadow out: a pond in the middle, a wood in the north-east, a road round the pond
@@ -218,7 +218,7 @@ func (s *mainStage) Spawn() error {
 	var entries []kind.Entry
 	for k, c := range corners {
 		o := corners[(k+2)%4]
-		entries = append(entries, s.unit.Entry(unitRow{start: at(c[0], c[1]), target: at(o[0], o[1])}))
+		entries = append(entries, s.unit.Entry(unitRow{start: at(c[0], c[1]), target: at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
 	}
 	s.world.Seed(entries...)
 	return nil

@@ -33,6 +33,15 @@ type Marquee struct {
 // Follow is the command to follow the one selected unit with Camera, or to stop following.
 type Follow struct{ Camera camera.Camera }
 
+// Allow is the command by which an entity may be selected from now on — Selected, selected at
+// once too: one gives it itself as it is made (kind.Entry.Told); a player's goes to the units it
+// has selected.
+type Allow struct{ Selected bool }
+
+// Forbid is the command by which an entity may be selected no longer, and is unselected: a unit
+// under construction, one carried off.
+type Forbid struct{}
+
 // casting is a rule.Casting for the selected units, or for the one pointed at, as the selection
 // carries it out: what Selected and Pointed route a command to.
 type casting struct {
@@ -86,10 +95,10 @@ func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where Select, Follow and the commands for the selected and the pointed at land — for
-// the players plugin.
+// Queues are where Select, Follow, Allow, Forbid and the commands for the selected and the pointed
+// at land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.castings}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.castings, &p.allows, &p.forbids}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it

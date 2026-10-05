@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
@@ -182,8 +181,8 @@ func (s *mainStage) defineKinds() {
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
 	// each block is its player's: it takes that player's Drive alone
-	s.redBlock = units.Define("red", unit.Mover{Domain: cell.Land}, profile, comp.Tagged(s.redPlayer.Owner()))
-	s.blueBlock = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, comp.Tagged(s.bluePlayer.Owner()))
+	s.redBlock = units.Define("red", unit.Mover{Domain: cell.Land}, profile)
+	s.blueBlock = units.Define("blue", unit.Mover{Domain: cell.Land}, profile)
 }
 
 func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
@@ -218,8 +217,8 @@ func (s *mainStage) Spawn() error {
 	}
 	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
 	s.world.Seed(
-		s.redBlock.Entry(block{start: cellAt(3, 3)}),
-		s.blueBlock.Entry(block{start: cellAt(GridWidth-4, GridHeight-4)}),
+		s.redBlock.Entry(block{start: cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
+		s.blueBlock.Entry(block{start: cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
 	)
 	return nil
 }

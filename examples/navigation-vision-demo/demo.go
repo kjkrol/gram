@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -70,10 +69,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// units is the demo's tag family; unit marks its units, so a sighting of one can be told from a
-// sighting of terrain.
-type units struct{}
-
 type mainStage struct {
 	world      *world.Plugin
 	board      *board.Plugin
@@ -85,7 +80,6 @@ type mainStage struct {
 	player     *players.Player // the one at this keyboard: the units are its
 	shortcuts  *players.Shortcuts
 	vision     *vision.Plugin
-	unitTag    tag.Tag[units]
 	kinds      []kind.Of[unitRow]
 	hawk       kind.Of[unitRow]
 	stack      game.Scenes
@@ -136,10 +130,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		return err
 	}
 
-	s.unitTag = s.world.Kinds().DefineTag[units]("unit")
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
 	// the views drawn are the selected units'
-	if err := s.vision.Draw(render.Show(s.selection.Tags().Selected.In)); err != nil {
+	if err := s.vision.Draw(render.Show(s.selection.IsSelected)); err != nil {
 		return err
 	}
 
@@ -199,15 +192,13 @@ func (s *mainStage) defineKinds() {
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range []string{"red", "blue", "yellow"} {
 		s.kinds = append(s.kinds, units.Define(name, unit.Mover{Domain: cell.Land}, scout, order,
-			comp.Tagged(s.selection.Tags().Selectable, s.selection.Tags().Selected), comp.Tagged(s.player.Owner()),
-			sight, eye(1.5), comp.Tagged(s.unitTag)))
+			sight, eye(1.5)))
 	}
 	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
 	// eye looks over the wall, the forest and the hill that stop a walker's.
 	flyer := steering.Steering{MaxSpeed: UnitSpeed * 1.5, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
 	s.hawk = units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
-		comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()),
-		sight, eye(1), comp.Tagged(s.unitTag))
+		sight, eye(1))
 }
 
 // Spawn says who is there when the game starts fresh.
@@ -257,11 +248,11 @@ func (s *mainStage) Spawn() error {
 	s.topography.Seed(heights)
 
 	s.world.Seed(
-		s.kinds[0].Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}),
-		s.kinds[1].Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}),
-		s.kinds[2].Entry(unitRow{start: cellAt(GridWidth-3, gapRow), target: cellAt(2, gapRow)}),
+		s.kinds[0].Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		s.kinds[1].Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		s.kinds[2].Entry(unitRow{start: cellAt(GridWidth-3, gapRow), target: cellAt(2, gapRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
 		// The hawk crosses the wall and the second forest head-on.
-		s.hawk.Entry(unitRow{start: cellAt(1, 11), target: cellAt(GridWidth-2, 11)}),
+		s.hawk.Entry(unitRow{start: cellAt(1, 11), target: cellAt(GridWidth-2, 11)}).Told(players.Give{To: s.player.ID}, selection.Allow{}),
 	)
 	return nil
 }

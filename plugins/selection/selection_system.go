@@ -32,6 +32,9 @@ type SelectionSystem struct {
 	castings *control.Queue[casting] // when the plugin wires them
 	effects  *effect.Effects         // the world's, which a command casts and takes off
 	whom     []uid.UID64             // a command's targets, scratch
+	allows   *control.Queue[Allow]
+	forbids  *control.Queue[Forbid]
+	marksID  goke.CompID
 	space    *aabbworld.Space
 	tags     Tags
 
@@ -58,6 +61,7 @@ func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, 
 }
 
 func (s *SelectionSystem) Init(si *goke.SysInit) {
+	s.marksID = si.RegComp[tag.Tags[Family]]()
 	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Optional(&s.roles).Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
@@ -94,6 +98,42 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	})
 	if s.castings != nil {
 		s.castings.Drain(func(i control.Issued[casting]) { s.carry(cb, i.Player, i.Command) })
+	}
+	if s.allows != nil {
+		s.allows.Drain(func(i control.Issued[Allow]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, true, i.Command.Selected) })
+		s.forbids.Drain(func(i control.Issued[Forbid]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, false, false) })
+	}
+}
+
+// permit makes the entity that asked selectable or not — a player's selected units, when a player
+// asked: Selectable on, with Selected when asked, or off with Selected and Followed. An entity without the family gets it.
+func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UID64, byEntity, on, selected bool) {
+	set := func(m *tag.Tags[Family]) {
+		if on {
+			*m = m.With(s.tags.Selectable)
+			if selected {
+				*m = m.With(s.tags.Selected)
+			}
+		} else {
+			*m = m.Without(s.tags.Selectable).Without(s.tags.Selected).Without(s.tags.Followed)
+		}
+	}
+	if !byEntity {
+		s.whom = s.whom[:0]
+		s.eachSelected(by, 0, func(id uid.UID64) { s.whom = append(s.whom, id) })
+		for _, id := range s.whom {
+			if s.query.Seek(id) {
+				set(s.marks.At(s.query.Cursor()))
+			}
+		}
+		return
+	}
+	if s.query.Seek(id) {
+		set(s.marks.At(s.query.Cursor()))
+	} else if on {
+		var m tag.Tags[Family]
+		set(&m)
+		cb.AddOne(id, s.marksID, m)
 	}
 }
 

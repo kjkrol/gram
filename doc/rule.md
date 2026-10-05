@@ -68,8 +68,7 @@ The second argument of `rule.On` says whom the rule fires for, read before its s
 
 - `rule.All` — every entity the plugin shows it, every pair for a moment of two;
 - `rule.Self(tag)` — an entity carrying the tag, an effect's marker among them:
-  `rule.Self(frozen.Mark())`; a cell carries the game's tags of places (`cell.Tag`, of the family
-  `cell.Family`, given in the board's `Layout`) — `rule.Self(harbour)` on a `cell.Now`;
+  `rule.Self(frozen.Mark())`;
 - `rule.Between(a, b)` — a pair whose entity carries `a` and whose other carries `b` (`tag.Any`
   for either side), for a moment that is `plugin.Met`: a collision's `Meeting`, a `Sighting`, a
   navigation `Touch`;
@@ -242,13 +241,22 @@ mortal := rule.Role("mortal").Obeys(rule.On("fall in", rule.All, func(m *rule.Mo
 }))
 hasty := rule.Role("hasty")
 
-selectable, mine := comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner())
-s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(mortal, hasty))
-s.porter = units.Define("porter", land, laden, selectable, mine, rule.Plays(mortal))
+s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
+s.porter = units.Define("porter", land, laden, rule.Plays(mortal))
 s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
 	rule.Cast(haste).On(s.selection.Selected(hasty))))
 return ctx.Hook(mortal, hasty)
+
+// Spawn: a unit is told whose it is and that it may be selected as it is made
+mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+s.world.Seed(s.scout.Entry(row).Told(mine...), s.porter.Entry(row).Told(mine...))
 ```
+
+What a plugin keeps of an entity is changed by that plugin's command, not written into its kind:
+`players.Give{To}` hands a unit to a player, `selection.Allow{}` and `Forbid{}` say whether it may
+be selected, and `kind.Entry.Told(cmds...)` has the entity give them itself as it is made — so one
+kind serves several players, and a unit changes hands mid-game by the same command. They are
+carried out in the first step, a unit nobody's until then.
 
 A scout or a porter fallen into water or a hole is gone; with both selected, J hastens the scouts
 alone.
@@ -276,9 +284,11 @@ in `Init`: the world names them in its kinds as the Stage's ECS is set up. A kin
 
 **Roles mean behaviour, names and groups mean which ones.** One rule of the role plate serves
 every plate: which doors a plate opens is the command naming it. A hundred levers are a hundred
-commands, a hundred names and the same rules — never a role, a tag or an effect each. Tags are how
-the plugins keep their own states and groups — whose a unit is, whether it is selected — and
-`rule.Self`, `rule.Between` filter by them and by an effect's marker.
+commands, a hundred names and the same rules — never a role or an effect each. A game defines no
+tags: tags are how the plugins keep their own states and groups — whose a unit is, whether it is
+selected — changed by their commands (`players.Give`, `selection.Allow`); `rule.Self` and
+`rule.Between` filter by an effect's marker, and `rule.Other(role)` lets through the pairs whose
+other plays a role — `predator.Obeys(rule.Then[vision.Sighting]("chase", rule.Other(prey), …))`.
 
 ## Knobs
 

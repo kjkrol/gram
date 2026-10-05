@@ -2,13 +2,12 @@ package cell
 
 import "github.com/kjkrol/gram/rule"
 
-// Entry sets Cell to the kind named Kind — none, the board's Layout's Default kept — and gives it
-// Tags, the game's tags of places it carries for good, the Roles it plays, the Name it bears, its
-// alone, and the Group it is in with others: what commands find it by (entity.Named, entity.Group).
+// Entry sets Cell to the kind named Kind — none, the board's Layout's Default kept — and gives it,
+// for good, the Roles it plays, the Name it bears, its alone, and the Group it is in with others:
+// what commands find it by (entity.Named, entity.Group).
 type Entry struct {
 	Kind  string
 	Cell  ID
-	Tags  Tags
 	Roles []*rule.Part
 	Name  string
 	Group string

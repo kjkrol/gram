@@ -367,8 +367,7 @@ openWest := rule.Cast(open).On(entity.Group("west trapdoors"))
 openEast := rule.Cast(open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
 hasten := rule.Cast(haste).On(s.selection.Selected(hasty))
 
-s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty),
-	comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner()))
+s.scout = units.Define("scout", land, profile, rule.Plays(mortal, hasty))
 s.player.Bind(
 	control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest),
 	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
@@ -376,6 +375,9 @@ if err := ctx.Commands(openWest, openEast); err != nil {
 	return err
 }
 return ctx.Hook(mortal, hasty, plate)
+
+// Spawn: a unit is told whose it is and that it may be selected, as it is made
+s.world.Seed(s.scout.Entry(row).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 
 // Spawn: the cells are called what the commands call them
 cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}
@@ -434,7 +436,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
 | [`plugins/vision/hooks`](plugins/vision/hooks/doc.go) | Ready-made rules: `Flee`, `Chase`, `Search`, and the `Predator`/`Prey`/`Skittish`/`Threat` tags |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`; rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
-| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), the game's tags of places (`Family`, `Tag`, `Tags`), `Ground`, `Way`, `Crossing`, the moment `Now` (`Stood`); `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
+| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, the moment `Now` (`Stood`); `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
 | [`plugins/board/grid`](plugins/board/grid/doc.go) | The topology: `Grid` (neighbours, `Toward`, cells under a box), `DefaultGrids` (square, hex), `Link`, `Shape` |
 | [`plugins/board/look`](plugins/board/look/doc.go) | How a board is drawn: `Look`, `Dressing`, `Tile`, `FlatLook`, `Nothing`; the `Renderer` — composed every frame, in parallel, or once for a flat map, the grid over it |

@@ -59,6 +59,7 @@ type Entry struct {
 	kind        string
 	row         any
 	name, group string
+	told        []any
 }
 
 // Named is the entry of an entity bearing name, its alone: what entity.Named finds it by.
@@ -67,6 +68,16 @@ func (e Entry) Named(name string) Entry { e.name = name; return e }
 // InGroup is the entry of an entity in group, with any number of others: what entity.Group finds
 // it by.
 func (e Entry) InGroup(group string) Entry { e.group = group; return e }
+
+// Told is the entry of an entity given cmds as it is made — the commands it gives itself then:
+// whose it is (players.Give), whether it may be selected (selection.Allow).
+func (e Entry) Told(cmds ...any) Entry {
+	e.told = append(append([]any(nil), e.told...), cmds...)
+	return e
+}
+
+// Commands are the commands the entity gives itself as it is made.
+func (e Entry) Commands() []any { return e.told }
 
 // Name is the name the entity bears, empty for none; Group the group it is in.
 func (e Entry) Name() string { return e.name }

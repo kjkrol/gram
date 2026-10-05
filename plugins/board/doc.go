@@ -12,7 +12,7 @@
 //   - board: the [Plugin]; the [Board], a grid and its terrain, the one place to read and write
 //     it; the [Layout] it is seeded from; its [Map]; [NewUnits] for a game's kinds of units.
 //   - cell: what is said of one cell — its id and kind, the domains it admits, its ground, way and
-//     crossing, the game's tags of places, the moment of it (cell.Now), its occupancy.
+//     crossing, the moment of it (cell.Now), its occupancy.
 //   - unit: an entity on the board — the cell it is At, how it moves (Mover), where it stands at a
 //     step (Standing).
 //   - grid: the topology — a Grid, DefaultGrids, the Link from a cell to its neighbour, a Shape.
@@ -24,10 +24,10 @@
 //
 // [Plugin], built over a grid.Grid, a cell.Occupancy and the world plugin, seeds its terrain from
 // a [Layout] when the Stage starts fresh: a default kind for every cell, per-cell overrides with
-// the game's tags of places, the roles a cell plays and what it is called (cell.Entry.Roles,
+// the roles a cell plays and what it is called (cell.Entry.Roles,
 // cell.Entry.Name and Group), the ways and the crossings. The grid wraps per axis following the world's
 // edges. Once the ECS is set up every cell is an entity for good — cell.Plot, cell.Ground,
-// cell.Way, cell.Crossing, its tags and roles, an entity.Label where it is called something, and whatever the
+// cell.Way, cell.Crossing, its roles, an entity.Label where it is called something, and whatever the
 // world's roster gives every cell (Roster().Cell: a game's own component, a Load reading the
 // cell's cell.ID) — saved with the game, so an effect on it is an effect on the terrain.
 //
@@ -51,9 +51,8 @@
 // (Now.Trodden; Now.Stood for a rule's If: a plate pressed). Both are plugin.Placed, data alone:
 // the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
-// round them too — a witch's frost, fire spreading over the ground. Rules of a cell.Now filter
-// cells by the game's tags of places (rule.Self: a zone), and a Standing tells those of the cell
-// under a unit (Standing.Places). A cell playing a role obeys the role's rules (rule.Part.Obeys: a
+// round them too — a witch's frost, fire spreading over the ground. A unit's Standing tells the effects on the cell
+// under it (Standing.States, unit.Over). A cell playing a role obeys the role's rules (rule.Part.Obeys: a
 // plate, a lever), and a command finds a cell by its name or its group (entity.Named, entity.Group):
 // a plate stood on Triggers, and the command its name sets off opens the group of trapdoors. In the same
 // pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the

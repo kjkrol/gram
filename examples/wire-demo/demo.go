@@ -254,9 +254,8 @@ func (s *mainStage) defineKinds() {
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	laden := steering.Steering{MaxSpeed: UnitSpeed * 3 / 4, Accel: UnitSpeed, V0: UnitSpeed / 4, TurnRate: 0.1}
 	land := unit.Mover{Domain: cell.Land}
-	selectable, mine := comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner())
-	s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(s.roles.hasty, s.roles.handy, s.roles.mortal))
-	s.porter = units.Define("porter", land, laden, selectable, mine, rule.Plays(s.roles.mortal))
+	s.scout = units.Define("scout", land, profile, rule.Plays(s.roles.hasty, s.roles.handy, s.roles.mortal))
+	s.porter = units.Define("porter", land, laden, rule.Plays(s.roles.mortal))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	s.wanderer = units.Define("wanderer", land, profile, rule.Plays(s.roles.mortal),
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
@@ -291,10 +290,10 @@ func (s *mainStage) Spawn() error {
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(3+2*i, yardRow)}))
+		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(3+2*i, yardRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	for i := range uint32(2) {
-		s.world.Seed(s.porter.Entry(unitRow{start: cellAt(4+2*i, yardRow+1)}))
+		s.world.Seed(s.porter.Entry(unitRow{start: cellAt(4+2*i, yardRow+1)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	for _, row := range rows {
 		s.world.Seed(s.wanderer.Entry(unitRow{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))

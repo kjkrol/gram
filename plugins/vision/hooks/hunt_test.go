@@ -41,12 +41,12 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 1, MaxSize: 100},
 	})
 	v := vision.NewPlugin(w)
-	tags := hooks.DefineTags(w.Kinds())
-	rules := []rule.Rule{hooks.Chase(tags)}
+	preyRole := rule.Role("prey")
+	predator := rule.Role("predator").Obeys(hooks.Chase(preyRole))
 	if lookEvery > 0 {
-		rules = append(rules, hooks.Search(tags, hooks.Looked(w, lookEvery)))
+		predator.Obeys(hooks.Search(preyRole, hooks.Looked(w, lookEvery)))
 	}
-	if err := v.Hook(rules...); err != nil {
+	if err := v.Hook(predator.Rules()...); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}
 
@@ -63,9 +63,9 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 		comp.Const(world.Velocity{Dir: east, Value: 1}),
 		comp.Const(vision.Sight{Facing: east, Radius: 600}), comp.Const(world.Eye{Angle: 2 * math.Pi / 2.5}), comp.Const(vision.Sighted{}),
 		comp.Const(steering.Steering{}), comp.Const(steering.Course{}),
-		comp.Tagged(tags.Predator),
+		rule.Plays(predator),
 	})
-	preyKind := kind.Define[huntBody](w.Kinds(), "prey", kind.Spec{comp.Load(huntAt), comp.Const(world.Velocity{}), comp.Tagged(tags.Prey)})
+	preyKind := kind.Define[huntBody](w.Kinds(), "prey", kind.Spec{comp.Load(huntAt), comp.Const(world.Velocity{}), rule.Plays(preyRole)})
 	bystanderKind := kind.Define[huntBody](w.Kinds(), "bystander", kind.Spec{comp.Load(huntAt), comp.Const(world.Velocity{})})
 
 	w.Seed(hunters.Entry(hunter))
@@ -80,7 +80,7 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 	}
 
 	var base goke.Comp[world.Base]
-	var marks goke.Comp[tag.Tags[hooks.Family]]
+	var marks goke.Comp[tag.Tags[rule.Roles]]
 	var query *goke.Query
 	var systems []goke.System
 	for _, produce := range ctx.pending {
@@ -101,7 +101,7 @@ func search(t *testing.T, lookEvery time.Duration, ticks int, hunter huntBody, p
 	for query.Next() {
 		cur := query.Cursor()
 		for i, got := range base.Slice(cur) {
-			if marks.Slice(cur)[i].Has(tags.Predator) {
+			if marks.Slice(cur)[i].Has(predator.Tag()) {
 				out = got.Vel.Dir
 			}
 		}

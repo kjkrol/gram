@@ -23,13 +23,12 @@
 //	cell.Entry{Kind: "plate", Cell: c, Roles: []*rule.Part{plate}, Name: "plate"}
 //	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
 //
-// # Tags and Now
+// # Now
 //
-// A cell carries for good the game's tags of places ([Family]: a [Tag], [Tags]) — a zone, a
-// district — given in the Layout (Entry.Tags). [Now] is the cell at a step as a rule gets it: the
-// board runs the rules of it for every cell, filtered by those tags or by effects' markers
-// (rule.Self), or obeyed by the roles the cell plays (rule.Part.Obeys); it is plugin.Placed, so a
-// rule's Here acts on the cell and Around on the rings round it. Now.Trodden says the centre of a
+// [Now] is the cell at a step as a rule gets it: the board runs the rules of it for every cell,
+// obeyed by the roles the cell plays (rule.Part.Obeys) or filtered by effects' markers
+// (rule.Self); it is plugin.Placed, so a rule's Here acts on the cell and Around on the rings
+// round it. Now.Trodden says the centre of a
 // unit lies on the cell this step, and [Now.Stood] is that for a rule's If — a plate setting its
 // command off while someone stands on it:
 //

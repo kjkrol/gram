@@ -189,6 +189,7 @@ func TestThrow_AGrenadeBurstsBehindTheHighWall(t *testing.T) {
 	s.test = t
 	walker := s.wandererOn(s.cellAt(9, 4))
 	at := s.brd.CellCenter(s.cellAt(10, 4))
+	s.tick(1) // the soldier is told whose it is and selected as it is made: carried out in the first tick
 	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.grenade, At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
 		t.Fatal(err)
 	}

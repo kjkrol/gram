@@ -135,7 +135,8 @@ many's, one of each at most, saved. `Playing(role, step)` runs the step while th
 `Here`/`Around` the place turned to (`plugin.Tick.Roles`, `steps.Plans.Roles`): a handy unit pulls
 the lever beside it and nothing else there. Tags are bits of a family, not component types
 (`entity/tag`, a leaf): `tag.Tags[F]` is one component holding up to 64 tags of
-family `F` (an empty type a plugin or a game names the family by: `selection.Family`,
+family `F` (an empty type a plugin names the family by — tags are the plugins' technique, a game says roles,
+names, groups and the plugins' commands: `selection.Family`,
 `hooks.Family` in vision), `kinds.DefineTag[F](name)` hands out the bits by name through
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
 to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
@@ -182,8 +183,8 @@ what its entities carry and are drawn from. `kind` never imports `world`
 (`world` imports it), which is why a kind's id is `kind.ID` and the registry,
 `world.Kinds`, sits behind the `kind.Registry` interface; it also issues atlas
 slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
-every component type its kinds carry (`Kinds.LoadComps`), so a game's own tags
-and state (`hooks.Predator`, a game's own component) survive a save without being registered
+every component type its kinds carry (`Kinds.LoadComps`), so the roles a kind plays
+and a game's own components survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKinds().Create`.
 
@@ -659,8 +660,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `NewUnits`; the ground the others meet is its field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
-  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the game's tags of
-  places (`cell.Family`, `cell.Tag`, `cell.Tags`), the moment `cell.Now`, the Layout's entries
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the moment `cell.Now`, the Layout's entries
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
@@ -752,11 +752,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `m.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
   reentrant) — the effect demo's
   witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
-  `Plugin.Hook` routes by the moment's type. Every cell carries for good the game's tags of
-  places, `cell.Tags` (defined by name through the world's kinds, given in the
-  `Layout` as `cell.Entry.Tags` before the cells are made — tagging panics after): a rule
-  of a `cell.Now` filters cells with `rule.Self(tag)` (the trapdoor demo's strips), and
-  `Standing.Places` are those of the cell under a unit . A cell plays the roles of its `cell.Entry.Roles` (a
+  `Plugin.Hook` routes by the moment's type. The cells' tags of places (`cell.Tags`, `Standing.Places`)
+  were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its `cell.Entry.Roles` (a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
   and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
   for a name walks few), both for good: the wire demo's plate, lever, trapdoors and gate. The unit's own cell component is `unit.At{Cell}` (was
@@ -984,7 +981,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   the role mortal" in their String); `plan.New(name, func(a *plan.Actor) rule.Step)` is the component a kind gives its
   entities (a `steps.Mind`, registered by its name hashed, one name one plan); the world runs the
   plans (`steps.NewPlans`). `rule.Step` is an alias of `steps.Step`; `Mind`, `Asked`, `Replied`,
-  `Chain`, `Answer` are `internal/steps`' own: `rule` and `rule/plan` are the faces of one engine. Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side),
+  `Chain`, `Answer` are `internal/steps`' own: `rule` and `rule/plan` are the faces of one engine. Filters: `All`, `Self(tag)`, `Between(a, b)` (pairs, `tag.Any` for either side), `Other(role)` (the other of a pair plays it),
   `Having[T]()`. Moments are `plugin.About` (`Who()`), pairs `plugin.Met` (`Whom`), standing on places
   of their own `plugin.Placed` (a marker, `Placed()`; the host tells the places round in
   `plugin.Tick.Around`: `unit.Standing`, `cell.Now`). A Moment's
@@ -1033,7 +1030,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Alter[cell.Ground]` is a temporary change of terrain.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from
-  `Plugin.Tags()` (a kind's choice via `comp.Tagged`); a bit flip, seen
+  `Plugin.Tags()` (for plugins; every unit carries the family, off, and is told `Allow{}` as it is
+  made; `Plugin.IsSelected` is a drawing rule's condition); a bit flip, seen
   the same tick. A `plugin.CommandHandler`: its `DefaultBindings()` make a left drag one (Shift adds),
   the left button held a `Marquee` (the box being dragged, drawn by its renderer in the dragging
   camera's view until the `Select` that ends it), the commands about effects for its own targets (`Plugin.Selected(roles...)`, the giving
@@ -1049,8 +1047,14 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
   by selection, navigation's `moveCommandSystem` and the topography's cameras (`theSelected`):
-  a player selects, orders and rides only its own units. A game gives a kind to a player with
-  `comp.Tagged(player.Owner())`; a side of its own (the wild, a rival) is `players.Add` owning
+  a player selects, orders and rides only its own units. A unit is a player's by the command
+  `players.Give{To}` (its one owner; `plugins/players/give.go`, the players' own system, drained
+  in their pass), which it gives itself as it is made — `kind.Entry.Told(cmds...)`, the world
+  putting an entry's commands for the new entity (`spawnRows`), refusing one no plugin carries
+  out — or later; `selection.Allow{Selected}`/`Forbid{}` the same for whether it may be selected.
+  Both families every unit carries, all off (roster defaults; attached where missing), so a kind
+  names no tag and serves several players; told at spawn, a unit is nobody's and unselectable
+  through its first step. A side of its own (the wild, a rival) is `players.Add` owning
   its units; the island's blue walkers are such a rival's.
 - **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
   `players.NewPlugin(world, s.selection, s.nav, ...)` has the world carry each one's `Queues()`
@@ -1070,8 +1074,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   imports players. `Viewports(screen)` is what a Scene showing the world returns as its
   `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
   draws nothing, the Scene lists every layer itself. `NewPlugin` registers the owners' family
-  (`players/owner`) with the world's kinds, 64 names saved by name; `Player.Owner()` is the
-  player's tag. Its `eventHandler` is the layer from input to
+  (`players/owner`) with the world's kinds, 64 names saved by name. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.
@@ -1107,9 +1110,9 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
   fails with none in view. Ready-made rules live in the flat `vision/hooks` package
-  (`hooks.DefineTags`; `Flee(tags, fleeing)` — two rules, away from the nearest Threat, else from
-  the nearest one closing, `During` a world effect the game puts on and takes off with
-  a command for `entity.World`; `Chase(tags)` — `Toward` the nearest Prey; `Search(tags,
+  (rules for a game's roles to obey: `Flee(threat, fleeing)` — two rules, away from the nearest one
+  playing threat, else from the nearest one closing, `During` a world effect the game puts on and takes off with
+  a command for `entity.World`; `Chase(prey)` — `Toward` the nearest one playing prey; `Search(prey,
   hooks.Looked(w, d))` — a quarter `Turn` either way, `Unless` it looked within `d`); a file using
   both plugins' hooks imports them as `chooks`/`vhooks`. `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless

@@ -20,9 +20,8 @@ type TerrainMap struct {
 	// Kind leaves them out — the board lays them over.
 	Ways      map[ID]Way
 	Crossings map[ID]Crossing
-	// Tags are the game's tags of places the cells carry for good, the Layout's; Roles the roles they
-	// play and Labels what they are called — a name, a group — the Layout's too.
-	Tags   map[ID]Tags
+	// Roles are the roles the cells play and Labels what they are called — a name, a group — for
+	// good, the Layout's.
 	Roles  map[ID]tag.Tags[rule.Roles]
 	Labels map[ID]entity.Label
 
@@ -81,14 +80,6 @@ func (t *TerrainMap) SetCrossing(c ID, x Crossing) {
 		t.Crossings[c] = x
 	}
 	t.version++
-}
-
-// Tag gives c the tags besides those it carries; the terrain's Version stays as it was.
-func (t *TerrainMap) Tag(c ID, tags Tags) {
-	if t.Tags == nil {
-		t.Tags = make(map[ID]Tags)
-	}
-	t.Tags[c] |= tags
 }
 
 // Cast has c play roles besides those it plays; the terrain's Version stays as it was.

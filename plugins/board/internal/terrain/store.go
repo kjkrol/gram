@@ -18,13 +18,11 @@ type store struct {
 	grounds   *goke.Query
 	ways      *goke.Query
 	crossings *goke.Query
-	tagged    *goke.Query
 	stated    *goke.Query
 	plot      goke.Comp[cell.Plot]
 	ground    goke.Comp[cell.Ground]
 	way       goke.Comp[cell.Way]
 	crossing  goke.Comp[cell.Crossing]
-	tags      goke.OptComp[cell.Tags]
 	states    goke.OptComp[tag.Tags[effect.States]]
 }
 
@@ -44,17 +42,6 @@ func (s *store) wayOf(i int) *cell.Way {
 func (s *store) crossingOf(i int) *cell.Crossing {
 	s.seek(s.crossings, i)
 	return s.crossing.At(s.crossings.Cursor())
-}
-
-// tagsOf are the game's tags of places the i-th cell carries.
-func (s *store) tagsOf(i int) cell.Tags {
-	if !s.tagged.SeekH(s.ids[i]) && !s.tagged.Seek(s.ids[i]) {
-		return 0
-	}
-	if t := s.tags.At(s.tagged.Cursor()); t != nil {
-		return *t
-	}
-	return 0
 }
 
 // statesOf are the markers of the effects on the i-th cell.
