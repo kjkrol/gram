@@ -189,8 +189,9 @@ func (s *mainStage) defineEffects() {
 
 // defineRules says the one role: a mortal standing where nothing holds it falls in.
 func (s *mainStage) defineRules() {
-	s.mortal = rule.Role("mortal").Obeys(
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.mortal = s.world.Roles().Named("mortal")
 }
 
 // defineCommands names what can be asked for: each lever opens its own strip of trapdoors, a group

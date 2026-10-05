@@ -53,7 +53,8 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	g.role = map[string]*rule.Part{}
 	for _, name := range g.roles {
-		g.role[name] = rule.Role(name)
+		g.world.Roles().Define(name)
+		g.role[name] = g.world.Roles().Named(name)
 	}
 	g.mood = map[string]tag.Tag[moods]{}
 	for _, name := range g.moods {
@@ -153,7 +154,9 @@ func TestRoles_PlayedByAKind(t *testing.T) {
 
 func TestRoles_PlaysTwiceInOneKindPanics(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
-	mortal, hasty := rule.Role("mortal"), rule.Role("hasty")
+	w.Roles().Define("mortal")
+	w.Roles().Define("hasty")
+	mortal, hasty := w.Roles().Named("mortal"), w.Roles().Named("hasty")
 
 	msg := panicMessage(t, func() {
 		kind.Define[struct{}](w.Kinds(), "scout", kind.Spec{

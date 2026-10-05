@@ -50,7 +50,7 @@ func noteOf[P any](name string, filter rule.Filter) rule.Rule {
 }
 
 // narrowed is r for the players of a role alone, as a role's Obeys makes it.
-func narrowed(r rule.Rule) rule.Rule { return rule.Role("hookon scout").Obeys(r).Rules()[0] }
+func narrowed(r rule.Rule) rule.Rule { return rule.NewPart("hookon scout", 0).Obeys(r).Rules()[0] }
 
 // host is a made-up plugin's host of rules over the one its adder is — a plugin.Rules, PairRules
 // or StepRules — counting what it is asked and keeping what it took.
@@ -202,7 +202,7 @@ func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 func TestDeliver_ARoleIsDeliveredRuleByRule(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	role := rule.Role("hosts early").Obeys(noteOf[dawn]("wake", rule.All), noteOf[poke]("drown", rule.All))
+	role := rule.NewPart("hosts early", 1).Obeys(noteOf[dawn]("wake", rule.All), noteOf[poke]("drown", rule.All))
 
 	if err := hosts.Deliver([]plugin.Host{pokes, dawns}, role); err != nil {
 		t.Fatalf("Deliver = %v", err)

@@ -58,8 +58,9 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 		fx.Define(name, effect.Spec{effect.Lasts(time.Hour)})
 		g.states = append(g.states, fx.Named(name))
 	}
-	watcher := rule.Role("sky watcher").Obeys(
+	g.world.Roles().Define("sky watcher",
 		rule.Then[world.Moving]("lit by the storm", rule.All, rule.While(g.sky, g.storm, rule.Keep(g.lit))))
+	watcher := g.world.Roles().Named("sky watcher")
 	g.scout = kind.Define[struct{}](g.world.Kinds(), "scout", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),

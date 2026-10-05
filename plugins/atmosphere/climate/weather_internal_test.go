@@ -305,7 +305,7 @@ func TestClimate_TakesARolesRuleAndRefusesAFilteredOne(t *testing.T) {
 	}
 	for name, r := range map[string]rule.Rule{
 		"every":  every,
-		"a role": rule.Role("climate sheltered").Obeys(every).Rules()[0],
+		"a role": rule.NewPart("climate sheltered", 0).Obeys(every).Rules()[0],
 	} {
 		if err := c.Rules().Add(r); err != nil {
 			t.Errorf("%s: Add = %v; want it taken", name, err)

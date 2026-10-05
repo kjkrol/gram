@@ -201,17 +201,20 @@ func (s *mainStage) defineEffects() {
 // wounds it, or takes it if wounded already; a grenade landing lights its fuse, bangs as the fuse
 // is up, and its blast takes whoever stands within a cell and wounds the rest within its radius.
 func (s *mainStage) defineRules() {
-	s.mortal = rule.Role("mortal")
-	s.shot = rule.Role("round").Obeys(
+	s.world.Roles().Define("mortal")
+	s.mortal = s.world.Roles().Named("mortal")
+	s.world.Roles().Define("round",
 		rule.Then[collision.Meeting]("shot", rule.Other(s.mortal),
 			rule.ForOther(rule.OneOf(rule.Under(s.wounded, rule.Order(world.Despawn{})), rule.Apply(s.wounded)))))
-	s.thrown = rule.Role("grenade").Obeys(
+	s.shot = s.world.Roles().Named("round")
+	s.world.Roles().Define("grenade",
 		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.fuse)),
 		rule.Then[bullet.Blast]("blast", rule.Other(s.mortal), rule.ForOther(rule.OneOf(
 			rule.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, rule.Order(world.Despawn{})),
 			rule.Apply(s.wounded),
 		))),
 		rule.Then[bullet.Resting]("bang", rule.Self(s.bang.Mark()), rule.Order(bullet.Burst{Radius: blastRadius})))
+	s.thrown = s.world.Roles().Named("grenade")
 }
 
 // bindKeys gives the player the game's own keys: W, S, A and D drive the soldier, Space shoots a

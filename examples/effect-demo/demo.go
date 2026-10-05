@@ -175,15 +175,17 @@ func (s *mainStage) defineRoles() {
 	frost, iced := effects.Named("frost"), effects.Named("iced")
 	frozen, slip := effects.Named("frozen"), effects.Named("slip")
 
-	s.lake = rule.Role("lake") // the water plays it: where the witch's winter is ice
+	s.world.Roles().Define("lake") // the water plays it: where the witch's winter is ice
+	s.lake = s.world.Roles().Named("lake")
 	s.board.Plays("water", s.lake)
-	s.witchy = rule.Role("witch").Obeys(
+	s.world.Roles().Define("witch",
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(s.lake, rule.Apply(iced)),
 			rule.Apply(frost),
 		))),
 	)
-	s.mortal = rule.Role("mortal").Obeys(
+	s.witchy = s.world.Roles().Named("witch")
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("fallen in", rule.All,
 			rule.If(unit.Standing.Fallen, rule.OneOf(
 				rule.If(unit.Over(iced), rule.Keep(frozen)),
@@ -192,6 +194,7 @@ func (s *mainStage) defineRoles() {
 		rule.Then[unit.Standing]("on the ice", rule.All,
 			rule.If(rule.Not(unit.Standing.Fallen), rule.If(unit.Over(iced), rule.Keep(slip)))),
 	)
+	s.mortal = s.world.Roles().Named("mortal")
 }
 
 func (s *mainStage) defineKinds() {

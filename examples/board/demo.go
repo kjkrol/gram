@@ -169,8 +169,9 @@ func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.wea
 
 // defineRules says the one role: a mortal in the water drowns.
 func (s *mainStage) defineRules() {
-	s.mortal = rule.Role("mortal").Obeys(
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.mortal = s.world.Roles().Named("mortal")
 }
 
 // defineLooks has the views drawn be the selected units' alone.

@@ -125,7 +125,8 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	type part func(s *sectioned, ctx game.Initializer) error
 	useAPlugin := func(s *sectioned, ctx game.Initializer) error { return ctx.Use(&stubPlugin{name: "late"}) }
 	plays := func(s *sectioned, _ game.Initializer) error {
-		s.world.Plays(rule.Role("sectioned").Obeys(rule.Then[clock.Moment]("leave", rule.All, rule.Order(world.Despawn{}))))
+		s.world.Roles().Define("sectioned", rule.Then[clock.Moment]("leave", rule.All, rule.Order(world.Despawn{})))
+		s.world.Plays(s.world.Roles().Named("sectioned"))
 		return nil
 	}
 	effectDefined := func(s *sectioned, _ game.Initializer) error {
@@ -141,12 +142,12 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		kinds  bool   // done in Kinds, a wrong place, rather than in Effects
 		panics bool
 	}{
-		"a plugin used":         {do: useAPlugin, wants: "Plugins"},
-		"the world given roles": {do: plays, wants: "Rules", kinds: true, panics: true},
-		"an effect defined":     {do: effectDefined, wants: "Effects", kinds: true, panics: true},
-		"a kind defined":        {do: kindDefined, wants: "Kinds", panics: true},
-		"drawing rules given":   {do: draw, wants: "Looks"},
-		"commands handed":       {do: commands, wants: "Commands"},
+		"a plugin used":       {do: useAPlugin, wants: "Plugins"},
+		"a role defined":      {do: plays, wants: "Rules", kinds: true, panics: true},
+		"an effect defined":   {do: effectDefined, wants: "Effects", kinds: true, panics: true},
+		"a kind defined":      {do: kindDefined, wants: "Kinds", panics: true},
+		"drawing rules given": {do: draw, wants: "Looks"},
+		"commands handed":     {do: commands, wants: "Commands"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &sectioned{}

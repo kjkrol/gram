@@ -121,7 +121,9 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 			a, b, c, d, e := cells[0], cells[1], cells[2], cells[3], cells[4]
 			snow := cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
 			_, _, brd, probe := installCells(t, g, func(w *world.Plugin, brd *board.Plugin) {
-				trapdoor, plate = rule.Role("trapdoor"), rule.Role("plate")
+				w.Roles().Define("trapdoor")
+				w.Roles().Define("plate")
+				trapdoor, plate = w.Roles().Named("trapdoor"), w.Roles().Named("plate")
 				land := func(name string) cell.Kind { return cell.Kind{Name: cell.Named(name), Cost: 1, Allows: cell.Land} }
 				brd.CellKinds().Create(land("door"), land("plate"), land("both"))
 				brd.Plays("door", trapdoor)

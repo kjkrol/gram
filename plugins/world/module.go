@@ -111,9 +111,6 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
-	for _, name := range rule.RoleNames() { // the roles by name, as a save carries them
-		w.kinds.DefineTag[rule.Roles](name)
-	}
 	ecs.RegSys(w.selves.system())                        // before the clock's, which finds its State on the world's own
 	w.castingsRunnable = ecs.RegSys(w.castings.system()) // first: a step's commands land with its effects
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))

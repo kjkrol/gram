@@ -43,8 +43,9 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 				noted = w.Effects().Named("noted")
 			}).
 			Rules(func() {
-				weatherwise := rule.Role("weatherwise").Obeys(
+				w.Roles().Define("weatherwise",
 					rule.Then[climate.Weathering]("note the weather", rule.All, rule.Keep(noted)))
+				weatherwise := w.Roles().Named("weatherwise")
 				if plays {
 					a.Plays(weatherwise)
 				} else {

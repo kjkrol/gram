@@ -66,6 +66,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 	if err := g.hook(g); err != nil {
 		return err
 	}
+	g.world.Roles().Define("trigger unit", g.rules...)
 	g.unit = kind.Define[spot](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(s spot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x, 100), 10, 10)}
@@ -73,7 +74,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
 		comp.Const(collision.Collider{}),
 		comp.Const(tally{}),
-		rule.Plays(rule.Role("trigger unit").Obeys(g.rules...)),
+		rule.Plays(g.world.Roles().Named("trigger unit")),
 		comp.Load(func(s spot) tag.Tags[roles] {
 			if s.bullet {
 				return tag.Tags[roles](0).With(g.bullet)

@@ -217,7 +217,8 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	a, _ := grid.CellIndex(1, 1)
 	b, _ := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-		marked := rule.Role("marked").Obeys(rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
+		pw.w.Roles().Define("marked", rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
+		marked := pw.w.Roles().Named("marked")
 		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("marked"), Cost: 1, Allows: cell.Land})
 		pw.brd.Plays("marked", marked)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
@@ -235,7 +236,8 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	middle, _ := grid.CellIndex(3, 3)
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
-		plate := rule.Role("plate")
+		pw.w.Roles().Define("plate")
+		plate := pw.w.Roles().Named("plate")
 		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
 		pw.brd.Plays("plate", plate)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})

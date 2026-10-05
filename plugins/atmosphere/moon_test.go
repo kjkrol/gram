@@ -97,9 +97,10 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})
 		full = n.w.Effects().Named("full risen")
 	}, func(n *night) {
-		n.a.Plays(rule.Role("moon watcher").Obeys(
+		n.w.Roles().Define("moon watcher",
 			rule.Then[sky.Moonrise]("a rise", rule.All, rule.Apply(risen)),
-			rule.Then[sky.Moonrise]("a full rise", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(full)))))
+			rule.Then[sky.Moonrise]("a full rise", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(full))))
+		n.a.Plays(n.w.Roles().Named("moon watcher"))
 	})
 	rises, fulls := 0, 0
 	wasRisen, wasFull := false, false

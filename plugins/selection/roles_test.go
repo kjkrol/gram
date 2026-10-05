@@ -62,7 +62,9 @@ func newSquad(t *testing.T) *squad {
 	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
 	s.rally = w.Effects().Named("rally")
 	s.names = map[effect.Effect]string{s.haste: "haste", s.rally: "rally"}
-	s.mortal, s.hasty = rule.Role("mortal"), rule.Role("hasty")
+	w.Roles().Define("mortal")
+	w.Roles().Define("hasty")
+	s.mortal, s.hasty = w.Roles().Named("mortal"), w.Roles().Named("hasty")
 	tags := sel.Tags()
 	define := func(name string, roles ...*rule.Part) {
 		spec := kind.Spec{

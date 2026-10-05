@@ -177,10 +177,12 @@ func (s *mainStage) defineEffects() {
 // defineRules says the roles: a plate stood on sets off its command, and a mortal standing where
 // nothing holds it falls in. Every cell laid as a plate plays the plate.
 func (s *mainStage) defineRules() {
-	s.plate = rule.Role("plate").Obeys(
+	s.world.Roles().Define("plate",
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-	s.mortal = rule.Role("mortal").Obeys(
+	s.plate = s.world.Roles().Named("plate")
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.mortal = s.world.Roles().Named("mortal")
 	s.board.Plays("plate", s.plate)
 }
 

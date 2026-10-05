@@ -202,15 +202,20 @@ func (s *mainStage) defineEffects() {
 // defineRoles says what sets a command off, and what the units can do and suffer. A plate stood on
 // and a lever pulled Trigger; which command that is, the command says (By).
 func (s *mainStage) defineRoles() {
-	s.roles.plate = rule.Role("plate").Obeys(
+	s.world.Roles().Define("plate",
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-	s.roles.lever = rule.Role("lever") // does nothing of its own: a handy unit beside it pulls it
-	s.roles.hasty = rule.Role("hasty")
-	s.roles.handy = rule.Role("handy").Obeys(
+	s.roles.plate = s.world.Roles().Named("plate")
+	s.world.Roles().Define("lever") // does nothing of its own: a handy unit beside it pulls it
+	s.roles.lever = s.world.Roles().Named("lever")
+	s.world.Roles().Define("hasty")
+	s.roles.hasty = s.world.Roles().Named("hasty")
+	s.world.Roles().Define("handy",
 		rule.Then[unit.Standing]("pull the lever beside", rule.All,
 			rule.Under(s.effects.pull, rule.Around(1, rule.Playing(s.roles.lever, rule.Trigger())))))
-	s.roles.mortal = rule.Role("mortal").Obeys(
+	s.roles.handy = s.world.Roles().Named("handy")
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.roles.mortal = s.world.Roles().Named("mortal")
 	// the cells laid as a plate and as a lever play those roles
 	s.board.Plays("plate", s.roles.plate)
 	s.board.Plays("lever", s.roles.lever)

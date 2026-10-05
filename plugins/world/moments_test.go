@@ -42,12 +42,14 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			t.Fatal(err)
 		}
 		// the world plays the role whose rules these are; a role it does not play stays silent
-		w.Plays(rule.Role("clockwork").Obeys(
+		w.Roles().Define("clockwork",
 			rule.Then[clock.Moment]("once", rule.All, rule.If(clock.At(5*tick), rule.Order(heard{Rule: "once"}))),
 			rule.Then[clock.Moment]("daily", rule.All, rule.If(clock.Every(4*tick, 2*tick), rule.Order(heard{Rule: "daily"}))),
 			rule.Then[clock.Moment]("dusk", rule.All, rule.If(clock.At(3*tick), rule.Apply(dusk))),
-		))
-		unplayed := rule.Role("unplayed").Obeys(rule.Then[clock.Moment]("never", rule.All, rule.Order(heard{Rule: "never"})))
+		)
+		w.Plays(w.Roles().Named("clockwork"))
+		w.Roles().Define("unplayed", rule.Then[clock.Moment]("never", rule.All, rule.Order(heard{Rule: "never"})))
+		unplayed := w.Roles().Named("unplayed")
 		fired := map[string][]time.Duration{}
 		var inNight []bool
 

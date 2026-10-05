@@ -44,6 +44,7 @@ func (r *Resources) Persisted() []any { return r.Camera.Persisted() }
 type Plugin struct {
 	Res      Resources
 	module   *module
+	roles    Roles
 	*Self    // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
@@ -90,6 +91,7 @@ func NewPlugin(cfg Config) *Plugin {
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
+	p.roles.w = p
 	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
@@ -107,6 +109,9 @@ func (p *Plugin) must(what string, want ...section.Part) {
 		panic("world: " + err.Error())
 	}
 }
+
+// Roles are the roles of this Stage, by name: where a game defines them and finds them again.
+func (p *Plugin) Roles() *Roles { return &p.roles }
 
 // Roster is what this world's plugins ask of the kinds a game defines; build a unit's Spec through
 // Roster().Unit.Spec.

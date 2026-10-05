@@ -148,9 +148,10 @@ func (s *mainStage) defineEffects() {
 // defineRoles says who does what: the hunter goes after the prey it sees, looks round when it sees
 // none, and takes the one it catches; the prey steer clear of the hunter and of each other.
 func (s *mainStage) defineRoles() {
-	s.hunted = rule.Role("prey")
+	s.world.Roles().Define("prey")
+	s.hunted = s.world.Roles().Named("prey")
 	quarter := steering.Turn{Angle: math.Pi / 2}
-	s.predator = rule.Role("predator").Obeys(
+	s.world.Roles().Define("predator",
 		rule.Then[vision.Sighting]("chase", rule.Other(s.hunted), rule.Order(steering.Toward{})),
 		// seeing none, it turns a quarter aside, either way, once every while it has looked
 		rule.Then[vision.Sighting]("search", rule.Other(s.hunted),
@@ -158,11 +159,13 @@ func (s *mainStage) defineRoles() {
 				rule.Apply(s.looked),
 				rule.OneOf(rule.Chance(0.5, rule.Order(quarter)), rule.Order(steering.Turn{Angle: -quarter.Angle})))))),
 		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{}))))
-	s.skittish = rule.Role("skittish").Obeys(
+	s.predator = s.world.Roles().Named("predator")
+	s.world.Roles().Define("skittish",
 		rule.Then[vision.Sighting]("flee the hunter", rule.Other(s.predator),
 			rule.During(s.fleeing, rule.Order(steering.Away{}))),
 		rule.Then[vision.Sighting]("give way", rule.All,
 			rule.During(s.fleeing, rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))))
+	s.skittish = s.world.Roles().Named("skittish")
 }
 
 // defineCommands names the one thing to ask for: the prey flee, or stop fleeing.

@@ -177,8 +177,9 @@ func (s *mainStage) defineEffects() {
 
 // defineRules says the one role: the moody are angry while the world is in a rage.
 func (s *mainStage) defineRules() {
-	s.moody = rule.Role("moody").Obeys(
+	s.world.Roles().Define("moody",
 		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.rage, rule.Keep(s.angry))))
+	s.moody = s.world.Roles().Named("moody")
 }
 
 // defineKinds says the three kinds, and the sprites the drawing rules choose among.

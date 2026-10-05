@@ -213,11 +213,13 @@ func (s *mainStage) defineEffects() {
 // defineRules says the roles: a mortal in the water drowns, and a full moon rising is a blood
 // moon — a rule of the moonrise, which the atmosphere plays.
 func (s *mainStage) defineRules() {
-	s.mortal = rule.Role("mortal").Obeys(
+	s.world.Roles().Define("mortal",
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	s.mortal = s.world.Roles().Named("mortal")
 	bloodMoon := s.world.Effects().Named("blood moon")
-	s.atmosphere.Plays(rule.Role("lunar").Obeys(
-		rule.Then[sky.Moonrise]("a blood moon rises", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon)))))
+	s.world.Roles().Define("lunar",
+		rule.Then[sky.Moonrise]("a blood moon rises", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon))))
+	s.atmosphere.Plays(s.world.Roles().Named("lunar"))
 }
 
 // defineCommands names the one thing to ask for: the blood moon, on or off.

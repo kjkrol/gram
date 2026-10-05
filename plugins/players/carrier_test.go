@@ -41,7 +41,8 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	fragile := rule.Role("fragile").Obeys(rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{})))
+	s.world.Roles().Define("fragile", rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{})))
+	fragile := s.world.Roles().Named("fragile")
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}

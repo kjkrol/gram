@@ -159,8 +159,9 @@ func (s *mainStage) defineEffects() {
 
 // defineRules says the one role: a body striking something is hit.
 func (s *mainStage) defineRules() {
-	s.body = rule.Role("body").Obeys(
+	s.world.Roles().Define("body",
 		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.hit)))
+	s.body = s.world.Roles().Named("body")
 }
 
 // defineLooks has whoever is hit drawn under the hit's overlay.

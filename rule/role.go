@@ -1,9 +1,7 @@
 package rule
 
 import (
-	"fmt"
 	"slices"
-	"sync"
 
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -12,50 +10,19 @@ import (
 // Roles is the family of roles: one tag.Tags[Roles] on an entity holds every role it plays.
 type Roles struct{}
 
-// Part is a role an entity plays, as Role makes it: the rules those playing it obey (Obeys). Give
-// it to a kind with Plays, to a kind of cell with board.Plugin.Plays, to a plugin with its own
-// Plays: the engine hands the rules of a role somebody plays to the plugins catching their moments.
+// Part is a role an entity plays, defined in a Stage's world (world.Roles.Define) and found
+// there by its name (Named): the rules those playing it obey. Give it to a kind with Plays, to a
+// kind of cell with board.Plugin.Plays, to a plugin with its own Plays: the engine hands the rules
+// of a role somebody plays to the plugins catching their moments.
 type Part struct {
 	name  string
 	tag   tag.Tag[Roles]
 	rules []Rule
 }
 
-// Role is the role named name, ready for its rules. A role means a behaviour —
-// mortal, hasty, a trapdoor — not a group: a program names 64 at most. Each call is a new Part;
-// one name is one tag, which a world saves by the name.
-func Role(name string) *Part { return &Part{name: name, tag: roleTag(name)} }
-
-// names are the roles' names in the order of their tags, for every Part a program makes.
-var names = struct {
-	sync.Mutex
-	order []string
-	tags  map[string]tag.Tag[Roles]
-}{tags: map[string]tag.Tag[Roles]{}}
-
-// roleTag is name's tag, given at its first Role.
-func roleTag(name string) tag.Tag[Roles] {
-	names.Lock()
-	defer names.Unlock()
-	if t, ok := names.tags[name]; ok {
-		return t
-	}
-	if len(names.order) == tag.MaxTagsPerFamily {
-		panic(fmt.Sprintf("rule: cannot define the role %q: a program names at most %d roles", name, tag.MaxTagsPerFamily))
-	}
-	t := tag.Tag[Roles](len(names.order))
-	names.order = append(names.order, name)
-	names.tags[name] = t
-	return t
-}
-
-// RoleNames are the names of the roles defined so far, in the order of their tags: what a world
-// names in its kinds, so a save carries the roles by name.
-func RoleNames() []string {
-	names.Lock()
-	defer names.Unlock()
-	return append([]string(nil), names.order...)
-}
+// NewPart is the role named name with the tag t of Roles: for the world, whose register of a
+// Stage's roles (world.Roles) hands the tags out and is where a game defines its roles.
+func NewPart(name string, t tag.Tag[Roles]) *Part { return &Part{name: name, tag: t} }
 
 // Obeys adds rules those playing the role obey, each for them alone.
 func (r *Part) Obeys(rules ...Rule) *Part {
