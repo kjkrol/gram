@@ -20,7 +20,7 @@
 // # Rules
 //
 // A plugin hosts the rules a game hooks on it (Hook): rules of the moments it catches in its own
-// pass, written with package rule (rule.On), a role's rules among them. Its Hook takes them before
+// pass, written with package rule (rule.Then), a role's rules among them. Its Hook takes them before
 // or after Use until the Stage's ecs.Setup builds its systems, and refuses a rule of a moment it
 // does not catch with an error wrapping [ErrUnhosted], one too late with [ErrHostBuilt]. A Stage
 // hands its rules to game.Initializer.Hook, which tries the plugins in use in the order they were

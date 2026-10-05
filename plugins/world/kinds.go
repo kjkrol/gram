@@ -18,7 +18,8 @@ import (
 // that defines them in another order still loads.
 type Kinds struct {
 	r      *ikinds.Registry
-	played []*rule.Part // the roles its kinds play, each once
+	played []*rule.Part      // the roles its kinds play, each once
+	guard  func(name string) // panics for a kind defined out of its section; nil for none
 }
 
 var (
@@ -32,6 +33,9 @@ func newKinds(heights bool) *Kinds { return &Kinds{r: ikinds.New(heights)} }
 
 // Register takes spec on as name and assigns its ID and SpriteID by call order.
 func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID, render.SpriteID) {
+	if k.guard != nil {
+		k.guard(name)
+	}
 	for _, c := range spec {
 		if p, ok := c.(rule.Played); ok {
 			for _, part := range p.Parts() {

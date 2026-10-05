@@ -23,6 +23,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -77,7 +79,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -98,6 +100,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type unitRow struct{ start, to cell.ID }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -108,35 +112,59 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 
+	effects     struct{ open, ajar, haste, pull effect.Effect }
 	roles       struct{ plate, lever, hasty, handy, mortal *rule.Part }
 	commands    struct{ openWest, openEast, flipGate, hasten, reach rule.Casting }
-	haste       effect.Effect
 	hasteSprite render.SpriteID
 
 	scout, porter, wanderer kind.Of[unitRow]
-	stack                   game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("wire-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Cells(s.defineCells).
+		Effects(s.defineEffects).
+		Rules(s.defineRoles).
+		Commands(s.defineCommands).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Scenes(s.defineScenes).
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "wire-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
-
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.brd = s.board.Res.Logic.Board
+	s.selection = selection.NewPlugin(s.world)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
+
+func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("boards"), Cost: 1, Allows: cell.Land}, // a trapdoor shut
@@ -147,85 +175,64 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		cell.Kind{Name: cell.Named("gate"), Cost: 1, Solid: true},          // the gate shut
 		cell.Kind{Name: cell.Named("gateway"), Cost: 1, Allows: cell.Land}, // the gate open
 	)
+}
+
+// defineEffects says the states. On the cells: a trapdoor open, a pit, for a while; the gate open,
+// a gateway, until shut. On a scout: hastened, twice as fast and drawn bright; pulling a lever.
+func (s *mainStage) defineEffects() {
 	pit, _ := s.board.CellKinds().Get("pit")
 	gateway, _ := s.board.CellKinds().Get("gateway")
-
-	// The states, each an effect. On the cells: a trapdoor open, a pit, for a while; the gate open,
-	// a gateway, until shut. On a scout: hastened, twice as fast and drawn bright; pulling a lever.
 	fx := s.world.Effects()
-	open := fx.Define("open", effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-	ajar := fx.Define("ajar", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
+	s.effects.open = fx.Define("open", effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.effects.ajar = fx.Define("ajar", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
-	s.haste = fx.Define("haste", effect.Spec{
+	s.effects.haste = fx.Define("haste", effect.Spec{
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
-	pull := fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
+	s.effects.pull = fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
+}
 
-	// The roles: what sets a command off, and what the units can do and suffer. A plate stood on
-	// and a lever pulled Trigger; which command that is, the command says (By).
+// defineRoles says what sets a command off, and what the units can do and suffer. A plate stood on
+// and a lever pulled Trigger; which command that is, the command says (By).
+func (s *mainStage) defineRoles(ctx game.Initializer) error {
 	s.roles.plate = rule.Role("plate").Obeys(
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 	s.roles.lever = rule.Role("lever") // does nothing of its own: a handy unit beside it pulls it
 	s.roles.hasty = rule.Role("hasty")
 	s.roles.handy = rule.Role("handy").Obeys(
 		rule.Then[unit.Standing]("pull the lever beside", rule.All,
-			rule.Under(pull, rule.Around(1, rule.Playing(s.roles.lever, rule.Trigger())))))
+			rule.Under(s.effects.pull, rule.Around(1, rule.Playing(s.roles.lever, rule.Trigger())))))
 	s.roles.mortal = rule.Role("mortal").Obeys(
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	return ctx.Hook(s.roles.plate, s.roles.handy, s.roles.mortal)
+}
 
-	if err := ctx.Use(s.board); err != nil {
-		return err
-	}
+// defineCommands names all that can be asked for in this game, each saying whom it is for and,
+// where a cell sets it off, which one.
+func (s *mainStage) defineCommands(ctx game.Initializer) error {
+	fx := &s.effects
+	s.commands.openWest = rule.Cast(fx.open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
+	s.commands.openEast = rule.Cast(fx.open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
+	s.commands.flipGate = rule.Toggle(fx.ajar).On(entity.Group("gate"))
+	s.commands.hasten = rule.Cast(fx.haste).On(s.selection.Selected(s.roles.hasty))
+	s.commands.reach = rule.Cast(fx.pull).On(s.selection.Selected(s.roles.handy))
+	return ctx.Commands(s.commands.openWest, s.commands.openEast, s.commands.flipGate)
+}
 
-	s.selection = selection.NewPlugin(s.world)
-	if err := ctx.Use(s.selection); err != nil {
-		return err
-	}
-
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	if err := ctx.Use(s.nav); err != nil {
-		return err
-	}
-
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
-	// The commands: all that can be asked for in this game, each saying whom it is for and, where a
-	// cell sets it off, which one.
-	s.commands.openWest = rule.Cast(open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
-	s.commands.openEast = rule.Cast(open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
-	s.commands.flipGate = rule.Toggle(ajar).On(entity.Group("gate"))
-	s.commands.hasten = rule.Cast(s.haste).On(s.selection.Selected(s.roles.hasty))
-	s.commands.reach = rule.Cast(pull).On(s.selection.Selected(s.roles.handy))
-	if err := ctx.Commands(s.commands.openWest, s.commands.openEast, s.commands.flipGate); err != nil {
-		return err
-	}
-
-	// The player's keys, each giving a command.
-	if err := s.player.Bind(
+// bindKeys gives the player its keys, each a command.
+func (s *mainStage) bindKeys() error {
+	return s.player.Bind(
 		control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever: its trapdoors open for a while", s.commands.openWest),
 		control.Give(control.KeyPress{Key: control.KeyG}, "Flip the gate's switch: open, or shut", s.commands.flipGate),
 		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.commands.hasten),
 		control.Give(control.KeyPress{Key: control.KeyU}, "Pull the lever beside the selected scouts", s.commands.reach),
-	); err != nil {
-		return err
-	}
+	)
+}
 
-	// Every role's rules, each hooked on the plugin hosting its moment: the board, here.
-	if err := ctx.Hook(s.roles.plate, s.roles.handy, s.roles.mortal); err != nil {
-		return err
-	}
-	s.defineKinds()
-
+func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
@@ -234,17 +241,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
-	stack, err := game.NewStack(main, s.shortcuts)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return []game.Scene{main, s.shortcuts}
 }
-
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // defineKinds says what this game's entities are: the player's scouts, hasty and mortal, and its
 // porters, laden and mortal alone; and the wanderers, nobody's and mortal, each walking its row
@@ -261,10 +259,11 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-// Spawn lays the strips of trapdoors, each a group, the fence with the gate, the plate and the
-// lever, each called what the commands call them, and puts the units in place.
-func (s *mainStage) Spawn() error {
-	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+
+// layOut lays the strips of trapdoors, each a group, the fence with the gate, the plate and the
+// lever, each called what the commands call them.
+func (s *mainStage) layOut() {
 	playing := func(r *rule.Part) []*rule.Part { return []*rule.Part{r} }
 	var cells []cell.Entry
 	strips := []struct {
@@ -274,34 +273,38 @@ func (s *mainStage) Spawn() error {
 	for _, strip := range strips {
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := strip.left; x <= strip.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Group: strip.group})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: s.cellAt(x, y), Group: strip.group})
 			}
 		}
 	}
 	for x := range uint32(GridWidth) {
 		if x == gateLeft || x == gateLeft+1 {
-			cells = append(cells, cell.Entry{Kind: "gate", Cell: cellAt(x, fenceRow), Group: "gate"})
+			cells = append(cells, cell.Entry{Kind: "gate", Cell: s.cellAt(x, fenceRow), Group: "gate"})
 		} else {
-			cells = append(cells, cell.Entry{Kind: "fence", Cell: cellAt(x, fenceRow)})
+			cells = append(cells, cell.Entry{Kind: "fence", Cell: s.cellAt(x, fenceRow)})
 		}
 	}
-	cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Name: "plate"})
-	cells = append(cells, cell.Entry{Kind: "lever", Cell: cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Name: "west lever"})
+	cells = append(cells, cell.Entry{Kind: "plate", Cell: s.cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Name: "plate"})
+	cells = append(cells, cell.Entry{Kind: "lever", Cell: s.cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Name: "west lever"})
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
-
-	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(3+2*i, yardRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	}
-	for i := range uint32(2) {
-		s.world.Seed(s.porter.Entry(unitRow{start: cellAt(4+2*i, yardRow+1)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	}
-	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unitRow{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
-	}
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+// placeUnits puts the player's scouts and porters in the yard and the wanderers, nobody's, on
+// their rows.
+func (s *mainStage) placeUnits() {
+	mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	for i := range uint32(3) {
+		s.world.Seed(s.scout.Entry(unitRow{start: s.cellAt(3+2*i, yardRow)}).Told(mine...))
+	}
+	for i := range uint32(2) {
+		s.world.Seed(s.porter.Entry(unitRow{start: s.cellAt(4+2*i, yardRow+1)}).Told(mine...))
+	}
+	for _, row := range rows {
+		s.world.Seed(s.wanderer.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+	}
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

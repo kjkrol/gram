@@ -354,9 +354,7 @@ func with(t Touch, fn func(*Touch)) Touch {
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
-	forAll := rule.On("player 2 makes way for all", rule.Self(owner.Of(2)), func(m *rule.Moment[Touch]) rule.Step {
-		return m.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, m.Order(StepAside{}))
-	})
+	forAll := rule.Then[Touch]("player 2 makes way for all", rule.Self(owner.Of(2)), rule.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, rule.Order(StepAside{})))
 	for _, c := range []struct {
 		standing control.PlayerID
 		yields   bool

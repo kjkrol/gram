@@ -96,22 +96,18 @@ func carried(t *testing.T, w *world.Plugin, h *heards) *heards {
 // footing is a rule of a Standing telling, of every unit, "fell" or "stood", and "wrong cell"
 // when the cell it names is not the one under its centre.
 func footing(g grid.Grid) rule.Rule {
-	return rule.On("footing", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.Steps(
-			m.OneOf(m.If(unit.Standing.Fallen, m.Order(heard{Rule: "fell"})), m.Order(heard{Rule: "stood"})),
-			m.If(func(st unit.Standing) bool {
-				under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
-				return st.Cell != under
-			}, m.Order(heard{Rule: "wrong cell"})),
-		)
-	})
+	return rule.Then[unit.Standing]("footing", rule.All, rule.Steps(
+		rule.OneOf(rule.If(unit.Standing.Fallen, rule.Order(heard{Rule: "fell"})), rule.Order(heard{Rule: "stood"})),
+		rule.If(func(st unit.Standing) bool {
+			under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
+			return st.Cell != under
+		}, rule.Order(heard{Rule: "wrong cell"})),
+	))
 }
 
 // onKind is a rule of a Standing telling "on" the name of the kind, of every unit on one so named.
 func onKind(name string) rule.Rule {
-	return rule.On("on "+name, rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(func(st unit.Standing) bool { return st.Kind.Name.String() == name }, m.Order(heard{Rule: "on " + name}))
-	})
+	return rule.Then[unit.Standing]("on "+name, rule.All, rule.If(func(st unit.Standing) bool { return st.Kind.Name.String() == name }, rule.Order(heard{Rule: "on " + name})))
 }
 
 // pitBoard is grass with a pit of kind pit down column 3.
@@ -204,11 +200,11 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	if err := brd.Hook(footing(grid)); err != nil {
 		t.Fatal(err)
 	}
-	met := rule.On("met", rule.Between(tag.Any, tag.Any), func(m *rule.Moment[collision.Meeting]) rule.Step { return m.Order(heard{}) })
+	met := rule.Then[collision.Meeting]("met", rule.Between(tag.Any, tag.Any), rule.Order(heard{}))
 	if err := brd.Hook(met); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Between on board: %v, want ErrUnhosted", err)
 	}
-	struck := rule.On("struck", rule.Having[unit.Mover](), func(m *rule.Moment[collision.Struck]) rule.Step { return m.Order(heard{}) })
+	struck := rule.Then[collision.Struck]("struck", rule.Having[unit.Mover](), rule.Order(heard{}))
 	if err := brd.Hook(struck); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
 	}
@@ -243,13 +239,11 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	start, _ := grid.CellIndex(1, 7)
 	right, _ := grid.CellIndex(2, 7)
-	straddles := rule.On("straddles", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(func(st unit.Standing) bool {
-			var under []cell.ID
-			grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })
-			return len(under) == 2 && slices.Contains(under, start) && slices.Contains(under, right)
-		}, m.Order(heard{Rule: "straddles"}))
-	})
+	straddles := rule.Then[unit.Standing]("straddles", rule.All, rule.If(func(st unit.Standing) bool {
+		var under []cell.ID
+		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })
+		return len(under) == 2 && slices.Contains(under, start) && slices.Contains(under, right)
+	}, rule.Order(heard{Rule: "straddles"})))
 	bw, _ := boardtest.SquareWorldWith(t, straddles, boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2})
 	orders := carried(t, bw.World, &heards{})
 	bw.Tick()

@@ -41,9 +41,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	if err := s.collision.Hook(rule.On("gone when struck", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.Order(world.Despawn{})
-	})); err != nil {
+	if err := s.collision.Hook(rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{}))); err != nil {
 		return err
 	}
 	at := func(x float64) world.Position {

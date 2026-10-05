@@ -24,6 +24,14 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
   that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
   ground and moves — fire, smoke — is sprites over it, not a cover.
+- **A demo of ways** — roads and a bridge as `cell.Way` and `cell.Crossing` over the ground, a unit
+  taking the road round the mud, in the dress of the effect demo.
+- **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
+  moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
+  `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
+  plugin's doc: its moments, its commands, its knobs.
+- **Default keys from the plugins** — the list of shortcuts (K), quit (Shift+Esc) and the grid (B)
+  given by the players' and the board's plugins rather than every demo's scene.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:

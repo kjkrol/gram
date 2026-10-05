@@ -5,10 +5,16 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// Then is a rule, named name: at every moment P a plugin's pass catches, for whom filter lets
-// through, it runs step — On without a body, its steps made by the package's own functions (If,
-// OneOf, Apply, Around…), the twins of a Moment's methods. A step a moment of P cannot run — a
-// Here or an Around where P is not Placed, an If over another moment — panics by the rule's name.
+// Step is a part of a rule or a plan: made by the package's functions (If, OneOf, Apply, Around…)
+// for a rule, by a plan's Actor for a plan, or by a plugin's own functions built on them.
+type Step = steps.Step
+
+// Then is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
+// board, one seeing another, two striking — for whom filter lets through, it runs step, done
+// within the pass alone. Hook it with game.Initializer.Hook, which finds the plugin that catches
+// P. A rule keeps no memory of its own: an effect's presence is its memory. A step a moment of P
+// cannot run — a Here or an Around where P is not Placed, an If over another moment — panics by
+// the rule's name.
 func Then[P any](name string, filter Filter, step Step) Rule { return build[P](name, filter, step) }
 
 // Not is the predicate holding where holds does not: If(Not(unit.Standing.Fallen), …).

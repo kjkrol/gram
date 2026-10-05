@@ -23,9 +23,12 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
+	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -66,7 +69,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -83,6 +86,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 // =========================== Stage ===========================
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world      *world.Plugin
 	board      *board.Plugin
 	nav        *navigation.Plugin
@@ -94,17 +99,31 @@ type mainStage struct {
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
 	unit       kind.Of[unitRow]
-	stack      game.Scenes
 	state      *State
+	weather    weathering.Config // how the weather lies on the island
+	stops      []cell.ID         // where the units start, as the layout says
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("board").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Cells(s.defineCells).
+		Effects(s.defineEffects).
+		Rules(s.defineRules).
+		Kinds(s.defineKinds).
+		Looks(s.defineLooks).
+		Scenes(s.defineScenes).
+		Restore(s.restore).
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "board" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -112,61 +131,49 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	})
 	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
+	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
-	s.board.CellKinds().Create(island.Kinds(0)...)
-	weather := s.defineClimate()
-	if err := s.board.Hook(rule.On("drown", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.board); err != nil {
-		return err
-	}
 	s.selection = selection.NewPlugin(s.world)
-	if err := ctx.Use(s.selection); err != nil {
-		return err
-	}
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	if err := ctx.Use(s.nav); err != nil {
-		return err
-	}
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
-	// the views drawn are the selected units' — the one ridden in first person among them
-	if err := s.vision.Draw(render.Show(s.selection.IsSelected)); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.vision); err != nil {
-		return err
-	}
-
-	// A temperate island whose weather is thrown anew every run; a flat map is lit by the day too:
-	// its tiles and units tinted by the hour, the clouds' shadows laid over the screen.
-	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}}).WithWeathering(s.board, weather)
-	if err := ctx.Use(s.atmosphere); err != nil {
-		return err
+	// A temperate island whose weather is thrown anew every run.
+	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
+	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.vision)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.vision, s.atmosphere, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
 	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
-
-	s.players = players.NewPlugin(s.world, s.selection, s.nav, s.atmosphere, s.vision)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
 	s.state = &State{}
-	s.defineKinds()
+	return nil
+}
 
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
+
+// defineCells creates the island's kinds, and the snowy ones and ice the weather turns them into.
+func (s *mainStage) defineCells() {
+	s.board.CellKinds().Create(island.Kinds(0)...)
+	s.weather = s.defineClimate()
+}
+
+// defineEffects has the weather work on the board: snow, ice and what sways are its effects.
+func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
+
+// defineRules says the one rule: a walker in the water drowns.
+func (s *mainStage) defineRules(ctx game.Initializer) error {
+	return ctx.Hook(rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+}
+
+// defineLooks has the views drawn be the selected units' alone.
+func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
+
+func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{stage: s, tps: ctx.TPS()}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
@@ -183,17 +190,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		}},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
-	stack, err := game.NewStack(main, s.shortcuts)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return []game.Scene{main, s.shortcuts}
 }
 
-func (s *mainStage) Restore(p game.Persistence) (bool, error) {
+func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -222,19 +222,24 @@ func (s *mainStage) defineKinds() {
 	)
 }
 
-// Spawn lays the island out and puts a unit at every stop, bound for the one across the island.
-func (s *mainStage) Spawn() error {
-	layout, _, stops := island.Layout(s.board.Res.Logic.Board) // the heights are a topography's; the simple map is flat
+// layOut lays the island out; the heights are a topography's, the simple map is flat.
+func (s *mainStage) layOut() {
+	layout, _, stops := island.Layout(s.board.Res.Logic.Board)
+	s.stops = stops
 	s.board.Seed(layout)
-	entries := make([]kind.Entry, 0, len(stops))
-	for i, from := range stops {
-		entries = append(entries, s.unit.Entry(unitRow{start: from, target: stops[(i+len(stops)/2)%len(stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
-	}
-	s.world.Seed(entries...)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+// placeUnits puts a unit at every stop, the player's and selected, bound for the one across the
+// island.
+func (s *mainStage) placeUnits() {
+	entries := make([]kind.Entry, 0, len(s.stops))
+	for i, from := range s.stops {
+		entries = append(entries, s.unit.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+	}
+	s.world.Seed(entries...)
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

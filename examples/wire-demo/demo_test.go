@@ -76,8 +76,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// stage is the demo built fresh, without a window, and a view of its units.
-type stage struct {
+// testStage is the demo built fresh, without a window, and a view of its units.
+type testStage struct {
 	*mainStage
 	ecs      *goke.ECS
 	base     goke.Comp[world.Base]
@@ -85,9 +85,9 @@ type stage struct {
 	units    *goke.Query
 }
 
-func buildStage(t *testing.T) *stage {
+func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &stage{mainStage: &mainStage{}}
+	s := &testStage{mainStage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -115,14 +115,14 @@ func buildStage(t *testing.T) *stage {
 	return s
 }
 
-func (s *stage) tick(n int) {
+func (s *testStage) tick(n int) {
 	for range n {
 		s.ecs.Tick(time.Second / TPS)
 	}
 }
 
 // press presses and lets go key at the keyboard, through the player's bindings.
-func (s *stage) press(key control.Key) {
+func (s *testStage) press(key control.Key) {
 	ev := &control.InputEvents{}
 	ev.AddKeyEvent(key, control.ActionPress)
 	ev.AddKeyEvent(key, control.ActionRelease)
@@ -130,7 +130,7 @@ func (s *stage) press(key control.Key) {
 }
 
 // each calls f for every unit, with the cell under its centre and whether it is selected.
-func (s *stage) each(f func(id uid.UID64, x, y uint32, selected bool)) {
+func (s *testStage) each(f func(id uid.UID64, x, y uint32, selected bool)) {
 	sel := s.selection.Tags().Selected
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -147,7 +147,7 @@ func (s *stage) each(f func(id uid.UID64, x, y uint32, selected bool)) {
 }
 
 // onStrip is every unit whose centre stands on a trapdoor of the strip from column left.
-func (s *stage) onStrip(left uint32) map[uid.UID64]bool {
+func (s *testStage) onStrip(left uint32) map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	s.each(func(id uid.UID64, x, y uint32, _ bool) {
 		if x >= left && x <= left+1 && y >= stripTop && y <= stripBottom {
@@ -158,7 +158,7 @@ func (s *stage) onStrip(left uint32) map[uid.UID64]bool {
 }
 
 // onRow is every unit whose centre stands on row y.
-func (s *stage) onRow(row uint32) []uid.UID64 {
+func (s *testStage) onRow(row uint32) []uid.UID64 {
 	var out []uid.UID64
 	s.each(func(id uid.UID64, _, y uint32, _ bool) {
 		if y == row {
@@ -170,7 +170,7 @@ func (s *stage) onRow(row uint32) []uid.UID64 {
 
 // opened is every cell open now — a trapdoor fallen open, the gate open — counted by the group it
 // belongs to: "west", "east", "gate", "elsewhere" for none.
-func (s *stage) opened() map[string]int {
+func (s *testStage) opened() map[string]int {
 	out := map[string]int{}
 	pit, gateway := cell.Named("pit"), cell.Named("gateway")
 	for c := range cell.ID(s.brd.CellCount()) {
@@ -193,7 +193,7 @@ func (s *stage) opened() map[string]int {
 }
 
 // wantOpen checks that groups, every cell of them, are open now and nothing else is.
-func (s *stage) wantOpen(t *testing.T, when string, groups ...string) {
+func (s *testStage) wantOpen(t *testing.T, when string, groups ...string) {
 	t.Helper()
 	size := map[string]int{"west": 2 * int(stripBottom-stripTop+1), "east": 2 * int(stripBottom-stripTop+1), "gate": 2}
 	want := map[string]int{}
@@ -205,7 +205,7 @@ func (s *stage) wantOpen(t *testing.T, when string, groups ...string) {
 	}
 }
 
-func (s *stage) alive() map[uid.UID64]bool {
+func (s *testStage) alive() map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	for s.units.All(); s.units.Next(); {
 		for _, id := range s.units.Cursor().IDs {
@@ -216,7 +216,7 @@ func (s *stage) alive() map[uid.UID64]bool {
 }
 
 // put moves the unit id onto cell c.
-func (s *stage) put(id uid.UID64, c cell.ID) {
+func (s *testStage) put(id uid.UID64, c cell.ID) {
 	to := cellBox(s.brd, c, EntitySize).TopLeft
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -342,7 +342,7 @@ func TestHaste_OnlyTheSelectedScoutsPlayingHasty(t *testing.T) {
 	s.tick(2)
 	var scouts, porters, selectedPorters, others int
 	s.each(func(id uid.UID64, _, y uint32, selected bool) {
-		hastened := s.haste.On(id)
+		hastened := s.effects.haste.On(id)
 		switch {
 		case y == yardRow && hastened && selected:
 			scouts++

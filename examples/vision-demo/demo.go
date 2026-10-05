@@ -17,6 +17,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -53,7 +55,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -76,6 +78,8 @@ type body struct {
 }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	vision    *vision.Plugin
 	prey      kind.Of[body]
@@ -85,69 +89,79 @@ type mainStage struct {
 	// the roles: the prey steer clear of the hunter and of each other, the hunter goes after them
 	skittish, hunted, predator *rule.Part
 	fleeing                    effect.Effect // on the world while the prey flee
+	flee                       rule.Casting  // the command switching it
 	hits                       collision.ContactStats
 
 	players *players.Plugin
 	player  *players.Player
 
-	stack game.Scenes
+	looked effect.Effect // the hunter has looked round of late
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("vision-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Effects(s.defineEffects).
+		Rules(s.defineRoles).
+		Commands(s.defineCommands).
+		Kinds(s.defineKinds).
+		Scenes(s.defineScenes).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string       { return "vision-demo" }
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
 	})
-
-	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
-	looked := vhooks.Looked(s.world, hunterLooksEvery)
-	s.hunted = rule.Role("prey")
-	s.predator = rule.Role("predator").Obeys(vhooks.Chase(s.hunted), vhooks.Search(s.hunted, looked),
-		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{})))) // the hunter's prey is gone
-	s.skittish = rule.Role("skittish").Obeys(vhooks.Flee(s.predator, s.fleeing)...)
-	s.defineKinds()
-
 	s.vision = vision.NewPlugin(s.world)
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
-
-	if err := ctx.Use(s.vision); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
-	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
 	s.players = players.NewPlugin(s.world, s.vision)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
+	for _, p := range []plugin.Plugin{s.vision, s.collision, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-	// the roles' rules, each on the plugin that hosts its moment: vision's, and collision's
-	if err := ctx.Hook(s.predator, s.skittish); err != nil {
-		return err
-	}
-
-	main := &mainScene{stage: s, tps: ctx.TPS()}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return nil
 }
 
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
+// definePlayer makes the player and its camera's keys: drag with the middle button, scroll with
+// the wheel, push an edge.
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
+
+// defineEffects says the states: the prey fleeing, a state of the whole game; the hunter having
+// looked round.
+func (s *mainStage) defineEffects() {
+	s.fleeing = s.world.Effects().Define("fleeing", effect.Spec{})
+	s.looked = vhooks.Looked(s.world, hunterLooksEvery)
+}
+
+// defineRoles says who does what: the hunter goes after the prey it sees, looks round when it sees
+// none, and takes the one it catches; the prey steer clear of the hunter and of each other.
+func (s *mainStage) defineRoles(ctx game.Initializer) error {
+	s.hunted = rule.Role("prey")
+	s.predator = rule.Role("predator").Obeys(vhooks.Chase(s.hunted), vhooks.Search(s.hunted, s.looked),
+		rule.Then[collision.Meeting]("caught", rule.Other(s.hunted), rule.ForOther(rule.Order(world.Despawn{}))))
+	s.skittish = rule.Role("skittish").Obeys(vhooks.Flee(s.predator, s.fleeing)...)
+	return ctx.Hook(s.predator, s.skittish)
+}
+
+// defineCommands names the one thing to ask for: the prey flee, or stop fleeing.
+func (s *mainStage) defineCommands() {
+	s.flee = rule.Toggle(s.fleeing).On(entity.World)
+}
+
+func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&mainScene{stage: s, tps: ctx.TPS()}}
+}
 
 // defineKinds says what this game's entities are, fresh or restored.
 func (s *mainStage) defineKinds() {
@@ -177,8 +191,8 @@ func sees() kind.Spec {
 	}
 }
 
-// Spawn says who is there when the game starts fresh.
-func (s *mainStage) Spawn() error {
+// placeUnits says who is there when the game starts fresh, and has the prey flee from the start.
+func (s *mainStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1
@@ -196,11 +210,10 @@ func (s *mainStage) Spawn() error {
 	}
 	entries = append(entries, s.hunter.Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
-	s.world.Commands().Put(s.player.ID, rule.Cast(s.fleeing).On(entity.World)) // the prey flee from the start
-	return nil
+	s.world.Commands().Put(s.player.ID, s.flee)
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.vision.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
@@ -262,6 +275,4 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 }
 
 // switchFleeing has the player take the fleeing off the world, or put it back on.
-func (s *mainStage) switchFleeing() {
-	s.world.Commands().Put(s.player.ID, rule.Toggle(s.fleeing).On(entity.World))
-}
+func (s *mainStage) switchFleeing() { s.world.Commands().Put(s.player.ID, s.flee) }

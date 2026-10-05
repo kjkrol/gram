@@ -1,6 +1,6 @@
 // Package hooks holds ready-made rules of contacts, for ctx.Hook (game.Initializer.Hook) — and one
 // of drawing, for the world's Draw: ShowHits with HitOverlay to keep a hit visible. A game wanting
-// something else writes its own rule of a collision.Meeting or Struck (rule.On). How many contacts
+// something else writes its own rule of a collision.Meeting or Struck (rule.Then). How many contacts
 // a second and a line per contact are collision's own (collision.Plugin.WithStats, WithLog).
 //
 // # ShowHits and HitOverlay

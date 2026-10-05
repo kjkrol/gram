@@ -1,12 +1,3 @@
-// Command effect-demo is an ice witch: an entity under orders that lays snow on the ground round
-// her feet and ice on the water — the cells stay what they are, grass, road, water; her winter is
-// an effect on them, drawn as a cover along a line of its own, and it thaws some seconds after
-// she has gone. She is fast on her own snow; a walker
-// can cross the lake on her trail while it lasts — slipping, so it brakes badly and may not stop
-// before ice that melts ahead of it — and a boat, whose brakes are weak, sails onto the ice it saw
-// coming and is frozen in — still, immovable, in its own frozen look, as each kind has one — until
-// the ice melts. Everything temporary here is an effect; who obeys which rule is a role its kind
-// plays; how a kind looks under an effect is the effect's look of its sprite, drawn in the atlas.
 package main
 
 import (
@@ -21,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -46,7 +38,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16 // the units; cell entities do not count
+	MaxEntCount  = 16
 
 	lakeLeft, lakeRight uint32 = 8, 15
 	lakeTop, lakeBottom uint32 = 4, 11
@@ -57,12 +49,11 @@ const (
 
 // =========================== Game ===========================
 
-// Demo is the effect demo — exactly one Stage (mainStage below).
 type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -78,13 +69,14 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// unit is the row every kind spawns from: where it starts and, if ordered, where it heads.
 type unitRow struct {
 	start, target cell.ID
 	ordered       bool
 }
 
 type mainStage struct {
+	game.Stage
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -96,33 +88,23 @@ type mainStage struct {
 
 	witchy, mortal, lake *rule.Part
 	witch, walker, boat  kind.Of[unitRow]
-	stack                game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
-
-func (s *mainStage) Name() string { return "effect-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-// Init defines the game a section at a time, each building on those before it: the plugins, the
-// player, the cells' kinds, the effects, the roles with their rules, the units' kinds, the scenes.
-// How things look is the scene's (Layers).
-func (s *mainStage) Init(ctx game.Initializer) error {
-	if err := s.usePlugins(ctx); err != nil {
-		return err
-	}
-	if err := s.definePlayer(); err != nil {
-		return err
-	}
-	s.defineCells()
-	s.defineEffects()
-	s.defineRoles()
-	s.defineKinds()
-	if err := s.bindKeys(); err != nil {
-		return err
-	}
-	return s.defineScenes(ctx)
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("effect-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Cells(s.defineCells).
+		Effects(s.defineEffects).
+		Rules(s.defineRoles).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Scenes(s.defineScenes).
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
 }
 
 func (s *mainStage) usePlugins(ctx game.Initializer) error {
@@ -149,8 +131,6 @@ func (s *mainStage) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-// bindKeys gives the player the witch's own spell: F freezes whoever the cursor points at, for a
-// while.
 func (s *mainStage) bindKeys() error {
 	freeze := rule.Cast(s.world.Effects().Named("frozen")).On(s.selection.Pointed()).For(3 * time.Second)
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at", freeze))
@@ -159,13 +139,10 @@ func (s *mainStage) bindKeys() error {
 func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water},
 	)
 }
 
-// defineEffects says what the ground can be under the witch — a cell stays the kind it is, the
-// effect turns its knobs — and what her winter does to the units.
 func (s *mainStage) defineEffects() {
 	effects := s.world.Effects()
 	effects.Define("frost", effect.Spec{ // land under snow: slower, the witch's own
@@ -193,7 +170,6 @@ func (s *mainStage) defineEffects() {
 	})
 }
 
-// defineRoles says who does what: a kind playing a role obeys its rules, hooked with the kind.
 func (s *mainStage) defineRoles() {
 	effects := s.world.Effects()
 	frost, iced := effects.Named("frost"), effects.Named("iced")
@@ -229,7 +205,7 @@ func (s *mainStage) defineKinds() {
 	s.boat = units.Define("boat", unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(s.mortal))
 }
 
-func (s *mainStage) defineScenes(ctx game.Initializer) error {
+func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
 	main.keys = players.SceneKeys{
 		{Key: control.KeyK, Label: "Shortcuts; Esc closes them", Do: func(rt game.Runtime, c game.Composition) { s.shortcuts.Open(rt, c) }},  // TODO: to powinien byc domyslny shortcut dostarczany przez worl plugin
@@ -237,41 +213,33 @@ func (s *mainStage) defineScenes(ctx game.Initializer) error {
 		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }}, // TODO: to powinien byc domyslny shortcut dostarczany przez board plugin
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
-	stack, err := game.NewStack(main, s.shortcuts)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return []game.Scene{main, s.shortcuts}
 }
 
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
-
-func (s *mainStage) Spawn() error {
-	brd := s.board.Res.Logic.Board
-	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
+func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, cell.Entry{Kind: "water", Cell: cellAt(x, y), Roles: []*rule.Part{s.lake}})
+			cells = append(cells, cell.Entry{Kind: "water", Cell: s.cellAt(x, y), Roles: []*rule.Part{s.lake}})
 		}
 	}
-	for x := uint32(1); x < GridWidth-1; x++ {
-		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, 1)}, cell.Entry{Kind: "road", Cell: cellAt(x, GridHeight-2)})
-	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
-
+}
+func (s *mainStage) placeUnits() {
+	mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		s.witch.Entry(unitRow{start: cellAt(2, 8), target: cellAt(GridWidth-3, 8)}).Told(players.Give{To: s.player.ID}, selection.Allow{}),
-		s.walker.Entry(unitRow{start: cellAt(2, 10)}).Told(players.Give{To: s.player.ID}, selection.Allow{}),
-		s.boat.Entry(unitRow{start: cellAt(lakeRight, 8), target: cellAt(lakeLeft, 8)}).Told(players.Give{To: s.player.ID}, selection.Allow{}), // head-on into the witch's trail
+		s.witch.Entry(unitRow{start: s.cellAt(2, 8), target: s.cellAt(GridWidth-3, 8)}).Told(mine...),
+		s.walker.Entry(unitRow{start: s.cellAt(2, 10)}).Told(mine...),
+		s.boat.Entry(unitRow{start: s.cellAt(lakeRight, 8), target: s.cellAt(lakeLeft, 8)}).Told(mine...),
 	)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) cellAt(x, y uint32) cell.ID {
+	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
+	return c
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -295,7 +263,6 @@ func (m *mainScene) Name() string { return "main" }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
-	// the units: each kind's own sprite, then its look under an effect, a row a look
 	worldAtlas := render.NewAtlas()
 	worldAtlas.RegisterAt(s.witch.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255}))
 	worldAtlas.RegisterAt(s.walker.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
@@ -318,12 +285,10 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	// the board: each kind's own sprite, then what lies on the cells under an effect
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
 		"grass": {R: 60, G: 95, B: 60, A: 255},
-		"road":  {R: 150, G: 130, B: 80, A: 255},
 		"water": {R: 40, G: 90, B: 170, A: 255},
 	} {
 		k, _ := kinds.Get(name)

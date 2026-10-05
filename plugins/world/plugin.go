@@ -18,6 +18,7 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -53,6 +54,7 @@ type Plugin struct {
 	cameras  Cameras
 	look     Look
 	looked   bool // the effects' looks are among the drawing rules
+	sections any  // the Stage's Initializer, which tells the section being defined; nil before Install
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -78,6 +80,8 @@ func NewPlugin(cfg Config) *Plugin {
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
 	m.effects.Sprites(kinds.NewSprite)
+	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
+	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
 	m.castings.effects, m.castings.world, m.castings.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	m.plans.Roles(m.castings.RolesOf)
@@ -87,6 +91,20 @@ func NewPlugin(cfg Config) *Plugin {
 		panic(err)
 	}
 	return p
+}
+
+// InSection is an error for what when the Stage, built in sections (package game/stage), is
+// defining another part than those want names; nil for a Stage written by hand. For plugins,
+// which refuse what is defined out of its place.
+func (p *Plugin) InSection(what string, want ...section.Part) error {
+	return section.Check(p.sections, what, want...)
+}
+
+// must panics with what InSection says.
+func (p *Plugin) must(what string, want ...section.Part) {
+	if err := p.InSection(what, want...); err != nil {
+		panic("world: " + err.Error())
+	}
 }
 
 // Roster is what this world's plugins ask of the kinds a game defines; build a unit's Spec through
@@ -190,6 +208,7 @@ func (p *Plugin) Restore() { p.Res.Camera.Restore() }
 func (p *Plugin) Name() string { return "gram.world" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
+	p.sections = ctx
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
@@ -235,7 +254,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
 		p.module.effects.Looks(func(mark tag.Tag[effect.States], twins map[render.SpriteID]render.SpriteID) {
-			if err := p.Draw(render.Swap(twins, mark.In)); err != nil {
+			if err := p.module.drawing.Add(render.Swap(twins, mark.In)); err != nil {
 				panic(err)
 			}
 		})
@@ -258,7 +277,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
 
-// Hook hosts rules (rule.On) of a Moving (every entity, before it moves), a Leaving (every tick
+// Hook hosts rules (rule.Then) of a Moving (every entity, before it moves), a Leaving (every tick
 // an entity is Outside an open edge) and a clock.Moment (every step), until the Stage's ecs.Setup;
 // a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
@@ -280,6 +299,9 @@ func (p *Plugin) Hook(rules ...rule.Rule) error {
 // Draw has the world's renderer draw its entities as rules say, every frame, in the order given
 // (render.Over, As, With, Show; Facing); call before Use.
 func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.InSection("drawing rules given", section.Looks); err != nil {
+		return err
+	}
 	if err := p.module.drawing.Add(rules...); err != nil {
 		return fmt.Errorf("%w in %s", err, p.Name())
 	}
@@ -291,7 +313,10 @@ func (p *Plugin) Draw(rules ...render.Rule) error {
 // =================================================================
 
 // Seed adds entries to the entities spawned when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(entries ...kind.Entry) { p.seeded = append(p.seeded, entries...) }
+func (p *Plugin) Seed(entries ...kind.Entry) {
+	p.must("units seeded", section.Units)
+	p.seeded = append(p.seeded, entries...)
+}
 
 // Populate spawns every seeded entity, or none and an error on an unknown kind or a wrong row.
 func (p *Plugin) Populate() error {

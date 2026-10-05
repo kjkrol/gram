@@ -36,7 +36,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.On("dodge", rule.All, func(m *rule.Moment[nudge]) rule.Step { return m.Order(dodge{}) })); err != nil {
+	if err := h.Add(rule.Then[nudge]("dodge", rule.All, rule.Order(dodge{}))); err != nil {
 		t.Fatal(err)
 	}
 	var ids []uid.UID64
@@ -82,9 +82,7 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.On("dodge or brace", rule.All, func(m *rule.Moment[nudge]) rule.Step {
-		return m.OneOf(m.Order(dodge{}), m.Order(brace{}))
-	})); err != nil {
+	if err := h.Add(rule.Then[nudge]("dodge or brace", rule.All, rule.OneOf(rule.Order(dodge{}), rule.Order(brace{})))); err != nil {
 		t.Fatal(err)
 	}
 	var ids []uid.UID64
@@ -126,9 +124,7 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			t.Fatal(err)
 		}
 		h := &plugin.Rules[nudge]{}
-		if err := h.Add(rule.On("dodge now and then", rule.All, func(m *rule.Moment[nudge]) rule.Step {
-			return m.Chance(p, m.Order(dodge{}))
-		})); err != nil {
+		if err := h.Add(rule.Then[nudge]("dodge now and then", rule.All, rule.Chance(p, rule.Order(dodge{})))); err != nil {
 			t.Fatal(err)
 		}
 		var got []int // 2×step + 0 or 1, the one who dodged
@@ -179,5 +175,5 @@ func TestRule_HereNeedsAPlacedMoment(t *testing.T) {
 			t.Errorf("panic %q, want one saying the moment must be Placed", msg)
 		}
 	}()
-	rule.On("here", rule.All, func(m *rule.Moment[nudge]) rule.Step { return m.Here(m.Order(dodge{})) })
+	rule.Then[nudge]("here", rule.All, rule.Here(rule.Order(dodge{})))
 }

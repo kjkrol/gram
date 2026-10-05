@@ -14,6 +14,10 @@
 // Stage sits idle with no gameplay entities until the player starts. Its lifecycle is Init
 // (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
 // none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
+// A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
+// Players(…).Cells(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Looks(…).Scenes(…).
+// Layout(…).Units(…).Update(…) — always in that order, which the compiler keeps, each plugin
+// refusing what is defined out of its section.
 //
 // Within a Stage, a Scene is one thing it can show: its renderers (Layers, built once on entering
 // the Stage) and its input handling. The Stage's [game.Scenes] is the static registry of its
@@ -30,7 +34,7 @@
 // plugin takes it as a constructor argument — construction order in the game's code is the
 // dependency order; there is no registry, no lookup by name and no install-order retry.
 //
-// Game logic that reacts to what a plugin finds is a rule (rule.On), run inside the pass of the
+// Game logic that reacts to what a plugin finds is a rule (rule.Then), run inside the pass of the
 // plugin whose moment it is: a rule of a collision.Meeting for every pair of entities it meets,
 // one carrying tag A and the other B; of a unit.Standing for every entity on the board. The
 // payload type says whose the rule is — a Meeting is collision's, a Sighting is vision's. A Stage

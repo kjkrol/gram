@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -49,7 +51,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -67,6 +69,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // mainStage wires the board/navigation/selection demo; its plugins are its own fields.
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -76,62 +80,57 @@ type mainStage struct {
 	player    *players.Player // the one at this keyboard: the units are its
 	shortcuts *players.Shortcuts
 	red, blue kind.Of[unitRow]
-	stack     game.Scenes
 	state     *State
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("board-navigation-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Cells(s.defineCells).
+		Rules(s.defineRules).
+		Kinds(s.defineKinds).
+		Scenes(s.defineScenes).
+		Restore(s.restore).
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "board-navigation-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
-
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
-	s.registerCellKinds()
-	if err := s.board.Hook(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.board); err != nil {
-		return err
-	}
-
 	s.selection = selection.NewPlugin(s.world)
-	if err := ctx.Use(s.selection); err != nil {
-		return err
-	}
-
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	if err := ctx.Use(s.nav); err != nil {
-		return err
-	}
-
 	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
 	s.state = &State{}
+	return nil
+}
 
-	s.defineKinds()
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
 
+// defineRules says the one rule: whoever stands where nothing holds it falls in.
+func (s *mainStage) defineRules(ctx game.Initializer) error {
+	return ctx.Hook(rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+}
+
+func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
@@ -152,18 +151,11 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		}},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
-	stack, err := game.NewStack(main, s.shortcuts)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return []game.Scene{main, s.shortcuts}
 }
 
-// registerCellKinds defines every terrain kind the board can hold.
-func (s *mainStage) registerCellKinds() {
+// defineCells defines every terrain kind the board can hold.
+func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
@@ -172,7 +164,7 @@ func (s *mainStage) registerCellKinds() {
 	)
 }
 
-func (s *mainStage) Restore(p game.Persistence) (bool, error) {
+func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -202,34 +194,40 @@ func (s *mainStage) defineKinds() {
 	s.blue = units.Define("blue", unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
-// Spawn says who is there when the game starts fresh.
-func (s *mainStage) Spawn() error {
-	brd := s.board.Res.Logic.Board
-	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
+// cellAt is the cell at column x, row y.
+func (s *mainStage) cellAt(x, y uint32) cell.ID {
+	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
+	return c
+}
 
+// layOut is the board a fresh game starts on.
+func (s *mainStage) layOut() {
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
 	var cells []cell.Entry
 	for y := uint32(2); y < GridHeight; y++ {
-		cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(wallCol, y)})
+		cells = append(cells, cell.Entry{Kind: "wall", Cell: s.cellAt(wallCol, y)})
 	}
-	cells = append(cells, cell.Entry{Kind: "hole", Cell: cellAt(6, 4)}, cell.Entry{Kind: "hole", Cell: cellAt(17, 12)})
+	cells = append(cells, cell.Entry{Kind: "hole", Cell: s.cellAt(6, 4)}, cell.Entry{Kind: "hole", Cell: s.cellAt(17, 12)})
 	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(x, roadTop)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: s.cellAt(x, roadTop)})
 	}
 	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, cell.Entry{Kind: "road", Cell: cellAt(roadLeft, y)}, cell.Entry{Kind: "road", Cell: cellAt(roadRight, y)})
+		cells = append(cells, cell.Entry{Kind: "road", Cell: s.cellAt(roadLeft, y)}, cell.Entry{Kind: "road", Cell: s.cellAt(roadRight, y)})
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
-
-	s.world.Seed(
-		s.red.Entry(unitRow{start: cellAt(2, 4), target: cellAt(GridWidth-3, 4)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		s.blue.Entry(unitRow{start: cellAt(2, 12), target: cellAt(GridWidth-3, 12)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-	)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+// placeUnits puts the two units in place, the player's and selected from the start.
+func (s *mainStage) placeUnits() {
+	mine := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+	s.world.Seed(
+		s.red.Entry(unitRow{start: s.cellAt(2, 4), target: s.cellAt(GridWidth-3, 4)}).Told(mine...),
+		s.blue.Entry(unitRow{start: s.cellAt(2, 12), target: s.cellAt(GridWidth-3, 12)}).Told(mine...),
+	)
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

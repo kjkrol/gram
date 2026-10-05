@@ -85,7 +85,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — a shot's state is on its entity.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of a Landing, a Resting or a Blast, until the Stage's ecs.Setup —
+// Hook hosts rules (rule.Then) of a Landing, a Resting or a Blast, until the Stage's ecs.Setup —
 // before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, r := range rules {

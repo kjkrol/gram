@@ -75,8 +75,9 @@ func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 // falls, how far one sees.
 func (p *Plugin) Air() air.Weather { return p.climate.Air() }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it once
-// the kinds cfg names are in brd's dictionary, before Use. A Config the board cannot take panics.
+// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it in Init,
+// once the kinds cfg names are in brd's dictionary — where the effects are defined, for it defines
+// three. A Config the board cannot take panics.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {
@@ -108,10 +109,7 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // Install wires the sky's and the weather's systems, and lays the weathering on the world's
 // schedule.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = &module{sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
-	if p.weathering != nil {
-		p.module.weathering = p.weathering.System(p.worldPlugin.Clock())
-	}
+	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -157,7 +155,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // clock's; the light's freeze is a look, not saved.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of climate.Weathering, fired every step with the weather, until the
+// Hook hosts rules (rule.Then) of climate.Weathering, fired every step with the weather, until the
 // Stage's ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
@@ -196,15 +194,15 @@ type module struct {
 	clock         *clock.Clock
 	skyRun        goke.Runnable
 	climateRun    goke.Runnable
-	weathering    goke.System // nil without WithWeathering
+	p             *Plugin // its weathering, given any time before the Stage is set up
 	weatheringRun goke.Runnable
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.skyRun = ecs.RegSys(m.sky)
 	m.climateRun = ecs.RegSys(m.climate)
-	if m.weathering != nil {
-		m.weatheringRun = ecs.RegSys(m.weathering)
+	if w := m.p.weathering; w != nil {
+		m.weatheringRun = ecs.RegSys(w.System(m.clock))
 	}
 }
 

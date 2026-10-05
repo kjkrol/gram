@@ -24,12 +24,10 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := collision.NewPlugin(w)
-	if err := c.Hook(rule.On("struck", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.OneOf(
-			m.If(func(s collision.Struck) bool { return len(s.Contacts) == 0 }, m.Order(heard{Rule: "nothing struck"})),
-			m.Order(heard{Rule: "struck"}),
-		)
-	})); err != nil {
+	if err := c.Hook(rule.Then[collision.Struck]("struck", rule.All, rule.OneOf(
+		rule.If(func(s collision.Struck) bool { return len(s.Contacts) == 0 }, rule.Order(heard{Rule: "nothing struck"})),
+		rule.Order(heard{Rule: "struck"}),
+	))); err != nil {
 		t.Fatal(err)
 	}
 	town := kind.Define[float64](w.Kinds(), "town", kind.Spec{

@@ -84,7 +84,7 @@ func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 
 // tellOf is a rule of P named name, for whom filter lets through: its entity gives a heard of name.
 func tellOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.On(name, filter, func(m *rule.Moment[P]) rule.Step { return m.Order(heard{Rule: name}) })
+	return rule.Then[P](name, filter, rule.Order(heard{Rule: name}))
 }
 
 // listen is a carrier of heard commands and the queue they land in.
@@ -315,9 +315,7 @@ func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
 	lever, trapdoor := rule.Role("playing lever"), rule.Role("playing trapdoor")
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
-	if err := h.Add(rule.On("pull", rule.All, func(m *rule.Moment[standing]) rule.Step {
-		return m.Playing(lever, m.Order(heard{Rule: "pull"}))
-	})); err != nil {
+	if err := h.Add(rule.Then[standing]("pull", rule.All, rule.Playing(lever, rule.Order(heard{Rule: "pull"})))); err != nil {
 		t.Fatal(err)
 	}
 	roles := map[uid.UID64]uint64{1: 1 << lever.Tag(), 2: 1 << trapdoor.Tag()}

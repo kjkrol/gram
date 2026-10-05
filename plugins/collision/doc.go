@@ -1,6 +1,6 @@
 // Package collision detects overlaps between world entities each tick and records what each
 // struck on its Collider. An entity takes part while it carries Collider; one also carrying
-// Physics is pushed apart and bounces. Reactions are rules (rule.On) of a Meeting, a pair, or of
+// Physics is pushed apart and bounces. Reactions are rules (rule.Then) of a Meeting, a pair, or of
 // a Struck, hooked through the Stage's ctx.Hook (game.Initializer.Hook) or Plugin.Hook.
 //
 // # Plugin and its system

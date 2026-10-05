@@ -35,7 +35,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 		t.Fatal(err)
 	}
 	if hooked {
-		if err := w.Hook(rule.On("left", rule.All, func(m *rule.Moment[world.Leaving]) rule.Step { return m.Order(heard{}) })); err != nil {
+		if err := w.Hook(rule.Then[world.Leaving]("left", rule.All, rule.Order(heard{}))); err != nil {
 			t.Fatal(err)
 		}
 	}

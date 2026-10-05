@@ -23,7 +23,7 @@ func SideOf[F any](t tag.Tag[F]) Side {
 	return Side{family: reflect.TypeFor[F](), bit: uint8(t), probe: func() familyProbe { return &probe[F]{} }}
 }
 
-// pairRule is a rule of a moment of two, as rule.On builds it: what PairRules dispatches.
+// pairRule is a rule of a moment of two, as rule.Then builds it: what PairRules dispatches.
 type pairRule[P any] interface {
 	PairSides() (self, other Side)
 	RunPair(t Tick, pair P)
@@ -70,7 +70,7 @@ type PairRules[P any] struct {
 	matched  []int // DispatchGrouped's scratch
 }
 
-// Add takes a pair rule of P made by rule.On; ErrUnhosted for another, ErrHostBuilt after Bind.
+// Add takes a pair rule of P made by rule.Then; ErrUnhosted for another, ErrHostBuilt after Bind.
 func (r *PairRules[P]) Add(rule any) error {
 	p, ok := rule.(pairRule[P])
 	if !ok {

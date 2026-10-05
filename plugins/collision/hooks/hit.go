@@ -19,9 +19,7 @@ func Hit(w *world.Plugin, d time.Duration) effect.Effect {
 // ShowHits casts the hit on an entity that struck something, afresh every tick it strikes; hook it
 // on collision.
 func ShowHits(hit effect.Effect) rule.Rule {
-	return rule.On("collision.show hits", rule.All, func(m *rule.Moment[collision.Struck]) rule.Step {
-		return m.Apply(hit)
-	})
+	return rule.Then[collision.Struck]("collision.show hits", rule.All, rule.Apply(hit))
 }
 
 // HitOverlay draws with on top of an entity while the hit's marker is on — a bit read from its

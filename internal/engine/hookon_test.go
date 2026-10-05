@@ -46,7 +46,7 @@ func (d dawn) Who() uid.UID64 { return d.world }
 type noted struct{}
 
 func noteOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.On(name, filter, func(m *rule.Moment[P]) rule.Step { return m.Order(noted{}) })
+	return rule.Then[P](name, filter, rule.Order(noted{}))
 }
 
 // narrowed is r for the players of a role alone, as a role's Obeys makes it.

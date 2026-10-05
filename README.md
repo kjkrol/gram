@@ -107,6 +107,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -118,17 +119,17 @@ const (
 	boxCount                  = 300
 )
 
-func main() { gram.Run(&Game{}) }
+func main() { gram.Run(&Game{stage: newArena()}) }
 
 // Game is the game itself: window props and one Stage.
-type Game struct{ stage arena }
+type Game struct{ stage game.Stage }
 
 func (g *Game) Props() game.Props {
 	return game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60}
 }
 
 func (g *Game) Stages() (map[string]game.Stage, string) {
-	return map[string]game.Stage{g.stage.Name(): &g.stage}, g.stage.Name()
+	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
 // box is the row every entity spawns from: where it starts and how it moves.
@@ -137,50 +138,53 @@ type box struct {
 	vel world.Velocity
 }
 
-// arena is the one Stage: a torus of bouncing boxes.
+// arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	boxes     kind.Of[box]
 	stats     collision.ContactStats
-	scenes    game.Scenes
 }
 
-func (a *arena) Name() string       { return "arena" }
-func (a *arena) Stack() game.Scenes { return a.scenes }
+// newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
+// section this game has no use for — players, cells, effects, rules — is left out.
+func newArena() game.Stage {
+	a := &arena{}
+	return stage.New("arena").
+		Plugins(a.usePlugins).
+		Kinds(a.defineKinds).
+		Scenes(a.defineScenes).
+		Units(a.placeUnits).
+		Update(a.update)
+}
 
-// Init installs the plugins and defines what a box is.
-func (a *arena) Init(ctx game.Initializer) error {
+// usePlugins makes the world and the collision plugin counting its contacts.
+func (a *arena) usePlugins(ctx game.Initializer) error {
 	a.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
+	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
+	return ctx.Use(a.collision)
+}
+
+// defineKinds says what a box is.
+func (a *arena) defineKinds() {
 	a.boxes = kind.Define[box](a.world.Kinds(), "box", kind.Spec{
 		comp.Load(func(b box) world.Position { return b.pos }),
 		comp.Load(func(b box) world.Velocity { return b.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
 	})
-
-	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	if err := ctx.Use(a.collision); err != nil {
-		return err
-	}
-
-	scenes, err := game.NewStack(&view{arena: a, tps: ctx.TPS()})
-	if err != nil {
-		return err
-	}
-	a.scenes = scenes
-	scenes.Composition().Show("view")
-	return ctx.Track(scenes.Composition())
 }
 
-// Restore has nothing to restore from: this game keeps no saves.
-func (a *arena) Restore(game.Persistence) (bool, error) { return false, nil }
+// defineScenes makes the one Scene, shown as the Stage starts.
+func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&view{arena: a, tps: ctx.TPS()}}
+}
 
-// Spawn scatters the boxes on a grid, each heading somewhere at random.
-func (a *arena) Spawn() error {
+// placeUnits scatters the boxes on a grid, each heading somewhere at random.
+func (a *arena) placeUnits() {
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
 	entries := make([]kind.Entry, boxCount)
@@ -190,11 +194,10 @@ func (a *arena) Spawn() error {
 		entries[i] = a.boxes.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
-	return nil
 }
 
-// Update is one tick: move, then collide.
-func (a *arena) Update(ctx goke.RunCtx, d time.Duration) {
+// update is one tick: move, then collide.
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	ctx.Sync()
@@ -296,6 +299,28 @@ self-contained context — a menu, the gameplay — with its own goke ECS, built
 from a save, or report there is none), `Spawn` (seed the initial state, only when nothing was
 restored) and `Update` (one tick, running the plugins' `RunPlan` in the order the game needs).
 
+A game does not write those by hand: it defines its Stage a section at a time with
+[`game/stage`](game/stage/doc.go), always in the same order — a chain out of order does not
+compile, a section the game has no use for is left out, and what is defined in the wrong section
+is refused:
+
+```go
+stage.New("meadow").
+	Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
+	Players(s.definePlayer).    // the players, the plugins' default keys
+	Cells(s.defineCells).       // the kinds of cells
+	Effects(s.defineEffects).   // the states
+	Rules(s.defineRules).       // the roles, the rules, the plans
+	Commands(s.defineCommands). // what can be asked for
+	Kinds(s.defineKinds).       // the kinds of units
+	Controls(s.bindKeys).       // the game's own keys, each a command
+	Looks(s.defineLooks).       // the drawing rules
+	Scenes(s.defineScenes).     // the scenes
+	Layout(s.layOut).           // a fresh game's board
+	Units(s.placeUnits).        // a fresh game's units
+	Update(s.update)            // the tick; hands back the game.Stage
+```
+
 Within a Stage, a Scene is one thing it can show: its renderers, built once, and its input
 handling. The Stage's `Scenes` registry is static; the `Composition` over it is live — which
 Scenes are visible, in what order, and which is *active*, the topmost focusable one and the only
@@ -311,9 +336,7 @@ commits to either. Game logic that reacts to what a plugin finds is a *rule*, ru
 the plugin that catches its moment:
 
 ```go
-caught := rule.On("caught", rule.Between(predator, prey), func(m *rule.Moment[collision.Meeting]) rule.Step {
-	return m.ForOther(m.Order(world.Despawn{}))
-})
+caught := rule.Then[collision.Meeting]("caught", rule.Between(predator, prey), rule.ForOther(rule.Order(world.Despawn{})))
 return ctx.Hook(caught)
 ```
 
@@ -431,6 +454,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; the commands an entity gives itself (`Away`, `Toward`, `Turn`); `Pace`, the ground's share of its speed; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
+| [`game/stage`](game/stage/doc.go) | A Stage defined a section at a time, in one order the compiler keeps: `New(name).Plugins(…).Players(…)…Update(…)`; [`plugin/section`](plugin/section/section.go) names the parts, for a plugin refusing what is defined out of its place |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
 | [`plugins/collision/hooks`](plugins/collision/hooks/doc.go) | Ready-made rules: `ShowHits` with `HitOverlay` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |

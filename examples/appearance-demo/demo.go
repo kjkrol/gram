@@ -21,6 +21,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -54,7 +56,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -109,6 +111,8 @@ type walker struct {
 }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
@@ -120,27 +124,60 @@ type mainStage struct {
 	spook, crown        render.SpriteID
 
 	rage, angry effect.Effect
-
-	stack game.Scenes
+	player      *players.Player
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("appearance-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Effects(s.defineEffects).
+		Rules(s.defineRules).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Looks(s.defineLooks).
+		Scenes(s.defineScenes).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "appearance-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
 	})
+	s.collision = collision.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world)
+	for _, p := range []plugin.Plugin{s.collision, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	// Two effects: rage is a state of the whole game, R puts it on the world; angry is what each
-	// entity feels while it lasts, its Mood turned.
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
+
+// defineEffects says the two states: rage is a state of the whole game, R puts it on the world;
+// angry is what each entity feels while it lasts, its Mood turned.
+func (s *mainStage) defineEffects() {
 	s.rage = s.world.Effects().Define("rage", effect.Spec{effect.Lasts(rageFor)})
 	s.angry = s.world.Effects().Define("angry", effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+}
 
+// defineRules says the one rule: everyone is angry while the world is in a rage.
+func (s *mainStage) defineRules(ctx game.Initializer) error {
+	return ctx.Hook(rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.rage, rule.Keep(s.angry))))
+}
+
+// defineKinds says the three kinds, and the sprites the drawing rules choose among.
+func (s *mainStage) defineKinds() {
 	kinds := s.world.Kinds()
 	spec := func(more ...comp.Comp) kind.Spec {
 		return append(kind.Spec{
@@ -158,10 +195,18 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		s.facing[h], s.angrySprite[h] = kinds.NewSprite(), kinds.NewSprite()
 	}
 	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
+}
 
-	// The whole of the drawing, in order: the sprite of the heading, red while angry, a ghost drawn
-	// as a ghost after that — whatever it feels — and a crown on the leader.
-	if err := s.world.Draw(
+// bindKeys gives the player R, which puts the rage on the world.
+func (s *mainStage) bindKeys() error {
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
+		rule.Cast(s.rage).On(entity.World)))
+}
+
+// defineLooks is the whole of the drawing, in order: the sprite of the heading, red while angry, a
+// ghost drawn as a ghost after that — whatever it feels — and a crown on the leader.
+func (s *mainStage) defineLooks() error {
+	return s.world.Draw(
 		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
 		render.With(func(a world.Appearance, m Mood) world.Appearance {
 			if m.Angry {
@@ -175,56 +220,18 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		}),
 		render.As[Ghost](world.Appearance{SpriteID: s.spook}),
 		render.Over[Leader](world.Appearance{SpriteID: s.crown}),
-	); err != nil {
-		return err
-	}
-	// The rule keeping everyone angry while the world is in a rage.
-	if err := s.world.Hook(rule.On("rage spreads", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-		return m.During(s.rage, m.Keep(s.angry))
-	})); err != nil {
-		return err
-	}
-
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
-	// The player's camera and R, which puts the rage on the world.
-	s.players = players.NewPlugin(s.world)
-	player := s.players.Local("player")
-	if err := player.Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
-		rule.Cast(s.rage).On(entity.World))); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
-	main := &mainScene{stage: s}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	)
 }
+
+func (s *mainStage) defineScenes() []game.Scene { return []game.Scene{&mainScene{stage: s}} }
 
 // boxAt is the box of side Size round at.
 func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-// Restore loads nothing: the demo starts afresh every time.
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
-
-// Spawn puts the walkers, the ghosts and the leader on a grid, each going one of the four ways.
-func (s *mainStage) Spawn() error {
+// placeUnits puts the walkers, the ghosts and the leader on a grid, each going one of the four ways.
+func (s *mainStage) placeUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
@@ -241,10 +248,9 @@ func (s *mainStage) Spawn() error {
 		}
 	}
 	s.world.Seed(entries...)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

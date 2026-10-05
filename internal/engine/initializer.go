@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 )
@@ -23,11 +24,22 @@ type initializer struct {
 	used []any
 	// hooked are the roles the Stage hooked itself: hookPlayed leaves them alone
 	hooked []*rule.Part
+	// part is the section of the Stage's definition under way, for one built in sections
+	part section.Part
 
 	screenWidth, screenHeight int
 }
 
-var _ game.Initializer = (*initializer)(nil)
+var (
+	_ game.Initializer = (*initializer)(nil)
+	_ section.Writer   = (*initializer)(nil)
+)
+
+// Section is the part of the Stage being defined; none for a Stage written by hand.
+func (c *initializer) Section() section.Part { return c.part }
+
+// Enter says which part of the Stage begins: package game/stage drives it.
+func (c *initializer) Enter(p section.Part) { c.part = p }
 
 func (c *initializer) UseModule(m goke.Module) { c.host.useModule(m) }
 
@@ -41,6 +53,9 @@ func (c *initializer) ECS() *goke.ECS { return c.host.ecs }
 
 // Use installs p, rejecting a duplicate Name and any Plugin the engine installs itself.
 func (c *initializer) Use(p plugin.Plugin) error {
+	if err := section.Check(c, fmt.Sprintf("plugin %q used", p.Name()), section.Plugins); err != nil {
+		return err
+	}
 	if _, ok := p.(plugin.Builtin); ok {
 		return fmt.Errorf("gram: %q is installed by the engine itself — do not Use it yourself", p.Name())
 	}
@@ -80,6 +95,9 @@ func (c *initializer) use(p plugin.Plugin) error {
 
 // Hook hooks each rule on the first plugin used that hosts its moment.
 func (c *initializer) Hook(rules ...rule.Rule) error {
+	if err := section.Check(c, "rules hooked", section.Rules); err != nil {
+		return err
+	}
 	for _, r := range rules {
 		if role, ok := r.(*rule.Part); ok {
 			c.hooked = append(c.hooked, role)
@@ -90,6 +108,9 @@ func (c *initializer) Hook(rules ...rule.Rule) error {
 
 // Commands hands the world the game's commands about effects.
 func (c *initializer) Commands(cmds ...rule.Casting) error {
+	if err := section.Check(c, "commands handed over", section.Commands); err != nil {
+		return err
+	}
 	if c.world == nil {
 		return errors.New("gram: Commands before UseWorld: the world carries the commands out")
 	}
@@ -101,6 +122,11 @@ func (c *initializer) Commands(cmds ...rule.Casting) error {
 func (c *initializer) hookPlayed() error {
 	if c.world == nil {
 		return nil
+	}
+	was := c.part
+	if was != section.Anytime {
+		c.part = section.Rules // the engine's own hooking, whatever the Stage has got to
+		defer func() { c.part = was }()
 	}
 	for _, role := range c.world.Kinds().Played() {
 		if slices.Contains(c.hooked, role) {
@@ -159,6 +185,7 @@ func (c *initializer) Track(s plugin.Serializable) error {
 }
 
 func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
+	section.Must(c, "the world used", section.Plugins)
 	if c.world != nil {
 		panic("gram: UseWorld called more than once in the same Stage")
 	}

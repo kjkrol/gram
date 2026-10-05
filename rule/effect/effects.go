@@ -25,6 +25,7 @@ type Effects struct {
 	sprite  func() render.SpriteID                // the world's issuer of atlas slots
 	looks   []map[render.SpriteID]render.SpriteID // by effect: a sprite's twin under it
 	settled bool                                  // the world took the looks for its renderer
+	guard   func(name string)                     // panics for an effect defined out of its place; nil for none
 }
 
 // New makes the effects, naming each effect's marker with name — the world's Kinds, so the saves
@@ -45,6 +46,9 @@ const markerPrefix = "effect."
 // Define registers an effect under name, with its own marker on while it runs (Effect.Mark);
 // call it in Init, before the game runs.
 func (e *Effects) Define(name string, spec Spec) Effect {
+	if e.guard != nil {
+		e.guard(name)
+	}
 	if e.system.built {
 		panic(fmt.Sprintf("effects: %q defined after the game was set up", name))
 	}
@@ -80,6 +84,10 @@ func (e *Effects) Named(name string) Effect {
 	}
 	return Effect{owner: e, id: id, mark: e.marks[id]}
 }
+
+// Guard has Define call guard with each effect's name first: the world's, which refuses one
+// defined out of its section of a Stage. For the world.
+func (e *Effects) Guard(guard func(name string)) { e.guard = guard }
 
 // Sprites has the effects' looks take their atlas slots from issue. For the world.
 func (e *Effects) Sprites(issue func() render.SpriteID) { e.sprite = issue }

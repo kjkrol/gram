@@ -5,9 +5,8 @@
 // holds is an effect (package rule/effect). The package is gram's core, beside entity and clock;
 // the systems a plugin runs the rules hooked on it with are package plugin's.
 //
-//	mortal := rule.Role("mortal").Obeys(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-//		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-//	}))
+//	mortal := rule.Role("mortal").Obeys(rule.Then[unit.Standing]("fall in", rule.All,
+//		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 //	return ctx.Hook(mortal)
 //
 // # Rules

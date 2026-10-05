@@ -20,7 +20,9 @@
 // Initializer, may call UseWorld once and hooks the game's rules; Restore resumes from a save or
 // reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
 // Update advances the simulation one tick by running the plugins' RunPlan in the order the game
-// needs. A Stage handles no input: that is a Scene's.
+// needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand: package
+// game/stage defines a Stage a section at a time — plugins, players, cells, effects, rules,
+// commands, kinds, controls, looks, scenes, layout, units, update — always in that order.
 //
 // # Scene, Scenes and Composition
 //

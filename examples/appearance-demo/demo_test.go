@@ -110,7 +110,7 @@ type drawnStage struct {
 func newDrawnStage(t *testing.T) *drawnStage {
 	t.Helper()
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
-	ds := &drawnStage{t: t, stage: &mainStage{}}
+	ds := &drawnStage{t: t, stage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := ds.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)

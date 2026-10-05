@@ -12,7 +12,7 @@ import (
 )
 
 // Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
-// standing on the board, one seeing another, two striking — built with On and hooked through the
+// standing on the board, one seeing another, two striking — built with Then and hooked through the
 // Stage's Initializer (game.Initializer.Hook). The moment's type says which plugin hosts it;
 // another refuses it. String is its name and its moment.
 type Rule interface {
@@ -29,15 +29,6 @@ func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 		return r
 	}
 	return r.narrowed(narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc})
-}
-
-// On is a rule, named name: at every moment P a plugin's pass catches — a unit standing on the
-// board, one seeing another, two striking — for whom filter lets through, it runs the steps body
-// writes for the Moment, steps done within the pass alone. Hook it with game.Initializer.Hook,
-// which finds the plugin that catches P. A rule keeps no memory of its own: an effect's presence
-// is its memory.
-func On[P any](name string, filter Filter, body func(m *Moment[P]) Step) Rule {
-	return build[P](name, filter, body(&Moment[P]{}))
 }
 
 // Filter is whom a rule fires for: All, Self, Between or Having.

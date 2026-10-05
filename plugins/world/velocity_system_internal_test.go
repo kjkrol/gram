@@ -82,7 +82,7 @@ func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 
 // The rules of a Moving run in the pass, once for every entity.
 func TestVelocitySystem_RunsTheMovingRules(t *testing.T) {
-	_, _, gave := velocityTick(t, 0.5, rule.On("moving", rule.All, func(m *rule.Moment[Moving]) rule.Step { return m.Order(moved{}) }))
+	_, _, gave := velocityTick(t, 0.5, rule.Then[Moving]("moving", rule.All, rule.Order(moved{})))
 	if len(gave) != 2 || gave[0] == gave[1] {
 		t.Errorf("moved given by %v, want once by each of the two", gave)
 	}

@@ -41,15 +41,9 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			t.Fatal(err)
 		}
 		err := w.Hook(
-			rule.On("once", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(5*tick), r.Order(heard{Rule: "once"}))
-			}),
-			rule.On("daily", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.Every(4*tick, 2*tick), r.Order(heard{Rule: "daily"}))
-			}),
-			rule.On("dusk", rule.All, func(r *rule.Moment[clock.Moment]) rule.Step {
-				return r.If(clock.At(3*tick), r.Apply(dusk))
-			}),
+			rule.Then[clock.Moment]("once", rule.All, rule.If(clock.At(5*tick), rule.Order(heard{Rule: "once"}))),
+			rule.Then[clock.Moment]("daily", rule.All, rule.If(clock.Every(4*tick, 2*tick), rule.Order(heard{Rule: "daily"}))),
+			rule.Then[clock.Moment]("dusk", rule.All, rule.If(clock.At(3*tick), rule.Apply(dusk))),
 		)
 		if err != nil {
 			t.Fatal(err)

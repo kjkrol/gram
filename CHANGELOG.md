@@ -8,6 +8,23 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**A Stage defined in sections**
+- `game/stage`: `stage.New(name).Plugins(f).Players(f).Cells(f).Effects(f).Rules(f).Commands(f).
+  Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
+  is a `game.Stage` defined a part at a time, always in that order: each link hands back a type
+  with the later links alone, so a chain out of order does not compile; any link may be left out
+  but `Update`. The Stage keeps its name, makes its stack, shows the first scene and tracks the
+  Composition itself.
+- What is defined out of its section is refused (`plugin/section`): a plugin used outside
+  Plugins, a kind of cell outside Cells, an effect outside Effects, rules hooked outside Rules,
+  commands outside Commands, a kind of unit outside Kinds, keys bound outside Players and
+  Controls, drawing rules outside Looks, the board seeded outside Layout, units outside Units.
+  Plugins takes anything; a Stage with an `Init` of its own is checked for nothing.
+- Every demo and `examples/minimal` is defined so. `effect-demo` lost its roads.
+  `atmosphere.Plugin.WithWeathering` may come after the plugin is used.
+- One way to write a rule: `rule.On` and `rule.Moment` with its methods are gone, replaced by
+  `rule.Then[P](name, filter, step)` and the package's steps.
+
 **Commands, names and groups**
 - What somebody asks for about an effect is one command, written as a sentence: `rule.Cast(e)`,
   `rule.Lift(e)` or `rule.Toggle(e)`, `.On(whom)`, `.For(d)`, `.By(source)`. Whom is

@@ -73,7 +73,7 @@ func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
 
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 
-	stage := &mainStage{}
+	stage := newStage()
 	ctx := &benchInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		tb.Fatalf("Init: %v", err)

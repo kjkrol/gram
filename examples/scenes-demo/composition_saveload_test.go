@@ -26,14 +26,14 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 
-	stage := &GameplayStage{SaveBasePath: basePath}
-	eng := engine.NewEngine(oneStageGame{stage: stage, props: testProps()})
+	played := NewGameplayStage(basePath)
+	eng := engine.NewEngine(oneStageGame{stage: played, props: testProps()})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 
-	stage.Stack().Composition().Show(stage.panel.Name())
-	if got, want := stage.Stack().Composition().Active(), stage.panel.Name(); got != want {
+	played.Stack().Composition().Show(played.panel.Name())
+	if got, want := played.Stack().Composition().Active(), played.panel.Name(); got != want {
 		t.Fatalf("Active() before save = %q, want %q", got, want)
 	}
 
@@ -41,7 +41,7 @@ func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	stage2 := &GameplayStage{SaveBasePath: basePath}
+	stage2 := NewGameplayStage(basePath)
 	eng2 := engine.NewEngine(oneStageGame{stage: stage2, props: testProps()})
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init (fresh process/engine): %v", err)

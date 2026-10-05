@@ -15,6 +15,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -51,7 +53,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -75,6 +77,8 @@ type Drive struct{ Dir geom.Vec }
 
 // mainStage is the arena, its two blocks and the players driving them. It handles Drive itself.
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world      *world.Plugin
 	collision  *collision.Plugin
 	board      *board.Plugin
@@ -88,13 +92,24 @@ type mainStage struct {
 	follow     goke.Runnable
 	minimapCam camera.Camera
 	composer   *render.Composer
-	stack      game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
-
-func (s *mainStage) Name() string       { return "split-screen-demo" }
-func (s *mainStage) Stack() game.Scenes { return s.stack }
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("split-screen-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayers).
+		Cells(s.defineCells).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Scenes(s.defineScenes).
+		Shows("main", "minimap").
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
 // picture is the one composer of the arena, shared by the players' views and the minimap.
 func (s *mainStage) picture() *render.Composer {
@@ -110,54 +125,50 @@ func (s *mainStage) Queues() []control.CommandQueue { return []control.CommandQu
 // DefaultBindings is none: each player is bound to its own keys in Init.
 func (s *mainStage) DefaultBindings() []control.Binding { return nil }
 
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
 		Camera:   camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight},
 	})
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("floor"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
-	)
-	if err := ctx.Use(s.board); err != nil {
-		return err
-	}
-
 	s.players = players.NewPlugin(s.world, s)
-	s.redPlayer = s.players.Local("red").OwnCamera()
-	s.bluePlayer = s.players.Local("blue").OwnCamera()
-	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
-		return err
-	}
-	if err := s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
 	s.drive = ctx.RegSys(func() goke.System { return &driveSystem{drives: &s.drives} })
 	s.follow = ctx.RegSys(func() goke.System { return &followSystem{players: s.players} })
 	s.minimapCam = s.world.NewCamera()
-	s.defineKinds()
+	return nil
+}
 
-	main := &mainScene{stage: s}
-	minimap := &minimapScene{stage: s}
-	stack, err := game.NewStack(main, minimap)
-	if err != nil {
+// definePlayers makes the two players at the keyboard, each with a camera of its own.
+func (s *mainStage) definePlayers() {
+	s.redPlayer = s.players.Local("red").OwnCamera()
+	s.bluePlayer = s.players.Local("blue").OwnCamera()
+}
+
+func (s *mainStage) defineCells() {
+	s.board.CellKinds().Create(
+		cell.Kind{Name: cell.Named("floor"), Cost: 1, Allows: cell.Land},
+		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
+	)
+}
+
+// bindKeys gives each player its keys: W, S, A and D drive red, the arrows blue.
+func (s *mainStage) bindKeys() error {
+	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
 		return err
 	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	comp.Show(minimap.Name())
-	return nil
+	return s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
+}
+
+func (s *mainStage) defineScenes() []game.Scene {
+	return []game.Scene{&mainScene{stage: s}, &minimapScene{stage: s}}
 }
 
 // driveKeys binds up, down, left and right to Drive while held.
@@ -185,13 +196,15 @@ func (s *mainStage) defineKinds() {
 	s.blueBlock = units.Define("blue", unit.Mover{Domain: cell.Land}, profile)
 }
 
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
+// cellAt is the cell at column x, row y.
+func (s *mainStage) cellAt(x, y uint32) cell.ID {
+	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
+	return c
+}
 
-// Spawn lays out the arena — walls round it and a few pillars and walls inside — and a block for
-// each player in opposite corners.
-func (s *mainStage) Spawn() error {
-	brd := s.board.Res.Logic.Board
-	cellAt := func(x, y uint32) cell.ID { c, _ := brd.CellIndex(x, y); return c }
+// layOut lays out the arena: walls round it and a few pillars and walls inside.
+func (s *mainStage) layOut() {
+	cellAt := s.cellAt
 	var cells []cell.Entry
 	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: "wall", Cell: cellAt(x, y)}) }
 	for x := uint32(0); x < GridWidth; x++ {
@@ -216,14 +229,18 @@ func (s *mainStage) Spawn() error {
 		wall(p[0]+1, p[1]+1)
 	}
 	s.board.Seed(board.Layout{Default: "floor", Cells: cells})
-	s.world.Seed(
-		s.redBlock.Entry(block{start: cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
-		s.blueBlock.Entry(block{start: cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
-	)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+// placeUnits puts a block for each player in opposite corners, each its player's: it takes that
+// player's Drive alone.
+func (s *mainStage) placeUnits() {
+	s.world.Seed(
+		s.redBlock.Entry(block{start: s.cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
+		s.blueBlock.Entry(block{start: s.cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
+	)
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(s.drive, d)
 	ctx.Sync()
 	s.world.RunPlan(ctx, d)

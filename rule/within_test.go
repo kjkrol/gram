@@ -241,11 +241,11 @@ func everyPair(n int, selves, others []int) []firing {
 }
 
 func noteOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.On(name, filter, func(m *rule.Moment[P]) rule.Step { return m.Order(noted{}) })
+	return rule.Then[P](name, filter, rule.Order(noted{}))
 }
 
 func aimOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.On(name, filter, func(m *rule.Moment[P]) rule.Step { return m.Order(toward{}) })
+	return rule.Then[P](name, filter, rule.Order(toward{}))
 }
 
 // A rule over every entity, narrowed to hunters, fires for those carrying the tag alone: not for

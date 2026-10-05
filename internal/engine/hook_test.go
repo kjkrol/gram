@@ -110,9 +110,7 @@ func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 
 // despawning is a rule of world.Moving: every entity gives itself a world.Despawn.
 func despawning() rule.Rule {
-	return rule.On("leave", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-		return m.Order(world.Despawn{})
-	})
+	return rule.Then[world.Moving]("leave", rule.All, rule.Order(world.Despawn{}))
 }
 
 // hostPlugin is a plugin hosting rules: it notes every rule it is asked to take and answers err.
@@ -146,9 +144,7 @@ func TestEngine_HooksTheRolesItsKindsPlay(t *testing.T) {
 // A played role the Stage hooked itself is hooked once.
 func TestEngine_HooksAPlayedRoleTheStageHookedOnce(t *testing.T) {
 	host := &hostPlugin{}
-	role := rule.Role("leaver").Obeys(rule.On("lost", rule.All, func(m *rule.Moment[unhostedMoment]) rule.Step {
-		return m.Order(world.Despawn{})
-	}))
+	role := rule.Role("leaver").Obeys(rule.Then[unhostedMoment]("lost", rule.All, rule.Order(world.Despawn{})))
 	s := &hookStage{before: []plugin.Plugin{host}, plays: []*rule.Part{role}, rules: []rule.Rule{role}}
 	runHookStage(t, s)
 
@@ -159,9 +155,7 @@ func TestEngine_HooksAPlayedRoleTheStageHookedOnce(t *testing.T) {
 
 // A played role whose rule no plugin hosts fails the Stage's Init.
 func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
-	role := rule.Role("leaver").Obeys(rule.On("lost", rule.All, func(m *rule.Moment[unhostedMoment]) rule.Step {
-		return m.Order(world.Despawn{})
-	}))
+	role := rule.Role("leaver").Obeys(rule.Then[unhostedMoment]("lost", rule.All, rule.Order(world.Despawn{})))
 	err := NewEngine(oneStageGame{stage: &hookStage{plays: []*rule.Part{role}}}).Init()
 	if !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Init = %v, want plugin.ErrUnhosted", err)
@@ -189,9 +183,7 @@ func TestInitializer_Hook_WithoutTheRuleTheWalkerStays(t *testing.T) {
 }
 
 func TestInitializer_Hook_UnhostedMomentFailsInit(t *testing.T) {
-	nobody := rule.On("nobody", rule.All, func(m *rule.Moment[unhostedMoment]) rule.Step {
-		return m.Order(world.Despawn{})
-	})
+	nobody := rule.Then[unhostedMoment]("nobody", rule.All, rule.Order(world.Despawn{}))
 	other := &stubPlugin{name: "test.plain"}
 	eng := newTestEngine(func(ctx game.Initializer) error {
 		if err := ctx.Use(other); err != nil {

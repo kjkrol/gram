@@ -70,17 +70,17 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// stage is the demo built fresh, without a window, and a view of its units.
-type stage struct {
+// testStage is the demo built fresh, without a window, and a view of its units.
+type testStage struct {
 	*mainStage
 	ecs   *goke.ECS
 	base  goke.Comp[world.Base]
 	units *goke.Query
 }
 
-func buildStage(t *testing.T) *stage {
+func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &stage{mainStage: &mainStage{}}
+	s := &testStage{mainStage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -106,14 +106,14 @@ func buildStage(t *testing.T) *stage {
 	return s
 }
 
-func (s *stage) tick(n int) {
+func (s *testStage) tick(n int) {
 	for range n {
 		s.ecs.Tick(time.Second / TPS)
 	}
 }
 
 // onStrip is every unit whose centre stands on a trapdoor of lever i.
-func (s *stage) onStrip(i int) map[uid.UID64]bool {
+func (s *testStage) onStrip(i int) map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -128,12 +128,12 @@ func (s *stage) onStrip(i int) map[uid.UID64]bool {
 }
 
 // holds reports whether the top trapdoor of lever i holds a walker.
-func (s *stage) holds(i int) bool {
+func (s *testStage) holds(i int) bool {
 	c, _ := s.brd.CellIndex(levers[i].left, stripTop)
 	return s.brd.Kind(c).Admits(cell.Land)
 }
 
-func (s *stage) alive() map[uid.UID64]bool {
+func (s *testStage) alive() map[uid.UID64]bool {
 	out := map[uid.UID64]bool{}
 	for s.units.All(); s.units.Next(); {
 		for _, id := range s.units.Cursor().IDs {

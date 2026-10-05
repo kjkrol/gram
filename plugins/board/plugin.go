@@ -2,7 +2,6 @@ package board
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/entity"
 	"log"
 	"math"
 	"time"
@@ -10,10 +9,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -71,6 +72,11 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
+	}
+	p.kinds.Guard = func(name string) {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q created", name), section.Cells); err != nil {
+			panic("board: " + err.Error())
+		}
 	}
 	brd := NewBoard(g)
 	p.Res.Logic.Board = brd
@@ -182,7 +188,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil — the terrain is the cells' entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of a unit.Standing, fired every step for every entity on the board,
+// Hook hosts rules (rule.Then) of a unit.Standing, fired every step for every entity on the board,
 // and of a cell.Now, fired every step for every cell; hook them until the Stage's ecs.Setup —
 // before or after Use — or hand them to its Initializer's Hook.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
@@ -246,7 +252,12 @@ func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(layout Layout) { p.seeded = &layout }
+func (p *Plugin) Seed(layout Layout) {
+	if err := p.worldPlugin.InSection("the board's layout seeded", section.Layout); err != nil {
+		panic("board: " + err.Error())
+	}
+	p.seeded = &layout
+}
 
 // Populate applies the seeded Layout — kinds, the cells' tags, roles, names and groups, ways and crossings —
 // changing nothing and erroring on an unknown kind name.

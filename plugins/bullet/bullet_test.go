@@ -346,14 +346,10 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	ammo := round(r, true, roundTag)
 	hit := r.fx.Define("hit", effect.Spec{effect.Lasts(time.Minute)})
 	told := r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
-	if err := r.c.Hook(rule.On("hit", rule.Between(roundTag, tag.Any), func(m *rule.Moment[collision.Meeting]) rule.Step {
-		return m.ForOther(m.Apply(hit))
-	})); err != nil {
+	if err := r.c.Hook(rule.Then[collision.Meeting]("hit", rule.Between(roundTag, tag.Any), rule.ForOther(rule.Apply(hit)))); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.b.Hook(rule.On("told", rule.Self(roundTag), func(m *rule.Moment[bullet.Landing]) rule.Step {
-		return m.If(func(l bullet.Landing) bool { return l.Struck }, m.ForOther(m.Apply(told)))
-	})); err != nil {
+	if err := r.b.Hook(rule.Then[bullet.Landing]("told", rule.Self(roundTag), rule.If(func(l bullet.Landing) bool { return l.Struck }, rule.ForOther(rule.Apply(told))))); err != nil {
 		t.Fatal(err)
 	}
 	r.start()
@@ -382,9 +378,7 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	roundTag := r.w.Kinds().DefineTag[family]("round")
 	ammo := round(r, false, roundTag)
 	scored := r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
-	if err := r.b.Hook(rule.On("scored", rule.Self(roundTag), func(m *rule.Moment[bullet.Landing]) rule.Step {
-		return m.Apply(scored) // on the shot itself: harmless, it lies a step
-	})); err != nil {
+	if err := r.b.Hook(rule.Then[bullet.Landing]("scored", rule.Self(roundTag), rule.Apply(scored))); err != nil { // on the shot itself: harmless, it lies a step
 		t.Fatal(err)
 	}
 	r.start()
@@ -464,12 +458,8 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	grenade := r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
 	hurt := r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	if err := r.b.Hook(
-		rule.On("burst", rule.Self(grenadeTag), func(m *rule.Moment[bullet.Resting]) rule.Step {
-			return m.Order(bullet.Burst{Radius: 40})
-		}),
-		rule.On("blast", rule.Between(grenadeTag, tag.Any), func(m *rule.Moment[bullet.Blast]) rule.Step {
-			return m.ForOther(m.Apply(hurt))
-		}),
+		rule.Then[bullet.Resting]("burst", rule.Self(grenadeTag), rule.Order(bullet.Burst{Radius: 40})),
+		rule.Then[bullet.Blast]("blast", rule.Between(grenadeTag, tag.Any), rule.ForOther(rule.Apply(hurt))),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -539,9 +529,7 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		r := newRig(t, scene{edges: aabbworld.OpenX, pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
 		ammo := round(r, true)
 		gone := r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
-		if err := r.w.Hook(rule.On("leaving", rule.All, func(m *rule.Moment[world.Leaving]) rule.Step {
-			return m.Apply(gone)
-		})); err != nil {
+		if err := r.w.Hook(rule.Then[world.Leaving]("leaving", rule.All, rule.Apply(gone))); err != nil {
 			t.Fatal(err)
 		}
 		r.start()

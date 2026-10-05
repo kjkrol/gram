@@ -26,14 +26,14 @@ func (c *Columns) Of[T any]() *goke.OptComp[T] {
 	return col
 }
 
-// eachRule is a rule of a moment of one entity, as rule.On builds it: what Rules runs over a
+// eachRule is a rule of a moment of one entity, as rule.Then builds it: what Rules runs over a
 // chunk.
 type eachRule[P any] interface {
 	BindColumns(cols *Columns)
 	RunEach(t Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P)
 }
 
-// onceRule is a rule over no component, as rule.On builds one for All: what StepRules runs.
+// onceRule is a rule over no component, as rule.Then builds one for All: what StepRules runs.
 type onceRule[P any] interface {
 	RunOnce(t Tick, about P)
 }
@@ -59,7 +59,7 @@ func Own[T, P any](r *Rules[P], col *goke.OptComp[T]) {
 // Empty reports whether no rule was added.
 func (r *Rules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// Add takes a rule of P made by rule.On; ErrUnhosted for another, ErrHostBuilt after Bind.
+// Add takes a rule of P made by rule.Then; ErrUnhosted for another, ErrHostBuilt after Bind.
 func (r *Rules[P]) Add(rule any) error {
 	each, ok := rule.(eachRule[P])
 	if !ok {
@@ -104,7 +104,7 @@ type StepRules[P any] struct {
 	bound bool
 }
 
-// Add takes a rule of P over no component made by rule.On; ErrUnhosted for another, ErrHostBuilt
+// Add takes a rule of P over no component made by rule.Then; ErrUnhosted for another, ErrHostBuilt
 // after Bind.
 func (r *StepRules[P]) Add(rule any) error {
 	once, ok := rule.(onceRule[P])

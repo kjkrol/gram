@@ -72,8 +72,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// stage is the demo built fresh, without a window, and a view of its units and shots.
-type stage struct {
+// testStage is the demo built fresh, without a window, and a view of its units and shots.
+type testStage struct {
 	*mainStage
 	test   *testing.T
 	ecs    *goke.ECS
@@ -83,9 +83,9 @@ type stage struct {
 	units  *goke.Query
 }
 
-func buildStage(t *testing.T) *stage {
+func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &stage{mainStage: &mainStage{}}
+	s := &testStage{mainStage: newStage()}
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -113,14 +113,14 @@ func buildStage(t *testing.T) *stage {
 	return s
 }
 
-func (s *stage) tick(n int) {
+func (s *testStage) tick(n int) {
 	for range n {
 		s.ecs.Tick(time.Second / TPS)
 	}
 }
 
 // wandererOn is the wanderer whose round begins on cell c, by where it stands as the game begins.
-func (s *stage) wandererOn(c cell.ID) uid.UID64 {
+func (s *testStage) wandererOn(c cell.ID) uid.UID64 {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, id := range cur.IDs {
@@ -133,10 +133,10 @@ func (s *stage) wandererOn(c cell.ID) uid.UID64 {
 	return 0
 }
 
-func (s *stage) t() *testing.T { return s.test }
+func (s *testStage) t() *testing.T { return s.test }
 
 // state is whether id is still there and whether it is wounded.
-func (s *stage) state(id uid.UID64) (alive, wounded bool) {
+func (s *testStage) state(id uid.UID64) (alive, wounded bool) {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for k, got := range cur.IDs {
@@ -153,7 +153,7 @@ func (s *stage) state(id uid.UID64) (alive, wounded bool) {
 }
 
 // shots is how many shots are in the air or lying.
-func (s *stage) shots() int {
+func (s *testStage) shots() int {
 	n := 0
 	for s.units.All(); s.units.Next(); {
 		if s.flight.Slice(s.units.Cursor()) != nil {

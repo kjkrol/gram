@@ -73,7 +73,7 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 	t.Helper()
 
-	stage := &mainStage{}
+	stage := newStage()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)

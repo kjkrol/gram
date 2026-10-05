@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -74,6 +75,9 @@ func (p *Plugin) Local(name string) *Player {
 // Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
 // Issue; it looks through the world's camera until it has one of its own.
 func (p *Plugin) Add(name string) *Player {
+	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
+		panic("players: " + err.Error())
+	}
 	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, Camera: p.worldPlugin.Camera(), View: p.worldPlugin.View(), world: p.worldPlugin}
 	p.players = append(p.players, pl)
 	return pl

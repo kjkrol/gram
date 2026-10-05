@@ -55,7 +55,7 @@
 // # Crowd
 //
 // How units get on among others is rules: rules of the moment [Touch], which the plugin hosts
-// (ctx.Hook, or [Plugin.Hook]; rule.On over a Touch). Navigation perceives and carries out; the
+// (ctx.Hook, or [Plugin.Hook]; rule.Then over a Touch). Navigation perceives and carries out; the
 // rules decide. A Touch is two units touching, handed to each of the two every tick they do:
 // whether each is on the move or giving way, whether they are allies (players/owner.Allies) or of
 // one MoveTo — the order each is under ([MoveOrder].Group), or the last it came to the end of

@@ -13,16 +13,15 @@ import (
 // hookGlow hooks on the world a rule keeping glow on while it fires, then a rule dispelling it at
 // the steps douse says — with shield, the dispeller casts it first and the keeper keeps off it.
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
-	keep := func(m *rule.Moment[world.Moving]) rule.Step { return m.Keep(glow) }
-	put := func(m *rule.Moment[world.Moving]) rule.Step { return m.Dispel(glow) }
+	keep, put := rule.Keep(glow), rule.Dispel(glow)
 	if shield != (effect.Effect{}) {
-		keep = func(m *rule.Moment[world.Moving]) rule.Step { return m.Unless(shield, m.Keep(glow)) }
-		put = func(m *rule.Moment[world.Moving]) rule.Step { return m.Steps(m.Apply(shield), m.Dispel(glow)) }
+		keep = rule.Unless(shield, rule.Keep(glow))
+		put = rule.Steps(rule.Apply(shield), rule.Dispel(glow))
 	}
 	dousing := func(world.Moving) bool { return *douse }
 	if err := r.w.Hook(
-		rule.On("glow", rule.All, keep),
-		rule.On("douse", rule.All, func(m *rule.Moment[world.Moving]) rule.Step { return m.If(dousing, put(m)) }),
+		rule.Then[world.Moving]("glow", rule.All, keep),
+		rule.Then[world.Moving]("douse", rule.All, rule.If(dousing, put)),
 	); err != nil {
 		r.t.Fatal(err)
 	}
@@ -144,9 +143,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 				}))
 				return
 			}
-			if err := r.w.Hook(rule.On("open while pulled", rule.All, func(m *rule.Moment[world.Moving]) rule.Step {
-				return m.During(lever, m.Keep(open))
-			})); err != nil {
+			if err := r.w.Hook(rule.Then[world.Moving]("open while pulled", rule.All, rule.During(lever, rule.Keep(open)))); err != nil {
 				r.t.Fatal(err)
 			}
 		})

@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -29,13 +30,29 @@ const (
 
 // GameplayStage is the real game — its own fresh ECS, built only once entered from the menu.
 type GameplayStage struct {
+	game.Stage // defined a section at a time: NewGameplayStage
+
 	world *world.Plugin
 	mover kind.Of[world.Position]
-	stack game.Scenes
 	panel *panelScene
 
 	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
 	SaveBasePath string
+}
+
+// NewGameplayStage defines the gameplay Stage a section at a time; saveBasePath overrides where its
+// saves are read and written, empty for the demo's own.
+func NewGameplayStage(saveBasePath string) *GameplayStage {
+	g := &GameplayStage{SaveBasePath: saveBasePath}
+	g.Stage = stage.New("gameplay").
+		Plugins(g.usePlugins).
+		Kinds(g.defineKinds).
+		Scenes(g.defineScenes).
+		Shows("world", "hud").
+		Restore(g.restore).
+		Units(g.placeUnits).
+		Update(g.update)
+	return g
 }
 
 func (g *GameplayStage) basePath() string {
@@ -45,38 +62,30 @@ func (g *GameplayStage) basePath() string {
 	return saveBasePath
 }
 
-var _ game.Stage = (*GameplayStage)(nil)
-
-func (g *GameplayStage) Name() string { return "gameplay" }
-
-func (g *GameplayStage) Init(ctx game.Initializer) error {
+func (g *GameplayStage) usePlugins(ctx game.Initializer) {
 	g.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
+}
+
+func (g *GameplayStage) defineKinds() {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
 	g.mover = kind.Define[world.Position](g.world.Kinds(), "mover", kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(velocity),
 	})
-
-	worldScn := &worldScene{stage: g}
-	g.panel = &panelScene{stage: g}
-	hud := &hudScene{stage: g}
-
-	stack, err := game.NewStack(worldScn, g.panel, hud)
-	if err != nil {
-		return err
-	}
-	g.stack = stack
-	comp := stack.Composition()
-	comp.Show(worldScn.Name())
-	comp.Show(hud.Name())
-	return ctx.Track(comp)
 }
 
-func (g *GameplayStage) Restore(p game.Persistence) (bool, error) {
+// defineScenes makes the world, the panel over it and the HUD: the world and the HUD are shown as
+// the Stage starts (Shows), the panel when asked for.
+func (g *GameplayStage) defineScenes() []game.Scene {
+	g.panel = &panelScene{stage: g}
+	return []game.Scene{&worldScene{stage: g}, g.panel, &hudScene{stage: g}}
+}
+
+func (g *GameplayStage) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(g.basePath())
 	if err != nil {
 		return false, err
@@ -90,22 +99,19 @@ func (g *GameplayStage) Restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-func (g *GameplayStage) Spawn() error {
+func (g *GameplayStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
 		entries[i] = g.mover.Entry(placement.Place(i, EntityCount))
 	}
 	g.world.Seed(entries...)
-	return nil
 }
 
-func (g *GameplayStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (g *GameplayStage) update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
 	ctx.Sync()
 }
-
-func (g *GameplayStage) Stack() game.Scenes { return g.stack }
 
 // handleGlobalKeys handles quit/pause/save — shared by worldScene and panelScene.
 func handleGlobalKeys(events *control.InputEvents, runtime game.Runtime, basePath string) {
@@ -218,6 +224,6 @@ type hudRenderer struct{ stage *GameplayStage }
 func (r *hudRenderer) Init(*goke.SysInit) {}
 
 func (r *hudRenderer) Draw(screen *render.Image) {
-	active := r.stage.stack.Composition().Active()
+	active := r.stage.Stack().Composition().Active()
 	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save)", active), 8, ScreenHeight-20)
 }

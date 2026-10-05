@@ -86,7 +86,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is a no-op — collision has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Meeting, a pair, or of Struck, until the Stage's ecs.Setup — before
+// Hook hosts rules (rule.Then) of Meeting, a pair, or of Struck, until the Stage's ecs.Setup — before
 // or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	return hostAll(&p.pairs, &p.entities, rules)

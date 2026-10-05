@@ -19,6 +19,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -71,7 +73,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -92,6 +94,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 type unitRow struct{ start, to cell.ID }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -104,45 +108,71 @@ type mainStage struct {
 
 	pulls       []rule.Casting // each lever's command, in the order of levers
 	hasten      rule.Casting
-	haste       effect.Effect
+	open, haste effect.Effect
 	hasteSprite render.SpriteID
 
 	scout    kind.Of[unitRow]
 	wanderer kind.Of[unitRow]
-	stack    game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("trapdoor-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Cells(s.defineCells).
+		Effects(s.defineEffects).
+		Rules(s.defineRules).
+		Commands(s.defineCommands).
+		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
+		Scenes(s.defineScenes).
+		Layout(s.layOut).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "trapdoor-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
-
-	s.collision = collision.NewPlugin(s.world)
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.brd = s.board.Res.Logic.Board
+	s.selection = selection.NewPlugin(s.world)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.players = players.NewPlugin(s.world, s.selection, s.nav)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *mainStage) definePlayer() error {
+	s.player = s.players.Local("player")
+	return s.player.Bind(s.players.Defaults()...)
+}
+
+func (s *mainStage) defineCells() {
 	s.board.CellKinds().Create(
 		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
 		cell.Kind{Name: cell.Named("boards"), Cost: 1, Allows: cell.Land}, // a trapdoor shut
 		cell.Kind{Name: cell.Named("pit"), Cost: 1},                       // holds nobody
 	)
-	pit, _ := s.board.CellKinds().Get("pit")
+}
 
-	// The states, each an effect: a trapdoor open, a pit; a scout hastened, twice as fast and drawn
-	// bright.
+// defineEffects says the states: a trapdoor open, a pit; a scout hastened, twice as fast and drawn
+// bright.
+func (s *mainStage) defineEffects() {
+	pit, _ := s.board.CellKinds().Get("pit")
 	fx := s.world.Effects()
-	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	s.open = fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
 	s.haste = fx.Define("haste", effect.Spec{
@@ -150,56 +180,34 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
+}
 
-	// The game's rules, hooked once the plugins are in: whoever stands where nothing holds it
-	// falls in.
-	rules := []rule.Rule{rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})}
-	if err := ctx.Use(s.board); err != nil {
-		return err
-	}
+// defineRules says the one rule: whoever stands where nothing holds it falls in.
+func (s *mainStage) defineRules(ctx game.Initializer) error {
+	return ctx.Hook(rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+}
 
-	s.selection = selection.NewPlugin(s.world)
-	if err := ctx.Use(s.selection); err != nil {
-		return err
-	}
-
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	if err := ctx.Use(s.nav); err != nil {
-		return err
-	}
-
-	s.players = players.NewPlugin(s.world, s.selection, s.nav)
-	s.player = s.players.Local("player")
-	if err := s.player.Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	// The commands: each lever opens its own strip of trapdoors, a group of cells, for a while;
-	// J hastens the selected scouts. The player's keys give them.
+// defineCommands names what can be asked for: each lever opens its own strip of trapdoors, a group
+// of cells, for a while; the selected scouts are hastened.
+func (s *mainStage) defineCommands(ctx game.Initializer) error {
 	for _, l := range levers {
-		pull := rule.Cast(open).On(entity.Group("trapdoors " + l.name)).For(leverHeld)
-		s.pulls = append(s.pulls, pull)
-		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", pull)); err != nil {
+		s.pulls = append(s.pulls, rule.Cast(s.open).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
+	}
+	s.hasten = rule.Cast(s.haste).On(s.selection.Selected())
+	return ctx.Commands(s.pulls...)
+}
+
+// bindKeys gives the player its keys: 1 and 2 pull the levers, J hastens the selected scouts.
+func (s *mainStage) bindKeys() error {
+	for i, l := range levers {
+		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", s.pulls[i])); err != nil {
 			return err
 		}
 	}
-	s.hasten = rule.Cast(s.haste).On(s.selection.Selected())
-	if err := s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.hasten)); err != nil {
-		return err
-	}
-	if err := ctx.Commands(s.pulls...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-	// The game's rules, each on the plugin in use that hosts its moment: here the board.
-	if err := ctx.Hook(rules...); err != nil {
-		return err
-	}
-	s.defineKinds()
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.hasten))
+}
 
+func (s *mainStage) defineScenes() []game.Scene {
 	main := &mainScene{stage: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
@@ -208,17 +216,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		{Key: control.KeyB, Label: "Toggle the grid", Do: func(game.Runtime, game.Composition) { s.board.Res.Render.ToggleShowGridLines() }},
 	}
 	s.shortcuts = s.players.Shortcuts(main.keys)
-	stack, err := game.NewStack(main, s.shortcuts)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return []game.Scene{main, s.shortcuts}
 }
-
-func (s *mainStage) Restore(game.Persistence) (bool, error) { return false, nil }
 
 // defineKinds says what this game's entities are: the player's scouts, and the wanderers,
 // nobody's, each walking its row from one side of the meadow to the other and back, over both
@@ -233,30 +232,32 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-// Spawn lays the strips of trapdoors, each a group its lever's command names, and puts the scouts and
-// the wanderers in place.
-func (s *mainStage) Spawn() error {
-	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+
+// layOut lays the strips of trapdoors, each a group its lever's command names.
+func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for _, l := range levers {
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := l.left; x <= l.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Group: "trapdoors " + l.name})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: s.cellAt(x, y), Group: "trapdoors " + l.name})
 			}
 		}
 	}
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
-
-	for i := range uint32(3) {
-		s.world.Seed(s.scout.Entry(unitRow{start: cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	}
-	for _, row := range rows {
-		s.world.Seed(s.wanderer.Entry(unitRow{start: cellAt(2, row), to: cellAt(GridWidth-3, row)}))
-	}
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+// placeUnits puts the player's scouts at the bottom and the wanderers, nobody's, on their rows.
+func (s *mainStage) placeUnits() {
+	for i := range uint32(3) {
+		s.world.Seed(s.scout.Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+	}
+	for _, row := range rows {
+		s.world.Seed(s.wanderer.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+	}
+}
+
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

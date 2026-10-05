@@ -16,6 +16,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/hooks"
 	"github.com/kjkrol/gram/plugins/players"
@@ -58,7 +60,7 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: &mainStage{}} }
+func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -92,6 +94,8 @@ type body struct {
 func entityKindName(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
 type mainStage struct {
+	game.Stage // defined a section at a time: newStage
+
 	world     *world.Plugin
 	collision *collision.Plugin
 
@@ -104,58 +108,63 @@ type mainStage struct {
 	collisionStats collision.ContactStats
 
 	players *players.Plugin
-
-	stack game.Scenes
 }
 
-var _ game.Stage = (*mainStage)(nil)
+// newStage defines the game a section at a time, each building on those before it.
+func newStage() *mainStage {
+	s := &mainStage{}
+	s.Stage = stage.New("collision-demo").
+		Plugins(s.usePlugins).
+		Players(s.definePlayer).
+		Effects(s.defineEffects).
+		Rules(s.defineRules).
+		Kinds(s.defineKinds).
+		Looks(s.defineLooks).
+		Scenes(s.defineScenes).
+		Restore(s.restore).
+		Units(s.placeUnits).
+		Update(s.update)
+	return s
+}
 
-func (s *mainStage) Name() string { return "collision-demo" }
-
-func (s *mainStage) Stack() game.Scenes { return s.stack }
-
-func (s *mainStage) Init(ctx game.Initializer) error {
+func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
-	s.hit = hooks.Hit(s.world, hitDuration)
-	s.defineKinds()
-	s.hitSprite = s.world.Kinds().NewSprite()
-	if err := s.world.Draw(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite})); err != nil {
-		return err
-	}
-
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
-	if err := s.collision.Hook(hooks.ShowHits(s.hit)); err != nil {
-		return err
+	s.players = players.NewPlugin(s.world)
+	for _, p := range []plugin.Plugin{s.collision, s.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
 	s.state = &State{}
-	if err := ctx.Use(s.collision); err != nil {
-		return err
-	}
-
-	// The player's camera: drag with the middle button, scroll with the wheel, push an edge.
-	s.players = players.NewPlugin(s.world)
-	if err := s.players.Local("player").Bind(s.players.Defaults()...); err != nil {
-		return err
-	}
-	if err := ctx.Use(s.players); err != nil {
-		return err
-	}
-
-	main := &mainScene{stage: s, tps: ctx.TPS()}
-	stack, err := game.NewStack(main)
-	if err != nil {
-		return err
-	}
-	s.stack = stack
-	comp := stack.Composition()
-	comp.Show(main.Name())
-	return ctx.Track(comp)
+	return nil
 }
 
-func (s *mainStage) Restore(p game.Persistence) (bool, error) {
+// definePlayer makes the player and its camera's keys: drag with the middle button, scroll with
+// the wheel, push an edge.
+func (s *mainStage) definePlayer() error {
+	return s.players.Local("player").Bind(s.players.Defaults()...)
+}
+
+// defineEffects says the one state: hit, for a moment after an entity struck another.
+func (s *mainStage) defineEffects() { s.hit = hooks.Hit(s.world, hitDuration) }
+
+// defineRules says the one rule: whoever strikes something is hit.
+func (s *mainStage) defineRules(ctx game.Initializer) error { return ctx.Hook(hooks.ShowHits(s.hit)) }
+
+// defineLooks has whoever is hit drawn under the hit's overlay.
+func (s *mainStage) defineLooks() error {
+	return s.world.Draw(hooks.HitOverlay(s.hit, world.Appearance{SpriteID: s.hitSprite}))
+}
+
+func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&mainScene{stage: s, tps: ctx.TPS()}}
+}
+
+func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -183,10 +192,11 @@ func (s *mainStage) defineKinds() {
 			})
 		}
 	}
+	s.hitSprite = s.world.Kinds().NewSprite() // the overlay's atlas slot, no kind's
 }
 
-// Spawn says who is there when the game starts fresh.
-func (s *mainStage) Spawn() error {
+// placeUnits says who is there when the game starts fresh.
+func (s *mainStage) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
 	entries := make([]kind.Entry, EntityCount)
@@ -195,10 +205,9 @@ func (s *mainStage) Spawn() error {
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)
-	return nil
 }
 
-func (s *mainStage) Update(ctx goke.RunCtx, d time.Duration) {
+func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

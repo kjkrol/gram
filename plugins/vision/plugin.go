@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
@@ -94,7 +95,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Hook hosts rules (rule.On) of Sighting, a pair fired once per observer, until the Stage's
+// Hook hosts rules (rule.Then) of Sighting, a pair fired once per observer, until the Stage's
 // ecs.Setup — before or after Use; a Stage may hand them to its Initializer's Hook instead.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	for _, b := range rules {
@@ -109,6 +110,9 @@ func (p *Plugin) Hook(rules ...rule.Rule) error {
 // are drawn — the selected ones, say (render.Show(selected.In)); with none, every one is. Call
 // before Use.
 func (p *Plugin) Draw(rules ...render.Rule) error {
+	if err := p.worldPlugin.InSection("drawing rules given", section.Looks); err != nil {
+		return err
+	}
 	if err := p.drawing.Add(rules...); err != nil {
 		return fmt.Errorf("%w in %s", err, p.Name())
 	}

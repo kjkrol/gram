@@ -48,9 +48,7 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.c.Host(rule.On("winter", rule.All, func(m *rule.Moment[Weathering]) rule.Step {
-		return m.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, m.Order(winterNow{}))
-	})); err != nil {
+	if err := r.c.Host(rule.Then[Weathering]("winter", rule.All, rule.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, rule.Order(winterNow{})))); err != nil {
 		t.Fatal(err)
 	}
 	r.sys = r.c.System().(*weatherSystem)
@@ -300,10 +298,10 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 func TestClimate_RefusesAFilteredOrNarrowedRule(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	c := New(w, calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute}), Config{})
-	every := rule.On("any weather", rule.All, func(m *rule.Moment[Weathering]) rule.Step { return m.Order(winterNow{}) })
+	every := rule.Then[Weathering]("any weather", rule.All, rule.Order(winterNow{}))
 	for name, r := range map[string]rule.Rule{
 		"narrowed": rule.Role("climate sheltered").Obeys(every).Rules()[0],
-		"having":   rule.On("having", rule.Having[Weather](), func(m *rule.Moment[Weathering]) rule.Step { return m.Order(winterNow{}) }),
+		"having":   rule.Then[Weathering]("having", rule.Having[Weather](), rule.Order(winterNow{})),
 	} {
 		if err := c.Host(r); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("%s: Host = %v; want plugin.ErrUnhosted", name, err)

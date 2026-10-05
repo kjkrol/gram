@@ -150,12 +150,11 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 	for name, grid := range placeGrids() {
 		for _, rings := range []int{0, 1, 2} {
 			pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
-				return []rule.Rule{rule.On("scorch", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-					if rings == 0 {
-						return m.Here(m.Apply(pw.scorched))
-					}
-					return m.Around(rings, m.Apply(pw.scorched))
-				})}
+				scorch := rule.Around(rings, rule.Apply(pw.scorched))
+				if rings == 0 {
+					scorch = rule.Here(rule.Apply(pw.scorched))
+				}
+				return []rule.Rule{rule.Then[unit.Standing]("scorch", rule.All, scorch)}
 			})
 			pw.tick(3)
 			var seed []cell.ID
@@ -171,9 +170,7 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 func TestCell_FiresForEveryCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-			return []rule.Rule{rule.On("scorch all", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-				return m.Apply(pw.scorched)
-			})}
+			return []rule.Rule{rule.Then[cell.Now]("scorch all", rule.All, rule.Apply(pw.scorched))}
 		})
 		pw.tick(3)
 		if got := len(pw.under(pw.scorched)); got != grid.CellCount() {
@@ -187,9 +184,7 @@ func TestCell_FiresForEveryCell(t *testing.T) {
 func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-			return []rule.Rule{rule.On("fire spreads", rule.Self(pw.scorched.Mark()), func(m *rule.Moment[cell.Now]) rule.Step {
-				return m.Around(1, m.Apply(pw.scorched))
-			})}
+			return []rule.Rule{rule.Then[cell.Now]("fire spreads", rule.Self(pw.scorched.Mark()), rule.Around(1, rule.Apply(pw.scorched)))}
 		})
 		start, _ := pw.brd.CellEntity(pw.middle)
 		pw.casting = func(cb *goke.CmdBuf) { pw.fx.Cast(cb, start, pw.scorched) }

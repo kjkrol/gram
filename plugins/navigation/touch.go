@@ -7,7 +7,7 @@ import (
 
 // Touch is one unit touching another, seen from Self, as navigation perceives it: under
 // BodySpacing their boxes met, under CellSpacing Self was refused a step into the cell Other holds
-// — or Other into Self's. It is the moment of the rules navigation hosts (Plugin.Hook, rule.On),
+// — or Other into Self's. It is the moment of the rules navigation hosts (Plugin.Hook, rule.Then),
 // handed every tick the two touch; the crowd's are the ready ones.
 type Touch struct {
 	Self, Other uid.UID64

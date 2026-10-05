@@ -19,8 +19,8 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := d.stage
-	main, _ := s.stack.Get("main")
-	minimap, _ := s.stack.Get("minimap")
+	main, _ := s.Stack().Get("main")
+	minimap, _ := s.Stack().Get("minimap")
 	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight))
 
 	halves := main.(*mainScene).Viewports(screen)
