@@ -35,7 +35,7 @@ func (c *Plans) System() goke.System { return c.system }
 func (c *Plans) LoadComps() []goke.CompToken {
 	out := []goke.CompToken{goke.LoadComp[Mind]()}
 	seen := map[string]bool{}
-	for _, d := range definitions() {
+	for _, d := range c.system.defs {
 		for _, t := range d.load {
 			if !seen[t.Name] {
 				seen[t.Name] = true
@@ -54,6 +54,7 @@ type system struct {
 	effects  *effect.Effects  // the world's, which Apply, Keep and the rest cast
 	commands *control.Carrier // the world's, which Order gives to
 	roles    func(uid.UID64) uint64
+	defs     map[uint64]definition // the plans defined in this world, by name hashed
 	trees    map[uint64]*tree
 	facts    map[reflect.Type]any // *fact[F] by F
 	si       *goke.SysInit
@@ -70,7 +71,7 @@ type binder interface{ bind(s *system) }
 
 func (s *system) Init(si *goke.SysInit) {
 	s.si, s.facts, s.trees = si, map[reflect.Type]any{}, map[uint64]*tree{}
-	for id, d := range definitions() {
+	for id, d := range s.defs {
 		t := layOut(d.name, d.root)
 		for _, n := range t.nodes {
 			if b, ok := n.exec.(binder); ok {

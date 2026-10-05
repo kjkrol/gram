@@ -215,12 +215,12 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	patrol := plan.New("navigation test patrol", func(a *plan.Actor) rule.Step {
+	patrol := &writtenPlan{"navigation test patrol", func(a *plan.Actor) rule.Step {
 		return a.Steps(
 			a.Order(MoveTo{Cell: east}).Until[Arrived](),
 			a.Order(MoveTo{Cell: west}).Until[Arrived](),
 		)
-	})
+	}}
 	rw = newRoadWorld(t, 10, []roadUnit{
 		{start: rw.at(0, 1), owner: 1, selected: true, plan: patrol},
 		{start: rw.at(0, 0), owner: 1, selected: true},

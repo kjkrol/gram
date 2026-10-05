@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -87,7 +88,7 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
-		r.comps = append(r.comps, plan.New("douse in a while", func(a *plan.Actor) rule.Step {
+		r.comps = append(r.comps, asPlan(r.w, "douse in a while", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Wait(3*tick), a.Dispel(glow), a.Idle())
 		}))
 	})
@@ -113,7 +114,7 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 		glow = r.fx.Named("glow")
 		r.fx.Define("gave way", effect.Spec{})
 		gaveWay = r.fx.Named("gave way")
-		r.comps = append(r.comps, plan.New("glow till doused", func(a *plan.Actor) rule.Step {
+		r.comps = append(r.comps, asPlan(r.w, "glow till doused", func(a *plan.Actor) rule.Step {
 			return a.Steps(a.Not(a.Keep(glow)), a.Apply(gaveWay), a.Idle())
 		}))
 	})
@@ -143,7 +144,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			r.fx.Define("open", effect.Spec{})
 			open = r.fx.Named("open")
 			if planned {
-				r.comps = append(r.comps, plan.New("open while pulled", func(a *plan.Actor) rule.Step {
+				r.comps = append(r.comps, asPlan(r.w, "open while pulled", func(a *plan.Actor) rule.Step {
 					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())
 				}))
 				return
@@ -171,4 +172,10 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			t.Errorf("planned %v: still open after the lever went back", planned)
 		}
 	}
+}
+
+// asPlan defines a plan in w and hands back the component of an entity following it.
+func asPlan(w *world.Plugin, name string, body func(a *plan.Actor) rule.Step) comp.Comp {
+	w.Plans().Define(name, body)
+	return w.Plans().Named(name)
 }

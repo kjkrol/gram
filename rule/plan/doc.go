@@ -1,19 +1,21 @@
-// Package plan is what an entity does over time: a plan, written for an [Actor] and given to a
-// kind as a component ([New]), run by the world in every step of its simulation — standing in the
+// Package plan is what an entity does over time: a plan, written for an [Actor], defined in a
+// Stage's world by name (world.Plans) and given to a kind as a component, run by the world in every step of its simulation — standing in the
 // tactical pause, going with the tempo, saved with the game. Its steps are those of package rule,
 // and the ones that last.
 //
-//	plan.New("patrol", func(a *plan.Actor) rule.Step {
+//	s.world.Plans().Define(Patrol, func(a *plan.Actor) rule.Step {
 //		return a.Steps(
 //			a.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
 //			a.Order(navigation.MoveTo{Cell: west}).Until[navigation.Arrived](),
 //		)
 //	})
+//	units.Define(Guard, land, profile, s.world.Plans().Named(Patrol))
 //
 // # Plans
 //
-// [New] is the component a kind gives its entities: units.Define(..., plan.New("patrol", …)). Its
-// name is what a save knows it by; one name is one plan, written again it must be alike. A plan is
+// A plan is its Stage's: world.Plans.Define says it, where the Stage defines its rules, and
+// world.Plans.Named is the component a kind gives its entities. Its name is what a save knows it
+// by; one name is one plan among a world's, and another Stage may use the name for its own. A plan is
 // plain Go: functions taking the Actor and returning steps, each branch named and short. An
 // Actor's When opens a branch that runs while the actor carries a fact, its On one that runs from
 // the tick a fact comes until its steps are done. OneOf runs its steps in order every tick and

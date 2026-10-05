@@ -19,6 +19,8 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,7 +33,7 @@ type roadUnit struct {
 	wide          bool             // the hawk's profile: faster, turning slower, looking further ahead
 	selected      bool             // Selectable and Selected, for the commands of a player
 	owner         control.PlayerID // who owns it; nobody for Nobody
-	plan          comp.Comp        // it acts by this plan
+	plan          *writtenPlan     // it acts by this plan
 	group         uint32           // the group of its order
 	sensor        bool             // a Collider without Physics: only ever detected
 	loose         bool             // no At, no Mover: a body in the world, not a unit of the board
@@ -121,7 +123,8 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		if u.plan != nil {
-			s = append(s, u.plan)
+			w.Plans().Define(u.plan.name, u.plan.body)
+			s = append(s, w.Plans().Named(u.plan.name))
 		}
 		return s
 	}
@@ -405,4 +408,10 @@ func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 			}
 		})
 	}
+}
+
+// writtenPlan is a plan as a test writes it, for the road's world to define (world.Plans).
+type writtenPlan struct {
+	name string
+	body func(a *plan.Actor) rule.Step
 }

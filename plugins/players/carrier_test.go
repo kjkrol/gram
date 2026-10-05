@@ -46,12 +46,13 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
+	s.world.Plans().Define("leaver", func(a *plan.Actor) rule.Step {
+		return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
+	})
 	s.leaver = kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		plan.New("leaver", func(a *plan.Actor) rule.Step {
-			return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
-		}),
+		s.world.Plans().Named("leaver"),
 	})
 	s.box = kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
 		comp.Load(at),
