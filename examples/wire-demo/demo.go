@@ -1,17 +1,14 @@
-// Command wire-demo is three wires on one meadow. A wire is a connection by name with an entity of
-// its own, whose state is an effect on it (world.Plugin.Wire): "west" is a lever, 1 pulls it and it
-// is on for two seconds (Wire.Key); "east" is a pressure plate in the yard, on while someone stands
-// on it and two seconds after; "gate" is a switch, G flips it on and it stays on until G again
-// (Wire.Switch). Two strips of trapdoors cross the meadow, the west strip wired to west, the east
-// to east, and a fence shuts the yard off from it, its gate wired to gate. The cells play roles:
-// one rule of the trapdoor role keeps every trapdoor open while its own wire is on (WhileWire),
-// one of the plate role puts its wire on while it is stood on (OnWire), one of the gate role keeps
-// the gate open while its wire is on. Wanderers nobody owns walk to and fro over both strips; the
-// player's scouts and porters start in the yard. Everyone plays mortal and falls in where nothing
-// holds them; the scouts play hasty too, and J hastens the selected ones (rule.Part.Can), never the
-// porters. The west lever stands in the yard as well, a cell playing lever wired to west: the
-// scouts play handy, and U has a selected scout beside it pull it (Playing among the cells Around
-// the scout, so the trapdoors on its wire are not pulled). All of it is defined here, in the game.
+// Command wire-demo is three commands on one meadow, each a sentence saying what it does, whom
+// it is for and who sets it off (rule.Cast, Toggle; entity.Named, entity.Group). "Open the west
+// trapdoors" is the west lever's: 1 gives it, and so does a scout pulling the lever beside it (U).
+// "Open the east trapdoors" is the pressure plate's in the yard, given while someone stands on it;
+// the trapdoors stay open two seconds after. "Flip the gate" is the player's alone: G opens it and
+// it stays open until G again. Two strips of trapdoors cross the meadow, each a group of cells, and
+// a fence shuts the yard off from it, its gate a group too. A plate stood on and a lever pulled
+// only Trigger: which command that sets off, the command says with By. Wanderers nobody owns walk
+// to and fro over both strips; the player's scouts and porters start in the yard. Everyone plays
+// mortal and falls in where nothing holds them; the scouts play hasty too, and J hastens the
+// selected ones (selection.Selected), never the porters. All of it is defined here, in the game.
 package main
 
 import (
@@ -22,6 +19,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -110,10 +108,8 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 
-	wires struct{ west, east, gate *rule.Wire }
-	roles struct{ trapdoor, plate, gate, lever, hasty, handy, mortal *rule.Part }
-	// on is a wire pulled or pressed, for a while; lit a switch flipped on, until flipped off
-	on, lit     effect.Effect
+	roles       struct{ plate, lever, hasty, handy, mortal *rule.Part }
+	commands    struct{ openWest, openEast, flipGate, hasten, reach rule.Casting }
 	haste       effect.Effect
 	hasteSprite render.SpriteID
 
@@ -154,13 +150,10 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	pit, _ := s.board.CellKinds().Get("pit")
 	gateway, _ := s.board.CellKinds().Get("gateway")
 
-	// The states, each an effect. On the wires' own entities, shared by every wire: on for a while,
-	// lit until switched off. On the cells: a trapdoor open, a pit; the gate open, a gateway. On a
-	// scout: hastened, twice as fast and drawn bright.
+	// The states, each an effect. On the cells: a trapdoor open, a pit, for a while; the gate open,
+	// a gateway, until shut. On a scout: hastened, twice as fast and drawn bright; pulling a lever.
 	fx := s.world.Effects()
-	s.on = fx.Define("on", effect.Spec{effect.Lasts(pulse)})
-	s.lit = fx.Define("lit", effect.Spec{})
-	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	open := fx.Define("open", effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 	ajar := fx.Define("ajar", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
@@ -169,33 +162,19 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
-
-	// The wires, and the roles: what the cells wired to them do, and what the units can do and
-	// suffer.
-	s.wires.west, s.wires.east, s.wires.gate = s.world.Wire("west"), s.world.Wire("east"), s.world.Wire("gate")
-	on, lit := s.on, s.lit
-	s.roles.trapdoor = rule.Role("trapdoor").Obeys(rule.On("open while on", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-		return m.WhileWire(on, m.Keep(open))
-	}))
-	s.roles.plate = rule.Role("plate").Obeys(rule.On("press", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-		return m.If(cell.Now.Stood, m.OnWire(m.Apply(on)))
-	}))
-	s.roles.gate = rule.Role("gate").Obeys(rule.On("open while lit", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-		return m.WhileWire(lit, m.Keep(ajar))
-	}))
-	s.roles.hasty = rule.Role("hasty").Can(s.haste, control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts")
-	// a lever does nothing of its own: a handy unit beside it pulls it, its wire going on
-	s.roles.lever = rule.Role("lever")
 	pull := fx.Define("pull", effect.Spec{effect.Lasts(pulling)})
-	lever := s.roles.lever
-	s.roles.handy = rule.Role("handy").
-		Can(pull, control.KeyPress{Key: control.KeyU}, "Pull the lever beside the selected scouts").
-		Obeys(rule.On("pull the lever beside", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-			return m.Under(pull, m.Around(1, m.Playing(lever, m.OnWire(m.Apply(on)))))
-		}))
-	s.roles.mortal = rule.Role("mortal").Obeys(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	}))
+
+	// The roles: what sets a command off, and what the units can do and suffer. A plate stood on
+	// and a lever pulled Trigger; which command that is, the command says (By).
+	s.roles.plate = rule.Role("plate").Obeys(
+		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+	s.roles.lever = rule.Role("lever") // does nothing of its own: a handy unit beside it pulls it
+	s.roles.hasty = rule.Role("hasty")
+	s.roles.handy = rule.Role("handy").Obeys(
+		rule.Then[unit.Standing]("pull the lever beside", rule.All,
+			rule.Under(pull, rule.Around(1, rule.Playing(s.roles.lever, rule.Trigger())))))
+	s.roles.mortal = rule.Role("mortal").Obeys(
+		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -216,23 +195,33 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
-	// The player's keys: 1 pulls the west lever, G flips the gate's switch, J hastens the selected
-	// scouts — the hasty role's ability.
-	if err := s.player.Bind(
-		s.wires.west.Key(s.on, control.KeyPress{Key: control.Key1}, "Pull the west lever: its trapdoors open for a while"),
-		s.wires.gate.Switch(s.lit, control.KeyPress{Key: control.KeyG}, "Flip the gate's switch: open, or shut"),
-	); err != nil {
-		return err
-	}
-	if err := s.player.Bind(s.selection.Abilities(s.roles.hasty, s.roles.handy)...); err != nil {
-		return err
-	}
 	if err := ctx.Use(s.players); err != nil {
 		return err
 	}
 
+	// The commands: all that can be asked for in this game, each saying whom it is for and, where a
+	// cell sets it off, which one.
+	s.commands.openWest = rule.Cast(open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
+	s.commands.openEast = rule.Cast(open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
+	s.commands.flipGate = rule.Toggle(ajar).On(entity.Group("gate"))
+	s.commands.hasten = rule.Cast(s.haste).On(s.selection.Selected(s.roles.hasty))
+	s.commands.reach = rule.Cast(pull).On(s.selection.Selected(s.roles.handy))
+	if err := ctx.Commands(s.commands.openWest, s.commands.openEast, s.commands.flipGate); err != nil {
+		return err
+	}
+
+	// The player's keys, each giving a command.
+	if err := s.player.Bind(
+		control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever: its trapdoors open for a while", s.commands.openWest),
+		control.Give(control.KeyPress{Key: control.KeyG}, "Flip the gate's switch: open, or shut", s.commands.flipGate),
+		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.commands.hasten),
+		control.Give(control.KeyPress{Key: control.KeyU}, "Pull the lever beside the selected scouts", s.commands.reach),
+	); err != nil {
+		return err
+	}
+
 	// Every role's rules, each hooked on the plugin hosting its moment: the board, here.
-	if err := ctx.Hook(s.roles.trapdoor, s.roles.plate, s.roles.gate, s.roles.hasty, s.roles.handy, s.roles.mortal); err != nil {
+	if err := ctx.Hook(s.roles.plate, s.roles.handy, s.roles.mortal); err != nil {
 		return err
 	}
 	s.defineKinds()
@@ -273,32 +262,32 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-// Spawn lays the strips of trapdoors, each wired to its wire, the fence with the gate wired to
-// the gate's and the plate wired to east, and puts the units in place.
+// Spawn lays the strips of trapdoors, each a group, the fence with the gate, the plate and the
+// lever, each called what the commands call them, and puts the units in place.
 func (s *mainStage) Spawn() error {
 	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 	playing := func(r *rule.Part) []*rule.Part { return []*rule.Part{r} }
 	var cells []cell.Entry
 	strips := []struct {
-		wire *rule.Wire
-		left uint32
-	}{{s.wires.west, westLeft}, {s.wires.east, eastLeft}}
+		group string
+		left  uint32
+	}{{"west trapdoors", westLeft}, {"east trapdoors", eastLeft}}
 	for _, strip := range strips {
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := strip.left; x <= strip.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Roles: playing(s.roles.trapdoor), Wired: strip.wire})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Group: strip.group})
 			}
 		}
 	}
 	for x := range uint32(GridWidth) {
 		if x == gateLeft || x == gateLeft+1 {
-			cells = append(cells, cell.Entry{Kind: "gate", Cell: cellAt(x, fenceRow), Roles: playing(s.roles.gate), Wired: s.wires.gate})
+			cells = append(cells, cell.Entry{Kind: "gate", Cell: cellAt(x, fenceRow), Group: "gate"})
 		} else {
 			cells = append(cells, cell.Entry{Kind: "fence", Cell: cellAt(x, fenceRow)})
 		}
 	}
-	cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Wired: s.wires.east})
-	cells = append(cells, cell.Entry{Kind: "lever", Cell: cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Wired: s.wires.west})
+	cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(plateCol, yardRow), Roles: playing(s.roles.plate), Name: "plate"})
+	cells = append(cells, cell.Entry{Kind: "lever", Cell: cellAt(leverCol, yardRow), Roles: playing(s.roles.lever), Name: "west lever"})
 	s.board.Seed(board.Layout{Default: "grass", Cells: cells})
 
 	for i := range uint32(3) {

@@ -88,6 +88,14 @@ func (c *initializer) Hook(rules ...rule.Rule) error {
 	return HookOn(c.used, rules...)
 }
 
+// Commands hands the world the game's commands about effects.
+func (c *initializer) Commands(cmds ...rule.Casting) error {
+	if c.world == nil {
+		return errors.New("gram: Commands before UseWorld: the world carries the commands out")
+	}
+	return c.world.Triggers(cmds...)
+}
+
 // hookPlayed hooks every role a kind of the world plays that the Stage did not hook itself: what
 // the engine does once Init returns.
 func (c *initializer) hookPlayed() error {

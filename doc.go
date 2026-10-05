@@ -40,12 +40,14 @@
 // commands — the same as a player's — for its entity.
 //
 // A role (rule.Role) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
-// the rules it obeys fire for those playing it alone, and its abilities are effects a player puts
-// on its selected units playing it. A kind plays roles through one component (rule.Plays), a cell
-// through its Layout entry, and a role is hooked like a rule. A wire (world.Plugin.Wire) is a
-// connection by name with an entity of its own, whose state is an effect on it: a key pulls it or
-// flips it, and the rules of what is wired to it drive it or read it — a lever, a plate and the
-// trapdoors they open. Any number of wires share one effect and the roles that read it.
+// the rules it obeys fire for those playing it alone. A kind plays roles through one component
+// (rule.Plays), a cell through its Layout entry, and a role is hooked like a rule. What somebody
+// asks for is a command, and one about an effect is a sentence: rule.Cast(open).On(entity.Group(
+// "trapdoors")).By(entity.Named("lever")) — put the effect on, take it off (Lift) or switch it
+// (Toggle), for the entities bearing a name, those in a group, the world itself, the player's
+// selected units or the one pointed at; a key, a script and a rule give it the same way, and an
+// entity sets off the commands whose By names it (rule.Trigger): a lever, a plate and the
+// trapdoors they open.
 //
 // # Kinds and spawning
 //
@@ -92,11 +94,11 @@
 //	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
 //	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
 //	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
-//	Layer 4   rule                — rules at a plugin's moments: On, the filters, the Moment's steps; roles (Role, Plays)
-//	                                and wires (Wire, Wired)    (→ control, plugin, steps, tag, effect, kind/comp)
+//	Layer 4   rule                — rules at a plugin's moments: On, Then, the filters, the steps; roles (Role, Plays)
+//	                                and commands about effects (Cast, Lift, Toggle, Trigger)    (→ control, plugin, entity, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Spawn, Despawn, wires, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, Camera; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)

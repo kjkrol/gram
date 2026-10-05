@@ -8,6 +8,23 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved.
 
+**Commands, names and groups**
+- What somebody asks for about an effect is one command, written as a sentence: `rule.Cast(e)`,
+  `rule.Lift(e)` or `rule.Toggle(e)`, `.On(whom)`, `.For(d)`, `.By(source)`. Whom is
+  `entity.Named(names...)`, `entity.Group(names...)`, `entity.World`, or the selection's
+  `Selected(roles...)` and `Pointed()` (the entity under the cursor as the key is pressed). A key
+  gives it with `control.Give(trigger, label, cmd)`, a script with `players.Issue`, a rule with
+  `Order`; an entity sets off the commands whose `By` names it with the step `rule.Trigger()`.
+  The game hands its commands to `ctx.Commands(cmds...)`, and a name one of them says that nobody
+  bears, or one two bear, stops the game as it starts.
+- An entity is called by what makes it: `cell.Entry{Name, Group}`, `kind.Entry.Named(name)` and
+  `InGroup(group)`; it carries an `entity.Label`, saved with it.
+- Gone, each replaced by the above: wires (`world.Plugin.Wire`, `rule.Wire`, `Wired`, `Signal`,
+  the steps `OnWire` and `WhileWire`, `cell.Entry.Wired`), `world.Apply` and `world.Dispel`,
+  `selection.Apply`, `rule.Part.Can` and `selection.Plugin.Abilities`. Saves holding wires do not
+  load. `examples/wire-demo`, `trapdoor-demo` and `pressure-plate-demo` are written with commands
+  for named cells and groups; `effect-demo` freezes whoever the cursor points at with F.
+
 **Rules**
 - `rule.Then[P](name, filter, step)` is a rule without a body: its steps are the package's own
   functions, the twins of a Moment's methods (`rule.If`, `OneOf`, `Steps`, `Apply`, `Keep`,
@@ -96,20 +113,16 @@ argument's full path, which moved.
   world asks none of it. Two short units on stepped or sloped ground, their bands apart, now pass
   each other.
 
-**Rules hooked by the Stage; roles and wires**
+**Rules hooked by the Stage; roles**
 - `game.Initializer.Hook(rules...)` hooks each rule, and every rule of a role, on the plugin in use
   that hosts its moment, after the plugins are used and before `Init` returns; a rule none hosts is
   an error wrapping `plugin.ErrUnhosted`, named by its `String`. A plugin's own `Hook` still works
   until the Stage's `ecs.Setup`.
 - `rule.Role(name)` is a behaviour entities play: `Obeys(rules...)` narrows each rule to its
-  players on top of its own filter, `Can(effect, trigger, label)` is an ability a player casts on
-  its selected units playing it (`selection.Plugin.Abilities(roles...)`, listed under K). A kind
+  players on top of its own filter. A kind
   plays roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`; `m.Playing(role,
   step)` asks it of an entity or of a place `Around` turned to. 64 roles a program, saved by name.
-- `world.Plugin.Wire(name)` is a connection by name with its own entity, its state an effect on
-  it: `Wire.Key` pulses it, `Wire.Switch` toggles it, and what is wired to it (`cell.Entry.Wired`,
-  `comp.Const(w.Wired())` in a kind) drives it with `OnWire` and reads it with `WhileWire`.
-  `cell.Now.Stood` (`Trodden`) says a unit stands on the cell.
+- `cell.Now.Stood` (`Trodden`) says a unit stands on the cell.
 - `climate.Weathering` rules are hosted by a `plugin.StepRules`, like the clock's: run once a
   step, a filtered or narrowed one is refused with `plugin.ErrUnhosted`.
 - The roster's `kind.Role` is `kind.Template`, and `Roster.Cell` is what every cell a board makes

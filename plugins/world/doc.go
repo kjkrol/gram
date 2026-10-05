@@ -109,32 +109,24 @@
 // despawning in one step may hand later spawns other ids in a replay.
 //
 // [Plugin.Despawn] removes an entity at the end of the tick, and an entity gives itself the
-// command [Despawn] to go (Order in a plan or a rule). The command [Apply] puts an effect on the
-// world itself — its own entity, the clock's: a state of the whole game, a lever pulled, an alarm
-// — which rules and plans read with During; a player gives it from a binding, a rule or a plan
-// may Order it. Components come and go mid-game through effects (Grant, Alter) and the plugins'
+// command [Despawn] to go (Order in a plan or a rule). A state of the whole game — a lever pulled,
+// an alarm — is an effect on the world's own entity, the clock's, put there by a command
+// (rule.Cast on entity.World) and read by rules and plans with During. Components come and go mid-game through effects (Grant, Alter) and the plugins'
 // own facts, never put on by hand.
 //
-// # Wires
+// # Commands about effects, names and groups
 //
-// [Plugin.Wire] defines a wire by name (rule.Wire) in a Stage's Init — a lever and its
-// trapdoors, a plate and its gate; a name defined twice, or after the Stage's ecs.Setup, panics.
-// Its state is an effect on its own entity, so one effect serves any number of wires. A binding
-// drives it — Wire.Key puts the effect on, lasting as its Spec says; Wire.Switch puts it on or
-// takes it off — and so does a rule's OnWire on whatever is wired to it; a rule's WhileWire reads
-// it. An entity carrying rule.Wired, the wire's name hashed, is wired to it: a cell through
-// cell.Entry.Wired, a kind's entities through comp.Const(w.Wired()).
-//
-// The wires system, the first the world registers, makes every wire's entity at Setup, carrying
-// rule.Wiring, or finds it by that in a loaded game, and tells the rules and the plans which wire
-// an entity is wired to and which roles it plays (plugin.Tick.Wires, Tick.Roles, for a rule's
-// Playing). In every step of the simulation it carries out the command rule.Signal, which Wire.Key
-// and Wire.Switch give: it casts the Signal's effect on the wire's entity or, a Toggle, dispels it
-// when it is on — a step's Signals of one effect on one wire netted, so a switch flipped twice in
-// a step stays as it was; either lands with the step's effects. The players carry it with the
-// world's other commands ([Plugin.Queues]). OnWire needs no Signal: its step acts on the wire's
-// entity itself. rule.Wiring, rule.Wired and the roles an entity plays are saved with the game,
-// and a wire's state, an effect, with its entity.
+// The world carries out the commands about effects (rule.Casting: rule.Cast, Lift, Toggle) for the
+// targets of package entity: those Named, those in a Group, the World itself. Every entity it
+// spawns carries an entity.Label — its name and group, hashed, none by default — given by its
+// kind.Entry (Named, InGroup) and saved with it; a board's cells called something carry one too.
+// The system, the first of every step, finds the entities a command says by their Label, nets a
+// step's commands of one effect on one entity — a switch flipped twice stays as it was — and casts
+// or dispels with the step's effects. An entity's rule.Trigger gives every command whose By names
+// it; a Stage hands those to its Initializer's Commands ([Plugin.Triggers] for the engine), and
+// as the first step begins a name a command says that nobody bears, or one two bear, panics.
+// The same system tells the rules and the plans which roles an entity plays (plugin.Tick.Roles,
+// for Playing).
 //
 // # Commands the entities give themselves
 //
@@ -167,7 +159,7 @@
 // no state of its own between ticks: Populate and PostLoad rebuild it too, so it is whole before
 // the first tick, and a despawned entity is gone from it on the next. Anything reading the space
 // in its own pass sees the boxes as they stand after the last rebuild — and, after a collision
-// tick, as the engine pushed them. The leavers, the wires' Signals, the rules of the clock's
+// tick, as the engine pushed them. The leavers, the commands about effects, the rules of the clock's
 // moments and the effects close every step.
 //
 // # Appearance, drawing and Look

@@ -8,8 +8,8 @@
 //
 // [Flee] has every Skittish entity head away from the nearest Threat it sees, else from the
 // nearest one in view when either is heading at the other. Its rules run During an effect the
-// game defines and puts on the world (world.Apply), taking it off to switch the fleeing off
-// (world.Dispel).
+// game defines and puts on the world (rule.Cast on entity.World), taking it off to switch the
+// fleeing off (rule.Lift, or a Toggle).
 //
 // # Chase and Search
 //

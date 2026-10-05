@@ -1,7 +1,6 @@
 package selection_test
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -61,10 +60,7 @@ func newSquad(t *testing.T) *squad {
 	s.haste = w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	s.rally = w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
 	s.names = map[effect.Effect]string{s.haste: "haste", s.rally: "rally"}
-	s.mortal = rule.Role("mortal").Can(s.rally, control.KeyPress{Key: control.KeyK}, "Rally the selected mortals")
-	s.hasty = rule.Role("hasty").
-		Can(s.haste, control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts").
-		Can(s.rally, control.KeyPress{Key: control.KeyU}, "Rally the selected scouts")
+	s.mortal, s.hasty = rule.Role("mortal"), rule.Role("hasty")
 	tags := sel.Tags()
 	define := func(name string, roles ...*rule.Part) {
 		spec := kind.Spec{
@@ -203,17 +199,18 @@ func roster(me, rival control.PlayerID) []soldier {
 	}
 }
 
-// An Apply without Only casts on every selected unit of mine whatever it plays — none too.
-func TestApply_WithoutOnlyCastsOnEverySelectedUnitOfMine(t *testing.T) {
+// A command for the selected, no role named, casts on every selected unit of mine whatever it
+// plays — none too.
+func TestSelected_WithoutARoleIsEverySelectedUnitOfMine(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	s.issue(selection.Apply{Effect: s.haste})
+	s.issue(rule.Cast(s.haste).On(s.sel.Selected()))
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
 }
 
-// The Apply a role's ability builds casts on my selected units playing the role alone: not on
+// A command for the selected playing a role casts on my selected units playing it alone: not on
 // those playing another role or none, not on my unselected ones, not on the rival's.
-func TestAbilities_ApplyCastsOnMySelectedUnitsPlayingItsRole(t *testing.T) {
+func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		role  func(s *squad) *rule.Part
@@ -225,56 +222,60 @@ func TestAbilities_ApplyCastsOnMySelectedUnitsPlayingItsRole(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSquad(t)
 			s.start(roster(s.me.ID, s.rival.ID))
-			cmd, _ := s.sel.Abilities(c.role(s))[0].Build(control.Context{})
-			apply := cmd.(selection.Apply)
-			apply.Effect = s.haste
-			s.issue(apply)
+			s.issue(rule.Cast(s.haste).On(s.sel.Selected(c.role(s))))
 			s.expect(s.haste, c.under...)
 		})
 	}
 }
 
-// Abilities is a binding per ability of every role given, in order, each on the ability's
-// trigger and label, building an Apply of its effect.
-func TestAbilities_ABindingPerAbilityOnItsTriggerAndLabel(t *testing.T) {
+// A command bound to a key is given at the key: on my selected units playing its role alone.
+func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s := newSquad(t)
-	want := []struct {
-		trigger control.Trigger
-		label   string
-		effect  effect.Effect
-	}{
-		{control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.haste},
-		{control.KeyPress{Key: control.KeyU}, "Rally the selected scouts", s.rally},
-		{control.KeyPress{Key: control.KeyK}, "Rally the selected mortals", s.rally},
-	}
-	got := s.sel.Abilities(s.hasty, s.mortal)
-	if len(got) != len(want) {
-		t.Fatalf("%d bindings, want %d", len(got), len(want))
-	}
-	for i, w := range want {
-		b := got[i]
-		if b.Trigger != w.trigger || b.Label != w.label {
-			t.Errorf("binding %d: %v %q, want %v %q", i, b.Trigger, b.Label, w.trigger, w.label)
-		}
-		if b.Command() != reflect.TypeFor[selection.Apply]() {
-			t.Errorf("binding %d builds a %v, want a selection.Apply", i, b.Command())
-		}
-		if cmd, ok := b.Build(control.Context{}); !ok || cmd.(selection.Apply).Effect != w.effect {
-			t.Errorf("binding %d builds %+v (%v), want an Apply of %v", i, cmd, ok, w.effect)
-		}
-	}
-	if none := s.sel.Abilities(rule.Role("idle")); len(none) != 0 {
-		t.Errorf("a role without abilities gave %d bindings, want none", len(none))
-	}
-}
-
-// A role's ability bound for me casts, at its key, on my selected units playing that role alone.
-func TestAbilities_TheKeyCastsOnMySelectedUnitsPlayingTheRole(t *testing.T) {
-	s := newSquad(t)
-	s.start(roster(s.me.ID, s.rival.ID), s.sel.Abilities(s.hasty, s.mortal)...)
+	s.start(roster(s.me.ID, s.rival.ID),
+		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", rule.Cast(s.haste).On(s.sel.Selected(s.hasty))),
+		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals", rule.Cast(s.rally).On(s.sel.Selected(s.mortal))))
 	s.press(control.KeyJ)
 	s.expect(s.haste, "my scout", "my veteran")
 	s.expect(s.rally)
 	s.press(control.KeyK)
 	s.expect(s.rally, "my guard", "my veteran")
+}
+
+// Lift takes the effect off the selected; Toggle takes it off where any of them is under it and
+// puts it on them all otherwise.
+func TestSelected_LiftAndToggle(t *testing.T) {
+	s := newSquad(t)
+	s.start(roster(s.me.ID, s.rival.ID))
+	s.issue(rule.Cast(s.haste).On(s.sel.Selected(s.hasty)))
+	s.expect(s.haste, "my scout", "my veteran")
+	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // some are under it: off them all
+	s.expect(s.haste)
+	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // none is: on them all
+	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
+	s.issue(rule.Lift(s.haste).On(s.sel.Selected(s.mortal)))
+	s.expect(s.haste, "my scout", "my peasant")
+}
+
+// A command for the one pointed at reaches the entity drawn under the cursor its key was pressed
+// with, whoever's it is and selected or not; pointing at nobody, or given without a cursor, it
+// reaches no one.
+func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
+	s := newSquad(t)
+	s.start(roster(s.me.ID, s.rival.ID))
+	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at", rule.Cast(s.haste).On(s.sel.Pointed()))
+	point := func(x, y float64) {
+		cmd, ok := cure.Build(control.Context{Player: s.me.ID, Camera: s.w.Res.Camera, Cursor: geom.NewVec(x, y)})
+		if !ok {
+			t.Fatal("the binding built nothing")
+		}
+		s.issue(cmd)
+	}
+	point(600, 600) // empty ground
+	s.expect(s.haste)
+	s.issue(rule.Cast(s.haste).On(s.sel.Pointed())) // no cursor
+	s.expect(s.haste)
+	point(405, 105) // the rival's scout, at 400
+	s.expect(s.haste, "the rival's scout")
+	point(305, 105) // my idle scout, at 300
+	s.expect(s.haste, "the rival's scout", "my idle scout")
 }

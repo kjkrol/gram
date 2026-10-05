@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -276,35 +275,6 @@ func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
 	}
 	if len(rule.Role("idle").Rules()) != 0 {
 		t.Error("a role of no rules has some")
-	}
-}
-
-// Can records each ability with its effect, trigger and label, in order; it obeys no rule
-// and gives no other role an ability.
-func TestRole_Can_RecordsAbilities(t *testing.T) {
-	var next tag.Tag[effect.States]
-	effects := effect.New(func(string) tag.Tag[effect.States] { next++; return next - 1 })
-	haste, frost := effects.Define("haste", nil), effects.Define("frost", nil)
-	mortal := rule.Role("mortal")
-	hasty := rule.Role("hasty")
-	j, k := control.KeyPress{Key: control.KeyJ}, control.KeyPress{Key: control.KeyK, Mods: control.Mods{Shift: true}}
-
-	if got := hasty.Can(haste, j, "Hasten").Can(frost, k, "Freeze"); got != hasty {
-		t.Fatalf("Can handed back %p, want the role %p", got, hasty)
-	}
-
-	want := []rule.Ability{
-		{Effect: haste, Trigger: j, Label: "Hasten"},
-		{Effect: frost, Trigger: k, Label: "Freeze"},
-	}
-	if got := hasty.Abilities(); !slices.Equal(got, want) {
-		t.Errorf("hasty.Abilities() = %+v; want %+v", got, want)
-	}
-	if len(hasty.Rules()) != 0 {
-		t.Errorf("abilities gave the role rules: %v", hasty.Rules())
-	}
-	if len(mortal.Abilities()) != 0 {
-		t.Errorf("another role has abilities: %+v", mortal.Abilities())
 	}
 }
 

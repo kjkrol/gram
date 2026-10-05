@@ -2,6 +2,7 @@ package terrain
 
 import (
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -233,12 +234,12 @@ func (t *Cells) Cast(c cell.ID, roles tag.Tags[rule.Roles]) {
 	t.seed.Cast(c, roles)
 }
 
-// Wire wires c to w for good; only the seed takes it, before the cells are made.
-func (t *Cells) Wire(c cell.ID, w *rule.Wire) {
+// Label calls c as l says for good; only the seed takes it, before the cells are made.
+func (t *Cells) Label(c cell.ID, l entity.Label) {
 	if t.store != nil {
-		panic("board: a cell's wire is given in the Layout, before the cells are made")
+		panic("board: a cell's name and group are given in the Layout, before the cells are made")
 	}
-	t.seed.Wire(c, w)
+	t.seed.Label(c, l)
 }
 
 // CellVersion counts the changes to c; it only grows, and changes to other cells leave it as it is.

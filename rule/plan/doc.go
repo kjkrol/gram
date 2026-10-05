@@ -28,12 +28,7 @@
 //
 // Apply, Keep, Dispel, Unless, Under and During are a rule's, over time: a plan's Keep holds its
 // effect for as long as its branch runs and gives way — its branch fails — when someone else takes
-// it off. OnWire and WhileWire are a rule's too, for an actor wired to a wire (its kind giving
-// comp.Const(west.Wired()), a rule.Wired): OnWire runs a step on the wire in place of the actor —
-// OnWire(Apply(on)) puts the wire on — and WhileWire runs one while the wire is under an effect, a
-// door kept open while its lever's wire is on; both fail for an actor wired to none. Under OnWire a
-// plan's Keep holds the wire's effect a step at a time, lapsing once its branch stops, since many
-// may hold one wire. Playing runs a step while the actor plays a role (rule.Plays), and fails while
+// it off. Trigger gives the commands the actor sets off (rule.Casting.By). Playing runs a step while the actor plays a role (rule.Plays), and fails while
 // it does not. Order gives a command for the actor and hands back a [Command]: its Until waits for
 // what comes of it, a fact — navigation.Arrived — and its Stay keeps the branch, so that a reactive
 // branch gives it once, not every tick. A command that is plugin.Aimed is told the subject of the

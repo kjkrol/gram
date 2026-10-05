@@ -21,20 +21,7 @@ type Pass struct {
 	Seed     uint64
 	World    uid.UID64
 	Around   func(moment any, rings int, each func(uid.UID64))
-	Wires    func(id uid.UID64) (uid.UID64, bool) // the wire an entity is wired to
-	Roles    func(id uid.UID64) uint64            // the roles an entity plays, a bit each
-}
-
-// wireOf is the wire id is wired to: the plans' lookup, or the one the rule's pass was given.
-func (c *ctx) wireOf(id uid.UID64) (uid.UID64, bool) {
-	wires := c.pass.Wires
-	if c.sys != nil {
-		wires = c.sys.wires
-	}
-	if wires == nil {
-		return 0, false
-	}
-	return wires(id)
+	Roles    func(id uid.UID64) uint64 // the roles an entity plays, a bit each
 }
 
 // rolesOf is the roles id plays: the plans' lookup, or the one the rule's pass was given.

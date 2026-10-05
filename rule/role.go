@@ -5,34 +5,23 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 // Roles is the family of roles: one tag.Tags[Roles] on an entity holds every role it plays.
 type Roles struct{}
 
-// Part is a role an entity plays, as Role makes it: the rules those playing it obey (Obeys) and
-// what they can do when their player asks (Can). Give it to a kind with Plays, to a cell with
-// cell.Entry.Roles, and hook it with the Stage's Initializer, like a rule.
+// Part is a role an entity plays, as Role makes it: the rules those playing it obey (Obeys). Give
+// it to a kind with Plays, to a cell with cell.Entry.Roles, and hook it with the Stage's
+// Initializer, like a rule.
 type Part struct {
-	name      string
-	tag       tag.Tag[Roles]
-	rules     []Rule
-	abilities []Ability
+	name  string
+	tag   tag.Tag[Roles]
+	rules []Rule
 }
 
-// Ability is what a role can do when its player asks: put Effect on the player's selected units
-// that play the role, bound to Trigger and listed under Label (selection.Plugin.Abilities).
-type Ability struct {
-	Effect  effect.Effect
-	Trigger control.Trigger
-	Label   string
-}
-
-// Role is the role named name, ready for its rules and abilities. A role means a behaviour —
+// Role is the role named name, ready for its rules. A role means a behaviour —
 // mortal, hasty, a trapdoor — not a group: a program names 64 at most. Each call is a new Part;
 // one name is one tag, which a world saves by the name.
 func Role(name string) *Part { return &Part{name: name, tag: roleTag(name)} }
@@ -76,21 +65,11 @@ func (r *Part) Obeys(rules ...Rule) *Part {
 	return r
 }
 
-// Can adds an ability: the player's trigger puts e on its selected units playing the role, label
-// saying so in the list of keys.
-func (r *Part) Can(e effect.Effect, trigger control.Trigger, label string) *Part {
-	r.abilities = append(r.abilities, Ability{Effect: e, Trigger: trigger, Label: label})
-	return r
-}
-
 // Tag is the role's tag of Roles: for the plugins giving it and reading it.
 func (r *Part) Tag() tag.Tag[Roles] { return r.tag }
 
 // Rules are the rules the role's players obey: what hooking the role hooks.
 func (r *Part) Rules() []Rule { return slices.Clone(r.rules) }
-
-// Abilities are what the role can do: for the plugin binding them.
-func (r *Part) Abilities() []Ability { return slices.Clone(r.abilities) }
 
 // String names the role.
 func (r *Part) String() string { return "the role " + r.name }

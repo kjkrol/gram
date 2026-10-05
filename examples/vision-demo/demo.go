@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -197,7 +198,7 @@ func (s *mainStage) Spawn() error {
 	}
 	entries = append(entries, s.hunter.Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
-	s.world.Commands().Put(s.player.ID, world.Apply{Effect: s.fleeing}) // the prey flee from the start
+	s.world.Commands().Put(s.player.ID, rule.Cast(s.fleeing).On(entity.World)) // the prey flee from the start
 	return nil
 }
 
@@ -264,9 +265,5 @@ func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runti
 
 // switchFleeing has the player take the fleeing off the world, or put it back on.
 func (s *mainStage) switchFleeing() {
-	var cmd any = world.Apply{Effect: s.fleeing}
-	if s.world.Effects().Has(s.world.Clock().Entity(), s.fleeing) {
-		cmd = world.Dispel{Effect: s.fleeing}
-	}
-	s.world.Commands().Put(s.player.ID, cmd)
+	s.world.Commands().Put(s.player.ID, rule.Toggle(s.fleeing).On(entity.World))
 }

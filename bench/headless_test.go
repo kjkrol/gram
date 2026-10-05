@@ -54,6 +54,8 @@ func (c *headless) Use(p plugin.Plugin) error {
 
 func (c *headless) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
+func (c *headless) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
+
 func (c *headless) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil

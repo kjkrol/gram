@@ -2,10 +2,9 @@
 // nobody owns walk to and fro over both, and the player pulls a lever — 1 the west one, 2 the east
 // — and its trapdoors open for a while: every unfortunate standing on one falls in, the player's
 // own scouts too. The scouts are clicked about as anywhere; J hastens the selected ones for a
-// while, to get off a strip in time. A lever pulled is a state of the whole game, put on the world
-// (world.Apply); the haste a state of the scouts, put on the selected (selection.Apply); a
-// trapdoor a cell tagged with its lever's group (cell.Family), which a rule keeps open while that
-// lever is pulled. All of it is defined here, in the game, and the rules hooked with ctx.Hook.
+// while, to get off a strip in time. A lever is a command: open the group of cells that is its
+// strip, for a while (rule.Cast, entity.Group); the haste a command for the selected
+// (selection.Selected). All of it is defined here, in the game, and the rules hooked with ctx.Hook.
 package main
 
 import (
@@ -16,6 +15,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -102,8 +102,8 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 
-	pulled      []effect.Effect // each lever's, in the order of levers
-	trapdoors   []cell.Tag
+	pulls       []rule.Casting // each lever's command, in the order of levers
+	hasten      rule.Casting
 	haste       effect.Effect
 	hasteSprite render.SpriteID
 
@@ -140,7 +140,7 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	pit, _ := s.board.CellKinds().Get("pit")
 
 	// The states, each an effect: a trapdoor open, a pit; a scout hastened, twice as fast and drawn
-	// bright; and a lever pulled for each lever, below.
+	// bright.
 	fx := s.world.Effects()
 	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
@@ -156,16 +156,6 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	rules := []rule.Rule{rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 	})}
-	// Each lever: its state, the tag of its trapdoors, and the rule keeping them open while it is
-	// pulled; its key comes with the player's, below.
-	for _, l := range levers {
-		pulled := fx.Define("lever "+l.name, effect.Spec{effect.Lasts(leverHeld)})
-		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + l.name)
-		rules = append(rules, rule.On("trapdoors "+l.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
-			return m.During(pulled, m.Keep(open))
-		}))
-		s.pulled, s.trapdoors = append(s.pulled, pulled), append(s.trapdoors, trapdoor)
-	}
 	if err := ctx.Use(s.board); err != nil {
 		return err
 	}
@@ -185,16 +175,20 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := s.player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
-	// The player's keys: 1 and 2 pull the levers, J hastens the selected scouts.
-	for i, l := range levers {
-		pulled := s.pulled[i]
-		if err := s.player.Bind(control.Command(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open",
-			func(control.Context) (world.Apply, bool) { return world.Apply{Effect: pulled}, true })); err != nil {
+	// The commands: each lever opens its own strip of trapdoors, a group of cells, for a while;
+	// J hastens the selected scouts. The player's keys give them.
+	for _, l := range levers {
+		pull := rule.Cast(open).On(entity.Group("trapdoors " + l.name)).For(leverHeld)
+		s.pulls = append(s.pulls, pull)
+		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", pull)); err != nil {
 			return err
 		}
 	}
-	if err := s.player.Bind(control.Command(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
-		func(control.Context) (selection.Apply, bool) { return selection.Apply{Effect: s.haste}, true })); err != nil {
+	s.hasten = rule.Cast(s.haste).On(s.selection.Selected())
+	if err := s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.hasten)); err != nil {
+		return err
+	}
+	if err := ctx.Commands(s.pulls...); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {
@@ -239,16 +233,15 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-// Spawn lays the strips of trapdoors, each cell tagged with its lever's, and puts the scouts and
+// Spawn lays the strips of trapdoors, each a group its lever's command names, and puts the scouts and
 // the wanderers in place.
 func (s *mainStage) Spawn() error {
 	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 	var cells []cell.Entry
-	for i, l := range levers {
-		tags := cell.Tags(0).With(s.trapdoors[i])
+	for _, l := range levers {
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := l.left; x <= l.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Tags: tags})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Group: "trapdoors " + l.name})
 			}
 		}
 	}

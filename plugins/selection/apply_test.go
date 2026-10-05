@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -36,16 +37,16 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// unit is a selection Apply test's unit: whose it is and whether it is selected.
+// unit is a unit of a test of the selected: whose it is and whether it is selected.
 type unit struct {
 	x        float64
 	by       control.PlayerID
 	selected bool
 }
 
-// An Apply puts its effect on the units the player who gives it owns and has selected alone: not
-// its unselected ones, not another player's selected ones.
-func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
+// A command for the selected puts its effect on the units the player who gives it owns and has
+// selected alone: not its unselected ones, not another player's selected ones.
+func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
@@ -96,7 +97,7 @@ func TestApply_PutsTheEffectOnThePlayersSelectedUnitsAlone(t *testing.T) {
 		w.Clock().Replay(rc, d)
 		rc.Sync()
 	})
-	w.Commands().Put(1, selection.Apply{Effect: haste})
+	w.Commands().Put(1, rule.Cast(haste).On(sel.Selected()))
 	for range 2 {
 		ctx.ecs.Tick(time.Second / 10)
 	}

@@ -1,6 +1,7 @@
 package cell
 
 import (
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/rule"
 )
@@ -20,10 +21,10 @@ type TerrainMap struct {
 	Ways      map[ID]Way
 	Crossings map[ID]Crossing
 	// Tags are the game's tags of places the cells carry for good, the Layout's; Roles the roles they
-	// play and Wired the wires they are wired to, the Layout's too.
-	Tags  map[ID]Tags
-	Roles map[ID]tag.Tags[rule.Roles]
-	Wired map[ID]*rule.Wire
+	// play and Labels what they are called — a name, a group — the Layout's too.
+	Tags   map[ID]Tags
+	Roles  map[ID]tag.Tags[rule.Roles]
+	Labels map[ID]entity.Label
 
 	version uint64
 }
@@ -98,12 +99,12 @@ func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
 	t.Roles[c] |= roles
 }
 
-// Wire wires c to w; the terrain's Version stays as it was.
-func (t *TerrainMap) Wire(c ID, w *rule.Wire) {
-	if t.Wired == nil {
-		t.Wired = make(map[ID]*rule.Wire)
+// Label calls c as l says; the terrain's Version stays as it was.
+func (t *TerrainMap) Label(c ID, l entity.Label) {
+	if t.Labels == nil {
+		t.Labels = make(map[ID]entity.Label)
 	}
-	t.Wired[c] = w
+	t.Labels[c] = l
 }
 
 // SetAll resets every cell's terrain kind to kind, discarding any prior Set.

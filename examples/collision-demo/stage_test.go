@@ -49,6 +49,8 @@ func (c *benchInit) Use(p plugin.Plugin) error {
 
 func (c *benchInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
+func (c *benchInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
+
 func (c *benchInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil

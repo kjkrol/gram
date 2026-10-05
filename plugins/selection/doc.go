@@ -19,19 +19,19 @@
 // (plugins/players/owner.Obeys), so another player's selection stays as it is and one Selected tag
 // serves every player. Units nobody owns belong to the virtual player control.Nobody — the game's
 // code, a script, an AI run as nobody — and only a Select nobody gave reaches them. Follow takes
-// the one selected unit of the player who asked, and an [Apply] puts its effect — an ability, a
-// sprint, a spell — on what the player who gave it has selected.
+// the one selected unit of the player who asked.
 //
-// # Abilities
+// # Selected and Pointed
 //
-// [Plugin.Abilities] makes bindings of what roles can do (rule.Part.Can: an effect, a trigger, a
-// label): each ability's trigger an [Apply] of its effect that reaches only the player's selected
-// units playing the role (rule.Plays) — with scouts and porters selected, haste goes to the scouts
-// alone — listed under its label in the keys (K). A game binds them on its player:
+// A command about an effect (rule.Cast, Lift, Toggle) says whom it is for with On, and the
+// selection knows two: [Plugin.Selected], the units the player who gives the command has
+// selected — those playing one of the roles named, when any is, so with scouts and porters
+// selected a haste for the hasty goes to the scouts alone — and [Plugin.Pointed], the entity drawn
+// under the cursor as the command's key is pressed. The selection carries such commands out.
 //
-//	s.player.Bind(s.selection.Abilities(hasty)...)
-//
-// An Apply a game builds itself goes to every selected unit.
+//	hasten := rule.Cast(haste).On(s.selection.Selected(hasty))
+//	freeze := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
+//	s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
 //
 // # Followed and FollowSystem
 //

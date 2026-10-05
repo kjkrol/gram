@@ -82,7 +82,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 }
 
 // NewWorldWith is NewWorld with the world and the board handed to prepare before they are
-// installed — to define roles and wires, seed a Layout and Populate it — and the rules it gives
+// installed — to define roles and commands, seed a Layout and Populate it — and the rules it gives
 // hooked on the board or on collision.
 func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []rule.Rule, units []Mover) *World {
 	t.Helper()

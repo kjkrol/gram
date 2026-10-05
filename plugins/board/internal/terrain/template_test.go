@@ -12,7 +12,7 @@ import (
 // Every cell carries what the world's roster gives a cell: a Const the same everywhere, a Load
 // read off the cell's own cell.ID.
 func TestCells_EveryCellCarriesTheRostersCellDefaults(t *testing.T) {
-	for name, g := range wireGrids() {
+	for name, g := range cellGrids() {
 		t.Run(name, func(t *testing.T) {
 			_, _, _, probe := installCells(t, g, func(w *world.Plugin, _ *board.Plugin) {
 				w.Roster().Cell.Default(comp.Load(func(c cell.ID) fuel { return fuel{Left: int(c) + 1} }))
@@ -33,7 +33,7 @@ func TestCells_EveryCellCarriesTheRostersCellDefaults(t *testing.T) {
 // What the board gives every cell itself is no template's, and a cell's row is its cell.ID: the
 // cells panic as they are made, saying so.
 func TestCells_ATemplateRefusedPanicsSayingWhy(t *testing.T) {
-	g := wireGrids()["square"]
+	g := cellGrids()["square"]
 	for name, c := range map[string]struct {
 		give comp.Comp
 		want []string

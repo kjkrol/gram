@@ -1,10 +1,10 @@
 // Command pressure-plate-demo is two pressure plates and two strips of trapdoors across a meadow:
 // wanderers nobody owns walk to and fro over both strips, and the player walks a scout onto a
 // plate — while someone stands on it, and a second after, its trapdoors are open and every
-// unfortunate on one falls in. A plate pressed is a state of the whole game, put on the world
-// (world.Apply) every step by whoever stands on the plate; a plate and a trapdoor are cells tagged
-// with their group (cell.Family). All of it is defined here, in the game, and the rules hooked
-// with ctx.Hook.
+// unfortunate on one falls in. A plate is a cell with a name, playing the role plate: stood on, it
+// Triggers, and the command that names it opens the group of cells that is its strip (rule.Cast,
+// entity.Named, entity.Group). All of it is defined here, in the game, and the rules hooked with
+// ctx.Hook.
 package main
 
 import (
@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -101,8 +102,7 @@ type mainStage struct {
 	shortcuts *players.Shortcuts
 	brd       *board.Board
 
-	pressed           []effect.Effect // each group's plate, in the order of groups
-	plates, trapdoors []cell.Tag
+	plate *rule.Part // a plate stood on sets off the command that names it
 
 	scout    kind.Of[unitRow]
 	wanderer kind.Of[unitRow]
@@ -137,32 +137,20 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	)
 	pit, _ := s.board.CellKinds().Get("pit")
 
-	// A trapdoor open is a pit; a plate pressed, below, a state of the game for each group.
+	// A trapdoor open is a pit, for a while after it was last opened.
 	fx := s.world.Effects()
-	open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	open := fx.Define("open", effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
 
 	// The game's rules, hooked once the plugins are in: whoever stands where nothing holds it
-	// falls in.
-	rules := []rule.Rule{rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-		return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
-	})}
-	// Each group: the plate pressed, a state of the game; the tags of its plate and its trapdoors;
-	// the rule of whoever stands on the plate pressing it, and the trapdoors' keeping them open
-	// while it is pressed.
+	// falls in, and a plate stood on sets off its command.
+	s.plate = rule.Role("plate").Obeys(
+		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+	rules := []rule.Rule{s.plate, rule.Then[unit.Standing]("fall in", rule.All,
+		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})))}
+	// The commands: each plate opens its own strip of trapdoors, a group of cells.
+	var commands []rule.Casting
 	for _, g := range groups {
-		pressed := fx.Define("pressed "+g.name, effect.Spec{effect.Lasts(heldAfter)})
-		plate := s.world.Kinds().DefineTag[cell.Family]("plate " + g.name)
-		trapdoor := s.world.Kinds().DefineTag[cell.Family]("trapdoor " + g.name)
-		rules = append(rules,
-			rule.On("plate "+g.name, rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-				return m.If(func(st unit.Standing) bool { return st.Places.Has(plate) }, m.Order(world.Apply{Effect: pressed}))
-			}),
-			rule.On("trapdoors "+g.name, rule.Self(trapdoor), func(m *rule.Moment[cell.Now]) rule.Step {
-				return m.During(pressed, m.Keep(open))
-			}),
-		)
-		s.pressed = append(s.pressed, pressed)
-		s.plates, s.trapdoors = append(s.plates, plate), append(s.trapdoors, trapdoor)
+		commands = append(commands, rule.Cast(open).On(entity.Group("trapdoors "+g.name)).By(entity.Named("plate "+g.name)))
 	}
 	if err := ctx.Use(s.board); err != nil {
 		return err
@@ -188,6 +176,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	}
 	// The game's rules, each on the plugin in use that hosts its moment: here the board.
 	if err := ctx.Hook(rules...); err != nil {
+		return err
+	}
+	if err := ctx.Commands(commands...); err != nil {
 		return err
 	}
 	s.defineKinds()
@@ -225,17 +216,16 @@ func (s *mainStage) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-// Spawn lays the plates and the strips of trapdoors, each cell tagged with its group's, and puts
+// Spawn lays the plates, each by its name, and the strips of trapdoors, each a group, and puts
 // the scouts and the wanderers in place.
 func (s *mainStage) Spawn() error {
 	cellAt := func(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
 	var cells []cell.Entry
-	for i, g := range groups {
-		cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(g.plate, plateRow), Tags: cell.Tags(0).With(s.plates[i])})
-		trapdoors := cell.Tags(0).With(s.trapdoors[i])
+	for _, g := range groups {
+		cells = append(cells, cell.Entry{Kind: "plate", Cell: cellAt(g.plate, plateRow), Roles: []*rule.Part{s.plate}, Name: "plate " + g.name})
 		for y := stripTop; y <= stripBottom; y++ {
 			for x := g.left; x <= g.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Tags: trapdoors})
+				cells = append(cells, cell.Entry{Kind: "boards", Cell: cellAt(x, y), Group: "trapdoors " + g.name})
 			}
 		}
 	}

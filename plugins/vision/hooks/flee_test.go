@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -16,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/vision/hooks"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -52,7 +54,7 @@ func fleeRunWith(t *testing.T, on bool, runner fleeBody, facing geom.Vec, threat
 	if err := v.Hook(hooks.Flee(tags, fleeing)...); err != nil {
 		t.Fatalf("Hook: %v", err)
 	}
-	if on && !w.Commands().Put(control.Nobody, world.Apply{Effect: fleeing}) {
+	if on && !w.Commands().Put(control.Nobody, rule.Cast(fleeing).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 

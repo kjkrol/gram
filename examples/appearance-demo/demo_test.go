@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/rule"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -12,11 +10,14 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // stageInit is a game.Initializer that drives the real Stage without a window.
@@ -53,6 +54,8 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 }
 
 func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
+
+func (c *stageInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
 
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
@@ -195,7 +198,7 @@ func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
 		}
 	}
 
-	if !ds.stage.world.Commands().Put(1, world.Apply{Effect: ds.stage.rage}) {
+	if !ds.stage.world.Commands().Put(1, rule.Cast(ds.stage.rage).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 	ds.tick(5)

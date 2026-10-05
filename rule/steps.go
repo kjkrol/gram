@@ -44,12 +44,6 @@ func Under(e effect.Effect, step Step) Step { return steps.NewUnder(e, step) }
 // During runs step while the world is under the effect, and fails while it is not.
 func During(e effect.Effect, step Step) Step { return steps.NewDuring(e, step) }
 
-// OnWire runs step on the wire the entity is wired to, in place of the entity.
-func OnWire(step Step) Step { return steps.NewOnWire(step) }
-
-// WhileWire runs step while the wire the entity is wired to is under e.
-func WhileWire(e effect.Effect, step Step) Step { return steps.NewWhileWire(e, step) }
-
 // Playing runs step while the entity — inside Here or Around, the place turned to — plays role.
 func Playing(role *Part, step Step) Step { return steps.NewPlaying(uint8(role.tag), step) }
 

@@ -3,6 +3,7 @@ package effect_test
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -129,7 +130,7 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	}
 }
 
-// A player's world.Apply puts an effect on the world; a rule's During runs its step while the
+// A command for entity.World puts an effect on the world; a rule's During runs its step while the
 // world is under it, and a plan's alike.
 func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	for _, planned := range []bool{false, true} {
@@ -157,7 +158,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		if r.fx.Has(r.id, open) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
-		r.w.Commands().Put(1, world.Apply{Effect: lever})
+		r.w.Commands().Put(1, rule.Cast(lever).On(entity.World))
 		r.tick() // the lever is put on the world
 		r.tick()
 		r.tick()

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
@@ -61,9 +62,9 @@ type module struct {
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
-	// the wires a game defined, their entities and the Signals given to them
-	wires         wires
-	wiresRunnable goke.Runnable
+	// the commands about effects, for those named, grouped and the world itself
+	castings         castings
+	castingsRunnable goke.Runnable
 
 	// the entities' plans, run first in every step of the simulation
 	plans         *steps.Plans
@@ -74,8 +75,6 @@ type module struct {
 	commands control.Carrier
 	spawns   control.Queue[Spawn]
 	despawns control.Queue[Despawn]
-	applies  control.Queue[Apply]
-	dispels  control.Queue[Dispel]
 
 	spawnRunnable goke.Runnable
 }
@@ -88,7 +87,7 @@ func newModule(cfg Config) *module {
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		leavers: &plugin.Rules[Leaving]{}, movers: &plugin.Rules[Moving]{},
 		clock: clk, steer: steering.NewSystem()}
-	w.moments = moments{clock: clk, tick: w.tick, applies: &w.applies, dispels: &w.dispels}
+	w.moments = moments{clock: clk, tick: w.tick}
 	return w
 }
 
@@ -96,7 +95,7 @@ func newModule(cfg Config) *module {
 // step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
 	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Wires: w.wires.Of, Roles: w.wires.RolesOf}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.castings.RolesOf}
 }
 
 // =================================================================
@@ -111,7 +110,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	for _, name := range rule.RoleNames() { // the roles by name, as a save carries them
 		w.kinds.DefineTag[rule.Roles](name)
 	}
-	w.wiresRunnable = ecs.RegSys(w.wires.system()) // first: the wires' Signals land with the step's effects
+	w.castingsRunnable = ecs.RegSys(w.castings.system()) // first: a step's commands land with its effects
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
@@ -149,7 +148,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Sync()
 	ctx.Run(w.exitRunnable, step)
 	ctx.Sync()
-	ctx.Run(w.wiresRunnable, step)
+	ctx.Run(w.castingsRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
 	ctx.Sync()
 	w.effects.Module().RunPlan(ctx, step)
@@ -173,8 +172,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[clock.State](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
-		goke.LoadComp[rule.Wiring](),
-		goke.LoadComp[rule.Wired](),
+		goke.LoadComp[entity.Label](),
 		goke.LoadComp[tag.Tags[rule.Roles]](),
 	}, w.effects.Module().LoadComps()...)
 	return append(tokens, w.plans.LoadComps()...)
@@ -218,7 +216,10 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 
 // populate queues a spawn of one entity of k per row, each row feeding k's Loads: at Setup, a
 // row of a size outside the bounds panics before any entity is made.
-func (w *module) populate(k ikinds.Kind, rows []any) {
+func (w *module) populate(k ikinds.Kind, rows []any) { w.populateLabelled(k, rows, nil) }
+
+// populateLabelled is populate with each row's Label, none for nil.
+func (w *module) populateLabelled(k ikinds.Kind, rows []any, labels []entity.Label) {
 	count := len(rows)
 	writers := writersOf(k)
 
@@ -232,11 +233,12 @@ func (w *module) populate(k ikinds.Kind, rows []any) {
 		w.telemetry.Count += count
 
 		var baseComp goke.Comp[Base]
-		comps := []goke.Addable{&baseComp}
+		var labelComp goke.Comp[entity.Label]
+		comps := []goke.Addable{&baseComp, &labelComp}
 		for _, wr := range writers {
 			comps = append(comps, wr.Columns()...)
 		}
-		w.spawnRows(si.NewFactory(comps...), &baseComp, writers, k, rows)
+		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, writers, k, rows, labels)
 		w.reindex(si)
 	}})
 }

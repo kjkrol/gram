@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -79,11 +80,9 @@ func NewPlugin(cfg Config) *Plugin {
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
 	m.effects.Sprites(kinds.NewSprite)
-	m.moments.effects = m.effects
-	m.wires.effects = m.effects
+	m.castings.effects, m.castings.world, m.castings.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
-	m.plans.Wires(m.wires.Of)
-	m.plans.Roles(m.wires.RolesOf)
+	m.plans.Roles(m.castings.RolesOf)
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
@@ -206,11 +205,11 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Queues are the clock's, Spawn's, Despawn's, Apply's, Dispel's, the wires' Signal's and the
-// steering's (steering.Away, Toward, Turn) — for the players plugin, which carries the world's
-// commands itself.
+// Queues are the clock's, Spawn's, Despawn's, the commands' about effects (rule.Casting,
+// rule.Triggered) and the steering's (steering.Away, Toward, Turn) — for the players plugin, which
+// carries the world's commands itself.
 func (p *Plugin) Queues() []control.CommandQueue {
-	q := append(p.module.clock.Queues(), &p.module.spawns, &p.module.despawns, &p.module.applies, &p.module.dispels, &p.module.wires.signals)
+	q := append(p.module.clock.Queues(), &p.module.spawns, &p.module.despawns, &p.module.castings.queue, &p.module.castings.triggers)
 	return append(q, p.module.steer.Queues()...)
 }
 
@@ -300,6 +299,7 @@ func (p *Plugin) Seed(entries ...kind.Entry) { p.seeded = append(p.seeded, entri
 func (p *Plugin) Populate() error {
 	var order []string
 	groups := make(map[string][]any)
+	labels := make(map[string][]entity.Label)
 	for _, e := range p.seeded {
 		r, ok := p.kinds.r.Kind(e.Kind())
 		if !ok {
@@ -312,10 +312,11 @@ func (p *Plugin) Populate() error {
 			order = append(order, r.Name)
 		}
 		groups[r.Name] = append(groups[r.Name], e.Row())
+		labels[r.Name] = append(labels[r.Name], entity.LabelOf(e.Name(), e.Group()))
 	}
 	for _, name := range order {
 		k, _ := p.kinds.r.Kind(name)
-		p.module.populate(k, groups[name])
+		p.module.populateLabelled(k, groups[name], labels[name])
 	}
 	p.seeded = nil
 	return nil
@@ -338,6 +339,7 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
 
-// Wire defines the wire named name — its own entity made at Setup, found again in a loaded game —
-// for keys and rules to drive and rules of what is wired to it to read (rule.Wire); call it in Init.
-func (p *Plugin) Wire(name string) *rule.Wire { return p.module.wires.define(name) }
+// Triggers hands the world the game's commands about effects: it gives those with a Source when
+// the entity it names Triggers, and checks the names they all say once the game stands. For the
+// engine: a Stage gives them to its Initializer.
+func (p *Plugin) Triggers(cmds ...rule.Casting) error { return p.module.castings.take(cmds...) }

@@ -13,14 +13,15 @@
 //
 // # Terrain in maps and the Layout's entries
 //
-// A [TerrainMap] is terrain in plain maps — kinds, ways, crossings, tags, roles and wires by cell:
+// A [TerrainMap] is terrain in plain maps — kinds, ways, crossings, tags, roles and labels by cell:
 // a board's seed until the ECS makes every cell an entity out of it, and a [Terrain] of its own
 // where no board is wanted. The board's Layout names kinds by name: an [Entry] per cell, a
 // [WayEntry] per way or crossing. An Entry also gives its cell, for good, the roles it plays
-// (Entry.Roles), whose rules it obeys, and the wire it is wired to (Entry.Wired, defined with
-// world.Plugin.Wire), which its entity carries as a rule.Wired:
+// (Entry.Roles), whose rules it obeys, and what it is called — a Name of its own, a Group it shares
+// — which its entity carries as an entity.Label and commands find it by (entity.Named, Group):
 //
-//	cell.Entry{Kind: "boards", Cell: c, Roles: []*rule.Part{trapdoor}, Wired: west}
+//	cell.Entry{Kind: "plate", Cell: c, Roles: []*rule.Part{plate}, Name: "plate"}
+//	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
 //
 // # Tags and Now
 //
@@ -29,10 +30,10 @@
 // board runs the rules of it for every cell, filtered by those tags or by effects' markers
 // (rule.Self), or obeyed by the roles the cell plays (rule.Part.Obeys); it is plugin.Placed, so a
 // rule's Here acts on the cell and Around on the rings round it. Now.Trodden says the centre of a
-// unit lies on the cell this step, and [Now.Stood] is that for a rule's If — a plate putting its
-// wire on while someone stands on it:
+// unit lies on the cell this step, and [Now.Stood] is that for a rule's If — a plate setting its
+// command off while someone stands on it:
 //
-//	m.If(cell.Now.Stood, m.OnWire(m.Apply(on)))
+//	rule.If(cell.Now.Stood, rule.Trigger())
 //
 // # Occupancy
 //

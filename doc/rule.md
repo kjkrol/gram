@@ -9,8 +9,9 @@ was `conduct`, then `act` (rules were "triggers", plans "trees"); on 2026-10-01 
 it has: two constructors, each taking a function that writes the steps. The same day effects got
 their own markers, `Dispel`, `Then` and `Chance`, so that a game is written as states and the
 rules connecting them (below, "A game: states as effects"). On 2026-10-02 a Stage came to hook its
-rules itself (`ctx.Hook`), entities to obey them by the roles they play, and a lever to be a wire
-(below, "Hooking", "Roles", "Wires").
+rules itself (`ctx.Hook`) and entities to obey them by the roles they play; on 2026-10-05 what
+somebody asks for became one command written as a sentence, for entities found by name or group
+(below, "Hooking", "Roles", "Commands").
 
 ## Two constructors
 
@@ -43,7 +44,7 @@ plan.New("patrol", func(a *plan.Actor) rule.Step {
 - `rule.Then[P](name, filter, step)` is the same rule without the body: its steps are the
   package's own functions, the twins of a Moment's methods (`rule.If`, `OneOf`, `Steps`, `Apply`,
   `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`, `ForOther`, `Here`, `Around`,
-  `OnWire`, `WhileWire`, `Playing`), its conditions predicates of the moment — a method as a value
+  `Playing`, `Trigger`), its conditions predicates of the moment — a method as a value
   (`unit.Standing.Fallen`), a plugin's own (`unit.On(ice)`), `rule.Not(pred)`; an `If` inside an
   `If` is both, `OneOf` either. A step the moment cannot run (an `Around` where `P` is not
   Placed, an `If` over another moment) panics by the rule's name as the rule is made:
@@ -96,15 +97,15 @@ A rule no plugin in use hosts is an error wrapping `plugin.ErrUnhosted`; a plugi
 `Use`, until the Stage's `ecs.Setup` builds its systems — later is `plugin.ErrHostBuilt` — but not
 a role, which goes through `ctx.Hook`. An error names the rule by its `String`, its name, its
 moment and what narrowed it: `"fall in" of unit.Standing, for the role mortal`; a role's is
-`the role mortal`, a wire's `the wire west`.
+`the role mortal`.
 
 ## The five words
 
 - **Rule** — a moment a plugin catches: a `unit.Standing` or a `cell.Now`, a `vision.Sighting`, a
   `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Leaving`, a `clock.Moment`, a
   `climate.Weathering`, a `navigation.Touch`. A Moment's steps are instant — `OneOf`, `Steps`, `If`
-  on the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `OnWire`,
-  `WhileWire`, `Playing`, `Order`, `ForOther`, `Here`, `Around` — so a step that lasts (`Wait`, `Until`, `Ask`)
+  on the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`,
+  `Playing`, `Order`, `Trigger`, `ForOther`, `Here`, `Around` — so a step that lasts (`Wait`, `Until`, `Ask`)
   is not to be had in a rule: a Moment has no such method, and one made by an Actor is refused as
   the rule is made. A rule remembers nothing of its own, and runs no Go code of its own: there is no
   step for it. What the steps cannot say is a moment, a step or a knob the plugin still lacks.
@@ -161,50 +162,75 @@ moment and what narrowed it: `"fall in" of unit.Standing, for the role mortal`; 
 - **One after another.** `effect.Then(next)` casts `next` when an effect's time is up — burning
   leaves smouldering — but not when it is dispelled: put out, nothing smoulders.
 
-## A player's actions
+## Commands
 
-A player changes the game the same way a rule does: by putting an effect on something, with a
-command from a binding:
-
-- `selection.Apply{Effect}` puts it on the player's own selected units — a sprint, a spell;
-  another player's units and those nobody owns are never touched. A role's abilities are such
-  bindings, reaching only the units playing it (below, "Roles");
-- `world.Apply{Effect}` puts it on the world itself — its own entity, the clock's — a state of the
-  whole game: an alarm, night called. A rule or a plan may `Order` it too;
-- a wire's `Key` and `Switch` put it on the wire's own entity: a lever pulled, a switch flipped
-  (below, "Wires");
-- `bullet.Shoot{Ammo}` fires a shot from the player's own selected units, the way each faces or
-  at a point (`Targeted`); a rule or a plan orders it the same way, for its entity, aimed at its
-  moment's subject. What the shot does is rules of collision's `Meeting` and bullet's `Landing`,
-  `Resting` and `Blast`: a wound an effect `ForOther`, a fuse an effect on the grenade that
-  `Then` bangs, a `Burst` ordered under it.
-
-Rules and plans read the world's states with `During(e, step)`, as they read an entity's with
-`Under` and its wire's with `WhileWire`:
+Whatever somebody asks for — a player's key, a script, an AI, a rule's `Order` — is a command, and
+a command about an effect is one sentence (`rule.Casting`):
 
 ```go
-alarm := fx.Define("alarm", effect.Spec{effect.Lasts(30 * time.Second)})
+openWest := rule.Cast(open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
+flipGate := rule.Toggle(ajar).On(entity.Group("gate"))
+alarm    := rule.Cast(alarmed).On(entity.World).For(30 * time.Second)
+hasten   := rule.Cast(haste).On(s.selection.Selected(hasty))
+freeze   := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
+```
+
+- **The verb**: `rule.Cast` puts the effect on, `rule.Lift` takes it off, `rule.Toggle` takes it
+  off them all where any is under it and puts it on them all otherwise — a switch.
+- **Whom** (`On`): `entity.Named(names...)`, the entities bearing those names, one each;
+  `entity.Group(names...)`, all those in the groups; `entity.World`, the world's own entity — a
+  state of the whole game; or a plugin's own: the selection's `Selected(roles...)`, the units the
+  player who gives the command has selected (those playing a role named, when any is), and
+  `Pointed()`, the entity drawn under the cursor as the key is pressed.
+- **How long** (`For`): in place of what the effect's `Spec` says.
+- **Who sets it off** (`By`): the entities whose rule's `rule.Trigger()` gives it — a lever, a
+  plate. A role then says only *that* a plate stood on triggers; the command says what it opens.
+
+An entity is called by what makes it: a cell by its `cell.Entry{Name, Group}`, a unit by its
+`kind.Entry` (`Named`, `InGroup`); a name is one entity's, a group many's, and both are saved. The
+game hands its commands to `ctx.Commands(cmds...)`: those with a `By` are kept for `Trigger`, and
+every name they say is checked as the game starts — a name nobody bears, or one two bear, stops it
+there. A command is given the same way whoever gives it:
+
+```go
+s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest)) // a key
+s.players.Issue(ai, openWest)                                                                      // an AI, a script
+rule.Order(openWest)                                                                               // a rule, a plan
+rule.If(cell.Now.Stood, rule.Trigger())                                                            // its source
+```
+
+The plugin its target belongs to carries it out — the world for those named, grouped and the
+world itself, the selection for its own — a step later, with the step's effects; commands of one
+effect for one entity in one step are netted, so a switch flipped twice stays as it was.
+Other plugins' commands are theirs: `navigation.MoveTo`, `world.Despawn`, `bullet.Shoot{Ammo}`
+(a shot from the player's selected units, or from the entity that orders it, aimed at its moment's
+subject).
+
+Rules and plans read the world's states with `During(e, step)`, as they read an entity's with
+`Under`:
+
+```go
+alarmed := fx.Define("alarm", effect.Spec{effect.Lasts(30 * time.Second)})
 alert := fx.Define("alert", effect.Spec{effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 1.5 })})
-s.player.Bind(control.Command(control.KeyPress{Key: control.KeyN}, "Sound the alarm",
-	func(control.Context) (world.Apply, bool) { return world.Apply{Effect: alarm}, true }))
-guard := rule.Role("guard").Obeys(rule.On("hurry", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
-	return m.During(alarm, m.Keep(alert))
-}))
+s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm", rule.Cast(alarmed).On(entity.World)))
+guard := rule.Role("guard").Obeys(rule.Then[unit.Standing]("hurry", rule.All, rule.During(alarmed, rule.Keep(alert))))
 ```
 
 The guards hurry while the alarm sounds and slow down once it is over: `Keep` holds `alert` only
 while the rule fires it.
 
+The wire demo (`examples/wire-demo/demo.go`) is a whole program of it: a lever, a plate and a
+switch, each a command for a group of cells; the trapdoor and pressure plate demos are the same
+in less.
+
 ## Roles
 
-A **role** is a behaviour several kinds share, said once: the rules those playing it obey and what
-their player can do with them. `rule.Role(name)` makes it; `Obeys(rules...)` adds rules, each
-narrowed to the role's players; `Can(effect, trigger, label)` adds an ability. A kind plays its
-roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`. A role is hooked like a
-rule — one a kind plays by the engine itself once `Init` returns, so only a role cells alone play
-needs `ctx.Hook` — and `selection.Plugin.Abilities(roles...)` makes its abilities bindings — each on its
-trigger, listed under its label in the keys (K), casting on the player's selected units playing
-the role:
+A **role** is a behaviour several kinds share, said once: the rules those playing it obey.
+`rule.Role(name)` makes it; `Obeys(rules...)` adds rules, each narrowed to the role's players. A
+kind plays its roles through `rule.Plays(roles...)`, a cell through `cell.Entry.Roles`. A role is
+hooked like a rule — one a kind plays by the engine itself once `Init` returns, so only a role
+cells alone play needs `ctx.Hook` — and a command may be for those playing it alone
+(`selection.Selected(role)`):
 
 ```go
 fx := s.world.Effects()
@@ -214,12 +240,13 @@ haste := fx.Define("haste", effect.Spec{effect.Lasts(3 * time.Second),
 mortal := rule.Role("mortal").Obeys(rule.On("fall in", rule.All, func(m *rule.Moment[unit.Standing]) rule.Step {
 	return m.If(unit.Standing.Fallen, m.Order(world.Despawn{}))
 }))
-hasty := rule.Role("hasty").Can(haste, control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts")
+hasty := rule.Role("hasty")
 
 selectable, mine := comp.Tagged(s.selection.Tags().Selectable), comp.Tagged(s.player.Owner())
 s.scout = units.Define("scout", land, profile, selectable, mine, rule.Plays(mortal, hasty))
 s.porter = units.Define("porter", land, laden, selectable, mine, rule.Plays(mortal))
-s.player.Bind(s.selection.Abilities(hasty)...)
+s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
+	rule.Cast(haste).On(s.selection.Selected(hasty))))
 return ctx.Hook(mortal, hasty)
 ```
 
@@ -238,73 +265,20 @@ takes no filter and obeys no role: its host refuses it with `plugin.ErrUnhosted`
 
 `m.Playing(role, step)` runs the step while the entity plays the role and fails while it does not.
 Inside `Here` or `Around` it asks the place the step turned to: the wire demo's handy scouts pull
-the lever beside them with `m.Under(pull, m.Around(1, m.Playing(lever, m.OnWire(m.Apply(on)))))`,
-and leave alone the trapdoors on the same wire. A plan's Actor has it too.
+the lever beside them with `rule.Under(pull, rule.Around(1, rule.Playing(lever, rule.Trigger())))`,
+and nothing else there. A plan's Actor has it too.
 
 A program names 64 roles at most, one name one tag, which every world saves by the name. Make them
 in `Init`: the world names them in its kinds as the Stage's ECS is set up. A kind names
 `rule.Plays` once, every role it plays in it; a kind giving a component type twice panics.
 
-## Wires
-
-A **wire** is a connection by name — a lever and its trapdoors, a plate and its gate.
-`world.Plugin.Wire(name)` defines one in `Init`, with an entity of its own, made at Setup and
-found again by the name after a load. Its state is an effect on that entity, so one effect serves
-any number of wires. An entity carrying `rule.Wired` is wired to one: a cell through
-`cell.Entry.Wired`, a kind's entities through `comp.Const(west.Wired())` in its Spec. `Wired` holds
-the wire's name hashed, so it is given before the wire's entity exists and survives a save. Its
-rules follow the wire with two steps:
-
-- `m.OnWire(step)` runs the step on the wire's entity in place of the entity's own:
-  `m.OnWire(m.Apply(on))` drives the wire;
-- `m.WhileWire(e, step)` runs the step while the entity's wire is under `e`.
-
-Both fail for an entity wired to none; a plan's Actor has both too. A player drives a wire with a
-binding: `Wire.Key(e, trigger, label)` puts `e` on it each time the trigger fires, a pulse lasting
-as its `Spec` says; `Wire.Switch(e, trigger, label)` puts `e` on or takes it off, and one without
-`Lasts` holds until switched off, saved with the game. A plate asks `cell.Now.Stood`: a unit
-stands on the cell, its centre on it this step.
-
-```go
-fx := s.world.Effects()
-open := fx.Define("open", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-on := fx.Define("on", effect.Spec{effect.Lasts(2 * time.Second)})
-
-s.trapdoor = rule.Role("trapdoor").Obeys(rule.On("open while on", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-	return m.WhileWire(on, m.Keep(open))
-}))
-s.plate = rule.Role("plate").Obeys(rule.On("press", rule.All, func(m *rule.Moment[cell.Now]) rule.Step {
-	return m.If(cell.Now.Stood, m.OnWire(m.Apply(on)))
-}))
-s.west, s.east = s.world.Wire("west"), s.world.Wire("east")
-s.player.Bind(s.west.Key(on, control.KeyPress{Key: control.Key1}, "Pull the west lever"))
-return ctx.Hook(mortal, hasty, s.trapdoor, s.plate)
-
-// Spawn: every cell plays its role on its wire
-s.board.Seed(board.Layout{Default: "grass", Cells: []cell.Entry{
-	{Kind: "boards", Cell: w1, Roles: []*rule.Part{s.trapdoor}, Wired: s.west}, // the west strip, cell by cell
-	{Kind: "boards", Cell: e1, Roles: []*rule.Part{s.trapdoor}, Wired: s.east}, // the east strip
-	{Kind: "plate", Cell: p, Roles: []*rule.Part{s.plate}, Wired: s.east},
-}})
-```
-
-1 puts `on` on the west wire and the west strip opens for two seconds; the plate puts it on the
-east wire every step someone stands on it, so the east strip stays open while someone stands there
-and two seconds after. A mortal on an open trapdoor falls in. The wire demo
-(`examples/wire-demo/demo.go`) is the whole program, with a third wire: G flips a gate's switch, an
-effect without `Lasts`, and the gate stays open until G again. The west lever stands in the yard
-too, a cell playing lever wired to west, and U has a selected scout beside it pull it (the handy
-role, `Playing`). An entity is wired to one wire.
-
 ### Groups and behaviours
 
-**Roles mean behaviour, wires mean which group.** `on` serves the lever and the plate alike, `open`
-every trapdoor, and one rule of each role every cell playing it: a lever costs a wire, an entity —
-never a tag, a role or an effect of its own. A hundred levers are a hundred wires and the same
-rules. Before wires, a lever was an effect of its own, its trapdoors a tag of places and a rule
-hooked for each: 63 effects and 64 tags in a family held a game to tens of levers. Tags stay for
-the groups rules filter by — whose a unit is, whether it is selected, a district (`rule.Self`,
-`rule.Between`) — and roles for behaviours: tens in a game, never one a unit or a lever.
+**Roles mean behaviour, names and groups mean which ones.** One rule of the role plate serves
+every plate: which doors a plate opens is the command naming it. A hundred levers are a hundred
+commands, a hundred names and the same rules — never a role, a tag or an effect each. Tags are how
+the plugins keep their own states and groups — whose a unit is, whether it is selected — and
+`rule.Self`, `rule.Between` filter by them and by an effect's marker.
 
 ## Knobs
 
@@ -339,8 +313,8 @@ rule.On("vision.chase", rule.Between(tags.Predator, tags.Prey), func(m *rule.Mom
 })
 ```
 
-A switch of a behaviour for the whole game is an effect on the world (`world.Apply`,
-`world.Dispel`), the rule running `During` it: `vhooks.Flee(tags, fleeing)`.
+A switch of a behaviour for the whole game is an effect on the world (`rule.Cast`, `Lift` or
+`Toggle` on `entity.World`), the rule running `During` it: `vhooks.Flee(tags, fleeing)`.
 
 How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap`, `With` and
 `Show`, given to `world.Plugin.Draw` (and `vision.Plugin.Draw`, which views are drawn), run every
@@ -444,8 +418,8 @@ of the crowd's with `WithCrowd`.
 A game built on the plugins is written in three parts, and none of them is Go code inside a rule:
 
 1. **States are effects.** Burning, frozen, alarmed, doused, a lever pulled: each defined once,
-   for a while or for good, with its own marker on while it runs, on a unit, a cell, the world or
-   a wire. One effect may lead to the next (`Then`).
+   for a while or for good, with its own marker on while it runs, on a unit, a cell or the world.
+   One effect may lead to the next (`Then`).
 2. **Rules connect.** A rule hooked on a plugin turns its moment — a touch, a sighting, where one
    stands — into effects: `Apply`, `Keep`, `Dispel`, narrowed by a marker (`rule.Self`,
    `rule.Between`) or obeyed by a role, guarded by another (`Unless`), now and then (`Chance`).
@@ -510,8 +484,8 @@ The same words serve formations and escorts ("follow me"), handing over a load, 
 me", "fall back"), and an AI player's orders to its units; asks and commands are deterministic
 messages, fit to replay and to send over a network.
 
-Not yet there: which effects a player may apply (any, today, on its own units, a wire or the
-world — a game over a network will want a list); an effect taking a tag off while it runs (a
+Not yet there: which effects a player may apply (any, today, on whatever a command names
+— a game over a network will want a list); an effect taking a tag off while it runs (a
 `Revoke` beside `Grant`); filters joined (`rule.Self(x)` and `Having[T]` at once); `Here` and
 `Around` in plans; a step shared by the moments of several plugins; more than `MaxEffects` (8)
-effects on one entity and 63 defined; an entity wired to more than one wire.
+effects on one entity and 63 defined; an entity in more than one group.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
@@ -41,12 +42,14 @@ type spawner struct {
 	kind    ikinds.Kind
 	factory *goke.Factory
 	base    goke.Comp[Base]
+	label   goke.Comp[entity.Label]
 	writers []comp.Spawner
 }
 
 type spawnGroup struct {
-	by   *spawner
-	rows []any
+	by     *spawner
+	rows   []any
+	labels []entity.Label
 }
 
 func newSpawnSystem(w *module) *spawnSystem { return &spawnSystem{w: w} }
@@ -54,7 +57,7 @@ func newSpawnSystem(w *module) *spawnSystem { return &spawnSystem{w: w} }
 func (s *spawnSystem) Init(si *goke.SysInit) {
 	s.w.kinds.r.Each(func(k ikinds.Kind) {
 		sp := &spawner{kind: k, writers: writersOf(k)}
-		comps := []goke.Addable{&sp.base}
+		comps := []goke.Addable{&sp.base, &sp.label}
 		for _, wr := range sp.writers {
 			comps = append(comps, wr.Columns()...)
 		}
@@ -68,7 +71,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		return
 	}
 	for i := range s.groups {
-		s.groups[i].rows = s.groups[i].rows[:0]
+		s.groups[i].rows, s.groups[i].labels = s.groups[i].rows[:0], s.groups[i].labels[:0]
 	}
 	s.groups, s.accepted = s.groups[:0], 0
 	s.w.spawns.Drain(func(i control.Issued[Spawn]) {
@@ -77,7 +80,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		}
 	})
 	for _, g := range s.groups {
-		s.w.spawnRows(g.by.factory, &g.by.base, g.by.writers, g.by.kind, g.rows)
+		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.writers, g.by.kind, g.rows, g.labels)
 		s.w.spawnedCount += len(g.rows)
 		s.w.telemetry.Count += len(g.rows)
 	}
@@ -107,14 +110,14 @@ func (s *spawnSystem) take(e kind.Entry) error {
 		return fmt.Errorf("kind %q: the world is full, Config.Entities.MaxCount %d", k.Name, s.w.config.Entities.MaxCount)
 	}
 	s.accepted++
-	by := s.kinds[k.TypeID]
+	by, label := s.kinds[k.TypeID], entity.LabelOf(e.Name(), e.Group())
 	for i := range s.groups {
 		if s.groups[i].by == by {
-			s.groups[i].rows = append(s.groups[i].rows, row)
+			s.groups[i].rows, s.groups[i].labels = append(s.groups[i].rows, row), append(s.groups[i].labels, label)
 			return nil
 		}
 	}
-	s.groups = append(s.groups, spawnGroup{by: by, rows: append([]any(nil), row)})
+	s.groups = append(s.groups, spawnGroup{by: by, rows: []any{row}, labels: []entity.Label{label}})
 	return nil
 }
 
@@ -130,15 +133,18 @@ func writersOf(k ikinds.Kind) []comp.Spawner {
 	return writers
 }
 
-// spawnRows makes one entity of k a row through factory — its Base from the row, placed in the
+// spawnRows makes one entity of k a row through factory — its Base from the row, its Label, placed in the
 // space, the writers' columns from the row — the rows checked beforehand.
-func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], writers []comp.Spawner, k ikinds.Kind, rows []any) {
+func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[entity.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, labels []entity.Label) {
 	factory.Create(len(rows))
 	index := 0
 	for factory.Next() {
-		bases := base.Slice(&factory.Cursor)
+		bases, named := base.Slice(&factory.Cursor), label.Slice(&factory.Cursor)
 		for i, id := range factory.IDs {
 			row := rows[index]
+			if labels != nil {
+				named[i] = labels[index]
+			}
 			bases[i] = Base{Pos: k.Position.Resolve(row), Vel: k.Velocity.Resolve(row), TypeID: k.TypeID}
 			w.space.Place(&bases[i].Pos.AABB)
 			for _, wr := range writers {

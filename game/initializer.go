@@ -19,6 +19,11 @@ type Initializer interface {
 	// in use hosts is plugin.ErrUnhosted. Call it once the plugins are Used, before Init returns.
 	Hook(rules ...rule.Rule) error
 
+	// Commands hands over the game's commands about effects (rule.Cast, Lift, Toggle): one with
+	// a By is given whenever the entity it names Triggers, and every name they say is checked
+	// against the game as it starts. Call it once the world is in use.
+	Commands(cmds ...rule.Casting) error
+
 	// Track saves and loads s alongside the game's Plugins.
 	Track(s plugin.Serializable) error
 

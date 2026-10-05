@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -195,8 +196,8 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	if err := player.Bind(s.players.Defaults()...); err != nil {
 		return err
 	}
-	if err := player.Bind(control.Command(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
-		func(control.Context) (world.Apply, bool) { return world.Apply{Effect: s.rage}, true })); err != nil {
+	if err := player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
+		rule.Cast(s.rage).On(entity.World))); err != nil {
 		return err
 	}
 	if err := ctx.Use(s.players); err != nil {

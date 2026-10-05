@@ -52,6 +52,8 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 
 func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
+func (c *stageInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
+
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil

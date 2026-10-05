@@ -56,9 +56,23 @@ func (k Of[P]) SpriteID() render.SpriteID { return k.sprite }
 
 // Entry is one entity to spawn: its kind and its row — built only by Of.Entry.
 type Entry struct {
-	kind string
-	row  any
+	kind        string
+	row         any
+	name, group string
 }
+
+// Named is the entry of an entity bearing name, its alone: what entity.Named finds it by.
+func (e Entry) Named(name string) Entry { e.name = name; return e }
+
+// InGroup is the entry of an entity in group, with any number of others: what entity.Group finds
+// it by.
+func (e Entry) InGroup(group string) Entry { e.group = group; return e }
+
+// Name is the name the entity bears, empty for none; Group the group it is in.
+func (e Entry) Name() string { return e.name }
+
+// Group is the group the entity is in, empty for none.
+func (e Entry) Group() string { return e.group }
 
 // Kind names the kind this entity is of.
 func (e Entry) Kind() string { return e.kind }

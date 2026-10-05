@@ -87,18 +87,8 @@ func (a *Actor) Unless(e effect.Effect, step rule.Step) rule.Step { return steps
 func (a *Actor) Under(e effect.Effect, step rule.Step) rule.Step { return steps.NewUnder(e, step) }
 
 // During runs step while the world is under the effect — a state of the whole game, a lever
-// pulled, an alarm (world.Apply) — and fails while it is not.
+// pulled, an alarm (rule.Cast on entity.World) — and fails while it is not.
 func (a *Actor) During(e effect.Effect, step rule.Step) rule.Step { return steps.NewDuring(e, step) }
-
-// OnWire runs step on the wire the actor is wired to (rule.Wired), in place of the actor, and
-// fails for one wired to none.
-func (a *Actor) OnWire(step rule.Step) rule.Step { return steps.NewOnWire(step) }
-
-// WhileWire runs step while the wire the actor is wired to is under e, and fails while it is not,
-// or for one wired to none.
-func (a *Actor) WhileWire(e effect.Effect, step rule.Step) rule.Step {
-	return steps.NewWhileWire(e, step)
-}
 
 // Playing runs step while the actor plays role, and fails while it does not.
 func (a *Actor) Playing(role *rule.Part, step rule.Step) rule.Step {

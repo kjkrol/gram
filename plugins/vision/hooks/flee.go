@@ -16,7 +16,7 @@ const onCourse = 0.5
 
 // Flee has every Skittish entity head away from the nearest Threat it sees, else from the nearest
 // one in view when either is heading at the other; both rules run During fleeing, a state of the
-// world (world.Apply). Hook them on the vision plugin in this order.
+// world (rule.Cast on entity.World). Hook them on the vision plugin in this order.
 func Flee(tags Tags, fleeing effect.Effect) []rule.Rule {
 	return []rule.Rule{
 		rule.On("vision.flee a threat", rule.Between(tags.Skittish, tags.Threat), func(m *rule.Moment[vision.Sighting]) rule.Step {

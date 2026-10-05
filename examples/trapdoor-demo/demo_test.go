@@ -52,6 +52,8 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 
 func (c *stageInit) Hook(rules ...rule.Rule) error { return engine.HookOn(c.tracked, rules...) }
 
+func (c *stageInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
+
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil
@@ -155,7 +157,7 @@ func TestLever_OpensItsTrapdoorsUnderWhoeverStandsOnThem(t *testing.T) {
 	if len(caught) == 0 {
 		t.Fatal("nobody walked onto the west strip in twenty seconds")
 	}
-	s.world.Commands().Put(s.player.ID, world.Apply{Effect: s.pulled[0]})
+	s.world.Commands().Put(s.player.ID, s.pulls[0])
 	s.tick(TPS / 2)
 	alive := s.alive()
 	for id := range caught {
@@ -185,7 +187,7 @@ func TestHaste_HastensTheSelectedScouts(t *testing.T) {
 	s.tick(1)
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), ScreenWidth, ScreenHeight)
 	s.world.Commands().Put(s.player.ID, selection.Select{Box: everywhere})
-	s.world.Commands().Put(s.player.ID, selection.Apply{Effect: s.haste})
+	s.world.Commands().Put(s.player.ID, s.hasten)
 	s.tick(2)
 	hastened := 0
 	for id := range s.alive() {

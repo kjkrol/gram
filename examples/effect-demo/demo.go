@@ -119,6 +119,9 @@ func (s *mainStage) Init(ctx game.Initializer) error {
 	s.defineEffects()
 	s.defineRoles()
 	s.defineKinds()
+	if err := s.bindKeys(); err != nil {
+		return err
+	}
 	return s.defineScenes(ctx)
 }
 
@@ -144,6 +147,13 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 func (s *mainStage) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
+}
+
+// bindKeys gives the player the witch's own spell: F freezes whoever the cursor points at, for a
+// while.
+func (s *mainStage) bindKeys() error {
+	freeze := rule.Cast(s.world.Effects().Named("frozen")).On(s.selection.Pointed()).For(3 * time.Second)
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at", freeze))
 }
 
 func (s *mainStage) defineCells() {

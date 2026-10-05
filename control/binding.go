@@ -167,6 +167,22 @@ func Command[C any](trigger Trigger, label string, build func(c Context) (C, boo
 	}}
 }
 
+// Contextual is a command that reads where it was given: In is the command for the Context its
+// trigger fired in — the one pointed at with the cursor.
+type Contextual interface{ In(c Context) any }
+
+// Give is a Binding issuing cmd whenever trigger fires: a command the game named beforehand. One
+// that is Routed is given as its handler takes it, one that is Contextual for the Context.
+func Give(trigger Trigger, label string, cmd any) Binding {
+	cmd = Unwrap(cmd)
+	return Binding{Trigger: trigger, Label: label, command: reflect.TypeOf(cmd), build: func(c Context) (any, bool) {
+		if in, ok := cmd.(Contextual); ok {
+			return in.In(c), true
+		}
+		return cmd, true
+	}}
+}
+
 // Command is the type of command the binding issues; nil for one not built with Command.
 func (b Binding) Command() reflect.Type { return b.command }
 
