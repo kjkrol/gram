@@ -36,6 +36,10 @@ argument's full path, which moved.
 - A `climate.Weathering` is about the atmosphere's entity, no longer the world's: an effect its
   rule applies is a state of the atmosphere.
 - A plugin's entity holds every effect at once (`effect.Wide`); units and cells still hold eight.
+- The moon is the atmosphere's knob, `sky.Moon{Color, Strength, Face}`: an effect on the
+  atmosphere turns the night's light and the moon's face (`Config.LightAt` takes the Moon).
+  `sky.Moonrise` is the moment the moon comes up, with `Moonrise.Full`. The topography demo has a
+  blood moon: at a full moon's rise, or on M.
 - Saves made before do not load: the clock's entity bears a name now.
 
 **A Stage defined in sections**

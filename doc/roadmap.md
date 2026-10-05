@@ -76,6 +76,9 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
 
+- **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
+  the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
+
 ## Housekeeping
 
 - **`BENCHMARKS.md`** — the island's numbers predate the roads, the folded quads and the outline

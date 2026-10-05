@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 )
@@ -20,7 +21,9 @@ type Sky struct {
 	heavens  celestial.Heavens // the bodies of the sky at that hour
 
 	frozen   bool
-	moonless bool            // no moonlight at night (SetMoon)
+	moonless bool // no moonlight at night (SetMoon)
+	moon     Moon // the moon's light and face: the knob on the atmosphere's entity
+	rises    plugin.StepRules[Moonrise]
 	hour     float32         // the frozen light's time of day
 	step     int             // the step whose light the world has; -1 before the first
 	at       calendar.Moment // going on: the moment whose light the world has
@@ -36,7 +39,7 @@ type Sky struct {
 func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 	cfg = cfg.withDefaults()
 	cfg.latitude = latitude
-	s := &Sky{cfg: cfg, calendar: cal, frozen: cfg.Frozen, hour: dayPart(cfg.Hour), step: -1}
+	s := &Sky{cfg: cfg, calendar: cal, frozen: cfg.Frozen, hour: dayPart(cfg.Hour), step: -1, moon: DefaultMoon()}
 	m := cal.Now()
 	if s.frozen {
 		m.Time = s.hour
@@ -56,9 +59,20 @@ func (s *Sky) light(m calendar.Moment) {
 	if s.moonless {
 		s.sun = s.cfg.SunAt(m.OfYear(), m.Time)
 	} else {
-		s.sun = s.cfg.LightAt(m.OfYear(), m.Time, m.Moon())
+		s.sun = s.cfg.LightAt(m.OfYear(), m.Time, m.Moon(), s.moon)
 	}
 	s.heavens = s.cfg.place().HeavensAt(m.OfYear(), m.Time, m.Moon(), s.cfg.Stars)
+	s.heavens.MoonTint = s.moon.Face
+}
+
+// relight sets the light anew as it stands now: something it is made of changed.
+func (s *Sky) relight() {
+	m := s.calendar.Now()
+	if s.frozen {
+		m.Time = s.hour
+	}
+	s.step, s.at = -1, m
+	s.light(m)
 }
 
 // SetMoon has the moon light the night once the sun is down, or not: the night lit by the sky
@@ -68,12 +82,7 @@ func (s *Sky) SetMoon(on bool) {
 		return
 	}
 	s.moonless = !on
-	m := s.calendar.Now()
-	if s.frozen {
-		m.Time = s.hour
-	}
-	s.step, s.at = -1, m
-	s.light(m)
+	s.relight()
 }
 
 // Moon reports whether the moon lights the night.
@@ -139,12 +148,28 @@ func (s *Sky) Update() {
 
 // System is the sky as a goke.System, run once a tick in the interface part of an atmosphere's
 // plan.
-func (s *Sky) System() goke.System { return system{s} }
+func (s *Sky) System() goke.System { return &system{s: s} }
 
-type system struct{ s *Sky }
+// system runs the sky's Update, with the Moon the atmosphere's entity carries read first: turned
+// by an effect, the light turns at once.
+type system struct {
+	s     *Sky
+	moons *goke.Query
+	moon  goke.Comp[Moon]
+}
 
-func (system) Init(*goke.SysInit)                   {}
-func (y system) Update(*goke.CmdBuf, time.Duration) { y.s.Update() }
+func (y *system) Init(si *goke.SysInit) { y.moons = si.NewQueryBuilder(&y.moon).Build() }
+
+func (y *system) Update(*goke.CmdBuf, time.Duration) {
+	for y.moons.All(); y.moons.Next(); {
+		if m := y.moon.Slice(y.moons.Cursor())[0]; m != y.s.moon {
+			y.s.moon = m
+			y.s.relight()
+		}
+		break
+	}
+	y.s.Update()
+}
 
 // Freeze stops the light at the hour it stands, or lets a frozen light go with the calendar
 // again; Later and Earlier move a frozen light half an hour on or back.

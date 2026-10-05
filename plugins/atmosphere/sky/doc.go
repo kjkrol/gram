@@ -19,7 +19,10 @@
 // sun — with noon in the south rising in the east and setting in the west, the whole path turned
 // round to NoonWay, higher at midsummer and lower at midwinter, up all day or none at all past
 // the polar circle — and once it is well below the horizon the moon, as bright as it is full, in
-// a paler light (none with [Sky.SetMoon] off); the sun's strength rising and falling with it, and the
+// the light its knob says ([Moon]: the colour and strength of its light and the tint of its face,
+// carried by the atmosphere's own entity, where an effect's Alter turns it — a blood moon; none
+// with [Sky.SetMoon] off). [Moonrise] is the moment the moon comes up, for rules the atmosphere
+// plays the role of ([Moonrise.Full] a full one); the sun's strength rising and falling with it, and the
 // colours of the sky and of the sun's light going through the day: blue by day, orange at sunrise
 // and sunset, deep blue at night. The atmosphere hands that sun to whoever draws — a topography
 // lights and shades its relief and the sprites on it by it, so mornings and evenings cast long

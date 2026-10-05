@@ -358,7 +358,7 @@ moment — as it goes, or at every one of `Config.Steps` a day where a game asks
 south at noon, west at 18; the default `celestial.NorthWest` turns the whole path so noon is beyond the
 isometric view's sea; the path worked out for the climate's zone's latitude: declination 23.44° ×
 sin(2π·ofYear), the hour angle from noon — polar day and night past the circle), and below −0.1 of
-height the moon (`moonStrength` 0.5 × how full, `moonColor`; `Sky.SetMoon` off: none) — the strength rising and falling,
+height the moon (`sky.Moon{Color, Strength, Face}`, a knob on the atmosphere's entity the sky's system reads every tick — `DefaultMoon`: strength 0.5 × how full, a pale blue; an effect's `Alter` turns it, the light relit at once and the disc tinted through `Heavens.MoonTint`: board-topography's blood moon, cast by a rule of `sky.Moonrise` (the moon coming over the horizon by the calendar, `Sky.RiseSystem` in the simulation, about the atmosphere's entity; `Moonrise.Full`) or by M; `Sky.SetMoon` off: none) — the strength rising and falling,
 the sky's and the sun's colours and the ambient blended from the `daylight` table by the sun's
 height: blue by day, orange at sunrise and sunset, deep blue at night. The terrain bakes its shadows
 anew as the sun goes on a strip a frame (`shadeStrips` 16, a round past every tenth of a degree:

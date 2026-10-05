@@ -21,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -36,6 +37,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 const (
@@ -86,6 +88,8 @@ type mainStage struct {
 
 	mortal *rule.Part // whoever plays it falls in where nothing holds it
 
+	bleed rule.Casting // the command switching the blood moon, for the key
+
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
@@ -115,7 +119,9 @@ func newStage() *mainStage {
 		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
+		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
+		Controls(s.bindKeys).
 		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
@@ -192,12 +198,36 @@ func (s *mainStage) defineCells() {
 	s.weather = s.defineClimate()
 }
 
-func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
+// defineEffects says the one state of the game's own: a blood moon, the moon red and twice as
+// bright for half a day — an effect on the atmosphere, turning its knob, the moon.
+func (s *mainStage) defineEffects() {
+	s.atmosphere.WithWeathering(s.board, s.weather)
+	night := s.atmosphere.Calendar().Config().Day / 2
+	s.world.Effects().Define("blood moon", effect.Spec{effect.Lasts(night),
+		effect.Alter(func(m *sky.Moon) {
+			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
+			m.Strength *= 2
+		})})
+}
 
-// defineRules says the one role: a mortal in the water drowns.
+// defineRules says the roles: a mortal in the water drowns, and a full moon rising is a blood
+// moon — a rule of the moonrise, which the atmosphere plays.
 func (s *mainStage) defineRules() {
 	s.mortal = rule.Role("mortal").Obeys(
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+	bloodMoon := s.world.Effects().Named("blood moon")
+	s.atmosphere.Plays(rule.Role("lunar").Obeys(
+		rule.Then[sky.Moonrise]("a blood moon rises", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon)))))
+}
+
+// defineCommands names the one thing to ask for: the blood moon, on or off.
+func (s *mainStage) defineCommands() {
+	s.bleed = rule.Toggle(s.world.Effects().Named("blood moon")).On(s.atmosphere)
+}
+
+// bindKeys gives the player the game's own key: M switches the blood moon.
+func (s *mainStage) bindKeys() error {
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.bleed))
 }
 
 func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }

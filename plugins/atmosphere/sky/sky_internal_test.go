@@ -198,10 +198,10 @@ func TestSunAt_StandsHigherAndLongerInSummerThanInWinter(t *testing.T) {
 
 func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	c := defaults
-	if day := c.LightAt(0, 0.5, 0.5); day != c.SunAt(0, 0.5) {
+	if day := c.LightAt(0, 0.5, 0.5, DefaultMoon()); day != c.SunAt(0, 0.5) {
 		t.Errorf("by day the light is %+v, want the sun", day)
 	}
-	full, new := c.LightAt(0, 0, 0.5), c.LightAt(0, 0, 0)
+	full, new := c.LightAt(0, 0, 0.5, DefaultMoon()), c.LightAt(0, 0, 0, DefaultMoon())
 	if full.Strength <= 0.1 || full.Color != moonColor || full.Dir[2] <= 0 {
 		t.Errorf("at midnight under a full moon the light is %+v, want the moon high, bright and pale", full)
 	}
@@ -217,10 +217,10 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 // at night, full when opposite the sun, and the pole as high over the north as the latitude.
 func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
 	c := Config{NoonWay: celestial.South, latitude: 50}
-	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5); h.Sun != l.Dir {
+	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5, DefaultMoon()); h.Sun != l.Dir {
 		t.Errorf("at noon the heavens' sun is %v, the light's %v", h.Sun, l.Dir)
 	}
-	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5); h.Moon != l.Dir || h.Full < 0.99 {
+	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5, DefaultMoon()); h.Moon != l.Dir || h.Full < 0.99 {
 		t.Errorf("at night the heavens' moon is %v, full %v; the light's %v, want it, full", h.Moon, h.Full, l.Dir)
 	}
 	h := c.place().HeavensAt(0.2, 0.5, 0, celestial.RealStars)
