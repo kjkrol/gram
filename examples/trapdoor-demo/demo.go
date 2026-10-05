@@ -196,12 +196,14 @@ func (s *mainStage) defineRules() {
 
 // defineCommands names what can be asked for: each lever opens its own strip of trapdoors, a group
 // of cells, for a while; the selected scouts are hastened.
-func (s *mainStage) defineCommands(ctx game.Initializer) error {
+func (s *mainStage) defineCommands() {
+	cmds := s.world.Castings()
 	for _, l := range levers {
-		s.pulls = append(s.pulls, rule.Cast(s.open).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
+		cmds.Define("pull "+l.name, rule.Cast(s.open).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
+		s.pulls = append(s.pulls, cmds.Named("pull "+l.name))
 	}
-	s.hasten = rule.Cast(s.haste).On(s.selection.Selected())
-	return ctx.Commands(s.pulls...)
+	cmds.Define("hasten", rule.Cast(s.haste).On(s.selection.Selected()))
+	s.hasten = cmds.Named("hasten")
 }
 
 // bindKeys gives the player its keys: 1 and 2 pull the levers, J hastens the selected scouts.

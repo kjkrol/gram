@@ -63,8 +63,8 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		m.openWest = rule.Cast(m.open).On(entity.Group("west doors")).By(entity.Named("lever"))
 		m.openEast = rule.Cast(m.open).On(entity.Group("east doors")).By(entity.Named("plate"))
 		m.flip = rule.Toggle(m.open).On(entity.Named("lever", "plate")).For(time.Hour)
-		if err := w.Triggers(m.openWest, m.openEast, m.flip); err != nil {
-			t.Fatal(err)
+		for name, cmd := range map[string]rule.Casting{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
+			w.Castings().Define(name, cmd)
 		}
 		return plate.Rules()
 	}, units)
@@ -198,9 +198,7 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 					t.Fatal(err)
 				}
 				w.Effects().Define("open", effect.Spec{})
-				if err := w.Triggers(tc.cmd(w.Effects().Named("open"))); err != nil {
-					t.Fatal(err)
-				}
+				w.Castings().Define("open", tc.cmd(w.Effects().Named("open")))
 				return nil
 			}, nil)
 			defer func() {

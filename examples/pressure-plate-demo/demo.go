@@ -188,12 +188,11 @@ func (s *mainStage) defineRules() {
 
 // defineCommands names what can be asked for: each plate opens its own strip of trapdoors, a group
 // of cells.
-func (s *mainStage) defineCommands(ctx game.Initializer) error {
-	var commands []rule.Casting
+func (s *mainStage) defineCommands() {
 	for _, g := range groups {
-		commands = append(commands, rule.Cast(s.open).On(entity.Group("trapdoors "+g.name)).By(entity.Named("plate "+g.name)))
+		s.world.Castings().Define("open "+g.name,
+			rule.Cast(s.open).On(entity.Group("trapdoors "+g.name)).By(entity.Named("plate "+g.name)))
 	}
-	return ctx.Commands(commands...)
 }
 
 func (s *mainStage) defineScenes() []game.Scene {

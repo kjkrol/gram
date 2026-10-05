@@ -222,12 +222,10 @@ func (s *mainStage) defineRules() {
 	s.atmosphere.Plays(s.world.Roles().Named("lunar"))
 }
 
-// defineCommands names the one thing to ask for: the blood moon, on or off.
 func (s *mainStage) defineCommands() {
 	s.bleed = rule.Toggle(s.world.Effects().Named("blood moon")).On(s.atmosphere)
 }
 
-// bindKeys gives the player the game's own key: M switches the blood moon.
 func (s *mainStage) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.bleed))
 }

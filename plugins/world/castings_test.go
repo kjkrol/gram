@@ -1,6 +1,7 @@
 package world_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -48,7 +49,9 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	return ctx.Commands(rule.Cast(g.alert).On(entity.Named("captain")), rule.Cast(g.alert).On(entity.Group("guards")))
+	g.world.Castings().Define("alert the captain", rule.Cast(g.alert).On(entity.Named("captain")))
+	g.world.Castings().Define("alert the guards", rule.Cast(g.alert).On(entity.Group("guards")))
+	return nil
 }
 
 func (g *guardStage) SetupSystems() []goke.System {
@@ -141,12 +144,28 @@ func TestCasting_NamesSurviveASaveAndALoad(t *testing.T) {
 	}
 }
 
-// A command that names nobody is refused as it is handed over.
-func TestCommands_RefuseACommandForNobody(t *testing.T) {
+// A Stage's commands are found by the names they were defined under; one that names nobody, a
+// name defined twice, a name unknown and no name at all are refused, by name.
+func TestCastings_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Effects().Define("alert", effect.Spec{})
-	if err := w.Triggers(rule.Cast(w.Effects().Named("alert"))); err == nil {
-		t.Error("a Cast with no On was taken, want an error")
+	alert := w.Effects().Named("alert")
+	w.Castings().Define("alarm", rule.Cast(alert).On(entity.World).For(time.Minute))
+	if got := w.Castings().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(entity.Whom).IsWorld() {
+		t.Errorf("the command found is %+v, want the one defined", got)
+	}
+	for name, c := range map[string]struct {
+		do   func()
+		want string
+	}{
+		"for nobody":    {func() { w.Castings().Define("idle", rule.Cast(alert)) }, "names nobody"},
+		"defined twice": {func() { w.Castings().Define("alarm", rule.Lift(alert).On(entity.World)) }, `"alarm" is defined already`},
+		"unknown":       {func() { w.Castings().Named("retreat") }, `no command is defined as "retreat"`},
+		"no name":       {func() { w.Castings().Define("", rule.Cast(alert).On(entity.World)) }, "needs a name"},
+	} {
+		if msg := panicMessage(t, c.do); !strings.Contains(msg, c.want) {
+			t.Errorf("%s: panic %q, want it to say %s", name, msg, c.want)
+		}
 	}
 }
 

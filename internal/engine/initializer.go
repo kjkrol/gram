@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
@@ -10,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
 )
 
 // initializer is the game.Initializer bound to one Stage's ecsHost.
@@ -89,17 +87,6 @@ func (c *initializer) use(p plugin.Plugin) error {
 
 // Hosts keeps the hosts of the rules of the moments a plugin catches, in the order of Use.
 func (c *initializer) Hosts(hosts ...plugin.Host) { c.hosts = append(c.hosts, hosts...) }
-
-// Commands hands the world the game's commands about effects.
-func (c *initializer) Commands(cmds ...rule.Casting) error {
-	if err := section.Check(c, "commands handed over", section.Commands); err != nil {
-		return err
-	}
-	if c.world == nil {
-		return errors.New("gram: Commands before UseWorld: the world carries the commands out")
-	}
-	return c.world.Triggers(cmds...)
-}
 
 // deliver hands the rules of every role somebody plays — a kind, a cell, a plugin — to the host
 // of their moment: what the engine does once Init returns.

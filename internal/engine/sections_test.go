@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -135,7 +136,11 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	}
 	kindDefined := func(s *sectioned, _ game.Initializer) error { s.defineUnit(); return nil }
 	draw := func(s *sectioned, _ game.Initializer) error { return s.world.Draw() }
-	commands := func(s *sectioned, ctx game.Initializer) error { return ctx.Commands() }
+	commands := func(s *sectioned, _ game.Initializer) error {
+		s.world.Effects().Define("lit", effect.Spec{})
+		s.world.Castings().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
+		return nil
+	}
 	for name, tc := range map[string]struct {
 		do     part
 		wants  string // the section it belongs in
@@ -147,7 +152,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		"an effect defined":   {do: effectDefined, wants: "Effects", kinds: true, panics: true},
 		"a kind defined":      {do: kindDefined, wants: "Kinds", panics: true},
 		"drawing rules given": {do: draw, wants: "Looks"},
-		"commands handed":     {do: commands, wants: "Commands"},
+		"a command defined":   {do: commands, wants: "Commands", panics: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &sectioned{}

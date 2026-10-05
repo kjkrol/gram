@@ -54,8 +54,6 @@ func (c *stageInit) Use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
-func (c *stageInit) Commands(cmds ...rule.Casting) error { return c.world.Triggers(cmds...) }
-
 func (c *stageInit) Track(s plugin.Serializable) error {
 	c.tracked = append(c.tracked, s)
 	return nil

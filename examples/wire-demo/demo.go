@@ -223,14 +223,17 @@ func (s *mainStage) defineRoles() {
 
 // defineCommands names all that can be asked for in this game, each saying whom it is for and,
 // where a cell sets it off, which one.
-func (s *mainStage) defineCommands(ctx game.Initializer) error {
+func (s *mainStage) defineCommands() {
 	fx := &s.effects
 	s.commands.openWest = rule.Cast(fx.open).On(entity.Group("west trapdoors")).By(entity.Named("west lever"))
 	s.commands.openEast = rule.Cast(fx.open).On(entity.Group("east trapdoors")).By(entity.Named("plate"))
 	s.commands.flipGate = rule.Toggle(fx.ajar).On(entity.Group("gate"))
 	s.commands.hasten = rule.Cast(fx.haste).On(s.selection.Selected(s.roles.hasty))
 	s.commands.reach = rule.Cast(fx.pull).On(s.selection.Selected(s.roles.handy))
-	return ctx.Commands(s.commands.openWest, s.commands.openEast, s.commands.flipGate)
+	for name, cmd := range map[string]rule.Casting{"open west": s.commands.openWest, "open east": s.commands.openEast,
+		"flip the gate": s.commands.flipGate, "hasten": s.commands.hasten, "reach": s.commands.reach} {
+		s.world.Castings().Define(name, cmd)
+	}
 }
 
 // bindKeys gives the player its keys, each a command.

@@ -22,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -46,6 +45,7 @@ type Plugin struct {
 	module   *module
 	roles    Roles
 	plans    Plans
+	castings Castings
 	*Self    // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
@@ -92,7 +92,7 @@ func NewPlugin(cfg Config) *Plugin {
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
-	p.roles.w, p.plans.w = p, p
+	p.roles.w, p.plans.w, p.castings.w = p, p, p
 	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
@@ -357,7 +357,6 @@ func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 // Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
 
-// Triggers hands the world the game's commands about effects: it gives those with a Source when
-// the entity it names Triggers, and checks the names they all say once the game stands. For the
-// engine: a Stage gives them to its Initializer.
-func (p *Plugin) Triggers(cmds ...rule.Casting) error { return p.module.castings.take(cmds...) }
+// Castings are the commands about effects of this Stage, by name: where a game defines them and
+// finds them again.
+func (p *Plugin) Castings() *Castings { return &p.castings }
