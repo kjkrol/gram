@@ -30,6 +30,12 @@ func Files(fs embed.FS, names ...string) []byte {
 // with.
 type MaterialID uint8
 
+// Look is the two ways a look is painted: drawn once into the sheet (a SpriteDrawer), or worked
+// out per pixel every frame (a MaterialID). What an atlas facade's Add and Under take.
+type Look interface {
+	~func(dst *Canvas, size int) | MaterialID
+}
+
 // libraryUniforms are the composer's own: the way towards the eye, the clock in seconds, how many
 // world units a pixel spans, the colour what lies far off turns to.
 var libraryUniforms = []Uniform{{Name: "Toward", Size: 3}, {Name: "Clock", Size: 1}, {Name: "Pixel", Size: 1}, {Name: "Fog", Size: 3}}

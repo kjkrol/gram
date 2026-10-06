@@ -1,6 +1,7 @@
 package world
 
 import (
+	"math"
 	"time"
 
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -28,17 +29,22 @@ type renderer struct {
 	shown       []bool                // the chunk's, as the rules say
 	atlas       render.AtlasSource
 	look        func() Look
+	shaded      map[render.SpriteID]render.MaterialID // the sprites worked out per pixel (the Atlas's)
 	views       func(camera.Camera) *view.View
 	view        *view.View // the one being drawn
 	// clock is the game time the frame's animations go by; nil, the composer's own
 	clock func() time.Duration
 
 	bases []Base
+	quads []camera.Quad // reused for the material quads
 }
 
 func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, rules *render.Rules, look func() Look) *renderer {
 	return &renderer{atlas: atlas, views: views, rules: rules, look: look}
 }
+
+// shade is the per-pixel looks the world's Atlas declared, by sprite; nil for none.
+func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID) { s.shaded = shaded }
 
 func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
@@ -78,6 +84,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			stands = *z
 		}
 		for _, l := range s.layers[i] {
+			if m, ok := s.shaded[l.SpriteID]; ok {
+				s.material(f, cam, &s.bases[i], m)
+				continue
+			}
 			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 		}
 	})
@@ -122,5 +132,34 @@ func (s *renderer) each(visit func(i int, z *Z)) {
 			}
 			visit(i, z)
 		}
+	}
+}
+
+// material lays the entity's per-pixel look: one quad of its box for m to work out, the
+// material's inputs the entity's own state — the box in Custom (its middle, half its side and
+// the way it is headed, radians in the engine's convention), and in Red how fast it moves, in
+// its own lengths a second up to 1: 0 stands and breathes, 1 runs flat out. One piece per wrap image; drawn where the sprites are, at render.Objects.
+func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m render.MaterialID) {
+	box := b.Pos.AABB
+	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
+	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	angle := float32(0)
+	if b.Vel.Dir.X != 0 || b.Vel.Dir.Y != 0 {
+		angle = angleOf(b.Vel.Dir) * math.Pi / 180
+	}
+	speed := float32(0)
+	if side := x1 - x0; side > 0 { // how fast, in its own lengths a second, up to 1
+		speed = min(float32(b.Vel.Value)/side, 1)
+	}
+	custom := [4]float32{(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, angle}
+	o := render.Overlay{
+		Material: m,
+		World:    render.Box(x0, y0, x1, y1),
+		Red:      [4]float32{speed, speed, speed, speed},
+		Custom:   [4][4]float32{custom, custom, custom, custom},
+	}
+	s.quads = cam.ToScreenQuads(x0, y0, x1, y1, s.quads[:0])
+	for _, q := range s.quads {
+		f.Material(render.Objects, 0, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}, &o)
 	}
 }

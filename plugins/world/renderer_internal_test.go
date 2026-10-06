@@ -1,6 +1,7 @@
 package world
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -20,6 +21,7 @@ type counting struct {
 	Look
 	sprites []render.SpriteID
 	angles  []float32
+	frame   *render.Frame // the frame drawThrough composed into
 }
 
 func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
@@ -39,6 +41,11 @@ func (flatAtlas) White() (u, v float32)                           { return 0, 0 
 // of them the View holds (nil: the zero View, which sees everything), draws once through rules and
 // returns the look that recorded what was drawn.
 func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
+	return drawShaded(t, nil, pick, rules, dir, at...)
+}
+
+// drawShaded is drawThrough with the per-pixel looks the world's Atlas would declare.
+func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
@@ -48,6 +55,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	}
 	look := &counting{Look: ilook.NewFlat(1000, 1000)}
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing, func() Look { return look })
+	r.shade(shaded)
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
@@ -75,6 +83,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
+	look.frame = &f
 	return look
 }
 
@@ -153,5 +162,32 @@ func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 		if len(look.angles) != 1 || look.angles[0] != tc.want {
 			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
 		}
+	}
+}
+
+// An entity whose sprite the Atlas shaded is laid as one material quad instead of a sprite: its
+// box in Custom — middle, half a side, the way it heads — and how fast it moves in Red.
+func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
+	look := drawShaded(t, map[render.SpriteID]render.MaterialID{1: 7}, nil, nil, geom.NewVec(0, -1), quarters[0])
+	if len(look.sprites) != 0 {
+		t.Fatalf("a shaded entity still drew sprites %v, want none", look.sprites)
+	}
+	quads := 0
+	look.frame.Each(func(_ render.Tier, _ float32, verts []render.Vertex) {
+		quads++
+		v := verts[0]
+		if v.ColorA <= 1.5 {
+			t.Fatalf("the piece is no material: alpha %v", v.ColorA)
+		}
+		cx, cy := float32(quarters[0].X+5), float32(quarters[0].Y+5)
+		if v.Custom0 != cx || v.Custom1 != cy || v.Custom2 != 5 {
+			t.Errorf("Custom = (%v, %v, %v), want the middle (%v, %v) and half the side 5", v.Custom0, v.Custom1, v.Custom2, cx, cy)
+		}
+		if north := float32(math.Pi / 2); v.Custom3 != north {
+			t.Errorf("Custom3 = %v, want %v — headed up the screen", v.Custom3, north)
+		}
+	})
+	if quads != 1 {
+		t.Fatalf("laid %d pieces, want the one quad", quads)
 	}
 }

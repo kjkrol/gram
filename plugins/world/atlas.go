@@ -18,6 +18,7 @@ type Atlas struct {
 	turned map[render.SpriteID]bool
 	faced  map[render.SpriteID][]render.SpriteID
 	unders map[render.SpriteID][]render.SpriteID // the Under twins of each sprite: Turning reaches them
+	shaded map[render.SpriteID]render.MaterialID // the sprites worked out per pixel instead of drawn
 }
 
 var _ render.AtlasSource = (*Atlas)(nil)
@@ -25,14 +26,25 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the world's atlas; the twins Facing declares take their slots from the
 // world's kinds.
 func (p *Plugin) NewAtlas() *Atlas {
-	return &Atlas{p: p, atlas: render.NewAtlas(), turned: map[render.SpriteID]bool{}, faced: map[render.SpriteID][]render.SpriteID{}, unders: map[render.SpriteID][]render.SpriteID{}}
+	return &Atlas{p: p, atlas: render.NewAtlas(), turned: map[render.SpriteID]bool{}, faced: map[render.SpriteID][]render.SpriteID{}, unders: map[render.SpriteID][]render.SpriteID{}, shaded: map[render.SpriteID]render.MaterialID{}}
 }
 
-// Add takes draw on as a size x size sprite in of's slot — a kind's handle, an ammo, a slot of
-// the kinds' own — and hands it back as a Slot to chain the rest of its look on.
-func (a *Atlas) Add(of render.Sprited, size int, draw render.SpriteDrawer) Slot {
-	a.atlas.Add(of, size, draw)
-	return Slot{a: a, id: of.SpriteID(), size: size}
+// Add takes look on as of's own — a kind's handle, an ammo, a slot of the kinds' own — and hands
+// it back as a Slot to chain the rest of its look on. look paints one of the two ways
+// (render.Look): a SpriteDrawer drawn once into the sheet, size x size, or a MaterialID worked
+// out per pixel in the entity's box every frame — the renderer fills the material's inputs with
+// the entity's own state (see the material contract in the package doc).
+func (a *Atlas) Add[L render.Look](of render.Sprited, size int, look L) Slot {
+	id := of.SpriteID()
+	switch l := any(look).(type) {
+	case render.MaterialID:
+		a.shaded[id] = l
+	case render.SpriteDrawer:
+		a.atlas.Add(of, size, l)
+	case func(dst *render.Canvas, size int):
+		a.atlas.Add(of, size, l)
+	}
+	return Slot{a: a, id: id, size: size}
 }
 
 // Slot is one sprite added to the world's Atlas: what Under, Turning and Facing chain on.
@@ -42,11 +54,19 @@ type Slot struct {
 	size int
 }
 
-// Under adds the sprite's look under d, the same size — drawn in its place while the effect's
-// marker is on: the witch gone white under frozen.
-func (s Slot) Under(d render.Dresser, draw render.SpriteDrawer) Slot {
+// Under adds the sprite's look under d, the same size — in its place while the effect's marker
+// is on: the witch gone white under frozen, a calmed ward a plain sprite again. look paints
+// either way (render.Look), so a sprite dims into a material and a material back into a sprite.
+func (s Slot) Under[L render.Look](d render.Dresser, look L) Slot {
 	twin := d.Look(s.id)
-	s.a.atlas.Add(twin, s.size, draw)
+	switch l := any(look).(type) {
+	case render.MaterialID:
+		s.a.shaded[twin] = l
+	case render.SpriteDrawer:
+		s.a.atlas.Add(twin, s.size, l)
+	case func(dst *render.Canvas, size int):
+		s.a.atlas.Add(twin, s.size, l)
+	}
 	s.a.unders[s.id] = append(s.a.unders[s.id], twin)
 	return s
 }

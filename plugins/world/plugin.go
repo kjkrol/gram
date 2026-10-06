@@ -266,6 +266,9 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	}
 	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
+	if wa, ok := atlas.(*Atlas); ok {
+		p.renderer.shade(wa.shaded)
+	}
 }
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.

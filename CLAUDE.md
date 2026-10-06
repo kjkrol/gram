@@ -40,7 +40,7 @@ make demo-board                                                    # the island 
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
-make demo-material                                                 # one thing only: a ward of the game's own WGSL (RegisterMaterials, Frame.Material)
+make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -708,7 +708,13 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
   its own system just before the effects' pass). How entities are drawn is declared on the
   world's own atlas, in one place, a scene's Layers (`world.Plugin.NewAtlas`, `plugins/world/atlas.go`
-  — a facade over `render.Atlas` like the board's): `Add(kind, size, draw)` the kind's sprite,
+  — a facade over `render.Atlas` like the board's): `Add(kind, size, look)` the kind's look, where
+  look is a `render.Look` — a SpriteDrawer drawn once into the sheet, **or a MaterialID worked out
+  per pixel every frame** (one Frame.Material quad in the entity's box, no sprite under it; the
+  renderer fills the material's inputs with the entity's own state: `Custom` = {middle, half a
+  side, the heading in radians}, `Red` = how fast it moves in its own lengths a second up to 1 —
+  the fundament of procedural animation: breathe at 0, flare as it runs; `World` the box, so `p`
+  is in the world) —
   `.Under(effect, draw)` its look while the effect's marker is on, `.Turning()` the sprite turned
   the way its entity is headed (`Appearance.Angle` from `Vel.Dir`, the heading steering holds even
   standing — degrees, 0 east, against the clock with the screen's y down, `render.Arrow`'s
