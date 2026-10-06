@@ -32,7 +32,7 @@ func (s *lookSource) Compose(f *render.Frame, cam camera.Camera) {
 		s.look.Begin(cam)
 	}
 	for _, b := range s.boxes {
-		s.look.Sprite(f, cam, b, entity.Z{}, s.atlas, 1, render.Light{0.8, 0.6, 1}, 0)
+		s.look.Sprite(f, cam, b, entity.Z{}, s.atlas, render.Appearance{SpriteID: 1}, render.Light{0.8, 0.6, 1})
 	}
 }
 func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -44,7 +44,7 @@ func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	needGPU(t)
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(1, 8, func(dst *render.Canvas, size int) {
+	atlas.Add(render.SpriteID(1), 8, func(dst *render.Canvas, size int) {
 		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 200, G: 40, B: 40, A: 255})
 		dst.FillRect(0, 0, float32(size)/2, float32(size)/2, color.RGBA{R: 40, G: 200, B: 240, A: 255})
 	})

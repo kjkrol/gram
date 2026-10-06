@@ -35,7 +35,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			brd := board.NewBoard(grid)
 			r := New(brd)
-			c, _ := grid.CellIndex(2, 1)
+			c := grid.CellIndex(2, 1)
 			raiseHills(r, grid, c)
 
 			// A lone hill on a square grid is smoothed to its corners' mean, 3; a hex cell stays level.
@@ -49,7 +49,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 			if got := r.GroundAt(grid.CellCenter(c)); got != want {
 				t.Errorf("ground at the hill's centre = %v, want %v", got, want)
 			}
-			other, _ := grid.CellIndex(0, 0)
+			other := grid.CellIndex(0, 0)
 			if got := r.GroundAt(grid.CellCenter(other)); got != 0 {
 				t.Errorf("ground on the grass = %v, want 0", got)
 			}
@@ -77,16 +77,16 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	var hills []cell.ID
 	for y := uint32(2); y <= 4; y++ {
 		for x := uint32(2); x <= 4; x++ {
-			c, _ := grid.CellIndex(x, y)
+			c := grid.CellIndex(x, y)
 			hills = append(hills, c)
 		}
 	}
 	raiseHills(r, grid, hills...)
-	centre, _ := grid.CellIndex(3, 3)
+	centre := grid.CellIndex(3, 3)
 	if got := r.GroundAt(grid.CellCenter(centre)); got != 12 {
 		t.Errorf("the plateau's middle stands at %v, want the full 12", got)
 	}
-	corner, _ := grid.CellIndex(2, 2)
+	corner := grid.CellIndex(2, 2)
 	if got := r.GroundAt(grid.CellCenter(corner)); got != 6 {
 		t.Errorf("the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 and 12 are drawn split along the diagonal of the two 6s", got)
 	}
@@ -111,8 +111,8 @@ func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	grid.(interface{ SetWrap(x, y bool) }).SetWrap(true, false)
 	r := New(board.NewBoard(grid))
-	west, _ := grid.CellIndex(0, 1)
-	east, _ := grid.CellIndex(3, 1)
+	west := grid.CellIndex(0, 1)
+	east := grid.CellIndex(3, 1)
 	r.SetCorners(west, Corners{5, 0, 5, 0})
 	if got := r.Corners(east); got != (Corners{0, 5, 0, 5}) {
 		t.Errorf("across the seam the east cell's corners are %v, want its right ones the west cell's left, 5", got)
@@ -144,7 +144,7 @@ func TestHeights_ARunGoesThroughASave(t *testing.T) {
 func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(40, 40, 32)
 	r := New(board.NewBoard(grid))
-	c, _ := grid.CellIndex(39, 39)
+	c := grid.CellIndex(39, 39)
 	r.SetCorners(c, Corners{1, 2, 3, 4})
 	runs := make([]Heights, r.Runs())
 	for i := range runs {
@@ -171,7 +171,7 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
 	r := New(board.NewBoard(grid))
-	c, _ := grid.CellIndex(0, 0)
+	c := grid.CellIndex(0, 0)
 	// corners 0, 20, 24 and 2: the 0 and the 2 stand nearer, so the top is split along 0–3
 	r.SetCorners(c, Corners{0, 20, 24, 2})
 	for _, p := range []struct{ x, y, want float64 }{

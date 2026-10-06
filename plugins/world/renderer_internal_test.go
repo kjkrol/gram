@@ -1,7 +1,9 @@
 package world
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -15,15 +17,18 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// counting is a look that counts the sprites it is handed, and keeps them.
+// counting is a look that counts the sprites it is handed, and keeps them with their angles.
 type counting struct {
 	Look
 	sprites []render.SpriteID
+	angles  []float32
+	frame   *render.Frame // the frame drawThrough composed into
 }
 
-func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	c.sprites = append(c.sprites, id)
-	c.Look.Sprite(f, cam, box, z, atlas, id, light, sway)
+func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	c.sprites = append(c.sprites, a.SpriteID)
+	c.angles = append(c.angles, a.Angle)
+	c.Look.Sprite(f, cam, box, z, atlas, a, light)
 }
 
 // flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
@@ -33,10 +38,15 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-// drawThrough spawns one 10x10 entity of sprite 1 per position, heading east, lets pick say which
+// drawThrough spawns one 10x10 entity of sprite 1 per position, heading dir, lets pick say which
 // of them the View holds (nil: the zero View, which sees everything), draws once through rules and
-// returns the sprites drawn.
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, at ...geom.Vec) []render.SpriteID {
+// returns the look that recorded what was drawn.
+func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
+	return drawShaded(t, nil, pick, rules, dir, at...)
+}
+
+// drawShaded is drawThrough with the per-pixel looks the world's Atlas would declare.
+func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
@@ -46,9 +56,10 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	}
 	look := &counting{Look: ilook.NewFlat(1000, 1000)}
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing, func() Look { return look })
+	r.shade(shaded)
 
 	var base goke.Comp[Base]
-	var appearance goke.Comp[Appearance]
+	var appearance goke.Comp[render.Appearance]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&base, &appearance)
@@ -58,8 +69,8 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 		for f.Next() {
 			bases, looks := base.Slice(&f.Cursor), appearance.Slice(&f.Cursor)
 			for j, id := range f.Cursor.IDs {
-				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: geom.NewVec(1, 0)}}
-				looks[j] = Appearance{SpriteID: 1}
+				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: dir}}
+				looks[j] = render.Appearance{SpriteID: 1}
 				ids = append(ids, id)
 				i++
 			}
@@ -73,7 +84,8 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	return look.sprites
+	look.frame = &f
+	return look
 }
 
 var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
@@ -83,10 +95,10 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 		v.Culled = true
 		v.In.Add(ids[0])
 	}
-	if drawn := drawThrough(t, firstOnly, nil, quarters...); len(drawn) != 1 {
+	if drawn := drawThrough(t, firstOnly, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 1 {
 		t.Errorf("a View holding one entity drew %d sprites, want 1", len(drawn))
 	}
-	if drawn := drawThrough(t, nil, nil, quarters...); len(drawn) != 4 {
+	if drawn := drawThrough(t, nil, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 4 {
 		t.Errorf("the zero View drew %d sprites, want all 4", len(drawn))
 	}
 }
@@ -96,11 +108,11 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	const east, crown render.SpriteID = 5, 9
 	rules := []render.Rule{
-		Facing(func(v Velocity) render.SpriteID { return east }),
-		render.Over[Appearance](Appearance{SpriteID: crown}),
+		render.With(func(a render.Appearance, b Base) render.Appearance { a.SpriteID = east; return a }),
+		render.Over[render.Appearance](render.Appearance{SpriteID: crown}),
 		render.Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
 	}
-	drawn := drawThrough(t, nil, rules, quarters...)
+	drawn := drawThrough(t, nil, rules, geom.NewVec(1, 0), quarters...).sprites
 	if len(drawn) != 4 {
 		t.Fatalf("drew %v, want the two on the left, each turned east under a crown", drawn)
 	}
@@ -131,4 +143,71 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 		}
 	}()
 	wet.Look(0)
+}
+
+// A sprite marked Turning on the world's atlas is drawn turned the way its entity moves, in
+// the engine's one convention: 0 east, against the clock with the screen's y growing down.
+func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		dir  geom.Vec
+		want float32
+	}{
+		{"east", geom.NewVec(1, 0), 0},
+		{"north, up the screen", geom.NewVec(0, -1), 90},
+		{"west", geom.NewVec(-1, 0), -180}, // atan2's range: the same turn as 180
+		{"still: the Appearance's own angle holds", geom.Vec{}, 0},
+	} {
+		a := &Atlas{turned: map[render.SpriteID]bool{1: true}, unders: map[render.SpriteID][]render.SpriteID{}}
+		look := drawThrough(t, nil, a.rules(func() time.Duration { return 0 }), tc.dir, quarters[0])
+		if len(look.angles) != 1 || look.angles[0] != tc.want {
+			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
+		}
+	}
+}
+
+// An entity whose sprite the Atlas shaded is laid as one material quad instead of a sprite: its
+// box in Custom — middle, half a side, the way it heads — and how fast it moves in Red.
+func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
+	look := drawShaded(t, map[render.SpriteID]render.MaterialID{1: 7}, nil, nil, geom.NewVec(0, -1), quarters[0])
+	if len(look.sprites) != 0 {
+		t.Fatalf("a shaded entity still drew sprites %v, want none", look.sprites)
+	}
+	quads := 0
+	look.frame.Each(func(_ render.Tier, _ float32, verts []render.Vertex) {
+		quads++
+		v := verts[0]
+		if v.ColorA <= 1.5 {
+			t.Fatalf("the piece is no material: alpha %v", v.ColorA)
+		}
+		cx, cy := float32(quarters[0].X+5), float32(quarters[0].Y+5)
+		if v.Custom0 != cx || v.Custom1 != cy || v.Custom2 != 5 {
+			t.Errorf("Custom = (%v, %v, %v), want the middle (%v, %v) and half the side 5", v.Custom0, v.Custom1, v.Custom2, cx, cy)
+		}
+		if north := float32(math.Pi / 2); v.Custom3 != north {
+			t.Errorf("Custom3 = %v, want %v — headed up the screen", v.Custom3, north)
+		}
+	})
+	if quads != 1 {
+		t.Fatalf("laid %d pieces, want the one quad", quads)
+	}
+}
+
+// An animated sprite shows the frame of the tactical clock: each frame a period, round and round
+// — the pause a freeze-frame.
+func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) {
+	const period = 180 * time.Millisecond
+	frames := []render.SpriteID{10, 11, 12}
+	for now, want := range map[time.Duration]render.SpriteID{
+		0:          10,
+		period:     11,
+		2 * period: 12,
+		3 * period: 10, // round again
+	} {
+		a := &Atlas{animated: map[render.SpriteID]animation{1: {frames: frames, period: period}}}
+		look := drawThrough(t, nil, a.rules(func() time.Duration { return now }), geom.NewVec(1, 0), quarters[0])
+		if len(look.sprites) != 1 || look.sprites[0] != want {
+			t.Errorf("at %v drew %v, want frame %v", now, look.sprites, want)
+		}
+	}
 }

@@ -91,12 +91,12 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	brd.SetAll(grass)
 	u := under{Board: brd, mark: mark, cells: map[cell.ID]bool{}}
 	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {2, 3}, {3, 3}, {4, 3}, {4, 4}, {5, 5}} {
-		c, _ := g.CellIndex(at[0], at[1])
+		c := g.CellIndex(at[0], at[1])
 		u.cells[c] = true
 	}
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(1, 32, render.Solid(grass.Color))
-	atlas.RegisterAt(2, 32, render.Solid(snow))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(grass.Color))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(snow))
 	atlas.Close()
 	d := draw.NewBands(u)
 	d.Cover(mark, 2)

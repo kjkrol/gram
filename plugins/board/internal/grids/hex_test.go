@@ -46,21 +46,21 @@ func TestHexGrid_Toroidal_NeighborsWrapToCanonicalRange(t *testing.T) {
 
 func TestHexGrid_CellIndex_NonToroidal(t *testing.T) {
 	g := NewHex(4, 4, 10)
-	c, ok := g.CellIndex(2, 1)
-	if !ok || c != packAxial(2, 1) {
-		t.Errorf("CellIndex(2,1) = (%v,%v), want (%v,true)", c, ok, packAxial(2, 1))
+	if c := g.CellIndex(2, 1); c != packAxial(2, 1) {
+		t.Errorf("CellIndex(2,1) = %v, want %v", c, packAxial(2, 1))
 	}
-	if _, ok := g.CellIndex(4, 0); ok {
-		t.Error("expected q==Width to be out of bounds on a non-toroidal grid")
-	}
+	defer func() {
+		if recover() == nil {
+			t.Error("q==Width on a non-toroidal grid did not panic")
+		}
+	}()
+	g.CellIndex(4, 0)
 }
 
 func TestHexGrid_CellIndex_ToroidalWraps(t *testing.T) {
 	g := &Hex{Width: 4, Height: 4, Size: 10, WrapX: true, WrapY: true}
-	c, ok := g.CellIndex(4, 0)
-	origin, _ := g.CellIndex(0, 0)
-	if !ok || c != origin {
-		t.Errorf("CellIndex(4,0) = (%v,%v), want same cell as CellIndex(0,0)", c, ok)
+	if c, origin := g.CellIndex(4, 0), g.CellIndex(0, 0); c != origin {
+		t.Errorf("CellIndex(4,0) = %v, want same cell as CellIndex(0,0) = %v", c, origin)
 	}
 }
 

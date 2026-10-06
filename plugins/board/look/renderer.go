@@ -66,7 +66,9 @@ type Renderer struct {
 	cellH   float64
 	square  bool
 	state   RenderState
+	shaded  map[cell.Name]render.MaterialID // the kinds worked out per pixel instead of drawn
 	outline []geom.Vec
+	quads   []camera.Quad // reused for the shaded kinds' quads
 	tile    Tile
 	// cells are the frame's visible cells in the order they are drawn, and workers the goroutines
 	// sharing them, at most count: 0 as many as there are CPUs, 1 none
@@ -145,6 +147,11 @@ func (l *Renderer) State() *RenderState { return &l.state }
 
 func (l *Renderer) Init(*goke.SysInit) {}
 
+// Shade is the per-pixel looks the board's Atlas declared, by the kind's name; their tiles are
+// laid as live material quads every frame, never baked into the still, and skipped by the tiles'
+// pass. A shaded kind takes no part in blending (give it no Spread).
+func (l *Renderer) Shade(shaded map[cell.Name]render.MaterialID) { l.shaded = shaded }
+
 // Workers sets how many goroutines at most share a frame's tiles under a Parallel Dressing: 0 as
 // many as there are CPUs, 1 none.
 func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
@@ -170,9 +177,44 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
 		l.composeStill(look, d)
 		l.camera = cam
+		l.materials(f)
 		return
 	}
 	l.compose(f, look, d)
+	l.materials(f)
+}
+
+// materialTier is where the shaded kinds' quads come: over the still and the tiles, under the
+// grid's lines and whatever stands on the ground.
+const materialTier = render.Ground + 5
+
+// materials lays a live quad for every visible cell of a shaded kind — the material's inputs the
+// cell's own: World its box, Custom its middle and half its width, Red 1.
+func (l *Renderer) materials(f *render.Frame) {
+	if len(l.shaded) == 0 {
+		return
+	}
+	cam := l.camera
+	l.eachVisible(func(c cell.ID) {
+		m, ok := l.shaded[l.board.Kind(c).Name]
+		if !ok {
+			return
+		}
+		center := l.board.CellCenter(c)
+		x0, y0 := float32(center.X-l.cellW/2), float32(center.Y-l.cellH/2)
+		x1, y1 := float32(center.X+l.cellW/2), float32(center.Y+l.cellH/2)
+		custom := [4]float32{(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, 0}
+		o := render.Overlay{
+			Material: m,
+			World:    render.Box(x0, y0, x1, y1),
+			Red:      [4]float32{1, 1, 1, 1},
+			Custom:   [4][4]float32{custom, custom, custom, custom},
+		}
+		l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
+		for _, q := range l.quads {
+			f.Material(materialTier, 0, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}, &o)
+		}
+	})
 }
 
 // Tier is where the still comes: render.Ground, under all else.
@@ -310,6 +352,9 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 // cell hands look cell c as tile t, and draws its grid lines where the grid is on and the tile is
 // not outlined by the look, with outline as scratch; it gives the scratch back.
 func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec) []geom.Vec {
+	if _, ok := l.shaded[l.board.Kind(c).Name]; ok {
+		return outline // worked out per pixel instead (materials), never drawn as a tile
+	}
 	center := l.place(t, c)
 	grid := l.gridShown(c, center)
 	t.Outlined = grid && l.square

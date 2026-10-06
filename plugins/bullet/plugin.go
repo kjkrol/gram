@@ -25,6 +25,7 @@ type Plugin struct {
 	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
 
 	worldPlugin *world.Plugin
+	shots       *Shots // the kinds of shots, by name: what a game defines its ammo in
 	selected    tag.Tag[selection.Family]
 	ground      func() ground.Heights // nil: the ground lies at 0
 	module      *module
@@ -42,8 +43,12 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // NewPlugin builds the bullet plugin over w, firing a player's Shoot from the units sel marks
 // Selected; make it after collision, which the shots are sensors of.
 func NewPlugin(w *world.Plugin, sel *selection.Plugin) *Plugin {
-	return &Plugin{Self: world.NewSelf(w, "gram.bullet"), worldPlugin: w, selected: sel.Tags().Selected}
+	return &Plugin{Self: world.NewSelf(w, "gram.bullet"), worldPlugin: w, shots: NewShots(w), selected: sel.Tags().Selected}
 }
+
+// Shots is the plugin's register of the kinds of shots: Define an ammo in a Stage's Kinds
+// section, Named is the Ammo wherever it is built on, Facing its look in the Looks section.
+func (p *Plugin) Shots() *Shots { return p.shots }
 
 // WithGround gives the plugin the ground a thrown shot comes down on, read as needed — the board's
 // heights (board.Plugin.Heights, nil before Setup); without it the ground lies at 0. Call before

@@ -179,7 +179,8 @@ type Effect struct {
 }
 
 // Look is the atlas slot drawn under the effect in place of the sprite of: issued the first time
-// it is asked for, the same after. Register what it shows in the world's atlas; the world's
+// it is asked for, the same after. Add what it shows to the world's atlas — render.Slot.Under
+// does both, the Effect being a render.Dresser through this method; the world's
 // renderer swaps it in while the effect's marker is on. An effect's first look comes before the
 // world's renderer is made (world.Plugin.WithRenderer), or it panics.
 func (e Effect) Look(of render.SpriteID) render.SpriteID {
@@ -210,6 +211,9 @@ func (e Effect) Shows() { e.owner.defs[e.id].shows = true }
 // Mark is the effect's own marker, on while it runs: what rules of other plugins filter by —
 // rule.Self(burning.Mark()).
 func (e Effect) Mark() tag.Tag[States] { return e.mark }
+
+// Description is what the Spec's Described said of the effect — for a UI, a tooltip; "" without one.
+func (e Effect) Description() string { return e.owner.defs[e.id].describe }
 
 // On reports whether id is under the effect. For plugins.
 func (e Effect) On(id uid.UID64) bool { return e.owner.Has(id, e) }

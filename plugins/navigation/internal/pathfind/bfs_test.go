@@ -9,7 +9,7 @@ import (
 
 func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	start, _ := grid.CellIndex(2, 2)
+	start := grid.CellIndex(2, 2)
 	all := func(cell.ID) bool { return true }
 
 	var order []cell.ID
@@ -29,9 +29,9 @@ func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 
 func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
-	start, _ := grid.CellIndex(0, 0)
-	wall, _ := grid.CellIndex(1, 0)
-	beyond, _ := grid.CellIndex(3, 0)
+	start := grid.CellIndex(0, 0)
+	wall := grid.CellIndex(1, 0)
+	beyond := grid.CellIndex(3, 0)
 	notWall := func(c cell.ID) bool { return c != wall }
 
 	if _, ok := breadthFirst(start, grid.Neighbors, notWall, func(c cell.ID) bool { return c == beyond }, 100); ok {
@@ -41,8 +41,8 @@ func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
 
 func TestBreadthFirst_RespectsMaxVisited(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
-	start, _ := grid.CellIndex(0, 0)
-	next, _ := grid.CellIndex(1, 0)
+	start := grid.CellIndex(0, 0)
+	next := grid.CellIndex(1, 0)
 	all := func(cell.ID) bool { return true }
 
 	if _, ok := breadthFirst(start, grid.Neighbors, all, func(c cell.ID) bool { return c == next }, 1); ok {

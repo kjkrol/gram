@@ -11,8 +11,8 @@ import (
 
 func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	start, _ := grid.CellIndex(0, 0)
-	target, _ := grid.CellIndex(4, 0)
+	start := grid.CellIndex(0, 0)
+	target := grid.CellIndex(4, 0)
 
 	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target})
 
@@ -21,10 +21,10 @@ func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
 
 func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	start, _ := grid.CellIndex(0, 0)
-	c1, _ := grid.CellIndex(1, 0)
-	c2, _ := grid.CellIndex(2, 0)
-	target, _ := grid.CellIndex(3, 0)
+	start := grid.CellIndex(0, 0)
+	c1 := grid.CellIndex(1, 0)
+	c2 := grid.CellIndex(2, 0)
+	target := grid.CellIndex(3, 0)
 
 	var p navigation.Path
 	p.Steps[0] = c1
@@ -40,8 +40,8 @@ func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 
 func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	start, _ := grid.CellIndex(0, 0)
-	target, _ := grid.CellIndex(2, 0)
+	start := grid.CellIndex(0, 0)
+	target := grid.CellIndex(2, 0)
 
 	var p navigation.Path
 	p.Steps[0] = target
@@ -57,8 +57,8 @@ func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 
 func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	mid, _ := grid.CellIndex(1, 0)
-	target, _ := grid.CellIndex(2, 0)
+	mid := grid.CellIndex(1, 0)
+	target := grid.CellIndex(2, 0)
 
 	var p navigation.Path
 	p.Steps[0] = mid
@@ -73,7 +73,7 @@ func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 
 func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	target, _ := grid.CellIndex(2, 0)
+	target := grid.CellIndex(2, 0)
 
 	cells := navigation.PathCells(unit.At{Cell: target}, navigation.MoveOrder{Target: target})
 

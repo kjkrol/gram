@@ -45,31 +45,53 @@ type slot struct {
 
 var _ AtlasSource = (*Atlas)(nil)
 
-// NewAtlas starts an empty atlas: Register its sprites, then Close it before the game loop starts.
+// NewAtlas starts an empty atlas: Add its sprites, then Close it before the game loop starts.
 func NewAtlas() *Atlas { return &Atlas{} }
 
-// Register takes draw on as a size x size sprite and returns its SpriteID; panics after Close.
-func (a *Atlas) Register(size int, draw SpriteDrawer) SpriteID {
-	id := SpriteID(len(a.slots))
-	a.RegisterAt(id, size, draw)
-	return id
-}
+// Sprited is whoever is drawn from one slot of the sheet: a kind's handle (kind.Of, cell.Of) —
+// or a bare SpriteID, which stands for itself.
+type Sprited interface{ SpriteID() SpriteID }
 
-// RegisterAt takes draw on as a size x size sprite in slot id; panics after Close or if taken.
-func (a *Atlas) RegisterAt(id SpriteID, size int, draw SpriteDrawer) {
+// SpriteID is the slot itself: a bare id stands for itself wherever a Sprited is taken.
+func (id SpriteID) SpriteID() SpriteID { return id }
+
+// Add takes draw on as a size x size sprite in of's slot — a kind's handle, a slot issued by the
+// world's kinds (NewSprite), a board's Covering — and hands it back as a Slot: chain Under for
+// the looks the sprite takes under an effect. Panics after Close or if the slot is taken.
+func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
+	id := of.SpriteID()
 	if a.closed {
-		panic("gram: Atlas.Register after Close")
+		panic("gram: Atlas.Add after Close")
 	}
 	if size <= 0 {
-		panic(fmt.Sprintf("gram: Atlas sprite %d registered with size %d", id, size))
+		panic(fmt.Sprintf("gram: Atlas sprite %d added with size %d", id, size))
 	}
 	for int(id) >= len(a.slots) {
 		a.slots = append(a.slots, slot{})
 	}
 	if a.slots[id].draw != nil {
-		panic(fmt.Sprintf("gram: Atlas sprite %d registered twice", id))
+		panic(fmt.Sprintf("gram: Atlas sprite %d added twice", id))
 	}
 	a.slots[id] = slot{size: size, draw: draw}
+	return Slot{a: a, id: id, size: size}
+}
+
+// Slot is one sprite added to an Atlas, what the looks under effects chain on.
+type Slot struct {
+	a    *Atlas
+	id   SpriteID
+	size int
+}
+
+// Dresser issues the atlas slot drawn in place of a sprite while a state holds: rule/effect's
+// Effect is one, through its Look.
+type Dresser interface{ Look(of SpriteID) SpriteID }
+
+// Under adds the sprite's look under d, the same size — drawn in its place while the effect's
+// marker is on: the witch gone white under frozen.
+func (s Slot) Under(d Dresser, draw SpriteDrawer) Slot {
+	s.a.Add(d.Look(s.id), s.size, draw)
+	return s
 }
 
 // Close lays the registered sprites out on one sheet and bakes them; call once, after Register.

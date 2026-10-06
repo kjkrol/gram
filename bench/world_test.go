@@ -72,7 +72,7 @@ func Benchmark_World_Draw(b *testing.B) {
 			var cam camera.Camera
 			ecs := benchWorldViewed(b, ctx, 5000, 56, v.view, func(w *world.Plugin, movers kind.Of[mover]) {
 				atlas := render.NewAtlas()
-				atlas.RegisterAt(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+				atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
 				w.WithRenderer(atlas)
 				r, cam = render.NewComposer(w.Renderer()), w.Camera()

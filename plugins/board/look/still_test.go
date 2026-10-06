@@ -29,14 +29,14 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(grass)
 	for i := uint32(0); i < 8; i++ {
-		c, _ := grid.CellIndex(i, 3)
+		c := grid.CellIndex(i, 3)
 		brd.Set(c, water)
-		c, _ = grid.CellIndex(5, i)
+		c = grid.CellIndex(5, i)
 		brd.SetWay(c, cell.Way{Kind: road, Width: 8, Links: 0xff})
 	}
 	atlas := render.NewAtlas()
 	for _, k := range []cell.Kind{grass, water} {
-		atlas.RegisterAt(k.SpriteID, 4, render.Solid(k.Color))
+		atlas.Add(k.SpriteID, 4, render.Solid(k.Color))
 	}
 	atlas.Close()
 	space := world.SpaceCfg{Width: 256, Height: 256}
@@ -67,7 +67,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 		}
 	}
 	check("at first")
-	c, _ := grid.CellIndex(6, 6)
+	c := grid.CellIndex(6, 6)
 	brd.Set(c, water)
 	check("after a cell changed")
 	// a wrapping world, over the seam: the world's first columns drawn on past its last
@@ -93,7 +93,7 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(1, 4, render.Solid(grass.Color))
+	atlas.Add(render.SpriteID(1), 4, render.Solid(grass.Color))
 	atlas.Close()
 	for _, c := range []struct {
 		name       string

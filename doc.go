@@ -15,7 +15,7 @@
 // (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
 // none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
 // A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
-// Players(…).Cells(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Looks(…).Scenes(…).
+// Players(…).Effects(…).Rules(…).Commands(…).Cells(…).Kinds(…).Controls(…).Scenes(…).
 // Layout(…).Units(…).Update(…) — always in that order, which the compiler keeps, each plugin
 // refusing what is defined out of its section.
 //
@@ -46,7 +46,7 @@
 //
 // A role (world.Roles) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
 // the rules it obeys fire for those playing it alone. A kind plays roles through one component
-// (rule.Plays), a cell through its kind (board.Plugin.Plays), the world and the atmosphere, for the
+// (rule.Plays), a cell through its kind (cell.Kinds.Define) or alone (cell.Entry.Plays), the world and the atmosphere, for the
 // moments of the world as a whole, through their own Plays. What somebody
 // asks for is a command, and one about an effect is a sentence: rule.Cast(open).On(entity.Group(
 // "trapdoors")).By(entity.Named("lever")) — put the effect on, take it off (Lift) or switch it

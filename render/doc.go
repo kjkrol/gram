@@ -16,10 +16,12 @@
 //
 // # Atlas and AtlasSource
 //
-// An [Atlas] is a sprite sheet built lazily: Register (or RegisterAt, into a slot issued
-// elsewhere) records a [SpriteDrawer] at a texture size of its own, and Close is when the sheet
-// is laid out and baked — so a slot issued late is as welcome as an early one, as long as it
-// comes before Close. The drawn size is the entity's box; the texture size is resolution.
+// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot
+// — a kind's handle, a board's cover, a bare SpriteID — at a texture size of its own, and Close is
+// when the sheet is laid out and baked — so a slot issued late is as welcome as an early one, as
+// long as it comes before Close. The drawn size is the entity's box; the texture size is
+// resolution. Add hands the sprite back as a [Slot]: chain [Slot.Under] for the look drawn in
+// its place while an effect holds ([Dresser], which rule/effect's Effect is through its Look).
 // [Solid], [Border], [Diamond], [Cross], [Hexagon], [Dot] and [Arrow] are ready-made drawers. [AtlasSource]
 // is what a Frame draws from: the sheet, each [SpriteID]'s UV rectangle and a white texel for plain
 // colours, which Close bakes in.
@@ -59,7 +61,9 @@
 // the board changes. [Sprites] is a Direct source's sprites drawn as instances, one call a run
 // sharing an atlas, piece for piece what Frame.SpriteRectUV would lay.
 //
-// What is worked out per pixel beyond that — water, the clouds' shadows — is a material a plugin
+// What is worked out per pixel beyond that — water, the clouds' shadows, an entity's whole look
+// ([Look]: a world atlas Add takes a MaterialID in a SpriteDrawer's place; examples/material-demo) — is a material a plugin
+// or a game
 // brings in WGSL of its own and registers ([RegisterMaterials]); the composer's one shader is its
 // own part and every material registered, put together and compiled once ([Compile],
 // [ShaderSource]). [Frame.Overlay] lays over the sprite just added a quad for a material to work out,
@@ -85,6 +89,6 @@
 // takes conditions of T (a tag's In for a tag carried, an effect's Mark().In for a state). Being
 // no part of the game, they are written in Go — the one place a rule is. A renderer runs them
 // through [Rules]: Bind adds what they read to its query, [Own] shares a column it reads itself,
-// Run settles each chunk. The world's renderer takes them (world.Plugin.Draw), the views of
+// Run settles each chunk. The world's renderer takes them (what the world's own atlas declares), the views of
 // vision too.
 package render

@@ -51,12 +51,18 @@ var (
 
 // =========================== Game ===========================
 
-// Demo is the navigation demo on a hex board — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the navigation demo on a hex board — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -72,10 +78,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// mainStage wires the hex board, navigation and selection; its plugins are its own fields.
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+// arena wires the hex board, navigation and selection; its plugins are its own fields.
+type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -86,9 +90,11 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("board-navigation-hex-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("board-navigation-hex-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Cells(s.defineCells).
@@ -98,10 +104,9 @@ func newStage() *mainStage {
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -120,13 +125,13 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	main := &mainScene{stage: s}
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
@@ -138,15 +143,14 @@ func (s *mainStage) defineScenes() []game.Scene {
 	return []game.Scene{main}
 }
 
-func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land},
-	)
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-func (s *mainStage) restore(p game.Persistence) (bool, error) {
+func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -164,7 +168,7 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
@@ -176,36 +180,35 @@ func (s *mainStage) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *mainStage) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
 	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
 	var cells []cell.Entry
 	for r := uint32(1); r < GridHeight; r++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: s.cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, r)})
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, r)})
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *mainStage) placeUnits() {
-	mine := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+func (s *arena) placeUnits() {
+	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
+	brd := s.board.Res.Logic.Board
+	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine...),
+		redKind.Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player...),
+		blueKind.Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player...),
 	)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -218,7 +221,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	keys  players.SceneKeys
 }
 
@@ -226,23 +229,30 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the two bands and the ground.
+var (
+	redColor   = color.RGBA{R: 220, G: 90, B: 90, A: 255}
+	blueColor  = color.RGBA{R: 90, G: 140, B: 220, A: 255}
+	grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	wallColor  = color.RGBA{R: 40, G: 40, B: 40, A: 255}
+	roadColor  = color.RGBA{R: 150, G: 130, B: 80, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
+	worldAtlas.Add(redKind, EntitySize, render.Diamond(redColor))
+	worldAtlas.Add(blueKind, EntitySize, render.Diamond(blueColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	grass, _ := kinds.Get(GrassCell)
-	wall, _ := kinds.Get(WallCell)
-	road, _ := kinds.Get(RoadCell)
-	boardAtlas := render.NewAtlas()
-	boardAtlas.RegisterAt(grass.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.RegisterAt(wall.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
-	boardAtlas.RegisterAt(road.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
+	boardAtlas := s.board.NewAtlas(hexSprite)
+	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
+	boardAtlas.Add(WallCell, render.Hexagon(wallColor))
+	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -255,11 +265,11 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }
@@ -277,9 +287,9 @@ const (
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road, _ := kinds.Get(RoadCell)
+	road := kinds.Named(RoadCell).Kind()
 	for q := roadLeft + 1; q < roadRight; q++ {
-		c, _ := brd.CellIndex(q, shortcutRow)
+		c := brd.CellIndex(q, shortcutRow)
 		brd.Set(c, road)
 	}
 }

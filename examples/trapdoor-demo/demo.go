@@ -69,12 +69,18 @@ var levers = []struct {
 
 // =========================== Game ===========================
 
-// Demo is the trapdoor demo — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the trapdoor demo — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -94,9 +100,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 // its walk.
 type unitRow struct{ start, to cell.ID }
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -105,30 +109,29 @@ type mainStage struct {
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the scouts are its
 	brd       *board.Board
-
-	hasteSprite render.SpriteID
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("trapdoor-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("trapdoor-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -148,38 +151,34 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(BoardsCell), Cost: 1, Allows: cell.Land}, // a trapdoor shut
-		cell.Kind{Name: cell.Named(PitCell), Cost: 1},                       // holds nobody
-	)
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
+	kinds.Define(PitCell, cell.Kind{Cost: 1})                       // holds nobody
 }
 
-func (s *mainStage) defineEffects() {
-	pit, _ := s.board.CellKinds().Get(PitCell)
+func (s *arena) defineEffects() {
+	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
 	fx := s.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-	s.hasteSprite = s.world.Kinds().NewSprite()
-	hasteSprite := s.hasteSprite
-	fx.Define(HasteEf, effect.Spec{
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
+	fx.Define(HasteEf, effect.Spec{ // how a hastened one looks is the scene's: Under in its Layers
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
-		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	cmds := s.world.Commands()
 	for _, l := range levers {
 		cmds.Define(pullCmd(l.name), rule.Cast(s.world.Effects().Named(OpenEf)).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
@@ -187,7 +186,7 @@ func (s *mainStage) defineCommands() {
 	cmds.Define(HastenCmd, rule.Cast(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	for _, l := range levers {
 		if err := s.player.Bind(control.Give(control.KeyPress{Key: l.key}, "Pull the "+l.name+" lever: its trapdoors open", s.world.Commands().Named(pullCmd(l.name)))); err != nil {
 			return err
@@ -196,12 +195,12 @@ func (s *mainStage) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.world.Commands().Named(HastenCmd)))
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	main := &mainScene{stage: s}
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
 	return []game.Scene{main}
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	land := unit.Mover{Domain: cell.Land}
@@ -212,9 +211,9 @@ func (s *mainStage) defineKinds() {
 		rule.Plays(s.world.Roles().Named(MortalRole)))
 }
 
-func (s *mainStage) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
 	var cells []cell.Entry
 	for _, l := range levers {
 		for y := stripTop; y <= stripBottom; y++ {
@@ -226,16 +225,18 @@ func (s *mainStage) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	for i := range uint32(3) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		s.world.Seed(scoutKind.Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	for _, row := range rows {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+		s.world.Seed(wandererKind.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
 	}
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -248,33 +249,39 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 }
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the units, the haste's glow and the meadow with its trapdoors.
+var (
+	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+	hasteColor    = color.RGBA{R: 170, G: 220, B: 255, A: 255}
+	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
+	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
+	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.RegisterAt(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
+		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor)) // the scout aglow with haste
+	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	for name, c := range map[string]color.RGBA{
-		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
-		PitCell:    {R: 15, G: 12, B: 20, A: 255},
-	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
-	}
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
+	boardAtlas.Add(PitCell, render.Solid(pitColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -286,11 +293,11 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

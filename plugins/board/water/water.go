@@ -82,8 +82,7 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 		x, y, _ := grid.Coords(c)
 		n.width, n.height = max(n.width, int64(x)+1), max(n.height, int64(y)+1)
 	})
-	_, n.wrapX = grid.CellIndex(uint32(n.width), 0)
-	_, n.wrapY = grid.CellIndex(0, uint32(n.height))
+	n.wrapX, n.wrapY = wrapsOf(grid)
 
 	shore := stepsFromSea(grid, sea)
 	level := map[cell.ID]float64{}
@@ -166,6 +165,12 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 const calmNear = 4
 
 // stepsFromSea is how many steps between neighbours each cell lies from the sea, 0 the sea's own.
+// wrapsOf is the axes g wraps along, by its shape; a grid of another make wraps along none.
+func wrapsOf(g grid.Grid) (x, y bool) {
+	sh, ok := grid.ShapeOf(g)
+	return ok && sh.WrapX, ok && sh.WrapY
+}
+
 func stepsFromSea(grid grid.Grid, sea func(cell.ID) bool) map[cell.ID]int {
 	steps := map[cell.ID]int{}
 	var ring []cell.ID

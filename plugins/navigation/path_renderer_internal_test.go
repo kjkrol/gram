@@ -93,7 +93,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
 	r := newPathRenderer(grid, RouteStyle{}, 0)
-	c, _ := grid.CellIndex(2, 1)
+	c := grid.CellIndex(2, 1)
 	for _, tc := range []struct {
 		spot   geom.Vec
 		centre geom.Vec
@@ -133,8 +133,8 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
 	r := newPathRenderer(grid, RouteStyle{}, 0)
-	a, _ := grid.CellIndex(2, 1)
-	b, _ := grid.CellIndex(3, 3)
+	a := grid.CellIndex(2, 1)
+	b := grid.CellIndex(3, 3)
 	for _, tc := range []struct {
 		givingWay bool
 		lines     int

@@ -1,6 +1,7 @@
 package grids
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -164,13 +165,13 @@ func (g *Square) Coords(c cell.ID) (uint32, uint32, bool) {
 	return x, y, x < g.Width && y < g.Height
 }
 
-func (g *Square) CellIndex(col, row uint32) (cell.ID, bool) {
+func (g *Square) CellIndex(col, row uint32) cell.ID {
 	x, okX := foldAxis(int64(col), int64(g.Width), g.WrapX)
 	y, okY := foldAxis(int64(row), int64(g.Height), g.WrapY)
 	if !okX || !okY {
-		return 0, false
+		panic(fmt.Sprintf("board: no cell at (%d, %d)", col, row))
 	}
-	return g.idAt(uint32(x), uint32(y)), true
+	return g.idAt(uint32(x), uint32(y))
 }
 
 // dxdy returns the wrap-aware column/row gap between a and b.
@@ -211,9 +212,9 @@ func (g *Square) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	if dx == 0 || dy == 0 {
 		return 0, 0, false
 	}
-	c1, ok1 := g.CellIndex(uint32(wrapModI64(int64(ax)+dx, int64(g.Width))), ay)
-	c2, ok2 := g.CellIndex(ax, uint32(wrapModI64(int64(ay)+dy, int64(g.Height))))
-	return c1, c2, ok1 && ok2
+	c1 = g.CellIndex(uint32(wrapModI64(int64(ax)+dx, int64(g.Width))), ay)
+	c2 = g.CellIndex(ax, uint32(wrapModI64(int64(ay)+dy, int64(g.Height))))
+	return c1, c2, true
 }
 
 // axisDelta is the single-step direction (-1/0/+1) from a to b along an axis of length size.

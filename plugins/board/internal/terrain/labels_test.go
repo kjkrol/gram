@@ -124,11 +124,10 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				w.Roles().Define("trapdoor")
 				w.Roles().Define("plate")
 				trapdoor, plate = w.Roles().Named("trapdoor"), w.Roles().Named("plate")
-				land := func(name string) cell.Kind { return cell.Kind{Name: cell.Named(name), Cost: 1, Allows: cell.Land} }
-				brd.CellKinds().Create(land("door"), land("plate"), land("both"))
-				brd.Plays("door", trapdoor)
-				brd.Plays("plate", plate)
-				brd.Plays("both", trapdoor, plate)
+				land := func() cell.Kind { return cell.Kind{Cost: 1, Allows: cell.Land} }
+				brd.CellKinds().Define("door", land(), trapdoor)
+				brd.CellKinds().Define("plate", land(), plate)
+				brd.CellKinds().Define("both", land(), trapdoor, plate)
 				brd.Res.Logic.Board.Set(e, snow)
 				brd.Seed(board.Layout{Cells: []cell.Entry{
 					{Kind: "door", Cell: a, Group: "west"},

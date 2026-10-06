@@ -26,14 +26,14 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 
-	played := NewGameplayStage(basePath)
+	playedArena, played := NewGameplayStage(basePath)
 	eng := engine.NewEngine(oneStageGame{stage: played, props: testProps()})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 
-	played.Stack().Composition().Show(played.panel.Name())
-	if got, want := played.Stack().Composition().Active(), played.panel.Name(); got != want {
+	played.Stack().Composition().Show(playedArena.panel.Name())
+	if got, want := played.Stack().Composition().Active(), playedArena.panel.Name(); got != want {
 		t.Fatalf("Active() before save = %q, want %q", got, want)
 	}
 
@@ -41,7 +41,7 @@ func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	stage2 := NewGameplayStage(basePath)
+	arena2, stage2 := NewGameplayStage(basePath)
 	eng2 := engine.NewEngine(oneStageGame{stage: stage2, props: testProps()})
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init (fresh process/engine): %v", err)
@@ -51,7 +51,7 @@ func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
 	if got := stage2.Stack().Composition().Order(); !equalStrings(got, wantOrder) {
 		t.Errorf("Order() after Load = %v, want %v", got, wantOrder)
 	}
-	if got, want := stage2.Stack().Composition().Active(), stage2.panel.Name(); got != want {
+	if got, want := stage2.Stack().Composition().Active(), arena2.panel.Name(); got != want {
 		t.Errorf("Active() after Load = %q, want %q (the panel should still be on top and focused)", got, want)
 	}
 }

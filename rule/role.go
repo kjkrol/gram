@@ -12,7 +12,8 @@ type Roles struct{}
 
 // Part is a role an entity plays, defined in a Stage's world (world.Roles.Define) and found
 // there by its name (Named): the rules those playing it obey. Give it to a kind with Plays, to a
-// kind of cell with board.Plugin.Plays, to a plugin with its own Plays: the engine hands the rules
+// kind of cell as it is defined (cell.Kinds.Define), to one cell of a board's Layout
+// (cell.Entry.Plays), to a plugin with its own Plays: the engine hands the rules
 // of a role somebody plays to the plugins catching their moments.
 type Part struct {
 	name  string

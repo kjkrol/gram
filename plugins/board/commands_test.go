@@ -30,7 +30,7 @@ type meadow struct {
 func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize)
-	m := &meadow{at: func(x, y uint32) cell.ID { c, _ := g.CellIndex(x, y); return c }}
+	m := &meadow{at: func(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }}
 	m.lever, m.plate = m.at(0, 5), m.at(5, 5)
 	m.west, m.east = []cell.ID{m.at(1, 1), m.at(1, 2)}, []cell.ID{m.at(4, 1), m.at(4, 2)}
 	var units []boardtest.Mover
@@ -44,8 +44,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		w.Roles().Define("plate",
 			rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 		plate := w.Roles().Named("plate")
-		brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
-		brd.Plays("plate", plate)
+		brd.CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
 		cells := []cell.Entry{
 			{Cell: m.lever, Name: "lever"},
 			{Kind: "plate", Cell: m.plate, Name: "plate"},
@@ -164,8 +163,7 @@ func TestTrigger_GivesTheCommandsOfItsSource(t *testing.T) {
 
 // plateCell is the plate's cell of a meadow, known before one is made.
 func (*meadow) plateCell() cell.ID {
-	c, _ := grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize).CellIndex(5, 5)
-	return c
+	return grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize).CellIndex(5, 5)
 }
 
 // A name a command says that nobody bears, and a name two bear, stop the game at its first step.
@@ -189,7 +187,7 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			g := grid.DefaultGrids{}.Square(3, 3, boardtest.CellSize)
 			for i := range tc.cells {
-				tc.cells[i].Cell, _ = g.CellIndex(uint32(i), 0)
+				tc.cells[i].Cell = g.CellIndex(uint32(i), 0)
 			}
 			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
 				brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})

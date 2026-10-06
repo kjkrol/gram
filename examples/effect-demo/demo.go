@@ -40,20 +40,22 @@ const (
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 
-	lakeLeft, lakeRight uint32 = 8, 15
-	lakeTop, lakeBottom uint32 = 4, 11
-
-	// Frost is the witch's own way of moving: snow and ice price it low.
 	Frost = cell.Domain(1 << 3)
 )
 
 // =========================== Game ===========================
 
-type Demo struct{ stage *mainStage }
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -74,9 +76,7 @@ type unitRow struct {
 	ordered       bool
 }
 
-type mainStage struct {
-	game.Stage
-
+type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -86,25 +86,26 @@ type mainStage struct {
 	player    *players.Player
 }
 
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("effect-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("effect-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRoles).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -123,31 +124,31 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	s.world.Commands().Define(FreezeCmd,
 		rule.Cast(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
 		s.world.Commands().Named(FreezeCmd)))
 }
 
-func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water},
-	)
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
 }
 
-func (s *mainStage) defineEffects() {
+func (s *arena) defineEffects() {
 	effects := s.world.Effects()
-	effects.Define(FrostEf, effect.Spec{ // land under snow: slower, the witch's own
+	effects.Define(FrostEf, effect.Spec{
+		effect.Described("Land under snow: slower, and the witch's own ground."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
 			g.Kind.Allows |= Frost
@@ -155,7 +156,8 @@ func (s *mainStage) defineEffects() {
 			g.Kind = g.Kind.Costing(Frost, 0.5)
 		}),
 	})
-	effects.Define(IcedEf, effect.Spec{ // water under ice: walked over, not sailed
+	effects.Define(IcedEf, effect.Spec{
+		effect.Described("Water under ice: walked over, not sailed."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
 			g.Kind.Allows = cell.Land | Frost
@@ -164,22 +166,23 @@ func (s *mainStage) defineEffects() {
 		}),
 	})
 	effects.Define(FrozenEf, effect.Spec{
+		effect.Described("Frozen stiff: stood dead still, an immovable block."),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }),
 		effect.Alter(func(st *steering.Steering) { st.Halted = true }),
 	})
 	effects.Define(SlipEf, effect.Spec{
+		effect.Described("On the ice: hardly any braking, whoever moves slides on."),
 		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }),
 	})
 }
 
-func (s *mainStage) defineRoles() {
+func (s *arena) defineRoles() {
 	effects := s.world.Effects()
 	frost, iced := effects.Named(FrostEf), effects.Named(IcedEf)
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
 
 	roles := s.world.Roles()
-	roles.Define(LakeRole) // the water plays it: where the witch's winter is ice
-	s.board.Plays(WaterCell, roles.Named(LakeRole))
+	roles.Define(LakeRole) // the lake's cells play it, in the Layout: where the witch's winter is ice
 	roles.Define(WitchRole,
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
@@ -197,7 +200,7 @@ func (s *mainStage) defineRoles() {
 	)
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	profile := func(brake float64) steering.Steering {
@@ -210,35 +213,43 @@ func (s *mainStage) defineKinds() {
 	units.Define(BoatKind, unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(roles.Named(MortalRole)))
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	main := &mainScene{stage: s}
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
 	return []game.Scene{main}
 }
 
-func (s *mainStage) layOut() {
+// The lake: where the water lies, and where the boat sails.
+const (
+	lakeLeft, lakeRight uint32 = 8, 15
+	lakeTop, lakeBottom uint32 = 4, 11
+)
+
+func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
+	water := s.board.CellKinds().Named(WaterCell)
+	lake := s.world.Roles().Named(LakeRole)
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, cell.Entry{Kind: WaterCell, Cell: s.cellAt(x, y)})
+			cells = append(cells, water.Entry(brd.CellIndex(x, y)).Plays(lake))
 		}
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
-func (s *mainStage) placeUnits() {
-	mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+func (s *arena) placeUnits() {
+	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
+	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
+	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
+	brd := s.board.Res.Logic.Board
+	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: s.cellAt(2, 8), target: s.cellAt(GridWidth-3, 8)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: s.cellAt(2, 10)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: s.cellAt(lakeRight, 8), target: s.cellAt(lakeLeft, 8)}).Told(mine...),
+		witchKind.Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
+		walkerKind.Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
+		boatKind.Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
 	)
 }
 
-func (s *mainStage) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -251,53 +262,55 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 }
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the units, each with its look under frozen, and the ground with what
+// covers it.
+var (
+	witchColor        = color.RGBA{R: 200, G: 230, B: 255, A: 255}
+	witchFrozenColor  = color.RGBA{R: 240, G: 248, B: 255, A: 255}
+	walkerColor       = color.RGBA{R: 220, G: 90, B: 90, A: 255}
+	walkerFrozenColor = color.RGBA{R: 235, G: 175, B: 175, A: 255}
+	boatColor         = color.RGBA{R: 140, G: 90, B: 40, A: 255}
+	boatRimColor      = color.RGBA{R: 190, G: 220, B: 245, A: 255}
+	grassColor        = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	snowColor         = color.RGBA{R: 235, G: 240, B: 245, A: 255}
+	waterColor        = color.RGBA{R: 40, G: 90, B: 170, A: 255}
+	iceColor          = color.RGBA{R: 170, G: 215, B: 240, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+
+	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
+	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
+	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
+	effects := s.world.Effects()
+	frozen := effects.Named(FrozenEf)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255}))
-	effects := s.world.Effects()
-	for _, l := range []struct {
-		effect string
-		of     render.SpriteID
-		draw   render.SpriteDrawer
-	}{
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})}, // the witch gone white
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})},  // the walker rimed
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), func(dst *render.Canvas, size int) { // the boat in a rim of ice
-			render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
-			render.Border(color.RGBA{R: 190, G: 220, B: 245, A: 255})(dst, size)
-		}},
-	} {
-		worldAtlas.RegisterAt(effects.Named(l.effect).Look(l.of), EntitySize, l.draw)
-	}
+	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
+		Under(frozen, render.Diamond(witchFrozenColor)) // the witch gone white
+	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).
+		Under(frozen, render.Solid(walkerFrozenColor)) // the walker rimed
+	worldAtlas.Add(boatKind, EntitySize, render.Solid(boatColor)).
+		Under(frozen, func(dst *render.Canvas, size int) { // the boat in a rim of ice
+			render.Solid(boatColor)(dst, size)
+			render.Border(boatRimColor)(dst, size)
+		})
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	for name, c := range map[string]color.RGBA{
-		GrassCell: {R: 60, G: 95, B: 60, A: 255},
-		WaterCell: {R: 40, G: 90, B: 170, A: 255},
-	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
-	}
-	for name, c := range map[string]color.RGBA{
-		FrostEf: {R: 235, G: 240, B: 245, A: 255}, // snow
-		IcedEf:  {R: 170, G: 215, B: 240, A: 255}, // ice
-	} {
-		boardAtlas.RegisterAt(s.board.Covering(effects.Named(name)), CellSize, render.Solid(c))
-	}
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(GrassCell, render.Solid(grassColor)).
+		Under(effects.Named(FrostEf), render.Solid(snowColor)) // snow over the land
+	boardAtlas.Add(WaterCell, render.Solid(waterColor)).
+		Under(effects.Named(IcedEf), render.Solid(iceColor)) // ice over the lake
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -308,11 +321,11 @@ func (m *mainScene) Layers() []render.Layer {
 }
 
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

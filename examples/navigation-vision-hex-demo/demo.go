@@ -57,12 +57,18 @@ var (
 
 // =========================== Game ===========================
 
-// Demo is the hex board + navigation + vision demo — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the hex board + navigation + vision demo — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -78,9 +84,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
@@ -93,22 +97,22 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("board-navigation-vision-hex-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("board-navigation-vision-hex-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Cells(s.defineCells).
 		Kinds(s.defineKinds).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -120,7 +124,8 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize}) // the hills in relief, seen from above
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
+		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.topography, s.vision)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.players, s.vision} {
 		if err := ctx.Use(p); err != nil {
@@ -130,25 +135,22 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
-		cell.Kind{Name: cell.Named(ForestCell), Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land | cell.Air},
-		cell.Kind{Name: cell.Named(HillCell), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-	)
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10})
+	kinds.Define(ForestCell, cell.Kind{Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1))
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
+	kinds.Define(HillCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
 }
 
-func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
-
-func (s *mainStage) defineScenes() []game.Scene {
-	main := &mainScene{stage: s}
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
 	return []game.Scene{main}
 }
 
@@ -163,7 +165,16 @@ var unitColors = []color.RGBA{
 
 var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 
-func (s *mainStage) defineKinds() {
+// The ground's colours, one a kind.
+var (
+	grassColor  = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	wallColor   = color.RGBA{R: 40, G: 40, B: 40, A: 255}
+	forestColor = color.RGBA{R: 25, G: 60, B: 30, A: 255}
+	roadColor   = color.RGBA{R: 150, G: 130, B: 80, A: 255}
+	hillColor   = color.RGBA{R: 110, G: 100, B: 70, A: 255}
+)
+
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
@@ -182,12 +193,8 @@ func (s *mainStage) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *mainStage) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column with a gap at r = gapRow, a forest either side of the
 	// gap, and a road along r = 0 with both flanks.
 	var cells []cell.Entry
@@ -195,12 +202,12 @@ func (s *mainStage) layOut() {
 		if r == gapRow {
 			continue
 		}
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: s.cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, r)})
 	}
 	for _, f := range [][2]uint32{{5, 4}, {13, 8}} {
 		for dr := uint32(0); dr < 3; dr++ {
 			for dq := uint32(0); dq < 3; dq++ {
-				cells = append(cells, cell.Entry{Kind: ForestCell, Cell: s.cellAt(f[0]+dq, f[1]+dr)})
+				cells = append(cells, cell.Entry{Kind: ForestCell, Cell: brd.CellIndex(f[0]+dq, f[1]+dr)})
 			}
 		}
 	}
@@ -208,15 +215,15 @@ func (s *mainStage) layOut() {
 	for dr := uint32(2); dr <= 4; dr++ {
 		for dq := uint32(8); dq <= 10; dq++ {
 			if dq != wallCol {
-				cells = append(cells, cell.Entry{Kind: HillCell, Cell: s.cellAt(dq, dr)})
+				cells = append(cells, cell.Entry{Kind: HillCell, Cell: brd.CellIndex(dq, dr)})
 			}
 		}
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, r)})
 	}
 	hills := map[cell.ID]bool{}
 	for _, e := range cells {
@@ -232,18 +239,21 @@ func (s *mainStage) layOut() {
 	s.topography.Seed(heights)
 }
 
-func (s *mainStage) placeUnits() {
-	mine := players.Give{To: s.player.ID}
+func (s *arena) placeUnits() {
+	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
+	brd := s.board.Res.Logic.Board
+	player := players.Give{To: s.player.ID}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: s.cellAt(GridWidth-4, gapRow), target: s.cellAt(3, gapRow)}).Told(mine, selection.Allow{Selected: true}),
+		scoutKind(0).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
+		scoutKind(1).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
+		scoutKind(2).Entry(unitRow{start: brd.CellIndex(GridWidth-4, gapRow), target: brd.CellIndex(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
 		// The hawk crosses the wall and the second forest head-on.
-		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.cellAt(1, 9), target: s.cellAt(GridWidth-2, 9)}).Told(mine, selection.Allow{}),
+		hawkKind.Entry(unitRow{start: brd.CellIndex(1, 9), target: brd.CellIndex(GridWidth-2, 9)}).Told(player, selection.Allow{}),
 	)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -258,7 +268,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 }
 
 var _ game.Scene = (*mainScene)(nil)
@@ -266,28 +276,24 @@ var _ game.Scene = (*mainScene)(nil)
 func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
-	for i, name := range scouts {
-		worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), name).SpriteID(), EntitySize, render.Diamond(unitColors[i]))
+	for i := range scouts {
+		worldAtlas.Add(scoutKind(i), EntitySize, render.Diamond(unitColors[i]))
 	}
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), EntitySize, render.Diamond(hawkColor))
+	worldAtlas.Add(hawkKind, EntitySize, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	for name, c := range map[string]color.RGBA{
-		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-		WallCell:   {R: 40, G: 40, B: 40, A: 255},
-		ForestCell: {R: 25, G: 60, B: 30, A: 255},
-		RoadCell:   {R: 150, G: 130, B: 80, A: 255},
-		HillCell:   {R: 110, G: 100, B: 70, A: 255},
-	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, hexSprite, render.Hexagon(c))
-	}
+	boardAtlas := s.board.NewAtlas(hexSprite)
+	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
+	boardAtlas.Add(WallCell, render.Hexagon(wallColor))
+	boardAtlas.Add(ForestCell, render.Hexagon(forestColor))
+	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
+	boardAtlas.Add(HillCell, render.Hexagon(hillColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -301,11 +307,11 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

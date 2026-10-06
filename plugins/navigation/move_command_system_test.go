@@ -21,9 +21,9 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
-	start, _ := grid.CellIndex(0, 0)
-	oldTarget, _ := grid.CellIndex(3, 0)
-	newTarget, _ := grid.CellIndex(8, 0)
+	start := grid.CellIndex(0, 0)
+	oldTarget := grid.CellIndex(3, 0)
+	newTarget := grid.CellIndex(8, 0)
 
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
@@ -109,8 +109,8 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
-	start, _ := grid.CellIndex(0, 0)
-	newTarget, _ := grid.CellIndex(8, 0)
+	start := grid.CellIndex(0, 0)
+	newTarget := grid.CellIndex(8, 0)
 
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
@@ -199,9 +199,9 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
-	start, _ := grid.CellIndex(0, 0)
-	oldTarget, _ := grid.CellIndex(3, 0)
-	wall, _ := grid.CellIndex(8, 0)
+	start := grid.CellIndex(0, 0)
+	oldTarget := grid.CellIndex(3, 0)
+	wall := grid.CellIndex(8, 0)
 	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
 	moves := &control.Queue[MoveTo]{}

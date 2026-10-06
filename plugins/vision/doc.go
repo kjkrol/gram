@@ -81,7 +81,7 @@
 // it in pieces of the ground's step. A game that wants the shape on the CPU keeps SightOutline on
 // its observers; it costs a scan that much more.
 //
-// Every observer's view is drawn, unless render.Show rules given to [Plugin.Draw] pick some —
+// Every observer's view is drawn, unless render.Show rules given at construction pick some ([Plugin.WithViews]) —
 // render.Show(selected.In), the selected units' alone.
 //
 // The views start hidden. The plugin is a plugin.CommandHandler, its one key the players carry:

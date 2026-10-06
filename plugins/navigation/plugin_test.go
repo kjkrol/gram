@@ -52,7 +52,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	want, _ := grid.CellIndex(2, 2)
+	want := grid.CellIndex(2, 2)
 
 	events := &control.InputEvents{}
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
@@ -141,7 +141,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 	shaken := &control.InputEvents{MousePos: geom.NewVec(27, 26)}
 	shaken.AddClickEvent(27, 26, control.MouseButtonRight, control.ActionRelease)
-	want, _ := grid.CellIndex(2, 2)
+	want := grid.CellIndex(2, 2)
 	if _, moves := handle(shaken); len(moves) != 1 || moves[0].Cell != want {
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
 	}

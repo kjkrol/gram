@@ -138,15 +138,16 @@ func (l litLook) DrawSprites(t render.Target, cam camera.Camera, u render.Unifor
 	}
 }
 
-func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
+func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	sun := l.sky.Sun().Light(0, 0, 1)
 	lit := render.Light{sun[0] * light[0], sun[1] * light[1], sun[2] * light[2]}
-	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
+	if a.Sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
-		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, sway)
+		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
 	}
-	l.Look.Sprite(f, cam, box, z, atlas, id, lit, 0)
+	a.Sway = 0 // leant here: the Look under takes the sprite as it stands
+	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }

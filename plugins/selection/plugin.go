@@ -48,7 +48,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 func (p *Plugin) Tags() Tags { return p.tags }
 
 // IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition —
-// vision.Draw(render.Show(sel.IsSelected)).
+// vision.NewPlugin(w).WithViews(render.Show(sel.IsSelected)).
 func (p *Plugin) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(p.tags.Selected) }
 
 // =================================================================

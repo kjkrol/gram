@@ -1,10 +1,10 @@
-// Command appearance-demo shows a game changing how its entities are drawn, frame by frame, with
-// drawing rules (package render) given to the world's Draw: every walker is drawn facing the way it
-// goes (world.Facing), red while it is angry (render.With, reading its Mood), a ghost as a ghost
-// whatever it feels (render.As) and the leader with a crown on (render.Over). They bounce off one another, so they turn,
-// and their arrows turn with them. R makes everyone angry for a while: an effect on the world, kept
-// on each entity by a rule as its Mood — what is drawn follows, the Appearance itself is never
-// touched.
+// Command appearance-demo shows a game declaring how its entities are drawn in one place — the
+// world's atlas in the scene's Layers: every walker is drawn by the twin of the way it goes
+// (Facing), the leader turned smoothly with his crown on (Turning), the ghost as a ghost
+// whatever happens, and the angry under the angry effect's own look (Under). They bounce off
+// one another, so they turn, and the looks follow. R makes everyone angry for a while: an
+// effect on the world, kept on each entity by a rule — anger has no direction, so an angry
+// walker is a plain red square.
 package main
 
 import (
@@ -52,11 +52,17 @@ var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 // =========================== Game ===========================
 
 // Demo is the appearance demo — one Stage.
-type Demo struct{ stage *mainStage }
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -72,62 +78,26 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// Mood is what an entity feels: the With rule draws it red while Angry. Ghost and Leader mark the
-// entities As and Over draw otherwise.
-type (
-	Mood   struct{ Angry bool }
-	Ghost  struct{}
-	Leader struct{}
-)
-
-// heading is one of the four ways an entity goes, as Facing picks its sprite.
-type heading int
-
-const (
-	east heading = iota
-	west
-	south
-	north
-)
-
-// headingOf is the way v goes, by its larger part.
-func headingOf(v world.Velocity) heading {
-	d := v.Dir
-	switch {
-	case d.X*d.X >= d.Y*d.Y && d.X >= 0:
-		return east
-	case d.X*d.X >= d.Y*d.Y:
-		return west
-	case d.Y >= 0:
-		return south
-	}
-	return north
-}
-
 // walker is the row every kind spawns from: where it starts and how it goes.
 type walker struct {
 	at  geom.Vec
 	vel world.Velocity
 }
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
-
-	// facing is the sprite of each heading, calm and angry; spook the ghost's, crown the leader's.
-	facing, angrySprite [4]render.SpriteID
-	spook, crown        render.SpriteID
 
 	player *players.Player
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("appearance-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("appearance-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -135,14 +105,12 @@ func newStage() *mainStage {
 		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
@@ -157,71 +125,46 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineEffects() {
+func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the Layers
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(MoodyRole,
 		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.world.Effects().Named(RageEf), rule.Keep(s.world.Effects().Named(AngryEf)))))
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
-	spec := func(more ...comp.Comp) kind.Spec {
-		return append(kind.Spec{
-			comp.Load(func(w walker) world.Position { return world.Position{AABB: boxAt(w.at)} }),
-			comp.Load(func(w walker) world.Velocity { return w.vel }),
-			comp.Const(Mood{}),
-			comp.Const(collision.Collider{}),
-			comp.Const(collision.Physics{Restitution: 1}),
-			rule.Plays(s.world.Roles().Named(MoodyRole)),
-		}, more...)
+	spec := kind.Spec{
+		comp.Load(func(w walker) world.Position { return world.Position{AABB: boxAt(w.at)} }),
+		comp.Load(func(w walker) world.Velocity { return w.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
+		rule.Plays(s.world.Roles().Named(MoodyRole)),
 	}
-	kind.Define[walker](kinds, WalkerKind, spec())
-	kind.Define[walker](kinds, GhostKind, spec(comp.Const(Ghost{})))
-	kind.Define[walker](kinds, LeaderKind, spec(comp.Const(Leader{})))
-	for h := range s.facing {
-		s.facing[h], s.angrySprite[h] = kinds.NewSprite(), kinds.NewSprite()
-	}
-	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
+	kind.Define[walker](kinds, WalkerKind, spec)
+	kind.Define[walker](kinds, GhostKind, spec)
+	kind.Define[walker](kinds, LeaderKind, spec)
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
 		s.world.Commands().Named(RageCmd)))
 }
 
-func (s *mainStage) defineLooks() error {
-	return s.world.Draw(
-		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
-		render.With(func(a world.Appearance, m Mood) world.Appearance {
-			if m.Angry {
-				for h, calm := range s.facing {
-					if a.SpriteID == calm {
-						a.SpriteID = s.angrySprite[h]
-					}
-				}
-			}
-			return a
-		}),
-		render.As[Ghost](world.Appearance{SpriteID: s.spook}),
-		render.Over[Leader](world.Appearance{SpriteID: s.crown}),
-	)
-}
-
-func (s *mainStage) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{stage: s}}
+func (s *arena) defineScenes() []game.Scene {
+	return []game.Scene{&mainScene{arena: s}}
 }
 
 // boxAt is the box of side Size round at.
@@ -229,26 +172,29 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
+	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
+	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
+	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
 	entries := make([]kind.Entry, total)
 	for i := range entries {
 		w := walker{at: placement.Place(i, total).Center(), vel: world.Velocity{Dir: ways[rng.IntN(4)], Value: 40 + 40*rng.Float64()}}
 		switch {
 		case i < Leaders:
-			entries[i] = kind.Named[walker](s.world.Kinds(), LeaderKind).Entry(w)
+			entries[i] = leaderKind.Entry(w)
 		case i < Leaders+Ghosts:
-			entries[i] = kind.Named[walker](s.world.Kinds(), GhostKind).Entry(w)
+			entries[i] = ghostKind.Entry(w)
 		default:
-			entries[i] = kind.Named[walker](s.world.Kinds(), WalkerKind).Entry(w)
+			entries[i] = walkerKind.Entry(w)
 		}
 	}
 	s.world.Seed(entries...)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
@@ -257,76 +203,91 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct{ arena *arena }
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the walkers calm and angry with their light noses, the ghost's pale and
+// its eyes, the crown's gold, the backdrop.
+var (
+	calmColor       = color.RGBA{R: 70, G: 130, B: 220, A: 255}
+	angryColor      = color.RGBA{R: 220, G: 60, B: 50, A: 255}
+	noseColor       = color.RGBA{R: 245, G: 245, B: 230, A: 255}
+	ghostColor      = color.RGBA{R: 225, G: 230, B: 245, A: 200}
+	eyeColor        = color.RGBA{A: 255}
+	goldColor       = color.RGBA{R: 240, G: 200, B: 40, A: 255}
+	backgroundColor = color.RGBA{R: 40, G: 44, B: 52, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
-	s.world.WithRenderer(s.atlas())
+	s := m.arena
+	s.world.WithRenderer(s.looks())
 	return []render.Layer{
-		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 40, G: 44, B: 52, A: 255}}, ScreenWidth, ScreenHeight),
+		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
 		render.NewComposer(s.world.Renderer()),
 	}
 }
 
-// atlas draws every sprite: a square with a light nose on the side it faces, blue when calm, red
-// when angry; a pale ghost; a gold crown along the top.
-func (s *mainStage) atlas() *render.Atlas {
-	calm, angry := color.RGBA{R: 70, G: 130, B: 220, A: 255}, color.RGBA{R: 220, G: 60, B: 50, A: 255}
-	nose := color.RGBA{R: 245, G: 245, B: 230, A: 255}
-	atlas := render.NewAtlas()
-	for _, sprite := range []render.SpriteID{kind.Named[walker](s.world.Kinds(), WalkerKind).SpriteID(), kind.Named[walker](s.world.Kinds(), GhostKind).SpriteID(), kind.Named[walker](s.world.Kinds(), LeaderKind).SpriteID()} {
-		atlas.RegisterAt(sprite, Size, render.Solid(calm))
-	}
-	for h := range s.facing {
-		atlas.RegisterAt(s.facing[h], Size, facingSprite(heading(h), calm, nose))
-		atlas.RegisterAt(s.angrySprite[h], Size, facingSprite(heading(h), angry, nose))
-	}
-	atlas.RegisterAt(s.spook, Size, func(dst *render.Canvas, size int) {
-		r := float32(size) / 2
-		dst.FillCircle(r, r, r-1, color.RGBA{R: 225, G: 230, B: 245, A: 200})
-		dst.FillRect(r-4, r-3, 2, 3, color.RGBA{A: 255})
-		dst.FillRect(r+2, r-3, 2, 3, color.RGBA{A: 255})
-	})
-	atlas.RegisterAt(s.crown, Size, func(dst *render.Canvas, size int) {
-		gold := color.RGBA{R: 240, G: 200, B: 40, A: 255}
-		dst.FillRect(1, 0, float32(size)-2, 4, gold)
-		for x := float32(1); x < float32(size)-2; x += 5 {
-			dst.FillRect(x, 0, 2, 6, gold)
-		}
-	})
+// looks declares every look in one place, on the world's atlas: the walker by the twin of the
+// way it goes (Facing) and a plain red square while angry — anger has no direction; the leader
+// turned smoothly with his crown on (Turning), red and crowned while angry; the ghost a ghost
+// whatever happens.
+func (s *arena) looks() *world.Atlas {
+	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
+	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
+	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
+	angry := s.world.Effects().Named(AngryEf)
+
+	atlas := s.world.NewAtlas()
+	atlas.Add(walkerKind, Size, nosed(calmColor)).
+		Facing(4, func(angleDeg float64) render.SpriteDrawer { return nosedAt(angleDeg, calmColor) }).
+		Under(angry, render.Solid(angryColor))
+	atlas.Add(leaderKind, Size, crowned(calmColor)).
+		Under(angry, crowned(angryColor)).
+		Turning() // the crown turns with him — and while he is angry too
+	atlas.Add(ghostKind, Size, spook).
+		Turning() // a ghost drifts face first; anger leaves it unmoved: no look under it
 	atlas.Close()
 	return atlas
 }
 
-// facingSprite is a square of body with a nose on the side h faces.
-func facingSprite(h heading, body, nose color.RGBA) render.SpriteDrawer {
+// nosed is a square of body with a light nose eastwards — the way angle 0 points.
+func nosed(body color.RGBA) render.SpriteDrawer { return nosedAt(0, body) }
+
+// nosedAt is a square of body with its nose on the side angleDeg faces.
+func nosedAt(angleDeg float64, body color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
-		s := float32(size)
-		dst.FillRect(0, 0, s, s, body)
-		switch h {
-		case east:
-			dst.FillRect(s-4, s/2-2, 4, 4, nose)
-		case west:
-			dst.FillRect(0, s/2-2, 4, 4, nose)
-		case south:
-			dst.FillRect(s/2-2, s-4, 4, 4, nose)
-		case north:
-			dst.FillRect(s/2-2, 0, 4, 4, nose)
-		}
+		render.Solid(body)(dst, size)
+		render.Arrow(angleDeg, 4, noseColor)(dst, size)
 	}
+}
+
+// crowned is a diamond of body under a gold band — drawn east first, within the circle inscribed
+// in the box, so it turns whole.
+func crowned(body color.RGBA) render.SpriteDrawer {
+	return func(dst *render.Canvas, size int) {
+		render.Diamond(body)(dst, size)
+		render.Arrow(90, 3, goldColor)(dst, size)
+	}
+}
+
+// spook is the ghost: a pale circle with two eyes.
+func spook(dst *render.Canvas, size int) {
+	r := float32(size) / 2
+	dst.FillCircle(r, r, r-1, ghostColor)
+	dst.FillRect(r-4, r-3, 2, 3, eyeColor)
+	dst.FillRect(r+2, r-3, 2, 3, eyeColor)
 }
 
 // Viewports are where the world is shown: the local player's view.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

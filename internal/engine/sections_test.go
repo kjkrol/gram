@@ -136,7 +136,6 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		return nil
 	}
 	kindDefined := func(s *sectioned, _ game.Initializer) error { s.defineUnit(); return nil }
-	draw := func(s *sectioned, _ game.Initializer) error { return s.world.Draw() }
 	commands := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("lit", effect.Spec{})
 		s.world.Commands().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
@@ -148,12 +147,11 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		kinds  bool   // done in Kinds, a wrong place, rather than in Effects
 		panics bool
 	}{
-		"a plugin used":       {do: useAPlugin, wants: "Plugins"},
-		"a role defined":      {do: plays, wants: "Rules", kinds: true, panics: true},
-		"an effect defined":   {do: effectDefined, wants: "Effects", kinds: true, panics: true},
-		"a kind defined":      {do: kindDefined, wants: "Kinds", panics: true},
-		"drawing rules given": {do: draw, wants: "Looks"},
-		"a command defined":   {do: commands, wants: "Commands", panics: true},
+		"a plugin used":     {do: useAPlugin, wants: "Plugins"},
+		"a role defined":    {do: plays, wants: "Rules", kinds: true, panics: true},
+		"an effect defined": {do: effectDefined, wants: "Effects", kinds: true, panics: true},
+		"a kind defined":    {do: kindDefined, wants: "Kinds", panics: true},
+		"a command defined": {do: commands, wants: "Commands", panics: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &sectioned{}
@@ -250,7 +248,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string
 	}{
-		"a kind of cell created": {func(b *built) error { b.board.CellKinds().Create(grass); return nil }, "Cells"},
+		"a kind of cell defined": {func(b *built) error { b.board.CellKinds().Define("grass", grass); return nil }, "Cells"},
 		"the board seeded":       {func(b *built) error { b.board.Seed(board.Layout{}); return nil }, "Layout"},
 		"a player added":         {func(b *built) error { b.players.Add("late"); return nil }, "Players"},
 		"keys bound":             {func(b *built) error { return b.player.Bind() }, "Players"},
@@ -277,7 +275,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	b := &built{}
 	st := stage.New("meadow").Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
-		Cells(func() { b.board.CellKinds().Create(grass) }).
+		Cells(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).
 		Layout(func() { b.board.Seed(board.Layout{Default: "grass"}) }).
 		Update(b.update)

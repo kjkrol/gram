@@ -65,12 +65,12 @@ func (c *benchInit) UseWorld(cfg world.Config) *world.Plugin {
 }
 
 // buildStage runs the fresh-spawn half of entering a Stage: Init, Spawn, Populate, Setup.
-func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
+func buildStage(tb testing.TB) (*goke.ECS, *arena) {
 	tb.Helper()
 
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 
-	stage := newStage()
+	a, stage := newArena()
 	ctx := &benchInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		tb.Fatalf("Init: %v", err)
@@ -88,7 +88,7 @@ func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); stage.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); a.world.Clock().Replay(rc, d) })
 
 	var systems []goke.System
 	for _, produce := range ctx.pending {
@@ -96,7 +96,7 @@ func buildStage(tb testing.TB) (*goke.ECS, *mainStage) {
 	}
 	ctx.ecs.Setup(systems...)
 
-	return ctx.ecs, stage
+	return ctx.ecs, a
 }
 
 // benchStep is one tick at the demo's TPS.

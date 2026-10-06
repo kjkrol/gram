@@ -51,6 +51,13 @@ func Kinds(forest float64) []cell.Kind {
 	return kinds
 }
 
+// Define registers the island's kinds with dict, in a Stage's Cells section.
+func Define(dict cell.Kinds, forest float64) {
+	for _, k := range Kinds(forest) {
+		dict.Define(k.Name.String(), k)
+	}
+}
+
 // Style gives t the island's looks in relief: the sea glinting under the grounds, which blend into
 // one another, and the running water running, taking on the sea's colour towards its mouth.
 func Style(t *topography.Plugin) *topography.Plugin {

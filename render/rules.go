@@ -13,6 +13,12 @@ import (
 type Appearance struct {
 	SpriteID SpriteID
 	Sway     float32
+	// Angle turns the look about the middle of the entity's box, in degrees — 0 east, against
+	// the clock with the screen's y growing down: the convention render.Arrow draws by. The box
+	// itself (collision, picking, the footprint) stays axis-aligned, so Angle is for a square
+	// box whose drawn content fits the circle inscribed in it — Arrow(0, …) reaches exactly
+	// that circle; content past it swings outside the box as the sprite turns.
+	Angle float32
 }
 
 // Rule is how a renderer draws the entities it draws, settled for each of them every frame, in

@@ -51,7 +51,7 @@
 // the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. A unit's Standing tells the effects on the cell
-// under it (Standing.States, unit.Over). A cell plays the roles of its kind ([Plugin.Plays]) and obeys their rules (rule.Part.Obeys: a
+// under it (Standing.States, unit.Over). A cell plays the roles of its kind (cell.Kinds.Define) and its Layout entry's own (cell.Entry.Plays), and obeys their rules (rule.Part.Obeys: a
 // plate, a lever), and a command finds a cell by its name or its group (entity.Named, entity.Group):
 // a plate stood on Triggers, and the command its name sets off opens the group of trapdoors. In the same
 // pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the
@@ -126,7 +126,9 @@
 // A state of the ground is an effect on its cells, the cell staying the kind it is: the effect
 // turns the kind's knobs (cell.Ground) and what lies on the cell is a cover — [Plugin.Covering]
 // gives the slot of the board's atlas laid over the cells under the effect, along the line those
-// cells draw across the tiles, not along their edges (the simple map, a square grid).
+// cells draw across the tiles, not along their edges (the simple map, a square grid). The board's
+// atlas is written as the world's is ([Plugin.NewAtlas]): Add a kind's look by its name and
+// chain [Slot.Under] with the effect for the cover's drawer.
 // [Board.States] are the effects on a cell; unit.Standing.States and unit.Over tell a rule of the
 // cell under a unit.
 package board

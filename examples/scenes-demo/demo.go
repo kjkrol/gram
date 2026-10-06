@@ -13,16 +13,16 @@ const (
 // =========================== Game ===========================
 
 // Demo is the thinnest possible game.Game — just the two Stages and which
-// one starts active. All real behavior lives on MenuStage/GameplayStage.
+// one starts active. All real behavior lives on the menu's and the gameplay's arenas.
 type Demo struct {
 	menu     *MenuStage
-	gameplay *GameplayStage
+	gameplay game.Stage
 }
 
 var _ game.Game = (*Demo)(nil)
 
 func NewDemo() *Demo {
-	gameplay := NewGameplayStage("")
+	_, gameplay := NewGameplayStage("")
 	return &Demo{
 		gameplay: gameplay,
 		menu:     NewMenuStage(gameplay.Name()),

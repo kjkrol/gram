@@ -2,6 +2,8 @@
 package look
 
 import (
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
@@ -36,7 +38,12 @@ func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, _ render.Uniforms
 	l.direct = false
 }
 
-func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, _ float32) {
+func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	if a.Angle != 0 {
+		l.turned(f, cam, box, atlas, a, light)
+		return
+	}
+	id := a.SpriteID
 	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
 		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
@@ -50,6 +57,30 @@ func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, _ enti
 		}
 		return true
 	})
+}
+
+// turned draws the sprite whole, turned about the middle of its box — one piece per wrap image,
+// never split across a seam.
+func (l *Flat) turned(f *render.Frame, cam camera.Camera, box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	rad := a.Angle * math.Pi / 180
+	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
+	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	if l.direct {
+		l.sprites.Turned(cam, atlas, a.SpriteID, x0, y0, x1, y1, rad, light)
+		return
+	}
+	sx0, sy0, sx1, sy1 := atlas.UV(a.SpriteID)
+	sin, cos := float32(math.Sin(float64(rad))), float32(math.Cos(float64(rad)))
+	l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
+	for _, q := range l.quads {
+		cx, cy := (q.X0+q.X1)/2, (q.Y0+q.Y1)/2
+		turn := func(x, y float32) [2]float32 {
+			ox, oy := x-cx, y-cy
+			return [2]float32{cx + ox*cos + oy*sin, cy + oy*cos - ox*sin}
+		}
+		dst := render.Corners{turn(q.X0, q.Y0), turn(q.X1, q.Y0), turn(q.X0, q.Y1), turn(q.X1, q.Y1)}
+		f.SpritePart(render.Objects, 0, atlas, [4]float32{sx0, sy0, sx1, sy1}, dst, render.Lit(light))
+	}
 }
 
 func (*Flat) Drawn(cam camera.Camera, box geom.AABB, z entity.Z) render.Corners {

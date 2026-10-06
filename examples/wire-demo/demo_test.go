@@ -75,7 +75,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 
 // testStage is the demo built fresh, without a window, and a view of its units.
 type testStage struct {
-	*mainStage
+	*arena
+	stage    game.Stage
 	ecs      *goke.ECS
 	base     goke.Comp[world.Base]
 	selected goke.OptComp[tag.Tags[selection.Family]]
@@ -84,15 +85,16 @@ type testStage struct {
 
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &testStage{mainStage: newStage()}
+	s := &testStage{}
+	s.arena, s.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
-	if err := s.Init(ctx); err != nil {
+	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
 		t.Fatalf("roles: %v", err)
 	}
-	if err := s.Spawn(); err != nil {
+	if err := s.stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	for _, v := range ctx.tracked {
@@ -102,7 +104,7 @@ func buildStage(t *testing.T) *testStage {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.Update(rc, d); s.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.stage.Update(rc, d); s.world.Clock().Replay(rc, d) })
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -265,11 +267,11 @@ func TestPlate_OpensTheEastTrapdoorsAlone(t *testing.T) {
 	if len(scouts) != 3 {
 		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
 	}
-	plate, _ := s.brd.CellIndex(plateCol, yardRow)
+	plate := s.brd.CellIndex(plateCol, yardRow)
 	s.put(scouts[0], plate)
 	s.tick(TPS / 2)
 	s.wantOpen(t, "plate stood on", "east")
-	away, _ := s.brd.CellIndex(GridWidth/2, yardRow)
+	away := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], away)
 	s.tick(int(pulse.Seconds() * TPS / 2))
 	s.wantOpen(t, "stepped off the plate, within the pulse", "east")
@@ -303,7 +305,7 @@ func TestGate_LetsTheScoutsOutOnlyWhileOpen(t *testing.T) {
 	scout := s.onRow(yardRow)[0]
 	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scout}})
 	s.tick(1)
-	meadow, _ := s.brd.CellIndex(GridWidth/2, 9) // between the strips, off the wanderers' rows
+	meadow := s.brd.CellIndex(GridWidth/2, 9) // between the strips, off the wanderers' rows
 	send := func() {
 		s.world.Carrier().Put(s.player.ID, navigation.MoveTo{Cell: meadow, At: s.brd.CellCenter(meadow)})
 	}
@@ -380,7 +382,7 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	if len(scouts) != 3 {
 		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
 	}
-	far, _ := s.brd.CellIndex(GridWidth/2, yardRow)
+	far := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], far)
 	s.tick(1)
 	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scouts[0]}})
@@ -388,7 +390,7 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	s.press(control.KeyU)
 	s.tick(TPS / 4)
 	s.wantOpen(t, "U far from the lever")
-	beside, _ := s.brd.CellIndex(leverCol+1, yardRow)
+	beside := s.brd.CellIndex(leverCol+1, yardRow)
 	s.put(scouts[0], beside)
 	s.tick(1)
 	s.press(control.KeyU)

@@ -23,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
-	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -61,12 +60,18 @@ var scale = world.Scale{Metres: 100.0 / CellSize}
 
 // =========================== Game ===========================
 
-// Demo is the island demo — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the island demo — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -82,9 +87,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-type mainStage struct {
-	game.Stage
-
+type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
@@ -96,31 +99,30 @@ type mainStage struct {
 	rival      *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	weather    weathering.Config
 	stops      []cell.ID
 }
 
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("board-topography").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("board-topography").
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Scale:    scale,
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
@@ -141,7 +143,8 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	s.selection = selection.NewPlugin(s.world)
 	s.topography.WithSelection(s.selection)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
+		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
@@ -175,19 +178,19 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayers() error {
+func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.rival = s.players.Add("rival")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(island.Kinds(scale.Units(20))...)
-	s.weather = s.defineClimate()
+func (s *arena) defineCells() {
+	island.Define(s.board.CellKinds(), scale.Units(20))
+	s.defineWinterCells()
 }
 
-func (s *mainStage) defineEffects() {
-	s.atmosphere.WithWeathering(s.board, s.weather)
+func (s *arena) defineEffects() {
+	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	night := s.atmosphere.Calendar().Config().Day / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
@@ -196,7 +199,7 @@ func (s *mainStage) defineEffects() {
 		})})
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 	bloodMoon := s.world.Effects().Named(BloodMoonEf)
@@ -205,22 +208,20 @@ func (s *mainStage) defineRules() {
 	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	s.world.Commands().Define(BleedCmd, rule.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere))
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)))
 }
 
-func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
-
-func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{stage: s, tps: ctx.TPS()}
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: s, tps: ctx.TPS()}
 	return []game.Scene{main}
 }
 
-func (s *mainStage) restore(p game.Persistence) (bool, error) {
+func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -237,7 +238,7 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 
 type unitRow struct{ start, target cell.ID }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
@@ -275,7 +276,7 @@ func (s *mainStage) defineKinds() {
 	)
 }
 
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
 	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
@@ -283,23 +284,27 @@ func (s *mainStage) layOut() {
 	s.topography.Seed(func(p geom.Vec) float64 { return heights(p) * metres })
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
+	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
+	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
 	entries := make([]kind.Entry, 0, len(s.stops)+1)
 	for i, from := range s.stops {
-		walkers, whose := kind.Named[unitRow](s.world.Kinds(), UnitKind), []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+		walkers, whose := unitKind, []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 {
-			walkers, whose = kind.Named[unitRow](s.world.Kinds(), RivalKind), []any{players.Give{To: s.rival.ID}, selection.Allow{}}
+			walkers, whose = rivalKind, []any{players.Give{To: s.rival.ID}, selection.Allow{}}
 		}
 		entries = append(entries, walkers.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(whose...))
 	}
-	entries = append(entries, kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+	entries = append(entries, hawkKind.Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
-		entries = append(entries, kind.Named[unitRow](s.world.Kinds(), PlateauKind).Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		entries = append(entries, plateauKind.Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	s.world.Seed(entries...)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -315,7 +320,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	keys  players.SceneKeys
 	tps   *game.TPS
 }
@@ -324,15 +329,25 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the player's walkers and giants, the rival's, the hawk.
+var (
+	playerColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
+	rivalColor  = color.RGBA{R: 70, G: 110, B: 230, A: 255}
+	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
+	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
+	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
-	mine := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255})
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), spritePx, mine)
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), PlateauKind).SpriteID(), spritePx, mine)
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RivalKind).SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
+	worldAtlas.Add(unitKind, spritePx, render.Solid(playerColor))
+	worldAtlas.Add(plateauKind, spritePx, render.Solid(playerColor))
+	worldAtlas.Add(rivalKind, spritePx, render.Solid(rivalColor))
+	worldAtlas.Add(hawkKind, spritePx, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -351,11 +366,11 @@ func (m *mainScene) Layers() []render.Layer {
 }
 
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

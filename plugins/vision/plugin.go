@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
@@ -97,17 +96,14 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable returns nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// Draw has the views drawn as rules say, every frame: render.Show picks the observers whose views
-// are drawn — the selected ones, say (render.Show(selected.In)); with none, every one is. Call
-// before Use.
-func (p *Plugin) Draw(rules ...render.Rule) error {
-	if err := p.worldPlugin.InSection("drawing rules given", section.Looks); err != nil {
-		return err
-	}
+// WithViews has the views drawn as rules say, every frame: render.Show picks the observers
+// whose views are drawn — the selected ones, say (render.Show(selected.In)); with none, every
+// one is. An option of the plugin's making, like navigation's WithCrowd: call before Use.
+func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
-		return fmt.Errorf("%w in %s", err, p.Name())
+		panic(fmt.Errorf("%w in %s", err, p.Name()))
 	}
-	return nil
+	return p
 }
 
 // =================================================================

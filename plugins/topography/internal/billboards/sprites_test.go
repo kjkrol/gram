@@ -99,7 +99,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		look.Begin(cam)
 		if at != nil {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Altitude: p.Relief().At(*at), Height: 6}, atlas, 0, render.Light{1, 1, 1}, 0)
+			look.Sprite(&f, cam, box, world.Z{Altitude: p.Relief().At(*at), Height: 6}, atlas, render.Appearance{}, render.Light{1, 1, 1})
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)
@@ -145,12 +145,12 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	tiles := render.NewAtlas()
-	tiles.RegisterAt(1, 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
+	tiles.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
 	tiles.Close()
 	b.WithRenderer(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	cam := w.Camera()
-	c, _ := grid.CellIndex(2, 2)
+	c := grid.CellIndex(2, 2)
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)
 	vw, vh := cam.Viewport()
@@ -168,7 +168,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 		look.Begin(cam)
 		if standing {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, 0, render.Light{1, 1, 1}, 0)
+			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, render.Appearance{}, render.Light{1, 1, 1})
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)

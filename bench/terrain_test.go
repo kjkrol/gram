@@ -42,7 +42,7 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	if !scattered {
 		for y := range uint32(terrainSide / 2) {
 			for x := range uint32(terrainSide / 2) {
-				c, _ := grid.CellIndex(x+terrainSide/4, y+terrainSide/4)
+				c := grid.CellIndex(x+terrainSide/4, y+terrainSide/4)
 				out = append(out, c)
 			}
 		}
@@ -50,7 +50,7 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	}
 	rng := rand.New(rand.NewPCG(7, 11))
 	for _, i := range rng.Perm(terrainSide * terrainSide)[:terrainSide*terrainSide/4] {
-		c, _ := grid.CellIndex(uint32(i%terrainSide), uint32(i/terrainSide))
+		c := grid.CellIndex(uint32(i%terrainSide), uint32(i/terrainSide))
 		out = append(out, c)
 	}
 	return out

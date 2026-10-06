@@ -17,7 +17,7 @@ var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | 
 // Bare is the ground under whatever runs across a cell.
 func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
-	c, _ := g.CellIndex(1, 1)
+	c := g.CellIndex(1, 1)
 	brd := board.NewBoard(g)
 	brd.SetAll(earth)
 	brd.SetWay(c, cell.Way{Kind: river, Width: 6})
@@ -29,7 +29,7 @@ func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 // Before the ECS and after, the board lays a way over its cell's ground and counts the change.
 func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
-	c, _ := g.CellIndex(1, 1)
+	c := g.CellIndex(1, 1)
 	way := cell.Way{Kind: river, Width: 6, Links: 1<<0 | 1<<1}
 
 	seeded := board.NewBoard(g)
@@ -64,7 +64,7 @@ func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 // Before the ECS and after, the board lays a crossing over its cell's way and counts the change.
 func TestBoard_LaysACrossingOverTheWay(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	c, _ := grid.CellIndex(1, 1)
+	c := grid.CellIndex(1, 1)
 	way := cell.Way{Kind: river, Width: 6, Links: 1<<0 | 1<<1}
 	over := cell.Crossing{Way: cell.Way{Kind: bridge, Width: 4, Links: 1<<2 | 1<<3}}
 

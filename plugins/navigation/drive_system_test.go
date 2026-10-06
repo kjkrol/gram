@@ -42,7 +42,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...unit.Mover) *driveRig 
 	r := &driveRig{t: t, ecs: goke.New(), grid: grid.DefaultGrids{}.Square(10, 1, 10), occupancy: &cell.SingleOccupancy{}}
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	water, _ := r.grid.CellIndex(6, 0)
+	water := r.grid.CellIndex(6, 0)
 	terrain.Set(water, cell.Kind{Cost: 1, Allows: cell.Water})
 	nav := newNavigationSystem(newPathFinder(r.grid, terrain, nil, r.occupancy), r.grid, terrain, r.occupancy)
 	sys := &driveSystem{nav: nav}
@@ -67,7 +67,7 @@ func newDriveRig(t *testing.T, order *MoveOrder, mover ...unit.Mover) *driveRig 
 		f.Create(1)
 		for f.Next() {
 			r.walker = f.Cursor.IDs[0]
-			start, _ := r.grid.CellIndex(2, 0)
+			start := r.grid.CellIndex(2, 0)
 			at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 			b := &base.Slice(&f.Cursor)[0]
 			b.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(23, 3), 4, 4)}
@@ -152,7 +152,7 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 		t.Errorf("no key held asks %v, want braking", st.WantSpeed)
 	}
 	stranger := uid.UID64(99)
-	next, _ := r.grid.CellIndex(5, 0)
+	next := r.grid.CellIndex(5, 0)
 	r.occupancy.Enter(next, stranger, cell.Land)
 	r.place(47)
 	r.drive(steering.Driven{Ahead: 1})
@@ -165,8 +165,8 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	r := newDriveRig(t, nil)
 	r.place(35)
 	r.drive(steering.Driven{Ahead: 1})
-	cell3, _ := r.grid.CellIndex(3, 0)
-	cell2, _ := r.grid.CellIndex(2, 0)
+	cell3 := r.grid.CellIndex(3, 0)
+	cell2 := r.grid.CellIndex(2, 0)
 	r.with(func(c *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, _ *MoveOrder, entered bool) {
 		if c.Cell != cell3 || !entered {
 			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)
@@ -195,8 +195,8 @@ func TestDrive_AHandEndsAnOrderAndNoHandLetsItGoOn(t *testing.T) {
 }
 
 func TestDrive_AHandGivesUpTheCellsTheOrdersStepHeld(t *testing.T) {
-	cell2, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(2, 0)
-	cell3, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(3, 0)
+	cell2 := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(2, 0)
+	cell3 := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(3, 0)
 	r := newDriveRig(t, &MoveOrder{Target: 8, Leg: Leg{From: cell2, To: cell3, Active: true}})
 	r.occupancy.Enter(cell3, r.walker, cell.Land)
 	r.drive(steering.Driven{Turn: 1})
@@ -233,7 +233,7 @@ func TestDrive_FaceTurnsItToFaceAWay(t *testing.T) {
 
 // r2order is the drive rig with the walker on an order to the far end of the row.
 func r2order(t *testing.T) *driveRig {
-	far, _ := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
+	far := grid.DefaultGrids{}.Square(10, 1, 10).CellIndex(9, 0)
 	return newDriveRig(t, &MoveOrder{Target: far})
 }
 

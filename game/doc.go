@@ -46,7 +46,8 @@
 // systems of its own the way a plugin does.
 //
 // A Stage hands its rules to nobody: a rule is a role's (world.Roles), a role is played — by a kind
-// (rule.Plays), by a kind of cell (board.Plugin.Plays), by a plugin (world.Plugin.Plays) — and once
+// (rule.Plays), by a kind of cell or one cell of the Layout (cell.Kinds.Define, cell.Entry.Plays),
+// by a plugin (world.Plugin.Plays) — and once
 // Init returns the engine gives the rules of every role played to the plugin in use that catches
 // their moment, a unit.Standing's to the board, a vision.Sighting's to vision. A rule no plugin
 // in use catches fails Init with an error wrapping plugin.ErrUnhosted, naming the rule.

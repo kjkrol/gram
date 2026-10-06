@@ -70,7 +70,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 
 // testStage is the demo built fresh, without a window, and a view of its units.
 type testStage struct {
-	*mainStage
+	*arena
+	stage game.Stage
 	ecs   *goke.ECS
 	base  goke.Comp[world.Base]
 	units *goke.Query
@@ -78,15 +79,16 @@ type testStage struct {
 
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &testStage{mainStage: newStage()}
+	s := &testStage{}
+	s.arena, s.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
-	if err := s.Init(ctx); err != nil {
+	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
 		t.Fatalf("roles: %v", err)
 	}
-	if err := s.Spawn(); err != nil {
+	if err := s.stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	for _, v := range ctx.tracked {
@@ -96,7 +98,7 @@ func buildStage(t *testing.T) *testStage {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.Update(rc, d); s.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.stage.Update(rc, d); s.world.Clock().Replay(rc, d) })
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -130,7 +132,7 @@ func (s *testStage) strip(i int) map[uid.UID64]bool {
 
 // holds reports whether the top trapdoor of group i holds a walker.
 func (s *testStage) holds(i int) bool {
-	c, _ := s.brd.CellIndex(groups[i].left, stripTop)
+	c := s.brd.CellIndex(groups[i].left, stripTop)
 	return s.brd.Kind(c).Admits(cell.Land)
 }
 
@@ -189,7 +191,7 @@ func TestPlate_OpensItsTrapdoorsWhileSomeoneStandsOnIt(t *testing.T) {
 	if !s.holds(0) || !s.holds(1) {
 		t.Fatal("a trapdoor open before anyone stood on a plate")
 	}
-	plate, _ := s.brd.CellIndex(groups[0].plate, plateRow)
+	plate := s.brd.CellIndex(groups[0].plate, plateRow)
 	scout := s.scout()
 	s.put(scout, plate)
 	s.tick(TPS / 2)
@@ -202,7 +204,7 @@ func TestPlate_OpensItsTrapdoorsWhileSomeoneStandsOnIt(t *testing.T) {
 	if s.holds(0) || !s.holds(1) {
 		t.Errorf("west plate pressed: west holds %v, east holds %v; want the west open alone", s.holds(0), s.holds(1))
 	}
-	away, _ := s.brd.CellIndex(GridWidth/2, plateRow)
+	away := s.brd.CellIndex(GridWidth/2, plateRow)
 	s.put(scout, away)
 	s.tick(int(heldAfter.Seconds() * TPS / 2))
 	if s.holds(0) {

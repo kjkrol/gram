@@ -181,11 +181,15 @@
 //
 // # Appearance, drawing and Look
 //
-// [Appearance] is the sprite an entity is drawn from (render.Appearance); [Plugin.WithRenderer]
-// builds the entity renderer over an atlas, and the render.Rule values given to [Plugin.Draw]
-// settle, every frame and in order, what each entity is drawn with and whether it is drawn —
-// render.Over, As, Swap (a kind's own look under a state), With, Show, and [Facing], its sprite
-// picked from the way it moves — leaving its Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the
+// render.Appearance is the sprite an entity is drawn from; how it is drawn is declared in one
+// place, the world's own [Atlas] in a scene's Layers ([Plugin.NewAtlas]): Add each kind's look —
+// a sprite drawn once, or a material worked out per pixel in the entity's box every frame
+// (render.Look; the renderer fills the material's inputs with the entity's state: its box and
+// heading in Custom, how fast it moves in Red) — its look Under an effect (either way again),
+// Turning for a sprite turned the way its entity is headed (Appearance.Angle from Vel.Dir, 0 east
+// against the clock, render.Arrow's convention), Facing for its directional twins. [Plugin.WithRenderer] builds the entity renderer over the atlas and applies what it
+// declared itself — the effects' swaps, the facing, the turning, every frame — leaving the
+// Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]
 // with its box and its [Z] — where it stands and how tall — from above its box, unless a view
 // plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says.

@@ -102,7 +102,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		return 0
 	}))
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
@@ -155,20 +155,20 @@ func Benchmark_Board_Shores(b *testing.B) {
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
-			if c, _ := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
+			if c := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
 				brd.Set(c, land)
 			}
 		}
 	}
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
 	cam := ctx.world.Camera()
 	var f render.Frame
-	far, _ := grid.CellIndex(6, 6)
+	far := grid.CellIndex(6, 6)
 	shallows := sea
 	shallows.Cost = 2
 	for _, sc := range []struct {
@@ -211,14 +211,12 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
 	kinds := p.CellKinds()
-	kinds.Create(
-		cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water},
-		cell.Kind{Name: cell.Named("earth"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("sand"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("rock"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land | cell.Water},
-		cell.Kind{Name: cell.Named("estuary"), Cost: 1, Allows: cell.Water},
-	)
+	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("sand", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("rock", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("stream", cell.Kind{Cost: 2, Allows: cell.Land | cell.Water})
+	kinds.Define("estuary", cell.Kind{Cost: 1, Allows: cell.Water})
 	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
 		Style("earth", painter.Style{Spread: 0.3}).
 		Style("sand", painter.Style{Spread: 0.35}).
@@ -277,7 +275,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	p.Seed(layout)
 	atlas := render.NewAtlas()
 	for _, k := range kinds.All() {
-		atlas.RegisterAt(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
+		atlas.Add(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
 	p.WithWorkers(workers).WithRenderer(atlas)
@@ -313,8 +311,8 @@ func Benchmark_Board_Island(b *testing.B) {
 			cam.SetViewport(1920, 1080)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 		}
-		far, _ := brd.CellIndex(48, 32)
-		rock, _ := brd.CellIndex(48, 30)
+		far := brd.CellIndex(48, 32)
+		rock := brd.CellIndex(48, 30)
 		view := v.view
 		if v.far {
 			view += ",far"

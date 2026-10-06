@@ -84,7 +84,7 @@ func NewQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[Re
 	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World)
 	qw.Topo = topography.NewPlugin(qw.World, qw.Board, topography.Config{Cell: 32})
 	qw.Board.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
-	hillCell, _ := qw.Grid.CellIndex(2, 1)
+	hillCell := qw.Grid.CellIndex(2, 1)
 	qw.Board.Res.Logic.Board.Set(hillCell, Hill)
 	RaiseHills(qw.Topo.Relief(), qw.Grid, hillCell)
 	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })

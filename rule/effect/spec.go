@@ -19,6 +19,7 @@ type Trait interface{ apply(d *def) }
 // def is an effect as the plugin runs it.
 type def struct {
 	name     string
+	describe string        // what the effect is, for a UI
 	lasts    time.Duration // 0: Forever
 	stacking bool
 	grants   []grant
@@ -38,6 +39,10 @@ func Lasts(d time.Duration) Trait { return traitFn(func(e *def) { e.lasts = d })
 
 // Stacking makes a repeated Cast add a slot instead of refreshing the one there.
 func Stacking() Trait { return traitFn(func(e *def) { e.stacking = true }) }
+
+// Described gives the effect a description — a sentence a UI shows, a tooltip: what the state is
+// and does, in the game's words. Effect.Description hands it back.
+func Described(text string) Trait { return traitFn(func(e *def) { e.describe = text }) }
 
 // Then casts next once the effect runs out — not when it is dispelled: burning, then ash. next is
 // one of the same Effects, defined before.

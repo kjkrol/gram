@@ -50,11 +50,17 @@ const (
 // =========================== Game ===========================
 
 // Demo is the vision demo — exactly one Stage.
-type Demo struct{ stage *mainStage }
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -76,9 +82,7 @@ type body struct {
 	vel world.Velocity
 }
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world     *world.Plugin
 	vision    *vision.Plugin
 	collision *collision.Plugin
@@ -91,9 +95,11 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("vision-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("vision-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -104,10 +110,9 @@ func newStage() *mainStage {
 		Scenes(s.defineScenes).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
@@ -124,17 +129,17 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineEffects() {
+func (s *arena) defineEffects() {
 	s.world.Effects().Define(FleeingEf, effect.Spec{})
 	s.world.Effects().Define(LookedEf, effect.Spec{effect.Lasts(hunterLooksEvery)})
 }
 
-func (s *mainStage) defineRoles() {
+func (s *arena) defineRoles() {
 	s.world.Roles().Define(PreyRole)
 	quarter := steering.Turn{Angle: math.Pi / 2}
 	s.world.Roles().Define(PredatorRole,
@@ -152,15 +157,15 @@ func (s *mainStage) defineRoles() {
 			rule.During(s.world.Effects().Named(FleeingEf), rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))))
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	s.world.Commands().Define(FleeCmd, rule.Toggle(s.world.Effects().Named(FleeingEf)).On(entity.World))
 }
 
-func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&mainScene{stage: s, tps: ctx.TPS()}}
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&mainScene{arena: s, tps: ctx.TPS()}}
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	kind.Define[body](kinds, PreyKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
@@ -187,7 +192,7 @@ func sees() kind.Spec {
 	}
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1
@@ -199,16 +204,18 @@ func (s *mainStage) placeUnits() {
 		}
 	}
 
+	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 	entries := make([]kind.Entry, 0, total)
 	for i := range PreyCount {
-		entries = append(entries, kind.Named[body](s.world.Kinds(), PreyKind).Entry(roam(i, roamSpeed)))
+		entries = append(entries, preyKind.Entry(roam(i, roamSpeed)))
 	}
-	entries = append(entries, kind.Named[body](s.world.Kinds(), HunterKind).Entry(roam(PreyCount, hunterSpeed)))
+	entries = append(entries, hunterKind.Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
 	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.vision.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
@@ -219,7 +226,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	tps   *game.TPS
 }
 
@@ -228,12 +235,21 @@ var _ game.Scene = (*mainScene)(nil)
 func (m *mainScene) Name() string    { return "main" }
 func (m *mainScene) Focusable() bool { return true }
 
+// The scene's colours: the prey, the hunter and the backdrop's grey.
+var (
+	preyColor       = color.RGBA{R: 120, G: 190, B: 255, A: 255}
+	hunterColor     = color.RGBA{R: 225, G: 70, B: 70, A: 255}
+	backgroundColor = color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
+	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), PreyKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
-	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), HunterKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
+	atlas.Add(preyKind, RectSize, render.Solid(preyColor))
+	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 	s.vision.WithRenderer(atlas)
@@ -241,7 +257,7 @@ func (m *mainScene) Layers() []render.Layer {
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.NewCachedRenderer(
-			render.SolidBackground{Color: color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}},
+			render.SolidBackground{Color: backgroundColor},
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.vision.Renderer(), s.world.Renderer()),
@@ -251,14 +267,14 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
 		s.world.Commands().Named(FleeCmd)))
 }

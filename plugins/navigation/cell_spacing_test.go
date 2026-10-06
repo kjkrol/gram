@@ -102,7 +102,7 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
 	k := newCellKeeping(newPathFinder(grid, terrain, nil, openOccupancy{}), occ)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: cell.Land, pos: posAt(grid, at(1, 1))}
 	coming := body{id: 3, at: grid.CellCenter(at(0, 1)), cell: at(0, 1), moving: true}
 	o, ok := k.stepAside(m, coming)

@@ -258,7 +258,7 @@ func (cliffs) Least(cell.Domain) float64 { return 1 }
 // and stays; with one side open, it steps there.
 func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 32)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	hazards := map[string]cell.Kind{
 		"water": {Cost: 1, Allows: cell.Water},

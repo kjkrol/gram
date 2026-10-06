@@ -21,7 +21,7 @@ func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		k := units.Named("walker")
-		start, _ := grid.CellIndex(0, 3)
+		start := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(topotest.Recruit{Start: start})}
 	})
 	qw.ECS.Tick(time.Second / 60)
@@ -29,7 +29,7 @@ func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	if len(runs) != 1 || runs[0].First != 0 || runs[0].Count != 25 {
 		t.Fatalf("runs %d, the first from %d of %d; want one of 25: a 4x4 grid's 5x5 corners", len(runs), runs[0].First, runs[0].Count)
 	}
-	c, _ := qw.Grid.CellIndex(0, 0)
+	c := qw.Grid.CellIndex(0, 0)
 	qw.Topo.Relief().(*irelief.Relief).SetCorners(c, irelief.Corners{7, 7, 7, 7})
 	qw.ECS.Tick(time.Second / 60)
 	if got := runsOf(qw)[0].Values[0]; got != 7 {

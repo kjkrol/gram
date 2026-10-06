@@ -19,7 +19,8 @@
 // effect grants them; [Alter] changes a component and restores the original after — several
 // Alters of one component stack from the original in slot order, whichever ends first. The plugin
 // keeps the originals itself and saves them with the game. At most 63 effects are defined, one
-// marker each beside Changed.
+// marker each beside Changed. [Described] gives the effect a sentence for a UI — a tooltip —
+// handed back by [Effect.Description].
 //
 // # Active, Cast and Dispel
 //

@@ -31,8 +31,8 @@ func TestAtlas_RegisterAt_BindsEachDrawerToItsOwnSlot(t *testing.T) {
 
 	atlas := NewAtlas()
 	var drawnFor []SpriteID
-	atlas.RegisterAt(second, 4, func(*Canvas, int) { drawnFor = append(drawnFor, second) })
-	atlas.RegisterAt(first, 4, func(*Canvas, int) { drawnFor = append(drawnFor, first) })
+	atlas.Add(second, 4, func(*Canvas, int) { drawnFor = append(drawnFor, second) })
+	atlas.Add(first, 4, func(*Canvas, int) { drawnFor = append(drawnFor, first) })
 	atlas.Close()
 
 	if len(drawnFor) != 2 {
@@ -49,9 +49,10 @@ func TestAtlas_BakesOnlyAtClose_EachSpriteOnceAtItsOwnSize(t *testing.T) {
 	drawn := map[int]int{}
 	drawer := func(_ *Canvas, size int) { drawn[size]++ }
 
-	atlas.RegisterAt(0, 16, drawer)
-	late := atlas.Register(100, drawer)
-	atlas.RegisterAt(5, 2, drawer)
+	atlas.Add(SpriteID(0), 16, drawer)
+	const late = SpriteID(1)
+	atlas.Add(late, 100, drawer)
+	atlas.Add(SpriteID(5), 2, drawer)
 	if len(drawn) != 0 {
 		t.Fatalf("drawers ran before Close: %v", drawn)
 	}
@@ -82,8 +83,8 @@ func TestAtlas_Close_WrapsIntoRowsRatherThanOutgrowATexture(t *testing.T) {
 	const size, count = 1000, 9
 
 	atlas := NewAtlas()
-	for range count {
-		atlas.Register(size, func(*Canvas, int) {})
+	for i := range count {
+		atlas.Add(SpriteID(i), size, func(*Canvas, int) {})
 	}
 	atlas.Close()
 
@@ -109,13 +110,13 @@ func TestAtlas_RefusesWhatCannotWork(t *testing.T) {
 		do   func(a *Atlas)
 		want string
 	}{
-		"the sheet before Close":  {func(a *Atlas) { a.Atlas() }, "before Close"},
-		"a UV before Close":       {func(a *Atlas) { a.RegisterAt(0, 4, nothing); a.UV(0) }, "before Close"},
-		"registering after Close": {func(a *Atlas) { a.Close(); a.Register(4, nothing) }, "after Close"},
-		"a slot twice":            {func(a *Atlas) { a.RegisterAt(3, 4, nothing); a.RegisterAt(3, 4, nothing) }, "sprite 3"},
-		"a sprite nobody gave":    {func(a *Atlas) { a.RegisterAt(2, 4, nothing); a.Close(); a.UV(1) }, "sprite 1"},
-		"a sprite past the last":  {func(a *Atlas) { a.RegisterAt(2, 4, nothing); a.Close(); a.UV(9) }, "sprite 9"},
-		"a sprite of no size":     {func(a *Atlas) { a.Register(0, nothing) }, "size 0"},
+		"the sheet before Close": {func(a *Atlas) { a.Atlas() }, "before Close"},
+		"a UV before Close":      {func(a *Atlas) { a.Add(SpriteID(0), 4, nothing); a.UV(0) }, "before Close"},
+		"adding after Close":     {func(a *Atlas) { a.Close(); a.Add(SpriteID(0), 4, nothing) }, "after Close"},
+		"a slot twice":           {func(a *Atlas) { a.Add(SpriteID(3), 4, nothing); a.Add(SpriteID(3), 4, nothing) }, "sprite 3"},
+		"a sprite nobody gave":   {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(1) }, "sprite 1"},
+		"a sprite past the last": {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(9) }, "sprite 9"},
+		"a sprite of no size":    {func(a *Atlas) { a.Add(SpriteID(0), 0, nothing) }, "size 0"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			msg := panicOf(t, func() { tc.do(NewAtlas()) })
@@ -137,8 +138,9 @@ func TestAtlas_Close_WithNothingRegistered_StillYieldsASheet(t *testing.T) {
 
 func TestAtlas_KeepsAWhitePatchClearOfTheSprites(t *testing.T) {
 	atlas := NewAtlas()
-	a := atlas.Register(8, func(*Canvas, int) {})
-	b := atlas.Register(16, func(*Canvas, int) {})
+	a, b := SpriteID(0), SpriteID(1)
+	atlas.Add(a, 8, func(*Canvas, int) {})
+	atlas.Add(b, 16, func(*Canvas, int) {})
 	atlas.Close()
 	u, v := atlas.White()
 	for _, id := range []SpriteID{a, b} {

@@ -13,10 +13,11 @@ import (
 // drawing its entities, which the renderer, picking and outlines ask. The world starts with a flat
 // look, seen from above; a view plugin puts its own in with Plugin.SetLook.
 type Look interface {
-	// Sprite hands f sprite id of atlas for an entity whose box stands as z says — at its Altitude,
-	// Height tall; the zero Z in a flat world — on the render.Objects tier, in light, swaying as much
-	// as sway says (Appearance.Sway) for a Look that knows a wind.
-	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32)
+	// Sprite hands f the entity's settled Appearance — its sprite of atlas, how much it sways
+	// for a Look that knows a wind, the angle it is turned by — for a box standing as z says (at
+	// its Altitude, Height tall; the zero Z in a flat world), on the render.Objects tier, in
+	// light. A billboard in relief ignores the Angle; the flat look turns the sprite.
+	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners
 	// Footprint appends to dst the ground under box on screen, in pieces where it crosses a wrap

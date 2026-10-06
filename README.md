@@ -223,15 +223,22 @@ type view struct {
 func (v *view) Name() string    { return "view" }
 func (v *view) Focusable() bool { return true }
 
+// The scene's colours: the boxes and the backdrop.
+var (
+	boxColor        = color.RGBA{R: 90, G: 200, B: 110, A: 255}
+	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
+)
+
 func (v *view) Layers() []render.Layer {
+	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(kind.Named[box](v.arena.world.Kinds(), BoxKind).SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
 	return []render.Layer{
-		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
+		render.SolidBackground{Color: backgroundColor},
 		render.NewComposer(v.arena.world.Renderer()),
 		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
 	}
@@ -315,13 +322,12 @@ is refused:
 stage.New("meadow").
 	Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
 	Players(s.definePlayer).    // the players, the plugins' default keys
-	Cells(s.defineCells).       // the kinds of cells
 	Effects(s.defineEffects).   // the states
 	Rules(s.defineRules).       // the roles, the rules, the plans
 	Commands(s.defineCommands). // what can be asked for
+	Cells(s.defineCells).       // the kinds of cells, the roles their cells play
 	Kinds(s.defineKinds).       // the kinds of units
 	Controls(s.bindKeys).       // the game's own keys, each a command
-	Looks(s.defineLooks).       // the drawing rules
 	Scenes(s.defineScenes).     // the scenes
 	Layout(s.layOut).           // a fresh game's board
 	Units(s.placeUnits).        // a fresh game's units
@@ -363,7 +369,8 @@ of the same steps; both cast *effects* that hold for a while and give *commands*
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
 `cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is the one place
-rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). A plugin ships no
+rules are Go, declared on the world's atlas in a scene's Layers (`world.Plugin.NewAtlas`: a look
+`Under` an effect, `Turning`, `Facing`). A plugin ships no
 ready-made reactions — it gives moments and their conditions (`unit.Standing.Fallen`,
 `vision.Sighting.Closing`), and the game says what follows; navigation's
 crowd is its own rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to
@@ -383,7 +390,8 @@ each defined under a name in the Stage's world and taken back with `Named(name)`
 built on — a game keeps its names as constants, each with a suffix saying what it names (`Ef` an
 effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell), and a
 Stage's struct holds its plugins and nothing else. Each Stage has its own registers. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
-(`board.Plugin.Plays(kind, roles...)`), the world and the atmosphere through their own `Plays` —
+(`cell.Kinds.Define(name, kind, roles...)`) or one cell of the Layout alone (`cell.Entry.Plays`),
+the world and the atmosphere through their own `Plays` —
 for the rules of a `clock.Moment` and of the weather. A plugin is an entity of the world too
 (`world.Self`), called by its name: it carries the plugin's knobs and the effects it is under, so
 a state of the sky is an effect on the atmosphere — `rule.Cast(bloodMoon).On(s.atmosphere)`,
@@ -417,7 +425,8 @@ roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All,
 roles.Define(HastyRole)
 roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All,
 	rule.If(cell.Now.Stood, rule.Trigger())))
-s.board.Plays(PlateCell, roles.Named(PlateRole)) // every cell laid as a plate plays it
+kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land},
+	roles.Named(PlateRole)) // every cell laid as a plate plays it
 
 // Commands
 cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")))

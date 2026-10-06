@@ -18,11 +18,12 @@
 // where no board is wanted. The board's Layout names kinds by name: an [Entry] per cell, a
 // [WayEntry] per way or crossing. An Entry also gives its cell, for good, what it is called — a Name of its own, a
 // Group it shares — which its entity carries as an entity.Label and commands find it by
-// (entity.Named, Group); the roles it plays, whose rules it obeys, are its kind's
-// (board.Plugin.Plays):
+// (entity.Named, Group); and the roles it plays, whose rules it obeys, beyond its kind's
+// (Kinds.Define) — Entry.Plays, this one cell's own:
 //
 //	cell.Entry{Kind: "plate", Cell: c, Name: "plate"}
 //	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
+//	water.Entry(c).Plays(lakeRole) // built on the kind's handle (Kinds.Named, Of.Entry)
 //
 // # Now
 //

@@ -72,7 +72,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 
 // testStage is the demo built fresh, without a window, and a view of its units and shots.
 type testStage struct {
-	*mainStage
+	*arena
+	stage  game.Stage
 	test   *testing.T
 	ecs    *goke.ECS
 	base   goke.Comp[world.Base]
@@ -83,15 +84,16 @@ type testStage struct {
 
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &testStage{mainStage: newStage()}
+	s := &testStage{}
+	s.arena, s.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
-	if err := s.Init(ctx); err != nil {
+	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
 		t.Fatalf("roles: %v", err)
 	}
-	if err := s.Spawn(); err != nil {
+	if err := s.stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	for _, v := range ctx.tracked {
@@ -101,7 +103,7 @@ func buildStage(t *testing.T) *testStage {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.Update(rc, d); s.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.stage.Update(rc, d); s.world.Clock().Replay(rc, d) })
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -146,7 +148,7 @@ func (s *testStage) state(id uid.UID64) (alive, wounded bool) {
 			}
 			alive = true
 			if m := s.marks.Slice(cur); m != nil {
-				wounded = m[k].Has(s.effects.Named(WoundedEf).Mark())
+				wounded = m[k].Has(s.world.Effects().Named(WoundedEf).Mark())
 			}
 		}
 	}
@@ -171,7 +173,7 @@ func TestShoot_ARoundWoundsTheWandererOnTheRoad(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(8, roadRow))
 	for i := 0; i < 5*TPS; i++ {
 		if i%15 == 0 {
-			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(RoundKind)}); err != nil {
+			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -191,7 +193,7 @@ func TestThrow_AGrenadeBurstsBehindTheHighWall(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(9, 4))
 	at := s.brd.CellCenter(s.cellAt(10, 4))
 	s.tick(1) // the soldier is told whose it is and selected as it is made: carried out in the first tick
-	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(GrenadeKind), At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
+	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.bullet.Shots().Named(GrenadeKind), At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
 		t.Fatal(err)
 	}
 	s.tick(1)

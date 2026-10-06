@@ -57,6 +57,13 @@
 // grenade, Then bang, a rule of Resting under bang that Bursts; a wounded effect a Blast rule
 // applies ForOther. See examples/bullet-demo.
 //
+// # Dressing a shot
+//
+// A shot is drawn from its Ammo's sprite like any entity, and dressed the same ways, on the
+// world's atlas: a state's look Under an effect (a grenade with its fuse sparking), and Turning
+// for one drawn the way it flies — the plugin keeps a shot's heading on its Vel.Dir, so a bolt
+// authored facing east flies head first and lies stuck the way it landed.
+//
 // # Limits
 //
 // A wrapping world is refused (a sweep across the seam). Shots do not penetrate: the nearest

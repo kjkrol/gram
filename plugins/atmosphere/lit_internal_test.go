@@ -47,7 +47,7 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	sprite := func() render.Vertex {
 		var f render.Frame
 		f.Reset(cam)
-		w.Look().Sprite(&f, cam, plane.NewAABB(geom.NewVec(40, 40), 10, 10), world.Z{}, litSheet{}, 0, render.Light{1, 1, 1}, 0)
+		w.Look().Sprite(&f, cam, plane.NewAABB(geom.NewVec(40, 40), 10, 10), world.Z{}, litSheet{}, render.Appearance{}, render.Light{1, 1, 1})
 		var v render.Vertex
 		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
 		return v

@@ -55,12 +55,18 @@ func countFor(rect uint32, percent float64) int {
 
 // =========================== Game ===========================
 
-// Demo is the collision demo — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the collision demo — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -90,14 +96,9 @@ type body struct {
 // bodyKind names the kind drawn with color ci and shape si.
 func bodyKind(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
-
-	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
-	hitSprite render.SpriteID
 
 	collisionStats collision.ContactStats
 
@@ -105,23 +106,23 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("collision-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("collision-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Kinds(s.defineKinds).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
@@ -136,28 +137,24 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	return s.players.Local("player").Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineEffects() {
+func (s *arena) defineEffects() {
 	s.world.Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(BodyRole,
 		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.world.Effects().Named(HitEf))))
 }
 
-func (s *mainStage) defineLooks() error {
-	return s.world.Draw(render.Over(world.Appearance{SpriteID: s.hitSprite}, s.world.Effects().Named(HitEf).Mark().In))
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	return []game.Scene{&mainScene{arena: s, tps: ctx.TPS()}}
 }
 
-func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&mainScene{stage: s, tps: ctx.TPS()}}
-}
-
-func (s *mainStage) restore(p game.Persistence) (bool, error) {
+func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -172,7 +169,7 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	for ci := range entityColors {
 		for si := range entityShapes {
@@ -185,21 +182,21 @@ func (s *mainStage) defineKinds() {
 			})
 		}
 	}
-	s.hitSprite = s.world.Kinds().NewSprite() // the overlay's atlas slot, no kind's
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
+	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = kind.Named[body](s.world.Kinds(), bodyKind(rng.IntN(entityColors), rng.IntN(entityShapes))).Entry(
+		entries[i] = bodyKindOf(rng.IntN(entityColors), rng.IntN(entityShapes)).Entry(
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
@@ -209,7 +206,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	tps   *game.TPS
 }
 
@@ -217,10 +214,10 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
-
-	palette := [8]color.RGBA{
+// The scene's colours: a palette of the bodies' colours — the one past entityColors is the
+// hit's overlay — and the backdrop.
+var (
+	palette = [8]color.RGBA{
 		{R: 80, G: 120, B: 220, A: 255},
 		{R: 90, G: 200, B: 110, A: 255},
 		{R: 80, G: 200, B: 210, A: 255},
@@ -230,22 +227,32 @@ func (m *mainScene) Layers() []render.Layer {
 		{R: 60, G: 160, B: 150, A: 255},
 		{R: 220, G: 40, B: 40, A: 255},
 	}
-	atlas := render.NewAtlas()
+	backgroundColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
+)
+
+func (m *mainScene) Layers() []render.Layer {
+	s := m.arena
+
+	atlas := s.world.NewAtlas()
+	hit := s.world.Effects().Named(HitEf)
+	flash := palette[entityColors]
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
+	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.RegisterAt(kind.Named[body](s.world.Kinds(), bodyKind(ci, si)).SpriteID(), int(RectSize), shape(c))
+			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c)).
+				Under(hit, func(dst *render.Canvas, size int) { // struck: its own shape, flashed
+					shapes[si](flash)(dst, size)
+				})
 		}
 	}
-
-	atlas.RegisterAt(s.hitSprite, int(RectSize), render.Solid(palette[entityColors]))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.NewCachedRenderer(
-			render.SolidBackground{Color: color.RGBA{R: 50, G: 50, B: 50, A: 255}},
+			render.SolidBackground{Color: backgroundColor},
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.world.Renderer()),
@@ -255,11 +262,11 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

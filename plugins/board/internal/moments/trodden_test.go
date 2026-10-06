@@ -19,7 +19,7 @@ func TestTrodden_MarkedOnlyWhileACellNowRuleIsHooked(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 1, 10)
 	cells := terrain.New(g)
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	middle, _ := g.CellIndex(1, 0)
+	middle := g.CellIndex(1, 0)
 	never := func(unit.Standing) bool { return false }
 	for name, c := range map[string]struct {
 		rules []rule.Rule

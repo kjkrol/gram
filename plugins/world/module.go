@@ -169,7 +169,7 @@ func (w *module) SetupSystems() []goke.System { return w.seeds }
 func (w *module) LoadComps() []goke.CompToken {
 	tokens := append([]goke.CompToken{
 		goke.LoadComp[Base](),
-		goke.LoadComp[Appearance](),
+		goke.LoadComp[render.Appearance](),
 		goke.LoadComp[steering.Steering](),
 		goke.LoadComp[steering.Course](),
 		goke.LoadComp[steering.Pace](),

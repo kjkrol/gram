@@ -37,7 +37,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	occupancy := &cell.SingleOccupancy{}
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	target := at(5, 5)
 	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
 
@@ -100,7 +100,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 
 func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	target := at(4, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: target, hasOrder: true},
@@ -128,7 +128,7 @@ func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 
 func TestNavigation_OccupiedUnreachableTarget_GivesUp(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 	lw := newLegWorld(t, 5, 1,
 		legUnit{start: at(0), target: at(3), hasOrder: true},
 		legUnit{start: at(3)},

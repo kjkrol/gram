@@ -165,6 +165,7 @@ func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, 
 // its gravity, and notes where the step ends its flight — the ground, its Range, an edge.
 func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision.Sweep, z *world.Z, dt float64) {
 	run := min(body.Speed*dt, f.Range-f.Flown)
+	base.Vel.Dir = f.Dir // the heading, for a Turning look; Value stays 0 — the flight moves it
 	if sw != nil {
 		sw.From = f.At
 	}

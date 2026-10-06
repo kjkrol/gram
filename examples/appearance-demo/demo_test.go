@@ -1,8 +1,8 @@
 package main
 
 import (
+	"math"
 	"math/rand/v2"
-	"slices"
 	"testing"
 	"time"
 
@@ -70,14 +70,14 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// recording is a Look that remembers the sprites each box is drawn with, layer by layer.
+// recording is a Look that remembers the Appearance each box is drawn with, layer by layer.
 type recording struct {
 	world.Look
-	drawn map[geom.Vec][]render.SpriteID
+	drawn map[geom.Vec][]render.Appearance
 }
 
-func (r *recording) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	r.drawn[box.TopLeft] = append(r.drawn[box.TopLeft], id)
+func (r *recording) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	r.drawn[box.TopLeft] = append(r.drawn[box.TopLeft], a)
 }
 
 // noAtlas is an AtlasSource with no sheet: what a recording look needs.
@@ -87,18 +87,31 @@ func (noAtlas) Atlas() *render.Image                                    { return
 func (noAtlas) UV(render.SpriteID) (float32, float32, float32, float32) { return 0, 0, 1, 1 }
 func (noAtlas) White() (float32, float32)                               { return 0, 0 }
 
-// shown is one entity as it was last drawn: its kind, the way it went and its sprites.
+// shown is one entity as it was last drawn: its kind, the way it went and its looks.
 type shown struct {
-	kind    kind.ID
-	heading heading
-	sprites []render.SpriteID
+	kind kind.ID
+	vel  world.Velocity
+	apps []render.Appearance
+}
+
+// headingIdx4 is which of the four ways round the circle v heads — east, north, west, south —
+// in the engine's one convention, as the walkers' Facing picks its twin.
+func headingIdx4(v world.Velocity) int {
+	i := int(math.Round(math.Atan2(-v.Dir.Y, v.Dir.X) / (2 * math.Pi) * 4))
+	return ((i % 4) + 4) % 4
+}
+
+// angleDeg is the way v heads as a turned sprite's Angle.
+func angleDeg(v world.Velocity) float32 {
+	return float32(math.Atan2(-v.Dir.Y, v.Dir.X) * 180 / math.Pi)
 }
 
 // drawnStage is the demo's Stage built without a window and drawn through a recording look.
 type drawnStage struct {
 	t     *testing.T
 	ecs   *goke.ECS
-	stage *mainStage
+	arena *arena
+	stage game.Stage
 	rec   *recording
 	base  goke.Comp[world.Base]
 	all   *goke.Query
@@ -107,7 +120,8 @@ type drawnStage struct {
 func newDrawnStage(t *testing.T) *drawnStage {
 	t.Helper()
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
-	ds := &drawnStage{t: t, stage: newStage()}
+	ds := &drawnStage{t: t}
+	ds.arena, ds.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := ds.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -125,8 +139,8 @@ func newDrawnStage(t *testing.T) *drawnStage {
 			}
 		}
 	}
-	w := ds.stage.world
-	w.WithRenderer(noAtlas{})
+	w := ds.arena.world
+	w.WithRenderer(ds.arena.looks())
 	ds.rec = &recording{Look: w.Look()}
 	w.SetLook(ds.rec)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { ds.stage.Update(rc, d); w.Clock().Replay(rc, d) })
@@ -151,17 +165,17 @@ func (ds *drawnStage) tick(n int) {
 
 // draw composes a frame and tells what every entity was drawn with.
 func (ds *drawnStage) draw() []shown {
-	ds.rec.drawn = map[geom.Vec][]render.SpriteID{}
-	cam := ds.stage.world.Camera()
+	ds.rec.drawn = map[geom.Vec][]render.Appearance{}
+	cam := ds.arena.world.Camera()
 	var f render.Frame
 	f.Reset(cam)
-	ds.stage.world.Renderer().(interface {
+	ds.arena.world.Renderer().(interface {
 		Compose(*render.Frame, camera.Camera)
 	}).Compose(&f, cam)
 	var out []shown
 	for ds.all.All(); ds.all.Next(); {
 		for _, b := range ds.base.Slice(ds.all.Cursor()) {
-			out = append(out, shown{kind: b.TypeID, heading: headingOf(b.Vel), sprites: ds.rec.drawn[b.Pos.TopLeft]})
+			out = append(out, shown{kind: b.TypeID, vel: b.Vel, apps: ds.rec.drawn[b.Pos.TopLeft]})
 		}
 	}
 	if len(out) != Walkers+Ghosts+Leaders {
@@ -170,50 +184,80 @@ func (ds *drawnStage) draw() []shown {
 	return out
 }
 
-// want is what an entity of its kind going its way is drawn with, angry or not.
-func (ds *drawnStage) want(e shown, angry bool) []render.SpriteID {
-	s := ds.stage
-	sprite := s.facing[e.heading]
-	if angry {
-		sprite = s.angrySprite[e.heading]
-	}
-	switch e.kind {
-	case kind.Named[walker](s.world.Kinds(), GhostKind).ID():
-		return []render.SpriteID{s.spook}
-	case kind.Named[walker](s.world.Kinds(), LeaderKind).ID():
-		return []render.SpriteID{sprite, s.crown}
-	}
-	return []render.SpriteID{sprite}
-}
-
-// Every walker is drawn facing the way it goes, every ghost as a ghost, the leader with a crown;
-// the rage turns the walkers and the leader red, and leaves the ghosts ghosts; its Appearance is
-// never touched.
-func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
+// Every look comes from the atlas alone: a walker is drawn by the twin of the way it goes, a
+// ghost as a ghost turned the way it drifts, the leader turned with his crown; the rage swaps
+// the angry looks in — the leader still turned, the walker's anger without a direction — and
+// lets them go when it ends.
+func TestAppearance_DrawnAsTheAtlasSays(t *testing.T) {
 	ds := newDrawnStage(t)
-	ds.tick(2)
-	for _, e := range ds.draw() {
-		if want := ds.want(e, false); !slices.Equal(e.sprites, want) {
-			t.Fatalf("calm: a %v going %v drawn with %v, want %v", e.kind, e.heading, e.sprites, want)
+	walkerBase := kind.Named[walker](ds.arena.world.Kinds(), WalkerKind).SpriteID()
+	ghostBase := kind.Named[walker](ds.arena.world.Kinds(), GhostKind).SpriteID()
+	leaderBase := kind.Named[walker](ds.arena.world.Kinds(), LeaderKind).SpriteID()
+	ghostKind := kind.Named[walker](ds.arena.world.Kinds(), GhostKind).ID()
+	leaderKind := kind.Named[walker](ds.arena.world.Kinds(), LeaderKind).ID()
+	angry := ds.arena.world.Effects().Named(AngryEf)
+	angryWalker, angryLeader := angry.Look(walkerBase), angry.Look(leaderBase)
+
+	check := func(phase string, raging bool) {
+		t.Helper()
+		twins := map[int]render.SpriteID{} // the walkers' faced twin seen per way
+		for _, e := range ds.draw() {
+			if len(e.apps) != 1 {
+				t.Fatalf("%s: a %v drawn with %d layers, want 1", phase, e.kind, len(e.apps))
+			}
+			a := e.apps[0]
+			switch e.kind {
+			case ghostKind: // a ghost whatever happens, turned the way it drifts
+				if a.SpriteID != ghostBase || a.Angle != angleDeg(e.vel) {
+					t.Fatalf("%s: a ghost drawn with %v, want sprite %v at %v°", phase, a, ghostBase, angleDeg(e.vel))
+				}
+			case leaderKind: // turned with his crown, red while raging — and still turned
+				want := leaderBase
+				if raging {
+					want = angryLeader
+				}
+				if a.SpriteID != want || a.Angle != angleDeg(e.vel) {
+					t.Fatalf("%s: the leader drawn with %v, want sprite %v at %v°", phase, a, want, angleDeg(e.vel))
+				}
+			default: // a walker: the twin of its way, or anger without a direction
+				if raging {
+					if a.SpriteID != angryWalker || a.Angle != 0 {
+						t.Fatalf("%s: a raging walker drawn with %v, want sprite %v unturned", phase, a, angryWalker)
+					}
+					continue
+				}
+				if a.SpriteID == walkerBase || a.Angle != 0 {
+					t.Fatalf("%s: a walker drawn with %v, want a faced twin, unturned", phase, a)
+				}
+				way := headingIdx4(e.vel)
+				if seen, ok := twins[way]; ok && seen != a.SpriteID {
+					t.Fatalf("%s: two walkers going the same way drawn with %v and %v", phase, seen, a.SpriteID)
+				}
+				twins[way] = a.SpriteID
+			}
+		}
+		if !raging {
+			seen := map[render.SpriteID]bool{}
+			for _, id := range twins {
+				if seen[id] {
+					t.Fatalf("%s: two ways share the twin %v", phase, id)
+				}
+				seen[id] = true
+			}
 		}
 	}
 
-	if !ds.stage.world.Carrier().Put(1, rule.Cast(ds.stage.world.Effects().Named(RageEf)).On(entity.World)) {
+	ds.tick(2)
+	check("calm", false)
+
+	if !ds.arena.world.Carrier().Put(1, rule.Cast(ds.arena.world.Effects().Named(RageEf)).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 	ds.tick(5)
-	for _, e := range ds.draw() {
-		if want := ds.want(e, true); !slices.Equal(e.sprites, want) {
-			t.Fatalf("in a rage: a %v going %v drawn with %v, want %v", e.kind, e.heading, e.sprites, want)
-		}
-	}
+	check("in a rage", true)
 
 	ds.tick(int(rageFor/(time.Second/TPS)) + 10)
-	for _, e := range ds.draw() {
-		if want := ds.want(e, false); !slices.Equal(e.sprites, want) {
-			t.Fatalf("after the rage: a %v going %v drawn with %v, want %v", e.kind, e.heading, e.sprites, want)
-		}
-	}
+	check("after the rage", false)
 }
 
 // Hosts keeps the hosts of the rules of the moments a plugin catches.

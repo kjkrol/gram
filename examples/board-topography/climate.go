@@ -47,18 +47,27 @@ var (
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
-func (s *mainStage) defineClimate() weathering.Config {
+// defineWinterCells defines the winter's kinds — each ground's snowy twin in its colour, and ice —
+// and gives them their looks in relief.
+func (s *arena) defineWinterCells() {
 	kinds := s.board.CellKinds()
-	snowy := map[string]string{}
 	for name, col := range snowyColors {
 		k, _ := kinds.Get(name)
-		k.Name, k.Color = cell.Named(snowyCell(name)), col
-		kinds.Create(k)
+		k.Color = col
+		kinds.Define(snowyCell(name), k)
 		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
+	}
+	kinds.Define(IceCell, cell.Kind{Cost: 5, Allows: cell.Land | cell.Air, Color: iceColor}.Costing(cell.Air, 1))
+	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
+}
+
+// defineClimate is what the weather does to the island, all by the kinds' names: the winter's
+// kinds themselves are defined in the Cells section, later.
+func (s *arena) defineClimate() weathering.Config {
+	snowy := map[string]string{}
+	for name := range snowyColors {
 		snowy[name] = snowyCell(name)
 	}
-	kinds.Create(cell.Kind{Name: cell.Named(IceCell), Cost: 5, Allows: cell.Land | cell.Air, Color: iceColor}.Costing(cell.Air, 1))
-	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	ground := s.topography.Relief()
 	return weathering.Config{Snowy: snowy, Ice: IceCell, Sway: []string{island.ForestCell, snowyCell(island.ForestCell)},
 		High: func(c cell.ID) bool { return ground.Altitude(c) >= scale.Units(highSnow) }}

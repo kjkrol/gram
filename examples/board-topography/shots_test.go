@@ -34,19 +34,19 @@ type shooter struct {
 }
 
 func (s *shooter) cmd(c any) {
-	cam := s.d.stage.world.Camera()
-	for _, q := range s.d.stage.topography.Queues() {
+	cam := s.d.a.world.Camera()
+	for _, q := range s.d.a.topography.Queues() {
 		if q.Accepts() == reflect.TypeOf(c) {
 			switch v := c.(type) {
 			case topography.View:
 				v.Camera = cam
-				q.Put(s.d.stage.player.ID, v)
+				q.Put(s.d.a.player.ID, v)
 			case topography.LookOut:
 				v.Camera = cam
-				q.Put(s.d.stage.player.ID, v)
+				q.Put(s.d.a.player.ID, v)
 			case topography.Look:
 				v.Camera = cam
-				q.Put(s.d.stage.player.ID, v)
+				q.Put(s.d.a.player.ID, v)
 			}
 		}
 	}
@@ -55,25 +55,25 @@ func (s *shooter) cmd(c any) {
 // selectOne selects the one walker standing at the second stop, before anyone has moved: riding
 // in a unit (LookOut) takes exactly one selected.
 func (s *shooter) selectOne() {
-	brd := s.d.stage.board.Res.Logic.Board
+	brd := s.d.a.board.Res.Logic.Board
 	_, _, stops := island.Layout(brd)
 	at := brd.CellCenter(stops[1])
 	box := geom.NewAABB(geom.NewVec(at.X-CellSize/4, at.Y-CellSize/4), geom.NewVec(at.X+CellSize/4, at.Y+CellSize/4))
-	for _, q := range s.d.stage.selection.Queues() {
+	for _, q := range s.d.a.selection.Queues() {
 		if q.Accepts() == reflect.TypeFor[selection.Select]() {
-			q.Put(s.d.stage.player.ID, selection.Select{Box: box})
+			q.Put(s.d.a.player.ID, selection.Select{Box: box})
 		}
 	}
 }
 
 // showViews shows every view of sight (Shift+C) and the routes (Shift+P), drawn over the ground.
 func (s *shooter) showViews() {
-	for _, q := range s.d.stage.vision.Queues() {
+	for _, q := range s.d.a.vision.Queues() {
 		if q.Accepts() == reflect.TypeFor[vision.Cones]() {
 			q.Put(control.Nobody, vision.Cones{})
 		}
 	}
-	for _, q := range s.d.stage.nav.Queues() {
+	for _, q := range s.d.a.nav.Queues() {
 		if q.Accepts() == reflect.TypeFor[navigation.Routes]() {
 			q.Put(control.Nobody, navigation.Routes{})
 		}
@@ -82,7 +82,7 @@ func (s *shooter) showViews() {
 
 func (s *shooter) Update() error {
 	s.frame++
-	cam := s.d.stage.world.Camera()
+	cam := s.d.a.world.Camera()
 	s.shot = ""
 	switch s.frame {
 	case 2:

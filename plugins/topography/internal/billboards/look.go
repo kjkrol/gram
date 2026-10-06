@@ -57,22 +57,23 @@ func (l Look) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms)
 	}
 }
 
-func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	if l.gpu.on {
-		l.gpu.add(cam, box, z, atlas, id, light, sway, f.Time())
+func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	if l.gpu.on { // a billboard in relief ignores the Angle: it stands up, not flat
+		l.gpu.add(cam, box, z, atlas, a.SpriteID, light, a.Sway, f.Time())
 		return
 	}
 	if l.gpu.shading {
 		l.gpu.shadow(box, z)
 	}
-	if sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
+	if a.Sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
-		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, sway)
+		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
 	}
-	l.flat.Sprite(f, cam, box, z, atlas, id, lit(l.sky.Sun(), light), 0)
+	a.Sway = 0 // leant here: the flat look takes the sprite as it stands
+	l.flat.Sprite(f, cam, box, z, atlas, a, lit(l.sky.Sun(), light))
 }
 
 func (l Look) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {

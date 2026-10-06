@@ -64,8 +64,8 @@ const (
 	Wall
 )
 
-// Shots defines kinds of shots on a world's kinds: NewShots(w).Define(name, body, extra...) is an
-// Ammo, for Shoot. A shot is an entity of the world like any other, drawn from its kind's sprite:
+// Shots defines kinds of shots on a world's kinds — the plugin's own register (Plugin.Shots):
+// Define(name, body, extra...) registers an ammo, Named is the Ammo, for Shoot. A shot is an entity of the world like any other, drawn from its kind's sprite:
 // its box, a Collider (a sensor: only ever detected), a collision.Sweep that passes through its
 // shooter, its Body and Flight, its shooter's owners, and in a world with heights a Z. extra may
 // carry tags and Layers, never the owners' family nor what the kind gives itself.
@@ -74,7 +74,7 @@ type Shots struct {
 	bodies map[string]Body // what each kind of shot flies as, by its name
 }
 
-// NewShots defines kinds of shots on w's kinds.
+// NewShots is the register NewPlugin makes for its Shots; alone for a test without the plugin.
 func NewShots(w *world.Plugin) *Shots { return &Shots{w: w} }
 
 // Define registers the kind of shot named name with body and extra; Named is the Ammo it is, for
@@ -88,7 +88,7 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 		comp.Load(func(r Shot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.From.X-half, r.From.Y-half), body.Size, body.Size)}
 		}),
-		comp.Const(world.Velocity{}),
+		comp.Load(func(r Shot) world.Velocity { return world.Velocity{Dir: r.Dir} }), // Value 0: the flight moves it, the heading turns its look
 		comp.Const(body),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(r Shot) collision.Sweep { return collision.Sweep{From: r.From, Ignore: r.Shooter, Ignoring: true} }),

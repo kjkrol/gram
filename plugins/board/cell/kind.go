@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Kind is a named terrain kind: whom it admits, what it does to movement and sight, and how
@@ -73,12 +74,34 @@ func (k Kind) CostFor(d Domain) float64 {
 	return cost
 }
 
+// Of is one defined kind of cell, [Kinds] Named's handle — what a game builds on, as a unit
+// kind's kind.Of is: Entry for the Layout, SpriteID for the atlas, Kind for the kind itself.
+type Of struct{ k Kind }
+
+// OfKind is k as the handle Named hands out. For the board's dictionary.
+func OfKind(k Kind) Of { return Of{k: k} }
+
+// Kind is the kind as it was defined.
+func (o Of) Kind() Kind { return o.k }
+
+// SpriteID is the atlas slot the kind's cells are drawn from.
+func (o Of) SpriteID() render.SpriteID { return o.k.SpriteID }
+
+// Entry is a Layout entry laying this kind at c — the fill to the kind's definition, as a unit
+// kind's Entry is: chain Named, InGroup and Plays on it for what this one cell alone is.
+func (o Of) Entry(c ID) Entry { return Entry{Kind: o.k.Name.String(), Cell: c} }
+
 // Kinds is a board's registered set of Kinds, keyed by Name — reached through the board plugin
-// (board.Plugin.Kinds), never built by the game. Names are strings here, as a Layout spells
+// (board.Plugin.CellKinds), never built by the game. Names are strings here, as a Layout spells
 // them.
 type Kinds interface {
-	// Create registers kinds, assigning each one's SpriteID by call order.
-	Create(kinds ...Kind)
+	// Define registers k under name, assigning its SpriteID by call order, and has every cell the
+	// Layout lays as it play plays, for good — it hands nothing back, and Named is the kind
+	// wherever it is built on. A name defined twice panics, in a Stage's Cells section.
+	Define(name string, k Kind, plays ...*rule.Part)
+	// Named is the kind defined as name, as the handle a game builds on — Entry for the Layout,
+	// SpriteID for the atlas; an unknown name panics.
+	Named(name string) Of
 	// Get resolves name to the Kind registered under it.
 	Get(name string) (Kind, bool)
 	// All returns every registered Kind.

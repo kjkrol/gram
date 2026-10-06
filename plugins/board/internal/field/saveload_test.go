@@ -39,10 +39,8 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	g.board = board.NewPlugin(g.grid, &cell.MultipleOccupancy{}, g.world).WithCollision(g.collision)
-	g.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
-	)
+	g.board.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	g.board.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
 	if err := ctx.Use(g.board); err != nil {
 		return err
 	}
@@ -59,7 +57,7 @@ func (g *fieldStage) Restore(p game.Persistence) (bool, error) {
 func (g *fieldStage) Spawn() error {
 	var cells []cell.Entry
 	for y := uint32(1); y <= 14; y++ {
-		c, _ := g.grid.CellIndex(3, y)
+		c := g.grid.CellIndex(3, y)
 		cells = append(cells, cell.Entry{Kind: "wall", Cell: c})
 	}
 	g.board.Seed(board.Layout{Default: "grass", Cells: cells})
