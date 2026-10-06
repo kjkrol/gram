@@ -235,14 +235,21 @@ var _ game.Scene = (*mainScene)(nil)
 func (m *mainScene) Name() string    { return "main" }
 func (m *mainScene) Focusable() bool { return true }
 
+// The scene's colours: the prey, the hunter and the backdrop's grey.
+var (
+	preyColor       = color.RGBA{R: 120, G: 190, B: 255, A: 255}
+	hunterColor     = color.RGBA{R: 225, G: 70, B: 70, A: 255}
+	backgroundColor = color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
 	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 
 	atlas := render.NewAtlas()
-	atlas.Add(preyKind.SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
-	atlas.Add(hunterKind.SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
+	atlas.Add(preyKind, RectSize, render.Solid(preyColor))
+	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 	s.vision.WithRenderer(atlas)
@@ -250,7 +257,7 @@ func (m *mainScene) Layers() []render.Layer {
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.NewCachedRenderer(
-			render.SolidBackground{Color: color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}},
+			render.SolidBackground{Color: backgroundColor},
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.vision.Renderer(), s.world.Renderer()),

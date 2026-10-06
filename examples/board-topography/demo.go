@@ -331,6 +331,13 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the player's walkers and giants, the rival's, the hawk.
+var (
+	playerColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
+	rivalColor  = color.RGBA{R: 70, G: 110, B: 230, A: 255}
+	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
@@ -339,11 +346,10 @@ func (m *mainScene) Layers() []render.Layer {
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
-	playerColor := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255})
-	worldAtlas.Add(unitKind.SpriteID(), spritePx, playerColor)
-	worldAtlas.Add(plateauKind.SpriteID(), spritePx, playerColor)
-	worldAtlas.Add(rivalKind.SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
-	worldAtlas.Add(hawkKind.SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
+	worldAtlas.Add(unitKind, spritePx, render.Solid(playerColor))
+	worldAtlas.Add(plateauKind, spritePx, render.Solid(playerColor))
+	worldAtlas.Add(rivalKind, spritePx, render.Solid(rivalColor))
+	worldAtlas.Add(hawkKind, spritePx, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

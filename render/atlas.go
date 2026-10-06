@@ -48,10 +48,18 @@ var _ AtlasSource = (*Atlas)(nil)
 // NewAtlas starts an empty atlas: Add its sprites, then Close it before the game loop starts.
 func NewAtlas() *Atlas { return &Atlas{} }
 
-// Add takes draw on as a size x size sprite in slot id — a kind's SpriteID, a slot issued by the
+// Sprited is whoever is drawn from one slot of the sheet: a kind's handle (kind.Of, cell.Of) —
+// or a bare SpriteID, which stands for itself.
+type Sprited interface{ SpriteID() SpriteID }
+
+// SpriteID is the slot itself: a bare id stands for itself wherever a Sprited is taken.
+func (id SpriteID) SpriteID() SpriteID { return id }
+
+// Add takes draw on as a size x size sprite in of's slot — a kind's handle, a slot issued by the
 // world's kinds (NewSprite), a board's Covering — and hands it back as a Slot: chain Under for
 // the looks the sprite takes under an effect. Panics after Close or if the slot is taken.
-func (a *Atlas) Add(id SpriteID, size int, draw SpriteDrawer) Slot {
+func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
+	id := of.SpriteID()
 	if a.closed {
 		panic("gram: Atlas.Add after Close")
 	}

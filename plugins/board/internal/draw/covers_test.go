@@ -95,8 +95,8 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 		u.cells[c] = true
 	}
 	atlas := render.NewAtlas()
-	atlas.Add(1, 32, render.Solid(grass.Color))
-	atlas.Add(2, 32, render.Solid(snow))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(grass.Color))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(snow))
 	atlas.Close()
 	d := draw.NewBands(u)
 	d.Cover(mark, 2)

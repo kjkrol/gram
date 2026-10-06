@@ -160,6 +160,15 @@ var unitColors = []color.RGBA{
 
 var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 
+// cellColors is the ground, a colour a kind.
+var cellColors = map[string]color.RGBA{
+	GrassCell:  {R: 60, G: 95, B: 60, A: 255},
+	WallCell:   {R: 40, G: 40, B: 40, A: 255},
+	ForestCell: {R: 25, G: 60, B: 30, A: 255},
+	RoadCell:   {R: 150, G: 130, B: 80, A: 255},
+	HillCell:   {R: 110, G: 100, B: 70, A: 255},
+}
+
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
@@ -266,20 +275,14 @@ func (m *mainScene) Layers() []render.Layer {
 
 	worldAtlas := render.NewAtlas()
 	for i := range scouts {
-		worldAtlas.Add(scoutKind(i).SpriteID(), EntitySize, render.Solid(unitColors[i]))
+		worldAtlas.Add(scoutKind(i), EntitySize, render.Solid(unitColors[i]))
 	}
-	worldAtlas.Add(hawkKind.SpriteID(), EntitySize, render.Diamond(hawkColor))
+	worldAtlas.Add(hawkKind, EntitySize, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range map[string]color.RGBA{
-		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-		WallCell:   {R: 40, G: 40, B: 40, A: 255},
-		ForestCell: {R: 25, G: 60, B: 30, A: 255},
-		RoadCell:   {R: 150, G: 130, B: 80, A: 255},
-		HillCell:   {R: 110, G: 100, B: 70, A: 255},
-	} {
+	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
 	boardAtlas.Close()

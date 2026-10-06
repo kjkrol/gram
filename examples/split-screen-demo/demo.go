@@ -323,11 +323,11 @@ func (s *followSystem) Update(*goke.CmdBuf, time.Duration) {
 // =========================== Scenes ===========================
 
 var (
-	colorFloor   = color.RGBA{R: 70, G: 80, B: 70, A: 255}
-	colorWall    = color.RGBA{R: 30, G: 30, B: 35, A: 255}
-	colorRed     = color.RGBA{R: 220, G: 80, B: 80, A: 255}
-	colorBlue    = color.RGBA{R: 80, G: 130, B: 230, A: 255}
-	colorDivider = color.RGBA{R: 240, G: 240, B: 240, A: 255}
+	floorColor   = color.RGBA{R: 70, G: 80, B: 70, A: 255}
+	wallColor    = color.RGBA{R: 30, G: 30, B: 35, A: 255}
+	redColor     = color.RGBA{R: 220, G: 80, B: 80, A: 255}
+	blueColor    = color.RGBA{R: 80, G: 130, B: 230, A: 255}
+	dividerColor = color.RGBA{R: 240, G: 240, B: 240, A: 255}
 )
 
 // mainScene is the arena seen by both players, each in its half, with a line between the halves.
@@ -347,14 +347,14 @@ func (m *mainScene) Layers() []render.Layer {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(redKind.SpriteID(), BlockSize, render.Solid(colorRed))
-	worldAtlas.Add(blueKind.SpriteID(), BlockSize, render.Solid(colorBlue))
+	worldAtlas.Add(redKind, BlockSize, render.Solid(redColor))
+	worldAtlas.Add(blueKind, BlockSize, render.Solid(blueColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	boardAtlas.Add(FloorCell, render.Solid(colorFloor))
-	boardAtlas.Add(WallCell, render.Solid(colorWall))
+	boardAtlas.Add(FloorCell, render.Solid(floorColor))
+	boardAtlas.Add(WallCell, render.Solid(wallColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
@@ -383,7 +383,7 @@ func (divider) Init(*goke.SysInit) {}
 
 func (d divider) Draw(screen *render.Image) {
 	if x := float32(d.right.TopLeft.X); x > 0 {
-		render.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, colorDivider)
+		render.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, dividerColor)
 	}
 }
 
@@ -431,5 +431,5 @@ func (frame) Init(*goke.SysInit) {}
 func (f frame) Draw(screen *render.Image) {
 	a := f.m.area
 	size := a.BottomRight.Sub(a.TopLeft)
-	render.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, colorDivider)
+	render.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, dividerColor)
 }

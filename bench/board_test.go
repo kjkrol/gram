@@ -102,7 +102,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		return 0
 	}))
 	atlas := render.NewAtlas()
-	atlas.Add(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
@@ -161,7 +161,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 		}
 	}
 	atlas := render.NewAtlas()
-	atlas.Add(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})

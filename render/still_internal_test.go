@@ -13,7 +13,7 @@ import (
 func TestStill_IsDrawnWhereTheCameraShowsTheWorld(t *testing.T) {
 	needGPU(t)
 	atlas := NewAtlas()
-	atlas.Add(1, 4, Solid(color.RGBA{R: 200, G: 100, B: 40, A: 255}))
+	atlas.Add(SpriteID(1), 4, Solid(color.RGBA{R: 200, G: 100, B: 40, A: 255}))
 	atlas.Close()
 	s := NewStill()
 	s.Compose(100, 100, func(f *Frame, _ camera.Camera) {

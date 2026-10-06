@@ -28,6 +28,9 @@ func NewMenuStage(gameplayName string) *MenuStage {
 
 // =========================== Scene ===========================
 
+// menuColor is the menu's backdrop.
+var menuColor = color.RGBA{R: 20, G: 20, B: 30, A: 255}
+
 // menuScene shows the splash text, enters the gameplay Stage on Enter and quits on Escape.
 type menuScene struct{ gameplayName string }
 
@@ -60,6 +63,6 @@ type menuRenderer struct{}
 func (r *menuRenderer) Init(*goke.SysInit) {}
 
 func (r *menuRenderer) Draw(screen *render.Image) {
-	screen.Fill(color.RGBA{R: 20, G: 20, B: 30, A: 255})
+	screen.Fill(menuColor)
 	render.DebugPrintAt(screen, "gram Stage/Scene demo\n\nPress ENTER to start", 20, 20)
 }

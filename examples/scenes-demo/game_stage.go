@@ -130,17 +130,24 @@ var _ game.Scene = (*worldScene)(nil)
 
 func (w *worldScene) Name() string { return "world" }
 
+// The scene's colours: the movers, the backdrop and the panel's plate.
+var (
+	moverColor      = color.RGBA{R: 90, G: 200, B: 110, A: 255}
+	backgroundColor = color.RGBA{R: 30, G: 30, B: 40, A: 255}
+	panelColor      = color.RGBA{R: 235, G: 235, B: 235, A: 255}
+)
+
 func (w *worldScene) Layers() []render.Layer {
 	s := w.arena
 	moverKind := kind.Named[world.Position](s.world.Kinds(), MoverKind)
 
 	atlas := render.NewAtlas()
-	atlas.Add(moverKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(moverKind, EntitySize, render.Solid(moverColor))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
 	return []render.Layer{
-		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 40, A: 255}}, ScreenWidth, ScreenHeight),
+		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
 		render.NewComposer(s.world.Renderer()),
 	}
 }
@@ -189,7 +196,7 @@ func (r *panelRenderer) Init(*goke.SysInit) {}
 func (r *panelRenderer) Draw(screen *render.Image) {
 	const w, h = 300, 140
 	x, y := float32(ScreenWidth-w)/2, float32(ScreenHeight-h)/2
-	render.FillRect(screen, x, y, w, h, color.RGBA{R: 235, G: 235, B: 235, A: 255})
+	render.FillRect(screen, x, y, w, h, panelColor)
 	render.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
 }
 

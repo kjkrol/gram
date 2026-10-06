@@ -93,7 +93,7 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	atlas := render.NewAtlas()
-	atlas.Add(1, 4, render.Solid(grass.Color))
+	atlas.Add(render.SpriteID(1), 4, render.Solid(grass.Color))
 	atlas.Close()
 	for _, c := range []struct {
 		name       string

@@ -269,6 +269,21 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the units, each with its look under frozen, and the ground with what
+// covers it.
+var (
+	witchColor        = color.RGBA{R: 200, G: 230, B: 255, A: 255}
+	witchFrozenColor  = color.RGBA{R: 240, G: 248, B: 255, A: 255}
+	walkerColor       = color.RGBA{R: 220, G: 90, B: 90, A: 255}
+	walkerFrozenColor = color.RGBA{R: 235, G: 175, B: 175, A: 255}
+	boatColor         = color.RGBA{R: 140, G: 90, B: 40, A: 255}
+	boatRimColor      = color.RGBA{R: 190, G: 220, B: 245, A: 255}
+	grassColor        = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	snowColor         = color.RGBA{R: 235, G: 240, B: 245, A: 255}
+	waterColor        = color.RGBA{R: 40, G: 90, B: 170, A: 255}
+	iceColor          = color.RGBA{R: 170, G: 215, B: 240, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
@@ -279,23 +294,23 @@ func (m *mainScene) Layers() []render.Layer {
 	frozen := effects.Named(FrozenEf)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(witchKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255})).
-		Under(frozen, render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})) // the witch gone white
-	worldAtlas.Add(walkerKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255})).
-		Under(frozen, render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})) // the walker rimed
-	worldAtlas.Add(boatKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})).
+	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
+		Under(frozen, render.Diamond(witchFrozenColor)) // the witch gone white
+	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).
+		Under(frozen, render.Solid(walkerFrozenColor)) // the walker rimed
+	worldAtlas.Add(boatKind, EntitySize, render.Solid(boatColor)).
 		Under(frozen, func(dst *render.Canvas, size int) { // the boat in a rim of ice
-			render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
-			render.Border(color.RGBA{R: 190, G: 220, B: 245, A: 255})(dst, size)
+			render.Solid(boatColor)(dst, size)
+			render.Border(boatRimColor)(dst, size)
 		})
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255})).
-		Under(effects.Named(FrostEf), render.Solid(color.RGBA{R: 235, G: 240, B: 245, A: 255})) // snow over the land
-	boardAtlas.Add(WaterCell, render.Solid(color.RGBA{R: 40, G: 90, B: 170, A: 255})).
-		Under(effects.Named(IcedEf), render.Solid(color.RGBA{R: 170, G: 215, B: 240, A: 255})) // ice over the lake
+	boardAtlas.Add(GrassCell, render.Solid(grassColor)).
+		Under(effects.Named(FrostEf), render.Solid(snowColor)) // snow over the land
+	boardAtlas.Add(WaterCell, render.Solid(waterColor)).
+		Under(effects.Named(IcedEf), render.Solid(iceColor)) // ice over the lake
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

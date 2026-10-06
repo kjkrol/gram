@@ -223,10 +223,10 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
-func (m *mainScene) Layers() []render.Layer {
-	s := m.arena
-
-	palette := [8]color.RGBA{
+// The scene's colours: a palette of the bodies' colours — the one past entityColors is the
+// hit's overlay — and the backdrop.
+var (
+	palette = [8]color.RGBA{
 		{R: 80, G: 120, B: 220, A: 255},
 		{R: 90, G: 200, B: 110, A: 255},
 		{R: 80, G: 200, B: 210, A: 255},
@@ -236,12 +236,18 @@ func (m *mainScene) Layers() []render.Layer {
 		{R: 60, G: 160, B: 150, A: 255},
 		{R: 220, G: 40, B: 40, A: 255},
 	}
+	backgroundColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
+)
+
+func (m *mainScene) Layers() []render.Layer {
+	s := m.arena
+
 	atlas := render.NewAtlas()
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
 	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.Add(bodyKindOf(ci, si).SpriteID(), int(RectSize), shape(c))
+			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c))
 		}
 	}
 
@@ -252,7 +258,7 @@ func (m *mainScene) Layers() []render.Layer {
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
 	return []render.Layer{
 		render.NewCachedRenderer(
-			render.SolidBackground{Color: color.RGBA{R: 50, G: 50, B: 50, A: 255}},
+			render.SolidBackground{Color: backgroundColor},
 			ScreenWidth, ScreenHeight,
 		),
 		render.NewComposer(s.world.Renderer()),

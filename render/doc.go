@@ -16,8 +16,8 @@
 //
 // # Atlas and AtlasSource
 //
-// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a slot issued
-// elsewhere — a kind's SpriteID, a board's cover — at a texture size of its own, and Close is
+// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot
+// — a kind's handle, a board's cover, a bare SpriteID — at a texture size of its own, and Close is
 // when the sheet is laid out and baked — so a slot issued late is as welcome as an early one, as
 // long as it comes before Close. The drawn size is the entity's box; the texture size is
 // resolution. Add hands the sprite back as a [Slot]: chain [Slot.Under] for the look drawn in

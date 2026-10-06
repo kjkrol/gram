@@ -243,24 +243,32 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the units and the meadow with its plates and trapdoors.
+var (
+	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
+
+	cellColors = map[string]color.RGBA{
+		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
+		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
+		PlateCell:  {R: 160, G: 160, B: 170, A: 255},
+		PitCell:    {R: 15, G: 12, B: 20, A: 255},
+	}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(scoutKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.Add(wandererKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor))
+	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range map[string]color.RGBA{
-		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
-		PlateCell:  {R: 160, G: 160, B: 170, A: 255},
-		PitCell:    {R: 15, G: 12, B: 20, A: 255},
-	} {
+	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
 	boardAtlas.Close()

@@ -240,12 +240,15 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// unitColor is the walkers': the one colour the scene names itself, the island's are its kinds'.
+var unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(unitKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.Add(unitKind, EntitySize, render.Solid(unitColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

@@ -249,8 +249,9 @@ anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKinds().Define(name, kind, roles...)` (`Named(name)` the kind,
 `Of.Entry(c)` a Layout entry built on it, `Of.SpriteID()` its atlas slot as a unit kind's).
 
-A `render.Atlas` sizes nothing up front: `Add(id, size, draw)` only records a sprite in slot id
-(a kind's `SpriteID`, one issued by `Kinds().NewSprite()`, a board's `Covering`), each at a
+A `render.Atlas` sizes nothing up front: `Add(of, size, draw)` only records a sprite in of's slot
+(`render.Sprited`: a kind's handle — `kind.Of`, `cell.Of`, a bullet `Ammo` — or a bare `SpriteID`,
+which stands for itself: one issued by `Kinds().NewSprite()`, a board's `Covering`), each at a
 texture size of its own (the drawn size is the entity's box; this is resolution), and `Close()`
 is what lays the sheet out and bakes it — so a slot issued late is as welcome as an early one, as
 long as it comes before `Close`. `Add` hands back a `render.Slot`: chain `Under(effect, draw)`

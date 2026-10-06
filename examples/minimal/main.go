@@ -133,16 +133,22 @@ type view struct {
 func (v *view) Name() string    { return "view" }
 func (v *view) Focusable() bool { return true }
 
+// The scene's colours: the boxes and the backdrop.
+var (
+	boxColor        = color.RGBA{R: 90, G: 200, B: 110, A: 255}
+	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
+)
+
 func (v *view) Layers() []render.Layer {
 	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
-	atlas.Add(boxKind.SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 
 	count := func() int { return v.arena.world.Res.Telemetry.Count }
 	return []render.Layer{
-		render.SolidBackground{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}},
+		render.SolidBackground{Color: backgroundColor},
 		render.NewComposer(v.arena.world.Renderer()),
 		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
 	}

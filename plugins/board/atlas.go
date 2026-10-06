@@ -25,7 +25,7 @@ func (p *Plugin) NewAtlas(size int) *Atlas {
 // Add takes draw on as the look of the cell kind named kind; chain Under for the covers. An
 // unknown kind panics by name.
 func (a *Atlas) Add(kind string, draw render.SpriteDrawer) Slot {
-	a.atlas.Add(a.p.kinds.Named(kind).SpriteID(), a.size, draw)
+	a.atlas.Add(a.p.kinds.Named(kind), a.size, draw)
 	return Slot{a: a}
 }
 

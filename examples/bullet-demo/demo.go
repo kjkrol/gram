@@ -287,29 +287,41 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the units, the shots, the wounds' pale and the burst's spark, the ground.
+var (
+	soldierColor  = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+	wandererColor = color.RGBA{R: 220, G: 90, B: 90, A: 255}
+	paleColor     = color.RGBA{R: 235, G: 200, B: 200, A: 255}
+	roundColor    = color.RGBA{R: 255, G: 230, B: 80, A: 255}
+	grenadeColor  = color.RGBA{R: 50, G: 80, B: 50, A: 255}
+	sparkColor    = color.RGBA{R: 255, G: 250, B: 200, A: 255}
+
+	cellColors = map[string]color.RGBA{
+		GrassCell:   {R: 60, G: 95, B: 60, A: 255},
+		RoadCell:    {R: 150, G: 130, B: 80, A: 255},
+		WaterCell:   {R: 40, G: 90, B: 170, A: 255},
+		WallCell:    {R: 90, G: 90, B: 100, A: 255},
+		LowWallCell: {R: 150, G: 150, B: 160, A: 255},
+	}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(soldierKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.Add(wandererKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.Add(s.paleSprite, EntitySize, render.Solid(color.RGBA{R: 235, G: 200, B: 200, A: 255}))
-	worldAtlas.Add(s.ammo.Named(RoundKind).SpriteID(), 4, render.Solid(color.RGBA{R: 255, G: 230, B: 80, A: 255}))
-	worldAtlas.Add(s.ammo.Named(GrenadeKind).SpriteID(), 8, render.Solid(color.RGBA{R: 50, G: 80, B: 50, A: 255}))
-	worldAtlas.Add(s.sparkSprite, 8, render.Diamond(color.RGBA{R: 255, G: 250, B: 200, A: 255}))
+	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor))
+	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor))
+	worldAtlas.Add(s.paleSprite, EntitySize, render.Solid(paleColor))
+	worldAtlas.Add(s.ammo.Named(RoundKind), 4, render.Solid(roundColor))
+	worldAtlas.Add(s.ammo.Named(GrenadeKind), 8, render.Solid(grenadeColor))
+	worldAtlas.Add(s.sparkSprite, 8, render.Diamond(sparkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range map[string]color.RGBA{
-		GrassCell:   {R: 60, G: 95, B: 60, A: 255},
-		RoadCell:    {R: 150, G: 130, B: 80, A: 255},
-		WaterCell:   {R: 40, G: 90, B: 170, A: 255},
-		WallCell:    {R: 90, G: 90, B: 100, A: 255},
-		LowWallCell: {R: 150, G: 150, B: 160, A: 255},
-	} {
+	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
 	boardAtlas.Close()

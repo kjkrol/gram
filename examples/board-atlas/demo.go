@@ -265,21 +265,31 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+// The scene's colours: the unit and each kind's pair the drawn tiles shade between.
+var (
+	unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
+
+	grassColor, grassLitColor = color.RGBA{R: 96, G: 150, B: 70, A: 255}, color.RGBA{R: 108, G: 162, B: 78, A: 255}
+	waterColor, waterLitColor = color.RGBA{R: 50, G: 100, B: 180, A: 255}, color.RGBA{R: 80, G: 130, B: 205, A: 255}
+	roadColor, roadDimColor   = color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}
+	woodColor, woodDimColor   = color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}
+)
+
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(unitKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.Add(unitKind, EntitySize, render.Diamond(unitColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	// the game's own atlas: a drawn sprite for every kind, at the kinds' SpriteIDs
 	atlas := s.board.NewAtlas(CellSize)
 	for name, draw := range map[string]render.SpriteDrawer{
-		GrassCell: striped(color.RGBA{R: 96, G: 150, B: 70, A: 255}, color.RGBA{R: 108, G: 162, B: 78, A: 255}),
-		WaterCell: rippled(color.RGBA{R: 50, G: 100, B: 180, A: 255}, color.RGBA{R: 80, G: 130, B: 205, A: 255}),
-		RoadCell:  cobbled(color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}),
-		WoodCell:  treed(color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}),
+		GrassCell: striped(grassColor, grassLitColor),
+		WaterCell: rippled(waterColor, waterLitColor),
+		RoadCell:  cobbled(roadColor, roadDimColor),
+		WoodCell:  treed(woodColor, woodDimColor),
 	} {
 		atlas.Add(name, draw)
 	}

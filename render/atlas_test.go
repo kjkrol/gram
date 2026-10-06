@@ -49,10 +49,10 @@ func TestAtlas_BakesOnlyAtClose_EachSpriteOnceAtItsOwnSize(t *testing.T) {
 	drawn := map[int]int{}
 	drawer := func(_ *Canvas, size int) { drawn[size]++ }
 
-	atlas.Add(0, 16, drawer)
+	atlas.Add(SpriteID(0), 16, drawer)
 	const late = SpriteID(1)
 	atlas.Add(late, 100, drawer)
-	atlas.Add(5, 2, drawer)
+	atlas.Add(SpriteID(5), 2, drawer)
 	if len(drawn) != 0 {
 		t.Fatalf("drawers ran before Close: %v", drawn)
 	}
@@ -111,12 +111,12 @@ func TestAtlas_RefusesWhatCannotWork(t *testing.T) {
 		want string
 	}{
 		"the sheet before Close": {func(a *Atlas) { a.Atlas() }, "before Close"},
-		"a UV before Close":      {func(a *Atlas) { a.Add(0, 4, nothing); a.UV(0) }, "before Close"},
-		"adding after Close":     {func(a *Atlas) { a.Close(); a.Add(0, 4, nothing) }, "after Close"},
-		"a slot twice":           {func(a *Atlas) { a.Add(3, 4, nothing); a.Add(3, 4, nothing) }, "sprite 3"},
-		"a sprite nobody gave":   {func(a *Atlas) { a.Add(2, 4, nothing); a.Close(); a.UV(1) }, "sprite 1"},
-		"a sprite past the last": {func(a *Atlas) { a.Add(2, 4, nothing); a.Close(); a.UV(9) }, "sprite 9"},
-		"a sprite of no size":    {func(a *Atlas) { a.Add(0, 0, nothing) }, "size 0"},
+		"a UV before Close":      {func(a *Atlas) { a.Add(SpriteID(0), 4, nothing); a.UV(0) }, "before Close"},
+		"adding after Close":     {func(a *Atlas) { a.Close(); a.Add(SpriteID(0), 4, nothing) }, "after Close"},
+		"a slot twice":           {func(a *Atlas) { a.Add(SpriteID(3), 4, nothing); a.Add(SpriteID(3), 4, nothing) }, "sprite 3"},
+		"a sprite nobody gave":   {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(1) }, "sprite 1"},
+		"a sprite past the last": {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(9) }, "sprite 9"},
+		"a sprite of no size":    {func(a *Atlas) { a.Add(SpriteID(0), 0, nothing) }, "size 0"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			msg := panicOf(t, func() { tc.do(NewAtlas()) })
