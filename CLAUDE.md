@@ -42,6 +42,7 @@ make demo-board-atlas                                              # a small fla
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
+make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
