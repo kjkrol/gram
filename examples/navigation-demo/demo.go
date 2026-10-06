@@ -236,21 +236,17 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	kinds := s.board.CellKinds()
-	grass, _ := kinds.Get(GrassCell)
-	wall, _ := kinds.Get(WallCell)
-	road, _ := kinds.Get(RoadCell)
-	hole, _ := kinds.Get(HoleCell)
 	boardAtlas := render.NewAtlas()
-	boardAtlas.RegisterAt(grass.SpriteID, CellSize, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.RegisterAt(wall.SpriteID, CellSize, render.Solid(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
-	boardAtlas.RegisterAt(road.SpriteID, CellSize, render.Solid(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
-	boardAtlas.RegisterAt(hole.SpriteID, CellSize, render.Solid(color.RGBA{R: 10, G: 10, B: 30, A: 255}))
+	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
+	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
+	boardAtlas.Add(kinds.Named(RoadCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
+	boardAtlas.Add(kinds.Named(HoleCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 10, G: 10, B: 30, A: 255}))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -282,7 +278,7 @@ const (
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road, _ := kinds.Get(RoadCell)
+	road := kinds.Named(RoadCell).Kind()
 	for x := roadLeft + 1; x < roadRight; x++ {
 		c, _ := brd.CellIndex(x, shortcutRow)
 		brd.Set(c, road)

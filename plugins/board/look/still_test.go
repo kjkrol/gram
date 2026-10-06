@@ -36,7 +36,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	}
 	atlas := render.NewAtlas()
 	for _, k := range []cell.Kind{grass, water} {
-		atlas.RegisterAt(k.SpriteID, 4, render.Solid(k.Color))
+		atlas.Add(k.SpriteID, 4, render.Solid(k.Color))
 	}
 	atlas.Close()
 	space := world.SpaceCfg{Width: 256, Height: 256}
@@ -93,7 +93,7 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(1, 4, render.Solid(grass.Color))
+	atlas.Add(1, 4, render.Solid(grass.Color))
 	atlas.Close()
 	for _, c := range []struct {
 		name       string

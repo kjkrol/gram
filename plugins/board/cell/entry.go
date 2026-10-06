@@ -8,7 +8,7 @@ import (
 // Entry sets Cell to the kind named Kind — none, the board's Layout's Default kept — and gives it,
 // for good, the Name it bears, its alone, the Group it is in with others — what commands find
 // it by (entity.Named, entity.Group) — and the Roles this one cell plays beyond its kind's: the
-// cells of the lake, not every water. Build one on the kind (Kind.Entry) and chain Named, InGroup
+// cells of the lake, not every water. Build one on the kind's handle (Of.Entry) and chain Named, InGroup
 // and Plays, or write it out.
 type Entry struct {
 	Kind  string

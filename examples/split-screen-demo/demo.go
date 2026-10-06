@@ -348,16 +348,15 @@ func (m *mainScene) Focusable() bool { return true }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), RedKind).SpriteID(), BlockSize, render.Solid(colorRed))
-	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), BlueKind).SpriteID(), BlockSize, render.Solid(colorBlue))
+	worldAtlas.Add(kind.Named[block](s.world.Kinds(), RedKind).SpriteID(), BlockSize, render.Solid(colorRed))
+	worldAtlas.Add(kind.Named[block](s.world.Kinds(), BlueKind).SpriteID(), BlockSize, render.Solid(colorBlue))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	floor, _ := s.board.CellKinds().Get(FloorCell)
-	wall, _ := s.board.CellKinds().Get(WallCell)
+	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
-	boardAtlas.RegisterAt(floor.SpriteID, CellSize, render.Solid(colorFloor))
-	boardAtlas.RegisterAt(wall.SpriteID, CellSize, render.Solid(colorWall))
+	boardAtlas.Add(kinds.Named(FloorCell).SpriteID(), CellSize, render.Solid(colorFloor))
+	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), CellSize, render.Solid(colorWall))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false

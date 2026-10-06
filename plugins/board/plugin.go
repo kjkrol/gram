@@ -174,14 +174,14 @@ func (p *Plugin) defaultAtlas() render.AtlasSource {
 	atlas := render.NewAtlas()
 	for _, k := range p.kinds.All() {
 		if draw, ok := p.kinds.Drawer(k.Name); ok {
-			atlas.RegisterAt(k.SpriteID, size, draw)
+			atlas.Add(k.SpriteID, size, draw)
 			continue
 		}
 		c := k.Color
 		if c.A == 0 {
 			c.R, c.G, c.B, c.A = 128, 128, 128, 255
 		}
-		atlas.RegisterAt(k.SpriteID, size, render.Solid(c))
+		atlas.Add(k.SpriteID, size, render.Solid(c))
 	}
 	atlas.Close()
 	return atlas

@@ -243,7 +243,7 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

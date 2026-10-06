@@ -234,19 +234,16 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	kinds := s.board.CellKinds()
-	grass, _ := kinds.Get(GrassCell)
-	wall, _ := kinds.Get(WallCell)
-	road, _ := kinds.Get(RoadCell)
 	boardAtlas := render.NewAtlas()
-	boardAtlas.RegisterAt(grass.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.RegisterAt(wall.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
-	boardAtlas.RegisterAt(road.SpriteID, hexSprite, render.Hexagon(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
+	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
+	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
+	boardAtlas.Add(kinds.Named(RoadCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -281,7 +278,7 @@ const (
 
 // buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road, _ := kinds.Get(RoadCell)
+	road := kinds.Named(RoadCell).Kind()
 	for q := roadLeft + 1; q < roadRight; q++ {
 		c, _ := brd.CellIndex(q, shortcutRow)
 		brd.Set(c, road)

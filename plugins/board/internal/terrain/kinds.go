@@ -60,13 +60,13 @@ func (d *Kinds) Define(name string, k cell.Kind, plays ...*rule.Part) {
 	}
 }
 
-// Named is the kind defined as name; an unknown name panics.
-func (d *Kinds) Named(name string) cell.Kind {
+// Named is the kind defined as name, as the handle a game builds on; an unknown name panics.
+func (d *Kinds) Named(name string) cell.Of {
 	k, ok := d.Get(name)
 	if !ok {
 		panic(fmt.Sprintf("board: no cell kind is defined as %q", name))
 	}
-	return k
+	return cell.OfKind(k)
 }
 
 // Plays are the roles the cells of the kind named name play; zero for none, "" for no kind.

@@ -630,9 +630,9 @@ func (sheetAtlas) White() (u, v float32) { return 1, 1 }
 type kindsOf []cell.Kind
 
 func (k kindsOf) Define(string, cell.Kind, ...*rule.Part) {}
-func (k kindsOf) Named(name string) cell.Kind {
+func (k kindsOf) Named(name string) cell.Of {
 	c, _ := k.Get(name)
-	return c
+	return cell.OfKind(c)
 }
 func (k kindsOf) Draw(string, render.SpriteDrawer) {}
 func (k kindsOf) All() []cell.Kind                 { return k }

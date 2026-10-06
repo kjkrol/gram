@@ -247,13 +247,16 @@ every component type its kinds carry (`Kinds.LoadComps`), so the roles a kind pl
 and a game's own components survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
 kinds go through `board.Plugin.CellKinds().Define(name, kind, roles...)` (`Named(name)` the kind,
-`Kind.Entry(c)` a Layout entry built on it).
+`Of.Entry(c)` a Layout entry built on it, `Of.SpriteID()` its atlas slot as a unit kind's).
 
-A `render.Atlas` sizes nothing up front: `Register(size, draw)`/`RegisterAt(id,
-size, draw)` only record sprites, each at a texture size of its own (the drawn
-size is the entity's box; this is resolution), and `Close()` is what lays the
-sheet out and bakes it — so a slot issued late (`Kinds().NewSprite()`) is as
-welcome as an early one, as long as it comes before `Close`.
+A `render.Atlas` sizes nothing up front: `Add(id, size, draw)` only records a sprite in slot id
+(a kind's `SpriteID`, one issued by `Kinds().NewSprite()`, a board's `Covering`), each at a
+texture size of its own (the drawn size is the entity's box; this is resolution), and `Close()`
+is what lays the sheet out and bakes it — so a slot issued late is as welcome as an early one, as
+long as it comes before `Close`. `Add` hands back a `render.Slot`: chain `Under(effect, draw)`
+for the sprite's look under an effect (`render.Dresser`, which `effect.Effect` satisfies through
+its `Look` — the atlas stays ignorant of effects), in place of registering at `Effect.Look(of)`
+by hand.
 
 Package layout: `render` (root) — `Renderer`/`AtlasSource`/`Atlas`/
 `Composer`/`Frame`/`Source`/`Tier`/`CachedRenderer`/`SolidBackground`/`TelemetryRenderer`,

@@ -289,12 +289,12 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), SoldierKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(s.paleSprite, EntitySize, render.Solid(color.RGBA{R: 235, G: 200, B: 200, A: 255}))
-	worldAtlas.RegisterAt(s.ammo.Named(RoundKind).SpriteID(), 4, render.Solid(color.RGBA{R: 255, G: 230, B: 80, A: 255}))
-	worldAtlas.RegisterAt(s.ammo.Named(GrenadeKind).SpriteID(), 8, render.Solid(color.RGBA{R: 50, G: 80, B: 50, A: 255}))
-	worldAtlas.RegisterAt(s.sparkSprite, 8, render.Diamond(color.RGBA{R: 255, G: 250, B: 200, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), SoldierKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.Add(s.paleSprite, EntitySize, render.Solid(color.RGBA{R: 235, G: 200, B: 200, A: 255}))
+	worldAtlas.Add(s.ammo.Named(RoundKind).SpriteID(), 4, render.Solid(color.RGBA{R: 255, G: 230, B: 80, A: 255}))
+	worldAtlas.Add(s.ammo.Named(GrenadeKind).SpriteID(), 8, render.Solid(color.RGBA{R: 50, G: 80, B: 50, A: 255}))
+	worldAtlas.Add(s.sparkSprite, 8, render.Diamond(color.RGBA{R: 255, G: 250, B: 200, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -307,8 +307,7 @@ func (m *mainScene) Layers() []render.Layer {
 		WallCell:    {R: 90, G: 90, B: 100, A: 255},
 		LowWallCell: {R: 150, G: 150, B: 160, A: 255},
 	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
+		boardAtlas.Add(kinds.Named(name).SpriteID(), CellSize, render.Solid(c))
 	}
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

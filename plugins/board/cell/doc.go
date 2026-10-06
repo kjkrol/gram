@@ -23,7 +23,7 @@
 //
 //	cell.Entry{Kind: "plate", Cell: c, Name: "plate"}
 //	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
-//	water.Entry(c).Plays(lakeRole) // built on the kind (Kind.Entry)
+//	water.Entry(c).Plays(lakeRole) // built on the kind's handle (Kinds.Named, Of.Entry)
 //
 // # Now
 //

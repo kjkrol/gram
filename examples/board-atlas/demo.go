@@ -185,7 +185,7 @@ func (s *arena) layOut() {
 	for y := 11; y >= 4; y-- {
 		ring = append(ring, at(7, y))
 	}
-	road, _ := s.board.CellKinds().Get(RoadCell)
+	road := s.board.CellKinds().Named(RoadCell).Kind()
 	link := func(a, b cell.ID) {
 		if bit, ok := grid.Link(brd, a, b); ok {
 			w := layoutWay(&layout, a, road)
@@ -267,7 +267,7 @@ func (m *mainScene) Name() string { return "main" }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -280,8 +280,7 @@ func (m *mainScene) Layers() []render.Layer {
 		RoadCell:  cobbled(color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}),
 		WoodCell:  treed(color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}),
 	} {
-		k, _ := kinds.Get(name)
-		atlas.RegisterAt(k.SpriteID, CellSize, draw)
+		atlas.Add(kinds.Named(name).SpriteID(), CellSize, draw)
 	}
 	atlas.Close()
 	s.board.WithRenderer(atlas)

@@ -239,11 +239,11 @@ func (m *mainScene) Layers() []render.Layer {
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.RegisterAt(kind.Named[body](s.world.Kinds(), bodyKind(ci, si)).SpriteID(), int(RectSize), shape(c))
+			atlas.Add(kind.Named[body](s.world.Kinds(), bodyKind(ci, si)).SpriteID(), int(RectSize), shape(c))
 		}
 	}
 
-	atlas.RegisterAt(s.hitSprite, int(RectSize), render.Solid(palette[entityColors]))
+	atlas.Add(s.hitSprite, int(RectSize), render.Solid(palette[entityColors]))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 

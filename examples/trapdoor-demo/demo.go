@@ -168,7 +168,7 @@ func (s *arena) defineCells() {
 func (s *arena) defineEffects() {
 	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
 	fx := s.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell) })})
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
 	fx.Define(HasteEf, effect.Spec{
@@ -263,9 +263,9 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.RegisterAt(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.Add(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -276,8 +276,7 @@ func (m *mainScene) Layers() []render.Layer {
 		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
 		PitCell:    {R: 15, G: 12, B: 20, A: 255},
 	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
+		boardAtlas.Add(kinds.Named(name).SpriteID(), CellSize, render.Solid(c))
 	}
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

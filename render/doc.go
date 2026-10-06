@@ -16,10 +16,12 @@
 //
 // # Atlas and AtlasSource
 //
-// An [Atlas] is a sprite sheet built lazily: Register (or RegisterAt, into a slot issued
-// elsewhere) records a [SpriteDrawer] at a texture size of its own, and Close is when the sheet
-// is laid out and baked — so a slot issued late is as welcome as an early one, as long as it
-// comes before Close. The drawn size is the entity's box; the texture size is resolution.
+// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a slot issued
+// elsewhere — a kind's SpriteID, a board's cover — at a texture size of its own, and Close is
+// when the sheet is laid out and baked — so a slot issued late is as welcome as an early one, as
+// long as it comes before Close. The drawn size is the entity's box; the texture size is
+// resolution. Add hands the sprite back as a [Slot]: chain [Slot.Under] for the look drawn in
+// its place while an effect holds ([Dresser], which rule/effect's Effect is through its Look).
 // [Solid], [Border], [Diamond], [Cross], [Hexagon], [Dot] and [Arrow] are ready-made drawers. [AtlasSource]
 // is what a Frame draws from: the sheet, each [SpriteID]'s UV rectangle and a white texel for plain
 // colours, which Close bakes in.

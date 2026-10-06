@@ -274,9 +274,9 @@ func (m *mainScene) Layers() []render.Layer {
 
 	worldAtlas := render.NewAtlas()
 	for i, name := range scouts {
-		worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), name).SpriteID(), EntitySize, render.Diamond(unitColors[i]))
+		worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), name).SpriteID(), EntitySize, render.Diamond(unitColors[i]))
 	}
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), EntitySize, render.Diamond(hawkColor))
+	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), EntitySize, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -289,8 +289,7 @@ func (m *mainScene) Layers() []render.Layer {
 		RoadCell:   {R: 150, G: 130, B: 80, A: 255},
 		HillCell:   {R: 110, G: 100, B: 70, A: 255},
 	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, hexSprite, render.Hexagon(c))
+		boardAtlas.Add(kinds.Named(name).SpriteID(), hexSprite, render.Hexagon(c))
 	}
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

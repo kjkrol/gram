@@ -237,8 +237,8 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), PreyKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
-	atlas.RegisterAt(kind.Named[body](s.world.Kinds(), HunterKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
+	atlas.Add(kind.Named[body](s.world.Kinds(), PreyKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
+	atlas.Add(kind.Named[body](s.world.Kinds(), HunterKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 	s.vision.WithRenderer(atlas)

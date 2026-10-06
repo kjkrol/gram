@@ -102,7 +102,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		return 0
 	}))
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(0, 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
@@ -161,7 +161,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 		}
 	}
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(0, 8, render.Solid(color.RGBA{A: 255}))
+	atlas.Add(0, 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
@@ -275,7 +275,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	p.Seed(layout)
 	atlas := render.NewAtlas()
 	for _, k := range kinds.All() {
-		atlas.RegisterAt(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
+		atlas.Add(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
 	p.WithWorkers(workers).WithRenderer(atlas)

@@ -134,7 +134,7 @@ func (v *view) Focusable() bool { return true }
 
 func (v *view) Layers() []render.Layer {
 	atlas := render.NewAtlas()
-	atlas.RegisterAt(kind.Named[box](v.arena.world.Kinds(), BoxKind).SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(kind.Named[box](v.arena.world.Kinds(), BoxKind).SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 

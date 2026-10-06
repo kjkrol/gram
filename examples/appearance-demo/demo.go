@@ -284,19 +284,19 @@ func (s *arena) atlas() *render.Atlas {
 	nose := color.RGBA{R: 245, G: 245, B: 230, A: 255}
 	atlas := render.NewAtlas()
 	for _, sprite := range []render.SpriteID{kind.Named[walker](s.world.Kinds(), WalkerKind).SpriteID(), kind.Named[walker](s.world.Kinds(), GhostKind).SpriteID(), kind.Named[walker](s.world.Kinds(), LeaderKind).SpriteID()} {
-		atlas.RegisterAt(sprite, Size, render.Solid(calm))
+		atlas.Add(sprite, Size, render.Solid(calm))
 	}
 	for h := range s.facing {
-		atlas.RegisterAt(s.facing[h], Size, facingSprite(heading(h), calm, nose))
-		atlas.RegisterAt(s.angrySprite[h], Size, facingSprite(heading(h), angry, nose))
+		atlas.Add(s.facing[h], Size, facingSprite(heading(h), calm, nose))
+		atlas.Add(s.angrySprite[h], Size, facingSprite(heading(h), angry, nose))
 	}
-	atlas.RegisterAt(s.spook, Size, func(dst *render.Canvas, size int) {
+	atlas.Add(s.spook, Size, func(dst *render.Canvas, size int) {
 		r := float32(size) / 2
 		dst.FillCircle(r, r, r-1, color.RGBA{R: 225, G: 230, B: 245, A: 200})
 		dst.FillRect(r-4, r-3, 2, 3, color.RGBA{A: 255})
 		dst.FillRect(r+2, r-3, 2, 3, color.RGBA{A: 255})
 	})
-	atlas.RegisterAt(s.crown, Size, func(dst *render.Canvas, size int) {
+	atlas.Add(s.crown, Size, func(dst *render.Canvas, size int) {
 		gold := color.RGBA{R: 240, G: 200, B: 40, A: 255}
 		dst.FillRect(1, 0, float32(size)-2, 4, gold)
 		for x := float32(1); x < float32(size)-2; x += 5 {

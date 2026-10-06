@@ -272,43 +272,31 @@ func (m *mainScene) Name() string { return "main" }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
-	worldAtlas := render.NewAtlas()
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255}))
+	witch := kind.Named[unitRow](s.world.Kinds(), WitchKind)
+	walker := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
+	boat := kind.Named[unitRow](s.world.Kinds(), BoatKind)
 	effects := s.world.Effects()
-	for _, l := range []struct {
-		effect string
-		of     render.SpriteID
-		draw   render.SpriteDrawer
-	}{
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})},
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})},
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), func(dst *render.Canvas, size int) {
+	frozen := effects.Named(FrozenEf)
+
+	worldAtlas := render.NewAtlas()
+	worldAtlas.Add(witch.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255})).
+		Under(frozen, render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})) // the witch gone white
+	worldAtlas.Add(walker.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255})).
+		Under(frozen, render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})) // the walker rimed
+	worldAtlas.Add(boat.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})).
+		Under(frozen, func(dst *render.Canvas, size int) { // the boat in a rim of ice
 			render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
 			render.Border(color.RGBA{R: 190, G: 220, B: 245, A: 255})(dst, size)
-		}},
-	} {
-		worldAtlas.RegisterAt(effects.Named(l.effect).Look(l.of), EntitySize, l.draw)
-	}
+		})
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
-	for name, c := range map[string]color.RGBA{
-		GrassCell: {R: 60, G: 95, B: 60, A: 255},
-		WaterCell: {R: 40, G: 90, B: 170, A: 255},
-	} {
-		k, _ := kinds.Get(name)
-		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
-	}
-	for name, c := range map[string]color.RGBA{
-		FrostEf: {R: 235, G: 240, B: 245, A: 255},
-		IcedEf:  {R: 170, G: 215, B: 240, A: 255},
-	} {
-		boardAtlas.RegisterAt(s.board.Covering(effects.Named(name)), CellSize, render.Solid(c))
-	}
+	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
+	boardAtlas.Add(kinds.Named(WaterCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 40, G: 90, B: 170, A: 255}))
+	boardAtlas.Add(s.board.Covering(effects.Named(FrostEf)), CellSize, render.Solid(color.RGBA{R: 235, G: 240, B: 245, A: 255})) // snow
+	boardAtlas.Add(s.board.Covering(effects.Named(IcedEf)), CellSize, render.Solid(color.RGBA{R: 170, G: 215, B: 240, A: 255}))  // ice
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
