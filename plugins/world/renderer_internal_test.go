@@ -3,6 +3,7 @@ package world
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -158,7 +159,7 @@ func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 		{"still: the Appearance's own angle holds", geom.Vec{}, 0},
 	} {
 		a := &Atlas{turned: map[render.SpriteID]bool{1: true}, unders: map[render.SpriteID][]render.SpriteID{}}
-		look := drawThrough(t, nil, a.rules(), tc.dir, quarters[0])
+		look := drawThrough(t, nil, a.rules(func() time.Duration { return 0 }), tc.dir, quarters[0])
 		if len(look.angles) != 1 || look.angles[0] != tc.want {
 			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
 		}
@@ -189,5 +190,24 @@ func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
 	})
 	if quads != 1 {
 		t.Fatalf("laid %d pieces, want the one quad", quads)
+	}
+}
+
+// An animated sprite shows the frame of the tactical clock: each frame a period, round and round
+// — the pause a freeze-frame.
+func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) {
+	const period = 180 * time.Millisecond
+	frames := []render.SpriteID{10, 11, 12}
+	for now, want := range map[time.Duration]render.SpriteID{
+		0:          10,
+		period:     11,
+		2 * period: 12,
+		3 * period: 10, // round again
+	} {
+		a := &Atlas{animated: map[render.SpriteID]animation{1: {frames: frames, period: period}}}
+		look := drawThrough(t, nil, a.rules(func() time.Duration { return now }), geom.NewVec(1, 0), quarters[0])
+		if len(look.sprites) != 1 || look.sprites[0] != want {
+			t.Errorf("at %v drew %v, want frame %v", now, look.sprites, want)
+		}
 	}
 }

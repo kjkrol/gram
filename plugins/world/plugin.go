@@ -258,8 +258,8 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 				panic(err)
 			}
 		})
-		if wa, ok := atlas.(*Atlas); ok { // the looks declared on the world's own atlas: facing, then turning
-			if err := p.module.drawing.Add(wa.rules()...); err != nil {
+		if wa, ok := atlas.(*Atlas); ok { // the looks the world's own atlas declared: facing, frames, turning
+			if err := p.module.drawing.Add(wa.rules(p.module.clock.Shown)...); err != nil {
 				panic(err)
 			}
 		}

@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/kjkrol/gram/render"
 )
@@ -13,12 +14,19 @@ import (
 // from, and the renderer applies what was declared itself: the effects' swaps, then the facing,
 // then the turning, every frame.
 type Atlas struct {
-	p      *Plugin
-	atlas  *render.Atlas
-	turned map[render.SpriteID]bool
-	faced  map[render.SpriteID][]render.SpriteID
-	unders map[render.SpriteID][]render.SpriteID // the Under twins of each sprite: Turning reaches them
-	shaded map[render.SpriteID]render.MaterialID // the sprites worked out per pixel instead of drawn
+	p        *Plugin
+	atlas    *render.Atlas
+	turned   map[render.SpriteID]bool
+	faced    map[render.SpriteID][]render.SpriteID
+	unders   map[render.SpriteID][]render.SpriteID // the Under twins of each sprite: Turning reaches them
+	shaded   map[render.SpriteID]render.MaterialID // the sprites worked out per pixel instead of drawn
+	animated map[render.SpriteID]animation         // the sprites drawn frame after frame
+}
+
+// animation is one sprite's frames and how long each is shown.
+type animation struct {
+	frames []render.SpriteID
+	period time.Duration
 }
 
 var _ render.AtlasSource = (*Atlas)(nil)
@@ -26,7 +34,7 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the world's atlas; the twins Facing declares take their slots from the
 // world's kinds.
 func (p *Plugin) NewAtlas() *Atlas {
-	return &Atlas{p: p, atlas: render.NewAtlas(), turned: map[render.SpriteID]bool{}, faced: map[render.SpriteID][]render.SpriteID{}, unders: map[render.SpriteID][]render.SpriteID{}, shaded: map[render.SpriteID]render.MaterialID{}}
+	return &Atlas{p: p, atlas: render.NewAtlas(), turned: map[render.SpriteID]bool{}, faced: map[render.SpriteID][]render.SpriteID{}, unders: map[render.SpriteID][]render.SpriteID{}, shaded: map[render.SpriteID]render.MaterialID{}, animated: map[render.SpriteID]animation{}}
 }
 
 // Add takes look on as of's own — a kind's handle, an ammo, a slot of the kinds' own — and hands
@@ -81,6 +89,27 @@ func (s Slot) Turning() Slot {
 	return s
 }
 
+// Animated adds the sprite's frames — n twins, each shown period of game time in turn, drawn by
+// draw for its frame: a walker's legs, a banner in the wind. Frames go by the tactical clock, so
+// the pause is a freeze-frame and the tempo hurries the gait; a look under an effect is one still
+// frame of its own (Under), and a Turning sprite's frames turn with it. Facing and Animated do
+// not share a slot.
+func (s Slot) Animated(n int, period time.Duration, draw func(frame int) render.SpriteDrawer) Slot {
+	if n <= 0 || period <= 0 {
+		panic(fmt.Sprintf("world: sprite %d animated over %d frames of %v", s.id, n, period))
+	}
+	if _, ok := s.a.faced[s.id]; ok {
+		panic(fmt.Sprintf("world: sprite %d is faced already: Facing and Animated do not share a slot", s.id))
+	}
+	frames := make([]render.SpriteID, n)
+	for i := range frames {
+		frames[i] = s.a.p.Kinds().NewSprite()
+		s.a.atlas.Add(frames[i], s.size, draw(i))
+	}
+	s.a.animated[s.id] = animation{frames: frames, period: period}
+	return s
+}
+
 // Facing adds the sprite's n directional twins, east first against the clock, each drawn by
 // draw at its angle in degrees: the sprite is swapped for the twin of the way its entity is
 // headed (Vel.Dir). A look under an effect keeps that look whichever way it goes — give the
@@ -88,6 +117,9 @@ func (s Slot) Turning() Slot {
 func (s Slot) Facing(n int, draw func(angleDeg float64) render.SpriteDrawer) Slot {
 	if n <= 0 {
 		panic(fmt.Sprintf("world: sprite %d faces %d ways", s.id, n))
+	}
+	if _, ok := s.a.animated[s.id]; ok {
+		panic(fmt.Sprintf("world: sprite %d is animated already: Facing and Animated do not share a slot", s.id))
 	}
 	twins := make([]render.SpriteID, n)
 	for i := range twins {
@@ -111,8 +143,9 @@ func (a *Atlas) UV(id render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return a.a
 func (a *Atlas) White() (u, v float32) { return a.atlas.White() }
 
 // rules are what the renderer applies for the looks declared on the atlas, in their order: the
-// facing swaps, then the turning — after the effects' own swaps. For WithRenderer.
-func (a *Atlas) rules() []render.Rule {
+// facing swaps, the animations' frames (now is the tactical clock as shown), then the turning —
+// after the effects' own swaps. For WithRenderer.
+func (a *Atlas) rules(now func() time.Duration) []render.Rule {
 	var out []render.Rule
 	if len(a.faced) > 0 {
 		faced := a.faced
@@ -123,12 +156,24 @@ func (a *Atlas) rules() []render.Rule {
 			return ap
 		}))
 	}
+	if len(a.animated) > 0 {
+		animated := a.animated
+		out = append(out, render.With(func(ap render.Appearance, _ Base) render.Appearance {
+			if an, ok := animated[ap.SpriteID]; ok {
+				ap.SpriteID = an.frames[int(now()/an.period)%len(an.frames)]
+			}
+			return ap
+		}))
+	}
 	if len(a.turned) > 0 {
 		turned := map[render.SpriteID]bool{}
-		for id := range a.turned { // a turned sprite's looks under effects turn with it
+		for id := range a.turned { // a turned sprite's looks under effects and its frames turn with it
 			turned[id] = true
 			for _, twin := range a.unders[id] {
 				turned[twin] = true
+			}
+			for _, frame := range a.animated[id].frames {
+				turned[frame] = true
 			}
 		}
 		out = append(out, render.With(func(ap render.Appearance, b Base) render.Appearance {
