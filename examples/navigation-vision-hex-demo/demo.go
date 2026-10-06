@@ -233,13 +233,13 @@ func (s *mainStage) layOut() {
 }
 
 func (s *mainStage) placeUnits() {
-	mine := players.Give{To: s.player.ID}
+	player := players.Give{To: s.player.ID}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: s.cellAt(GridWidth-4, gapRow), target: s.cellAt(3, gapRow)}).Told(mine, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: s.cellAt(GridWidth-4, gapRow), target: s.cellAt(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
 		// The hawk crosses the wall and the second forest head-on.
-		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.cellAt(1, 9), target: s.cellAt(GridWidth-2, 9)}).Told(mine, selection.Allow{}),
+		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.cellAt(1, 9), target: s.cellAt(GridWidth-2, 9)}).Told(player, selection.Allow{}),
 	)
 }
 

@@ -40,10 +40,6 @@ const (
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 
-	lakeLeft, lakeRight uint32 = 8, 15
-	lakeTop, lakeBottom uint32 = 4, 11
-
-	// Frost is the witch's own way of moving: snow and ice price it low.
 	Frost = cell.Domain(1 << 3)
 )
 
@@ -53,6 +49,17 @@ type Demo struct{ stage *mainStage }
 
 var _ game.Game = (*Demo)(nil)
 
+// TODO: zmienilbym sposob opisywania stage. Juz teraz korzystamy z DSL.
+// IMO lepiej pluginy zgrupowac w arene, z ktorej korzystalby stage.
+// wowczas tutaj byloby
+// definicja areny (ktora jest "zbierakiem na pluginy")
+// stage: stage.New("effect-demo").
+// Plugins(a.usePlugins).
+// Players(a.definePlayer).
+// Cells(a.defineCells).
+// Effects(a.defineEffects).
+// Rules(a.defineRoles).
+// itd
 func NewDemo() *Demo { return &Demo{stage: newStage()} }
 
 func (d *Demo) Props() game.Props {
@@ -147,6 +154,8 @@ func (s *mainStage) defineCells() {
 
 func (s *mainStage) defineEffects() {
 	effects := s.world.Effects()
+	// TODO: kazdy efekt powinien miec pole description, ktore mozna wyswietlic w UI. Wtedy mozna by bylo wyswietlic tooltip z opisem efektu.
+	// poza tym dzieki temun te komentarze moglyby byc usuniete, bo opis bylby w samym efekcie.
 	effects.Define(FrostEf, effect.Spec{ // land under snow: slower, the witch's own
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
@@ -178,8 +187,10 @@ func (s *mainStage) defineRoles() {
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
 
 	roles := s.world.Roles()
-	roles.Define(LakeRole) // the water plays it: where the witch's winter is ice
-	s.board.Plays(WaterCell, roles.Named(LakeRole))
+	roles.Define(LakeRole)
+	s.board.Plays(WaterCell, roles.Named(LakeRole)) // TODO: mowielm by nie zakladać,
+	//rule przez pluginy (po to usuwalismy hooks z plugins!).
+	// Role powinny przyjąc wyłącznie określone kafle wody - te które tworzą jezioro, a nie wszystkie.
 	roles.Define(WitchRole,
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
@@ -215,6 +226,12 @@ func (s *mainStage) defineScenes() []game.Scene {
 	return []game.Scene{main}
 }
 
+// The lake: where the water lies, and where the boat sails.
+const (
+	lakeLeft, lakeRight uint32 = 8, 15
+	lakeTop, lakeBottom uint32 = 4, 11
+)
+
 func (s *mainStage) layOut() {
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
@@ -225,11 +242,11 @@ func (s *mainStage) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 func (s *mainStage) placeUnits() {
-	mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: s.cellAt(2, 8), target: s.cellAt(GridWidth-3, 8)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: s.cellAt(2, 10)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: s.cellAt(lakeRight, 8), target: s.cellAt(lakeLeft, 8)}).Told(mine...),
+		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: s.cellAt(2, 8), target: s.cellAt(GridWidth-3, 8)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: s.cellAt(2, 10)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: s.cellAt(lakeRight, 8), target: s.cellAt(lakeLeft, 8)}).Told(player...),
 	)
 }
 
@@ -271,9 +288,9 @@ func (m *mainScene) Layers() []render.Layer {
 		of     render.SpriteID
 		draw   render.SpriteDrawer
 	}{
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})}, // the witch gone white
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})},  // the walker rimed
-		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), func(dst *render.Canvas, size int) { // the boat in a rim of ice
+		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WitchKind).SpriteID(), render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})},
+		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), WalkerKind).SpriteID(), render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})},
+		{FrozenEf, kind.Named[unitRow](s.world.Kinds(), BoatKind).SpriteID(), func(dst *render.Canvas, size int) {
 			render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
 			render.Border(color.RGBA{R: 190, G: 220, B: 245, A: 255})(dst, size)
 		}},
@@ -283,6 +300,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
+	// TODO: uwazam ze kafle trzeba definiowac, a potem wypelniac analogicznie do jednostek. Pozwolilobyto przypisywac wybranym kaflom efekty.
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{
@@ -293,8 +311,8 @@ func (m *mainScene) Layers() []render.Layer {
 		boardAtlas.RegisterAt(k.SpriteID, CellSize, render.Solid(c))
 	}
 	for name, c := range map[string]color.RGBA{
-		FrostEf: {R: 235, G: 240, B: 245, A: 255}, // snow
-		IcedEf:  {R: 170, G: 215, B: 240, A: 255}, // ice
+		FrostEf: {R: 235, G: 240, B: 245, A: 255},
+		IcedEf:  {R: 170, G: 215, B: 240, A: 255},
 	} {
 		boardAtlas.RegisterAt(s.board.Covering(effects.Named(name)), CellSize, render.Solid(c))
 	}

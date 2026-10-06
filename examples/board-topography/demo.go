@@ -328,9 +328,9 @@ func (m *mainScene) Layers() []render.Layer {
 	s := m.stage
 
 	worldAtlas := render.NewAtlas()
-	mine := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255})
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), spritePx, mine)
-	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), PlateauKind).SpriteID(), spritePx, mine)
+	playerColor := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255})
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), spritePx, playerColor)
+	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), PlateauKind).SpriteID(), spritePx, playerColor)
 	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RivalKind).SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
 	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
 	worldAtlas.Close()

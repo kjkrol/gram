@@ -198,10 +198,10 @@ func (s *mainStage) layOut() {
 }
 
 func (s *mainStage) placeUnits() {
-	mine := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(mine...),
-		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(mine...),
+		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(player...),
 	)
 }
 

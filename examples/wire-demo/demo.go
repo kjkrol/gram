@@ -265,12 +265,12 @@ func (s *mainStage) layOut() {
 }
 
 func (s *mainStage) placeUnits() {
-	mine := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	for i := range uint32(3) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, yardRow)}).Told(mine...))
+		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, yardRow)}).Told(player...))
 	}
 	for i := range uint32(2) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), PorterKind).Entry(unitRow{start: s.cellAt(4+2*i, yardRow+1)}).Told(mine...))
+		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), PorterKind).Entry(unitRow{start: s.cellAt(4+2*i, yardRow+1)}).Told(player...))
 	}
 	for _, row := range rows {
 		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
