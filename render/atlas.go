@@ -73,12 +73,14 @@ func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
 		panic(fmt.Sprintf("gram: Atlas sprite %d added twice", id))
 	}
 	a.slots[id] = slot{size: size, draw: draw}
-	return Slot{a: a, id: id, size: size}
+	return Slot{a: a, of: of, id: id, size: size}
 }
 
-// Slot is one sprite added to an Atlas, what the looks under effects chain on.
+// Slot is one sprite added to an Atlas, what the looks under effects and the directional twins
+// chain on.
 type Slot struct {
 	a    *Atlas
+	of   Sprited
 	id   SpriteID
 	size int
 }
@@ -91,6 +93,24 @@ type Dresser interface{ Look(of SpriteID) SpriteID }
 // marker is on: the witch gone white under frozen.
 func (s Slot) Under(d Dresser, draw SpriteDrawer) Slot {
 	s.a.Add(d.Look(s.id), s.size, draw)
+	return s
+}
+
+// Faced hands out a sprite's directional twins, east first, against the clock: a bullet Ammo
+// whose Facing was declared is one.
+type Faced interface{ Headings() []SpriteID }
+
+// Facing adds the sprite's directional twins, the same size, each drawn by draw at its angle in
+// degrees; it panics where Add's sprite declared no facing.
+func (s Slot) Facing(draw func(angleDeg float64) SpriteDrawer) Slot {
+	f, ok := s.of.(Faced)
+	if !ok || len(f.Headings()) == 0 {
+		panic(fmt.Sprintf("gram: Atlas sprite %d declared no facing to draw", s.id))
+	}
+	hs := f.Headings()
+	for i, id := range hs {
+		s.a.Add(id, s.size, draw(float64(i)*360/float64(len(hs))))
+	}
 	return s
 }
 

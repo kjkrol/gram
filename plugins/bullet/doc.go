@@ -57,6 +57,15 @@
 // grenade, Then bang, a rule of Resting under bang that Bursts; a wounded effect a Blast rule
 // applies ForOther. See examples/bullet-demo.
 //
+// # Dressing a shot
+//
+// A shot is drawn from its Ammo's sprite like any entity, and dressed the same ways: a state's
+// look chains on its atlas Slot (render.Slot.Under — a grenade with its fuse sparking), and the
+// way it flies is [Shots.Facing] — declared in a Stage's Looks section
+// (world.Draw(shots.Facing(BoltKind, 16))), the twins' drawers chained on the Slot
+// (render.Slot.Facing, each at its angle): a bolt drawn head first, an arrow stuck the way it
+// landed. [Flight.Heading] is the twin a flight picks.
+//
 // # Limits
 //
 // A wrapping world is refused (a sweep across the seam). Shots do not penetrate: the nearest

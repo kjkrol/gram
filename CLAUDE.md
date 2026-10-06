@@ -1216,7 +1216,13 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
   dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
   despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
-  collision's. A weapon — ammo, reloading, who carries it — is the game's rules and effects
+  collision's. A shot is dressed as any entity: a state's look by `render.Slot.Under`, the way it
+  flies by `Shots.Facing(name, n)` — one Looks-section step (`world.Draw(shots.Facing(...))`), the
+  twins' drawers chained on the ammo's Slot (`render.Slot.Facing`, an `Ammo` with a Facing is a
+  `render.Faced`), `Flight.Heading(n)` the pick — a sprite in a Stage's struct is a leak: the
+  arena holds plugins alone (the user's word, 2026-10-06; `Alter(world.Appearance)` for an
+  effect's look went the same day — a look is drawing, `Under`, never the Spec's).
+  A weapon — ammo, reloading, who carries it — is the game's rules and effects
   (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
   Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 

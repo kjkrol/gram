@@ -114,8 +114,6 @@ type arena struct {
 	players   *players.Plugin
 	player    *players.Player // the one at this keyboard: the scouts and the porters are its
 	brd       *board.Board
-
-	hasteSprite render.SpriteID
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -180,12 +178,9 @@ func (s *arena) defineEffects() {
 	fx := s.world.Effects()
 	fx.Define(OpenEf, effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
 	fx.Define(AjarEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(GatewayCell).Kind() })})
-	s.hasteSprite = s.world.Kinds().NewSprite()
-	hasteSprite := s.hasteSprite
-	fx.Define(HasteEf, effect.Spec{
+	fx.Define(HasteEf, effect.Spec{ // how a hastened one looks is the scene's: Under in its Layers
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
-		effect.Alter(func(a *world.Appearance) { a.SpriteID = hasteSprite }),
 	})
 	fx.Define(PullEf, effect.Spec{effect.Lasts(pulling)})
 }
@@ -326,8 +321,8 @@ func (m *mainScene) Layers() []render.Layer {
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor))
-	worldAtlas.Add(s.hasteSprite, EntitySize, render.Solid(hasteColor))
+	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
+		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor)) // the scout aglow with haste
 	worldAtlas.Add(porterKind, EntitySize, render.Solid(porterColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()

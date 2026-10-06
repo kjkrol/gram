@@ -101,8 +101,7 @@ type arena struct {
 	brd       *board.Board
 	effects   *effect.Effects
 
-	paleSprite, sparkSprite render.SpriteID
-	ammo                    *bullet.Shots // the kinds of shots, by name
+	ammo *bullet.Shots // the kinds of shots, by name
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -174,10 +173,8 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.paleSprite, s.sparkSprite = s.world.Kinds().NewSprite(), s.world.Kinds().NewSprite()
-	s.effects.Define(WoundedEf, effect.Spec{
+	s.effects.Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its Layers
 		effect.Lasts(woundLasts),
-		effect.Alter(func(a *world.Appearance) { a.SpriteID = s.paleSprite }),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
 	s.effects.Define(BangEf, effect.Spec{effect.Lasts(time.Second / TPS)})
@@ -209,7 +206,7 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineLooks() error {
-	return s.world.Draw(render.Over(render.Appearance{SpriteID: s.sparkSprite}, s.effects.Named(FuseEf).Mark().In))
+	return s.world.Draw(s.ammo.Facing(RoundKind, 16)) // a round drawn the way it flies
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -310,13 +307,21 @@ func (m *mainScene) Layers() []render.Layer {
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
+	wounded := s.effects.Named(WoundedEf)
+	fuse := s.effects.Named(FuseEf)
+
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor))
-	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor))
-	worldAtlas.Add(s.paleSprite, EntitySize, render.Solid(paleColor))
-	worldAtlas.Add(s.ammo.Named(RoundKind), 4, render.Solid(roundColor))
-	worldAtlas.Add(s.ammo.Named(GrenadeKind), 8, render.Solid(grenadeColor))
-	worldAtlas.Add(s.sparkSprite, 8, render.Diamond(sparkColor))
+	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor)).
+		Under(wounded, render.Diamond(paleColor)) // the soldier gone pale
+	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
+		Under(wounded, render.Solid(paleColor)) // the wanderer too
+	worldAtlas.Add(s.ammo.Named(RoundKind), 8, render.Dot(2, roundColor)).
+		Facing(func(angleDeg float64) render.SpriteDrawer { return render.Arrow(angleDeg, 2, roundColor) })
+	worldAtlas.Add(s.ammo.Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
+		Under(fuse, func(dst *render.Canvas, size int) { // the grenade with its fuse sparking
+			render.Dot(3, grenadeColor)(dst, size)
+			render.Diamond(sparkColor)(dst, size)
+		})
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
