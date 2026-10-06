@@ -265,15 +265,18 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	for i := range uint32(3) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, yardRow)}).Told(player...))
+		s.world.Seed(scoutKind.Entry(unitRow{start: s.cellAt(3+2*i, yardRow)}).Told(player...))
 	}
 	for i := range uint32(2) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), PorterKind).Entry(unitRow{start: s.cellAt(4+2*i, yardRow+1)}).Told(player...))
+		s.world.Seed(porterKind.Entry(unitRow{start: s.cellAt(4+2*i, yardRow+1)}).Told(player...))
 	}
 	for _, row := range rows {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+		s.world.Seed(wandererKind.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
 	}
 }
 
@@ -299,12 +302,15 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.Add(scoutKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
 	worldAtlas.Add(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), PorterKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 150, G: 110, B: 200, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.Add(porterKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 150, G: 110, B: 200, A: 255}))
+	worldAtlas.Add(wandererKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

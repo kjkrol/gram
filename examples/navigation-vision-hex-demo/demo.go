@@ -233,14 +233,16 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 	brd := s.board.Res.Logic.Board
 	player := players.Give{To: s.player.ID}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: brd.CellIndex(GridWidth-4, gapRow), target: brd.CellIndex(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
+		scoutKind(0).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
+		scoutKind(1).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
+		scoutKind(2).Entry(unitRow{start: brd.CellIndex(GridWidth-4, gapRow), target: brd.CellIndex(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
 		// The hawk crosses the wall and the second forest head-on.
-		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: brd.CellIndex(1, 9), target: brd.CellIndex(GridWidth-2, 9)}).Told(player, selection.Allow{}),
+		hawkKind.Entry(unitRow{start: brd.CellIndex(1, 9), target: brd.CellIndex(GridWidth-2, 9)}).Told(player, selection.Allow{}),
 	)
 }
 
@@ -268,12 +270,14 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
-	for i, name := range scouts {
-		worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), name).SpriteID(), EntitySize, render.Diamond(unitColors[i]))
+	for i := range scouts {
+		worldAtlas.Add(scoutKind(i).SpriteID(), EntitySize, render.Diamond(unitColors[i]))
 	}
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), EntitySize, render.Diamond(hawkColor))
+	worldAtlas.Add(hawkKind.SpriteID(), EntitySize, render.Diamond(hawkColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

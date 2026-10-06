@@ -253,12 +253,14 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	at := s.cellAt
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), SoldierKind).Entry(unitRow{start: at(3, roadRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).Told(players.Give{To: s.wild.ID}),
-		kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: at(9, 12), to: at(14, 12)}).Told(players.Give{To: s.wild.ID}),
-		kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: at(9, 4), to: at(12, 4)}).Told(players.Give{To: s.wild.ID}),
+		soldierKind.Entry(unitRow{start: at(3, roadRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		wandererKind.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).Told(players.Give{To: s.wild.ID}),
+		wandererKind.Entry(unitRow{start: at(9, 12), to: at(14, 12)}).Told(players.Give{To: s.wild.ID}),
+		wandererKind.Entry(unitRow{start: at(9, 4), to: at(12, 4)}).Told(players.Give{To: s.wild.ID}),
 	)
 }
 
@@ -287,10 +289,12 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), SoldierKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.Add(soldierKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.Add(wandererKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
 	worldAtlas.Add(s.paleSprite, EntitySize, render.Solid(color.RGBA{R: 235, G: 200, B: 200, A: 255}))
 	worldAtlas.Add(s.ammo.Named(RoundKind).SpriteID(), 4, render.Solid(color.RGBA{R: 255, G: 230, B: 80, A: 255}))
 	worldAtlas.Add(s.ammo.Named(GrenadeKind).SpriteID(), 8, render.Solid(color.RGBA{R: 50, G: 80, B: 50, A: 255}))

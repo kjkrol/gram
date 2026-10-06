@@ -237,12 +237,15 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 func (s *arena) placeUnits() {
+	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
+	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
+	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
 	brd := s.board.Res.Logic.Board
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
+		witchKind.Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
+		walkerKind.Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
+		boatKind.Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
 	)
 }
 
@@ -269,18 +272,18 @@ func (m *mainScene) Name() string { return "main" }
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
-	witch := kind.Named[unitRow](s.world.Kinds(), WitchKind)
-	walker := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
-	boat := kind.Named[unitRow](s.world.Kinds(), BoatKind)
+	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
+	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
+	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
 	effects := s.world.Effects()
 	frozen := effects.Named(FrozenEf)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(witch.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255})).
+	worldAtlas.Add(witchKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 200, G: 230, B: 255, A: 255})).
 		Under(frozen, render.Diamond(color.RGBA{R: 240, G: 248, B: 255, A: 255})) // the witch gone white
-	worldAtlas.Add(walker.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255})).
+	worldAtlas.Add(walkerKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255})).
 		Under(frozen, render.Solid(color.RGBA{R: 235, G: 175, B: 175, A: 255})) // the walker rimed
-	worldAtlas.Add(boat.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})).
+	worldAtlas.Add(boatKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})).
 		Under(frozen, func(dst *render.Canvas, size int) { // the boat in a rim of ice
 			render.Solid(color.RGBA{R: 140, G: 90, B: 40, A: 255})(dst, size)
 			render.Border(color.RGBA{R: 190, G: 220, B: 245, A: 255})(dst, size)

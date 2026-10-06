@@ -105,10 +105,11 @@ func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
 }
 
 func (g *gameplayArena) placeUnits() {
+	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = kind.Named[world.Position](g.world.Kinds(), MoverKind).Entry(placement.Place(i, EntityCount))
+		entries[i] = moverKind.Entry(placement.Place(i, EntityCount))
 	}
 	g.world.Seed(entries...)
 }
@@ -131,9 +132,10 @@ func (w *worldScene) Name() string { return "world" }
 
 func (w *worldScene) Layers() []render.Layer {
 	s := w.arena
+	moverKind := kind.Named[world.Position](s.world.Kinds(), MoverKind)
 
 	atlas := render.NewAtlas()
-	atlas.Add(kind.Named[world.Position](s.world.Kinds(), MoverKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(moverKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 

@@ -198,11 +198,13 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player...),
+		redKind.Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player...),
+		blueKind.Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player...),
 	)
 }
 
@@ -229,10 +231,12 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), BlueKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
+	worldAtlas.Add(redKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
+	worldAtlas.Add(blueKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 90, G: 140, B: 220, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

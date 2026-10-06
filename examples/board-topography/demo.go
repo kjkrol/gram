@@ -287,17 +287,21 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
+	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
+	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
 	entries := make([]kind.Entry, 0, len(s.stops)+1)
 	for i, from := range s.stops {
-		walkers, whose := kind.Named[unitRow](s.world.Kinds(), UnitKind), []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+		walkers, whose := unitKind, []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 {
-			walkers, whose = kind.Named[unitRow](s.world.Kinds(), RivalKind), []any{players.Give{To: s.rival.ID}, selection.Allow{}}
+			walkers, whose = rivalKind, []any{players.Give{To: s.rival.ID}, selection.Allow{}}
 		}
 		entries = append(entries, walkers.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(whose...))
 	}
-	entries = append(entries, kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+	entries = append(entries, hawkKind.Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
-		entries = append(entries, kind.Named[unitRow](s.world.Kinds(), PlateauKind).Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		entries = append(entries, plateauKind.Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	s.world.Seed(entries...)
 }
@@ -329,13 +333,17 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
+	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
+	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
+	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
 	playerColor := render.Solid(color.RGBA{R: 230, G: 80, B: 80, A: 255})
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), spritePx, playerColor)
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), PlateauKind).SpriteID(), spritePx, playerColor)
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), RivalKind).SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), HawkKind).SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
+	worldAtlas.Add(unitKind.SpriteID(), spritePx, playerColor)
+	worldAtlas.Add(plateauKind.SpriteID(), spritePx, playerColor)
+	worldAtlas.Add(rivalKind.SpriteID(), spritePx, render.Solid(color.RGBA{R: 70, G: 110, B: 230, A: 255}))
+	worldAtlas.Add(hawkKind.SpriteID(), spritePx, render.Diamond(color.RGBA{R: 120, G: 130, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

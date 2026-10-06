@@ -238,16 +238,19 @@ func (s *arena) placeUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
+	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
+	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
+	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
 	entries := make([]kind.Entry, total)
 	for i := range entries {
 		w := walker{at: placement.Place(i, total).Center(), vel: world.Velocity{Dir: ways[rng.IntN(4)], Value: 40 + 40*rng.Float64()}}
 		switch {
 		case i < Leaders:
-			entries[i] = kind.Named[walker](s.world.Kinds(), LeaderKind).Entry(w)
+			entries[i] = leaderKind.Entry(w)
 		case i < Leaders+Ghosts:
-			entries[i] = kind.Named[walker](s.world.Kinds(), GhostKind).Entry(w)
+			entries[i] = ghostKind.Entry(w)
 		default:
-			entries[i] = kind.Named[walker](s.world.Kinds(), WalkerKind).Entry(w)
+			entries[i] = walkerKind.Entry(w)
 		}
 	}
 	s.world.Seed(entries...)
@@ -280,10 +283,13 @@ func (m *mainScene) Layers() []render.Layer {
 // atlas draws every sprite: a square with a light nose on the side it faces, blue when calm, red
 // when angry; a pale ghost; a gold crown along the top.
 func (s *arena) atlas() *render.Atlas {
+	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
+	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
+	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
 	calm, angry := color.RGBA{R: 70, G: 130, B: 220, A: 255}, color.RGBA{R: 220, G: 60, B: 50, A: 255}
 	nose := color.RGBA{R: 245, G: 245, B: 230, A: 255}
 	atlas := render.NewAtlas()
-	for _, sprite := range []render.SpriteID{kind.Named[walker](s.world.Kinds(), WalkerKind).SpriteID(), kind.Named[walker](s.world.Kinds(), GhostKind).SpriteID(), kind.Named[walker](s.world.Kinds(), LeaderKind).SpriteID()} {
+	for _, sprite := range []render.SpriteID{walkerKind.SpriteID(), ghostKind.SpriteID(), leaderKind.SpriteID()} {
 		atlas.Add(sprite, Size, render.Solid(calm))
 	}
 	for h := range s.facing {

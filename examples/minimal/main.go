@@ -105,13 +105,14 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 }
 
 func (a *arena) placeUnits() {
+	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
 	entries := make([]kind.Entry, boxCount)
 	for i := range entries {
 		var vel world.Velocity
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
-		entries[i] = kind.Named[box](a.world.Kinds(), BoxKind).Entry(box{pos: placement.Place(i, boxCount), vel: vel})
+		entries[i] = boxKind.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
 }
@@ -133,8 +134,9 @@ func (v *view) Name() string    { return "view" }
 func (v *view) Focusable() bool { return true }
 
 func (v *view) Layers() []render.Layer {
+	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
-	atlas.Add(kind.Named[box](v.arena.world.Kinds(), BoxKind).SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+	atlas.Add(boxKind.SpriteID(), boxSize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 	atlas.Close()
 	v.arena.world.WithRenderer(atlas)
 

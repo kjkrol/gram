@@ -217,10 +217,11 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	var entries []kind.Entry
 	for k, c := range corners {
 		o := corners[(k+2)%4]
-		entries = append(entries, kind.Named[unitRow](s.world.Kinds(), UnitKind).Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+		entries = append(entries, unitKind.Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
 	}
 	s.world.Seed(entries...)
 }
@@ -266,8 +267,9 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), UnitKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
+	worldAtlas.Add(unitKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 230, G: 80, B: 80, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

@@ -231,11 +231,13 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	for i := range uint32(3) {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), ScoutKind).Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		s.world.Seed(scoutKind.Entry(unitRow{start: s.cellAt(3+2*i, GridHeight-2)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	for _, row := range rows {
-		s.world.Seed(kind.Named[unitRow](s.world.Kinds(), WandererKind).Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+		s.world.Seed(wandererKind.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
 	}
 }
 
@@ -261,11 +263,13 @@ func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), ScoutKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
+	worldAtlas.Add(scoutKind.SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 140, B: 230, A: 255}))
 	worldAtlas.Add(s.hasteSprite, EntitySize, render.Solid(color.RGBA{R: 170, G: 220, B: 255, A: 255}))
-	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), WandererKind).SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
+	worldAtlas.Add(wandererKind.SpriteID(), EntitySize, render.Diamond(color.RGBA{R: 220, G: 150, B: 60, A: 255}))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

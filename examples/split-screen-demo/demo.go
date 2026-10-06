@@ -229,10 +229,12 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	redKind := kind.Named[block](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
 	s.world.Seed(
-		kind.Named[block](s.world.Kinds(), RedKind).Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
-		kind.Named[block](s.world.Kinds(), BlueKind).Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
+		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
+		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
 	)
 }
 
@@ -342,9 +344,11 @@ func (m *mainScene) Focusable() bool { return true }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	redKind := kind.Named[block](s.world.Kinds(), RedKind)
+	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(kind.Named[block](s.world.Kinds(), RedKind).SpriteID(), BlockSize, render.Solid(colorRed))
-	worldAtlas.Add(kind.Named[block](s.world.Kinds(), BlueKind).SpriteID(), BlockSize, render.Solid(colorBlue))
+	worldAtlas.Add(redKind.SpriteID(), BlockSize, render.Solid(colorRed))
+	worldAtlas.Add(blueKind.SpriteID(), BlockSize, render.Solid(colorBlue))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

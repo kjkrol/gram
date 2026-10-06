@@ -204,11 +204,13 @@ func (s *arena) placeUnits() {
 		}
 	}
 
+	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 	entries := make([]kind.Entry, 0, total)
 	for i := range PreyCount {
-		entries = append(entries, kind.Named[body](s.world.Kinds(), PreyKind).Entry(roam(i, roamSpeed)))
+		entries = append(entries, preyKind.Entry(roam(i, roamSpeed)))
 	}
-	entries = append(entries, kind.Named[body](s.world.Kinds(), HunterKind).Entry(roam(PreyCount, hunterSpeed)))
+	entries = append(entries, hunterKind.Entry(roam(PreyCount, hunterSpeed)))
 	s.world.Seed(entries...)
 	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
 }
@@ -235,10 +237,12 @@ func (m *mainScene) Focusable() bool { return true }
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
+	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 
 	atlas := render.NewAtlas()
-	atlas.Add(kind.Named[body](s.world.Kinds(), PreyKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
-	atlas.Add(kind.Named[body](s.world.Kinds(), HunterKind).SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
+	atlas.Add(preyKind.SpriteID(), RectSize, render.Solid(color.RGBA{R: 120, G: 190, B: 255, A: 255}))
+	atlas.Add(hunterKind.SpriteID(), RectSize, render.Solid(color.RGBA{R: 225, G: 70, B: 70, A: 255}))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 	s.vision.WithRenderer(atlas)

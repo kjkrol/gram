@@ -196,9 +196,10 @@ func (s *arena) defineKinds() {
 func (s *arena) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
+	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = kind.Named[body](s.world.Kinds(), bodyKind(rng.IntN(entityColors), rng.IntN(entityShapes))).Entry(
+		entries[i] = bodyKindOf(rng.IntN(entityColors), rng.IntN(entityShapes)).Entry(
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)
@@ -237,9 +238,10 @@ func (m *mainScene) Layers() []render.Layer {
 	}
 	atlas := render.NewAtlas()
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
+	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.Add(kind.Named[body](s.world.Kinds(), bodyKind(ci, si)).SpriteID(), int(RectSize), shape(c))
+			atlas.Add(bodyKindOf(ci, si).SpriteID(), int(RectSize), shape(c))
 		}
 	}
 
