@@ -44,8 +44,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		w.Roles().Define("plate",
 			rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 		plate := w.Roles().Named("plate")
-		brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
-		brd.Plays("plate", plate)
+		brd.CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
 		cells := []cell.Entry{
 			{Cell: m.lever, Name: "lever"},
 			{Kind: "plate", Cell: m.plate, Name: "plate"},

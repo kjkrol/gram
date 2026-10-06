@@ -42,10 +42,8 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	p.CellKinds().Create(
-		cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true},
-	)
+	p.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	p.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
 	cell, _ := grid.CellIndex(2, 2)
 	return p, cell
 }

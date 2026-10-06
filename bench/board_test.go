@@ -211,14 +211,12 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
 	kinds := p.CellKinds()
-	kinds.Create(
-		cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water},
-		cell.Kind{Name: cell.Named("earth"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("sand"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("rock"), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land | cell.Water},
-		cell.Kind{Name: cell.Named("estuary"), Cost: 1, Allows: cell.Water},
-	)
+	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("sand", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("rock", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("stream", cell.Kind{Cost: 2, Allows: cell.Land | cell.Water})
+	kinds.Define("estuary", cell.Kind{Cost: 1, Allows: cell.Water})
 	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
 		Style("earth", painter.Style{Spread: 0.3}).
 		Style("sand", painter.Style{Spread: 0.35}).

@@ -120,10 +120,10 @@ func newStage() *mainStage {
 	s.Stage = stage.New("wire-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRoles).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
@@ -159,24 +159,22 @@ func (s *mainStage) definePlayer() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(BoardsCell), Cost: 1, Allows: cell.Land}, // a trapdoor shut
-		cell.Kind{Name: cell.Named(PitCell), Cost: 1},                       // holds nobody
-		cell.Kind{Name: cell.Named(PlateCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(LeverCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(FenceCell), Cost: 1, Solid: true},
-		cell.Kind{Name: cell.Named(GateCell), Cost: 1, Solid: true},          // the gate shut
-		cell.Kind{Name: cell.Named(GatewayCell), Cost: 1, Allows: cell.Land}, // the gate open
-	)
+	kinds, roles := s.board.CellKinds(), s.world.Roles()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
+	kinds.Define(PitCell, cell.Kind{Cost: 1})                       // holds nobody
+	kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(PlateRole))
+	kinds.Define(LeverCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(LeverRole))
+	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(GateCell, cell.Kind{Cost: 1, Solid: true})          // the gate shut
+	kinds.Define(GatewayCell, cell.Kind{Cost: 1, Allows: cell.Land}) // the gate open
 }
 
 func (s *mainStage) defineEffects() {
-	pit, _ := s.board.CellKinds().Get(PitCell)
-	gateway, _ := s.board.CellKinds().Get(GatewayCell)
+	kinds := s.board.CellKinds() // the kinds are defined later: the alters resolve them as they run
 	fx := s.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
-	fx.Define(AjarEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = gateway })})
+	fx.Define(OpenEf, effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell) })})
+	fx.Define(AjarEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(GatewayCell) })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
 	fx.Define(HasteEf, effect.Spec{
@@ -197,9 +195,6 @@ func (s *mainStage) defineRoles() {
 			rule.Under(s.world.Effects().Named(PullEf), rule.Around(1, rule.Playing(s.world.Roles().Named(LeverRole), rule.Trigger())))))
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-	// the cells laid as a plate and as a lever play those roles
-	s.board.Plays(PlateCell, s.world.Roles().Named(PlateRole))
-	s.board.Plays(LeverCell, s.world.Roles().Named(LeverRole))
 }
 
 func (s *mainStage) defineCommands() {

@@ -115,10 +115,10 @@ func newStage() *mainStage {
 	s.Stage = stage.New("trapdoor-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
@@ -154,17 +154,16 @@ func (s *mainStage) definePlayer() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(BoardsCell), Cost: 1, Allows: cell.Land}, // a trapdoor shut
-		cell.Kind{Name: cell.Named(PitCell), Cost: 1},                       // holds nobody
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
+	kinds.Define(PitCell, cell.Kind{Cost: 1})                       // holds nobody
 }
 
 func (s *mainStage) defineEffects() {
-	pit, _ := s.board.CellKinds().Get(PitCell)
+	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
 	fx := s.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell) })})
 	s.hasteSprite = s.world.Kinds().NewSprite()
 	hasteSprite := s.hasteSprite
 	fx.Define(HasteEf, effect.Spec{

@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
 )
 
 // Kind is a named terrain kind: whom it admits, what it does to movement and sight, and how
@@ -61,6 +62,10 @@ func (k Kind) Costing(d Domain, cost float64) Kind {
 	return k
 }
 
+// Entry is a Layout entry laying this kind at c — the fill to the kind's definition, as a unit
+// kind's Entry is: chain Named, InGroup and Plays on it for what this one cell alone is.
+func (k Kind) Entry(c ID) Entry { return Entry{Kind: k.Name.String(), Cell: c} }
+
 // CostFor is what an entity moving in d pays here: the cheapest of its domains this kind admits
 // and prices, else Cost.
 func (k Kind) CostFor(d Domain) float64 {
@@ -74,11 +79,16 @@ func (k Kind) CostFor(d Domain) float64 {
 }
 
 // Kinds is a board's registered set of Kinds, keyed by Name — reached through the board plugin
-// (board.Plugin.Kinds), never built by the game. Names are strings here, as a Layout spells
+// (board.Plugin.CellKinds), never built by the game. Names are strings here, as a Layout spells
 // them.
 type Kinds interface {
-	// Create registers kinds, assigning each one's SpriteID by call order.
-	Create(kinds ...Kind)
+	// Define registers k under name, assigning its SpriteID by call order, and has every cell the
+	// Layout lays as it play plays, for good — it hands nothing back, and Named is the kind
+	// wherever it is built on. A name defined twice panics, in a Stage's Cells section.
+	Define(name string, k Kind, plays ...*rule.Part)
+	// Named is the kind defined as name — Entry for the Layout, SpriteID for the atlas; an
+	// unknown name panics.
+	Named(name string) Kind
 	// Get resolves name to the Kind registered under it.
 	Get(name string) (Kind, bool)
 	// All returns every registered Kind.

@@ -220,14 +220,33 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("marked", rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
 		marked := pw.w.Roles().Named("marked")
-		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("marked"), Cost: 1, Allows: cell.Land})
-		pw.brd.Plays("marked", marked)
+		pw.brd.CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
 		return marked.Rules()
 	})
 	pw.tick(3)
 	if got := pw.under(pw.scorched); !sameCells(got, map[cell.ID]bool{a: true, b: true}) {
 		t.Errorf("scorched %v, want the two marked cells %d and %d alone", got, a, b)
+	}
+}
+
+// A Layout entry's Plays has that one cell play the role, beyond its kind's: another cell of the
+// same kind plays nothing.
+func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
+	a, _ := grid.CellIndex(1, 1)
+	b, _ := grid.CellIndex(5, 2)
+	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
+		pw.w.Roles().Define("lake", rule.Then[cell.Now]("scorch the lake", rule.All, rule.Apply(pw.scorched)))
+		lake := pw.w.Roles().Named("lake")
+		pw.brd.CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
+		water := pw.brd.CellKinds().Named("water")
+		pw.brd.Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
+		return lake.Rules()
+	})
+	pw.tick(3)
+	if got := pw.under(pw.scorched); !sameCells(got, map[cell.ID]bool{a: true}) {
+		t.Errorf("scorched %v, want the lake's cell %d alone", got, a)
 	}
 }
 
@@ -239,8 +258,7 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("plate")
 		plate := pw.w.Roles().Named("plate")
-		pw.brd.CellKinds().Create(cell.Kind{Name: cell.Named("plate"), Cost: 1, Allows: cell.Land})
-		pw.brd.Plays("plate", plate)
+		pw.brd.CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
 		return []rule.Rule{rule.Then[unit.Standing]("press", rule.All, rule.Here(rule.Playing(plate, rule.Apply(pw.scorched))))}
 	})

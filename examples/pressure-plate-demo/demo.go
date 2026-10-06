@@ -112,10 +112,10 @@ func newStage() *mainStage {
 	s.Stage = stage.New("pressure-plate-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
@@ -150,17 +150,16 @@ func (s *mainStage) definePlayer() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(BoardsCell), Cost: 1, Allows: cell.Land}, // a trapdoor shut
-		cell.Kind{Name: cell.Named(PlateCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(PitCell), Cost: 1}, // holds nobody
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
+	kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land}, s.world.Roles().Named(PlateRole))
+	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
 }
 
 func (s *mainStage) defineEffects() {
-	pit, _ := s.board.CellKinds().Get(PitCell)
-	s.world.Effects().Define(OpenEf, effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
+	s.world.Effects().Define(OpenEf, effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell) })})
 }
 
 func (s *mainStage) defineRules() {
@@ -168,7 +167,6 @@ func (s *mainStage) defineRules() {
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
-	s.board.Plays(PlateCell, s.world.Roles().Named(PlateRole))
 }
 
 func (s *mainStage) defineCommands() {

@@ -28,7 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
-	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -95,8 +94,7 @@ type mainStage struct {
 	player     *players.Player // the one at this keyboard: the units are its
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	weather    weathering.Config // how the weather lies on the island
-	stops      []cell.ID         // where the units start, as the layout says
+	stops      []cell.ID // where the units start, as the layout says
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -105,9 +103,9 @@ func newStage() *mainStage {
 	s.Stage = stage.New("board").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
@@ -151,11 +149,11 @@ func (s *mainStage) definePlayer() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(island.Kinds(0)...)
-	s.weather = s.defineClimate()
+	island.Define(s.board.CellKinds(), 0)
+	s.defineWinterCells()
 }
 
-func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.weather) }
+func (s *mainStage) defineEffects() { s.atmosphere.WithWeathering(s.board, s.defineClimate()) }
 
 func (s *mainStage) defineRules() {
 	s.world.Roles().Define(MortalRole,

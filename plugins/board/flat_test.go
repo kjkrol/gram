@@ -54,7 +54,7 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 
 	t.Run("a kind with a height", func(t *testing.T) {
 		_, brd := flat()
-		expectPanic(t, "Heights", func() { brd.CellKinds().Create(cell.Kind{Name: cell.Named("wall"), Height: 3}) })
+		expectPanic(t, "Heights", func() { brd.CellKinds().Define("wall", cell.Kind{Height: 3}) })
 	})
 	t.Run("units with a height", func(t *testing.T) {
 		_, brd := flat()

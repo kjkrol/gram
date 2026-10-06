@@ -139,11 +139,10 @@ func (s *mainStage) defineScenes() []game.Scene {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land},
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 func (s *mainStage) restore(p game.Persistence) (bool, error) {

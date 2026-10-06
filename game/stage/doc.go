@@ -6,10 +6,10 @@
 //		return stage.New("meadow").
 //			Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
 //			Players(s.definePlayer).    // the players, the plugins' default keys
-//			Cells(s.defineCells).       // the kinds of cells
 //			Effects(s.defineEffects).   // the states
 //			Rules(s.defineRules).       // the roles, the rules, the plans
 //			Commands(s.defineCommands). // what can be asked for
+//			Cells(s.defineCells).       // the kinds of cells, the roles their cells play
 //			Kinds(s.defineKinds).       // the kinds of units
 //			Controls(s.bindKeys).       // the game's own keys, each a command
 //			Looks(s.defineLooks).       // the drawing rules
@@ -28,7 +28,9 @@
 //
 // The order is that of what builds on what: the players before the kinds their units are of, the
 // effects before the rules that cast them, the roles before the commands for their players and
-// the kinds that play them, everything before the keys that ask for it. How things look once
+// the kinds — of cells and of units — that play them, everything before the keys that ask for it.
+// An effect altering a cell's Ground to another kind resolves that kind as it runs
+// (cell.Kinds.Named in the Alter), the kinds being defined after the effects. How things look once
 // drawn — the atlases, an effect's looks, a board's covers — is a scene's, in its Layers.
 //
 // # What the Stage does itself

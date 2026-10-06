@@ -136,13 +136,12 @@ func (s *mainStage) definePlayer() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
-		cell.Kind{Name: cell.Named(ForestCell), Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land | cell.Air},
-		cell.Kind{Name: cell.Named(HillCell), Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10})
+	kinds.Define(ForestCell, cell.Kind{Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1))
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
+	kinds.Define(HillCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
 }
 
 func (s *mainStage) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }

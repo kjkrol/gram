@@ -8,9 +8,9 @@ import (
 )
 
 // Roles are the roles of a Stage, by name: Define says a role and the rules those playing it
-// obey, Named hands it to whoever gives it to a kind (rule.Plays), to a kind of cell
-// (board.Plugin.Plays) or to a plugin (Self.Plays), or names it in a rule (rule.Other,
-// rule.Playing). Reached through Plugin.Roles; each Stage's world has its own, so one name may
+// obey, Named hands it to whoever gives it to a kind (rule.Plays), to a kind of cell or to one
+// cell of the Layout (cell.Kinds.Define, cell.Entry.Plays) or to a plugin (Self.Plays), or names
+// it in a rule (rule.Other, rule.Playing). Reached through Plugin.Roles; each Stage's world has its own, so one name may
 // mean one thing in one Stage and another in the next. A Stage names 64 roles at most.
 type Roles struct {
 	w      *Plugin
@@ -19,7 +19,9 @@ type Roles struct {
 
 // Define says the role called name and the rules those playing it obey, none for a role that
 // only says who somebody is. Call it where the Stage defines its rules; a name defined twice
-// panics.
+// panics. The rules go to the hosts of their moments whether anybody plays the role in Init or
+// only a Layout's cells do: an unplayed role's rules simply never fire, but one no host takes
+// still fails Init.
 func (r *Roles) Define(name string, rules ...rule.Rule) {
 	r.w.must(fmt.Sprintf("role %q defined", name), section.Rules)
 	if name == "" {
@@ -31,7 +33,9 @@ func (r *Roles) Define(name string, rules ...rule.Rule) {
 	if r.byName == nil {
 		r.byName = map[string]*rule.Part{}
 	}
-	r.byName[name] = rule.NewPart(name, r.w.kinds.DefineTag[rule.Roles](name)).Obeys(rules...)
+	part := rule.NewPart(name, r.w.kinds.DefineTag[rule.Roles](name)).Obeys(rules...)
+	r.byName[name] = part
+	r.w.kinds.Play(part)
 }
 
 // Named is the role defined as name; an unknown name panics.

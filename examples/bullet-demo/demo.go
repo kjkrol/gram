@@ -107,9 +107,9 @@ func newStage() *mainStage {
 	s.Stage = stage.New("bullet-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Looks(s.defineLooks).
@@ -160,13 +160,12 @@ func (s *mainStage) definePlayers() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water},
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true, Height: 30},
-		cell.Kind{Name: cell.Named(LowWallCell), Cost: 1, Solid: true, Height: 10},
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Height: 30})
+	kinds.Define(LowWallCell, cell.Kind{Cost: 1, Solid: true, Height: 10})
 }
 
 func (s *mainStage) defineEffects() {

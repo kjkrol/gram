@@ -21,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
+	"github.com/kjkrol/gram/rule"
 )
 
 type flatAtlas struct{}
@@ -628,7 +629,11 @@ func (sheetAtlas) White() (u, v float32) { return 1, 1 }
 // kindsOf is a cell.Kinds of the kinds given.
 type kindsOf []cell.Kind
 
-func (k kindsOf) Create(...cell.Kind)              {}
+func (k kindsOf) Define(string, cell.Kind, ...*rule.Part) {}
+func (k kindsOf) Named(name string) cell.Kind {
+	c, _ := k.Get(name)
+	return c
+}
 func (k kindsOf) Draw(string, render.SpriteDrawer) {}
 func (k kindsOf) All() []cell.Kind                 { return k }
 func (k kindsOf) Get(name string) (cell.Kind, bool) {

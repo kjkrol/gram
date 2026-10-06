@@ -63,7 +63,7 @@
 // group; whose a unit is, its squad, whether it is selected are tags of families of their own, for
 // Self and Between. [Part.Obeys] adds the rules those playing it obey. [Plays] is the component of an entity playing
 // roles, for a kind's Spec: every role in one, so a kind names Plays once. A cell plays the roles
-// of its kind (board.Plugin.Plays), and a plugin those it is given (its Plays, world.Self's): the rules of a moment of the world as a
+// of its kind (cell.Kinds.Define) and its Layout entry's own (cell.Entry.Plays), and a plugin those it is given (its Plays, world.Self's): the rules of a moment of the world as a
 // whole — a clock.Moment, a climate.Weathering — fire while the plugin whose moment it is plays
 // their role, its own entity carrying the role's tag. [While] runs a step while a plugin's entity
 // is under an effect, as [During] does for the world's. [Then] is On without
@@ -116,7 +116,7 @@
 // bears, or one two bear, stops it there.
 //
 //	roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-//	s.board.Plays("plate", roles.Named(PlateRole))
+//	kinds.Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(PlateRole))
 //	cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")).By(entity.Named("west lever")))
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", cmds.Named(OpenWestCmd)))
 //	// Spawn: cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}

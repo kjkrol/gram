@@ -98,10 +98,10 @@ func newStage() *mainStage {
 	s.Stage = stage.New("effect-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRoles).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
@@ -146,10 +146,9 @@ func (s *mainStage) bindKeys() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water},
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
 }
 
 func (s *mainStage) defineEffects() {
@@ -189,10 +188,7 @@ func (s *mainStage) defineRoles() {
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
 
 	roles := s.world.Roles()
-	roles.Define(LakeRole)
-	s.board.Plays(WaterCell, roles.Named(LakeRole)) // TODO: mowielm by nie zakladać,
-	//rule przez pluginy (po to usuwalismy hooks z plugins!).
-	// Role powinny przyjąc wyłącznie określone kafle wody - te które tworzą jezioro, a nie wszystkie.
+	roles.Define(LakeRole) // the lake's cells play it, in the Layout: where the witch's winter is ice
 	roles.Define(WitchRole,
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
@@ -235,10 +231,12 @@ const (
 )
 
 func (s *mainStage) layOut() {
+	water := s.board.CellKinds().Named(WaterCell)
+	lake := s.world.Roles().Named(LakeRole)
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, cell.Entry{Kind: WaterCell, Cell: s.cellAt(x, y)})
+			cells = append(cells, water.Entry(s.cellAt(x, y)).Plays(lake))
 		}
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
@@ -302,7 +300,6 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	// TODO: uwazam ze kafle trzeba definiowac, a potem wypelniac analogicznie do jednostek. Pozwolilobyto przypisywac wybranym kaflom efekty.
 	kinds := s.board.CellKinds()
 	boardAtlas := render.NewAtlas()
 	for name, c := range map[string]color.RGBA{

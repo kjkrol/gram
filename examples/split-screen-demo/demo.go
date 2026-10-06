@@ -150,10 +150,9 @@ func (s *mainStage) definePlayers() {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(FloorCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(FloorCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
 func (s *mainStage) bindKeys() error {

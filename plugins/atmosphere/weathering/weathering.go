@@ -94,31 +94,18 @@ func (w *Weathering) SetRunning(on bool) { w.still = !on }
 func (w *Weathering) Running() bool { return !w.still }
 
 // New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
-// effects fx's. Call it once the kinds cfg names are in brd's dictionary, before the game is set
-// up; it defines the effects at once.
+// effects fx's. It defines the effects at once; the kinds cfg names are resolved as the weather
+// first touches the board, so they may be defined after it (a Stage's Cells section comes after
+// its Effects) — an unknown name panics then.
 func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
-	kinds := brd.CellKinds()
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
-		snowy: map[cell.Name]cell.Kind{}, water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{}}
-	for name, under := range cfg.Snowy {
-		k, ok := kinds.Get(under)
-		if !ok {
-			return nil, fmt.Errorf("weathering: no kind %q for %q under snow", under, name)
-		}
-		ww.snowy[cell.Named(name)] = k
-	}
-	if cfg.Ice != "" {
-		k, ok := kinds.Get(cfg.Ice)
-		if !ok {
-			return nil, fmt.Errorf("weathering: no kind %q for ice", cfg.Ice)
-		}
-		ww.frozen = k
-	}
+		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{}}
 	for _, name := range cfg.Sway {
 		ww.swaying[cell.Named(name)] = true
 	}
 	fx.Define("snow", effect.Spec{effect.Alter(func(g *cell.Ground) {
+		ww.ready()
 		if under, ok := ww.snowy[g.Kind.Name]; ok {
 			under.Sway = g.Kind.Sway // what sways goes on swaying under snow
 			g.Kind = under
@@ -126,6 +113,7 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 	})})
 	ww.snow = fx.Named("snow")
 	fx.Define("ice", effect.Spec{effect.Alter(func(g *cell.Ground) {
+		ww.ready()
 		if g.Kind.Name == ww.water && ww.cfg.Ice != "" {
 			g.Kind = ww.frozen
 		}
@@ -134,6 +122,31 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 	fx.Define("sway", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
 	ww.sway = fx.Named("sway")
 	return ww, nil
+}
+
+// ready resolves the winter's kinds from the names the Config says, once, the first time the
+// weather touches the board; one not in the board's dictionary panics by name.
+func (w *Weathering) ready() {
+	if w.snowy != nil {
+		return
+	}
+	kinds := w.board.CellKinds()
+	snowy := map[cell.Name]cell.Kind{}
+	for name, under := range w.cfg.Snowy {
+		k, ok := kinds.Get(under)
+		if !ok {
+			panic(fmt.Sprintf("weathering: no kind %q for %q under snow", under, name))
+		}
+		snowy[cell.Named(name)] = k
+	}
+	if w.cfg.Ice != "" {
+		k, ok := kinds.Get(w.cfg.Ice)
+		if !ok {
+			panic(fmt.Sprintf("weathering: no kind %q for ice", w.cfg.Ice))
+		}
+		w.frozen = k
+	}
+	w.snowy = snowy
 }
 
 // Effects are the weathering's: snow, ice and sway, for a game asking whether a cell lies under
@@ -246,6 +259,7 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 
 // takesSnow reports whether snow may lie on c at all: a kind that has a snowy one.
 func (w *Weathering) takesSnow(c cell.ID) bool {
+	w.ready()
 	_, ok := w.snowy[w.board.Res.Logic.Board.Kind(c).Name]
 	return ok
 }

@@ -315,10 +315,10 @@ is refused:
 stage.New("meadow").
 	Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
 	Players(s.definePlayer).    // the players, the plugins' default keys
-	Cells(s.defineCells).       // the kinds of cells
 	Effects(s.defineEffects).   // the states
 	Rules(s.defineRules).       // the roles, the rules, the plans
 	Commands(s.defineCommands). // what can be asked for
+	Cells(s.defineCells).       // the kinds of cells, the roles their cells play
 	Kinds(s.defineKinds).       // the kinds of units
 	Controls(s.bindKeys).       // the game's own keys, each a command
 	Looks(s.defineLooks).       // the drawing rules
@@ -383,7 +383,8 @@ each defined under a name in the Stage's world and taken back with `Named(name)`
 built on — a game keeps its names as constants, each with a suffix saying what it names (`Ef` an
 effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell), and a
 Stage's struct holds its plugins and nothing else. Each Stage has its own registers. A kind plays roles through one component, `rule.Plays(roles...)`, a cell through its kind
-(`board.Plugin.Plays(kind, roles...)`), the world and the atmosphere through their own `Plays` —
+(`cell.Kinds.Define(name, kind, roles...)`) or one cell of the Layout alone (`cell.Entry.Plays`),
+the world and the atmosphere through their own `Plays` —
 for the rules of a `clock.Moment` and of the weather. A plugin is an entity of the world too
 (`world.Self`), called by its name: it carries the plugin's knobs and the effects it is under, so
 a state of the sky is an effect on the atmosphere — `rule.Cast(bloodMoon).On(s.atmosphere)`,
@@ -417,7 +418,8 @@ roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All,
 roles.Define(HastyRole)
 roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All,
 	rule.If(cell.Now.Stood, rule.Trigger())))
-s.board.Plays(PlateCell, roles.Named(PlateRole)) // every cell laid as a plate plays it
+kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land},
+	roles.Named(PlateRole)) // every cell laid as a plate plays it
 
 // Commands
 cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")))

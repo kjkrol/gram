@@ -1,5 +1,5 @@
 // Package section names the parts a Stage is defined in, in their order — the plugins, the
-// players, the cells' kinds, the effects, the rules, the commands, the units' kinds, the controls,
+// players, the effects, the rules, the commands, the cells' kinds, the units' kinds, the controls,
 // the looks, the scenes, then the layout and the units of a fresh game — and lets a plugin refuse
 // what is defined in the wrong one. A Stage built with package game/stage goes through them; one
 // written by hand is in none, and nothing is refused.
@@ -14,10 +14,10 @@ const (
 	Anytime  Part = iota // none: a Stage written by hand, a test
 	Plugins              // the plugins are made and used: anything may be defined, as they define their own
 	Players              // the players and the plugins' default keys
-	Cells                // the kinds of cells
 	Effects              // the states
 	Rules                // the roles, the rules, the plans
 	Commands             // what can be asked for
+	Cells                // the kinds of cells, with the roles their cells play
 	Kinds                // the kinds of units
 	Controls             // the game's own keys
 	Looks                // the drawing rules
@@ -27,7 +27,7 @@ const (
 	Done                 // the Stage is defined
 )
 
-var names = [...]string{"no section", "Plugins", "Players", "Cells", "Effects", "Rules", "Commands", "Kinds", "Controls", "Looks", "Scenes", "Layout", "Units", "the defined Stage"}
+var names = [...]string{"no section", "Plugins", "Players", "Effects", "Rules", "Commands", "Cells", "Kinds", "Controls", "Looks", "Scenes", "Layout", "Units", "the defined Stage"}
 
 func (p Part) String() string { return names[p] }
 

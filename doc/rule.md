@@ -94,7 +94,8 @@ roles.Define(PlateRole, press)     // a rule of cell.Now: the board's
 roles.Define(NightlyRole, atDusk)  // a rule of clock.Moment: the world's
 
 units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole))) // a kind of unit plays it
-s.board.Plays("plate", roles.Named(PlateRole))                          // a kind of cell
+kinds.Define("plate", cell.Kind{Cost: 1}, roles.Named(PlateRole))       // a kind of cell, as it is defined
+layout.Cells = append(layout.Cells, water.Entry(c).Plays(lakeRole))     // one cell of the Layout alone
 s.world.Plays(roles.Named(NightlyRole))                                 // the world itself
 ```
 
@@ -249,7 +250,7 @@ A **role** is a behaviour several kinds share, said once: the rules those playin
 `s.world.Roles().Define(name, rules...)` says it, each rule narrowed to the role's players, and
 `Roles().Named(name)` is the role; each Stage's world has its own roles, 64 at most. A
 kind plays its roles through `rule.Plays(roles...)`, a cell through its kind
-(`board.Plugin.Plays(kind, roles...)`), a plugin through its own `Plays`, and a command may be for
+(`cell.Kinds.Define(name, kind, roles...)`) or one cell of the Layout alone (`cell.Entry.Plays`), a plugin through its own `Plays`, and a command may be for
 those playing it alone
 (`selection.Selected(role)`):
 
@@ -480,8 +481,8 @@ roles.Define(FlammableRole,
 	// burning ground sets the cells round it alight now and then — not one burning or burnt out
 	rule.Then[cell.Now]("fire spreads over the ground", rule.Self(burning.Mark()), rule.Around(1, rule.Unless(burning, rule.Unless(smouldering, rule.Chance(0.05, rule.Apply(burning)))))),
 )
-s.board.Plays("grass", roles.Named(FlammableRole))
-s.board.Plays("forest", roles.Named(FlammableRole))
+kinds.Define("grass", cell.Kind{Cost: 2, Allows: cell.Land}, roles.Named(FlammableRole))
+kinds.Define("forest", cell.Kind{Cost: 3, Allows: cell.Land}, roles.Named(FlammableRole))
 units.Define(WalkerKind, land, profile, rule.Plays(roles.Named(FlammableRole)))
 
 func inWater(s unit.Standing) bool { return s.Kind.Admits(cell.Water) }

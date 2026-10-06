@@ -122,12 +122,11 @@ func (s *mainStage) definePlayer() error {
 
 func (s *mainStage) defineCells() {
 	// the kinds carry colours too, for a board drawn without an atlas of the game's
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}},
-		cell.Kind{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}},
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}},
-		cell.Kind{Name: cell.Named(WoodCell), Cost: 4, Allows: cell.Land, Veil: 0.6, Color: color.RGBA{R: 40, G: 100, B: 50, A: 255}},
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}})
+	kinds.Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6, Color: color.RGBA{R: 40, G: 100, B: 50, A: 255}})
 }
 
 func (s *mainStage) defineScenes(ctx game.Initializer) []game.Scene {

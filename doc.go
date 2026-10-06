@@ -46,7 +46,7 @@
 //
 // A role (world.Roles) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
 // the rules it obeys fire for those playing it alone. A kind plays roles through one component
-// (rule.Plays), a cell through its kind (board.Plugin.Plays), the world and the atmosphere, for the
+// (rule.Plays), a cell through its kind (cell.Kinds.Define) or alone (cell.Entry.Plays), the world and the atmosphere, for the
 // moments of the world as a whole, through their own Plays. What somebody
 // asks for is a command, and one about an effect is a sentence: rule.Cast(open).On(entity.Group(
 // "trapdoors")).By(entity.Named("lever")) — put the effect on, take it off (Lift) or switch it

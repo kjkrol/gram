@@ -12,7 +12,7 @@ import (
 // may be left out — and end with Update, which hands back the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterPlugins{AfterPlayers{AfterCells{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterLooks{AfterScenes{AfterShows{AfterRestore{AfterLayout{AfterUnits{d}}}}}}}}}}}}}}}
+	return Start{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterCells{AfterKinds{AfterControls{AfterLooks{AfterScenes{AfterShows{AfterRestore{AfterLayout{AfterUnits{d}}}}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
@@ -33,18 +33,10 @@ func (s AfterPlugins) Players[F Step](f F) AfterPlayers {
 	return s.AfterPlayers
 }
 
-type AfterPlayers struct{ AfterCells }
-
-// Cells defines the kinds of cells.
-func (s AfterPlayers) Cells[F Step](f F) AfterCells {
-	s.d.add(section.Cells, stepOf(f))
-	return s.AfterCells
-}
-
-type AfterCells struct{ AfterEffects }
+type AfterPlayers struct{ AfterEffects }
 
 // Effects defines the states.
-func (s AfterCells) Effects[F Step](f F) AfterEffects {
+func (s AfterPlayers) Effects[F Step](f F) AfterEffects {
 	s.d.add(section.Effects, stepOf(f))
 	return s.AfterEffects
 }
@@ -52,7 +44,7 @@ func (s AfterCells) Effects[F Step](f F) AfterEffects {
 type AfterEffects struct{ AfterRules }
 
 // Rules defines the roles with the rules they obey, the plans, and who plays what beyond the
-// units' kinds: a kind of cell (board.Plugin.Plays), a plugin (world.Plugin.Plays).
+// kinds: a plugin (world.Plugin.Plays).
 func (s AfterEffects) Rules[F Step](f F) AfterRules {
 	s.d.add(section.Rules, stepOf(f))
 	return s.AfterRules
@@ -67,10 +59,18 @@ func (s AfterRules) Commands[F Step](f F) AfterCommands {
 	return s.AfterCommands
 }
 
-type AfterCommands struct{ AfterKinds }
+type AfterCommands struct{ AfterCells }
+
+// Cells defines the kinds of cells, each with the roles its cells play.
+func (s AfterCommands) Cells[F Step](f F) AfterCells {
+	s.d.add(section.Cells, stepOf(f))
+	return s.AfterCells
+}
+
+type AfterCells struct{ AfterKinds }
 
 // Kinds defines the kinds of units.
-func (s AfterCommands) Kinds[F Step](f F) AfterKinds {
+func (s AfterCells) Kinds[F Step](f F) AfterKinds {
 	s.d.add(section.Kinds, stepOf(f))
 	return s.AfterKinds
 }

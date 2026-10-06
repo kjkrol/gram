@@ -84,8 +84,8 @@ func newStage() *mainStage {
 	s.Stage = stage.New("board-navigation-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
 		Rules(s.defineRules).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
@@ -138,12 +138,11 @@ func (s *mainStage) defineScenes() []game.Scene {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(
-		cell.Kind{Name: cell.Named(GrassCell), Cost: 2, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(WallCell), Cost: 1, Solid: true},
-		cell.Kind{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land},
-		cell.Kind{Name: cell.Named(HoleCell), Cost: 1}, // admits nobody and is not solid: whoever stands on it falls
-	)
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(HoleCell, cell.Kind{Cost: 1}) // admits nobody and is not solid: whoever stands on it falls
 }
 
 func (s *mainStage) restore(p game.Persistence) (bool, error) {

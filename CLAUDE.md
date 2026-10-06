@@ -129,10 +129,12 @@ entity plays it; a same-sided `collision.Meeting` rule still once a pair, `Dispa
 a `Touch` is each unit's own and a `Sighting` each observer's; an entity playing two roles that obey
 one rule obeys it once per role). A kind plays roles through one component,
 `rule.Plays(roles...)` (a `rule.Played`; a kind carrying a component type twice panics), a cell
-through its kind (`board.Plugin.Plays(kind, roles...)`, in the Rules section: every cell the Layout
-lays as that kind carries the roles' tags; `cell.Entry.Roles` is gone), a plugin through its own
-`Plays` (`world.Self.Plays`, which every plugin embeds; all three note the roles with
-`world.Kinds.Play`). A rule of a moment of the world as a whole — `clock.Moment`,
+through its kind (`cell.Kinds.Define(name, kind, roles...)`, in the Cells section: every cell the
+Layout lays as that kind carries the roles' tags) or alone (`cell.Entry.Plays(roles...)` on a
+Layout entry, the lake's cells and not every water; `board.Plugin.Plays` is gone, 2026-10-06), a
+plugin through its own `Plays` (`world.Self.Plays`, which every plugin embeds). `Roles.Define`
+itself notes the role with `world.Kinds.Play`, so its rules are delivered however it is played —
+a Layout's cells play only at Spawn, and not at all in a loaded game. A rule of a moment of the world as a whole — `clock.Moment`,
 `climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step walking no entities —
 takes no filter and fires while the entity the moment is about plays its role (`Tick.Roles`:
 the plugin's own entity carries the role's tag). **A plugin is an entity** (since 2026-10-05,
@@ -244,7 +246,8 @@ slots no kind owns (`NewSprite`) and tells `Persistence.Load` about
 every component type its kinds carry (`Kinds.LoadComps`), so the roles a kind plays
 and a game's own components survive a save without being registered
 anywhere else; the engine lists a type a kind shares with a module once. Cell
-kinds go through `board.Plugin.CellKinds().Create`.
+kinds go through `board.Plugin.CellKinds().Define(name, kind, roles...)` (`Named(name)` the kind,
+`Kind.Entry(c)` a Layout entry built on it).
 
 A `render.Atlas` sizes nothing up front: `Register(size, draw)`/`RegisterAt(id,
 size, draw)` only record sprites, each at a texture size of its own (the drawn
@@ -793,7 +796,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
   `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
   world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
-  at a height at the first sight (`cell.Kinds.Create`, `NewUnits`, `Units.Define`,
+  at a height at the first sight (`cell.Kinds.Define`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
@@ -812,7 +815,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   reentrant) — the effect demo's
   witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
-  were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`board.Plugin.Plays`; a
+  were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
   and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
   for a name walks few), both for good: the wire demo's plate, lever, trapdoors and gate. The unit's own cell component is `unit.At{Cell}` (was
@@ -1268,7 +1271,7 @@ sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
-`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Cells(f).Effects(f).Rules(f).Commands(f)
+`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f).Cells(f)
 .Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
 hands back a `game.Stage`. Each link returns a type holding the links after it and none before
 (`Start`, `AfterPlugins`… each embedding the next), so a chain out of order does not compile, a
@@ -1285,8 +1288,8 @@ board's covers — is the scene's `Layers`. A demo's stage struct embeds the `ga
 `defineScenes`, `layOut`, `placeUnits`, `update`). **A thing in its section**: the Stage tells
 the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
-and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Create` (Cells),
-`Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `board.Plays`/`world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
+and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Define` (Cells),
+`Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
 Controls), `world.Draw`/`vision.Draw` (Looks), `board.Seed` (Layout), `world.Seed` (Units) — by
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as

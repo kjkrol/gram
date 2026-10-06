@@ -250,7 +250,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string
 	}{
-		"a kind of cell created": {func(b *built) error { b.board.CellKinds().Create(grass); return nil }, "Cells"},
+		"a kind of cell defined": {func(b *built) error { b.board.CellKinds().Define("grass", grass); return nil }, "Cells"},
 		"the board seeded":       {func(b *built) error { b.board.Seed(board.Layout{}); return nil }, "Layout"},
 		"a player added":         {func(b *built) error { b.players.Add("late"); return nil }, "Players"},
 		"keys bound":             {func(b *built) error { return b.player.Bind() }, "Players"},
@@ -277,7 +277,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	b := &built{}
 	st := stage.New("meadow").Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
-		Cells(func() { b.board.CellKinds().Create(grass) }).
+		Cells(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).
 		Layout(func() { b.board.Seed(board.Layout{Default: "grass"}) }).
 		Update(b.update)

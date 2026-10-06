@@ -23,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
-	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -96,7 +95,6 @@ type mainStage struct {
 	rival      *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	weather    weathering.Config
 	stops      []cell.ID
 }
 
@@ -105,10 +103,10 @@ func newStage() *mainStage {
 	s.Stage = stage.New("board-topography").
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
-		Cells(s.defineCells).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
+		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Looks(s.defineLooks).
@@ -182,12 +180,12 @@ func (s *mainStage) definePlayers() error {
 }
 
 func (s *mainStage) defineCells() {
-	s.board.CellKinds().Create(island.Kinds(scale.Units(20))...)
-	s.weather = s.defineClimate()
+	island.Define(s.board.CellKinds(), scale.Units(20))
+	s.defineWinterCells()
 }
 
 func (s *mainStage) defineEffects() {
-	s.atmosphere.WithWeathering(s.board, s.weather)
+	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	night := s.atmosphere.Calendar().Config().Day / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {

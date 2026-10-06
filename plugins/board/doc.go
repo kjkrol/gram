@@ -51,7 +51,7 @@
 // the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
 // Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
 // round them too — a witch's frost, fire spreading over the ground. A unit's Standing tells the effects on the cell
-// under it (Standing.States, unit.Over). A cell plays the roles of its kind ([Plugin.Plays]) and obeys their rules (rule.Part.Obeys: a
+// under it (Standing.States, unit.Over). A cell plays the roles of its kind (cell.Kinds.Define) and its Layout entry's own (cell.Entry.Plays), and obeys their rules (rule.Part.Obeys: a
 // plate, a lever), and a command finds a cell by its name or its group (entity.Named, entity.Group):
 // a plate stood on Triggers, and the command its name sets off opens the group of trapdoors. In the same
 // pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the
