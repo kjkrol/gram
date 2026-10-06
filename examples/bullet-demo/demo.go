@@ -287,14 +287,11 @@ var (
 	roundColor    = color.RGBA{R: 255, G: 230, B: 80, A: 255}
 	grenadeColor  = color.RGBA{R: 50, G: 80, B: 50, A: 255}
 	sparkColor    = color.RGBA{R: 255, G: 250, B: 200, A: 255}
-
-	cellColors = map[string]color.RGBA{
-		GrassCell:   {R: 60, G: 95, B: 60, A: 255},
-		RoadCell:    {R: 150, G: 130, B: 80, A: 255},
-		WaterCell:   {R: 40, G: 90, B: 170, A: 255},
-		WallCell:    {R: 90, G: 90, B: 100, A: 255},
-		LowWallCell: {R: 150, G: 150, B: 160, A: 255},
-	}
+	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	roadColor     = color.RGBA{R: 150, G: 130, B: 80, A: 255}
+	waterColor    = color.RGBA{R: 40, G: 90, B: 170, A: 255}
+	wallColor     = color.RGBA{R: 90, G: 90, B: 100, A: 255}
+	lowWallColor  = color.RGBA{R: 150, G: 150, B: 160, A: 255}
 )
 
 func (m *mainScene) Layers() []render.Layer {
@@ -307,13 +304,13 @@ func (m *mainScene) Layers() []render.Layer {
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor)).
-		Under(wounded, render.Diamond(paleColor)) // the soldier gone pale
+		Under(wounded, render.Diamond(paleColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
-		Under(wounded, render.Solid(paleColor)) // the wanderer too
+		Under(wounded, render.Solid(paleColor))
 	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Dot(2, roundColor)).
 		Facing(func(angleDeg float64) render.SpriteDrawer { return render.Arrow(angleDeg, 2, roundColor) })
 	worldAtlas.Add(s.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
-		Under(fuse, func(dst *render.Canvas, size int) { // the grenade with its fuse sparking
+		Under(fuse, func(dst *render.Canvas, size int) {
 			render.Dot(3, grenadeColor)(dst, size)
 			render.Diamond(sparkColor)(dst, size)
 		})
@@ -321,9 +318,11 @@ func (m *mainScene) Layers() []render.Layer {
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range cellColors {
-		boardAtlas.Add(name, render.Solid(c))
-	}
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(RoadCell, render.Solid(roadColor))
+	boardAtlas.Add(WaterCell, render.Solid(waterColor))
+	boardAtlas.Add(WallCell, render.Solid(wallColor))
+	boardAtlas.Add(LowWallCell, render.Solid(lowWallColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

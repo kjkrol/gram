@@ -247,13 +247,10 @@ func (m *mainScene) Name() string { return "main" }
 var (
 	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
 	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
-
-	cellColors = map[string]color.RGBA{
-		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-		BoardsCell: {R: 120, G: 90, B: 55, A: 255},
-		PlateCell:  {R: 160, G: 160, B: 170, A: 255},
-		PitCell:    {R: 15, G: 12, B: 20, A: 255},
-	}
+	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
+	plateColor    = color.RGBA{R: 160, G: 160, B: 170, A: 255}
+	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
 )
 
 func (m *mainScene) Layers() []render.Layer {
@@ -268,9 +265,10 @@ func (m *mainScene) Layers() []render.Layer {
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range cellColors {
-		boardAtlas.Add(name, render.Solid(c))
-	}
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
+	boardAtlas.Add(PlateCell, render.Solid(plateColor))
+	boardAtlas.Add(PitCell, render.Solid(pitColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

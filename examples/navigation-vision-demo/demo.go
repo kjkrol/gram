@@ -160,14 +160,14 @@ var unitColors = []color.RGBA{
 
 var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 
-// cellColors is the ground, a colour a kind.
-var cellColors = map[string]color.RGBA{
-	GrassCell:  {R: 60, G: 95, B: 60, A: 255},
-	WallCell:   {R: 40, G: 40, B: 40, A: 255},
-	ForestCell: {R: 25, G: 60, B: 30, A: 255},
-	RoadCell:   {R: 150, G: 130, B: 80, A: 255},
-	HillCell:   {R: 110, G: 100, B: 70, A: 255},
-}
+// The ground's colours, one a kind.
+var (
+	grassColor  = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	wallColor   = color.RGBA{R: 40, G: 40, B: 40, A: 255}
+	forestColor = color.RGBA{R: 25, G: 60, B: 30, A: 255}
+	roadColor   = color.RGBA{R: 150, G: 130, B: 80, A: 255}
+	hillColor   = color.RGBA{R: 110, G: 100, B: 70, A: 255}
+)
 
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
@@ -282,9 +282,11 @@ func (m *mainScene) Layers() []render.Layer {
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range cellColors {
-		boardAtlas.Add(name, render.Solid(c))
-	}
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(WallCell, render.Solid(wallColor))
+	boardAtlas.Add(ForestCell, render.Solid(forestColor))
+	boardAtlas.Add(RoadCell, render.Solid(roadColor))
+	boardAtlas.Add(HillCell, render.Solid(hillColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

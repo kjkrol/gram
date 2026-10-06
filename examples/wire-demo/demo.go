@@ -301,17 +301,14 @@ var (
 	hasteColor    = color.RGBA{R: 170, G: 220, B: 255, A: 255}
 	porterColor   = color.RGBA{R: 150, G: 110, B: 200, A: 255}
 	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
-
-	cellColors = map[string]color.RGBA{
-		GrassCell:   {R: 60, G: 95, B: 60, A: 255},
-		BoardsCell:  {R: 120, G: 90, B: 55, A: 255},
-		PitCell:     {R: 15, G: 12, B: 20, A: 255},
-		PlateCell:   {R: 160, G: 160, B: 170, A: 255},
-		LeverCell:   {R: 200, G: 170, B: 60, A: 255},
-		FenceCell:   {R: 85, G: 60, B: 40, A: 255},
-		GateCell:    {R: 70, G: 75, B: 90, A: 255},
-		GatewayCell: {R: 150, G: 130, B: 95, A: 255},
-	}
+	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
+	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
+	plateColor    = color.RGBA{R: 160, G: 160, B: 170, A: 255}
+	leverColor    = color.RGBA{R: 200, G: 170, B: 60, A: 255}
+	fenceColor    = color.RGBA{R: 85, G: 60, B: 40, A: 255}
+	gateColor     = color.RGBA{R: 70, G: 75, B: 90, A: 255}
+	gatewayColor  = color.RGBA{R: 150, G: 130, B: 95, A: 255}
 )
 
 func (m *mainScene) Layers() []render.Layer {
@@ -329,9 +326,14 @@ func (m *mainScene) Layers() []render.Layer {
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range cellColors {
-		boardAtlas.Add(name, render.Solid(c))
-	}
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
+	boardAtlas.Add(PitCell, render.Solid(pitColor))
+	boardAtlas.Add(PlateCell, render.Solid(plateColor))
+	boardAtlas.Add(LeverCell, render.Solid(leverColor))
+	boardAtlas.Add(FenceCell, render.Solid(fenceColor))
+	boardAtlas.Add(GateCell, render.Solid(gateColor))
+	boardAtlas.Add(GatewayCell, render.Solid(gatewayColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

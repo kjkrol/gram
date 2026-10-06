@@ -285,14 +285,10 @@ func (m *mainScene) Layers() []render.Layer {
 
 	// the game's own atlas: a drawn sprite for every kind, at the kinds' SpriteIDs
 	atlas := s.board.NewAtlas(CellSize)
-	for name, draw := range map[string]render.SpriteDrawer{
-		GrassCell: striped(grassColor, grassLitColor),
-		WaterCell: rippled(waterColor, waterLitColor),
-		RoadCell:  cobbled(roadColor, roadDimColor),
-		WoodCell:  treed(woodColor, woodDimColor),
-	} {
-		atlas.Add(name, draw)
-	}
+	atlas.Add(GrassCell, striped(grassColor, grassLitColor))
+	atlas.Add(WaterCell, rippled(waterColor, waterLitColor))
+	atlas.Add(RoadCell, cobbled(roadColor, roadDimColor))
+	atlas.Add(WoodCell, treed(woodColor, woodDimColor))
 	atlas.Close()
 	s.board.WithRenderer(atlas)
 	s.board.Res.Render.ShowGridLines = false
