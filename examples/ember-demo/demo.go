@@ -72,7 +72,7 @@ func NewDemo() *Demo {
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
-		Title:       "gram — embers animated by their own state; WSAD drives the selected, D douses",
+		Title:       "gram — embers animated by their own state; WSAD drives the selected, F douses",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -179,7 +179,7 @@ func (s *arena) defineKinds() {
 
 func (s *arena) bindKeys() error {
 	return s.player.Bind(append(navigation.DriveBindings(),
-		control.Give(control.KeyPress{Key: control.KeyD}, "Douse the selected embers for a while",
+		control.Give(control.KeyPress{Key: control.KeyF}, "Douse the selected embers for a while",
 			s.world.Commands().Named(DouseCmd)))...)
 }
 
@@ -240,8 +240,8 @@ func (m *mainScene) Layers() []render.Layer {
 	doused := s.world.Effects().Named(DousedEf)
 
 	worldAtlas := s.world.NewAtlas()
-	worldAtlas.Add(emberKind, EntitySize, emberMaterial). // the look is a living material: state is the animation
-								Under(doused, render.Dot(5, sootColor)) // put out: a sooty sprite until it rekindles
+	worldAtlas.Add(emberKind, EntitySize, emberMaterial).
+		Under(doused, render.Dot(5, sootColor))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
