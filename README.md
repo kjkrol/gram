@@ -328,7 +328,6 @@ stage.New("meadow").
 	Cells(s.defineCells).       // the kinds of cells, the roles their cells play
 	Kinds(s.defineKinds).       // the kinds of units
 	Controls(s.bindKeys).       // the game's own keys, each a command
-	Looks(s.defineLooks).       // the drawing rules
 	Scenes(s.defineScenes).     // the scenes
 	Layout(s.layOut).           // a fresh game's board
 	Units(s.placeUnits).        // a fresh game's units
@@ -370,7 +369,8 @@ of the same steps; both cast *effects* that hold for a while and give *commands*
 (`.Until[navigation.Arrived]()`) — the story is in [`doc/rule.md`](doc/rule.md). An effect turns
 the knobs a plugin gives — components it only reads, like `steering.Steering` or a cell's
 `cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is the one place
-rules are Go (`render.Over`, `As`, `With`, `Show`, given to `world.Plugin.Draw`). A plugin ships no
+rules are Go, declared on the world's atlas in a scene's Layers (`world.Plugin.NewAtlas`: a look
+`Under` an effect, `Turning`, `Facing`). A plugin ships no
 ready-made reactions — it gives moments and their conditions (`unit.Standing.Fallen`,
 `vision.Sighting.Closing`), and the game says what follows; navigation's
 crowd is its own rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to

@@ -40,7 +40,7 @@ make demo-board                                                    # the island 
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
-make demo-material                                                 # a ward of the game's own WGSL (RegisterMaterials) inside a stone ring; darts turned the way they move (Appearance.Angle, world.Turning)
+make demo-material                                                 # one thing only: a ward of the game's own WGSL (RegisterMaterials, Frame.Material)
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -81,7 +81,11 @@ conditions of `If`: what it does is steps, commands and effects (2026-10-02). Wh
 of its own — terrain pace, logging, counting contacts, the weather on the board — is its own work
 in its own pass, never a rule; the one place rules are Go is drawing (`render.Rule`: `render.Over`,
 `As`, `Swap`, `With`, `Show`, run every frame by `render.Rules` inside the world's and vision's renderers,
-given with `world.Plugin.Draw` and `vision.Plugin.Draw`). The tag families join the host's queries as optional
+declared on the world's atlas in a scene's Layers — `world.Plugin.NewAtlas`: `Add(kind, size,
+draw)`, a look `Under` an effect, `Turning`, `Facing` — the renderer applying them itself;
+`world.Plugin.Draw` and `vision.Plugin.Draw` were hooks and went on 2026-10-06, the user's word:
+"role zaczepiamy do encji", and a look is the atlas's; vision's views are its option,
+`vision.Plugin.WithViews(render.Show(...))`). The tag families join the host's queries as optional
 components, so a rule costs no query, and rules over one component share its column (`plugin.Own`
 shares the host's own). The moment's type —
 `collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
@@ -158,7 +162,10 @@ kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`
 `players.Plugin.WithSaves(basePath, resources...)`), `atmosphere.Freeze`/`Later`/`Earlier`/
 `ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
 **real types of the root package, never aliases** (aliases were tried and dropped the same day: two
-names for one thing, a poor godoc): the plugin keeps the queues and carries the commands out by
+names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
+2026-10-06 the same way, the user's word: an alias gets no godoc; the one standing exception is
+the entity re-exports, `world.Base = entity.Base` and kin, where the component must be one type
+for goke and the saves): the plugin keeps the queues and carries the commands out by
 its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
 `Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
 every game and no demo repeats one**: Space is the world's tactical pause (the engine's pause,
@@ -699,18 +706,16 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   (`ctx.Hosts` in its Install): a `Moving` (every entity, in the velocity pass before it moves — the pass that also
   scales `Base.Vel.Value` by the entity's `steering.Pace`, the ground's share the board writes,
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
-  its own system just before the effects' pass). How entities are drawn is `world.Plugin.Draw`
-  (`render.Rule`s, every frame, in order: `world.Facing` — a `render.With` over `Base` —,
-  `world.Turning` — `Appearance.Angle` from `Vel.Dir`, the heading steering holds even standing:
-  degrees, 0 east, against the clock with the screen's y down, the one convention of
-  `render.Arrow` and `bullet.Flight.Heading`; the box stays axis-aligned, so Angle wants a square
-  box whose drawn content fits the circle inscribed in it (`render.Arrow(0,…)` reaches exactly
-  that circle), a turned sprite is drawn whole (one piece per wrap image, never split at a seam;
-  the GPU path carries the angle in the sprite instance's spare float, `sprites.wgsl`; a
-  billboard in relief ignores it) —
-  `render.With`, `As`, `Over`, `Swap` (a kind's own look under a state: a sprite a kind, swapped
-  in under an effect's marker, after `Facing` a twin a way faced), `Show`, each with conditions;
-  `world.Appearance` is `render.Appearance`; shown by `examples/appearance-demo` and the frozen
+  its own system just before the effects' pass). How entities are drawn is declared on the
+  world's own atlas, in one place, a scene's Layers (`world.Plugin.NewAtlas`, `plugins/world/atlas.go`
+  — a facade over `render.Atlas` like the board's): `Add(kind, size, draw)` the kind's sprite,
+  `.Under(effect, draw)` its look while the effect's marker is on, `.Turning()` the sprite turned
+  the way its entity is headed (`Appearance.Angle` from `Vel.Dir`, the heading steering holds even
+  standing — degrees, 0 east, against the clock with the screen's y down, `render.Arrow`'s
+  convention; a square box whose content fits the inscribed circle; a turned sprite's Under-looks
+  turn with it), `.Facing(n, draw)` its directional twins (slots from the world's kinds; a look
+  under an effect keeps its own way). `WithRenderer` applies them itself, after the effects' swaps:
+  swaps, facing, turning (shown by `examples/appearance-demo` and the frozen
   kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
   the steering system asks its `Helm`, one a step — and the commands about effects
@@ -1194,7 +1199,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
   collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
-  `render.Show` rules given to `vision.Plugin.Draw` pick some (`render.Show(selected.In)`). A
+  `render.Show` rules given at construction pick some (`vision.Plugin.WithViews(render.Show(selected.In))`,
+  an option like navigation's WithCrowd). A
   `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
@@ -1226,9 +1232,9 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
   despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
   collision's. A shot is dressed as any entity: a state's look by `render.Slot.Under`, the way it
-  flies by `Shots.Facing(name, n)` — one Looks-section step (`world.Draw(shots.Facing(...))`), the
-  twins' drawers chained on the ammo's Slot (`render.Slot.Facing`, an `Ammo` with a Facing is a
-  `render.Faced`), `Flight.Heading(n)` the pick — a sprite in a Stage's struct is a leak: the
+  flies out of the box: the plugin keeps a shot's heading on its `Base.Vel.Dir` (`Value` stays 0 —
+  the flight moves it), so `.Turning()` on the ammo's atlas Slot is all a game declares, the
+  sprite authored facing east. A sprite in a Stage's struct is a leak: the
   arena holds plugins alone (the user's word, 2026-10-06; `Alter(world.Appearance)` for an
   effect's look went the same day — a look is drawing, `Under`, never the Spec's).
   A weapon — ammo, reloading, who carries it — is the game's rules and effects
@@ -1296,7 +1302,7 @@ struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
 `examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f).Cells(f)
-.Kinds(f).Controls(f).Looks(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
+.Kinds(f).Controls(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
 hands back a `game.Stage`. Each link returns a type holding the links after it and none before
 (`Start`, `AfterPlugins`… each embedding the next), so a chain out of order does not compile, a
 link may be left out, and `Update` alone must come. A section takes a function of whatever shape
@@ -1317,7 +1323,7 @@ the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Che
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
 and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Define` (Cells),
 `Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
-Controls), `world.Draw`/`vision.Draw` (Looks), `board.Seed` (Layout), `world.Seed` (Units) — by
+Controls), `board.Seed` (Layout), `world.Seed` (Units) — by
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as
 they are made), and a Stage written by hand is in no section: nothing is refused, so every test

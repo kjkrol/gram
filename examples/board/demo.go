@@ -113,7 +113,6 @@ func newArena() (*arena, game.Stage) {
 		Rules(s.defineRules).
 		Cells(s.defineCells).
 		Kinds(s.defineKinds).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
 		Layout(s.layOut).
@@ -135,7 +134,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).
+		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	// A temperate island whose weather is thrown anew every run.
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.vision).WithSaves(saveBasePath)
@@ -164,8 +164,6 @@ func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
-
-func (s *arena) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}

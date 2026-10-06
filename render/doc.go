@@ -88,6 +88,6 @@
 // takes conditions of T (a tag's In for a tag carried, an effect's Mark().In for a state). Being
 // no part of the game, they are written in Go — the one place a rule is. A renderer runs them
 // through [Rules]: Bind adds what they read to its query, [Own] shares a column it reads itself,
-// Run settles each chunk. The world's renderer takes them (world.Plugin.Draw), the views of
+// Run settles each chunk. The world's renderer takes them (what the world's own atlas declares), the views of
 // vision too.
 package render

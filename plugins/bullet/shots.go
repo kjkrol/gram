@@ -2,7 +2,6 @@ package bullet
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -50,14 +49,6 @@ type Flight struct {
 	Landed              bool
 }
 
-// Heading is which of n ways round the circle the shot flies, counted from east against the
-// clock: the index of a directional twin, drawn with render.Arrow(float64(i)*360/n, …).
-func (f Flight) Heading(n int) int {
-	a := math.Atan2(-f.Dir.Y, f.Dir.X) // the screen's y grows down
-	i := int(math.Round(a / (2 * math.Pi) * float64(n)))
-	return ((i % n) + n) % n
-}
-
 // End is how a flight ends: not yet (Flying); its Range flown (Spent); a thrown shot come down
 // (Grounded); stopped at a closed edge (Edge); flown out by an open one (Left); on an entity
 // (Struck); on the solid ground (Wall).
@@ -80,8 +71,7 @@ const (
 // carry tags and Layers, never the owners' family nor what the kind gives itself.
 type Shots struct {
 	w      *world.Plugin
-	bodies map[string]Body              // what each kind of shot flies as, by its name
-	facing map[string][]render.SpriteID // the directional twins Facing declared, by the ammo's name
+	bodies map[string]Body // what each kind of shot flies as, by its name
 }
 
 // NewShots is the register NewPlugin makes for its Shots; alone for a test without the plugin.
@@ -98,7 +88,7 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 		comp.Load(func(r Shot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.From.X-half, r.From.Y-half), body.Size, body.Size)}
 		}),
-		comp.Const(world.Velocity{}),
+		comp.Load(func(r Shot) world.Velocity { return world.Velocity{Dir: r.Dir} }), // Value 0: the flight moves it, the heading turns its look
 		comp.Const(body),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(r Shot) collision.Sweep { return collision.Sweep{From: r.From, Ignore: r.Shooter, Ignoring: true} }),
@@ -124,38 +114,13 @@ func (s *Shots) Named(name string) Ammo {
 	if !ok {
 		panic(fmt.Sprintf("bullet: no ammo is defined as %q", name))
 	}
-	return Ammo{kind: kind.Named[Shot](s.w.Kinds(), name), body: body, headings: s.facing[name]}
-}
-
-// Facing declares that the shots named name are drawn the way they fly, one of n twins round the
-// circle: it issues the twins' slots and hands back the rule for world.Plugin.Draw — the Looks
-// section's one step. Their drawers join the atlas on the ammo's Slot (render.Slot.Facing).
-func (s *Shots) Facing(name string, n int) render.Rule {
-	if n <= 0 {
-		panic(fmt.Sprintf("bullet: ammo %q faces %d ways", name, n))
-	}
-	base := s.Named(name).SpriteID()
-	twins := make([]render.SpriteID, n)
-	for i := range twins {
-		twins[i] = s.w.Kinds().NewSprite()
-	}
-	if s.facing == nil {
-		s.facing = map[string][]render.SpriteID{}
-	}
-	s.facing[name] = twins
-	return render.With(func(a render.Appearance, f Flight) render.Appearance {
-		if a.SpriteID == base {
-			a.SpriteID = twins[f.Heading(n)]
-		}
-		return a
-	})
+	return Ammo{kind: kind.Named[Shot](s.w.Kinds(), name), body: body}
 }
 
 // Ammo is a kind of shot, as Shoot names it.
 type Ammo struct {
-	kind     kind.Of[Shot]
-	body     Body
-	headings []render.SpriteID
+	kind kind.Of[Shot]
+	body Body
 }
 
 // ID is what every shot of this kind carries to say so.
@@ -166,10 +131,6 @@ func (a Ammo) SpriteID() render.SpriteID { return a.kind.SpriteID() }
 
 // Body is what this kind of shot is.
 func (a Ammo) Body() Body { return a.body }
-
-// Headings are the directional twins Facing declared for this ammo, east first, against the
-// clock; nil without a Facing. An Ammo with them is a render.Faced: its Slot's Facing draws them.
-func (a Ammo) Headings() []render.SpriteID { return a.headings }
 
 // Entry is one shot of this kind, for the world to spawn.
 func (a Ammo) Entry(shot Shot) kind.Entry { return a.kind.Entry(shot) }

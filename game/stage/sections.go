@@ -12,7 +12,7 @@ import (
 // may be left out — and end with Update, which hands back the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterCells{AfterKinds{AfterControls{AfterLooks{AfterScenes{AfterShows{AfterRestore{AfterLayout{AfterUnits{d}}}}}}}}}}}}}}}
+	return Start{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterCells{AfterKinds{AfterControls{AfterScenes{AfterShows{AfterRestore{AfterLayout{AfterUnits{d}}}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
@@ -83,19 +83,11 @@ func (s AfterKinds) Controls[F Step](f F) AfterControls {
 	return s.AfterControls
 }
 
-type AfterControls struct{ AfterLooks }
-
-// Looks gives the drawing rules (world.Plugin.Draw, vision.Plugin.Draw).
-func (s AfterControls) Looks[F Step](f F) AfterLooks {
-	s.d.add(section.Looks, stepOf(f))
-	return s.AfterLooks
-}
-
-type AfterLooks struct{ AfterScenes }
+type AfterControls struct{ AfterScenes }
 
 // Scenes makes the Stage's scenes: the first is shown, unless Shows says which; their stack and
 // its Composition, tracked for the saves, are the Stage's own doing.
-func (s AfterLooks) Scenes[F ScenesStep](f F) AfterScenes {
+func (s AfterControls) Scenes[F ScenesStep](f F) AfterScenes {
 	switch g := any(f).(type) {
 	case func() []game.Scene:
 		s.d.scenes = func(game.Initializer) ([]game.Scene, error) { return g(), nil }

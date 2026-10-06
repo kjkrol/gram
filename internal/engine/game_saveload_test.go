@@ -105,12 +105,12 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 func TestGame_SaveLoad_RoundTrip(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 
-	var appearance goke.Comp[world.Appearance]
+	var appearance goke.Comp[render.Appearance]
 	g := &saveLoadTestGame{setup: func(si *goke.SysInit) {
 		f := si.NewFactory(&appearance)
 		f.Create(1)
 		f.Next()
-		appearance.Slice(&f.Cursor)[0] = world.Appearance{SpriteID: 7}
+		appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 7}
 	}}
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
 	if err := eng.Init(); err != nil {
@@ -123,7 +123,7 @@ func TestGame_SaveLoad_RoundTrip(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	var appearance2 goke.Comp[world.Appearance]
+	var appearance2 goke.Comp[render.Appearance]
 	var q *goke.Query
 	state2 := &saveTestState{}
 	extra2 := &saveTestResourceB{}
@@ -157,7 +157,7 @@ func TestGame_SaveLoad_RoundTrip(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("expected the saved world.Appearance entity to survive the round trip")
+		t.Fatal("expected the saved render.Appearance entity to survive the round trip")
 	}
 }
 

@@ -1,10 +1,10 @@
-// Command appearance-demo shows a game changing how its entities are drawn, frame by frame, with
-// drawing rules (package render) given to the world's Draw: every walker is drawn facing the way it
-// goes (world.Facing), red while it is angry (render.With, reading its Mood), a ghost as a ghost
-// whatever it feels (render.As) and the leader with a crown on (render.Over). They bounce off one another, so they turn,
-// and their arrows turn with them. R makes everyone angry for a while: an effect on the world, kept
-// on each entity by a rule as its Mood — what is drawn follows, the Appearance itself is never
-// touched.
+// Command appearance-demo shows a game declaring how its entities are drawn in one place — the
+// world's atlas in the scene's Layers: every walker is drawn by the twin of the way it goes
+// (Facing), the leader turned smoothly with his crown on (Turning), the ghost as a ghost
+// whatever happens, and the angry under the angry effect's own look (Under). They bounce off
+// one another, so they turn, and the looks follow. R makes everyone angry for a while: an
+// effect on the world, kept on each entity by a rule — anger has no direction, so an angry
+// walker is a plain red square.
 package main
 
 import (
@@ -78,38 +78,6 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// Mood is what an entity feels: the With rule draws it red while Angry. Ghost and Leader mark the
-// entities As and Over draw otherwise.
-type (
-	Mood   struct{ Angry bool }
-	Ghost  struct{}
-	Leader struct{}
-)
-
-// heading is one of the four ways an entity goes, as Facing picks its sprite.
-type heading int
-
-const (
-	east heading = iota
-	west
-	south
-	north
-)
-
-// headingOf is the way v goes, by its larger part.
-func headingOf(v world.Velocity) heading {
-	d := v.Dir
-	switch {
-	case d.X*d.X >= d.Y*d.Y && d.X >= 0:
-		return east
-	case d.X*d.X >= d.Y*d.Y:
-		return west
-	case d.Y >= 0:
-		return south
-	}
-	return north
-}
-
 // walker is the row every kind spawns from: where it starts and how it goes.
 type walker struct {
 	at  geom.Vec
@@ -120,10 +88,6 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
-
-	// facing is the sprite of each heading, calm and angry; spook the ghost's, crown the leader's.
-	facing, angrySprite [4]render.SpriteID
-	spook, crown        render.SpriteID
 
 	player *players.Player
 }
@@ -141,7 +105,6 @@ func newArena() (*arena, game.Stage) {
 		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Units(s.placeUnits).
 		Update(s.update)
@@ -169,7 +132,7 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
+	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the Layers
 }
 
 func (s *arena) defineRules() {
@@ -179,23 +142,16 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
-	spec := func(more ...comp.Comp) kind.Spec {
-		return append(kind.Spec{
-			comp.Load(func(w walker) world.Position { return world.Position{AABB: boxAt(w.at)} }),
-			comp.Load(func(w walker) world.Velocity { return w.vel }),
-			comp.Const(Mood{}),
-			comp.Const(collision.Collider{}),
-			comp.Const(collision.Physics{Restitution: 1}),
-			rule.Plays(s.world.Roles().Named(MoodyRole)),
-		}, more...)
+	spec := kind.Spec{
+		comp.Load(func(w walker) world.Position { return world.Position{AABB: boxAt(w.at)} }),
+		comp.Load(func(w walker) world.Velocity { return w.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
+		rule.Plays(s.world.Roles().Named(MoodyRole)),
 	}
-	kind.Define[walker](kinds, WalkerKind, spec())
-	kind.Define[walker](kinds, GhostKind, spec(comp.Const(Ghost{})))
-	kind.Define[walker](kinds, LeaderKind, spec(comp.Const(Leader{})))
-	for h := range s.facing {
-		s.facing[h], s.angrySprite[h] = kinds.NewSprite(), kinds.NewSprite()
-	}
-	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
+	kind.Define[walker](kinds, WalkerKind, spec)
+	kind.Define[walker](kinds, GhostKind, spec)
+	kind.Define[walker](kinds, LeaderKind, spec)
 }
 
 func (s *arena) defineCommands() {
@@ -205,24 +161,6 @@ func (s *arena) defineCommands() {
 func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
 		s.world.Commands().Named(RageCmd)))
-}
-
-func (s *arena) defineLooks() error {
-	return s.world.Draw(
-		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
-		render.With(func(a world.Appearance, m Mood) world.Appearance {
-			if m.Angry {
-				for h, calm := range s.facing {
-					if a.SpriteID == calm {
-						a.SpriteID = s.angrySprite[h]
-					}
-				}
-			}
-			return a
-		}),
-		render.As[Ghost](world.Appearance{SpriteID: s.spook}),
-		render.Over[Leader](world.Appearance{SpriteID: s.crown}),
-	)
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -285,59 +223,62 @@ var (
 
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
-	s.world.WithRenderer(s.atlas())
+	s.world.WithRenderer(s.looks())
 	return []render.Layer{
 		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
 		render.NewComposer(s.world.Renderer()),
 	}
 }
 
-// atlas draws every sprite: a square with a light nose on the side it faces, blue when calm, red
-// when angry; a pale ghost; a gold crown along the top.
-func (s *arena) atlas() *render.Atlas {
+// looks declares every look in one place, on the world's atlas: the walker by the twin of the
+// way it goes (Facing) and a plain red square while angry — anger has no direction; the leader
+// turned smoothly with his crown on (Turning), red and crowned while angry; the ghost a ghost
+// whatever happens.
+func (s *arena) looks() *world.Atlas {
 	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
 	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
 	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
-	atlas := render.NewAtlas()
-	for _, sprite := range []render.SpriteID{walkerKind.SpriteID(), ghostKind.SpriteID(), leaderKind.SpriteID()} {
-		atlas.Add(sprite, Size, render.Solid(calmColor))
-	}
-	for h := range s.facing {
-		atlas.Add(s.facing[h], Size, facingSprite(heading(h), calmColor, noseColor))
-		atlas.Add(s.angrySprite[h], Size, facingSprite(heading(h), angryColor, noseColor))
-	}
-	atlas.Add(s.spook, Size, func(dst *render.Canvas, size int) {
-		r := float32(size) / 2
-		dst.FillCircle(r, r, r-1, ghostColor)
-		dst.FillRect(r-4, r-3, 2, 3, eyeColor)
-		dst.FillRect(r+2, r-3, 2, 3, eyeColor)
-	})
-	atlas.Add(s.crown, Size, func(dst *render.Canvas, size int) {
-		dst.FillRect(1, 0, float32(size)-2, 4, goldColor)
-		for x := float32(1); x < float32(size)-2; x += 5 {
-			dst.FillRect(x, 0, 2, 6, goldColor)
-		}
-	})
+	angry := s.world.Effects().Named(AngryEf)
+
+	atlas := s.world.NewAtlas()
+	atlas.Add(walkerKind, Size, nosed(calmColor)).
+		Facing(4, func(angleDeg float64) render.SpriteDrawer { return nosedAt(angleDeg, calmColor) }).
+		Under(angry, render.Solid(angryColor))
+	atlas.Add(leaderKind, Size, crowned(calmColor)).
+		Under(angry, crowned(angryColor)).
+		Turning() // the crown turns with him — and while he is angry too
+	atlas.Add(ghostKind, Size, spook).
+		Turning() // a ghost drifts face first; anger leaves it unmoved: no look under it
 	atlas.Close()
 	return atlas
 }
 
-// facingSprite is a square of body with a nose on the side h faces.
-func facingSprite(h heading, body, nose color.RGBA) render.SpriteDrawer {
+// nosed is a square of body with a light nose eastwards — the way angle 0 points.
+func nosed(body color.RGBA) render.SpriteDrawer { return nosedAt(0, body) }
+
+// nosedAt is a square of body with its nose on the side angleDeg faces.
+func nosedAt(angleDeg float64, body color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
-		s := float32(size)
-		dst.FillRect(0, 0, s, s, body)
-		switch h {
-		case east:
-			dst.FillRect(s-4, s/2-2, 4, 4, nose)
-		case west:
-			dst.FillRect(0, s/2-2, 4, 4, nose)
-		case south:
-			dst.FillRect(s/2-2, s-4, 4, 4, nose)
-		case north:
-			dst.FillRect(s/2-2, 0, 4, 4, nose)
-		}
+		render.Solid(body)(dst, size)
+		render.Arrow(angleDeg, 4, noseColor)(dst, size)
 	}
+}
+
+// crowned is a diamond of body under a gold band — drawn east first, within the circle inscribed
+// in the box, so it turns whole.
+func crowned(body color.RGBA) render.SpriteDrawer {
+	return func(dst *render.Canvas, size int) {
+		render.Diamond(body)(dst, size)
+		render.Arrow(90, 3, goldColor)(dst, size)
+	}
+}
+
+// spook is the ghost: a pale circle with two eyes.
+func spook(dst *render.Canvas, size int) {
+	r := float32(size) / 2
+	dst.FillCircle(r, r, r-1, ghostColor)
+	dst.FillRect(r-4, r-3, 2, 3, eyeColor)
+	dst.FillRect(r+2, r-3, 2, 3, eyeColor)
 }
 
 // Viewports are where the world is shown: the local player's view.

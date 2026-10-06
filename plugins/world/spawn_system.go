@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/render"
 	"log"
 	"reflect"
 	"time"
@@ -116,7 +117,7 @@ func (s *spawnSystem) take(e kind.Entry) error {
 // writersOf are the writers of a kind's columns: its Appearance first, then each of its
 // components (a comp.Without writes nothing).
 func writersOf(k ikinds.Kind) []comp.Spawner {
-	writers := []comp.Spawner{comp.Const(Appearance{SpriteID: k.SpriteID}).Spawner()}
+	writers := []comp.Spawner{comp.Const(render.Appearance{SpriteID: k.SpriteID}).Spawner()}
 	for _, c := range k.Comps {
 		if wr := c.Spawner(); wr != nil {
 			writers = append(writers, wr)

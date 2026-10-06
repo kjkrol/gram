@@ -12,7 +12,6 @@
 //			Cells(s.defineCells).       // the kinds of cells, the roles their cells play
 //			Kinds(s.defineKinds).       // the kinds of units
 //			Controls(s.bindKeys).       // the game's own keys, each a command
-//			Looks(s.defineLooks).       // the drawing rules
 //			Scenes(s.defineScenes).     // the scenes
 //			Layout(s.layOut).           // a fresh game's board
 //			Units(s.placeUnits).        // a fresh game's units
@@ -53,8 +52,9 @@
 // As a section begins the Stage tells the engine (package plugin/section), and the plugins refuse
 // what is defined in another: a plugin used outside Plugins, a kind of cell outside Cells, an
 // effect outside Effects, a role or a plan outside Rules, a command outside Commands, a kind of
-// unit outside Kinds, keys bound outside Players and Controls, drawing rules outside
-// Looks, a board seeded outside Layout, units outside Units. Plugins takes anything, for the
+// unit outside Kinds, keys bound outside Players and Controls,
+// a board seeded outside Layout, units outside Units. How a thing is drawn is no section's: the
+// looks are declared on the world's atlas in a scene's Layers (world.Plugin.NewAtlas). Plugins takes anything, for the
 // plugins define what is their own as they are made. A Stage written by hand — its own Init,
 // Spawn and Update — is in no section, and nothing is refused.
 package stage

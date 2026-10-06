@@ -100,9 +100,6 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 
-	// kinds is one kind per color and shape; hitSprite is the overlay's atlas slot, no kind's.
-	hitSprite render.SpriteID
-
 	collisionStats collision.ContactStats
 
 	players *players.Plugin
@@ -119,7 +116,6 @@ func newArena() (*arena, game.Stage) {
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Kinds(s.defineKinds).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
 		Units(s.placeUnits).
@@ -154,10 +150,6 @@ func (s *arena) defineRules() {
 		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.world.Effects().Named(HitEf))))
 }
 
-func (s *arena) defineLooks() error {
-	return s.world.Draw(render.Over(world.Appearance{SpriteID: s.hitSprite}, s.world.Effects().Named(HitEf).Mark().In))
-}
-
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{&mainScene{arena: s, tps: ctx.TPS()}}
 }
@@ -190,7 +182,6 @@ func (s *arena) defineKinds() {
 			})
 		}
 	}
-	s.hitSprite = s.world.Kinds().NewSprite() // the overlay's atlas slot, no kind's
 }
 
 func (s *arena) placeUnits() {
@@ -242,16 +233,19 @@ var (
 func (m *mainScene) Layers() []render.Layer {
 	s := m.arena
 
-	atlas := render.NewAtlas()
+	atlas := s.world.NewAtlas()
+	hit := s.world.Effects().Named(HitEf)
+	flash := palette[entityColors]
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{render.Solid, render.Border, render.Diamond, render.Cross}
 	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
-			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c))
+			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c)).
+				Under(hit, func(dst *render.Canvas, size int) { // struck: its own shape, flashed
+					shapes[si](flash)(dst, size)
+				})
 		}
 	}
-
-	atlas.Add(s.hitSprite, int(RectSize), render.Solid(palette[entityColors]))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 

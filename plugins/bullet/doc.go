@@ -59,12 +59,10 @@
 //
 // # Dressing a shot
 //
-// A shot is drawn from its Ammo's sprite like any entity, and dressed the same ways: a state's
-// look chains on its atlas Slot (render.Slot.Under — a grenade with its fuse sparking), and the
-// way it flies is [Shots.Facing] — declared in a Stage's Looks section
-// (world.Draw(shots.Facing(BoltKind, 16))), the twins' drawers chained on the Slot
-// (render.Slot.Facing, each at its angle): a bolt drawn head first, an arrow stuck the way it
-// landed. [Flight.Heading] is the twin a flight picks.
+// A shot is drawn from its Ammo's sprite like any entity, and dressed the same ways, on the
+// world's atlas: a state's look Under an effect (a grenade with its fuse sparking), and Turning
+// for one drawn the way it flies — the plugin keeps a shot's heading on its Vel.Dir, so a bolt
+// authored facing east flies head first and lies stuck the way it landed.
 //
 // # Limits
 //

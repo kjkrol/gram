@@ -114,7 +114,6 @@ func newArena() (*arena, game.Stage) {
 		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
 		Units(s.placeUnits).
@@ -201,10 +200,6 @@ func (s *arena) bindKeys() error {
 	)...)
 }
 
-func (s *arena) defineLooks() error {
-	return s.world.Draw(s.bullet.Shots().Facing(RoundKind, 16)) // a round drawn the way it flies
-}
-
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
 	return []game.Scene{main}
@@ -282,6 +277,7 @@ func (m *mainScene) Name() string { return "main" }
 // The scene's colours: the units, the shots, the wounds' pale and the burst's spark, the ground.
 var (
 	soldierColor  = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+	barrelColor   = color.RGBA{R: 230, G: 240, B: 255, A: 255}
 	wandererColor = color.RGBA{R: 220, G: 90, B: 90, A: 255}
 	paleColor     = color.RGBA{R: 235, G: 200, B: 200, A: 255}
 	roundColor    = color.RGBA{R: 255, G: 230, B: 80, A: 255}
@@ -302,13 +298,22 @@ func (m *mainScene) Layers() []render.Layer {
 	wounded := s.world.Effects().Named(WoundedEf)
 	fuse := s.world.Effects().Named(FuseEf)
 
-	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor)).
-		Under(wounded, render.Diamond(paleColor))
+	// the soldier's look, authored facing east, within the circle inscribed in its box: the
+	// barrel shows where F will fire
+	soldier := func(body, barrel color.RGBA) render.SpriteDrawer {
+		return func(dst *render.Canvas, size int) {
+			render.Diamond(body)(dst, size)
+			render.Arrow(0, 3, barrel)(dst, size)
+		}
+	}
+	worldAtlas := s.world.NewAtlas()
+	worldAtlas.Add(soldierKind, EntitySize, soldier(soldierColor, barrelColor)).
+		Under(wounded, soldier(paleColor, barrelColor)). // the soldier gone pale, still aiming
+		Turning()                                        // turned the way it aims (Vel.Dir)
 	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
 		Under(wounded, render.Solid(paleColor))
-	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Dot(2, roundColor)).
-		Facing(func(angleDeg float64) render.SpriteDrawer { return render.Arrow(angleDeg, 2, roundColor) })
+	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Arrow(0, 2, roundColor)).
+		Turning() // flown head first: the plugin keeps a shot's heading on its Vel.Dir
 	worldAtlas.Add(s.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
 		Under(fuse, func(dst *render.Canvas, size int) {
 			render.Dot(3, grenadeColor)(dst, size)

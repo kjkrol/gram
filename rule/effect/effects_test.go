@@ -58,7 +58,7 @@ type rig struct {
 	query   *goke.Query
 	base    goke.Comp[world.Base]
 	steer   goke.Comp[steering.Steering]
-	look    goke.Comp[world.Appearance]
+	look    goke.Comp[render.Appearance]
 	marks   goke.OptComp[tag.Tags[moods]]
 	states  goke.OptComp[tag.Tags[effect.States]]
 	course  goke.OptComp[steering.Course]
@@ -173,7 +173,7 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 			effect.Lasts(3 * tick),
 			effect.Grant(r.angry),
 			effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
-			effect.Alter(func(a *world.Appearance) { a.SpriteID = 7 }),
+			effect.Alter(func(a *render.Appearance) { a.SpriteID = 7 }),
 		})
 		rage = r.fx.Named("rage")
 	})

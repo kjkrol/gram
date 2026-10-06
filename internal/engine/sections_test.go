@@ -136,7 +136,6 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		return nil
 	}
 	kindDefined := func(s *sectioned, _ game.Initializer) error { s.defineUnit(); return nil }
-	draw := func(s *sectioned, _ game.Initializer) error { return s.world.Draw() }
 	commands := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("lit", effect.Spec{})
 		s.world.Commands().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
@@ -148,12 +147,11 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		kinds  bool   // done in Kinds, a wrong place, rather than in Effects
 		panics bool
 	}{
-		"a plugin used":       {do: useAPlugin, wants: "Plugins"},
-		"a role defined":      {do: plays, wants: "Rules", kinds: true, panics: true},
-		"an effect defined":   {do: effectDefined, wants: "Effects", kinds: true, panics: true},
-		"a kind defined":      {do: kindDefined, wants: "Kinds", panics: true},
-		"drawing rules given": {do: draw, wants: "Looks"},
-		"a command defined":   {do: commands, wants: "Commands", panics: true},
+		"a plugin used":     {do: useAPlugin, wants: "Plugins"},
+		"a role defined":    {do: plays, wants: "Rules", kinds: true, panics: true},
+		"an effect defined": {do: effectDefined, wants: "Effects", kinds: true, panics: true},
+		"a kind defined":    {do: kindDefined, wants: "Kinds", panics: true},
+		"a command defined": {do: commands, wants: "Commands", panics: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &sectioned{}

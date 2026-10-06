@@ -1,6 +1,7 @@
 package world
 
 import (
+	"github.com/kjkrol/gram/render"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -45,7 +46,7 @@ func TestPopulate_ConstAndLoadComponents(t *testing.T) {
 		t.Fatalf("Populate: %v", err)
 	}
 
-	var appearance goke.Comp[Appearance]
+	var appearance goke.Comp[render.Appearance]
 	var stat goke.Comp[spawnerStat]
 	var q *goke.Query
 	setupWorld(p.module, func(si *goke.SysInit) {

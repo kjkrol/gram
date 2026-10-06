@@ -14,17 +14,18 @@ var _ render.Direct = (*renderer)(nil)
 
 // renderer is the render.Source of the Position+Appearance entities in the View of the viewport's
 // camera — what it sees this tick — each laid on the screen by the world's Look, running the
-// render.Rules given to Plugin.Draw over each chunk to settle their layers and which are drawn. A
+// render.Rules — the effects' swaps and what the world's Atlas declared — over each chunk to
+// settle their layers and which are drawn. A
 // Stage that has not ticked yet sees everything. It is a render.Direct at render.Objects too, where a DirectLook draws the
 // sprites it was handed.
 type renderer struct {
 	renderQuery *goke.Query
 	base        goke.Comp[Base]
-	appearance  goke.Comp[Appearance]
+	appearance  goke.Comp[render.Appearance]
 	z           goke.OptComp[Z]
 	rules       *render.Rules
-	layers      [][]Appearance // one per entity of the chunk being drawn
-	shown       []bool         // the chunk's, as the rules say
+	layers      [][]render.Appearance // one per entity of the chunk being drawn
+	shown       []bool                // the chunk's, as the rules say
 	atlas       render.AtlasSource
 	look        func() Look
 	views       func(camera.Camera) *view.View

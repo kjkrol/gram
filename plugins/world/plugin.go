@@ -258,6 +258,11 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 				panic(err)
 			}
 		})
+		if wa, ok := atlas.(*Atlas); ok { // the looks declared on the world's own atlas: facing, then turning
+			if err := p.module.drawing.Add(wa.rules()...); err != nil {
+				panic(err)
+			}
+		}
 	}
 	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
@@ -276,18 +281,6 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable returns world's persistable state (its camera's Viewport/Zoom).
 func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
-
-// Draw has the world's renderer draw its entities as rules say, every frame, in the order given
-// (render.Over, As, With, Show; Facing); call before Use.
-func (p *Plugin) Draw(rules ...render.Rule) error {
-	if err := p.InSection("drawing rules given", section.Looks); err != nil {
-		return err
-	}
-	if err := p.module.drawing.Add(rules...); err != nil {
-		return fmt.Errorf("%w in %s", err, p.Name())
-	}
-	return nil
-}
 
 // =================================================================
 // world-specific

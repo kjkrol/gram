@@ -115,7 +115,6 @@ func newArena() (*arena, game.Stage) {
 		Cells(s.defineCells).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Restore(s.restore).
 		Layout(s.layOut).
@@ -144,7 +143,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.selection = selection.NewPlugin(s.world)
 	s.topography.WithSelection(s.selection)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
+		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
@@ -215,8 +215,6 @@ func (s *arena) defineCommands() {
 func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)))
 }
-
-func (s *arena) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}

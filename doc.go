@@ -15,7 +15,7 @@
 // (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
 // none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
 // A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
-// Players(…).Cells(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Looks(…).Scenes(…).
+// Players(…).Effects(…).Rules(…).Commands(…).Cells(…).Kinds(…).Controls(…).Scenes(…).
 // Layout(…).Units(…).Update(…) — always in that order, which the compiler keeps, each plugin
 // refusing what is defined out of its section.
 //

@@ -50,7 +50,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing, func() Look { return look })
 
 	var base goke.Comp[Base]
-	var appearance goke.Comp[Appearance]
+	var appearance goke.Comp[render.Appearance]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&base, &appearance)
@@ -61,7 +61,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 			bases, looks := base.Slice(&f.Cursor), appearance.Slice(&f.Cursor)
 			for j, id := range f.Cursor.IDs {
 				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: dir}}
-				looks[j] = Appearance{SpriteID: 1}
+				looks[j] = render.Appearance{SpriteID: 1}
 				ids = append(ids, id)
 				i++
 			}
@@ -98,8 +98,8 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	const east, crown render.SpriteID = 5, 9
 	rules := []render.Rule{
-		Facing(func(v Velocity) render.SpriteID { return east }),
-		render.Over[Appearance](Appearance{SpriteID: crown}),
+		render.With(func(a render.Appearance, b Base) render.Appearance { a.SpriteID = east; return a }),
+		render.Over[render.Appearance](render.Appearance{SpriteID: crown}),
 		render.Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
 	}
 	drawn := drawThrough(t, nil, rules, geom.NewVec(1, 0), quarters...).sprites
@@ -135,9 +135,9 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	wet.Look(0)
 }
 
-// Turning writes the Appearance's Angle from the way the entity moves, in the engine's one
-// convention: 0 east, against the clock with the screen's y growing down, in degrees.
-func TestRenderer_Compose_TurningTurnsTheSpriteTheWayItMoves(t *testing.T) {
+// A sprite marked Turning on the world's atlas is drawn turned the way its entity moves, in
+// the engine's one convention: 0 east, against the clock with the screen's y growing down.
+func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		dir  geom.Vec
@@ -148,7 +148,8 @@ func TestRenderer_Compose_TurningTurnsTheSpriteTheWayItMoves(t *testing.T) {
 		{"west", geom.NewVec(-1, 0), -180}, // atan2's range: the same turn as 180
 		{"still: the Appearance's own angle holds", geom.Vec{}, 0},
 	} {
-		look := drawThrough(t, nil, []render.Rule{Turning()}, tc.dir, quarters[0])
+		a := &Atlas{turned: map[render.SpriteID]bool{1: true}, unders: map[render.SpriteID][]render.SpriteID{}}
+		look := drawThrough(t, nil, a.rules(), tc.dir, quarters[0])
 		if len(look.angles) != 1 || look.angles[0] != tc.want {
 			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
 		}

@@ -2,6 +2,7 @@ package bench_test
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func newMarkerWorld(b *testing.B, n int) *markerWorld {
 	b.Helper()
 	w := &markerWorld{ecs: goke.New()}
 	w.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var app goke.Comp[world.Appearance]
+		var app goke.Comp[render.Appearance]
 		var coll goke.Comp[collision.Collider]
 		var phys goke.Comp[collision.Physics]
 		f := si.NewFactory(&w.base, &app, &coll, &phys, &w.tags)

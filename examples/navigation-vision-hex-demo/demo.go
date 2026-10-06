@@ -106,7 +106,6 @@ func newArena() (*arena, game.Stage) {
 		Players(s.definePlayer).
 		Cells(s.defineCells).
 		Kinds(s.defineKinds).
-		Looks(s.defineLooks).
 		Scenes(s.defineScenes).
 		Layout(s.layOut).
 		Units(s.placeUnits).
@@ -125,7 +124,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize}) // the hills in relief, seen from above
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
+		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.topography, s.vision)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.players, s.vision} {
 		if err := ctx.Use(p); err != nil {
@@ -148,8 +148,6 @@ func (s *arena) defineCells() {
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
 	kinds.Define(HillCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
 }
-
-func (s *arena) defineLooks() error { return s.vision.Draw(render.Show(s.selection.IsSelected)) }
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
