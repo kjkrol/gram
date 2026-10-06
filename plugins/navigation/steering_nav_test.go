@@ -57,7 +57,7 @@ func (pw *profiledWorld) tick() (vel world.Velocity, centre geom.Vec, ordered bo
 }
 
 func (pw *profiledWorld) cellAt(x, y uint32) cell.ID {
-	c, _ := pw.grid.CellIndex(x, y)
+	c := pw.grid.CellIndex(x, y)
 	return c
 }
 
@@ -102,7 +102,7 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -271,7 +271,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -391,7 +391,7 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -432,8 +432,8 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 func TestNavigation_APatrolGoesRoundStandingItsPauseOnEachGoal(t *testing.T) {
 	const pause = time.Second
 	grid := grid.DefaultGrids{}.Square(8, 1, legCellSize)
-	west, _ := grid.CellIndex(0, 0)
-	east, _ := grid.CellIndex(7, 0)
+	west := grid.CellIndex(0, 0)
+	east := grid.CellIndex(7, 0)
 	pw := newProfiledWorld(t, 8, 1, west, Patrol(pause, east, west), steering.Steering{MaxSpeed: 64, Accel: 256, V0: 32}, true)
 
 	type stay struct {

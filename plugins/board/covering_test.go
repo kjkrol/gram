@@ -18,7 +18,7 @@ import (
 // marker, and a rule reads it of the cell under a unit (unit.Over).
 func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
-	here, _ := g.CellIndex(1, 1)
+	here := g.CellIndex(1, 1)
 	var iced effect.Effect
 	var slot [2]int
 	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
@@ -42,7 +42,7 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	if !brd.States(here).Has(iced.Mark()) {
 		t.Error("the cell under the unit does not carry the effect's marker")
 	}
-	if other, _ := g.CellIndex(3, 3); brd.States(other).Has(iced.Mark()) {
+	if other := g.CellIndex(3, 3); brd.States(other).Has(iced.Mark()) {
 		t.Error("a cell far off carries the effect's marker")
 	}
 	if brd.Changes() == before {

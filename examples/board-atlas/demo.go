@@ -154,7 +154,7 @@ var corners = [][2]int{{1, 1}, {22, 1}, {22, 14}, {1, 14}}
 
 // at is the cell at column x, row y.
 func (s *arena) at(x, y int) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(uint32(x), uint32(y))
+	c := s.board.Res.Logic.Board.CellIndex(uint32(x), uint32(y))
 	return c
 }
 

@@ -57,7 +57,7 @@ func (g *fieldStage) Restore(p game.Persistence) (bool, error) {
 func (g *fieldStage) Spawn() error {
 	var cells []cell.Entry
 	for y := uint32(1); y <= 14; y++ {
-		c, _ := g.grid.CellIndex(3, y)
+		c := g.grid.CellIndex(3, y)
 		cells = append(cells, cell.Entry{Kind: "wall", Cell: c})
 	}
 	g.board.Seed(board.Layout{Default: "grass", Cells: cells})

@@ -32,7 +32,7 @@ type placeWorld struct {
 func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *placeWorld) []rule.Rule) *placeWorld {
 	t.Helper()
 	pw := &placeWorld{}
-	pw.middle, _ = grid.CellIndex(3, 3)
+	pw.middle = grid.CellIndex(3, 3)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 8 * boardtest.CellSize, Height: 8 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
@@ -215,8 +215,8 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 // those cells alone.
 func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	a, _ := grid.CellIndex(1, 1)
-	b, _ := grid.CellIndex(5, 2)
+	a := grid.CellIndex(1, 1)
+	b := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("marked", rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
 		marked := pw.w.Roles().Named("marked")
@@ -234,8 +234,8 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 // same kind plays nothing.
 func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	a, _ := grid.CellIndex(1, 1)
-	b, _ := grid.CellIndex(5, 2)
+	a := grid.CellIndex(1, 1)
+	b := grid.CellIndex(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("lake", rule.Then[cell.Now]("scorch the lake", rule.All, rule.Apply(pw.scorched)))
 		lake := pw.w.Roles().Named("lake")
@@ -254,7 +254,7 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 // pressed, nothing elsewhere.
 func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	middle, _ := grid.CellIndex(3, 3)
+	middle := grid.CellIndex(3, 3)
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("plate")
 		plate := pw.w.Roles().Named("plate")

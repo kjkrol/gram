@@ -1,6 +1,7 @@
 package grids
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -146,12 +147,12 @@ func (g *Hex) Coords(c cell.ID) (uint32, uint32, bool) {
 	return uint32(q), uint32(r), q >= 0 && r >= 0 && q < int32(g.Width) && r < int32(g.Height)
 }
 
-func (g *Hex) CellIndex(q, r uint32) (cell.ID, bool) {
+func (g *Hex) CellIndex(q, r uint32) cell.ID {
 	fq, fr, ok := g.foldAxial(int32(q), int32(r))
 	if !ok {
-		return 0, false
+		panic(fmt.Sprintf("board: no cell at (%d, %d)", q, r))
 	}
-	return packAxial(fq, fr), true
+	return packAxial(fq, fr)
 }
 
 // NeighborCost is always 1 — every hex neighbor is equidistant in this axial model.

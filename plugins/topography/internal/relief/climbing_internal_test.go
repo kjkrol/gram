@@ -22,7 +22,7 @@ func reliefOf(cols, rows, size uint32) (*Relief, grid.Grid) {
 func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {
 	r, grid := reliefOf(3, 3, 10)
 	r.SetHeights(func(p geom.Vec) float64 { return 0.5 * p.X })
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	mid := at(1, 1)
 	for _, c := range []struct {
 		name string
@@ -46,7 +46,7 @@ func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {
 // The corners are a lattice: raising one cell's raises its neighbours' where they meet it.
 func TestSetCorners_LeavesNoVerticalWall(t *testing.T) {
 	r, grid := reliefOf(3, 3, 10)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	r.SetCorners(at(1, 1), Corners{1, 2, 3, 4})
 	for _, c := range []struct {
 		cell cell.ID

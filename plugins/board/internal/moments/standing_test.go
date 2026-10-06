@@ -43,7 +43,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	for _, f := range installed {
 		f(ctx)
 	}
-	start, _ := grid.CellIndex(1, 1)
+	start := grid.CellIndex(1, 1)
 	kind.Define[boardtest.Mover](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(m boardtest.Mover) world.Position {
 			return world.Position{AABB: boardtest.CellBox(grid, m.Here, boardtest.UnitSize)}
@@ -119,7 +119,7 @@ func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.Board) {
 	return func(brd *board.Board) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
-			c, _ := grid.CellIndex(3, y)
+			c := grid.CellIndex(3, y)
 			brd.Set(c, pit)
 		}
 	}
@@ -127,7 +127,7 @@ func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.Board) {
 
 func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start, _ := grid.CellIndex(1, 7)
+	start := grid.CellIndex(1, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("hole"), Cost: 1}),
 		[]boardtest.Mover{{Here: start, Heading: east}}, footing(grid))
 	orders := carried(t, bw.World, &heards{})
@@ -162,7 +162,7 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 
 func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start, _ := grid.CellIndex(3, 7)
+	start := grid.CellIndex(3, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}),
 		[]boardtest.Mover{{Here: start, Domain: cell.Water}}, footing(grid), onKind("water"))
 	orders := carried(t, bw.World, &heards{})
@@ -174,8 +174,8 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 
 func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	a, _ := grid.CellIndex(1, 7)
-	b, _ := grid.CellIndex(4, 7)
+	a := grid.CellIndex(1, 7)
+	b := grid.CellIndex(4, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize,
 		func(brd *board.Board) { brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}) },
 		[]boardtest.Mover{{Here: a}, {Here: b}}, footing(grid), onKind("grass"))
@@ -244,8 +244,8 @@ func toPlane(b geom.AABB) plane.AABB {
 
 func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start, _ := grid.CellIndex(1, 7)
-	right, _ := grid.CellIndex(2, 7)
+	start := grid.CellIndex(1, 7)
+	right := grid.CellIndex(2, 7)
 	straddles := rule.Then[unit.Standing]("straddles", rule.All, rule.If(func(st unit.Standing) bool {
 		var under []cell.ID
 		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })

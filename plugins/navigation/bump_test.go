@@ -169,7 +169,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	return rw
 }
 
-func (rw *roadWorld) at(x, y uint32) cell.ID { c, _ := rw.grid.CellIndex(x, y); return c }
+func (rw *roadWorld) at(x, y uint32) cell.ID { c := rw.grid.CellIndex(x, y); return c }
 
 // state is one unit's cell and order, if it still has one.
 func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {

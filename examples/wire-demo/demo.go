@@ -237,7 +237,7 @@ func (s *arena) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-func (s *arena) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
 func (s *arena) layOut() {
 	var cells []cell.Entry

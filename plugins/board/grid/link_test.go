@@ -9,7 +9,7 @@ import (
 // Link names the way to each neighbour by one bit, and Toward finds the neighbour back by it.
 func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
 	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 10), grid.DefaultGrids{}.Hex(4, 4, 10)} {
-		c, _ := g.CellIndex(1, 1)
+		c := g.CellIndex(1, 1)
 		for _, n := range g.Neighbors(c) {
 			l, ok := grid.Link(g, c, n)
 			if !ok || l == 0 || l&(l-1) != 0 {
@@ -23,16 +23,16 @@ func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
 				t.Errorf("toward %d from %v is %v, want %v", i, c, back, n)
 			}
 		}
-		far, _ := g.CellIndex(3, 3)
+		far := g.CellIndex(3, 3)
 		if _, ok := grid.Link(g, c, far); ok {
 			t.Errorf("a link from %v to %v, two cells off", c, far)
 		}
 	}
 	g := grid.DefaultGrids{}.Square(4, 4, 10)
-	c, _ := g.CellIndex(1, 1)
-	east, _ := g.CellIndex(2, 1)
-	south, _ := g.CellIndex(1, 2)
-	se, _ := g.CellIndex(2, 2)
+	c := g.CellIndex(1, 1)
+	east := g.CellIndex(2, 1)
+	south := g.CellIndex(1, 2)
+	se := g.CellIndex(2, 2)
 	if l, _ := grid.Link(g, c, east); l != 1<<3 {
 		t.Errorf("east is bit %b, want %b", l, 1<<3)
 	}

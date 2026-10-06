@@ -180,32 +180,29 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
 func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
 	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
 	var cells []cell.Entry
 	for r := uint32(1); r < GridHeight; r++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: s.cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, r)})
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, r)})
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
 func (s *arena) placeUnits() {
+	brd := s.board.Res.Logic.Board
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), BlueKind).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player...),
 	)
 }
 
@@ -279,7 +276,7 @@ const (
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
 	road := kinds.Named(RoadCell).Kind()
 	for q := roadLeft + 1; q < roadRight; q++ {
-		c, _ := brd.CellIndex(q, shortcutRow)
+		c := brd.CellIndex(q, shortcutRow)
 		brd.Set(c, road)
 	}
 }

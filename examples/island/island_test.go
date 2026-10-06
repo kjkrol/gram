@@ -62,7 +62,7 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 		for x := 1; x < GridWidth; x++ {
 			all, any := true, false
 			for _, c := range [][2]int{{x - 1, y - 1}, {x, y - 1}, {x - 1, y}, {x, y}} {
-				id, _ := grid.CellIndex(uint32(c[0]), uint32(c[1]))
+				id := grid.CellIndex(uint32(c[0]), uint32(c[1]))
 				all, any = all && land[id], any || land[id]
 			}
 			h := heights(geom.NewVec(float64(x*CellSize), float64(y*CellSize)))
@@ -199,8 +199,11 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 		queue = queue[1:]
 		x, y, _ := grid.Coords(c)
 		for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-			n, ok := grid.CellIndex(uint32(int(x)+d[0]), uint32(int(y)+d[1]))
-			if ok && walk[n] && !seen[n] {
+			nx, ny := int(x)+d[0], int(y)+d[1]
+			if nx < 0 || nx >= GridWidth || ny < 0 || ny >= GridHeight {
+				continue
+			}
+			if n := grid.CellIndex(uint32(nx), uint32(ny)); walk[n] && !seen[n] {
 				seen[n] = true
 				queue = append(queue, n)
 			}

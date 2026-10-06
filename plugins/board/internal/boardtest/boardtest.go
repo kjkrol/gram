@@ -261,7 +261,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
-	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	for i := range units {
 		if units[i].Here == 0 {
 			units[i].Here = cellAt(1, 7)

@@ -12,7 +12,7 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 	r := &pathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
 
 	mt := MoveOrder{Target: at(2)}

@@ -14,8 +14,8 @@ func TestPathFinder_FindPath_UnreachableTarget_ReportsNotFound(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
-	from, _ := grid.CellIndex(0, 0)
-	to, _ := grid.CellIndex(2, 2)
+	from := grid.CellIndex(0, 0)
+	to := grid.CellIndex(2, 2)
 	for _, n := range grid.Neighbors(to) {
 		terrain.Set(n, cell.Kind{Cost: 1, Solid: true})
 	}
@@ -35,8 +35,8 @@ func TestPathFinder_FindPath_ReusesSolverAcrossCalls(t *testing.T) {
 
 	pf := newPathFinder(grid, terrain, nil, occupancy)
 
-	firstFrom, _ := grid.CellIndex(0, 0)
-	firstTo, _ := grid.CellIndex(4, 0)
+	firstFrom := grid.CellIndex(0, 0)
+	firstTo := grid.CellIndex(4, 0)
 	firstPath, ok := pf.findPath(entity, cell.Land, firstFrom, firstTo)
 	if !ok {
 		t.Fatal("expected the first query to find a path")
@@ -45,8 +45,8 @@ func TestPathFinder_FindPath_ReusesSolverAcrossCalls(t *testing.T) {
 		t.Errorf("first path = %+v, want it to end at %v", firstPath, firstTo)
 	}
 
-	secondFrom, _ := grid.CellIndex(0, 4)
-	secondTo, _ := grid.CellIndex(4, 4)
+	secondFrom := grid.CellIndex(0, 4)
+	secondTo := grid.CellIndex(4, 4)
 	secondPath, ok := pf.findPath(entity, cell.Land, secondFrom, secondTo)
 	if !ok {
 		t.Fatal("expected the second query, on the same reused pathFinder, to find a path")
@@ -62,13 +62,13 @@ func TestPathFinder_FindPath_NeverCutsThroughABlockedCorner(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	wall := cell.Kind{Cost: 1, Solid: true}
 	for _, y := range []uint32{1, 2, 3, 4} {
-		c, _ := grid.CellIndex(2, y)
+		c := grid.CellIndex(2, y)
 		terrain.Set(c, wall)
 	}
 	occupancy := &cell.SingleOccupancy{}
 
-	from, _ := grid.CellIndex(1, 2)
-	to, _ := grid.CellIndex(3, 2)
+	from := grid.CellIndex(1, 2)
+	to := grid.CellIndex(3, 2)
 	path, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), cell.Land, from, to)
 	if !ok {
 		t.Fatal("expected a path around the wall to exist")
@@ -88,7 +88,7 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	terrain := openTerrain()
 	occupancy := &cell.SingleOccupancy{}
 	pf := newPathFinder(grid, terrain, nil, occupancy)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 
 	const mover, other = uid.UID64(1), uid.UID64(2)
 	occupancy.Enter(at(0), mover, cell.Land)

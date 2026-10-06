@@ -165,7 +165,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	return fw
 }
 
-func (fw *fieldWorld) at(x, y uint32) cell.ID { c, _ := fw.grid.CellIndex(x, y); return c }
+func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.CellIndex(x, y); return c }
 
 // each calls fn with every unit.
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {

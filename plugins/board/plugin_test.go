@@ -44,7 +44,7 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	p.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	p.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
-	cell, _ := grid.CellIndex(2, 2)
+	cell := grid.CellIndex(2, 2)
 	return p, cell
 }
 
@@ -66,7 +66,7 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 
 func TestPlugin_SeedPopulate_AppliesLayout(t *testing.T) {
 	p, wallCell := newSeedTestPlugin(t)
-	other, _ := p.Res.Logic.Board.CellIndex(0, 0)
+	other := p.Res.Logic.Board.CellIndex(0, 0)
 	p.Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "wall", Cell: wallCell}}})
 
 	if err := p.Populate(); err != nil {

@@ -197,7 +197,7 @@ func (s *arena) defineKinds() {
 		rule.Plays(s.world.Roles().Named(MortalRole)))
 }
 
-func (s *arena) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
 func (s *arena) layOut() {
 	var cells []cell.Entry

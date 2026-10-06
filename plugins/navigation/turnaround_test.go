@@ -140,7 +140,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	return tw
 }
 
-func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c, _ := tw.grid.CellIndex(x, y); return c }
+func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c := tw.grid.CellIndex(x, y); return c }
 
 // blueState is the blue unit's cell, its order if any, and its route.
 func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {

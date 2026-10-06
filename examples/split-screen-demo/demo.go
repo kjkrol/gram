@@ -200,14 +200,8 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
-// cellAt is the cell at column x, row y.
-func (s *arena) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
 func (s *arena) layOut() {
-	cellAt := s.cellAt
+	cellAt := s.board.Res.Logic.Board.CellIndex
 	var cells []cell.Entry
 	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
 	for x := uint32(0); x < GridWidth; x++ {
@@ -235,9 +229,10 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	brd := s.board.Res.Logic.Board
 	s.world.Seed(
-		kind.Named[block](s.world.Kinds(), RedKind).Entry(block{start: s.cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
-		kind.Named[block](s.world.Kinds(), BlueKind).Entry(block{start: s.cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
+		kind.Named[block](s.world.Kinds(), RedKind).Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
+		kind.Named[block](s.world.Kinds(), BlueKind).Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
 	)
 }
 

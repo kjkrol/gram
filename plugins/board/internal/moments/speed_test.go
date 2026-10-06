@@ -31,7 +31,7 @@ func uphill(_ geom.Vec, dir geom.Vec, _ cell.Domain) float64 {
 func TestPace_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(1, 1, 10)
 	cells := terrain.New(grid)
-	c, _ := grid.CellIndex(0, 0)
+	c := grid.CellIndex(0, 0)
 	cells.Set(c, cell.Kind{Cost: 1, Allows: cell.Land})
 	got := paces(t, grid, cells, uphill, walker{box: cellBox(grid, c, 4), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: -1}, domain: cell.Land})
 	if p := got[cellBox(grid, c, 4).TopLeft.X]; p != 2 {
@@ -43,7 +43,7 @@ func TestPace_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 func TestPace_SparesAGradedKindTheSlope(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 1, 10)
 	cells := terrain.New(grid)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 	cells.Set(at(0), cell.Kind{Cost: 1, Allows: cell.Land})
 	cells.Set(at(1), cell.Kind{Cost: 1, Allows: cell.Land, Graded: true})
 
@@ -122,7 +122,7 @@ func TestPace_IsOneOverCost(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 1, 10)
 	cells := terrain.New(grid)
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 	cells.Set(at(0), cell.Kind{Cost: 2, Allows: cell.Land})   // slow
 	cells.Set(at(1), cell.Kind{Cost: 0.5, Allows: cell.Land}) // a boost, if a game wants one
 	cells.Set(at(2), cell.Kind{Cost: 0, Allows: cell.Land})   // no cost: no effect
@@ -144,7 +144,7 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 	const frost = cell.Domain(1 << 3)
 	grid := grid.DefaultGrids{}.Square(1, 1, 10)
 	cells := terrain.New(grid)
-	c, _ := grid.CellIndex(0, 0)
+	c := grid.CellIndex(0, 0)
 	cells.Set(c, cell.Kind{Name: cell.Named("snow"), Cost: 4, Allows: cell.Land | frost}.Costing(frost, 0.5))
 
 	// Three entities on the snow, told apart by a one-unit offset: on foot, frost-born, no Mover.

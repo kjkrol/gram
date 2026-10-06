@@ -18,8 +18,8 @@ func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 	f := New(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
-	c3, _ := grid.CellIndex(3, 0)
-	c6, _ := grid.CellIndex(6, 0)
+	c3 := grid.CellIndex(3, 0)
+	c6 := grid.CellIndex(6, 0)
 	cells.Set(c3, forest)
 	walk := func() (stretches [][2]float64) {
 		f.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float64) bool {
@@ -46,7 +46,7 @@ var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
 	const size = 32
 	grid := grid.DefaultGrids{}.Square(4, 4, size)
-	cellAt := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	cells := terrain.New(grid)
 	f := New(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})

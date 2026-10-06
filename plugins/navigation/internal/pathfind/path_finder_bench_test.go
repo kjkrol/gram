@@ -16,7 +16,7 @@ import (
 func BenchmarkPathFinder_Terrain(b *testing.B) {
 	const side, size = 128, 16
 	grid := grid.DefaultGrids{}.Square(side, side, size)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	from, to := at(0, 0), at(side-1, side-1)
 	lay := func(brd *board.Board) {
 		rng := rand.New(rand.NewPCG(3, 5))

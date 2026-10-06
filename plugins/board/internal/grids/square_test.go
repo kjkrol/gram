@@ -52,27 +52,27 @@ func TestSquareGrid_Toroidal_CellAtWrapsNegativePositions(t *testing.T) {
 }
 
 func cellAtXY(g *Square, x, y uint32) cell.ID {
-	c, _ := g.CellIndex(x, y)
+	c := g.CellIndex(x, y)
 	return c
 }
 
 func TestSquareGrid_CellIndex_NonToroidal(t *testing.T) {
 	g := NewSquare(4, 4, 10)
-	c, ok := g.CellIndex(2, 1)
-	if !ok || c != cellAtXY(g, 2, 1) {
-		t.Errorf("CellIndex(2,1) = (%v,%v), want (%v,true)", c, ok, cellAtXY(g, 2, 1))
+	if c := g.CellIndex(2, 1); c != cellAtXY(g, 2, 1) {
+		t.Errorf("CellIndex(2,1) = %v, want %v", c, cellAtXY(g, 2, 1))
 	}
-	if _, ok := g.CellIndex(4, 0); ok {
-		t.Error("expected col==Width to be out of bounds on a non-toroidal grid")
-	}
+	defer func() {
+		if recover() == nil {
+			t.Error("col==Width on a non-toroidal grid did not panic")
+		}
+	}()
+	g.CellIndex(4, 0)
 }
 
 func TestSquareGrid_CellIndex_ToroidalWraps(t *testing.T) {
 	g := &Square{Width: 4, Height: 4, CellSize: 10, WrapX: true, WrapY: true}
-	c, ok := g.CellIndex(4, 0)
-	origin, _ := g.CellIndex(0, 0)
-	if !ok || c != origin {
-		t.Errorf("CellIndex(4,0) = (%v,%v), want same cell as CellIndex(0,0)", c, ok)
+	if c, origin := g.CellIndex(4, 0), g.CellIndex(0, 0); c != origin {
+		t.Errorf("CellIndex(4,0) = %v, want same cell as CellIndex(0,0) = %v", c, origin)
 	}
 }
 
@@ -141,10 +141,13 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	if _, ok := g.CellAt(geom.NewVec(5, -5)); ok {
 		t.Error("a position above the world has a cell, want none")
 	}
-	if _, ok := g.CellIndex(5, 0); !ok {
-		t.Error("column 5 refused, want it wrapped")
+	if a, b := g.CellIndex(5, 0), g.CellIndex(1, 0); a != b {
+		t.Error("column 5 not wrapped to column 1")
 	}
-	if _, ok := g.CellIndex(0, 5); ok {
-		t.Error("row 5 accepted, want it refused")
-	}
+	defer func() {
+		if recover() == nil {
+			t.Error("row 5 on an axis that does not wrap did not panic")
+		}
+	}()
+	g.CellIndex(0, 5)
 }

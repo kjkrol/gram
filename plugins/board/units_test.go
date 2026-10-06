@@ -43,7 +43,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	if err := brd.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	start, _ := grid.CellIndex(2, 1)
+	start := grid.CellIndex(2, 1)
 	w.Seed(k.Entry(recruit{start: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			found++
-			want, _ := grid.CellIndex(2, 1)
+			want := grid.CellIndex(2, 1)
 			if at.Slice(cur)[i].Cell != want {
 				t.Errorf("cell = %v, want the cell under the position, %v", at.Slice(cur)[i].Cell, want)
 			}

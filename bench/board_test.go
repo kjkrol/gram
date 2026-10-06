@@ -155,7 +155,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
-			if c, _ := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
+			if c := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
 				brd.Set(c, land)
 			}
 		}
@@ -168,7 +168,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	src := p.Renderer().(render.Source)
 	cam := ctx.world.Camera()
 	var f render.Frame
-	far, _ := grid.CellIndex(6, 6)
+	far := grid.CellIndex(6, 6)
 	shallows := sea
 	shallows.Cost = 2
 	for _, sc := range []struct {
@@ -311,8 +311,8 @@ func Benchmark_Board_Island(b *testing.B) {
 			cam.SetViewport(1920, 1080)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 		}
-		far, _ := brd.CellIndex(48, 32)
-		rock, _ := brd.CellIndex(48, 30)
+		far := brd.CellIndex(48, 32)
+		rock := brd.CellIndex(48, 30)
 		view := v.view
 		if v.far {
 			view += ",far"

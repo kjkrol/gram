@@ -17,7 +17,7 @@ var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | 
 // A step goes along a way where the way, or a crossing, links the two cells either way round.
 func TestBoard_AlongFollowsTheLinksOfWaysAndCrossings(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
-	at := func(x, y uint32) cell.ID { c, _ := g.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }
 	brd := board.NewBoard(g)
 	brd.SetAll(earth)
 	east, _ := grid.Link(g, at(1, 1), at(2, 1))

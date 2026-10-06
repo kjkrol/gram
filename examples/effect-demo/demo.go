@@ -225,28 +225,25 @@ const (
 )
 
 func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
 	water := s.board.CellKinds().Named(WaterCell)
 	lake := s.world.Roles().Named(LakeRole)
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, water.Entry(s.cellAt(x, y)).Plays(lake))
+			cells = append(cells, water.Entry(brd.CellIndex(x, y)).Plays(lake))
 		}
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 func (s *arena) placeUnits() {
+	brd := s.board.Res.Logic.Board
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: s.cellAt(2, 8), target: s.cellAt(GridWidth-3, 8)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: s.cellAt(2, 10)}).Told(player...),
-		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: s.cellAt(lakeRight, 8), target: s.cellAt(lakeLeft, 8)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), WitchKind).Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), WalkerKind).Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
+		kind.Named[unitRow](s.world.Kinds(), BoatKind).Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
 	)
-}
-
-func (s *arena) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

@@ -22,7 +22,8 @@ import (
 // alone; the ground is earth, sand or rock as they and the coast say — see soil. It gives the
 // board's Layout, the heights for a topography to seed, and the stops.
 func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
-	cellAt := func(x, y int) cell.ID { c, _ := grid.CellIndex(uint32(x), uint32(y)); return c }
+	cellAt := func(x, y int) cell.ID { return grid.CellIndex(uint32(x), uint32(y)) }
+	onBoard := func(x, y int) bool { return x >= 0 && x < GridWidth && y >= 0 && y < GridHeight }
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
 	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy) goes
 	edge := func(dx, dy float64) float64 {
@@ -51,7 +52,7 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 				continue
 			}
 			for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-				if land[cellAt(x+d[0], y+d[1])] {
+				if onBoard(x+d[0], y+d[1]) && land[cellAt(x+d[0], y+d[1])] {
 					shore = append(shore, geom.NewVec(float64(x)+0.5, float64(y)+0.5))
 					break
 				}
@@ -161,6 +162,9 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 		for ring := 0; ring < 8; ring++ {
 			for oy := -ring; oy <= ring; oy++ {
 				for ox := -ring; ox <= ring; ox++ {
+					if !onBoard(sx+ox, sy+oy) {
+						continue
+					}
 					at := cellAt(sx+ox, sy+oy)
 					if s := soils[at]; (s == EarthCell || s == SandCell) && rivers.Courses[at] == water.Dry {
 						sx, sy = sx+ox, sy+oy
@@ -288,8 +292,8 @@ func Plateau(grid grid.Grid) []cell.ID {
 			if plateau(dx, dy) < 1 {
 				continue
 			}
-			if c, ok := grid.CellIndex(uint32(x), uint32(y)); ok {
-				top = append(top, at{c, math.Hypot(dx-plateauX, dy-plateauY)})
+			if x >= 0 && x < GridWidth && y >= 0 && y < GridHeight {
+				top = append(top, at{grid.CellIndex(uint32(x), uint32(y)), math.Hypot(dx-plateauX, dy-plateauY)})
 			}
 		}
 	}

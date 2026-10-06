@@ -11,7 +11,7 @@ import (
 
 var g = grid.DefaultGrids{}.Square(5, 5, 10)
 
-func at(x, y uint32) cell.ID { c, _ := g.CellIndex(x, y); return c }
+func at(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }
 
 const (
 	north = cell.Links(1 << 0)

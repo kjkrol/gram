@@ -21,7 +21,7 @@ func riverBoard() (grid.Grid, *cell.TerrainMap) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	for x := uint32(0); x < 4; x++ {
-		c, _ := grid.CellIndex(x, 1)
+		c := grid.CellIndex(x, 1)
 		terrain.Set(c, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 	}
 	return grid, terrain
@@ -30,7 +30,7 @@ func riverBoard() (grid.Grid, *cell.TerrainMap) {
 func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	grid, terrain := riverBoard()
 	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 
 	path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(0, 2))
 	if !ok {
@@ -63,8 +63,8 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	start, _ := grid.CellIndex(0, 0)
-	lake, _ := grid.CellIndex(8, 0)
+	start := grid.CellIndex(0, 0)
+	lake := grid.CellIndex(8, 0)
 	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 
 	moves := &control.Queue[MoveTo]{}
@@ -110,7 +110,7 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | frost})
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	// The middle row is snow: slow for anyone on foot, a highway for the frost-born.
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))

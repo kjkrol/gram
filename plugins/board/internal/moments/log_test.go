@@ -16,7 +16,7 @@ import (
 func TestLog_WritesALineOnceForEachWhoFell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 1, 10)
 	cells := terrain.New(grid)
-	at := func(x uint32) cell.ID { c, _ := grid.CellIndex(x, 0); return c }
+	at := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
 	cells.Set(at(0), cell.Kind{Name: cell.Named("hole")})
 	cells.Set(at(1), cell.Kind{Name: cell.Named("grass"), Allows: cell.Land})
 	var out bytes.Buffer

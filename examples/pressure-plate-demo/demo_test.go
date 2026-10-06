@@ -132,7 +132,7 @@ func (s *testStage) strip(i int) map[uid.UID64]bool {
 
 // holds reports whether the top trapdoor of group i holds a walker.
 func (s *testStage) holds(i int) bool {
-	c, _ := s.brd.CellIndex(groups[i].left, stripTop)
+	c := s.brd.CellIndex(groups[i].left, stripTop)
 	return s.brd.Kind(c).Admits(cell.Land)
 }
 
@@ -191,7 +191,7 @@ func TestPlate_OpensItsTrapdoorsWhileSomeoneStandsOnIt(t *testing.T) {
 	if !s.holds(0) || !s.holds(1) {
 		t.Fatal("a trapdoor open before anyone stood on a plate")
 	}
-	plate, _ := s.brd.CellIndex(groups[0].plate, plateRow)
+	plate := s.brd.CellIndex(groups[0].plate, plateRow)
 	scout := s.scout()
 	s.put(scout, plate)
 	s.tick(TPS / 2)
@@ -204,7 +204,7 @@ func TestPlate_OpensItsTrapdoorsWhileSomeoneStandsOnIt(t *testing.T) {
 	if s.holds(0) || !s.holds(1) {
 		t.Errorf("west plate pressed: west holds %v, east holds %v; want the west open alone", s.holds(0), s.holds(1))
 	}
-	away, _ := s.brd.CellIndex(GridWidth/2, plateRow)
+	away := s.brd.CellIndex(GridWidth/2, plateRow)
 	s.put(scout, away)
 	s.tick(int(heldAfter.Seconds() * TPS / 2))
 	if s.holds(0) {

@@ -131,7 +131,7 @@ func (s *testStage) onStrip(i int) map[uid.UID64]bool {
 
 // holds reports whether the top trapdoor of lever i holds a walker.
 func (s *testStage) holds(i int) bool {
-	c, _ := s.brd.CellIndex(levers[i].left, stripTop)
+	c := s.brd.CellIndex(levers[i].left, stripTop)
 	return s.brd.Kind(c).Admits(cell.Land)
 }
 

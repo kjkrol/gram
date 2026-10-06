@@ -63,9 +63,9 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 	pusher := &pushOnce{grid: grid, size: 8}
 
-	start, _ := grid.CellIndex(0, 0)
-	target, _ := grid.CellIndex(4, 0)
-	pushed, _ := grid.CellIndex(3, 0)
+	start := grid.CellIndex(0, 0)
+	target := grid.CellIndex(4, 0)
+	pushed := grid.CellIndex(3, 0)
 	pusher.to = pushed
 
 	var at goke.Comp[unit.At]
@@ -136,8 +136,8 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 	occupancy := &cell.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
-	previous, _ := grid.CellIndex(0, 1)
-	expected, _ := grid.CellIndex(1, 0)
+	previous := grid.CellIndex(0, 1)
+	expected := grid.CellIndex(1, 0)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -195,7 +195,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	occupancy := &cell.SingleOccupancy{}
 	steer := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
 
-	start, _ := grid.CellIndex(2, 0)
+	start := grid.CellIndex(2, 0)
 	target := start
 
 	var at goke.Comp[unit.At]
@@ -257,7 +257,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	space := testSpace(t)
 	steer.BindSpace(space)
 
-	target, _ := grid.CellIndex(2, 0)
+	target := grid.CellIndex(2, 0)
 	offCenter := world.Position{AABB: plane.NewAABB(geom.NewVec(20, 1), 8, 8)}
 
 	var at goke.Comp[unit.At]
@@ -315,7 +315,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 
 func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
-	target, _ := grid.CellIndex(2, 0)
+	target := grid.CellIndex(2, 0)
 	offCenter := plane.NewAABB(geom.NewVec(17, 1), 8, 8)
 
 	var pos goke.Comp[world.Base]
@@ -369,8 +369,8 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 		speed                           = float64(cellSize * 2)
 	)
 	grid := grid.DefaultGrids{}.Square(gridWidth, gridHeight, cellSize)
-	start, _ := grid.CellIndex(2, 4)
-	target, _ := grid.CellIndex(gridWidth-3, 4)
+	start := grid.CellIndex(2, 4)
+	target := grid.CellIndex(gridWidth-3, 4)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -381,7 +381,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&at, &pos, &order).Build() }})
 	terrain, ecs := nw.board, nw.ecs
 	for y := uint32(2); y < gridHeight; y++ {
-		c, _ := grid.CellIndex(wallCol, y)
+		c := grid.CellIndex(wallCol, y)
 		terrain.Set(c, cell.Kind{Cost: 1, Solid: true})
 	}
 

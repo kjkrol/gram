@@ -186,12 +186,8 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) cellAt(x, y uint32) cell.ID {
-	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
-	return c
-}
-
 func (s *arena) layOut() {
+	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column with a gap at r = gapRow, a forest either side of the
 	// gap, and a road along r = 0 with both flanks.
 	var cells []cell.Entry
@@ -199,12 +195,12 @@ func (s *arena) layOut() {
 		if r == gapRow {
 			continue
 		}
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: s.cellAt(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, r)})
 	}
 	for _, f := range [][2]uint32{{5, 4}, {13, 8}} {
 		for dr := uint32(0); dr < 3; dr++ {
 			for dq := uint32(0); dq < 3; dq++ {
-				cells = append(cells, cell.Entry{Kind: ForestCell, Cell: s.cellAt(f[0]+dq, f[1]+dr)})
+				cells = append(cells, cell.Entry{Kind: ForestCell, Cell: brd.CellIndex(f[0]+dq, f[1]+dr)})
 			}
 		}
 	}
@@ -212,15 +208,15 @@ func (s *arena) layOut() {
 	for dr := uint32(2); dr <= 4; dr++ {
 		for dq := uint32(8); dq <= 10; dq++ {
 			if dq != wallCol {
-				cells = append(cells, cell.Entry{Kind: HillCell, Cell: s.cellAt(dq, dr)})
+				cells = append(cells, cell.Entry{Kind: HillCell, Cell: brd.CellIndex(dq, dr)})
 			}
 		}
 	}
 	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(q, roadTop)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(q, roadTop)})
 	}
 	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: s.cellAt(roadRight, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, r)})
 	}
 	hills := map[cell.ID]bool{}
 	for _, e := range cells {
@@ -237,13 +233,14 @@ func (s *arena) layOut() {
 }
 
 func (s *arena) placeUnits() {
+	brd := s.board.Res.Logic.Board
 	player := players.Give{To: s.player.ID}
 	s.world.Seed(
-		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: s.cellAt(3, 3), target: s.cellAt(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: s.cellAt(3, 9), target: s.cellAt(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
-		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: s.cellAt(GridWidth-4, gapRow), target: s.cellAt(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[0]).Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[1]).Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player, selection.Allow{Selected: true}),
+		kind.Named[unitRow](s.world.Kinds(), scouts[2]).Entry(unitRow{start: brd.CellIndex(GridWidth-4, gapRow), target: brd.CellIndex(3, gapRow)}).Told(player, selection.Allow{Selected: true}),
 		// The hawk crosses the wall and the second forest head-on.
-		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: s.cellAt(1, 9), target: s.cellAt(GridWidth-2, 9)}).Told(player, selection.Allow{}),
+		kind.Named[unitRow](s.world.Kinds(), HawkKind).Entry(unitRow{start: brd.CellIndex(1, 9), target: brd.CellIndex(GridWidth-2, 9)}).Told(player, selection.Allow{}),
 	)
 }
 

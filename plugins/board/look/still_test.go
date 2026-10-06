@@ -29,9 +29,9 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(grass)
 	for i := uint32(0); i < 8; i++ {
-		c, _ := grid.CellIndex(i, 3)
+		c := grid.CellIndex(i, 3)
 		brd.Set(c, water)
-		c, _ = grid.CellIndex(5, i)
+		c = grid.CellIndex(5, i)
 		brd.SetWay(c, cell.Way{Kind: road, Width: 8, Links: 0xff})
 	}
 	atlas := render.NewAtlas()
@@ -67,7 +67,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 		}
 	}
 	check("at first")
-	c, _ := grid.CellIndex(6, 6)
+	c := grid.CellIndex(6, 6)
 	brd.Set(c, water)
 	check("after a cell changed")
 	// a wrapping world, over the seam: the world's first columns drawn on past its last

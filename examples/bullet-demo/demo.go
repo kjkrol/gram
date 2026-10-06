@@ -262,7 +262,7 @@ func (s *arena) placeUnits() {
 	)
 }
 
-func (s *arena) cellAt(x, y uint32) cell.ID { c, _ := s.brd.CellIndex(x, y); return c }
+func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.bullet.RunPlan(ctx, d)

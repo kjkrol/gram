@@ -304,7 +304,7 @@ func (l *Painter) cellAt(x, y int64) (cell.ID, bool) {
 	if !okX || !okY {
 		return 0, false
 	}
-	return l.board.CellIndex(uint32(fx), uint32(fy))
+	return l.board.CellIndex(uint32(fx), uint32(fy)), true
 }
 
 // fold is v on an axis n long: wrapped round where it wraps; false off it where it does not.

@@ -80,8 +80,8 @@ func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	m := brd.Map()
-	a, _ := grid.CellIndex(0, 0)
-	b, _ := grid.CellIndex(1, 0)
+	a := grid.CellIndex(0, 0)
+	b := grid.CellIndex(1, 0)
 	if corners, level := m.Top(a); corners != [4]float32{} || level != 0 {
 		t.Errorf("a simple map's tile stands at %v, %v; want level ground at 0", corners, level)
 	}

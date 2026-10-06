@@ -14,8 +14,9 @@ type Grid interface {
 	Toward(c cell.ID, i int) (cell.ID, bool)
 	CellCenter(c cell.ID) geom.Vec
 	CellAt(pos geom.Vec) (cell.ID, bool)
-	// CellIndex returns the cell at grid coordinates (col,row or axial q,r), if within bounds.
-	CellIndex(a, b uint32) (cell.ID, bool)
+	// CellIndex is the cell at grid coordinates (col,row or axial q,r), wrapped where the grid
+	// wraps; one off a closed axis panics by its coordinates — a game asks for cells it laid.
+	CellIndex(a, b uint32) cell.ID
 	// NeighborCost is the geometric step cost from a to its neighbor b.
 	NeighborCost(a, b cell.ID) float64
 	// DiagonalNeighbors returns the two cells flanking the corner between a and its diagonal b.

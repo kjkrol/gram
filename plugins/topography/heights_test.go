@@ -34,11 +34,11 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, true, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		k := units.Named("walker")
-		start, _ := grid.CellIndex(0, 3)
+		start := grid.CellIndex(0, 3)
 		return []kind.Entry{k.Entry(topotest.Recruit{Start: start})}
 	})
 	brd := qw.Board.Res.Logic.Board
-	wallCell, _ := qw.Grid.CellIndex(3, 3)
+	wallCell := qw.Grid.CellIndex(3, 3)
 	brd.Set(wallCell, cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
 	qw.Topo.Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
 	qw.ECS.Tick(time.Second / 60)

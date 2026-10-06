@@ -150,7 +150,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	b.WithRenderer(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
 	cam := w.Camera()
-	c, _ := grid.CellIndex(2, 2)
+	c := grid.CellIndex(2, 2)
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)
 	vw, vh := cam.Viewport()

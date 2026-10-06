@@ -68,7 +68,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	return cw
 }
 
-func (cw *commandWorld) cellAt(x uint32) cell.ID { c, _ := cw.grid.CellIndex(x, 0); return c }
+func (cw *commandWorld) cellAt(x uint32) cell.ID { c := cw.grid.CellIndex(x, 0); return c }
 
 // issue runs one command through a tick.
 func (cw *commandWorld) issue(cell cell.ID, appendIt bool) {

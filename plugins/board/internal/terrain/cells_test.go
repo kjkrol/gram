@@ -38,7 +38,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	t.Helper()
 	cw := &cellWorld{}
 	grid := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
-	cw.target, _ = grid.CellIndex(2, 2)
+	cw.target = grid.CellIndex(2, 2)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
@@ -188,7 +188,7 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 	cw := newCellWorld(t, false)
 	brd := cw.board()
-	far, _ := brd.CellIndex(0, 0)
+	far := brd.CellIndex(0, 0)
 	v, other := brd.CellVersion(cw.target), brd.CellVersion(far)
 	step := func(what string, change func()) {
 		t.Helper()

@@ -40,7 +40,7 @@ type groundFunc func(p geom.Vec) float64
 func (g groundFunc) At(p geom.Vec) float64 { return g(p) }
 func (g groundFunc) Step() float64         { return 1 }
 
-func (r *placeRig) at(x, y uint32) cell.ID { c, _ := r.grid.CellIndex(x, y); return c }
+func (r *placeRig) at(x, y uint32) cell.ID { c := r.grid.CellIndex(x, y); return c }
 
 // units is n land units side a side, the i-th standing in the cell (0, i % 5), 20 each nearer the
 // point than the one before.

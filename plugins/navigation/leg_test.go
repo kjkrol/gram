@@ -101,7 +101,7 @@ func (lw *legWorld) walls(cells ...cell.ID) {
 }
 
 func (lw *legWorld) cellAt(x, y uint32) cell.ID {
-	c, _ := lw.grid.CellIndex(x, y)
+	c := lw.grid.CellIndex(x, y)
 	return c
 }
 
@@ -114,7 +114,7 @@ const otherEntity = uid.UID64(1 << 40)
 
 func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(2, 1), target: at(2, 4), hasOrder: true},
 		legUnit{start: at(2, 3), target: at(2, 0), hasOrder: true},
@@ -138,7 +138,7 @@ func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
 
 func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) cell.ID { c, _ := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
 	blocker := at(1, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: at(4, 2), hasOrder: true},
@@ -166,8 +166,8 @@ func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T)
 
 func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
-	start, _ := grid.CellIndex(0, 0)
-	target, _ := grid.CellIndex(1, 0)
+	start := grid.CellIndex(0, 0)
+	target := grid.CellIndex(1, 0)
 	lw := newLegWorld(t, 5, 1, legUnit{start: start, target: target, hasOrder: true})
 
 	st := lw.tick()[lw.ids[0]]
@@ -196,8 +196,8 @@ func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 
 func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, legCellSize)
-	start, _ := grid.CellIndex(0, 0)
-	target, _ := grid.CellIndex(1, 1)
+	start := grid.CellIndex(0, 0)
+	target := grid.CellIndex(1, 1)
 	c1, c2, diag := grid.DiagonalNeighbors(start, target)
 	if !diag {
 		t.Fatal("sanity: (0,0)→(1,1) must be a diagonal step")
@@ -233,9 +233,9 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
-	from, _ := grid.CellIndex(0, 0)
-	to, _ := grid.CellIndex(1, 0)
-	newTarget, _ := grid.CellIndex(5, 0)
+	from := grid.CellIndex(0, 0)
+	to := grid.CellIndex(1, 0)
+	newTarget := grid.CellIndex(5, 0)
 	leg := Leg{From: from, To: to, Active: true}
 
 	var at goke.Comp[unit.At]
@@ -274,7 +274,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	if mt.Leg != leg {
 		t.Errorf("Leg = %+v, want the in-progress step %+v carried over", mt.Leg, leg)
 	}
-	next, _ := grid.CellIndex(2, 0)
+	next := grid.CellIndex(2, 0)
 	if mt.Path.Length == 0 || mt.Path.Steps[0] != next {
 		t.Errorf("Path = %+v, want it to continue from Leg.To (first step %v)", mt.Path, next)
 	}
@@ -287,8 +287,8 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	occupancy := &cell.SingleOccupancy{}
 	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
-	from, _ := grid.CellIndex(0, 0)
-	to, _ := grid.CellIndex(1, 1)
+	from := grid.CellIndex(0, 0)
+	to := grid.CellIndex(1, 1)
 	c1, c2, _ := grid.DiagonalNeighbors(from, to)
 	leg := Leg{From: from, To: to, C1: c1, C2: c2, Diagonal: true, Active: true}
 

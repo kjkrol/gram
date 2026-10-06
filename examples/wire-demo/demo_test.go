@@ -267,11 +267,11 @@ func TestPlate_OpensTheEastTrapdoorsAlone(t *testing.T) {
 	if len(scouts) != 3 {
 		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
 	}
-	plate, _ := s.brd.CellIndex(plateCol, yardRow)
+	plate := s.brd.CellIndex(plateCol, yardRow)
 	s.put(scouts[0], plate)
 	s.tick(TPS / 2)
 	s.wantOpen(t, "plate stood on", "east")
-	away, _ := s.brd.CellIndex(GridWidth/2, yardRow)
+	away := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], away)
 	s.tick(int(pulse.Seconds() * TPS / 2))
 	s.wantOpen(t, "stepped off the plate, within the pulse", "east")
@@ -305,7 +305,7 @@ func TestGate_LetsTheScoutsOutOnlyWhileOpen(t *testing.T) {
 	scout := s.onRow(yardRow)[0]
 	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scout}})
 	s.tick(1)
-	meadow, _ := s.brd.CellIndex(GridWidth/2, 9) // between the strips, off the wanderers' rows
+	meadow := s.brd.CellIndex(GridWidth/2, 9) // between the strips, off the wanderers' rows
 	send := func() {
 		s.world.Carrier().Put(s.player.ID, navigation.MoveTo{Cell: meadow, At: s.brd.CellCenter(meadow)})
 	}
@@ -382,7 +382,7 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	if len(scouts) != 3 {
 		t.Fatalf("%d units on the yard's first row, want the three scouts", len(scouts))
 	}
-	far, _ := s.brd.CellIndex(GridWidth/2, yardRow)
+	far := s.brd.CellIndex(GridWidth/2, yardRow)
 	s.put(scouts[0], far)
 	s.tick(1)
 	s.world.Carrier().Put(s.player.ID, selection.Select{IDs: []uid.UID64{scouts[0]}})
@@ -390,7 +390,7 @@ func TestU_PullsTheLeverBesideTheSelectedScout(t *testing.T) {
 	s.press(control.KeyU)
 	s.tick(TPS / 4)
 	s.wantOpen(t, "U far from the lever")
-	beside, _ := s.brd.CellIndex(leverCol+1, yardRow)
+	beside := s.brd.CellIndex(leverCol+1, yardRow)
 	s.put(scouts[0], beside)
 	s.tick(1)
 	s.press(control.KeyU)
