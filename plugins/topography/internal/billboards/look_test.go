@@ -51,7 +51,7 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(cam)
-		look.Sprite(&f, cam, box, z, sheet{}, 0, render.Light{1, 1, 1}, 0)
+		look.Sprite(&f, cam, box, z, sheet{}, render.Appearance{}, render.Light{1, 1, 1})
 		return billboards.Stood(look)
 	}
 	if b := stand(world.Z{Altitude: 6}); len(b) != 1 || b[0] != [6]float32{45, 45, 6, 10, 10, 0} {
@@ -98,7 +98,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(cam)
-		look.Sprite(&f, cam, box, world.Z{}, sheet{}, 0, render.Light{1, 1, 1}, sway)
+		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.Light{1, 1, 1})
 		return billboards.Stood(look)[0][5]
 	}
 	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {

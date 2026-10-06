@@ -492,7 +492,7 @@ func TestSelection_PassesByWhatIsNotSelectable(t *testing.T) {
 // heights does.
 type standing struct{}
 
-func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.SpriteID, render.Light, float32) {
+func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.Appearance, render.Light) {
 }
 
 func (standing) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {

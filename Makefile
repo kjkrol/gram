@@ -47,6 +47,8 @@ demo-scenes: run-scenes
 
 demo-vision: run-vision
 
+demo-material: run-material
+
 ## run: Fetches dependencies and launches the collision-demo example
 run-minimal: deps
 	$(GO) run ./examples/minimal
@@ -101,6 +103,9 @@ run-scenes: deps
 
 run-vision: deps
 	$(GO) run ./examples/vision-demo
+
+run-material: deps
+	$(GO) run ./examples/material-demo
 
 deps:
 	$(GO) mod tidy

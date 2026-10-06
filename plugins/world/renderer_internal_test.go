@@ -15,15 +15,17 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// counting is a look that counts the sprites it is handed, and keeps them.
+// counting is a look that counts the sprites it is handed, and keeps them with their angles.
 type counting struct {
 	Look
 	sprites []render.SpriteID
+	angles  []float32
 }
 
-func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	c.sprites = append(c.sprites, id)
-	c.Look.Sprite(f, cam, box, z, atlas, id, light, sway)
+func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	c.sprites = append(c.sprites, a.SpriteID)
+	c.angles = append(c.angles, a.Angle)
+	c.Look.Sprite(f, cam, box, z, atlas, a, light)
 }
 
 // flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
@@ -33,10 +35,10 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-// drawThrough spawns one 10x10 entity of sprite 1 per position, heading east, lets pick say which
+// drawThrough spawns one 10x10 entity of sprite 1 per position, heading dir, lets pick say which
 // of them the View holds (nil: the zero View, which sees everything), draws once through rules and
-// returns the sprites drawn.
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, at ...geom.Vec) []render.SpriteID {
+// returns the look that recorded what was drawn.
+func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
@@ -58,7 +60,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 		for f.Next() {
 			bases, looks := base.Slice(&f.Cursor), appearance.Slice(&f.Cursor)
 			for j, id := range f.Cursor.IDs {
-				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: geom.NewVec(1, 0)}}
+				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: dir}}
 				looks[j] = Appearance{SpriteID: 1}
 				ids = append(ids, id)
 				i++
@@ -73,7 +75,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	return look.sprites
+	return look
 }
 
 var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
@@ -83,10 +85,10 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 		v.Culled = true
 		v.In.Add(ids[0])
 	}
-	if drawn := drawThrough(t, firstOnly, nil, quarters...); len(drawn) != 1 {
+	if drawn := drawThrough(t, firstOnly, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 1 {
 		t.Errorf("a View holding one entity drew %d sprites, want 1", len(drawn))
 	}
-	if drawn := drawThrough(t, nil, nil, quarters...); len(drawn) != 4 {
+	if drawn := drawThrough(t, nil, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 4 {
 		t.Errorf("the zero View drew %d sprites, want all 4", len(drawn))
 	}
 }
@@ -100,7 +102,7 @@ func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 		render.Over[Appearance](Appearance{SpriteID: crown}),
 		render.Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
 	}
-	drawn := drawThrough(t, nil, rules, quarters...)
+	drawn := drawThrough(t, nil, rules, geom.NewVec(1, 0), quarters...).sprites
 	if len(drawn) != 4 {
 		t.Fatalf("drew %v, want the two on the left, each turned east under a crown", drawn)
 	}
@@ -131,4 +133,24 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 		}
 	}()
 	wet.Look(0)
+}
+
+// Turning writes the Appearance's Angle from the way the entity moves, in the engine's one
+// convention: 0 east, against the clock with the screen's y growing down, in degrees.
+func TestRenderer_Compose_TurningTurnsTheSpriteTheWayItMoves(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		dir  geom.Vec
+		want float32
+	}{
+		{"east", geom.NewVec(1, 0), 0},
+		{"north, up the screen", geom.NewVec(0, -1), 90},
+		{"west", geom.NewVec(-1, 0), -180}, // atan2's range: the same turn as 180
+		{"still: the Appearance's own angle holds", geom.Vec{}, 0},
+	} {
+		look := drawThrough(t, nil, []render.Rule{Turning()}, tc.dir, quarters[0])
+		if len(look.angles) != 1 || look.angles[0] != tc.want {
+			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
+		}
+	}
 }

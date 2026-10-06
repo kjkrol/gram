@@ -76,8 +76,8 @@ type recording struct {
 	drawn map[geom.Vec][]render.SpriteID
 }
 
-func (r *recording) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway float32) {
-	r.drawn[box.TopLeft] = append(r.drawn[box.TopLeft], id)
+func (r *recording) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	r.drawn[box.TopLeft] = append(r.drawn[box.TopLeft], a.SpriteID)
 }
 
 // noAtlas is an AtlasSource with no sheet: what a recording look needs.

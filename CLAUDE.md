@@ -40,6 +40,7 @@ make demo-board                                                    # the island 
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
+make demo-material                                                 # a ward of the game's own WGSL (RegisterMaterials) inside a stone ring; darts turned the way they move (Appearance.Angle, world.Turning)
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -700,6 +701,13 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
   its own system just before the effects' pass). How entities are drawn is `world.Plugin.Draw`
   (`render.Rule`s, every frame, in order: `world.Facing` — a `render.With` over `Base` —,
+  `world.Turning` — `Appearance.Angle` from `Vel.Dir`, the heading steering holds even standing:
+  degrees, 0 east, against the clock with the screen's y down, the one convention of
+  `render.Arrow` and `bullet.Flight.Heading`; the box stays axis-aligned, so Angle wants a square
+  box whose drawn content fits the circle inscribed in it (`render.Arrow(0,…)` reaches exactly
+  that circle), a turned sprite is drawn whole (one piece per wrap image, never split at a seam;
+  the GPU path carries the angle in the sprite instance's spare float, `sprites.wgsl`; a
+  billboard in relief ignores it) —
   `render.With`, `As`, `Over`, `Swap` (a kind's own look under a state: a sprite a kind, swapped
   in under an effect's marker, after `Facing` a twin a way faced), `Show`, each with conditions;
   `world.Appearance` is `render.Appearance`; shown by `examples/appearance-demo` and the frozen

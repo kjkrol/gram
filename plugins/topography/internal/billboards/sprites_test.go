@@ -99,7 +99,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		look.Begin(cam)
 		if at != nil {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Altitude: p.Relief().At(*at), Height: 6}, atlas, 0, render.Light{1, 1, 1}, 0)
+			look.Sprite(&f, cam, box, world.Z{Altitude: p.Relief().At(*at), Height: 6}, atlas, render.Appearance{}, render.Light{1, 1, 1})
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)
@@ -168,7 +168,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 		look.Begin(cam)
 		if standing {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, 0, render.Light{1, 1, 1}, 0)
+			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, render.Appearance{}, render.Light{1, 1, 1})
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)

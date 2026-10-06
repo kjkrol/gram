@@ -77,7 +77,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			stands = *z
 		}
 		for _, l := range s.layers[i] {
-			look.Sprite(f, cam, box, stands, s.atlas, l.SpriteID, render.Light{1, 1, 1}, l.Sway)
+			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 		}
 	})
 }
