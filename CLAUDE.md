@@ -1191,8 +1191,9 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
   (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
   look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
-- **`bullet`** — shots as entities of the world: `bullet.NewShots(w).Define(name, Body{Size, Speed,
-  Range, Gravity, Lands}, extra...)` is an `Ammo`, a kind whose entities carry a `Collider` without
+- **`bullet`** — shots as entities of the world: the plugin's own register (`Plugin.Shots()`;
+  `NewShots(w)` alone in a test) — `Shots.Define(name, Body{Size, Speed,
+  Range, Gravity, Lands}, extra...)` registers an ammo, `Named` the `Ammo`, a kind whose entities carry a `Collider` without
   `Physics` (a sensor), a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the plugin's
   `Flight` (`At`, `Dir`, `Range`, `Flown`, `Climb`, `Shooter`, `Ending`, `Other`, `Cell`,
   `Landed`), the shooter's owners and, with heights, a `Z`. `Shoot{Ammo, At, Targeted}` (a

@@ -148,7 +148,7 @@ func (s *testStage) state(id uid.UID64) (alive, wounded bool) {
 			}
 			alive = true
 			if m := s.marks.Slice(cur); m != nil {
-				wounded = m[k].Has(s.effects.Named(WoundedEf).Mark())
+				wounded = m[k].Has(s.world.Effects().Named(WoundedEf).Mark())
 			}
 		}
 	}
@@ -173,7 +173,7 @@ func TestShoot_ARoundWoundsTheWandererOnTheRoad(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(8, roadRow))
 	for i := 0; i < 5*TPS; i++ {
 		if i%15 == 0 {
-			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(RoundKind)}); err != nil {
+			if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -193,7 +193,7 @@ func TestThrow_AGrenadeBurstsBehindTheHighWall(t *testing.T) {
 	walker := s.wandererOn(s.cellAt(9, 4))
 	at := s.brd.CellCenter(s.cellAt(10, 4))
 	s.tick(1) // the soldier is told whose it is and selected as it is made: carried out in the first tick
-	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.ammo.Named(GrenadeKind), At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
+	if err := s.players.Issue(s.player, bullet.Shoot{Ammo: s.bullet.Shots().Named(GrenadeKind), At: geom.NewVec(at.X, at.Y), Targeted: true}); err != nil {
 		t.Fatal(err)
 	}
 	s.tick(1)

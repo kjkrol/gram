@@ -99,9 +99,6 @@ type arena struct {
 	player    *players.Player // the one at this keyboard: the soldier is its
 	wild      *players.Player // whose the wanderers are
 	brd       *board.Board
-	effects   *effect.Effects
-
-	ammo *bullet.Shots // the kinds of shots, by name
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -131,7 +128,6 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Heights:  true,
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.effects = s.world.Effects()
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
@@ -173,40 +169,40 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.effects.Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its Layers
+	s.world.Effects().Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its Layers
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
-	s.effects.Define(BangEf, effect.Spec{effect.Lasts(time.Second / TPS)})
-	s.effects.Define(FuseEf, effect.Spec{effect.Lasts(fuseLength), effect.Then(s.effects.Named(BangEf))})
+	s.world.Effects().Define(BangEf, effect.Spec{effect.Lasts(time.Second / TPS)})
+	s.world.Effects().Define(FuseEf, effect.Spec{effect.Lasts(fuseLength), effect.Then(s.world.Effects().Named(BangEf))})
 }
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole)
 	s.world.Roles().Define(RoundRole,
 		rule.Then[collision.Meeting]("shot", rule.Other(s.world.Roles().Named(MortalRole)),
-			rule.ForOther(rule.OneOf(rule.Under(s.effects.Named(WoundedEf), rule.Order(world.Despawn{})), rule.Apply(s.effects.Named(WoundedEf))))))
+			rule.ForOther(rule.OneOf(rule.Under(s.world.Effects().Named(WoundedEf), rule.Order(world.Despawn{})), rule.Apply(s.world.Effects().Named(WoundedEf))))))
 	s.world.Roles().Define(GrenadeRole,
-		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.effects.Named(FuseEf))),
+		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.world.Effects().Named(FuseEf))),
 		rule.Then[bullet.Blast]("blast", rule.Other(s.world.Roles().Named(MortalRole)), rule.ForOther(rule.OneOf(
 			rule.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, rule.Order(world.Despawn{})),
-			rule.Apply(s.effects.Named(WoundedEf)),
+			rule.Apply(s.world.Effects().Named(WoundedEf)),
 		))),
-		rule.Then[bullet.Resting]("bang", rule.Self(s.effects.Named(BangEf).Mark()), rule.Order(bullet.Burst{Radius: blastRadius})))
+		rule.Then[bullet.Resting]("bang", rule.Self(s.world.Effects().Named(BangEf).Mark()), rule.Order(bullet.Burst{Radius: blastRadius})))
 }
 
 func (s *arena) bindKeys() error {
 	return s.player.Bind(append(navigation.DriveBindings(),
-		control.Give(control.KeyPress{Key: control.KeyF}, "Fire a round the way the soldier faces", bullet.Shoot{Ammo: s.ammo.Named(RoundKind)}),
+		control.Give(control.KeyPress{Key: control.KeyF}, "Fire a round the way the soldier faces", bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}),
 		control.Command(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {
-				return bullet.Shoot{Ammo: s.ammo.Named(GrenadeKind), At: c.World(c.Cursor), Targeted: true}, true
+				return bullet.Shoot{Ammo: s.bullet.Shots().Named(GrenadeKind), At: c.World(c.Cursor), Targeted: true}, true
 			}),
 	)...)
 }
 
 func (s *arena) defineLooks() error {
-	return s.world.Draw(s.ammo.Facing(RoundKind, 16)) // a round drawn the way it flies
+	return s.world.Draw(s.bullet.Shots().Facing(RoundKind, 16)) // a round drawn the way it flies
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -219,9 +215,8 @@ func (s *arena) defineKinds() {
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	// The ammo: a round flies ten cells a second over ten cells, spent as it lands; a grenade is
 	// thrown in an arc and lies where it comes down.
-	s.ammo = bullet.NewShots(s.world)
-	s.ammo.Define(RoundKind, bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(s.world.Roles().Named(RoundRole)))
-	s.ammo.Define(GrenadeKind, bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(s.world.Roles().Named(GrenadeRole)))
+	s.bullet.Shots().Define(RoundKind, bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(s.world.Roles().Named(RoundRole)))
+	s.bullet.Shots().Define(GrenadeKind, bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(s.world.Roles().Named(GrenadeRole)))
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(SoldierKind, unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
@@ -307,17 +302,17 @@ func (m *mainScene) Layers() []render.Layer {
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 
-	wounded := s.effects.Named(WoundedEf)
-	fuse := s.effects.Named(FuseEf)
+	wounded := s.world.Effects().Named(WoundedEf)
+	fuse := s.world.Effects().Named(FuseEf)
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(soldierKind, EntitySize, render.Diamond(soldierColor)).
 		Under(wounded, render.Diamond(paleColor)) // the soldier gone pale
 	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
 		Under(wounded, render.Solid(paleColor)) // the wanderer too
-	worldAtlas.Add(s.ammo.Named(RoundKind), 8, render.Dot(2, roundColor)).
+	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Dot(2, roundColor)).
 		Facing(func(angleDeg float64) render.SpriteDrawer { return render.Arrow(angleDeg, 2, roundColor) })
-	worldAtlas.Add(s.ammo.Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
+	worldAtlas.Add(s.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
 		Under(fuse, func(dst *render.Canvas, size int) { // the grenade with its fuse sparking
 			render.Dot(3, grenadeColor)(dst, size)
 			render.Diamond(sparkColor)(dst, size)
