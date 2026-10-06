@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
 )
@@ -9,9 +10,10 @@ import (
 // kind's look by its name, chain Under for what covers its cells under an effect, then Close it
 // and hand it to WithRenderer — it is the render.AtlasSource the renderer draws from.
 type Atlas struct {
-	p     *Plugin
-	atlas *render.Atlas
-	size  int
+	p      *Plugin
+	atlas  *render.Atlas
+	size   int
+	shaded map[cell.Name]render.MaterialID // the kinds worked out per pixel instead of drawn
 }
 
 var _ render.AtlasSource = (*Atlas)(nil)
@@ -19,13 +21,23 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the board's atlas, every sprite drawn size x size — the drawn size is the
 // cell's box; this is resolution.
 func (p *Plugin) NewAtlas(size int) *Atlas {
-	return &Atlas{p: p, atlas: render.NewAtlas(), size: size}
+	return &Atlas{p: p, atlas: render.NewAtlas(), size: size, shaded: map[cell.Name]render.MaterialID{}}
 }
 
-// Add takes draw on as the look of the cell kind named kind; chain Under for the covers. An
-// unknown kind panics by name.
-func (a *Atlas) Add(kind string, draw render.SpriteDrawer) Slot {
-	a.atlas.Add(a.p.kinds.Named(kind), a.size, draw)
+// Add takes look on as the look of the cell kind named kind; chain Under for the covers. look
+// paints one of the two ways (render.Look): a SpriteDrawer drawn once into the sheet, or a
+// MaterialID worked out per pixel in the cell's box every frame — never baked into the still,
+// and taking no part in blending (give such a kind no Spread). An unknown kind panics by name.
+func (a *Atlas) Add[L render.Look](kind string, look L) Slot {
+	of := a.p.kinds.Named(kind)
+	switch l := any(look).(type) {
+	case render.MaterialID:
+		a.shaded[cell.Named(kind)] = l
+	case render.SpriteDrawer:
+		a.atlas.Add(of, a.size, l)
+	case func(dst *render.Canvas, size int):
+		a.atlas.Add(of, a.size, l)
+	}
 	return Slot{a: a}
 }
 

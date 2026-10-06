@@ -38,7 +38,7 @@ make demo-effect                                                   # an ice witc
 make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G): the bullet plugin, wounds and fuses as effects
 make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
-make demo-board-atlas                                              # a small flat board drawn from the game's own atlas of drawn sprites
+make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
@@ -857,7 +857,11 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   beginning and end turn `Changed` on though it alters nothing), so the board draws anew.
   `Board.States(c)` are a cell's effect markers, `unit.Standing.States` those of the cell under a
   unit, `unit.Over(e)` the condition (effect-demo: snow on land, ice on water, which cell takes
-  which said by a role the lake's cells play). The board's atlas is written exactly as the
+  which said by a role the lake's cells play). A cell kind's look is a render.Look too
+  (`board.Atlas.Add(kind, look)`): a drawn sprite, or a material worked out per pixel in the
+  cell's box every frame — laid as a live quad over the still (never baked into it), the cell's
+  middle and half-width in Custom; such a kind takes no part in blending (no Spread).
+  The board's atlas is written exactly as the
   world's (the user's word, thrice, 2026-10-06): `board.Plugin.NewAtlas(size)` is a facade over
   `render.Atlas` whose `Add(kindName, draw)` registers a kind's look by name and whose
   `Slot.Under(effect, draw)` registers the cover (`Covering` inside — the board's numbering,

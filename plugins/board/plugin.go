@@ -139,6 +139,9 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	}
 	p.atlas = atlas
 	p.renderer = look.NewRenderer(p.Res.Logic.Board, atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
+	if ba, ok := atlas.(*Atlas); ok {
+		p.renderer.Shade(ba.shaded)
+	}
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = true
 	p.renderer.Workers(p.workers)

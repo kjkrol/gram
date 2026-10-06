@@ -1,5 +1,5 @@
 // Command board-atlas is a small flat board drawn from the game's own atlas: a meadow with a pond,
-// a road and a wood, each kind a sprite the game draws — striped grass, rippled water, a cobbled
+// a road and a wood, each kind a sprite the game draws — striped grass, a cobbled
 // road, tree tops — rather than a plain colour, and a way of the road's kind laid as a band. Units
 // walk from corner to corner over the road, Shift+P shows their routes; the same board could be drawn from the board's own
 // atlas of the kinds' colours by giving WithRenderer nil. WASD, the wheel, a middle drag or the
@@ -7,6 +7,7 @@
 package main
 
 import (
+	"embed"
 	"image/color"
 	"time"
 
@@ -265,6 +266,12 @@ var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
+//go:embed shimmer.wgsl
+var shimmerFS embed.FS
+
+// shimmerMaterial joins the composer's one shader as the package is set up, before it compiles.
+var shimmerMaterial = render.RegisterMaterials(render.Files(shimmerFS, "shimmer.wgsl"), nil, "Shimmer")[0]
+
 // The scene's colours: the unit and each kind's pair the drawn tiles shade between.
 var (
 	unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
@@ -286,7 +293,7 @@ func (m *mainScene) Layers() []render.Layer {
 	// the game's own atlas: a drawn sprite for every kind, at the kinds' SpriteIDs
 	atlas := s.board.NewAtlas(CellSize)
 	atlas.Add(GrassCell, striped(grassColor, grassLitColor))
-	atlas.Add(WaterCell, rippled(waterColor, waterLitColor))
+	atlas.Add(WaterCell, shimmerMaterial) // the water's look is a material: ripples run per pixel, across cells
 	atlas.Add(RoadCell, cobbled(roadColor, roadDimColor))
 	atlas.Add(WoodCell, treed(woodColor, woodDimColor))
 	atlas.Close()
@@ -319,16 +326,6 @@ func striped(ground, blade color.RGBA) render.SpriteDrawer {
 		dst.Fill(ground)
 		for i := 0; i < size; i += 6 {
 			dst.FillRect(float32(i), float32((i*7)%size), 2, 5, blade)
-		}
-	}
-}
-
-// rippled is water: a colour with lighter ripples running across it.
-func rippled(water, ripple color.RGBA) render.SpriteDrawer {
-	return func(dst *render.Canvas, size int) {
-		dst.Fill(water)
-		for y := 4; y < size; y += 8 {
-			dst.FillRect(float32((y/2)%size), float32(y), float32(size)/3, 1, ripple)
 		}
 	}
 }
