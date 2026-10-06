@@ -154,9 +154,8 @@ func (s *mainStage) defineCells() {
 
 func (s *mainStage) defineEffects() {
 	effects := s.world.Effects()
-	// TODO: kazdy efekt powinien miec pole description, ktore mozna wyswietlic w UI. Wtedy mozna by bylo wyswietlic tooltip z opisem efektu.
-	// poza tym dzieki temun te komentarze moglyby byc usuniete, bo opis bylby w samym efekcie.
-	effects.Define(FrostEf, effect.Spec{ // land under snow: slower, the witch's own
+	effects.Define(FrostEf, effect.Spec{
+		effect.Described("Land under snow: slower, and the witch's own ground."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
 			g.Kind.Allows |= Frost
@@ -164,7 +163,8 @@ func (s *mainStage) defineEffects() {
 			g.Kind = g.Kind.Costing(Frost, 0.5)
 		}),
 	})
-	effects.Define(IcedEf, effect.Spec{ // water under ice: walked over, not sailed
+	effects.Define(IcedEf, effect.Spec{
+		effect.Described("Water under ice: walked over, not sailed."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
 			g.Kind.Allows = cell.Land | Frost
@@ -173,10 +173,12 @@ func (s *mainStage) defineEffects() {
 		}),
 	})
 	effects.Define(FrozenEf, effect.Spec{
+		effect.Described("Frozen stiff: stood dead still, an immovable block."),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }),
 		effect.Alter(func(st *steering.Steering) { st.Halted = true }),
 	})
 	effects.Define(SlipEf, effect.Spec{
+		effect.Described("On the ice: hardly any braking, whoever moves slides on."),
 		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }),
 	})
 }

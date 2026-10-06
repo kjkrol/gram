@@ -211,5 +211,8 @@ func (e Effect) Shows() { e.owner.defs[e.id].shows = true }
 // rule.Self(burning.Mark()).
 func (e Effect) Mark() tag.Tag[States] { return e.mark }
 
+// Description is what the Spec's Described said of the effect — for a UI, a tooltip; "" without one.
+func (e Effect) Description() string { return e.owner.defs[e.id].describe }
+
 // On reports whether id is under the effect. For plugins.
 func (e Effect) On(id uid.UID64) bool { return e.owner.Has(id, e) }

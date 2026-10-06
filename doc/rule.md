@@ -131,7 +131,7 @@ rule.While(s.atmosphere, fx.Named(BloodMoonEf), rule.Keep(fx.Named(FrenziedEf)))
   other entities (`Ask`), and is saved with the game. `OneOf` is a reactive choice, `Steps` a
   sequence with memory; the Actor's `When[F]` and `On[F]` open a branch on a fact, `If` reads one.
 - **Effect** — `effect.Effect`, defined once from a `Spec` (`Lasts`, `Stacking`, `Then`, `Grant`,
-  `Alter`), with its own marker, on while it runs (`Mark()`). `Apply` casts it; `Keep` holds it as
+  `Alter`; `Described` a sentence for a UI, `Description()`), with its own marker, on while it runs (`Mark()`). `Apply` casts it; `Keep` holds it as
   long as its branch runs, or as long as a rule keeps firing it; `Dispel` takes it off. **An
   effect's presence is state**: `Unless(alarmed, …)` is "at most once a while", a memory for rules
   that keep none, and its marker is what rules of other plugins filter by. The collision demo's hit is one
