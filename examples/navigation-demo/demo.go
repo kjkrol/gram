@@ -241,12 +241,11 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
-	boardAtlas.Add(kinds.Named(RoadCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
-	boardAtlas.Add(kinds.Named(HoleCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 10, G: 10, B: 30, A: 255}))
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(GrassCell, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
+	boardAtlas.Add(WallCell, render.Solid(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
+	boardAtlas.Add(RoadCell, render.Solid(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
+	boardAtlas.Add(HoleCell, render.Solid(color.RGBA{R: 10, G: 10, B: 30, A: 255}))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

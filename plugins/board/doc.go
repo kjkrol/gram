@@ -126,7 +126,9 @@
 // A state of the ground is an effect on its cells, the cell staying the kind it is: the effect
 // turns the kind's knobs (cell.Ground) and what lies on the cell is a cover — [Plugin.Covering]
 // gives the slot of the board's atlas laid over the cells under the effect, along the line those
-// cells draw across the tiles, not along their edges (the simple map, a square grid).
+// cells draw across the tiles, not along their edges (the simple map, a square grid). The board's
+// atlas is written as the world's is ([Plugin.NewAtlas]): Add a kind's look by its name and
+// chain [Slot.Under] with the effect for the cover's drawer.
 // [Board.States] are the effects on a cell; unit.Standing.States and unit.Over tell a rule of the
 // cell under a unit.
 package board

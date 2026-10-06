@@ -272,15 +272,14 @@ func (m *mainScene) Layers() []render.Layer {
 	s.world.WithRenderer(worldAtlas)
 
 	// the game's own atlas: a drawn sprite for every kind, at the kinds' SpriteIDs
-	kinds := s.board.CellKinds()
-	atlas := render.NewAtlas()
+	atlas := s.board.NewAtlas(CellSize)
 	for name, draw := range map[string]render.SpriteDrawer{
 		GrassCell: striped(color.RGBA{R: 96, G: 150, B: 70, A: 255}, color.RGBA{R: 108, G: 162, B: 78, A: 255}),
 		WaterCell: rippled(color.RGBA{R: 50, G: 100, B: 180, A: 255}, color.RGBA{R: 80, G: 130, B: 205, A: 255}),
 		RoadCell:  cobbled(color.RGBA{R: 160, G: 140, B: 110, A: 255}, color.RGBA{R: 135, G: 118, B: 92, A: 255}),
 		WoodCell:  treed(color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}),
 	} {
-		atlas.Add(kinds.Named(name).SpriteID(), CellSize, draw)
+		atlas.Add(name, draw)
 	}
 	atlas.Close()
 	s.board.WithRenderer(atlas)

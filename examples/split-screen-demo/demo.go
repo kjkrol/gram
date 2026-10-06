@@ -353,10 +353,9 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	boardAtlas.Add(kinds.Named(FloorCell).SpriteID(), CellSize, render.Solid(colorFloor))
-	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), CellSize, render.Solid(colorWall))
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(FloorCell, render.Solid(colorFloor))
+	boardAtlas.Add(WallCell, render.Solid(colorWall))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false

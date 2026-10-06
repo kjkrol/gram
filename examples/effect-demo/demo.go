@@ -291,12 +291,11 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.Add(kinds.Named(WaterCell).SpriteID(), CellSize, render.Solid(color.RGBA{R: 40, G: 90, B: 170, A: 255}))
-	boardAtlas.Add(s.board.Covering(effects.Named(FrostEf)), CellSize, render.Solid(color.RGBA{R: 235, G: 240, B: 245, A: 255})) // snow
-	boardAtlas.Add(s.board.Covering(effects.Named(IcedEf)), CellSize, render.Solid(color.RGBA{R: 170, G: 215, B: 240, A: 255}))  // ice
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(GrassCell, render.Solid(color.RGBA{R: 60, G: 95, B: 60, A: 255})).
+		Under(effects.Named(FrostEf), render.Solid(color.RGBA{R: 235, G: 240, B: 245, A: 255})) // snow over the land
+	boardAtlas.Add(WaterCell, render.Solid(color.RGBA{R: 40, G: 90, B: 170, A: 255})).
+		Under(effects.Named(IcedEf), render.Solid(color.RGBA{R: 170, G: 215, B: 240, A: 255})) // ice over the lake
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

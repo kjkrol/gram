@@ -271,8 +271,7 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
+	boardAtlas := s.board.NewAtlas(CellSize)
 	for name, c := range map[string]color.RGBA{
 		GrassCell:  {R: 60, G: 95, B: 60, A: 255},
 		WallCell:   {R: 40, G: 40, B: 40, A: 255},
@@ -280,7 +279,7 @@ func (m *mainScene) Layers() []render.Layer {
 		RoadCell:   {R: 150, G: 130, B: 80, A: 255},
 		HillCell:   {R: 110, G: 100, B: 70, A: 255},
 	} {
-		boardAtlas.Add(kinds.Named(name).SpriteID(), CellSize, render.Solid(c))
+		boardAtlas.Add(name, render.Solid(c))
 	}
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

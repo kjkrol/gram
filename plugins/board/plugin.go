@@ -233,8 +233,8 @@ func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
 
 // Covering is the slot of the board's atlas laid over the cells under the effect e, along the line
 // those cells draw, not along their edges — snow on the ground, ice on the water: issued the
-// first time it is asked for, the same after. Register what it shows in the board's atlas, before
-// WithRenderer. The simple map lays it; a cell stays the kind it is.
+// first time it is asked for, the same after. Add what it shows to the board's atlas, before
+// WithRenderer — Slot.Under does both. The simple map lays it; a cell stays the kind it is.
 func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 	if id, ok := p.covers[e.Mark()]; ok {
 		return id

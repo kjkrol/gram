@@ -837,7 +837,12 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   beginning and end turn `Changed` on though it alters nothing), so the board draws anew.
   `Board.States(c)` are a cell's effect markers, `unit.Standing.States` those of the cell under a
   unit, `unit.Over(e)` the condition (effect-demo: snow on land, ice on water, which cell takes
-  which said by a role the lake's cells play). Terrain is never an entity in the space: the
+  which said by a role the lake's cells play). The board's atlas is written exactly as the
+  world's (the user's word, thrice, 2026-10-06): `board.Plugin.NewAtlas(size)` is a facade over
+  `render.Atlas` whose `Add(kindName, draw)` registers a kind's look by name and whose
+  `Slot.Under(effect, draw)` registers the cover (`Covering` inside — the board's numbering,
+  which is why a bare render.Atlas cannot resolve an effect to a cover slot); it is the
+  `render.AtlasSource` `WithRenderer` takes. Terrain is never an entity in the space: the
   board's field (`internal/field`) is collision's `collision.Field` (`Solid`: the cells under a box that are `Solid`, keep out one
   of the entity's layers and, with heights, stand in its `collision.Band`, sides open towards open ground; a hex gives the boxes of
   `Grid.CellBoxes`; `Overhang`: the area over ground a kind does not take), handed over by

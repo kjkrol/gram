@@ -239,11 +239,10 @@ func (m *mainScene) Layers() []render.Layer {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	kinds := s.board.CellKinds()
-	boardAtlas := render.NewAtlas()
-	boardAtlas.Add(kinds.Named(GrassCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
-	boardAtlas.Add(kinds.Named(WallCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
-	boardAtlas.Add(kinds.Named(RoadCell).SpriteID(), hexSprite, render.Hexagon(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
+	boardAtlas := s.board.NewAtlas(hexSprite)
+	boardAtlas.Add(GrassCell, render.Hexagon(color.RGBA{R: 60, G: 95, B: 60, A: 255}))
+	boardAtlas.Add(WallCell, render.Hexagon(color.RGBA{R: 40, G: 40, B: 40, A: 255}))
+	boardAtlas.Add(RoadCell, render.Hexagon(color.RGBA{R: 150, G: 130, B: 80, A: 255}))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
