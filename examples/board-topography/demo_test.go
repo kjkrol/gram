@@ -17,7 +17,7 @@ func TestDemo_StartsWithoutAWindow(t *testing.T) {
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
-	if d.stage.world == nil || d.stage.topography == nil {
+	if d.a.world == nil || d.a.topography == nil {
 		t.Fatal("the demo's world or topography was not made")
 	}
 }
@@ -29,7 +29,7 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
-	s := d.stage
+	s := d.a
 	if s.player.ID != 1 || s.rival.ID != 2 {
 		t.Errorf("the player is %d, the rival %d; want players 1 and 2", s.player.ID, s.rival.ID)
 	}

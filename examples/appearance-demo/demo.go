@@ -52,11 +52,17 @@ var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 // =========================== Game ===========================
 
 // Demo is the appearance demo — one Stage.
-type Demo struct{ stage *mainStage }
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -110,9 +116,7 @@ type walker struct {
 	vel world.Velocity
 }
 
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
@@ -125,9 +129,11 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("appearance-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("appearance-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -139,10 +145,9 @@ func newStage() *mainStage {
 		Scenes(s.defineScenes).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
@@ -157,22 +162,22 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineEffects() {
+func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
 	s.world.Effects().Define(AngryEf, effect.Spec{effect.Alter(func(m *Mood) { m.Angry = true })})
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(MoodyRole,
 		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.world.Effects().Named(RageEf), rule.Keep(s.world.Effects().Named(AngryEf)))))
 }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	spec := func(more ...comp.Comp) kind.Spec {
 		return append(kind.Spec{
@@ -193,16 +198,16 @@ func (s *mainStage) defineKinds() {
 	s.spook, s.crown = kinds.NewSprite(), kinds.NewSprite()
 }
 
-func (s *mainStage) defineCommands() {
+func (s *arena) defineCommands() {
 	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
 		s.world.Commands().Named(RageCmd)))
 }
 
-func (s *mainStage) defineLooks() error {
+func (s *arena) defineLooks() error {
 	return s.world.Draw(
 		world.Facing(func(v world.Velocity) render.SpriteID { return s.facing[headingOf(v)] }),
 		render.With(func(a world.Appearance, m Mood) world.Appearance {
@@ -220,8 +225,8 @@ func (s *mainStage) defineLooks() error {
 	)
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{stage: s}}
+func (s *arena) defineScenes() []game.Scene {
+	return []game.Scene{&mainScene{arena: s}}
 }
 
 // boxAt is the box of side Size round at.
@@ -229,7 +234,7 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
@@ -248,7 +253,7 @@ func (s *mainStage) placeUnits() {
 	s.world.Seed(entries...)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
@@ -257,14 +262,14 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ stage *mainStage }
+type mainScene struct{ arena *arena }
 
 var _ game.Scene = (*mainScene)(nil)
 
 func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
 	s.world.WithRenderer(s.atlas())
 	return []render.Layer{
 		render.NewCachedRenderer(render.SolidBackground{Color: color.RGBA{R: 40, G: 44, B: 52, A: 255}}, ScreenWidth, ScreenHeight),
@@ -274,7 +279,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 // atlas draws every sprite: a square with a light nose on the side it faces, blue when calm, red
 // when angry; a pale ghost; a gold crown along the top.
-func (s *mainStage) atlas() *render.Atlas {
+func (s *arena) atlas() *render.Atlas {
 	calm, angry := color.RGBA{R: 70, G: 130, B: 220, A: 255}, color.RGBA{R: 220, G: 60, B: 50, A: 255}
 	nose := color.RGBA{R: 245, G: 245, B: 230, A: 255}
 	atlas := render.NewAtlas()
@@ -322,11 +327,11 @@ func facingSprite(h heading, body, nose color.RGBA) render.SpriteDrawer {
 
 // Viewports are where the world is shown: the local player's view.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

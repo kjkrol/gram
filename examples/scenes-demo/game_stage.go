@@ -28,23 +28,23 @@ const (
 
 // =========================== Stage ===========================
 
-// GameplayStage is the real game — its own fresh ECS, built only once entered from the menu.
-type GameplayStage struct {
-	game.Stage // defined a section at a time: NewGameplayStage
-
+// gameplayArena collects the gameplay Stage's plugins — the real game, its own fresh ECS, built
+// only once entered from the menu — and every section of the Stage builds on it.
+type gameplayArena struct {
 	world   *world.Plugin
 	players *players.Plugin
 	panel   *panelScene
+	stage   game.Stage // the Stage defined on this arena: the hud reads its Composition
 
 	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
 	SaveBasePath string
 }
 
-// NewGameplayStage defines the gameplay Stage a section at a time; saveBasePath overrides where its
-// saves are read and written, empty for the demo's own.
-func NewGameplayStage(saveBasePath string) *GameplayStage {
-	g := &GameplayStage{SaveBasePath: saveBasePath}
-	g.Stage = stage.New("gameplay").
+// NewGameplayStage makes the gameplay arena and defines the Stage on it, a section at a time;
+// saveBasePath overrides where its saves are read and written, empty for the demo's own.
+func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
+	g := &gameplayArena{SaveBasePath: saveBasePath}
+	g.stage = stage.New("gameplay").
 		Plugins(g.usePlugins).
 		Players(g.definePlayer).
 		Kinds(g.defineKinds).
@@ -53,17 +53,17 @@ func NewGameplayStage(saveBasePath string) *GameplayStage {
 		Restore(g.restore).
 		Units(g.placeUnits).
 		Update(g.update)
-	return g
+	return g, g.stage
 }
 
-func (g *GameplayStage) basePath() string {
+func (g *gameplayArena) basePath() string {
 	if g.SaveBasePath != "" {
 		return g.SaveBasePath
 	}
 	return saveBasePath
 }
 
-func (g *GameplayStage) usePlugins(ctx game.Initializer) error {
+func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -72,11 +72,11 @@ func (g *GameplayStage) usePlugins(ctx game.Initializer) error {
 	return ctx.Use(g.players)
 }
 
-func (g *GameplayStage) definePlayer() error {
+func (g *gameplayArena) definePlayer() error {
 	return g.players.Local("player").Bind(g.players.Defaults()...)
 }
 
-func (g *GameplayStage) defineKinds() {
+func (g *gameplayArena) defineKinds() {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
 	kind.Define[world.Position](g.world.Kinds(), MoverKind, kind.Spec{
@@ -85,12 +85,12 @@ func (g *GameplayStage) defineKinds() {
 	})
 }
 
-func (g *GameplayStage) defineScenes() []game.Scene {
-	g.panel = &panelScene{stage: g}
-	return []game.Scene{&worldScene{stage: g}, g.panel, &hudScene{stage: g}}
+func (g *gameplayArena) defineScenes() []game.Scene {
+	g.panel = &panelScene{arena: g}
+	return []game.Scene{&worldScene{arena: g}, g.panel, &hudScene{arena: g}}
 }
 
-func (g *GameplayStage) restore(p game.Persistence) (bool, error) {
+func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(g.basePath())
 	if err != nil {
 		return false, err
@@ -104,7 +104,7 @@ func (g *GameplayStage) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-func (g *GameplayStage) placeUnits() {
+func (g *gameplayArena) placeUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
@@ -113,7 +113,7 @@ func (g *GameplayStage) placeUnits() {
 	g.world.Seed(entries...)
 }
 
-func (g *GameplayStage) update(ctx goke.RunCtx, d time.Duration) {
+func (g *gameplayArena) update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
 	g.players.RunPlan(ctx, d)
 	ctx.Sync()
@@ -123,14 +123,14 @@ func (g *GameplayStage) update(ctx goke.RunCtx, d time.Duration) {
 
 // worldScene draws the moving entities — always visible, and active
 // whenever the panel isn't shown. P opens the panel.
-type worldScene struct{ stage *GameplayStage }
+type worldScene struct{ arena *gameplayArena }
 
 var _ game.Scene = (*worldScene)(nil)
 
 func (w *worldScene) Name() string { return "world" }
 
 func (w *worldScene) Layers() []render.Layer {
-	s := w.stage
+	s := w.arena
 
 	atlas := render.NewAtlas()
 	atlas.RegisterAt(kind.Named[world.Position](s.world.Kinds(), MoverKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
@@ -145,14 +145,14 @@ func (w *worldScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the camera over the whole screen.
 func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(w.stage.world.Camera(), screen)
+	return render.Whole(w.arena.world.Camera(), screen)
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	w.stage.players.Handle(events, runtime, composition)
+	w.arena.players.Handle(events, runtime, composition)
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && k.Key == control.KeyP {
-			composition.Show(w.stage.panel.Name())
+			composition.Show(w.arena.panel.Name())
 		}
 	}
 }
@@ -161,7 +161,7 @@ func (w *worldScene) Focusable() bool { return true }
 
 // panelScene is a modal box toggled by P: while shown it takes the input,
 // and the world beneath keeps ticking.
-type panelScene struct{ stage *GameplayStage }
+type panelScene struct{ arena *gameplayArena }
 
 var _ game.Scene = (*panelScene)(nil)
 
@@ -170,7 +170,7 @@ func (p *panelScene) Name() string { return "panel" }
 func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRenderer{}} }
 
 func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	p.stage.players.Handle(events, runtime, composition)
+	p.arena.players.Handle(events, runtime, composition)
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && k.Key == control.KeyP {
 			composition.Hide(p.Name())
@@ -192,23 +192,23 @@ func (r *panelRenderer) Draw(screen *render.Image) {
 }
 
 // hudScene is a passive overlay: always on top, never focusable, so it never takes input.
-type hudScene struct{ stage *GameplayStage }
+type hudScene struct{ arena *gameplayArena }
 
 var _ game.Scene = (*hudScene)(nil)
 
 func (h *hudScene) Name() string { return "hud" }
 
-func (h *hudScene) Layers() []render.Layer { return []render.Layer{&hudRenderer{stage: h.stage}} }
+func (h *hudScene) Layers() []render.Layer { return []render.Layer{&hudRenderer{arena: h.arena}} }
 
 func (h *hudScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 
 func (h *hudScene) Focusable() bool { return false }
 
-type hudRenderer struct{ stage *GameplayStage }
+type hudRenderer struct{ arena *gameplayArena }
 
 func (r *hudRenderer) Init(*goke.SysInit) {}
 
 func (r *hudRenderer) Draw(screen *render.Image) {
-	active := r.stage.Stack().Composition().Active()
+	active := r.arena.stage.Stack().Composition().Active()
 	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save, K: keys)", active), 8, ScreenHeight-20)
 }

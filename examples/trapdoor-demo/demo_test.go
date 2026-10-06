@@ -69,7 +69,8 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 
 // testStage is the demo built fresh, without a window, and a view of its units.
 type testStage struct {
-	*mainStage
+	*arena
+	stage game.Stage
 	ecs   *goke.ECS
 	base  goke.Comp[world.Base]
 	units *goke.Query
@@ -77,15 +78,16 @@ type testStage struct {
 
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
-	s := &testStage{mainStage: newStage()}
+	s := &testStage{}
+	s.arena, s.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
-	if err := s.Init(ctx); err != nil {
+	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if err := ctx.Deliver(ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
 		t.Fatalf("roles: %v", err)
 	}
-	if err := s.Spawn(); err != nil {
+	if err := s.stage.Spawn(); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	for _, v := range ctx.tracked {
@@ -95,7 +97,7 @@ func buildStage(t *testing.T) *testStage {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.Update(rc, d); s.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.stage.Update(rc, d); s.world.Clock().Replay(rc, d) })
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)

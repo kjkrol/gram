@@ -67,10 +67,10 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 }
 
 // buildStage runs the fresh-spawn half of entering a Stage: Init, Spawn, Populate, Setup.
-func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
+func buildStage(t *testing.T) (*goke.ECS, *arena) {
 	t.Helper()
 
-	stage := newStage()
+	a, stage := newArena()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -88,7 +88,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 			}
 		}
 	}
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); stage.world.Clock().Replay(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { stage.Update(rc, d); a.world.Clock().Replay(rc, d) })
 
 	var systems []goke.System
 	for _, produce := range ctx.pending {
@@ -96,7 +96,7 @@ func buildStage(t *testing.T) (*goke.ECS, *mainStage) {
 	}
 	ctx.ecs.Setup(systems...)
 
-	return ctx.ecs, stage
+	return ctx.ecs, a
 }
 
 func TestStage_HunterEatsWhatItCatches(t *testing.T) {
@@ -123,7 +123,7 @@ func TestStage_HunterEatsWhatItCatches(t *testing.T) {
 }
 
 // placeOnPrey drops the hunter onto the first prey, in the ECS and the index, and returns its id.
-func placeOnPrey(t *testing.T, stage *mainStage, view bodyView) uid.UID64 {
+func placeOnPrey(t *testing.T, stage *arena, view bodyView) uid.UID64 {
 	t.Helper()
 	var target world.Position
 	var caught uid.UID64
@@ -148,7 +148,7 @@ type bodyView struct {
 	prey, hunter tag.Tag[rule.Roles]
 }
 
-func bodies(ecs *goke.ECS, s *mainStage) bodyView {
+func bodies(ecs *goke.ECS, s *arena) bodyView {
 	view := bodyView{prey: s.world.Roles().Named(PreyRole).Tag(), hunter: s.world.Roles().Named(PredatorRole).Tag()}
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		view.query = si.NewQueryBuilder(&view.base, &view.marks).Build()
@@ -202,7 +202,7 @@ func TestStage_PreyTurnsAwayFromTheHunterItSees(t *testing.T) {
 }
 
 // placeHunterAhead puts the hunter dead ahead of the first prey; returns its id and course.
-func placeHunterAhead(t *testing.T, stage *mainStage, view bodyView, distance float64) (uid.UID64, geom.Vec) {
+func placeHunterAhead(t *testing.T, stage *arena, view bodyView, distance float64) (uid.UID64, geom.Vec) {
 	t.Helper()
 	var watched uid.UID64
 	var from world.Position

@@ -20,7 +20,7 @@ var (
 )
 
 // defineWinterCells defines the winter's kinds: each ground's snowy twin in its colour, and ice.
-func (s *mainStage) defineWinterCells() {
+func (s *arena) defineWinterCells() {
 	kinds := s.board.CellKinds()
 	for name, col := range snowyColors {
 		k, _ := kinds.Get(name)
@@ -32,7 +32,7 @@ func (s *mainStage) defineWinterCells() {
 
 // defineClimate is what the weather does to the island, all by the kinds' names: the winter's
 // kinds themselves are defined in the Cells section, later.
-func (s *mainStage) defineClimate() weathering.Config {
+func (s *arena) defineClimate() weathering.Config {
 	snowy := map[string]string{}
 	for name := range snowyColors {
 		snowy[name] = snowyCell(name)

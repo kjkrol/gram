@@ -44,12 +44,18 @@ const (
 
 // =========================== Game ===========================
 
-// Demo is the board/navigation/selection demo — exactly one Stage (mainStage below).
-type Demo struct{ stage *mainStage }
+// Demo is the board/navigation/selection demo — exactly one Stage (arena below).
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -65,10 +71,8 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// mainStage wires the board/navigation/selection demo; its plugins are its own fields.
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+// arena wires the board/navigation/selection demo; its plugins are its own fields.
+type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
@@ -79,9 +83,11 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("board-navigation-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("board-navigation-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Rules(s.defineRules).
@@ -92,10 +98,9 @@ func newStage() *mainStage {
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
@@ -114,18 +119,18 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayer() error {
+func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *mainStage) defineRules() {
+func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
 		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	main := &mainScene{stage: s}
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
 	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
@@ -137,7 +142,7 @@ func (s *mainStage) defineScenes() []game.Scene {
 	return []game.Scene{main}
 }
 
-func (s *mainStage) defineCells() {
+func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
@@ -145,7 +150,7 @@ func (s *mainStage) defineCells() {
 	kinds.Define(HoleCell, cell.Kind{Cost: 1}) // admits nobody and is not solid: whoever stands on it falls
 }
 
-func (s *mainStage) restore(p game.Persistence) (bool, error) {
+func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
@@ -163,7 +168,7 @@ func (s *mainStage) restore(p game.Persistence) (bool, error) {
 // unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
@@ -176,12 +181,12 @@ func (s *mainStage) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *mainStage) cellAt(x, y uint32) cell.ID {
+func (s *arena) cellAt(x, y uint32) cell.ID {
 	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
 	return c
 }
 
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
 	var cells []cell.Entry
@@ -198,7 +203,7 @@ func (s *mainStage) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
 		kind.Named[unitRow](s.world.Kinds(), RedKind).Entry(unitRow{start: s.cellAt(2, 4), target: s.cellAt(GridWidth-3, 4)}).Told(player...),
@@ -206,7 +211,7 @@ func (s *mainStage) placeUnits() {
 	)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
@@ -219,7 +224,7 @@ func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	keys  players.SceneKeys
 }
 
@@ -228,7 +233,7 @@ var _ game.Scene = (*mainScene)(nil)
 func (m *mainScene) Name() string { return "main" }
 
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.RegisterAt(kind.Named[unitRow](s.world.Kinds(), RedKind).SpriteID(), EntitySize, render.Solid(color.RGBA{R: 220, G: 90, B: 90, A: 255}))
@@ -258,11 +263,11 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the local players' views.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.stage.players.Viewports(screen)
+	return m.arena.players.Viewports(screen)
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 func (m *mainScene) Focusable() bool { return true }

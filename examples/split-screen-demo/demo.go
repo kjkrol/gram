@@ -49,11 +49,17 @@ const (
 // =========================== Game ===========================
 
 // Demo is the split-screen demo, one Stage.
-type Demo struct{ stage *mainStage }
+type Demo struct {
+	a     *arena
+	stage game.Stage
+}
 
 var _ game.Game = (*Demo)(nil)
 
-func NewDemo() *Demo { return &Demo{stage: newStage()} }
+func NewDemo() *Demo {
+	a, st := newArena()
+	return &Demo{a: a, stage: st}
+}
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
@@ -75,10 +81,8 @@ type Drive struct{ Dir geom.Vec }
 
 // =========================== Stage ===========================
 
-// mainStage is the arena, its two blocks and the players driving them. It handles Drive itself.
-type mainStage struct {
-	game.Stage // defined a section at a time: newStage
-
+// arena is the arena, its two blocks and the players driving them. It handles Drive itself.
+type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
 	board      *board.Plugin
@@ -93,9 +97,11 @@ type mainStage struct {
 }
 
 // newStage defines the game a section at a time, each building on those before it.
-func newStage() *mainStage {
-	s := &mainStage{}
-	s.Stage = stage.New("split-screen-demo").
+// newArena makes the arena — the collector of the stage's plugins, which every
+// section builds on — and defines the stage on it, a section at a time.
+func newArena() (*arena, game.Stage) {
+	s := &arena{}
+	return s, stage.New("split-screen-demo").
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
 		Cells(s.defineCells).
@@ -106,11 +112,10 @@ func newStage() *mainStage {
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-	return s
 }
 
 // picture is the one composer of the arena, shared by the players' views and the minimap.
-func (s *mainStage) picture() *render.Composer {
+func (s *arena) picture() *render.Composer {
 	if s.composer == nil {
 		s.composer = render.NewComposer(s.board.Renderer(), s.world.Renderer())
 	}
@@ -118,12 +123,12 @@ func (s *mainStage) picture() *render.Composer {
 }
 
 // Queues is where Drive lands — the stage is the handler of its own command.
-func (s *mainStage) Queues() []control.CommandQueue { return []control.CommandQueue{&s.drives} }
+func (s *arena) Queues() []control.CommandQueue { return []control.CommandQueue{&s.drives} }
 
 // DefaultBindings is none: each player is bound to its own keys in Init.
-func (s *mainStage) DefaultBindings() []control.Binding { return nil }
+func (s *arena) DefaultBindings() []control.Binding { return nil }
 
-func (s *mainStage) usePlugins(ctx game.Initializer) error {
+func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
@@ -144,18 +149,18 @@ func (s *mainStage) usePlugins(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *mainStage) definePlayers() {
+func (s *arena) definePlayers() {
 	s.redPlayer = s.players.Local("red").OwnCamera()
 	s.bluePlayer = s.players.Local("blue").OwnCamera()
 }
 
-func (s *mainStage) defineCells() {
+func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(FloorCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
-func (s *mainStage) bindKeys() error {
+func (s *arena) bindKeys() error {
 	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
 		return err
 	}
@@ -166,8 +171,8 @@ func (s *mainStage) bindKeys() error {
 	return s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
 }
 
-func (s *mainStage) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{stage: s}, &minimapScene{stage: s}}
+func (s *arena) defineScenes() []game.Scene {
+	return []game.Scene{&mainScene{arena: s}, &minimapScene{arena: s}}
 }
 
 // driveKeys binds up, down, left and right to Drive while held.
@@ -186,7 +191,7 @@ func driveKeys(up, down, left, right control.Key) []control.Binding {
 // block is the row a block spawns from: where it starts.
 type block struct{ start cell.ID }
 
-func (s *mainStage) defineKinds() {
+func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
@@ -196,12 +201,12 @@ func (s *mainStage) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *mainStage) cellAt(x, y uint32) cell.ID {
+func (s *arena) cellAt(x, y uint32) cell.ID {
 	c, _ := s.board.Res.Logic.Board.CellIndex(x, y)
 	return c
 }
 
-func (s *mainStage) layOut() {
+func (s *arena) layOut() {
 	cellAt := s.cellAt
 	var cells []cell.Entry
 	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
@@ -229,14 +234,14 @@ func (s *mainStage) layOut() {
 	s.board.Seed(board.Layout{Default: FloorCell, Cells: cells})
 }
 
-func (s *mainStage) placeUnits() {
+func (s *arena) placeUnits() {
 	s.world.Seed(
 		kind.Named[block](s.world.Kinds(), RedKind).Entry(block{start: s.cellAt(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
 		kind.Named[block](s.world.Kinds(), BlueKind).Entry(block{start: s.cellAt(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
 	)
 }
 
-func (s *mainStage) update(ctx goke.RunCtx, d time.Duration) {
+func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(s.drive, d)
 	ctx.Sync()
 	s.world.RunPlan(ctx, d)
@@ -330,7 +335,7 @@ var (
 
 // mainScene is the arena seen by both players, each in its half, with a line between the halves.
 type mainScene struct {
-	stage *mainStage
+	arena *arena
 	right geom.AABB // the right half, as Viewports last laid it out
 }
 
@@ -341,7 +346,7 @@ func (m *mainScene) Name() string    { return "main" }
 func (m *mainScene) Focusable() bool { return true }
 
 func (m *mainScene) Layers() []render.Layer {
-	s := m.stage
+	s := m.arena
 	worldAtlas := render.NewAtlas()
 	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), RedKind).SpriteID(), BlockSize, render.Solid(colorRed))
 	worldAtlas.RegisterAt(kind.Named[block](s.world.Kinds(), BlueKind).SpriteID(), BlockSize, render.Solid(colorBlue))
@@ -362,7 +367,7 @@ func (m *mainScene) Layers() []render.Layer {
 
 // Viewports are the two players' halves; the right one is kept for the divider.
 func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	vps := m.stage.players.Viewports(screen)
+	vps := m.arena.players.Viewports(screen)
 	if len(vps) > 1 {
 		m.right = vps[1].Area
 	}
@@ -370,7 +375,7 @@ func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
 }
 
 func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.stage.players.Handle(events, runtime, composition)
+	m.arena.players.Handle(events, runtime, composition)
 }
 
 // divider draws the line between the halves, at the left edge of the right one, as the scene last
@@ -388,7 +393,7 @@ func (d divider) Draw(screen *render.Image) {
 // minimapScene shows the whole arena through a camera of its own, in a frame at the bottom of the
 // screen; it never takes input.
 type minimapScene struct {
-	stage *mainStage
+	arena *arena
 	area  geom.AABB
 }
 
@@ -402,7 +407,7 @@ func (m *minimapScene) HandleEvents(*control.InputEvents, game.Runtime, game.Com
 
 // Layers are the picture the players' views draw, through the minimap's camera, and the frame.
 func (m *minimapScene) Layers() []render.Layer {
-	return []render.Layer{m.stage.picture(), frame{m}}
+	return []render.Layer{m.arena.picture(), frame{m}}
 }
 
 // Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of
@@ -412,13 +417,13 @@ func (m *minimapScene) Viewports(screen geom.AABB) []render.Viewport {
 	x := math.Round((screen.TopLeft.X + screen.BottomRight.X - w) / 2)
 	area := geom.NewAABBAt(geom.NewVec(x, screen.BottomRight.Y-h-10), w, h)
 	if area.BottomRight.Sub(area.TopLeft) != m.area.BottomRight.Sub(m.area.TopLeft) {
-		cam := m.stage.minimapCam
+		cam := m.arena.minimapCam
 		cam.SetViewport(w, h)
 		cam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
 		cam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	}
 	m.area = area
-	return []render.Viewport{{Camera: m.stage.minimapCam, Area: area}}
+	return []render.Viewport{{Camera: m.arena.minimapCam, Area: area}}
 }
 
 // frame outlines the minimap.

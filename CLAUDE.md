@@ -1282,10 +1282,13 @@ those `Shows` names, tracks the Composition, starts fresh without `Restore`, and
 then `Units` in `Spawn`. The order is what builds on what: players before the kinds, effects
 before the rules, roles before the commands for their players (`selection.Selected(role)`) and
 the kinds playing them, everything before the keys; what is drawn — atlases, an effect's looks, a
-board's covers — is the scene's `Layers`. A demo's stage struct embeds the `game.Stage` its
-`newStage()` builds, its sections its methods (`usePlugins`, `definePlayer`, `defineCells`,
-`defineEffects`, `defineRules`, `defineCommands`, `defineKinds`, `bindKeys`, `defineLooks`,
-`defineScenes`, `layOut`, `placeUnits`, `update`). **A thing in its section**: the Stage tells
+board's covers — is the scene's `Layers`. A demo groups its plugins in an **arena** (the user's
+word, 2026-10-06), the collector every section builds on: `newArena()` makes the `arena` struct
+(plugins and players alone, no embedded Stage) and hands back it and the `game.Stage` defined on
+it (`stage.New(name).Plugins(a.usePlugins)…`), the sections the arena's methods (`usePlugins`,
+`definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
+`bindKeys`, `defineLooks`, `defineScenes`, `layOut`, `placeUnits`, `update`); the demo's `Demo`
+keeps both, its scenes the arena. **A thing in its section**: the Stage tells
 the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
 and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Define` (Cells),

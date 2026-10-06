@@ -98,7 +98,8 @@ type shown struct {
 type drawnStage struct {
 	t     *testing.T
 	ecs   *goke.ECS
-	stage *mainStage
+	arena *arena
+	stage game.Stage
 	rec   *recording
 	base  goke.Comp[world.Base]
 	all   *goke.Query
@@ -107,7 +108,8 @@ type drawnStage struct {
 func newDrawnStage(t *testing.T) *drawnStage {
 	t.Helper()
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
-	ds := &drawnStage{t: t, stage: newStage()}
+	ds := &drawnStage{t: t}
+	ds.arena, ds.stage = newArena()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := ds.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -125,7 +127,7 @@ func newDrawnStage(t *testing.T) *drawnStage {
 			}
 		}
 	}
-	w := ds.stage.world
+	w := ds.arena.world
 	w.WithRenderer(noAtlas{})
 	ds.rec = &recording{Look: w.Look()}
 	w.SetLook(ds.rec)
@@ -152,10 +154,10 @@ func (ds *drawnStage) tick(n int) {
 // draw composes a frame and tells what every entity was drawn with.
 func (ds *drawnStage) draw() []shown {
 	ds.rec.drawn = map[geom.Vec][]render.SpriteID{}
-	cam := ds.stage.world.Camera()
+	cam := ds.arena.world.Camera()
 	var f render.Frame
 	f.Reset(cam)
-	ds.stage.world.Renderer().(interface {
+	ds.arena.world.Renderer().(interface {
 		Compose(*render.Frame, camera.Camera)
 	}).Compose(&f, cam)
 	var out []shown
@@ -172,7 +174,7 @@ func (ds *drawnStage) draw() []shown {
 
 // want is what an entity of its kind going its way is drawn with, angry or not.
 func (ds *drawnStage) want(e shown, angry bool) []render.SpriteID {
-	s := ds.stage
+	s := ds.arena
 	sprite := s.facing[e.heading]
 	if angry {
 		sprite = s.angrySprite[e.heading]
@@ -198,7 +200,7 @@ func TestAppearance_DrawnAsTheRulesSayAndFollowingTheMood(t *testing.T) {
 		}
 	}
 
-	if !ds.stage.world.Carrier().Put(1, rule.Cast(ds.stage.world.Effects().Named(RageEf)).On(entity.World)) {
+	if !ds.arena.world.Carrier().Put(1, rule.Cast(ds.arena.world.Effects().Named(RageEf)).On(entity.World)) {
 		t.Fatal("the world carries no Apply")
 	}
 	ds.tick(5)
