@@ -9,7 +9,7 @@
 // each initialised once however many feeds show it — and its screen, both asked for once as the
 // Stage is entered. Every frame the tree is laid over the screen and drawn. [Scene.Input] hands the
 // scene's input to the players' bindings; [Scene.Show], [Scene.Hide] and [Scene.Toggle] show and
-// hide elements by name ([Element.Named]).
+// hide elements by name ([Element.Named]), [Scene.Element] finds one, [Scene.Shown] asks.
 //
 // # Layout
 //

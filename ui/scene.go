@@ -104,6 +104,17 @@ func (s *Scene) Toggle(name string) {
 	s.note()
 }
 
+// Element is the first element called name, laid where the last frame laid it; nil for none.
+func (s *Scene) Element(name string) *Element {
+	var found *Element
+	s.each(name, func(e *Element) {
+		if found == nil {
+			found = e
+		}
+	})
+	return found
+}
+
 // Shown reports whether an element called name is shown.
 func (s *Scene) Shown(name string) bool {
 	shown := false

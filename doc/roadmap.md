@@ -14,14 +14,13 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   world, the game's picture under dots of its own by kind, picked by drawing rules (what my units
   see: `vision.Seen`), the players' views outlined on it, a key to show and hide it, a click on it
   panning the player's camera; a round or many-sided one through `ui.Masked`.
-- **ui, what is left** — the old scenes migrated (every demo but split-screen, scenes, effect and
-  minimal) and then `Scenes`/`Shows`/`game.Viewer` replaced; fonts with Polish letters and a
+- **ui, what is left** — the old scenes migrated (every demo but split-screen, scenes, minimal and
+  dialog) and then `Scenes`/`Shows`/`game.Viewer` replaced; fonts with Polish letters and a
   theme; `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`, `List`; `Canvas`
   (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; a pinned element's
   buttons giving commands about its own entity; which half of a split screen a pinned element
   shows in (its entity's owner's); the UI drawn into one `render.Frame` in place of a draw an
-  element; a hold of the clock that is no toggle (`world.Pause` toggles: a rule pausing in two
-  sub-steps of one tick lets the game go on).
+  element.
 - **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
   work, no collision involved.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of

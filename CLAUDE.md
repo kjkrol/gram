@@ -42,6 +42,7 @@ make demo-board-atlas                                              # a small fla
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
+make demo-dialog                                                   # a conversation: the host greets the traveller walked up to it in a window above it, three answers (ui pinned Under effects)
 make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
@@ -1439,12 +1440,13 @@ entity in the first picture of the world that shows it, kept on the screen; `Off
 (`cameras.LookAt{Camera, Entity}`, once, fastened to nothing) through the picture's Input
 (`players` implements `ui.Looker`); an entity with no place (the world's own entity, a plugin's)
 has its element where its parent lays it; a modal pinned element shows one entity at a time. A
-decision à la Europa Universalis is rules and effects: a rule puts an effect on (effect-demo's
-witch first on the ice: `winter`), another holds the game while it is on
-(`rule.Under(winter, rule.Order(world.Pause{}))` — pausing in the rule that casts would freeze the
-step before the effect's marker comes on, and the window would never show), the window's buttons
-lift it and resume. Migrated: split-screen, scenes-demo's gameplay, effect-demo, minimal; the
-rest of the demos keep their old scenes until `Scenes`/`Shows`/`game.Viewer` go.
+conversation is rules and effects (`examples/dialog-demo`, the user's word: a demo of its own, the
+effect demo stays a plain demo of effects): the host's rule of a `vision.Sighting` puts `greeting`
+on it when the traveller is near, the window `Under(greeting)` above it holds three answers, each
+button's commands lift the greeting and cast the host's reaction and `talked`; a rule lets the
+greeting go once nobody is in sight. Migrated: split-screen, scenes-demo's gameplay, minimal, and
+dialog-demo written on ui; the rest of the demos keep their old scenes until
+`Scenes`/`Shows`/`game.Viewer` go.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
 gameplay entities, "Start" switching (lazily building the ECS) into a
