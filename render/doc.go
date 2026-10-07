@@ -14,6 +14,14 @@
 // frame and tick rates and the entity count, and under them the lines of any [Reporter] it is
 // built With — a plugin's own, such as the sky's time of day or collision's contacts a second.
 //
+// # Feed and Surface
+//
+// A [Feed] is the world seen through a camera as a picture: a WorldRenderer — a Composer, as a rule
+// — drawn through the camera every frame into an image of the size whoever shows it gives it
+// ([Surface]: Resize, Draw), the camera's viewport with it. Several feeds share one picture: the
+// halves of a split screen and a minimap. A feed turns its pixels into the world and back
+// (ToWorld, ToPixels), so whatever shows it knows nothing of its camera.
+//
 // # Atlas and AtlasSource
 //
 // An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot
