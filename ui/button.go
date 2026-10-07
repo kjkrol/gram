@@ -1,18 +1,16 @@
 package ui
 
 import (
-	"image/color"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/render"
 )
 
-var buttonFill = color.RGBA{R: 60, G: 70, B: 95, A: 255}
-
 // Button is a label that gives its commands when clicked, in order: the scene's own (Show, Hide,
 // Toggle), or any other the way a key gives it (Scene.Issue).
 func Button(label string, cmds ...any) *Element {
-	return newElement(&button{cmds: cmds}, Label(label)).Fill(buttonFill).Border(panelBorder, 1).Padding(6)
+	b := newElement(&button{cmds: cmds}, Label(label)).Padding(6)
+	b.style, b.stroke = buttonStyle, 1
+	return b
 }
 
 type button struct{ cmds []any }

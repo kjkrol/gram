@@ -193,7 +193,7 @@ func topmostHere(e *Element, p geom.Vec, in *Element) target {
 		in = e
 	}
 	var t target
-	if _, ok := e.content.(container); !ok || e.fill.A > 0 {
+	if _, ok := e.content.(container); !ok || e.fillColor().A > 0 {
 		if inside(e.box, p) && (e.mask == nil || e.mask.contains(e.box, p)) {
 			t = target{hit: e, button: in}
 		}

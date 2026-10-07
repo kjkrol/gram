@@ -269,14 +269,14 @@ func (s *arena) screen() *ui.Element {
 	}
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Image(render.NewFeed(s.player.Camera, s.picture)).Input(s.players.Through(s.player)),
-		ui.Window("The host",
-			ui.Label("Hello, traveller!"),
-			answer("Hello to you too!", PleaseCmd),
-			answer("And who are you?", PuzzleCmd),
-			answer("Out of my way.", OffendCmd),
+		ui.Window("Gospodarz",
+			ui.Label("Cześć, wędrowcze!"),
+			answer("Cześć i tobie!", PleaseCmd),
+			answer("A ty kto?", PuzzleCmd),
+			answer("Z drogi.", OffendCmd),
 		).Under(effects.Named(GreetingEf)).Above().Offset(0, -6),
-		ui.Label("Pleased to meet you.").Under(effects.Named(PleasedEf)).Above().Offset(0, -6),
-		ui.Label("Just a host, as you see.").Under(effects.Named(PuzzledEf)).Above().Offset(0, -6),
-		ui.Label("Hmph!").Under(effects.Named(OffendedEf)).Above().Offset(0, -6),
+		ui.Label("Miło cię poznać.").Under(effects.Named(PleasedEf)).Above().Offset(0, -6),
+		ui.Label("Gospodarz, jak widać.").Under(effects.Named(PuzzledEf)).Above().Offset(0, -6),
+		ui.Label("Hmpf!").Under(effects.Named(OffendedEf)).Above().Offset(0, -6),
 	)
 }

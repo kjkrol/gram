@@ -21,6 +21,10 @@ type Element struct {
 	fill     color.RGBA
 	border   color.RGBA
 	stroke   float64 // the border's width
+	filled   bool    // Fill was said: fill, not the style's
+	bordered bool    // Border was said: border, not the theme's
+	style    style   // the theme's colours it takes where it says none
+	theme    *Theme  // its scene's; nil: the default
 	mask     Mask
 	pin      *pin      // Under, On: shown once for each entity it names, by it
 	parent   geom.AABB // the box its parent last gave it
@@ -74,13 +78,13 @@ func (e *Element) Padding(px float64) *Element {
 
 // Fill paints the element's background c.
 func (e *Element) Fill(c color.RGBA) *Element {
-	e.fill = c
+	e.fill, e.filled = c, true
 	return e
 }
 
 // Border outlines the element in c, width pixels wide.
 func (e *Element) Border(c color.RGBA, width float64) *Element {
-	e.border, e.stroke = c, width
+	e.border, e.stroke, e.bordered = c, width, true
 	return e
 }
 
@@ -119,7 +123,7 @@ func (e *Element) Hits(p geom.Vec) bool {
 
 // hitsHere is Hits where the element was last laid.
 func (e *Element) hitsHere(p geom.Vec) bool {
-	if _, ok := e.content.(container); ok && e.fill.A == 0 {
+	if _, ok := e.content.(container); ok && e.fillColor().A == 0 {
 		for _, c := range e.children {
 			if c.Hits(p) {
 				return true
@@ -166,7 +170,7 @@ func (e *Element) paint(dst *render.Image) {
 	}
 	e.pin.each(e, e.parent, func(in *instance) {
 		e.paintHere(dst)
-		paintArrow(dst, in)
+		paintArrow(dst, in, e.look().Border)
 		if in.show {
 			e.pin.show.paint(dst)
 		}
@@ -185,15 +189,15 @@ func (e *Element) paintHere(dst *render.Image) {
 
 // background paints the fill, in the mask's shape if there is one.
 func (e *Element) background(dst *render.Image) {
-	if e.fill.A > 0 {
-		render.FillPolygon(dst, outline(e.box, e.mask), e.fill)
+	if fill := e.fillColor(); fill.A > 0 {
+		render.FillPolygon(dst, outline(e.box, e.mask), fill)
 	}
 }
 
 // edge draws the border over everything the element shows, in the mask's shape if there is one.
 func (e *Element) edge(dst *render.Image) {
-	if e.border.A > 0 && e.stroke > 0 {
-		render.StrokePolygon(dst, outline(e.box, e.mask), float32(e.stroke), e.border)
+	if border := e.borderColor(); border.A > 0 && e.stroke > 0 {
+		render.StrokePolygon(dst, outline(e.box, e.mask), float32(e.stroke), border)
 	}
 }
 

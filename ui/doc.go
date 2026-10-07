@@ -28,6 +28,12 @@
 // hold the input while it is shown. Any element takes a background ([Element.Fill]), a border
 // ([Element.Border]) and [Element.Padding].
 //
+// # Theme
+//
+// A [Theme] is how a scene's elements look where they say nothing of their own: the font and the
+// colour of their text (render.DefaultFont, Polish letters and all), and the colours of panels,
+// windows' titles and buttons. [Scene.Theme] sets the scene's; an element's own Fill or Border wins.
+//
 // # Input
 //
 // A click goes to the topmost element it hits. A [Button] gives its command: one of the scene's own

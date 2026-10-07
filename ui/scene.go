@@ -29,6 +29,7 @@ type Scene struct {
 	shown    []string            // the names of the elements shown, as saved
 	loaded   bool                // shown came from a save: laid on the elements once they are made
 	drawing  *drawing            // the scene's layer, which finds the entities its pinned elements are for
+	theme    Theme
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -37,7 +38,7 @@ var _ plugin.Restorer = (*Scene)(nil)
 
 // NewScene is the scene name: the pictures of the world it shows, and its screen.
 func NewScene(name string, pictures func() []render.WorldRenderer, screen func() *Element) *Scene {
-	return &Scene{name: name, pictures: pictures, screen: screen}
+	return &Scene{name: name, pictures: pictures, screen: screen, theme: DefaultTheme()}
 }
 
 // Input hands the scene's input, while it is active, to fn: the players' bindings, as a rule.
@@ -56,6 +57,7 @@ func (s *Scene) Layers() []render.Layer {
 		pictures = s.pictures()
 	}
 	s.root = s.screen()
+	s.dress()
 	if s.loaded {
 		s.reveal()
 	} else {

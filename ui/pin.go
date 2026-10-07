@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -335,7 +336,7 @@ func (p *pin) each(e *Element, parent geom.AABB, fn func(in *instance)) {
 }
 
 // paintArrow draws in's arrow.
-func paintArrow(dst *render.Image, in *instance) {
+func paintArrow(dst *render.Image, in *instance, color color.RGBA) {
 	if len(in.arrow) != 3 {
 		return
 	}
@@ -343,5 +344,5 @@ func paintArrow(dst *render.Image, in *instance) {
 	for k, v := range in.arrow {
 		pts[k] = [2]float32{float32(v.X), float32(v.Y)}
 	}
-	render.FillPolygon(dst, pts, panelBorder)
+	render.FillPolygon(dst, pts, color)
 }

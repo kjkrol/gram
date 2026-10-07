@@ -22,6 +22,14 @@
 // halves of a split screen and a minimap. A feed turns its pixels into the world and back
 // (ToWorld, ToPixels), so whatever shows it knows nothing of its camera.
 //
+// # Font and DrawText
+//
+// A [Font] is a TrueType or OpenType face at a size ([NewFont]), its glyphs drawn on demand into a
+// sheet of its own; [DefaultFont] is Go Regular at 14 pixels, with the Latin letters of every
+// European language. [DrawText] draws a string — lines under one another at its newlines — in one
+// draw, in a colour; [Font.Measure] is how much room it takes. The debug text ([DebugPrint]) stays
+// for telemetry.
+//
 // # Atlas and AtlasSource
 //
 // An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot

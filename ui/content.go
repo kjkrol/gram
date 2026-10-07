@@ -1,30 +1,22 @@
 package ui
 
 import (
-	"image/color"
 	"math"
-	"strings"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/render"
 )
 
-// The look of a panel and a window until a theme says otherwise.
-var (
-	panelFill   = color.RGBA{R: 20, G: 22, B: 28, A: 220}
-	panelBorder = color.RGBA{R: 200, G: 200, B: 210, A: 255}
-	titleFill   = color.RGBA{R: 50, G: 56, B: 72, A: 255}
-)
-
 const (
 	panelPadding = 8
 	panelStroke  = 2
-	lineHeight   = 16 // a line of render's text
 )
 
 // Panel is a background and a border round its element, padded.
 func Panel(e *Element) *Element {
-	return newElement(layers{}, e).Fill(panelFill).Border(panelBorder, panelStroke).Padding(panelPadding)
+	p := newElement(layers{}, e).Padding(panelPadding)
+	p.style, p.stroke = panelStyle, panelStroke
+	return p
 }
 
 // Label is a line of text, or lines of it, one under another.
@@ -36,11 +28,17 @@ func (*label) place(*Element, geom.AABB) {}
 
 func (l *label) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
-	render.DebugPrintAt(dst, l.text, int(math.Round(box.TopLeft.X)), int(math.Round(box.TopLeft.Y)))
+	th := e.look()
+	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
+	if th.Shadow.A > 0 {
+		render.DrawText(dst, th.Font, l.text, x+1, y+1, th.Shadow)
+	}
+	render.DrawText(dst, th.Font, l.text, x, y, th.Text)
 }
 
-func (l *label) needs(*Element) (w, h float64) {
-	return float64(render.TextWidth(l.text)), float64(lineHeight * (strings.Count(l.text, "\n") + 1))
+func (l *label) needs(e *Element) (w, h float64) {
+	tw, th := e.look().Font.Measure(l.text)
+	return math.Ceil(float64(tw)), math.Ceil(float64(th))
 }
 
 // Image shows src filling the element's box, the box's size given to it: a feed of the world, a
@@ -80,11 +78,15 @@ func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.
 func Window(title string, elements ...*Element) *Element {
-	parts := []Part{Fit(Label(title).Fill(titleFill).Padding(4))}
+	t := Label(title).Padding(4)
+	t.style = titleStyle
+	parts := []Part{Fit(t)}
 	for _, e := range elements {
 		parts = append(parts, Fit(e))
 	}
-	return newElement(&window{}, Rows(parts...)).Fill(panelFill).Border(panelBorder, panelStroke).Padding(panelPadding)
+	w := newElement(&window{}, Rows(parts...)).Padding(panelPadding)
+	w.style, w.stroke = panelStyle, panelStroke
+	return w
 }
 
 // window is a panel with a title.
