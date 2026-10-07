@@ -40,6 +40,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -224,7 +225,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -328,14 +329,11 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
-	keys  players.SceneKeys
-	tps   *game.TPS
+	arena   *arena
+	keys    players.SceneKeys
+	tps     *game.TPS
+	picture *render.Composer // the island, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: the player's walkers and giants, the rival's, the hawk.
 var (
@@ -344,7 +342,8 @@ var (
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the units, the hawk and the island and hands the world's picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
@@ -365,20 +364,20 @@ func (m *mainScene) Layers() []render.Layer {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	count := func() int { return s.world.Res.Telemetry.Count }
-	layers := []render.Layer{render.NewComposer(
+	m.picture = render.NewComposer(
 		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
 		s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
-		s.nav.Renderer(), s.atmosphere.Precipitation())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
+		s.nav.Renderer(), s.atmosphere.Precipitation())
+	return []render.WorldRenderer{m.picture}
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the island through the player's camera, the telemetry and the clock over it.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	count := func() int { return s.world.Res.Telemetry.Count }
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
+		ui.Layer(s.world.Clock().HUD()),
+	)
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
