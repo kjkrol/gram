@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -30,6 +31,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -89,6 +91,10 @@ type arena struct {
 	players   *players.Plugin
 	cameras   *cameras.Plugin
 	player    *players.Player
+	picture   *render.Composer // the world, as the scene shows it
+	scene     *ui.Scene
+	decision  *ui.Element // the window the witch's winter asks
+	thaw      *ui.Element // its button thawing the lake
 }
 
 // newArena makes the arena — the collector of the stage's plugins, which every
@@ -137,8 +143,13 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineCommands() {
-	s.world.Commands().Define(FreezeCmd,
-		rule.Cast(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+	effects, commands := s.world.Effects(), s.world.Commands()
+	commands.Define(FreezeCmd,
+		rule.Cast(effects.Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+	commands.Define(EndWinterCmd, rule.Lift(effects.Named(WinterEf)).On(entity.Named(WitchName)))
+	commands.Define(CalmWitchCmd, rule.Cast(effects.Named(CalmEf)).On(entity.Named(WitchName)))
+	commands.Define(ThawCmd, rule.Lift(effects.Named(IcedEf)).On(entity.Group(LakeGroup)))
+	commands.Define(SpringCmd, rule.Cast(effects.Named(SpringEf)).On(entity.Named(WitchName)))
 }
 
 func (s *arena) bindKeys() error {
@@ -181,20 +192,36 @@ func (s *arena) defineEffects() {
 		effect.Described("On the ice: hardly any braking, whoever moves slides on."),
 		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }),
 	})
+	effects.Define(WinterEf, effect.Spec{
+		effect.Described("The witch has reached the ice: winter or not, the player says."),
+	})
+	effects.Define(CalmEf, effect.Spec{
+		effect.Described("The witch has been answered: no winter asked again for a while."),
+		effect.Lasts(15 * time.Second),
+	})
+	effects.Define(SpringEf, effect.Spec{
+		effect.Described("Spring on the witch: she freezes nothing for a while."),
+		effect.Lasts(15 * time.Second),
+	})
 }
 
 func (s *arena) defineRoles() {
 	effects := s.world.Effects()
 	frost, iced := effects.Named(FrostEf), effects.Named(IcedEf)
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
+	winter, calm, spring := effects.Named(WinterEf), effects.Named(CalmEf), effects.Named(SpringEf)
 
 	roles := s.world.Roles()
 	roles.Define(LakeRole) // the lake's cells play it, in the Layout: where the witch's winter is ice
 	roles.Define(WitchRole,
-		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
+		rule.Then[unit.Standing]("freeze", rule.All, rule.Unless(spring, rule.Around(1, rule.OneOf(
 			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
 			rule.Apply(frost),
-		))),
+		)))),
+		// on the ice, unanswered: winter on her; under it the game is held until the player decides
+		rule.Then[unit.Standing]("winter comes", rule.All,
+			rule.If(unit.Over(iced), rule.Unless(winter, rule.Unless(calm, rule.Apply(winter))))),
+		rule.Then[unit.Standing]("the game waits", rule.All, rule.Under(winter, rule.Order(world.Pause{}))),
 	)
 	roles.Define(MortalRole,
 		rule.Then[unit.Standing]("fallen in", rule.All,
@@ -221,8 +248,10 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{main}
+	s.scene = ui.NewScene(MainScene, s.pictures, s.screen).
+		Input(s.players.Handle).
+		Issue(s.players.IssueAs(s.player))
+	return []game.Scene{s.scene}
 }
 
 // The lake: where the water lies, and where the boat sails.
@@ -238,7 +267,7 @@ func (s *arena) layOut() {
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, water.Entry(brd.CellIndex(x, y)).Plays(lake))
+			cells = append(cells, water.Entry(brd.CellIndex(x, y)).InGroup(LakeGroup).Plays(lake))
 		}
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
@@ -250,7 +279,7 @@ func (s *arena) placeUnits() {
 	brd := s.board.Res.Logic.Board
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		witchKind.Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
+		witchKind.Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Named(WitchName).Told(player...),
 		walkerKind.Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
 		boatKind.Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
 	)
@@ -270,14 +299,6 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct {
-	arena *arena
-}
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // The scene's colours: the units, each with its look under frozen, and the ground with what
 // covers it.
 var (
@@ -293,9 +314,8 @@ var (
 	iceColor          = color.RGBA{R: 170, G: 215, B: 240, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
-	s := m.arena
-
+// pictures dresses the units and the ground, each under its states, and hands the world's picture.
+func (s *arena) pictures() []render.WorldRenderer {
 	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
 	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
 	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
@@ -326,15 +346,23 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.WorldRenderer{s.picture}
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world, a word under every unit frozen, and the decision the witch asks for on the
+// ice: a modal window above her — at the edge, pointing at her, while she is out of sight.
+func (s *arena) screen() *ui.Element {
+	effects, commands := s.world.Effects(), s.world.Commands()
+	s.thaw = ui.Button("Thaw the lake", commands.Named(ThawCmd), commands.Named(SpringCmd), commands.Named(EndWinterCmd), world.Pause{})
+	s.decision = ui.Window("Winter on the lake",
+		ui.Label("The witch has reached the ice."),
+		ui.Button("Let it freeze", commands.Named(EndWinterCmd), commands.Named(CalmWitchCmd), world.Pause{}),
+		s.thaw,
+	).Named(DecisionWindow).Modal().Under(effects.Named(WinterEf)).Above().Offset(0, -6)
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Image(render.NewFeed(s.player.Camera, s.picture)).Input(s.players.Through(s.player)),
+		ui.Label("frozen").Under(effects.Named(FrozenEf)).Below().Offset(0, 2),
+		s.decision,
+	)
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

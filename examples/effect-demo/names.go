@@ -12,6 +12,9 @@ const (
 	FrostEf  = "frost"
 	IcedEf   = "iced"
 	SlipEf   = "slip"
+	WinterEf = "winter" // the witch on the ice: the game waits for the player to decide
+	CalmEf   = "calm"   // the witch answered: no winter asked again for a while
+	SpringEf = "spring" // the lake thawed: the witch freezes nothing for a while
 
 	// roles
 	LakeRole   = "lake"
@@ -19,7 +22,19 @@ const (
 	MortalRole = "mortal"
 
 	// commands
-	FreezeCmd = "freeze"
+	FreezeCmd    = "freeze"
+	EndWinterCmd = "end winter"
+	CalmWitchCmd = "calm the witch"
+	ThawCmd      = "thaw the lake"
+	SpringCmd    = "bring spring"
+
+	// names and groups
+	WitchName = "the witch"
+	LakeGroup = "the lake"
+
+	// scenes, and the elements of their screens
+	MainScene      = "main"
+	DecisionWindow = "decision"
 
 	// kinds of units
 	WitchKind  = "witch"

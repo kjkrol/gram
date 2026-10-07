@@ -62,7 +62,9 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 			if t.look != nil {
 				t.look()
 			} else {
-				s.give(t.button.content.(*button).cmd)
+				for _, cmd := range t.button.content.(*button).cmds {
+					s.give(cmd)
+				}
 			}
 		}
 		return false

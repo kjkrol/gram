@@ -108,7 +108,7 @@ func (e *Element) OffScreen(how OffScreen) *Element {
 	p := e.pinned()
 	p.off = how
 	if how == ShowIt && p.show == nil {
-		p.show = Button("Show", nil)
+		p.show = Button("Show")
 	}
 	return e
 }

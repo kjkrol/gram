@@ -9,13 +9,13 @@ import (
 
 var buttonFill = color.RGBA{R: 60, G: 70, B: 95, A: 255}
 
-// Button is a label that gives cmd when clicked: one of the scene's own (Show, Hide, Toggle), or
-// any other the way a key gives it (Scene.Issue).
-func Button(label string, cmd any) *Element {
-	return newElement(&button{cmd: cmd}, Label(label)).Fill(buttonFill).Border(panelBorder, 1).Padding(6)
+// Button is a label that gives its commands when clicked, in order: the scene's own (Show, Hide,
+// Toggle), or any other the way a key gives it (Scene.Issue).
+func Button(label string, cmds ...any) *Element {
+	return newElement(&button{cmds: cmds}, Label(label)).Fill(buttonFill).Border(panelBorder, 1).Padding(6)
 }
 
-type button struct{ cmd any }
+type button struct{ cmds []any }
 
 func (*button) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 

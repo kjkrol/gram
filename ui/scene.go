@@ -28,6 +28,7 @@ type Scene struct {
 	passed   control.InputEvents // what of this tick's input goes on to input
 	shown    []string            // the names of the elements shown, as saved
 	loaded   bool                // shown came from a save: laid on the elements once they are made
+	drawing  *drawing            // the scene's layer, which finds the entities its pinned elements are for
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -60,16 +61,26 @@ func (s *Scene) Layers() []render.Layer {
 	} else {
 		s.note()
 	}
-	return []render.Layer{&drawing{scene: s, pictures: pictures}}
+	s.drawing = &drawing{scene: s, pictures: pictures}
+	return []render.Layer{s.drawing}
 }
 
 func (s *Scene) Focusable() bool { return true }
 
 // Lay lays the scene's elements over screen, as every frame does before drawing: the pictures
-// get their sizes, the players where their pictures lie.
+// get their sizes, the players where their pictures lie, the pinned elements their entities.
 func (s *Scene) Lay(screen geom.AABB) {
-	if s.root != nil {
-		s.root.lay(screen)
+	if s.root == nil {
+		return
+	}
+	s.root.lay(screen)
+	if d := s.drawing; d != nil && len(d.pins) > 0 {
+		d.find()
+		vs := views(s.root)
+		for _, e := range d.pins {
+			e.pin.stand(e, d.spots[e], vs, screen)
+			e.pin.each(e, e.parent, func(*instance) {}) // laid where it stands: its Box is by its entity
+		}
 	}
 }
 
@@ -188,13 +199,6 @@ func (d *drawing) Draw(screen *render.Image) {
 	b := screen.Bounds()
 	box := geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 	d.scene.Lay(box)
-	if len(d.pins) > 0 {
-		d.find()
-		vs := views(root)
-		for _, e := range d.pins {
-			e.pin.stand(e, d.spots[e], vs, box)
-		}
-	}
 	root.paint(screen)
 }
 
