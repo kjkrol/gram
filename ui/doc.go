@@ -28,6 +28,16 @@
 // hold the input while it is shown. Any element takes a background ([Element.Fill]), a border
 // ([Element.Border]) and [Element.Padding].
 //
+// # Input
+//
+// A click goes to the topmost element it hits. A [Button] gives its command: one of the scene's own
+// — [Show], [Hide], [Toggle] an element by name — or any other through [Scene.Issue], the way a key
+// gives it (players.Plugin.IssueAs). A picture with an [Input] ([Element.Input]: players.Plugin.Through
+// for a player) lets the click through to [Scene.Input], the players' bindings, and is told every
+// frame where it lies, so the mouse over it is that player's; any other element keeps the click. A
+// shown [Element.Modal] element — a window, or an anchor round one — holds every click and the
+// wheel outside it. [Scene.Keys] are the scene's own keys, giving commands the same way.
+//
 // # Shapes
 //
 // Layout gives boxes; an element's shape is how it is drawn and hit inside its box.

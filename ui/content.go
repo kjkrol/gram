@@ -47,11 +47,17 @@ func (l *label) needs(*Element) (w, h float64) {
 // picture.
 func Image(src render.Surface) *Element { return newElement(&picture{src: src}) }
 
-type picture struct{ src render.Surface }
+type picture struct {
+	src   render.Surface
+	input Input // who takes the input over it; nil: ui keeps a click on it
+}
 
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
 	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
+	if p.input != nil {
+		p.input.Over(box)
+	}
 }
 
 func (p *picture) draw(e *Element, dst *render.Image) {
@@ -81,25 +87,11 @@ func Window(title string, elements ...*Element) *Element {
 	return newElement(&window{}, Rows(parts...)).Fill(panelFill).Border(panelBorder, panelStroke).Padding(panelPadding)
 }
 
-// window is a panel that may hold everything under it (Modal).
-type window struct{ modal bool }
+// window is a panel with a title.
+type window struct{}
 
 func (*window) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 
 func (*window) draw(*Element, *render.Image) {}
 
 func (*window) needs(e *Element) (w, h float64) { return e.children[0].needs() }
-
-// Modal has a window hold the input while it is shown: nothing under it is hit.
-func (e *Element) Modal() *Element {
-	if w, ok := e.content.(*window); ok {
-		w.modal = true
-	}
-	return e
-}
-
-// modal reports whether the element is a window shown that holds the input.
-func (e *Element) modal() bool {
-	w, ok := e.content.(*window)
-	return ok && w.modal && !e.hidden
-}

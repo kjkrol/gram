@@ -14,6 +14,7 @@ type Element struct {
 	children []*Element
 	name     string
 	hidden   bool
+	holds    bool    // Modal: it holds the input while shown
 	w, h     float64 // the size asked for (Size); 0 where its content says
 	margin   float64 // kept free round the element, inside the box its parent gives it
 	padding  float64 // kept free round its children, inside its own box
@@ -86,6 +87,16 @@ func (e *Element) Masked(m Mask) *Element {
 	e.mask = m
 	return e
 }
+
+// Modal has the element — a window, or an anchor round one — hold the input while it is shown:
+// nothing under it or beside it is clicked.
+func (e *Element) Modal() *Element {
+	e.holds = true
+	return e
+}
+
+// modal reports whether the element is shown and holds the input.
+func (e *Element) modal() bool { return e.holds && !e.hidden }
 
 // Box is where the element was last laid, in the screen's pixels.
 func (e *Element) Box() geom.AABB { return e.box }

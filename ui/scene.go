@@ -17,6 +17,9 @@ type Scene struct {
 	screen   func() *Element
 	root     *Element
 	input    func(*control.InputEvents, game.Runtime, game.Composition)
+	keys     []control.Binding
+	issue    func(cmd any) error
+	passed   control.InputEvents // what of this tick's input goes on to input
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -43,12 +46,6 @@ func (s *Scene) Layers() []render.Layer {
 	}
 	s.root = s.screen()
 	return []render.Layer{&drawing{scene: s, pictures: pictures}}
-}
-
-func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	if s.input != nil {
-		s.input(events, runtime, composition)
-	}
 }
 
 func (s *Scene) Focusable() bool { return true }
