@@ -1,5 +1,5 @@
 // Command appearance-demo shows a game declaring how its entities are drawn in one place — the
-// world's atlas in the scene's Layers: every walker is drawn by the twin of the way it goes
+// world's atlas in the scene's pictures: every walker is drawn by the twin of the way it goes
 // (Facing), the leader turned smoothly with his crown on (Turning), the ghost as a ghost
 // whatever happens, and the angry under the angry effect's own look (Under). They bounce off
 // one another, so they turn, and the looks follow. R makes everyone angry for a while: an
@@ -31,6 +31,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -136,7 +137,7 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the Layers
+	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the scene's pictures
 }
 
 func (s *arena) defineRules() {
@@ -168,7 +169,8 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}}
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 // boxAt is the box of side Size round at.
@@ -208,11 +210,10 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-type mainScene struct{ arena *arena }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
+type mainScene struct {
+	arena   *arena
+	picture *render.Composer // the world, as the scene shows it
+}
 
 // The scene's colours: the walkers calm and angry with their light noses, the ghost's pale and
 // its eyes, the crown's gold, the backdrop.
@@ -226,13 +227,21 @@ var (
 	backgroundColor = color.RGBA{R: 40, G: 44, B: 52, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	s.world.WithRenderer(s.looks())
-	return []render.Layer{
-		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
-		render.NewComposer(s.world.Renderer()),
-	}
+	m.picture = render.NewComposer(s.world.Renderer())
+	return []render.WorldRenderer{m.picture}
+}
+
+// screen is the world through the player's camera, on its backdrop.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+	)
 }
 
 // looks declares every look in one place, on the world's atlas: the walker by the twin of the
@@ -285,14 +294,3 @@ func spook(dst *render.Canvas, size int) {
 	dst.FillRect(r-4, r-3, 2, 3, eyeColor)
 	dst.FillRect(r+2, r-3, 2, 3, eyeColor)
 }
-
-// Viewports are where the world is shown: the local player's view.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -26,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -106,6 +105,7 @@ type arena struct {
 
 	players *players.Plugin
 	cameras *cameras.Plugin
+	player  *players.Player // the one at the keyboard
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -142,7 +142,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	return s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{})).Bind(s.players.Defaults()...)
+	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	return s.player.Bind(s.players.Defaults()...)
 }
 
 func (s *arena) defineEffects() {
@@ -155,7 +156,8 @@ func (s *arena) defineRules() {
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&mainScene{arena: s, tps: ctx.TPS()}}
+	m := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -211,13 +213,10 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
-	tps   *game.TPS
+	arena   *arena
+	tps     *game.TPS
+	picture *render.Composer // the world, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: a palette of the bodies' colours — the one past entityColors is the
 // hit's overlay — and the backdrop.
@@ -235,7 +234,8 @@ var (
 	backgroundColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 
 	atlas := s.world.NewAtlas()
@@ -254,24 +254,17 @@ func (m *mainScene) Layers() []render.Layer {
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
+	m.picture = render.NewComposer(s.world.Renderer())
+	return []render.WorldRenderer{m.picture}
+}
+
+// screen is the world through the player's camera, on its backdrop, a telemetry line over it.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
-	return []render.Layer{
-		render.NewCachedRenderer(
-			render.SolidBackground{Color: backgroundColor},
-			ScreenWidth, ScreenHeight,
-		),
-		render.NewComposer(s.world.Renderer()),
-		render.NewTelemetryRenderer(&m.tps.Ticks, entityCount).With(s.collisionStats.Reporter(&m.tps.Ticks)),
-	}
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, entityCount).With(s.collisionStats.Reporter(&m.tps.Ticks))),
+	)
 }
-
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

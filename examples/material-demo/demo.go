@@ -31,6 +31,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -163,7 +164,8 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}}
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) layOut() {
@@ -186,12 +188,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
+	arena   *arena
+	picture *render.Composer // the world, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: the meadow and the calmed ward's ash.
 var (
@@ -199,7 +198,8 @@ var (
 	ashColor   = color.RGBA{R: 120, G: 115, B: 110, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
 	calm := s.world.Effects().Named(CalmEf)
@@ -215,15 +215,12 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer())}
+	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer())
+	return []render.WorldRenderer{m.picture}
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through the player's camera.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

@@ -37,6 +37,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -175,7 +176,7 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.world.Effects().Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its Layers
+	s.world.Effects().Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its pictures
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
@@ -210,7 +211,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -277,12 +278,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
+	arena   *arena
+	picture *render.Composer // the world, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: the units, the shots, the wounds' pale and the burst's spark, the ground.
 var (
@@ -300,7 +298,8 @@ var (
 	lowWallColor  = color.RGBA{R: 150, G: 150, B: 160, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
@@ -344,16 +343,12 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.WorldRenderer{m.picture}
 }
 
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through the player's camera.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

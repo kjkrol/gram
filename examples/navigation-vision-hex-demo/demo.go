@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -34,6 +33,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 // The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates — see
@@ -158,7 +158,7 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
@@ -277,14 +277,12 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
+	arena   *arena
+	picture *render.Composer // the world, as the scene shows it
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
@@ -311,19 +309,15 @@ func (m *mainScene) Layers() []render.Layer {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	m.picture = render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.WorldRenderer{m.picture}
 }
 
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through the player's camera.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
 
 const (
 	wallCol = 10

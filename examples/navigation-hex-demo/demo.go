@@ -29,6 +29,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 // The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates: every row
@@ -147,7 +148,7 @@ func (s *arena) defineScenes() []game.Scene {
 		}},
 	}
 	s.players.OwnKeys(main.keys)
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineCells() {
@@ -230,13 +231,10 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
-	keys  players.SceneKeys
+	arena   *arena
+	keys    players.SceneKeys
+	picture *render.Composer // the world, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: the two bands and the ground.
 var (
@@ -247,7 +245,8 @@ var (
 	roadColor  = color.RGBA{R: 150, G: 130, B: 80, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
@@ -269,19 +268,15 @@ func (m *mainScene) Layers() []render.Layer {
 
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.WorldRenderer{m.picture}
 }
 
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through the player's camera.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
 
 const (
 	// hexSprite is the texture side for a hex sprite: the hex's height, so nothing is upscaled.

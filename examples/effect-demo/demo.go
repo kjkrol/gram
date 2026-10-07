@@ -30,6 +30,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -222,7 +223,7 @@ func (s *arena) defineKinds() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 // The lake: where the water lies, and where the boat sails.
@@ -271,12 +272,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena *arena
+	arena   *arena
+	picture *render.Composer // the world, as the scene shows it
 }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
 
 // The scene's colours: the units, each with its look under frozen, and the ground with what
 // covers it.
@@ -293,7 +291,8 @@ var (
 	iceColor          = color.RGBA{R: 170, G: 215, B: 240, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// pictures dresses the world and hands its picture.
+func (m *mainScene) pictures() []render.WorldRenderer {
 	s := m.arena
 
 	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
@@ -326,15 +325,12 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return []render.WorldRenderer{m.picture}
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through the player's camera.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
