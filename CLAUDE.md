@@ -354,38 +354,46 @@ own system: `Turn{Camera,
 Angle}` (Q/E held, `TurnStep` 2° a tick), `Tilt{Camera, Angle}` (R/F held, 1° a tick; the
 projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scaling the ground down
 the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
-`shoulder`·cos(pitch) of the screen below the middle), `LookOut{Camera}` (V given `WithSelection`
-and `Config.Perspective`: rides in the selected unit, first person — the camera a `camera.Rider`,
-bindings `In(camera.FirstPerson)` fire: W/S/A/D `Drive` (W with Shift `Drive.Sprint`, read from the
-`KeyHeld` context's `Mods.Shift`: `steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the
-world's step cap still holding; the climate's Shift+W holds `In(camera.Free)` only), the mouse
-`Look` (`control.CursorMove`, cursor captured by players; across turns the view and the unit via
+`shoulder`·cos(pitch) of the screen below the middle), `Ride{Camera}` (V, since 2026-10-07: takes
+the camera closer round the entity it is fastened to — the players' `Follow`, C, fastens it
+`camera.Centred` over the one selected unit — `Centred` → `Behind` → `Inside` given
+`Config.Perspective` → `Centred`; a camera fastened to nothing stays. **The fastening is the
+camera's** (`camera.Fastening{Entity, How}` on every `camera.Fastenable` camera, `basicCamera`
+and `viewCamera`; `camera.How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`,
+`HowOf(cam)`; it replaced `camera.Mode`/`ModeOf`/`Rider`, the same fact under another name) and
+whoever keeps the camera there reads it every tick: players keep `Centred` (`CenterOn` at the
+altitude; `Pan` lets go, `Zoom` keeps), the topography's camera system `Behind` — centred, turned
+with an ease of `followEase` until its `Vel.Dir` runs up the screen, held through other
+selections, orders, pans and turns — and `Inside` — first person, the eye where the unit's
+`world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle`
+(`perspCamera.across`; the camera's own field without one), the mouse `Look`
+(`control.CursorMove`, cursor captured by players; across turns the view and the unit via
 `steering.Driven.Face`, up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
 −sin(pitch): the drive system asks a flyer for the run (`Driven.Slope`) along the ground, and the
 altitude system, the one writer of heights, holds a flown flyer's `Z.Altitude` over sea level,
 adds the rise over the run it made this step, keeps it `Mover.Clearance` over the ground and under
 `Mover.Ceiling`, and writes `Lift` back so that let go it keeps its height over the ground), V/Tab
-leave back to the view it was in; the eye where the unit's `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle` (`perspCamera.across`; the camera's own field without one); Q/E and the free camera's WASD hold `In(camera.Free)` only), `Follow{Camera}` (V
-without the perspective, bound only `WithSelection(sel)`, which hands it the Selected tag as
-navigation takes it: fastens the camera
-behind the one selected unit — centred, turned with an ease of `followEase` until its `Vel.Dir`
-runs up the screen — held through other selections, orders, pans and turns until V again or the
-unit is gone), `Drive{Camera, Ahead, Turn, Sprint}` (arrows: the camera system attaches `steering.Driven` on
-V, writes the keys every tick, writes a stop and detaches it on letting go; navigation's
-`driveSystem`, after the orders, turns `driveTurn` a tick, walks on while the cell just ahead
-admits the domain and the keeping lets it on — the occupancy under `CellSpacing`, nobody touched
-just ahead under `BodySpacing` — stops dead otherwise, removes a MoveOrder a hand touches and
-keeps Cell, occupancy and the `Entered` marker with the unit) and `Raise`/`Lower`/`Level` (=, -, L-drag).
-Commands carry `control.Context.Camera`, as `selection.Follow` does, so the plugin never knows
-players; which camera is fastened to what is the camera system's state, cameras being no entities.
+over the unit again. The camera system reconciles its own `following` (ease, pitch, aim) with
+every camera the control's `Maker` made (`Control.Maker` notes them): an entry for a camera
+fastened `Behind`/`Inside`, let go when the fastening changes or the entity is gone (then
+`Fasten(Fastening{})`); it writes only the eye's part of a `Driven` — `Face` while aiming, `Flown`,
+`Climb` — and clears it on letting go. Bindings `.In(camera.Inside)` fire riding: the players'
+W/S/A/D `Drive` (W with Shift `Drive.Sprint`, read from the `KeyHeld` context's `Mods.Shift`:
+`steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the world's step cap still holding), the mouse
+`Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the players' WASD pan,
+the climate's Shift+W; the arrows `.In(camera.Behind)` drive the followed unit. How a unit is
+driven by hand is navigation's (`steering.Driven` from the players' hand) and
+`Raise`/`Lower`/`Level` (=, -, L-drag) the relief's. Commands carry `control.Context.Camera`, so
+the plugin never knows players nor selection (`WithSelection`, `theSelected` and the topography's
+`Follow`, `Drive`, `LookOut` went on 2026-10-07); cameras are no entities.
 The topography's parts are packages none of which imports the plugin (it composes them, registers
 their systems, gathers their queues and keys, hands them its sky through `liveSky`): `relief`
 (heights, climbing, shaping, the heights' entity, altitudes), `painter` (the board's Dressing in
 relief, the sheets, `Style`), `water` (the materials, `Shore`, the water layers), `terrain`,
 `hexes`, `billboards` (the world's Look, the entities' shadows), `cameras` (the views and their
-control; `camera.Rider`, `camera.Eyed` and `Projection().Sorts()` are what the billboards ask of
+control; `camera.HowOf`, `camera.Eyed` and `Projection().Sorts()` are what the billboards ask of
 them) and `internal/vec`.
-selection must not import topography, even in tests (topography imports selection). Everything
+selection must not import topography, even in tests. Everything
 that is the view and nothing else — the projection, the camera, the billboard, the blocks and
 their shading — is private to the plugin; `camera` has the contract and `TopDown`, `internal/camera`
 the plain top-down camera of a world without a topography. `world.Z`, relief and `Heights` are not the view but the world's heights: sight
@@ -997,11 +1005,19 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
   user asked for it to learn by striking. Pushes are collision's and keep units on their ground
   whatever the rules (see collision).
-  A `Drive{Ahead, Turn}` command steers every `Selected` entity the player owns by hand for the tick
-  (`DriveBindings()`: W/S/A/D held, bound by a game in place of the camera's keys; several a tick add
-  up): the `moveCommandSystem` writes its `steering.Driven` and the marker `Driving`, a tick without
-  a Drive writes a zero Driven (braking) and the `driveSystem` takes the Driven off once the unit
-  stands or has an order, so it steps aside again; a Driven navigation did not give is left alone.
+  **Driving by hand is the players' hand carried out by navigation** (since 2026-10-07, the user's
+  word: navigation steers each unit by what its owner drives with): `players.Drive{Ahead, Turn,
+  Way, Sprint}` summed a tick into the player's `players.Hand` (`Plugin.Hand(by)`, `OwnHand(e)` for
+  an entity's own; drained lazily at the first reader after the players' pass, so navigation reads
+  it a tick after the key as before), and navigation, given the players (`WithPlayers(p)`, after
+  players is made, before Use — players takes navigation as a handler, so the constructors are in a
+  cycle), has its `moveCommandSystem.drive` put the hand on each unit — the owner's whose camera is
+  fastened to it (`camera.Fastenable`), the owner's while the unit is `Selected` with that camera
+  fastened to nothing, or its own — writing `steering.Driven`'s `Ahead`/`Turn`/`Sprint`, `Face` from
+  `Way` (cleared with the hand unless a camera rides the unit, `Behind`/`Inside`, which writes
+  `Face` itself) and the marker `Driving`; a tick without a hand zeroes those (braking) and the
+  `driveSystem` takes the Driven off once the unit stands or has an order, so it steps aside again;
+  a Driven navigation did not give is left alone. Without `WithPlayers` nobody drives by hand.
   A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
   by an entity for itself (`Order`), that entity alone (`LookAt` too); a
   `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
@@ -1034,8 +1050,10 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `RequestSprint`, `RequestBack`, `Steerable`). `steering.System` (`steering.NewSystem()`),
   registered by the world in every simulation step before movement: turns `Vel.Dir` towards
   `Want` by at most `TurnRate` a tick after `Reflex` ticks, writes `Vel.Value` from the profile;
-  `Halted` holds speed at 0 and the heading. `steering.Driven{Ahead, Turn, Face}` is an entity steered by hand
-  (the topography's camera system writes it, navigation's `driveSystem` carries it out). Imports
+  `Halted` holds speed at 0 and the heading. `steering.Driven{Ahead, Turn, Face, Sprint, Flown,
+  Climb}` is an entity steered by hand, two writers of different fields: navigation the hand's
+  (`Ahead`, `Turn`, `Sprint`, `Face` from a `Way`), the topography's camera system the eye's
+  (`Face` while aiming, `Flown`, `Climb`); navigation's `driveSystem` carries it out. Imports
   `entity`, not `world`.
 - **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`; the view system refreshes it),
   `view.EntitySet` (a bit set by entity index), `view.New(bounds)` and `view.System`
@@ -1131,12 +1149,11 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   the left button held a `Marquee` (the box being dragged, drawn by its renderer in the dragging
   camera's view until the `Select` that ends it), the commands about effects for its own targets (`Plugin.Selected(roles...)`, the giving
   player's selected units, those playing a role named; `Plugin.Pointed()`, the entity drawn under
-  the cursor a key was pressed with, the nearest; `effectCommand`, unexported, is what they route to), and C a `Follow` — the third tag, `Followed`, on the one selected unit (none with several; C
-  again stops), which the `FollowSystem` keeps in the middle of the camera every tick
-  (`camera.Camera.CenterOn` at its altitude) until the player moves the camera by hand; zooming
-  keeps it. A `Select` hits and unselects only what the issuing player owns
+  the cursor a key was pressed with, the nearest; `effectCommand`, unexported, is what they route to). A `Select` hits and unselects only what the issuing player owns
   (`players/owner.Obeys` over the optional `tag.Tags[owner.Family]`), so one `Selected` tag
-  serves every player; `Follow` takes the issuer's one selected unit. Depends on `world` and the
+  serves every player; `Plugin.Chosen(by)` is the issuer's one selected unit — a
+  `players.Chooser`, whom the players' `Follow` (C) fastens the camera over (selection's own
+  `Follow`, `FollowSystem` and the tag `Followed` went on 2026-10-07). Depends on `world` and the
   leaf `players/owner`.
 - **`players/owner`** — whose a unit is, a leaf importing only `entity/tag` and `control`: `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
@@ -1177,9 +1194,20 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
   players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
-  on a camera carry the player's (`selection.Select.Camera`, `Follow{Camera}`). `Player.Bind` refuses two on one
-  trigger holding in one camera mode (`control.Binding.In`, `camera.ModeOf`; only bindings holding
-  in the camera's mode fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
+  on a camera carry the player's (`selection.Select.Camera`, `topography.Ride{Camera}`). `Player.Bind` refuses two on one
+  trigger holding in one fastening of the camera (`control.Binding.In(hows...)`, `camera.HowOf`;
+  only bindings holding in the camera's `How` fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
+  **Following and driving are the players'** (since 2026-10-07): `players.Follow{}` (C, bound given a
+  `players.Chooser` among the handlers — the selection) fastens the issuer's camera
+  `camera.Centred` over the one unit it has chosen, or lets go; told by an entity as it is made
+  (`Told(players.Give{To}, players.Follow{})`, carried out after its Give in the same pass) its
+  owner's camera is fastened over it from its first step; the `followSystem` keeps every
+  `Centred` camera on its entity (`CenterOn` at its altitude), letting go of one gone; `Pan` lets
+  go. `players.Drive{Ahead, Turn, Way, Sprint}` is the hand (`Hand`, `OwnHand`; see navigation);
+  `DriveBindings()` W/S/A/D `In(camera.Outside)` for a game to bind in place of the camera's own
+  keys (ember-demo, bullet-demo), `DriveKeys(up, down, left, right)` four keys into a `Way`
+  (split-screen: WSAD the red, the arrows the blue), and the `DefaultBindings` carry W/S/A/D
+  `In(camera.Inside)` and the arrows `In(camera.Behind)` for the unit the camera is fastened to.
   The Scene hands input to `players.Plugin.Handle(events, runtime, composition)` and nothing
   else: the bindings turn it into commands, `players.Quit` (Shift+Esc) and `players.ShowShortcuts`
   (K) — default keys of the players' own, listed under "Game" — are carried out there, having the

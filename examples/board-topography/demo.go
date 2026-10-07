@@ -141,7 +141,6 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Perspective: true,
 		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	s.selection = selection.NewPlugin(s.world)
-	s.topography.WithSelection(s.selection)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
@@ -170,6 +169,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	})
 	s.topography.WithAtmosphere(s.atmosphere)
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+	s.nav.WithPlayers(s.players)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.vision, s.atmosphere, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err

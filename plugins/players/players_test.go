@@ -371,21 +371,28 @@ type riding struct {
 	on bool
 }
 
-func (r *riding) FirstPerson() bool { return r.on }
+func (r *riding) Fasten(camera.Fastening) {}
 
-// One key may do one thing while the camera is free and another while it rides in an entity: only
-// the binding holding in the camera's mode fires, and two holding in one mode are refused.
-func TestBind_OneKeyDoesWhatTheCamerasModeSays(t *testing.T) {
+func (r *riding) Fastening() camera.Fastening {
+	if r.on {
+		return camera.Fastening{Entity: 1, How: camera.Inside}
+	}
+	return camera.Fastening{}
+}
+
+// One key may do one thing while the camera is loose and another while it rides in an entity: only
+// the binding holding in the camera's How fires, and two holding in one How are refused.
+func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	r := newRig(t)
 	players.CaptureWith(r.p, func(bool) {})
 	cam := &riding{Camera: r.local.Camera}
 	r.local.Camera = cam
 	r.bind(
-		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Free),
-		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.FirstPerson),
+		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
+		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
 	)
 	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
-		t.Error("a binding on A in every mode beside ones in each was accepted")
+		t.Error("a binding on A in every How beside ones in each was accepted")
 	}
 	press := func() []control.Issued[order] {
 		ev := &control.InputEvents{}
@@ -414,7 +421,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r.local.Camera = cam
 	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
-	}).In(camera.FirstPerson))
+	}).In(camera.Inside))
 	move := func(x, y int) []control.Issued[order] {
 		ev := &control.InputEvents{MousePos: geom.NewVec(float64(x), float64(y)), CursorDelta: geom.NewVec(7, 0)}
 		r.handle(ev)

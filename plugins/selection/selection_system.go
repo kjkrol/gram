@@ -106,7 +106,7 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 }
 
 // permit makes the entity that asked selectable or not — a player's selected units, when a player
-// asked: Selectable on, with Selected when asked, or off with Selected and Followed. An entity without the family gets it.
+// asked: Selectable on, with Selected when asked, or off with Selected. An entity without the family gets it.
 func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UID64, byEntity, on, selected bool) {
 	set := func(m *tag.Tags[Family]) {
 		if on {
@@ -115,7 +115,7 @@ func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UI
 				*m = m.With(s.tags.Selected)
 			}
 		} else {
-			*m = m.Without(s.tags.Selectable).Without(s.tags.Selected).Without(s.tags.Followed)
+			*m = m.Without(s.tags.Selectable).Without(s.tags.Selected)
 		}
 	}
 	if !byEntity {
@@ -260,6 +260,22 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 }
 
 // ownersAt is the owners of the i-th entity of a chunk whose owners are owners; none without them.
+// chosen is the one Selected unit player by owns; false with none, or several.
+func (s *SelectionSystem) chosen(by control.PlayerID) (uid.UID64, bool) {
+	var one uid.UID64
+	n := 0
+	for s.query.All(); s.query.Next(); {
+		cur := s.query.Cursor()
+		owners := s.owners.Slice(cur)
+		for i, m := range s.marks.Slice(cur) {
+			if m.Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
+				one, n = cur.IDs[i], n+1
+			}
+		}
+	}
+	return one, n == 1
+}
+
 func ownersAt(owners []tag.Tags[owner.Family], i int) tag.Tags[owner.Family] {
 	if owners == nil {
 		return 0

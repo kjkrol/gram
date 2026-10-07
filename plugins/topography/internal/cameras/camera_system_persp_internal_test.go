@@ -31,24 +31,18 @@ func (r *followRig) ridged(x0, x1 float64) *relief.Relief {
 	return relief
 }
 
-func (r *followRig) pressShiftV() {
-	r.lookOuts.Add(control.Nobody, LookOut{Camera: r.cam})
-	r.ecs.Tick(time.Second / 60)
-}
-
 func TestFollow_InPerspectiveTheEyeLooksDownSteeplyEnoughToSeeOverTheGround(t *testing.T) {
 	r := newFollowRig(t)
 	r.cam.next() // isometric to perspective
 	if !r.cam.inPersp {
 		t.Fatal("the rig's camera is not in perspective")
 	}
-	r.walk(300, 300, 1, 0) // east: the eye stands west of the walker
-	r.selectOnly(r.walkers[0])
+	r.walk(300, 300, 1, 0)       // east: the eye stands west of the walker
 	relief := r.ridged(160, 192) // west of the walker, sloping down to 224
 	want := r.cam.Pitch()
-	r.pressV()
+	r.behind()
 	if len(r.sys.following) != 1 {
-		t.Fatalf("after V: fastened %d, want 1", len(r.sys.following))
+		t.Fatalf("fastened Behind: kept %d, want 1", len(r.sys.following))
 	}
 	got := r.cam.Pitch()
 	if got <= want+0.5 || got >= maxPitch {
@@ -78,9 +72,8 @@ func TestFollow_InPerspectiveOverLevelGroundThePitchIsThePlayers(t *testing.T) {
 	r.cam.next()
 	r.ridged(1000, 1001) // a relief with no ridge in the way
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
 	want := r.cam.Pitch()
-	r.pressV()
+	r.behind()
 	r.ecs.Tick(time.Second)
 	if p := r.cam.Pitch(); !near(p, want) {
 		t.Errorf("over level ground a second on the eye looks down at %v, want %v still", p, want)
@@ -96,15 +89,14 @@ func TestFollow_InPerspectiveOverLevelGroundThePitchIsThePlayers(t *testing.T) {
 	}
 }
 
-func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
+func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
 	iso := r.cam.iso.Zoom()
-	r.pressShiftV()
-	if f := r.sys.fastened(r.cam); f == nil || !f.inside || !r.cam.FirstPerson() || contract.ModeOf(r.cam) != contract.FirstPerson {
-		t.Fatalf("after LookOut: fastened %v, first person %v; want riding in the walker", f != nil, r.cam.FirstPerson())
+	r.inside()
+	if f := r.sys.fastened(r.cam); f == nil || !f.inside || !r.cam.insideUnit() || contract.HowOf(r.cam) != contract.Inside {
+		t.Fatalf("fastened Inside: kept %v, first person %v; want riding in the walker", f != nil, r.cam.insideUnit())
 	}
 	if e := r.cam.persp.eye(); !near(e[0], 305) || !near(e[1], 305) || !near(e[2], 7) {
 		t.Errorf("the eye is at %v, want on the walker's top at (305, 305, 7): its centre, 5 up and 2 high (world.Z.Top)", e)
@@ -124,20 +116,24 @@ func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if !near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
 		t.Errorf("Turn inside took the heading to %v, want %v still", r.cam.Heading(), wrapAngle(behind(0, 1)))
 	}
-	// Drive steers the walker
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1, Turn: -1})
+	// the hand steers the walker: the view leaves the hand's part of its Driven alone
+	r.hand(r.walkers[0], 1, -1)
 	r.ecs.Tick(time.Second / 60)
-	if d, ok := r.drivenOf(r.walkers[0]); !ok || d.Ahead != 1 || d.Turn != -1 {
-		t.Errorf("driven by hand the walker is driven %+v, want on and turning left", d)
+	if d, ok := r.drivenOf(r.walkers[0]); !ok || d.Ahead != 1 || d.Turn != -1 || !d.Flown {
+		t.Errorf("driven by hand the walker is driven %+v, want on and turning left, flown from inside", d)
 	}
+	r.hand(r.walkers[0], 0, 0)
 	r.cam.Tilt(-1)
 	if r.cam.Pitch() >= 0 {
 		t.Errorf("raised inside the pitch is %v, want negative: the sky", r.cam.Pitch())
 	}
-	// LookOut again: back to the isometric view it was in, over the walker, as it was
-	r.pressShiftV()
-	if r.sys.fastened(r.cam) != nil || r.cam.FirstPerson() || r.cam.inPersp {
-		t.Fatalf("after LookOut again: fastened %v, first person %v, in perspective %v; want back in the isometric view", r.sys.fastened(r.cam) != nil, r.cam.FirstPerson(), r.cam.inPersp)
+	// V again: back to the isometric view it was in, over the walker, as it was
+	r.pressV()
+	if r.sys.fastened(r.cam) != nil || r.cam.insideUnit() || r.cam.inPersp || contract.HowOf(r.cam) != contract.Centred {
+		t.Fatalf("after V again: kept %v, first person %v, in perspective %v, fastened %+v; want back in the isometric view, over the walker", r.sys.fastened(r.cam) != nil, r.cam.insideUnit(), r.cam.inPersp, r.cam.Fastening())
+	}
+	if d, _ := r.drivenOf(r.walkers[0]); d.Flown || d.Face != (geom.Vec{}) {
+		t.Errorf("out of the walker, it is driven %+v, want the eye's part of its Driven cleared", d)
 	}
 	if sx, sy := r.cam.Project(405, 305, 0); !near(sx, 200) || !near(sy, 150) || !near(r.cam.Zoom(), iso) {
 		t.Errorf("back, the walker's ground is drawn at (%v, %v) at zoom %v, want the middle at %v", sx, sy, r.cam.Zoom(), iso)
@@ -145,11 +141,11 @@ func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	// from the perspective, Tab comes out back to the perspective as it stood
 	r.cam.next()
 	pose := r.cam.persp.pose()
-	r.pressShiftV()
+	r.inside()
 	r.views.Add(control.Nobody, View{Camera: r.cam})
 	r.ecs.Tick(time.Second / 60)
-	if r.cam.FirstPerson() || !r.cam.inPersp || r.sys.fastened(r.cam) != nil {
-		t.Fatalf("Tab while riding: first person %v, in perspective %v; want back in the free perspective", r.cam.FirstPerson(), r.cam.inPersp)
+	if r.cam.insideUnit() || !r.cam.inPersp || r.sys.fastened(r.cam) != nil || contract.HowOf(r.cam) != contract.Centred {
+		t.Fatalf("Tab while riding: first person %v, in perspective %v, fastened %+v; want back in the free perspective, over the walker", r.cam.insideUnit(), r.cam.inPersp, r.cam.Fastening())
 	}
 	if p := r.cam.persp.pose(); p.alt != pose.alt || p.heading != pose.heading || p.pitch != pose.pitch || p.narrow != pose.narrow {
 		t.Errorf("back, the free eye stands %+v, want as it stood %+v, moved over the walker only", p, pose)
@@ -157,24 +153,22 @@ func TestLookOut_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if sx, sy := r.cam.Project(405, 305, 0); !near(sx, 200) || !near(sy, 150) {
 		t.Errorf("back, the walker's ground is drawn at (%v, %v), want the middle", sx, sy)
 	}
-	// nothing selected: nothing happens
-	r.selectOnly()
+	// a walker that is gone: the eye stays out, the camera over nothing
 	eye := r.cam.persp.eye()
-	r.pressShiftV()
-	if r.sys.fastened(r.cam) != nil || r.cam.persp.eye() != eye {
-		t.Error("with nothing selected LookOut fastened the camera or moved the eye")
+	r.fasten(999, contract.Inside)
+	if r.sys.fastened(r.cam) != nil || r.cam.persp.eye() != eye || r.cam.Fastening() != (contract.Fastening{}) {
+		t.Error("fastened Inside a walker that is gone, the view kept the camera or moved the eye")
 	}
 }
 
-func TestLookOut_TheRiddenUnitIsNotDrawn(t *testing.T) {
+func TestInside_TheRiddenUnitIsNotDrawn(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressShiftV()
+	r.inside()
 	if !ridden(r.cam, 300, 300, 310, 310) || ridden(r.cam, 400, 300, 410, 310) {
 		t.Error("riding in the walker at (300, 300), its box is not the one ridden, or another is")
 	}
-	r.pressShiftV()
+	r.pressV()
 	if ridden(r.cam, 300, 300, 310, 310) {
 		t.Error("let out, the walker's box is still ridden")
 	}
@@ -185,8 +179,7 @@ func TestLookOut_TheRiddenUnitIsNotDrawn(t *testing.T) {
 func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressShiftV()
+	r.inside()
 	east := r.cam.Heading()
 	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 200, Dy: -100})
 	r.ecs.Tick(time.Second / 60)
@@ -208,11 +201,6 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	if rise := math.Sin(100 * LookStep); math.Abs(d.Climb-rise) > 1e-4 {
 		t.Errorf("the head raised, the walker is steered at a rise of %v, want the look's %v", d.Climb, rise)
 	}
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1, Sprint: true})
-	r.ecs.Tick(time.Second / 60)
-	if d, _ := r.drivenOf(r.walkers[0]); d.Ahead != 1 || !d.Sprint {
-		t.Errorf("W with Shift drives the walker %+v, want on, sprinting", d)
-	}
 	// the walker still faces east: the view stays where the eye looks, the walker turning to it
 	r.ecs.Tick(time.Second / 60)
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(float32(want.X), float32(want.Y)))) {
@@ -232,13 +220,13 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	}
 	// A or D take over from the mouse
 	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 300})
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Turn: -1})
+	r.hand(r.walkers[0], 0, -1)
 	r.ecs.Tick(time.Second / 60)
 	if d, _ := r.drivenOf(r.walkers[0]); d.Face != (geom.Vec{}) || d.Turn != -1 {
 		t.Errorf("the mouse and A together drive the walker %+v, want A's turn alone", d)
 	}
-	// free, the mouse does nothing
-	r.pressShiftV()
+	// out, the mouse does nothing
+	r.pressV()
 	h, p := r.cam.Heading(), r.cam.Pitch()
 	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 300, Dy: 50})
 	r.ecs.Tick(time.Second / 60)
@@ -249,14 +237,13 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 
 // An eye riding in a walker never goes under the top of the cell it stands in as it is drawn: on
 // a cell whose kind stands 20 tall it looks from over that top.
-func TestLookOut_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
+func TestInside_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
 	raised := func(p geom.Vec) float64 { return 20 } // a kind 20 tall on every cell
 	r.sys.topAt = raised
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressShiftV()
+	r.inside()
 	if e := r.cam.persp.eye(); e[2] < 20 || e[2] > 21 {
 		t.Errorf("riding in a walker on cells 20 tall the eye stands %v up, want just over their top", e[2])
 	}
@@ -270,7 +257,7 @@ func TestLookOut_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 // ridden reports whether cam rides in the unit whose box is x0..x1, y0..y1, as the topography's
 // look asks it through the camera's contracts: first person, the eye over the box.
 func ridden(cam contract.Camera, x0, y0, x1, y1 float32) bool {
-	if r, ok := cam.(contract.Rider); !ok || !r.FirstPerson() {
+	if !cam.(*viewCamera).insideUnit() {
 		return false
 	}
 	x, y, _, ok := cam.(contract.Eyed).Eye()

@@ -43,8 +43,8 @@ func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
 		if b.Command() != reflect.TypeFor[ChangeWeather]() {
 			continue
 		}
-		if !b.Holds(camera.Free) || b.Holds(camera.FirstPerson) {
-			t.Errorf("Shift+W holds free %v, riding %v; want free only", b.Holds(camera.Free), b.Holds(camera.FirstPerson))
+		if !b.Holds(camera.Loose) || !b.Holds(camera.Centred) || b.Holds(camera.Inside) {
+			t.Errorf("Shift+W holds free %v, riding %v; want free only", b.Holds(camera.Loose), b.Holds(camera.Inside))
 		}
 		return
 	}

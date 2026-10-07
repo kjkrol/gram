@@ -7,10 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugins/players/owner"
-	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 	"github.com/kjkrol/gram/plugins/world"
@@ -21,40 +17,36 @@ import (
 var _ goke.System = (*cameraSystem)(nil)
 
 // cameraSystem carries out the view's commands on the cameras of this view, and every tick keeps
-// each fastened camera with its entity: behind it — centred on it at its altitude and turning,
-// eased, until the way it walks runs up the screen, in perspective looking down more steeply
-// where the ground between them would hide it — or inside it, the eye going with it and looking
-// the way it faces. Only Follow or LookOut given again, View for an eye inside, or the entity
-// gone, lets it go.
+// each camera fastened Behind or Inside its entity (camera.Fastening, which the players' Follow
+// and Ride set): behind it — centred on it at its altitude and turning, eased, until the way it
+// walks runs up the screen, in perspective looking down more steeply where the ground between
+// them would hide it — or inside it, the eye going with it and looking the way it faces. A
+// fastening changed or let go, or the entity gone, ends it; a camera fastened Centred is the
+// players' to keep.
 type cameraSystem struct {
 	orders Orders
 	relief *relief.Relief // the ground between a fastened eye and its entity; nil, level
 	// topAt is the top of the cell under a point as it is drawn — the ground and its kind's
 	// Height — which an eye riding in an entity never goes under; nil, the ground
-	topAt     func(geom.Vec) float64
-	selected  tag.Tag[selection.Family]
-	selecting bool // the selection was given: Follow has a unit to fasten to
+	topAt       func(geom.Vec) float64
+	perspective bool           // Ride reaches Inside
+	cams        *[]*viewCamera // every camera of this view, as the Maker made them
 
-	query    *goke.Query
-	base     goke.Comp[world.Base]
-	z        goke.OptComp[world.Z]
-	eye      goke.OptComp[world.Eye]
-	marks    goke.OptComp[tag.Tags[selection.Family]]
-	owners   goke.OptComp[tag.Tags[owner.Family]]
-	driven   goke.OptComp[steering.Driven]
-	drivenID goke.CompID
+	query  *goke.Query
+	base   goke.Comp[world.Base]
+	z      goke.OptComp[world.Z]
+	eye    goke.OptComp[world.Eye]
+	driven goke.OptComp[steering.Driven]
 
 	following []following
-	released  []uid.UID64 // let go last tick, stopped by now: their Driven comes off
 }
 
-// following is one camera fastened to one entity — behind it, or inside it — and how its entity
-// is driven this tick; behind it in perspective, how steeply the player wants to look down
-// (wantPitch, read after tilts tilts) and how steeply the eye looks (appliedPitch).
+// following is one camera fastened to one entity — behind it, or inside it — as the system keeps
+// it; behind it in perspective, how steeply the player wants to look down (wantPitch, read after
+// tilts tilts) and how steeply the eye looks (appliedPitch).
 type following struct {
 	cam    *viewCamera
 	target uid.UID64
-	drive  steering.Driven
 	inside bool
 	// inside: the way the eye looks, the entity turning to face it, while aiming — till it does
 	aim    geom.Vec
@@ -77,19 +69,14 @@ const followEase = 250 * time.Millisecond
 const clearStep = 5 * math.Pi / 180
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.eye).Optional(&s.marks).Optional(&s.owners).Optional(&s.driven).Build()
-	s.drivenID = si.RegComp[steering.Driven]()
+	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Optional(&s.eye).Optional(&s.driven).Build()
 }
 
-func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	for _, id := range s.released {
-		cb.RemoveCompOne(id, s.drivenID)
-	}
-	s.released = s.released[:0]
+func (s *cameraSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	s.orders.Views(func(c camera.Camera) {
 		if cam, ok := c.(*viewCamera); ok {
-			if f := s.fastened(cam); f != nil && f.inside { // out of the unit, back to the view it was in
-				s.letGo(cam)
+			if f := cam.Fastening(); f.How == camera.Inside { // out of the unit, over it still
+				cam.Fasten(camera.Fastening{Entity: f.Entity, How: camera.Centred})
 				return
 			}
 			cam.next()
@@ -117,37 +104,9 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			cam.LookAt(x, y, z)
 		}
 	})
-	s.orders.LookOuts(func(c camera.Camera, by control.PlayerID) {
+	s.orders.Rides(func(c camera.Camera) {
 		if cam, ok := c.(*viewCamera); ok {
-			s.lookOut(cb, cam, by)
-		}
-	})
-	s.orders.Follows(func(c camera.Camera, by control.PlayerID) {
-		cam, ok := c.(*viewCamera)
-		if !ok {
-			return
-		}
-		if f := s.fastened(cam); f != nil {
-			inside := f.inside
-			s.letGo(cam)
-			if !inside {
-				return
-			}
-		}
-		if id, ok := s.theSelected(by); ok {
-			s.fasten(cb, cam, id, false)
-		}
-	})
-	for k := range s.following {
-		s.following[k].drive = steering.Driven{}
-	}
-	s.orders.Drives(func(c camera.Camera, ahead, turn int8, sprint bool) {
-		for k := range s.following {
-			if f := &s.following[k]; f.cam == c {
-				f.drive.Ahead = max(min(f.drive.Ahead+ahead, 1), -1)
-				f.drive.Turn = max(min(f.drive.Turn+turn, 1), -1)
-				f.drive.Sprint = f.drive.Sprint || sprint
-			}
+			s.ride(cam)
 		}
 	})
 	s.orders.Looks(func(c camera.Camera, dx, dy float32) {
@@ -157,6 +116,7 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		}
 	})
+	s.reconcile()
 	kept := s.following[:0]
 	var gone []*viewCamera // their entities gone: nothing to stop, the cameras on their own again
 	for _, f := range s.following {
@@ -169,10 +129,52 @@ func (s *cameraSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.following = kept
 	for _, cam := range gone {
 		cam.leaveInside()
+		cam.Fasten(camera.Fastening{})
 	}
 }
 
-// fastened is what cam is fastened to, nil for nothing.
+// ride takes cam closer round the entity it is fastened to: Centred behind it, Behind inside it
+// where the game reaches the perspective — else over it again — and Inside over it again; a
+// camera fastened to nothing stays as it is.
+func (s *cameraSystem) ride(cam *viewCamera) {
+	f := cam.Fastening()
+	switch f.How {
+	case camera.Centred:
+		f.How = camera.Behind
+	case camera.Behind:
+		f.How = camera.Centred
+		if s.perspective {
+			f.How = camera.Inside
+		}
+	case camera.Inside:
+		f.How = camera.Centred
+	default:
+		return
+	}
+	cam.Fasten(f)
+}
+
+// reconcile brings what the system keeps in line with what the cameras say they are fastened to:
+// a camera fastened Behind or Inside without an entry gets one, an entry whose camera is fastened
+// otherwise — to nothing, Centred, another entity, the other way — is let go, and fastened anew
+// where the camera still says Behind or Inside.
+func (s *cameraSystem) reconcile() {
+	if s.cams == nil {
+		return
+	}
+	for _, cam := range *s.cams {
+		f := cam.Fastening()
+		want := f.How == camera.Behind || f.How == camera.Inside
+		if e := s.fastened(cam); e != nil && (!want || e.target != f.Entity || e.inside != (f.How == camera.Inside)) {
+			s.letGo(cam)
+		}
+		if want && s.fastened(cam) == nil {
+			s.fasten(cam, f.Entity, f.How == camera.Inside)
+		}
+	}
+}
+
+// fastened is what cam is fastened to as the system keeps it, nil for nothing.
 func (s *cameraSystem) fastened(cam *viewCamera) *following {
 	for i := range s.following {
 		if s.following[i].cam == cam {
@@ -182,26 +184,28 @@ func (s *cameraSystem) fastened(cam *viewCamera) *following {
 	return nil
 }
 
-// fasten fastens cam to id, behind it or inside it, driving it from now on.
-func (s *cameraSystem) fasten(cb *goke.CmdBuf, cam *viewCamera, id uid.UID64, inside bool) {
-	for i, r := range s.released { // fastened again before its Driven came off: it stays on
-		if r == id {
-			s.released = append(s.released[:i], s.released[i+1:]...)
-			break
-		}
+// fasten fastens cam to id, behind it or inside it: to an entity that is gone it is let go of
+// everything; an eye that cannot go inside stays over the entity, the camera fastened Centred
+// again.
+func (s *cameraSystem) fasten(cam *viewCamera, id uid.UID64, inside bool) {
+	if !s.query.Seek(id) {
+		cam.Fasten(camera.Fastening{})
+		return
 	}
-	cb.AddOne(id, s.drivenID, steering.Driven{})
+	if inside && !s.enter(cam, id) {
+		cam.Fasten(camera.Fastening{Entity: id, How: camera.Centred})
+		return
+	}
 	s.following = append(s.following, following{cam: cam, target: id, inside: inside})
 	s.keep(&s.following[len(s.following)-1], 0)
 }
 
-// letGo unfastens cam and reports whether it was fastened; its entity, no hand on it, brakes to a
-// stop and is no longer driven from the next tick, and an eye inside it comes out.
+// letGo ends the system's keeping of cam and reports whether it kept it: its entity's Driven
+// loses what the eye wrote — the look's Face, Flown, Climb — and an eye inside it comes out.
 func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
-			s.write(f.target, steering.Driven{})
-			s.released = append(s.released, f.target)
+			s.write(f.target, geom.Vec{}, false, 0)
 			s.following = append(s.following[:i], s.following[i+1:]...)
 			if f.inside {
 				cam.leaveInside()
@@ -212,57 +216,24 @@ func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	return false
 }
 
-// comeOut lets cam go when its eye is inside an entity: what puts the eye elsewhere does first.
+// comeOut lets cam go of everything when its eye is inside an entity: what puts the eye
+// elsewhere does first.
 func (s *cameraSystem) comeOut(cam *viewCamera) {
 	if f := s.fastened(cam); f != nil && f.inside {
 		s.letGo(cam)
+		cam.Fasten(camera.Fastening{})
 	}
 }
 
-// write sets how id is driven, when it carries a Driven yet.
-func (s *cameraSystem) write(id uid.UID64, in steering.Driven) {
-	s.query.All()
-	for s.query.Next() {
-		cur := s.query.Cursor()
-		drivens := s.driven.Slice(cur)
-		if drivens == nil {
-			continue
-		}
-		for i, got := range cur.IDs {
-			if got == id {
-				drivens[i] = in
-				return
-			}
-		}
+// write sets the eye's part of how id is driven — the way it is to face, whether it is flown
+// from inside and how steeply — when it carries a Driven; the hand's part is navigation's.
+func (s *cameraSystem) write(id uid.UID64, face geom.Vec, flown bool, climb float64) {
+	if !s.query.Seek(id) {
+		return
 	}
-}
-
-// theSelected is the one Selected entity player by owns (owner.Obeys); false with none, or
-// several.
-func (s *cameraSystem) theSelected(by control.PlayerID) (uid.UID64, bool) {
-	if !s.selecting {
-		return 0, false
+	if d := s.driven.At(s.query.Cursor()); d != nil {
+		d.Face, d.Flown, d.Climb = face, flown, climb
 	}
-	var one uid.UID64
-	n := 0
-	s.query.All()
-	for s.query.Next() {
-		cur := s.query.Cursor()
-		marks, owners := s.marks.Slice(cur), s.owners.Slice(cur)
-		if marks == nil {
-			continue
-		}
-		for i, m := range marks {
-			var owned tag.Tags[owner.Family]
-			if owners != nil {
-				owned = owners[i]
-			}
-			if m.Has(s.selected) && owner.Obeys(owned, by) {
-				one, n = cur.IDs[i], n+1
-			}
-		}
-	}
-	return one, n == 1
 }
 
 // look has the eye riding in f's entity look round by a move of the mouse, dx and dy pixels: the head raised or lowered at once,
@@ -314,25 +285,27 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 			}
 			dir := base.Vel.Dir
 			faces := dir.X != 0 || dir.Y != 0
+			var driven *steering.Driven
+			if drivens := s.driven.Slice(cur); drivens != nil {
+				driven = &drivens[i]
+			}
 			if f.inside && f.aiming {
-				if f.drive.Turn != 0 { // the keys turn it: the look goes with it again
+				if driven != nil && driven.Turn != 0 { // the keys turn it: the look goes with it again
 					f.aiming = false
-				} else {
-					f.drive.Face = f.aim
-					if faces && math.Abs(math.Atan2(dir.X*f.aim.Y-dir.Y*f.aim.X, dir.X*f.aim.X+dir.Y*f.aim.Y)) < 1e-3 {
-						f.aiming = false // it faces the way the eye looks: pinned to it again
-					}
+				} else if faces && math.Abs(math.Atan2(dir.X*f.aim.Y-dir.Y*f.aim.X, dir.X*f.aim.X+dir.Y*f.aim.Y)) < 1e-3 {
+					f.aiming = false // it faces the way the eye looks: pinned to it again
 				}
 			}
-			if f.inside { // flown from inside: the way it is steered rises as the rider looks up
-				f.drive.Flown, f.drive.Climb = true, -math.Sin(float64(f.cam.Pitch()))
-			}
-			if drivens := s.driven.Slice(cur); drivens != nil {
-				drivens[i] = f.drive
+			if driven != nil && f.inside { // flown from inside: the way it is steered rises as the rider looks up
+				driven.Face = geom.Vec{}
+				if f.aiming {
+					driven.Face = f.aim
+				}
+				driven.Flown, driven.Climb = true, -math.Sin(float64(f.cam.Pitch()))
 			}
 			if f.inside { // the eye in the entity, looking the way it faces or turns to face
 				look, looks := dir, faces
-				if f.aiming || f.drive.Face != (geom.Vec{}) {
+				if f.aiming {
 					look, looks = f.aim, true
 				}
 				if looks {
@@ -413,35 +386,20 @@ func (s *cameraSystem) lineClear(t, e [3]float32, cell float32) bool {
 	return true
 }
 
-// lookOut puts cam's eye inside the one Selected entity player by owns and keeps it there — at its centre, as
-// high as it stands, looking the way it faces, up the screen where it never moved — or lets it
-// out, back to the view it was in, when it is inside one already; a camera fastened behind an
-// entity is let go first.
-func (s *cameraSystem) lookOut(cb *goke.CmdBuf, cam *viewCamera, by control.PlayerID) {
-	if f := s.fastened(cam); f != nil {
-		inside := f.inside
-		s.letGo(cam)
-		if inside {
-			return
-		}
-	}
-	id, ok := s.theSelected(by)
-	if !ok {
-		return
-	}
+// enter puts cam's eye inside entity id — at its centre, as high as it stands, looking the way
+// it faces, up the screen where it never moved — and reports whether it could: false for an
+// entity gone, or a view that cannot go inside.
+func (s *cameraSystem) enter(cam *viewCamera, id uid.UID64) bool {
 	eye, across, dir, ok := s.eyeOf(id)
 	if !ok {
-		return
+		return false
 	}
 	heading := cam.Heading()
 	if dir.X != 0 || dir.Y != 0 {
 		heading = behind(float32(dir.X), float32(dir.Y))
 	}
 	eye[2] = float32(s.riding(float64(eye[0]), float64(eye[1]), float64(eye[2]), cam.persp.cell))
-	if !cam.enterInside(eye, heading, across) {
-		return
-	}
-	s.fasten(cb, cam, id, true)
+	return cam.enterInside(eye, heading, across)
 }
 
 // eyeOf is where id looks from — its centre, as high as its world.Eye stands over its Z, its top

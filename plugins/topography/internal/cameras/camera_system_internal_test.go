@@ -10,57 +10,47 @@ import (
 	"github.com/kjkrol/goke/v3"
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugins/players/owner"
-	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
-// selected is the Selected tag of the rig's selection family.
-const selected tag.Tag[selection.Family] = 1
-
-// followRig is the camera system over two 10x10 walkers 5 up, the first at (300, 300), and an
-// isometric camera.
+// followRig is the camera system over two 10x10 walkers 5 up, the first at (300, 300), each
+// carrying a Driven as navigation gives a unit a hand is on, and an isometric camera reaching
+// the perspective.
 type followRig struct {
-	t        *testing.T
-	ecs      *goke.ECS
-	sys      *cameraSystem
-	turns    control.Queue[Turn]
-	tilts    control.Queue[Tilt]
-	drives   control.Queue[Drive]
-	follow   control.Queue[Follow]
-	lookOuts control.Queue[LookOut]
-	views    control.Queue[View]
-	looks    control.Queue[Look]
-	cam      *viewCamera
-	walkers  [2]uid.UID64
+	t       *testing.T
+	ecs     *goke.ECS
+	sys     *cameraSystem
+	turns   control.Queue[Turn]
+	tilts   control.Queue[Tilt]
+	rides   control.Queue[Ride]
+	views   control.Queue[View]
+	looks   control.Queue[Look]
+	cam     *viewCamera
+	cams    []*viewCamera
+	walkers [2]uid.UID64
 	// the query's own handles: a handle serves the query or factory it was built into
 	base   goke.Comp[world.Base]
-	marks  goke.Comp[tag.Tags[selection.Family]]
 	q      *goke.Query
 	driven goke.OptComp[steering.Driven]
 	dq     *goke.Query
-	owners goke.Comp[tag.Tags[owner.Family]]
-	oq     *goke.Query
 }
 
 func newFollowRig(t *testing.T) *followRig {
 	t.Helper()
 	r := &followRig{t: t, ecs: goke.New()}
 	r.cam = newCamera(testProjection, 1280, 1280, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
-	r.sys = &cameraSystem{orders: queued{turns: &r.turns, tilts: &r.tilts, follows: &r.follow, drives: &r.drives, lookOuts: &r.lookOuts, views: &r.views, looks: &r.looks}, selected: selected, selecting: true}
+	r.cams = []*viewCamera{r.cam}
+	r.sys = &cameraSystem{orders: queued{turns: &r.turns, tilts: &r.tilts, rides: &r.rides, views: &r.views, looks: &r.looks}, perspective: true, cams: &r.cams}
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
-	var marks goke.Comp[tag.Tags[selection.Family]]
-	var owners goke.Comp[tag.Tags[owner.Family]]
+	var driven goke.Comp[steering.Driven]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.q = si.NewQueryBuilder(&r.base, &r.marks).Build()
+		r.q = si.NewQueryBuilder(&r.base).Build()
 		var b goke.Comp[world.Base]
 		r.dq = si.NewQueryBuilder(&b).Optional(&r.driven).Build()
-		r.oq = si.NewQueryBuilder(&r.owners).Build()
-		f := si.NewFactory(&base, &z, &marks, &owners)
+		f := si.NewFactory(&base, &z, &driven)
 		f.Create(2)
 		n := 0
 		for f.Next() {
@@ -77,20 +67,20 @@ func newFollowRig(t *testing.T) *followRig {
 	return r
 }
 
-// each calls fn with every walker's base and marks.
-func (r *followRig) each(fn func(id uid.UID64, b *world.Base, m *tag.Tags[selection.Family])) {
+// each calls fn with every walker's base.
+func (r *followRig) each(fn func(id uid.UID64, b *world.Base)) {
 	r.q.All()
 	for r.q.Next() {
 		cur := r.q.Cursor()
 		for i, id := range cur.IDs {
-			fn(id, &r.base.Slice(cur)[i], &r.marks.Slice(cur)[i])
+			fn(id, &r.base.Slice(cur)[i])
 		}
 	}
 }
 
 // walk puts the first walker at (x, y) heading along (dx, dy).
 func (r *followRig) walk(x, y, dx, dy float64) {
-	r.each(func(id uid.UID64, b *world.Base, _ *tag.Tags[selection.Family]) {
+	r.each(func(id uid.UID64, b *world.Base) {
 		if id == r.walkers[0] {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(x, y), 10, 10)
 			b.Vel.Dir, b.Vel.Value = geom.NewVec(dx, dy), 20
@@ -98,37 +88,41 @@ func (r *followRig) walk(x, y, dx, dy float64) {
 	})
 }
 
-// selectOnly has exactly the walkers given Selected.
-func (r *followRig) selectOnly(ids ...uid.UID64) {
-	r.each(func(id uid.UID64, _ *world.Base, m *tag.Tags[selection.Family]) {
-		*m = m.Without(selected)
-		for _, want := range ids {
-			if id == want {
-				*m = m.With(selected)
-			}
-		}
-	})
+// fasten fastens the rig's camera to id how, as the players' Follow and Ride do, and ticks.
+func (r *followRig) fasten(id uid.UID64, how contract.How) {
+	r.cam.Fasten(contract.Fastening{Entity: id, How: how})
+	r.ecs.Tick(time.Second / 60)
 }
 
-// own gives the walker id to player by; control.Nobody makes it nobody's.
-func (r *followRig) own(id uid.UID64, by control.PlayerID) {
-	r.oq.All()
-	for r.oq.Next() {
-		cur := r.oq.Cursor()
-		for i, have := range cur.IDs {
-			if have == id {
-				r.owners.Slice(cur)[i] = 0
-				if by != control.Nobody {
-					r.owners.Slice(cur)[i] = tag.Tags[owner.Family](0).With(owner.Of(by))
+// behind fastens the rig's camera Behind the first walker; inside fastens it Inside.
+func (r *followRig) behind() { r.fasten(r.walkers[0], contract.Behind) }
+func (r *followRig) inside() { r.fasten(r.walkers[0], contract.Inside) }
+
+// letGo lets the rig's camera go of everything, as the players' Follow again does, and ticks.
+func (r *followRig) letGo() {
+	r.cam.Fasten(contract.Fastening{})
+	r.ecs.Tick(time.Second / 60)
+}
+
+// pressV gives a Ride and ticks.
+func (r *followRig) pressV() {
+	r.rides.Add(control.Nobody, Ride{Camera: r.cam})
+	r.ecs.Tick(time.Second / 60)
+}
+
+// hand writes the hand's part of id's Driven, as navigation does: on, turning, sprinting.
+func (r *followRig) hand(id uid.UID64, ahead, turn int8) {
+	r.dq.All()
+	for r.dq.Next() {
+		cur := r.dq.Cursor()
+		for i, got := range cur.IDs {
+			if got == id {
+				if d := r.driven.Slice(cur); d != nil {
+					d[i].Ahead, d[i].Turn = ahead, turn
 				}
 			}
 		}
 	}
-}
-
-func (r *followRig) pressV() {
-	r.follow.Add(control.Nobody, Follow{Camera: r.cam})
-	r.ecs.Tick(time.Second / 60)
 }
 
 // centredOn reports whether the camera holds (x, y) over its shoulder: across the middle, as far
@@ -146,13 +140,12 @@ func (r *followRig) upTheScreen(x, y, dx, dy float32) bool {
 	return math.Abs(float64(bx-ax)) < 0.05*math.Abs(float64(by-ay)) && by < ay
 }
 
-func TestFollow_FastensTheCameraBehindTheSelectedWalkerWhereverItHeads(t *testing.T) {
+func TestBehind_FastensTheCameraBehindTheWalkerWhereverItHeads(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressV()
+	r.behind()
 	if len(r.sys.following) != 1 || !r.centredOn(305, 305) || !r.upTheScreen(305, 305, 1, 0) {
-		t.Fatalf("after V: fastened %d, centred %v, heading east up the screen %v; want all",
+		t.Fatalf("fastened Behind: kept %d, centred %v, heading east up the screen %v; want all",
 			len(r.sys.following), r.centredOn(305, 305), r.upTheScreen(305, 305, 1, 0))
 	}
 	r.walk(320, 380, 0, 1) // turned south
@@ -167,23 +160,21 @@ func TestFollow_FastensTheCameraBehindTheSelectedWalkerWhereverItHeads(t *testin
 	}
 }
 
-func TestFollow_HoldsWhateverElseIsDoneUntilVAgain(t *testing.T) {
+func TestBehind_HoldsWhateverElseIsDoneUntilLetGo(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressV()
-	r.selectOnly(r.walkers[1]) // another unit selected, given orders
+	r.behind()
 	r.cam.Pan(30, 0)
 	r.cam.ZoomIn(1.5, 305, 305)
 	r.turns.Add(control.Nobody, Turn{Camera: r.cam, Angle: 0.2})
 	r.ecs.Tick(time.Second / 60)
 	if len(r.sys.following) != 1 || !r.centredOn(305, 305) {
-		t.Fatalf("after selecting another, panning, zooming and turning: fastened %d, centred %v; want it held on the first",
+		t.Fatalf("after panning, zooming and turning: kept %d, centred %v; want it held on the walker",
 			len(r.sys.following), r.centredOn(305, 305))
 	}
-	r.pressV()
+	r.letGo()
 	if len(r.sys.following) != 0 {
-		t.Error("V again did not let the camera go")
+		t.Error("the camera let go is still kept")
 	}
 	r.cam.Pan(30, 0)
 	r.ecs.Tick(time.Second / 60)
@@ -192,16 +183,46 @@ func TestFollow_HoldsWhateverElseIsDoneUntilVAgain(t *testing.T) {
 	}
 }
 
-func TestFollow_NeedsExactlyOneSelected(t *testing.T) {
+// Ride goes round: Centred to Behind, Behind to Inside where the perspective is reached — else
+// over the walker again — Inside to Centred; a camera fastened to nothing stays so.
+func TestRide_GoesRoundBehindInsideAndOverAgain(t *testing.T) {
 	r := newFollowRig(t)
+	r.ridged(1000, 1001)
+	r.walk(300, 300, 1, 0)
 	r.pressV()
-	if len(r.sys.following) != 0 {
-		t.Error("V with nothing selected fastened the camera")
+	if f := r.cam.Fastening(); f != (contract.Fastening{}) || len(r.sys.following) != 0 {
+		t.Fatalf("V with the camera fastened to nothing fastened it %+v", f)
 	}
-	r.selectOnly(r.walkers[0], r.walkers[1])
-	r.pressV()
+	r.fasten(r.walkers[0], contract.Centred)
 	if len(r.sys.following) != 0 {
-		t.Error("V with two selected fastened the camera")
+		t.Fatal("a camera fastened Centred is kept by the view: it is the players'")
+	}
+	r.pressV()
+	if f := r.cam.Fastening(); f.How != contract.Behind || r.sys.fastened(r.cam) == nil || r.sys.fastened(r.cam).inside {
+		t.Fatalf("V over the walker: fastened %+v, want Behind and kept so", f)
+	}
+	r.pressV()
+	if f := r.cam.Fastening(); f.How != contract.Inside || r.sys.fastened(r.cam) == nil || !r.sys.fastened(r.cam).inside || !r.cam.insideUnit() {
+		t.Fatalf("V behind the walker: fastened %+v, want Inside and riding", f)
+	}
+	r.pressV()
+	if f := r.cam.Fastening(); f != (contract.Fastening{Entity: r.walkers[0], How: contract.Centred}) || r.sys.fastened(r.cam) != nil || r.cam.insideUnit() {
+		t.Fatalf("V inside the walker: fastened %+v, kept %v; want Centred over it, out of it", f, r.sys.fastened(r.cam) != nil)
+	}
+	r.sys.perspective = false
+	r.pressV()
+	r.pressV()
+	if f := r.cam.Fastening(); f.How != contract.Centred || r.sys.fastened(r.cam) != nil {
+		t.Errorf("without the perspective V behind the walker: fastened %+v, want over it again", f)
+	}
+}
+
+// A camera fastened to a walker that is gone is let go of everything.
+func TestBehind_LetsGoOfAWalkerGone(t *testing.T) {
+	r := newFollowRig(t)
+	r.fasten(999, contract.Behind)
+	if len(r.sys.following) != 0 || r.cam.Fastening() != (contract.Fastening{}) {
+		t.Errorf("fastened to a walker that is gone: kept %d, fastened %+v; want let go", len(r.sys.following), r.cam.Fastening())
 	}
 }
 
@@ -230,37 +251,4 @@ func (r *followRig) drivenOf(id uid.UID64) (steering.Driven, bool) {
 		}
 	}
 	return steering.Driven{}, false
-}
-
-func TestDrive_SteersTheFastenedUnitOnlyAndStopsItWhenLetGo(t *testing.T) {
-	r := newFollowRig(t)
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1})
-	r.ecs.Tick(time.Second / 60)
-	if _, ok := r.drivenOf(r.walkers[0]); ok {
-		t.Fatal("a camera fastened to nothing drove a walker")
-	}
-	r.walk(300, 300, 1, 0)
-	r.selectOnly(r.walkers[0])
-	r.pressV()
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Ahead: 1})
-	r.drives.Add(control.Nobody, Drive{Camera: r.cam, Turn: -1})
-	r.ecs.Tick(time.Second / 60)
-	if d, ok := r.drivenOf(r.walkers[0]); !ok || d != (steering.Driven{Ahead: 1, Turn: -1}) {
-		t.Errorf("with Up and Left held the fastened walker is driven %+v (%v), want walking on and turning anticlockwise", d, ok)
-	}
-	if _, ok := r.drivenOf(r.walkers[1]); ok {
-		t.Error("the other walker is driven too")
-	}
-	r.ecs.Tick(time.Second / 60)
-	if d, _ := r.drivenOf(r.walkers[0]); d != (steering.Driven{}) {
-		t.Errorf("with no key held the walker is driven %+v, want nothing asked", d)
-	}
-	r.pressV()
-	if d, ok := r.drivenOf(r.walkers[0]); !ok || d != (steering.Driven{}) {
-		t.Errorf("let go the walker is driven %+v (%v), want no hand on it once: braking, not backing away", d, ok)
-	}
-	r.ecs.Tick(time.Second / 60)
-	if _, ok := r.drivenOf(r.walkers[0]); ok {
-		t.Error("a tick after letting go the walker is still driven")
-	}
 }

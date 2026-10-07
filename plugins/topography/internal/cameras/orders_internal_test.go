@@ -7,10 +7,9 @@ import (
 
 // The commands as the topography gives them, for the tests to queue.
 type (
-	View    struct{ Camera camera.Camera }
-	LookOut struct{ Camera camera.Camera }
-	Follow  struct{ Camera camera.Camera }
-	Turn    struct {
+	View struct{ Camera camera.Camera }
+	Ride struct{ Camera camera.Camera }
+	Turn struct {
 		Camera camera.Camera
 		Angle  float32
 	}
@@ -30,11 +29,6 @@ type (
 		Camera camera.Camera
 		Dx, Dy float32
 	}
-	Drive struct {
-		Camera      camera.Camera
-		Ahead, Turn int8
-		Sprint      bool
-	}
 )
 
 // queued is Orders over the tests' queues, as the topography's are over its own; a nil queue gives
@@ -45,9 +39,7 @@ type queued struct {
 	tilts     *control.Queue[Tilt]
 	lookFroms *control.Queue[LookFrom]
 	lookAts   *control.Queue[LookAt]
-	lookOuts  *control.Queue[LookOut]
-	follows   *control.Queue[Follow]
-	drives    *control.Queue[Drive]
+	rides     *control.Queue[Ride]
 	looks     *control.Queue[Look]
 }
 
@@ -79,16 +71,8 @@ func (q queued) LookAts(fn func(camera.Camera, float32, float32, float32)) {
 	drain(q.lookAts, func(i control.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
-func (q queued) LookOuts(fn func(camera.Camera, control.PlayerID)) {
-	drain(q.lookOuts, func(i control.Issued[LookOut]) { fn(i.Command.Camera, i.Player) })
-}
-
-func (q queued) Follows(fn func(camera.Camera, control.PlayerID)) {
-	drain(q.follows, func(i control.Issued[Follow]) { fn(i.Command.Camera, i.Player) })
-}
-
-func (q queued) Drives(fn func(camera.Camera, int8, int8, bool)) {
-	drain(q.drives, func(i control.Issued[Drive]) { fn(i.Command.Camera, i.Command.Ahead, i.Command.Turn, i.Command.Sprint) })
+func (q queued) Rides(fn func(camera.Camera)) {
+	drain(q.rides, func(i control.Issued[Ride]) { fn(i.Command.Camera) })
 }
 
 func (q queued) Looks(fn func(camera.Camera, float32, float32)) {

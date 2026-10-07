@@ -65,9 +65,10 @@
 //
 // # Commands
 //
-// The plugin is a plugin.CommandHandler: the cameras' commands ([View], [Turn], [Tilt], [LookOut],
-// [Look], [Follow], [Drive], [LookFrom], [LookAt]), carrying the camera of whoever gave them, given
-// the selection by [Plugin.WithSelection]; the relief's ([Raise] and [Lower], = and - under the
+// The plugin is a plugin.CommandHandler: the cameras' commands ([View], [Turn], [Tilt], [Ride],
+// [Look], [LookFrom], [LookAt]), carrying the camera of whoever gave them — a camera the players'
+// Follow fastened over a unit (camera.Fastening) Ride takes behind it and inside it, first
+// person, where the game reaches the perspective; the relief's ([Raise] and [Lower], = and - under the
 // cursor, [Level], a left drag with L held — at once, in the tactical pause too); and
 // [CoarseShadows] (H), which switches the shadows' detail. Call [Plugin.RunPlan] after the world
 // has moved and before the players' RunPlan.

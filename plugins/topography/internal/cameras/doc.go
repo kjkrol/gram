@@ -1,13 +1,13 @@
 // Package cameras is the views of a map in relief: the cameras — from above, isometric and in
 // perspective, an eye riding in a unit among them — how they project, pick and bound what they
-// show, and their control, carrying out the commands that switch, turn, tilt, fasten and drive
-// them.
+// show, and their control, carrying out the commands that switch, turn and tilt them and keeping
+// each one fastened behind or inside its unit as the camera says (camera.Fastening).
 //
 // [Maker] makes the world's cameras as a [Config] says, over the ground at any point and its
 // extent; [Switch] turns a camera to the next view. A [Control] ([NewControl]) carries out the
 // commands as its System runs, reading them as [Orders]: the topography keeps their queues and
-// their keys (topography.View, Turn, Tilt, LookFrom, LookAt, LookOut, Look, Follow, Drive) and
-// puts the cameras to work over its relief.
+// their keys (topography.View, Turn, Tilt, LookFrom, LookAt, Ride, Look) and puts the cameras
+// its [Control.Maker] made to work over its relief.
 //
 // # Views
 //
@@ -43,15 +43,15 @@
 // eye's level (world.Scale.Drop), level ground past the horizon out of sight, and fades to the
 // sky's colour as far off as the air's Visibility says.
 //
-// Riding in a unit (LookOut, first person) the eye is the unit's, where its world.Eye stands —
+// Riding in a unit (fastened camera.Inside, first person) the eye is the unit's, where its world.Eye stands —
 // Height over its bottom, its top without one, a unit 2 m tall looking from 2 m — seeing across the
 // screen as wide as the Eye's Angle says, the height following the screen's shape (the camera's own
 // field of view without one), with a near plane a thousandth of a cell: it goes with it, looking
 // the way the unit faces; Look (the mouse, the cursor captured) turns the view at once and the
 // unit to face it, and raises and lowers the head into the sky and down to the feet; Zoom narrows
-// the view, Pan and Turn do nothing; the camera is then a camera.Rider in camera.FirstPerson,
-// its eye where camera.Eyed says, and the bindings holding in that mode — the unit's WASD — fire
-// instead of the free camera's. Through the perspective the sky's backdrop draws the sun, where the
+// the view, Pan and Turn do nothing; the camera's fastening says Inside (camera.HowOf), its eye
+// where camera.Eyed says, and the bindings holding there — the players' WASD driving the unit —
+// fire instead of the free camera's. Through the perspective the sky's backdrop draws the sun, where the
 // way towards it vanishes (camera.Vanisher). What a camera in relief hands its renderers — Bounds,
 // the world rectangle they walk, and Visible — holds the ground the screen may show at any height
 // from the relief's lowest ground to Headroom over its highest (relief.Relief.Extent), not only at
@@ -73,28 +73,28 @@
 // The commands carry the camera of whoever gave them (control.Context.Camera), so the control
 // turns a player's camera without knowing players; a camera of another view stays as it is. View
 // (Tab) switches the view; Turn turns it (Q and E held, TurnStep a tick); Tilt bows the head
-// or raises it (F and R, TiltStep a tick); LookOut, given the selection
-// ([Control.WithSelection], whose Selected tag it reads as navigation does) and the perspective, is
-// V: it rides in the one selected unit of the player who gave it (players/owner.Obeys: its own,
-// never another's), first person — the eye in the unit, kept there as it goes,
-// pinned to the way it faces, world.Base's Vel.Dir, which is the axis of its sight where the game
-// turns the sight with it (the island's demo does). Riding, W walks the unit on — with Shift held
-// it sprints, to its steering's Sprint — S brakes it and then backs it away facing on, A and D turn
-// it, the view turning with it, the mouse looks round — across turning the unit to face where the
-// eye looks; one that flies, flown from inside, holds its height over sea level, climbing and
-// diving only along the look, at least its Mover's Clearance over the ground and under its
-// Ceiling — Q, E, R and F do nothing, and V or Tab leave it — back to the view the camera was in,
-// over the unit; K lists those keys then. Follow (V without the perspective) fastens the camera
-// behind the one selected unit of the player: every tick the camera is centred on it at its altitude and turned,
-// eased, until the way it walks runs up the screen. It holds whatever else is done — other units
-// selected and ordered, the camera panned or turned — until V again lets it go, or the unit is
-// gone; the lower the eye, the lower on the screen the unit stands, over its shoulder. In
-// perspective a fastened eye, as high as it flies, looks down more steeply where the ground between
-// them would hide the unit and eases back as the way clears. LookFrom puts the eye at a point of
-// the world and LookAt has it look at one, in perspective, a camera in another view going there
-// first where the game reaches it. Drive (W, S, A and D riding; the arrows following; W and the
-// up arrow with Shift sprint) steers the unit a camera is fastened to: the control keeps a
-// steering.Driven on it while fastened, writes the keys into it every tick — riding, Flown and the
-// look's rise too — and leaves it braking when let go; navigation carries it out along the ground,
-// the relief's altitude system up and down.
+// or raises it (F and R, TiltStep a tick). What a camera is fastened to is the camera's own
+// (camera.Fastening): the players' Follow fastens it Centred over the one selected unit, and Ride
+// (V) takes it closer round: Behind the unit — every tick the camera is centred on it at its
+// altitude and turned, eased, until the way it walks runs up the screen, whatever else is done,
+// other units selected and ordered, the camera panned or turned; the lower the eye, the lower on
+// the screen the unit stands, over its shoulder; in perspective a fastened eye, as high as it
+// flies, looks down more steeply where the ground between them would hide the unit and eases back
+// as the way clears — then, where the game reaches the perspective, Inside it, first person — the
+// eye in the unit, kept there as it goes, pinned to the way it faces, world.Base's Vel.Dir, which is
+// the axis of its sight where the game turns the sight with it (the island's demo does); the
+// players' W walks the unit on — with Shift held it sprints, to its steering's Sprint — S brakes it
+// and then backs it away facing on, A and D turn it, the view turning with it, the mouse looks
+// round — across turning the unit to face where the eye looks; one that flies, flown from inside,
+// holds its height over sea level, climbing and diving only along the look, at least its Mover's
+// Clearance over the ground and under its Ceiling — Q, E, R and F do nothing, and V or Tab take
+// the eye out, over the unit again; K lists those keys then — and over it again, Centred, the
+// players' to keep. The system keeps every camera the Control's Maker made in line with its
+// fastening: a fastening changed, let go (the players' Follow again, a Pan) or its unit gone ends
+// the keeping, the eye coming out. LookFrom puts the eye at a point of the world and LookAt has it
+// look at one, in perspective, a camera in another view going there first where the game reaches
+// it; both let go of a unit the eye rides in. The unit is driven by the players' hand, which
+// navigation carries out along the ground (steering.Driven); the control writes only the eye's
+// part of it — the way to face while the look turns the unit, Flown and the look's rise — and
+// clears it on letting go.
 package cameras

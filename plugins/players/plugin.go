@@ -43,6 +43,9 @@ type Plugin struct {
 	savePath    string     // where Save writes; none, no saving
 	saveWith    []any      // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
+	follows     control.Queue[Follow]
+	hands       hands   // the Drives of the tick, summed as asked for
+	chooser     Chooser // the selection, when the game has one: whom Follow fastens the camera over
 	module      *module
 	layout      Layout
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
@@ -70,6 +73,11 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.players"), worldPlugin: worldPlugin}
 	p.shortcuts = newShortcuts(p)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
+	for _, h := range handlers {
+		if c, ok := h.(Chooser); ok {
+			p.chooser = c
+		}
+	}
 	if err := worldPlugin.Carry(p.handlers...); err != nil {
 		panic(fmt.Sprintf("players: %v", err))
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
@@ -22,8 +21,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
-	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
@@ -73,25 +73,20 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{d.stage.Name(): d.stage}, d.stage.Name()
 }
 
-// =========================== Commands ===========================
-
-// Drive is the command to drive the issuing player's block one way this tick; the ways of the
-// keys held add up.
-type Drive struct{ Dir geom.Vec }
-
 // =========================== Stage ===========================
 
-// arena is the arena, its two blocks and the players driving them. It handles Drive itself.
+// arena is the arena, its two blocks and the players driving them: each block is its player's,
+// selected and followed by its camera from the start (kind.Entry.Told), driven by the player's
+// own keys (players.DriveKeys) through navigation.
 type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
 	board      *board.Plugin
+	selection  *selection.Plugin
+	nav        *navigation.Plugin
 	players    *players.Plugin
 	redPlayer  *players.Player
 	bluePlayer *players.Player
-	drives     control.Queue[Drive]
-	drive      goke.Runnable
-	follow     goke.Runnable
 	minimapCam camera.Camera
 	composer   *render.Composer
 }
@@ -122,12 +117,6 @@ func (s *arena) picture() *render.Composer {
 	return s.composer
 }
 
-// Queues is where Drive lands — the stage is the handler of its own command.
-func (s *arena) Queues() []control.CommandQueue { return []control.CommandQueue{&s.drives} }
-
-// DefaultBindings is none: each player is bound to its own keys in Init.
-func (s *arena) DefaultBindings() []control.Binding { return nil }
-
 func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
@@ -137,14 +126,15 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.players} {
+	s.selection = selection.NewPlugin(s.world)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
+	s.nav.WithPlayers(s.players)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.drive = ctx.RegSys(func() goke.System { return &driveSystem{drives: &s.drives} })
-	s.follow = ctx.RegSys(func() goke.System { return &followSystem{players: s.players} })
 	s.minimapCam = s.world.NewCamera()
 	return nil
 }
@@ -160,32 +150,21 @@ func (s *arena) defineCells() {
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
+// bindKeys gives each player its own keys to drive its block the way they say: WSAD the red,
+// the arrows the blue.
 func (s *arena) bindKeys() error {
-	if err := s.redPlayer.Bind(driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
+	if err := s.redPlayer.Bind(players.DriveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
 		return err
 	}
 	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
 	if err := s.redPlayer.Bind(append(players.GameBindings(), s.world.DefaultBindings()...)...); err != nil {
 		return err
 	}
-	return s.bluePlayer.Bind(driveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
+	return s.bluePlayer.Bind(players.DriveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
 }
 
 func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{&mainScene{arena: s}, &minimapScene{arena: s}}
-}
-
-// driveKeys binds up, down, left and right to Drive while held.
-func driveKeys(up, down, left, right control.Key) []control.Binding {
-	way := func(dx, dy float64) func(control.Context) (Drive, bool) {
-		return func(control.Context) (Drive, bool) { return Drive{Dir: geom.NewVec(dx, dy)}, true }
-	}
-	return []control.Binding{
-		control.Command(control.KeyHeld{Key: up}, "Drive up", way(0, -1)),
-		control.Command(control.KeyHeld{Key: down}, "Drive down", way(0, 1)),
-		control.Command(control.KeyHeld{Key: left}, "Drive left", way(-1, 0)),
-		control.Command(control.KeyHeld{Key: right}, "Drive right", way(1, 0)),
-	}
 }
 
 // block is the row a block spawns from: where it starts.
@@ -195,7 +174,7 @@ func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
 	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
-	// each block is its player's: it takes that player's Drive alone
+	// each block is its player's: it takes that player's hand alone
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
@@ -232,92 +211,21 @@ func (s *arena) placeUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
+	// each block its player's, selected — the player's hand is on it — and followed by its camera
 	s.world.Seed(
-		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}),
-		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}),
+		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
+		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
 	)
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(s.drive, d)
-	ctx.Sync()
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
-	ctx.Run(s.follow, d)
+	s.nav.RunPlan(ctx, d)
+	s.selection.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// =========================== Systems ===========================
-
-// driveSystem steers every block the way the Drive commands of the player who owns it add up to
-// this tick, and brakes it to a stop when there were none.
-type driveSystem struct {
-	drives *control.Queue[Drive]
-	want   map[control.PlayerID]geom.Vec
-
-	query  *goke.Query
-	owners goke.Comp[tag.Tags[owner.Family]]
-	steer  goke.Comp[steering.Steering]
-	course goke.Comp[steering.Course]
-}
-
-func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.owners, &s.steer, &s.course).Build()
-	s.want = map[control.PlayerID]geom.Vec{}
-}
-
-func (s *driveSystem) Update(*goke.CmdBuf, time.Duration) {
-	clear(s.want)
-	s.drives.Drain(func(i control.Issued[Drive]) { s.want[i.Player] = s.want[i.Player].Add(i.Command.Dir) })
-	for s.query.All(); s.query.Next(); {
-		cur := s.query.Cursor()
-		owners, steers, courses := s.owners.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur)
-		for i := range cur.IDs {
-			st := steering.Helm{Steering: &steers[i], Course: &courses[i]}
-			var dir geom.Vec
-			for by, want := range s.want {
-				if owner.Obeys(owners[i], by) {
-					dir = dir.Add(want)
-				}
-			}
-			if dir.X != 0 || dir.Y != 0 {
-				st.Request(dir)
-				st.RequestSpeed(st.MaxSpeed)
-			} else {
-				st.RequestSpeed(0)
-			}
-		}
-	}
-}
-
-// followSystem centres each player's camera on the block it owns.
-type followSystem struct {
-	players *players.Plugin
-
-	query  *goke.Query
-	owners goke.Comp[tag.Tags[owner.Family]]
-	base   goke.Comp[world.Base]
-}
-
-func (s *followSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.owners, &s.base).Build()
-}
-
-func (s *followSystem) Update(*goke.CmdBuf, time.Duration) {
-	for s.query.All(); s.query.Next(); {
-		cur := s.query.Cursor()
-		owners, bases := s.owners.Slice(cur), s.base.Slice(cur)
-		for i := range cur.IDs {
-			for _, pl := range s.players.Players() {
-				if owner.Obeys(owners[i], pl.ID) {
-					c := bases[i].Pos.Center()
-					pl.Camera.CenterOn(c.X, c.Y, 0)
-				}
-			}
-		}
-	}
 }
 
 // =========================== Scenes ===========================

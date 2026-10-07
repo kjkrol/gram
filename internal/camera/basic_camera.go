@@ -19,9 +19,16 @@ type basicCamera struct {
 	zoom         float32
 
 	effective plane.AABB // the current visible window — always valid and clamped to the world
+	fastening contract.Fastening
 }
 
 var _ contract.Camera = (*basicCamera)(nil)
+var _ contract.Fastenable = (*basicCamera)(nil)
+
+// Fasten fastens the camera to an entity, or to nothing; whoever keeps it there reads Fastening.
+func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
+
+func (c *basicCamera) Fastening() contract.Fastening { return c.fastening }
 
 func newBasicCamera(world geom.Vec, viewport contract.AABB, edges aabbworld.Edges) *basicCamera {
 	w := viewport.BottomRight.X - viewport.TopLeft.X

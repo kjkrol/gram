@@ -39,7 +39,7 @@ func lit(sun sky.Sun, light render.Light) render.Light {
 // ridden reports whether the eye of cam rides in the box x0, y0 to x1, y1: a camera in first
 // person, its eye over the box.
 func ridden(cam camera.Camera, x0, y0, x1, y1 float32) bool {
-	if r, ok := cam.(camera.Rider); !ok || !r.FirstPerson() {
+	if camera.HowOf(cam) != camera.Inside {
 		return false
 	}
 	e, ok := cam.(camera.Eyed)

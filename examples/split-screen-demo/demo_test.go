@@ -1,15 +1,20 @@
 package main
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/internal/hosts"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -46,42 +51,162 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	}
 }
 
-func TestDriveSystem_SteersTheBlockOfThePlayerWhoDrivesAndBrakesTheOther(t *testing.T) {
-	var drives control.Queue[Drive]
-	sys := &driveSystem{drives: &drives}
-	var owners goke.Comp[tag.Tags[owner.Family]]
-	var steer goke.Comp[steering.Steering]
-	var course goke.Comp[steering.Course]
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&owners, &steer, &course)
-		f.Create(2)
-		for f.Next() {
-			for i := range f.Cursor.IDs {
-				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(control.PlayerID(i + 1)))
-				steer.Slice(&f.Cursor)[i] = steering.Steering{MaxSpeed: 100}
-				course.Slice(&f.Cursor)[i] = steering.Course{WantSpeed: 50}
-			}
-		}
-	}}, sys)
-	drives.Add(1, Drive{Dir: geom.NewVec(1, 0)})
-	drives.Add(1, Drive{Dir: geom.NewVec(0, 1)})
-	sys.Update(nil, time.Second/60)
+// stageInit is a game.Initializer that drives the real Stage without a window; Scene.Layers() is
+// left out.
+type stageInit struct {
+	hosts   []plugin.Host
+	ecs     *goke.ECS
+	world   *world.Plugin
+	tracked []any
+	pending []func() []goke.System
+	tps     game.TPS
+}
 
-	for sys.query.All(); sys.query.Next(); {
-		cur := sys.query.Cursor()
+var _ game.Initializer = (*stageInit)(nil)
+
+func (c *stageInit) UseModule(m goke.Module) {
+	regSys := goke.SystemFn{OnInit: func(*goke.SysInit) { m.RegSystems(c.ecs) }}
+	c.tracked = append(c.tracked, m)
+	c.pending = append(c.pending, func() []goke.System { return append(m.SetupSystems(), regSys) })
+}
+
+func (c *stageInit) Setup(providers ...goke.SetupProvider) {
+	for _, p := range providers {
+		c.tracked = append(c.tracked, p)
+		c.pending = append(c.pending, p.SetupSystems)
+	}
+}
+
+func (c *stageInit) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
+func (c *stageInit) ECS() *goke.ECS                                  { return c.ecs }
+func (c *stageInit) TPS() *game.TPS                                  { return &c.tps }
+func (c *stageInit) Hosts(h ...plugin.Host)                          { c.hosts = append(c.hosts, h...) }
+
+func (c *stageInit) Use(p plugin.Plugin) error {
+	c.tracked = append(c.tracked, p)
+	return p.Install(c)
+}
+
+func (c *stageInit) Track(s plugin.Serializable) error {
+	c.tracked = append(c.tracked, s)
+	return nil
+}
+
+func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
+	c.world = world.NewPlugin(cfg)
+	c.tracked = append(c.tracked, c.world)
+	if err := c.world.Install(c); err != nil {
+		panic(err)
+	}
+	return c.world
+}
+
+// testStage is the demo built fresh, without a window, and a view of its blocks.
+type testStage struct {
+	*arena
+	stage  game.Stage
+	ecs    *goke.ECS
+	base   goke.Comp[world.Base]
+	driven goke.OptComp[steering.Driven]
+	blocks *goke.Query
+}
+
+func buildStage(t *testing.T) *testStage {
+	t.Helper()
+	s := &testStage{}
+	s.arena, s.stage = newArena()
+	ctx := &stageInit{ecs: goke.New()}
+	if err := s.stage.Init(ctx); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := hosts.Deliver(ctx.hosts, ctx.world.Kinds().Played()...); err != nil { // as the engine does once Init returns
+		t.Fatalf("roles: %v", err)
+	}
+	if err := s.stage.Spawn(); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	for _, v := range ctx.tracked {
+		if p, ok := v.(plugin.Populator); ok {
+			if err := p.Populate(); err != nil {
+				t.Fatalf("Populate: %v", err)
+			}
+		}
+	}
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { s.stage.Update(rc, d); s.world.Clock().Replay(rc, d) })
+	var systems []goke.System
+	for _, produce := range ctx.pending {
+		systems = append(systems, produce()...)
+	}
+	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		s.blocks = si.NewQueryBuilder(&s.base).Optional(&s.driven).Build()
+	}})
+	ctx.ecs.Setup(systems...)
+	s.ecs = ctx.ecs
+	return s
+}
+
+func (s *testStage) tick(n int) {
+	for range n {
+		s.ecs.Tick(time.Second / TPS)
+	}
+}
+
+// block is where the block of kind k stands and how it is driven, if at all.
+func (s *testStage) block(k string) (at geom.Vec, driven *steering.Driven) {
+	id := kind.Named[block](s.world.Kinds(), k).ID()
+	for s.blocks.All(); s.blocks.Next(); {
+		cur := s.blocks.Cursor()
 		for i := range cur.IDs {
-			owned, st := sys.owners.Slice(cur)[i], sys.course.Slice(cur)[i]
-			switch {
-			case owned.Has(owner.Of(1)):
-				if st.WantSpeed != 100 || st.Want.X <= 0 || st.Want.Y <= 0 {
-					t.Errorf("player 1's block wants %v at %v, want down-right at full speed", st.Want, st.WantSpeed)
-				}
-			case owned.Has(owner.Of(2)):
-				if st.WantSpeed != 0 {
-					t.Errorf("player 2's block wants speed %v with no Drive, want 0", st.WantSpeed)
+			if b := s.base.Slice(cur)[i]; b.TypeID == id {
+				at = b.Pos.Center()
+				if d := s.driven.Slice(cur); d != nil {
+					driven = &d[i]
 				}
 			}
 		}
+	}
+	return at, driven
+}
+
+// From the start each player's camera follows its own block, and a player's keys drive its block
+// the way they say and nobody else's.
+func TestDemo_EachPlayerFollowsAndDrivesItsOwnBlock(t *testing.T) {
+	s := buildStage(t)
+	s.tick(2)
+	redAt, _ := s.block(RedKind)
+	blueAt, _ := s.block(BlueKind)
+	for _, pl := range []*players.Player{s.redPlayer, s.bluePlayer} {
+		f := pl.Camera.(camera.Fastenable).Fastening()
+		if f.How != camera.Centred {
+			t.Errorf("%s's camera is fastened %+v, want Centred over its block from the start", pl.Name, f)
+		}
+	}
+	// a block near the arena's edge is kept as near the middle as the window may go: in view
+	shows := func(pl *players.Player, at geom.Vec) bool {
+		b := pl.Camera.Bounds()
+		return at.X >= b.TopLeft.X && at.X <= b.BottomRight.X && at.Y >= b.TopLeft.Y && at.Y <= b.BottomRight.Y
+	}
+	if !shows(s.redPlayer, redAt) || !shows(s.bluePlayer, blueAt) {
+		t.Error("the players' cameras do not show their blocks")
+	}
+	for range 12 {
+		if err := s.players.Issue(s.redPlayer, players.Drive{Ahead: 1, Way: geom.NewVec(1, 0)}); err != nil {
+			t.Fatal(err)
+		}
+		s.tick(1)
+	}
+	redNow, redDriven := s.block(RedKind)
+	blueNow, blueDriven := s.block(BlueKind)
+	if redNow.X <= redAt.X+4 || math.Abs(redNow.Y-redAt.Y) > 1 {
+		t.Errorf("driven right from %v the red block is at %v, want it gone right", redAt, redNow)
+	}
+	if redDriven == nil || redDriven.Face != geom.NewVec(1, 0) {
+		t.Errorf("the red block is driven %+v, want to face right", redDriven)
+	}
+	if blueNow != blueAt || blueDriven != nil {
+		t.Errorf("the blue block moved to %v or is driven %+v, want it left alone by red's keys", blueNow, blueDriven)
+	}
+	if !shows(s.redPlayer, redNow) {
+		t.Error("red's camera did not follow its block")
 	}
 }

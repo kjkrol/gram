@@ -185,12 +185,36 @@ argument's full path, which moved.
 - A rule's `ForOther` on a moment of one entity naming a Subject — a bullet `Landing`'s entity
   struck — acts on that one, as on the others a pair's moment met.
 
-**Driving by hand**
-- `navigation.Drive{Ahead, Turn}` steers the player's selected units by hand for the tick:
-  `navigation.DriveBindings()` are W, S, A and D held, for a game to bind in place of the camera's
-  own keys on them. A unit driven carries the marker `navigation.Driving`; a tick without a Drive
-  brakes it and, once it stands or has an order, its `Driven` is taken off, so it steps aside
-  again. A contact only sensed — a shot — bumps no unit under orders.
+**Following and driving are the players'**
+- A camera knows what it is fastened to: `camera.Fastening{Entity, How}` on every
+  `camera.Fastenable` camera, `How` one of `Loose`, `Centred`, `Behind`, `Inside` (`Outside` all
+  but the last), `camera.HowOf`. `camera.Mode`, `ModeOf` and `Rider` are gone;
+  `control.Binding.In` takes hows (`In(camera.Inside)` for `In(camera.FirstPerson)`,
+  `In(camera.Outside)` for `In(camera.Free)`).
+- `players.Follow{}` (C, in a game with a selection) fastens the player's camera `Centred` over
+  the one unit it has selected, or lets go; told by an entity as it is made
+  (`Told(players.Give{To}, players.Follow{})`) its owner's camera follows it from the start. The
+  players keep a `Centred` camera on its entity; `Pan` lets go, `Zoom` keeps. `selection.Follow`,
+  `FollowSystem` and the tag `Followed` are gone; `selection.Plugin.Chosen` is the one selected
+  unit of a player, a `players.Chooser`.
+- `topography.Ride{Camera}` (V) takes a fastened camera closer round its entity: behind it,
+  inside it (first person) where the game reaches the perspective, over it again; the camera
+  system keeps `Behind` and `Inside` by the camera's fastening. `topography.Follow`, `Drive`,
+  `LookOut` and `Plugin.WithSelection` are gone; the topography never knows the selection.
+- `players.Drive{Ahead, Turn, Way, Sprint}` is the player's hand, summed a tick into
+  `players.Hand` (`Plugin.Hand`, `OwnHand`); navigation, given the players
+  (`navigation.Plugin.WithPlayers`), steers each unit by its owner's hand — the unit the owner's
+  camera is fastened to, else the units it has selected — writing `steering.Driven`; the
+  topography's camera system writes only the eye's part of it (`Face` while aiming, `Flown`,
+  `Climb`). `navigation.Drive` and `DriveBindings` are gone: `players.DriveBindings()` (W, S, A
+  and D outside any entity, for a game to bind in place of the camera's keys),
+  `players.DriveKeys(up, down, left, right)` (four keys into a `Way`), and the players' defaults
+  drive the unit the camera is fastened to (W, S, A and D riding inside it, the arrows behind it).
+  A unit driven carries the marker `navigation.Driving`; a tick without a hand brakes it and, once
+  it stands or has an order, its `Driven` is taken off, so it steps aside again. A contact only
+  sensed — a shot — bumps no unit under orders.
+- `split-screen-demo` has no systems of its own: each block is told `Give`, `Allow{Selected}` and
+  `Follow` as it is made, driven by its player's `DriveKeys`.
 
 **Spawn in the running game**
 - The command `world.Spawn{Entry}` adds an entity of a kind to the running world, as `Seed` does

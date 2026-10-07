@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/navigation"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -41,7 +42,7 @@ func (s *shooter) cmd(c any) {
 			case topography.View:
 				v.Camera = cam
 				q.Put(s.d.a.player.ID, v)
-			case topography.LookOut:
+			case topography.Ride:
 				v.Camera = cam
 				q.Put(s.d.a.player.ID, v)
 			case topography.Look:
@@ -52,8 +53,8 @@ func (s *shooter) cmd(c any) {
 	}
 }
 
-// selectOne selects the one walker standing at the second stop, before anyone has moved: riding
-// in a unit (LookOut) takes exactly one selected.
+// selectOne selects the one walker standing at the second stop, before anyone has moved: the
+// camera follows exactly one selected (players.Follow).
 func (s *shooter) selectOne() {
 	brd := s.d.a.board.Res.Logic.Board
 	_, _, stops := island.Layout(brd)
@@ -63,6 +64,13 @@ func (s *shooter) selectOne() {
 		if q.Accepts() == reflect.TypeFor[selection.Select]() {
 			q.Put(s.d.a.player.ID, selection.Select{Box: box})
 		}
+	}
+}
+
+// follow fastens the player's camera over its one selected unit (C).
+func (s *shooter) follow() {
+	if err := s.d.a.players.Issue(s.d.a.player, players.Follow{}); err != nil {
+		s.t.Fatal(err)
 	}
 }
 
@@ -115,8 +123,12 @@ func (s *shooter) Update() error {
 	case 420:
 		s.shot = "7-tab4"
 	case 421:
-		s.cmd(topography.LookOut{}) // first person, in the selected unit
+		s.follow() // over the selected unit
 	case 422:
+		s.cmd(topography.Ride{}) // behind it
+	case 423:
+		s.cmd(topography.Ride{}) // first person, in it
+	case 424:
 		s.cmd(topography.Look{Dy: -80}) // the head raised: most lines of sight go up
 	case 480:
 		s.shot = "8-first-person"
