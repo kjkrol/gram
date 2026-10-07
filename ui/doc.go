@@ -50,7 +50,9 @@
 // middle with a button moving the camera onto it, [GoToIt] moves the camera onto it as it appears —
 // through the picture's [Input], a [Looker] (players.Plugin.Through: cameras.LookAt). An entity with
 // no place in the world — the world's own, a plugin's — has its element where its parent lays it: an
-// anchor's point. A modal pinned element is shown for one entity at a time, the rest waiting.
+// anchor's point. A modal pinned element is shown for one entity at a time, the rest waiting. A
+// command for [It] — rule.Lift(greeting).On(ui.It), defined in the register as any — is given by a
+// pinned element's button for the entity it is shown for (entity.ID): one window serves them all.
 //
 // # Shapes
 //

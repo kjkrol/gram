@@ -1,7 +1,7 @@
-// Command dialog-demo is a conversation: walk the traveller (right click) up to the host, who looks
+// Command dialog-demo is a conversation: walk the traveller (right click) up to a host, who looks
 // west, the way the traveller comes, sees it near and says hello in a window above it; the traveller
 // answers one of three ways, and the host shows what it made of the answer. Walk away without a
-// word and the hello is gone.
+// word and the hello is gone. Two hosts stand in the meadow; one window serves both.
 package main
 
 import (
@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -83,7 +82,7 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// arena is a meadow with the traveller the player walks and the host standing in it.
+// arena is a meadow with the traveller the player walks and two hosts standing in it.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -168,15 +167,15 @@ func (s *arena) defineRoles() {
 	)
 }
 
-// defineCommands are what the traveller's answers do to the host.
+// defineCommands are what the traveller's answers do to the host the window stands above (ui.It):
+// one window serves every host.
 func (s *arena) defineCommands() {
 	effects, commands := s.world.Effects(), s.world.Commands()
-	host := entity.Named(HostName)
-	commands.Define(EndGreetingCmd, rule.Lift(effects.Named(GreetingEf)).On(host))
-	commands.Define(TalkedCmd, rule.Cast(effects.Named(TalkedEf)).On(host))
-	commands.Define(PleaseCmd, rule.Cast(effects.Named(PleasedEf)).On(host))
-	commands.Define(PuzzleCmd, rule.Cast(effects.Named(PuzzledEf)).On(host))
-	commands.Define(OffendCmd, rule.Cast(effects.Named(OffendedEf)).On(host))
+	commands.Define(EndGreetingCmd, rule.Lift(effects.Named(GreetingEf)).On(ui.It))
+	commands.Define(TalkedCmd, rule.Cast(effects.Named(TalkedEf)).On(ui.It))
+	commands.Define(PleaseCmd, rule.Cast(effects.Named(PleasedEf)).On(ui.It))
+	commands.Define(PuzzleCmd, rule.Cast(effects.Named(PuzzledEf)).On(ui.It))
+	commands.Define(OffendCmd, rule.Cast(effects.Named(OffendedEf)).On(ui.It))
 }
 
 func (s *arena) defineCells() {
@@ -215,7 +214,8 @@ func (s *arena) placeUnits() {
 	brd := s.board.Res.Logic.Board
 	s.world.Seed(
 		traveller.Entry(unitRow{start: brd.CellIndex(3, 7)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		host.Entry(unitRow{start: brd.CellIndex(16, 7)}).Named(HostName),
+		host.Entry(unitRow{start: brd.CellIndex(16, 4)}),
+		host.Entry(unitRow{start: brd.CellIndex(16, 10)}),
 	)
 }
 

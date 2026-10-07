@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/uid"
 )
 
 // Keys are the scene's own keys: each gives its command when its key is pressed with the modifiers
@@ -63,7 +64,7 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 				t.look()
 			} else {
 				for _, cmd := range t.button.content.(*button).cmds {
-					s.give(cmd)
+					s.giveAbout(cmd, t.about, t.pinned)
 				}
 			}
 		}
@@ -105,10 +106,20 @@ func (s *Scene) press(events *control.InputEvents) {
 				continue
 			}
 			if cmd, ok := b.Build(control.Context{Mods: mods}); ok {
-				s.give(cmd)
+				s.giveAbout(cmd, 0, false)
 			}
 		}
 	}
+}
+
+// giveAbout gives cmd for the entity the button is pinned to, where it is for It.
+func (s *Scene) giveAbout(cmd any, id uid.UID64, pinned bool) {
+	cmd, ok := about(cmd, id, pinned)
+	if !ok {
+		log.Printf("ui: scene %q: a command for ui.It given outside an element pinned to an entity", s.name)
+		return
+	}
+	s.give(cmd)
 }
 
 // give carries out cmd if it is the scene's own, else issues it.
@@ -150,6 +161,8 @@ func (s *Scene) modal() *Element {
 type target struct {
 	hit, button *Element
 	look        func()
+	about       uid.UID64 // the entity the element hit is pinned to
+	pinned      bool
 }
 
 // topmost is what p hits under e, in the button in, if any.
@@ -164,6 +177,7 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 	e.pin.each(e, e.parent, func(at *instance) {
 		if h := topmostHere(e, p, in); h.hit != nil {
 			t = h
+			t.about, t.pinned = at.id, true
 		}
 		if at.show && e.pin.show.hitsHere(p) {
 			id, looker := at.id, at.looker

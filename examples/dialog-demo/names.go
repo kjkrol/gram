@@ -28,9 +28,6 @@ const (
 	PuzzleCmd      = "puzzle the host"
 	OffendCmd      = "offend the host"
 
-	// names
-	HostName = "the host"
-
 	// scenes
 	MainScene = "main"
 )

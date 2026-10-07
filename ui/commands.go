@@ -1,5 +1,36 @@
 package ui
 
+import (
+	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/uid"
+)
+
+// It is whom a command is for in an element pinned to an entity: that entity —
+// rule.Lift(greeting).On(ui.It), defined in the register as any command. A button of the element
+// shown for an entity gives it for that entity (entity.ID).
+var It rule.Target = it{}
+
+type it struct{}
+
+func (it) Target() {}
+
+// about is cmd for the entity id where it is for It: false where it is and no entity is pinned.
+func about(cmd any, id uid.UID64, pinned bool) (any, bool) {
+	c, ok := cmd.(rule.Command)
+	if !ok {
+		return cmd, true
+	}
+	if _, isIt := c.Whom.(it); !isIt {
+		return cmd, true
+	}
+	if !pinned {
+		return nil, false
+	}
+	c.Whom = entity.ID(id)
+	return c, true
+}
+
 // Show shows the scene's elements called Name.
 type Show struct{ Name string }
 

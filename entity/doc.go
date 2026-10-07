@@ -9,8 +9,9 @@
 // An entity may be called something: its [Label] holds a name, its alone, and a group it is in
 // with others — a unit's from its kind.Entry (Named, InGroup), a cell's from its cell.Entry. A
 // command says whom it is for with a [Whom]: [Named], the entities bearing those names, [Group],
-// all those in the groups, or [World], the world's own entity — rule.Cast(open).On(entity.Group(
-// "trapdoors")). The world finds them by their Labels.
+// all those in the groups, [ID], the entities of those identifiers (what a ui element pinned to an
+// entity gives), or [World], the world's own entity — rule.Cast(open).On(entity.Group(
+// "trapdoors")). The world finds them by their Labels, or their IDs.
 //
 // The package is gram's core, imported by no plugin it needs, so whatever reads the components —
 // the world's steering and view, every plugin — does so without importing the world; the world

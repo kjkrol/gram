@@ -6,6 +6,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -108,5 +110,37 @@ func TestPin_AnEntityWithNoPlaceHasItsElementWhereItsParentLaysIt(t *testing.T) 
 	decision.pin.each(decision, decision.parent, func(*instance) {})
 	if inner.Box() != box(500, 250, 200, 100) {
 		t.Fatalf("laid at %v, want in the middle of the screen", inner.Box())
+	}
+}
+
+func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
+	var issued []any
+	greeting := effect.Effect{}
+	lift := rule.Lift(greeting).On(It)
+	answer := Button("hello", lift).Named("answer")
+	window := Window("host", answer).On(nobody)
+	s := built(NewScene("main", nil, func() *Element { return Layers(Image(&shifted{}), window) }).
+		Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	window.pin.stand(window, []spot{{id: 7, placed: true, x: 300, y: 300}}, views(s.root), screen)
+	window.pin.each(window, window.parent, func(*instance) {})
+	b := answer.Box()
+	s.HandleEvents(click(b.TopLeft.Add(geom.NewVec(2, 2))), nil, nil)
+	if len(issued) != 1 {
+		t.Fatalf("issued %v, want the button's command", issued)
+	}
+	got := issued[0].(rule.Command).Whom.(entity.Whom).IDs()
+	if len(got) != 1 || got[0] != 7 {
+		t.Fatalf("the command is for %v, want entity 7", got)
+	}
+}
+
+func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
+	var issued []any
+	s := built(NewScene("main", nil, func() *Element {
+		return Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)
+	}).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
+	if len(issued) != 0 {
+		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)
 	}
 }

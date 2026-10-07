@@ -1,6 +1,8 @@
 package main
 
 import (
+	"cmp"
+	"slices"
 	"testing"
 	"time"
 
@@ -116,20 +118,32 @@ func (s *testStage) tick(n int) {
 	}
 }
 
-// unit is the entity of kind k.
-func (s *testStage) unit(t *testing.T, k string) uid.UID64 {
+// units are the entities of kind k, top to bottom.
+func (s *testStage) all(t *testing.T, k string) []uid.UID64 {
 	t.Helper()
 	id := kind.Named[unitRow](s.world.Kinds(), k).ID()
+	type at struct {
+		id uid.UID64
+		y  float64
+	}
+	var found []at
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
 		for i, e := range cur.IDs {
-			if s.base.Slice(cur)[i].TypeID == id {
-				return e
+			if b := s.base.Slice(cur)[i]; b.TypeID == id {
+				found = append(found, at{e, b.Pos.TopLeft.Y})
 			}
 		}
 	}
-	t.Fatalf("no %s", k)
-	return 0
+	slices.SortFunc(found, func(a, b at) int { return cmp.Compare(a.y, b.y) })
+	var out []uid.UID64
+	for _, f := range found {
+		out = append(out, f.id)
+	}
+	if len(out) == 0 {
+		t.Fatalf("no %s", k)
+	}
+	return out
 }
 
 // put stands the entity id on cell (x, y).
@@ -164,20 +178,25 @@ func TestDemo_TheHostGreetsTheTravellerWhoAnswers(t *testing.T) {
 	effects := s.world.Effects()
 	greeting, talked, pleased := effects.Named(GreetingEf), effects.Named(TalkedEf), effects.Named(PleasedEf)
 	s.tick(2)
-	host, traveller := s.unit(t, HostKind), s.unit(t, TravellerKind)
+	hosts, traveller := s.all(t, HostKind), s.all(t, TravellerKind)[0]
+	host, other := hosts[1], hosts[0] // the lower host, at (16, 10); the upper one far off
 	if effects.Has(host, greeting) {
 		t.Fatal("the host says hello to a traveller far off")
 	}
-	s.put(traveller, 15, 7)
+	s.put(traveller, 15, 10)
 	s.tick(3)
-	if !effects.Has(host, greeting) {
-		t.Fatal("the host says no hello to the traveller beside it")
+	if !effects.Has(host, greeting) || effects.Has(other, greeting) {
+		t.Fatalf("greeting: the host beside %v, the other %v; want the one beside alone",
+			effects.Has(host, greeting), effects.Has(other, greeting))
 	}
 	s.click(t, PleaseCmd)
 	s.tick(2)
 	if effects.Has(host, greeting) || !effects.Has(host, talked) || !effects.Has(host, pleased) {
 		t.Fatalf("after the answer: greeting %v, talked %v, pleased %v; want the hello over, the host pleased",
 			effects.Has(host, greeting), effects.Has(host, talked), effects.Has(host, pleased))
+	}
+	if effects.Has(other, talked) || effects.Has(other, pleased) {
+		t.Error("the answer reached the other host too")
 	}
 	s.tick(TPS)
 	if effects.Has(host, greeting) {
@@ -190,8 +209,8 @@ func TestDemo_TheHelloGoesWithTheTraveller(t *testing.T) {
 	s := buildStage(t)
 	greeting := s.world.Effects().Named(GreetingEf)
 	s.tick(2)
-	host, traveller := s.unit(t, HostKind), s.unit(t, TravellerKind)
-	s.put(traveller, 15, 7)
+	host, traveller := s.all(t, HostKind)[1], s.all(t, TravellerKind)[0]
+	s.put(traveller, 15, 10)
 	s.tick(3)
 	s.put(traveller, 3, 7)
 	s.tick(3)
