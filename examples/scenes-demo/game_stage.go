@@ -35,6 +35,7 @@ const (
 type gameplayArena struct {
 	world   *world.Plugin
 	players *players.Plugin
+	player  *players.Player // the one at the keyboard
 	cameras *cameras.Plugin
 	panel   *panelScene
 	stage   game.Stage // the Stage defined on this arena: the hud reads its Composition
@@ -71,7 +72,7 @@ func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
-	g.cameras = cameras.NewPlugin(g.world, cameras.TopDown(), camera.Config{})
+	g.cameras = cameras.NewPlugin(g.world)
 	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(g.basePath())
 	if err := ctx.Use(g.cameras); err != nil {
 		return err
@@ -80,7 +81,8 @@ func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
 }
 
 func (g *gameplayArena) definePlayer() error {
-	return g.players.Local("player", g.cameras.Main()).Bind(g.players.Defaults()...)
+	g.player = g.players.Local("player", g.cameras.New(cameras.TopDown(), camera.Config{}))
+	return g.player.Bind(g.players.Defaults()...)
 }
 
 func (g *gameplayArena) defineKinds() {
@@ -162,7 +164,7 @@ func (w *worldScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the camera over the whole screen.
 func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(w.arena.cameras.Main(), screen)
+	return render.Whole(w.arena.player.Camera, screen)
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {

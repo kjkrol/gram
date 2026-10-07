@@ -6,7 +6,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 )
 
@@ -15,7 +17,7 @@ import (
 func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
-	left, right := r.local, r.p.Local("right", r.cams.New())
+	left, right := r.local, r.p.Local("right", r.cams.New(cameras.TopDown(), camera.Config{}))
 	if err := left.Bind(control.Command(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
 		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 100 + int(c.Cursor.X)}, true

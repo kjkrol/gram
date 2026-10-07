@@ -132,20 +132,21 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
-	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight})
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.minimapCam = s.cameras.New()
+	s.minimapCam = s.cameras.New(cameras.TopDown(), camera.Config{ViewportWidth: MinimapWidth, ViewportHeight: MinimapWidth * WorldHeight / WorldWidth}) // the arena whole, as the minimap shows it
 	return nil
 }
 
 func (s *arena) definePlayers() {
-	s.redPlayer = s.players.Local("red", s.cameras.Main())
-	s.bluePlayer = s.players.Local("blue", s.cameras.New())
+	half := camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight} // each its own half of the screen
+	s.redPlayer = s.players.Local("red", s.cameras.New(cameras.TopDown(), half))
+	s.bluePlayer = s.players.Local("blue", s.cameras.New(cameras.TopDown(), half))
 }
 
 func (s *arena) defineCells() {

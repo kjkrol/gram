@@ -68,9 +68,9 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	})
 	unit := kind.Named[float64](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
-	c.cams = cameras.NewPlugin(c.w, cameras.TopDown(), camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+	c.cams = cameras.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
-	c.one, c.two = c.players.Local("one", c.cams.Main()), c.players.Add("two")
+	c.one, c.two = c.players.Local("one", c.cams.New(cameras.TopDown(), camera.Config{ViewportWidth: 200, ViewportHeight: 200})), c.players.Add("two")
 	if err := c.one.Bind(c.sel.FollowKey(control.KeyC)); err != nil {
 		t.Fatal(err)
 	}

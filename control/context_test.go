@@ -24,9 +24,9 @@ func isoCamera(width, height uint32, cfg camera.Config, heights func(geom.Vec) f
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2, Isometric: true})
+	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2})
 	topo.Relief().SetHeights(heights)
-	return cameras.NewPlugin(w, topo.Views(), cfg).Main()
+	return cameras.NewPlugin(w).New(topo.Views(topography.Isometrically), cfg)
 }
 
 // plateau is ground 12 high for x in [192, 320], 0 elsewhere.

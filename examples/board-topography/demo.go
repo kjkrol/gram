@@ -139,7 +139,6 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
-		Isometric:   true,
 		Perspective: true,
 		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	s.selection = selection.NewPlugin(s.world)
@@ -171,8 +170,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		},
 	})
 	s.topography.WithAtmosphere(s.atmosphere)
-	s.cameras = cameras.NewPlugin(s.world, s.topography.Views(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
-	s.cameras.Main().CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
@@ -183,7 +181,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player", s.cameras.Main())
+	s.player = s.players.Local("player", s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight}))
+	s.player.Camera.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	s.rival = s.players.Add("rival")
 	return s.player.Bind(s.players.Defaults()...)
 }

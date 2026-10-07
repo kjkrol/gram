@@ -139,7 +139,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.bullet = bullet.NewPlugin(s.world, s.selection).WithGround(s.board.Heights)
-	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.bullet)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.bullet, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
@@ -150,7 +150,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player", s.cameras.Main())
+	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
 	s.wild = s.players.Add("wild")
 	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the soldier, not the camera
 	return s.player.Bind(slices.Concat(

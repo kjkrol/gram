@@ -77,7 +77,7 @@ func (c *headless) camera(make cameras.Maker, cfg camera.Config) camera.Camera {
 		space := c.world.Res.Config.Space
 		cfg.ViewportWidth, cfg.ViewportHeight = space.Width, space.Height
 	}
-	return cameras.NewPlugin(c.world, make, cfg).Main()
+	return cameras.NewPlugin(c.world).New(make, cfg)
 }
 
 // start runs the fresh-spawn half of entering a Stage after Init and Spawn: Populate on every

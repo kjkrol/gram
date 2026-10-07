@@ -194,8 +194,8 @@ func TestEngine_Init_CamerasViewportDefaultsToScreenSize(t *testing.T) {
 		cams := cameras.NewPlugin(ctx.UseWorld(world.Config{
 			Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		}), cameras.TopDown(), camera.Config{})
-		got = cams.Main()
+		}))
+		got = cams.New(cameras.TopDown(), camera.Config{})
 		return ctx.Use(cams)
 	}}
 	eng := NewEngine(oneStageGame{stage: stage, props: props})

@@ -35,7 +35,7 @@ type shooter struct {
 }
 
 func (s *shooter) cmd(c any) {
-	cam := s.d.a.cameras.Main()
+	cam := s.d.a.player.Camera
 	for _, q := range s.d.a.topography.Queues() {
 		if q.Accepts() == reflect.TypeOf(c) {
 			switch v := c.(type) {
@@ -91,7 +91,7 @@ func (s *shooter) showViews() {
 
 func (s *shooter) Update() error {
 	s.frame++
-	cam := s.d.a.cameras.Main()
+	cam := s.d.a.player.Camera
 	s.shot = ""
 	switch s.frame {
 	case 2:

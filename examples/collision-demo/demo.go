@@ -131,7 +131,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
-	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
@@ -142,7 +142,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	return s.players.Local("player", s.cameras.Main()).Bind(s.players.Defaults()...)
+	return s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{})).Bind(s.players.Defaults()...)
 }
 
 func (s *arena) defineEffects() {

@@ -36,8 +36,8 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
 	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	return w, p, cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64}).Main()
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	return w, p, cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
 }
 
 // In relief an entity stands as a billboard drawn on the GPU: upright on its box's centre at its

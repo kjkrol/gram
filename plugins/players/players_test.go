@@ -52,6 +52,7 @@ type rig struct {
 	t      *testing.T
 	w      *world.Plugin
 	cams   *cameras.Plugin
+	cam    camera.Camera // the local player's
 	p      *players.Plugin
 	local  *players.Player
 	orders *control.Queue[order]
@@ -67,10 +68,11 @@ func newRig(t *testing.T, cfg ...camera.Config) *rig {
 	if len(cfg) > 0 {
 		c = cfg[0]
 	}
-	cams := cameras.NewPlugin(w, cameras.TopDown(), c)
+	cams := cameras.NewPlugin(w)
+	cam := cams.New(cameras.TopDown(), c)
 	g := &general{}
 	p := players.NewPlugin(w, cams, g)
-	return &rig{t: t, w: w, cams: cams, p: p, local: p.Local("tester", cams.Main()), orders: &g.orders}
+	return &rig{t: t, w: w, cams: cams, cam: cam, p: p, local: p.Local("tester", cam), orders: &g.orders}
 }
 
 // start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera

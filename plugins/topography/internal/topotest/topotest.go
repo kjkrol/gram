@@ -164,7 +164,7 @@ func NewWorld(edges aabbworld.Edges) *world.Plugin {
 
 // Camera is the main camera of a cameras plugin over w made by p's Views, 128 x 64.
 func Camera(w *world.Plugin, p *topography.Plugin) camera.Camera {
-	return cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64}).Main()
+	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
 }
 
 // LevelBoard is a 4x4 board of level grass over w.
@@ -179,7 +179,7 @@ func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plugin) {
 	w := NewWorld(0)
 	b, grid := LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	return w, b, grid, p
 }
 

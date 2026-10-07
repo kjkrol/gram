@@ -308,9 +308,12 @@ and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `C
 `cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from the
 board's own atlas of the kinds), the ways and crossings as plain bands (`internal/draw.Bands`), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
-Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
-the world and the board, hands its cameras as a maker (`Plugin.Views()`, a `cameras.Maker`, for
-`cameras.NewPlugin(world, topography.Views(), cfg)`; `camera.Config` has no projection), sets its Look (`billboards.Look`: billboards in relief, the world's
+Config{Cell, TileW, TileH, HeightUnit, Headroom, Shaping, Climbing})`, made right after
+the world and the board, hands its cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`
+each camera beginning as its `topography.Start` says — `FromAbove`, `Isometrically`: per camera,
+so one player may look down and another isometrically; `Config.Isometric` went on 2026-10-07 —
+for `cameras.Plugin.New(topography.Views(start), cfg)`; every camera of a world in relief is one of
+them, its drawing asking for `camera.Rays`; `camera.Config` has no projection), sets its Look (`billboards.Look`: billboards in relief, the world's
 `FlatLook` from above, all drawn on the GPU), the board's Map (its Look `look.Nothing`: the ground is drawn on the GPU) and
 the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
 the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
@@ -1203,12 +1206,15 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   Runtime at hand, `players.Save` (F5) too, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a debug toggle) are
   run; `players.RunPlan` runs last and empties the queues. Depends on `world`.
 - **`cameras`** — the cameras a game looks through, started by the demo itself (2026-10-07, the
-  user's word): `cameras.NewPlugin(world, maker, camera.Config{...})` — the maker
-  `cameras.TopDown()` (`internal/camera`, a flat world, wrapping on a wrapping axis) or a view
-  plugin's (`topography.Plugin.Views()`, which refuses a wrapping world: a torus is a flat world's)
-  — makes the main camera at once (`Main()`) and others on demand (`New()`: a second player's, a
-  minimap's), every one saved in the order made; a zero viewport is sized to the window as the
-  plugin is installed (`plugin.Screen`, the engine's Initializer and the demos' test installers).
+  user's word): `cameras.NewPlugin(world)` makes no camera; each is made where it is given to a
+  player (the user's word: configured per player), `Local(name, s.cameras.New(maker,
+  camera.Config{...}))`, with a maker and a config of its own — `cameras.TopDown()`
+  (`internal/camera`, a flat world, wrapping on a wrapping axis) or a view plugin's
+  (`topography.Plugin.Views(start)`, which refuses a wrapping world: a torus is a flat world's);
+  viewport, zoom and `MouseLook` per camera — a minimap's the same way, every one saved in the order
+  made; a zero viewport is sized to the window, as the plugin is installed or at once after
+  (`plugin.Screen`, the engine's Initializer and the demos' test installers). No `Main()`: a game
+  keeps its cameras itself (`player.Camera`).
   Its commands name their camera (`control.Context.Camera`), so it knows no players: `Pan` (lets
   go of a fastening), `Zoom`, `Follow{Camera, Entity, On}` — fastens `Centred` over the entity, or
   lets go; from an entity (`kind.Entry.Told`) over that entity — and its system keeps every

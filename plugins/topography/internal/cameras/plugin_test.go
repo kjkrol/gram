@@ -14,9 +14,12 @@ import (
 func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	cams := cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
-	for name, cam := range map[string]camera.Camera{"the main": cams.Main(), "a new one": cams.New()} {
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	cams := cameras.NewPlugin(w)
+	isometric := func() camera.Camera {
+		return cams.New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
+	}
+	for name, cam := range map[string]camera.Camera{"the first": isometric(), "another": isometric()} {
 		if !cam.Projection().Sorts() || cam.Projection().Wraps() {
 			t.Errorf("%s camera draws through %T, want the plugin's isometric projection", name, cam.Projection())
 		}
@@ -35,7 +38,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 	for _, perspective := range []bool{false, true} {
 		w := topotest.NewWorld(0)
 		b, grid := topotest.LevelBoard(w)
-		p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: perspective})
+		p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: perspective})
 		wall := grid.CellIndex(2, 1)
 		b.Res.Logic.Board.Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
 		cam := topotest.Camera(w, p)

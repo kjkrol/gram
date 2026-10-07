@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -12,7 +14,7 @@ func TestViewports_OneLocalPlayerSeesTheWholeScreen(t *testing.T) {
 	r := newRig(t)
 	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600))
 	vps := r.p.Viewports(screen)
-	if len(vps) != 1 || vps[0].Area != screen || vps[0].Camera != r.cams.Main() {
+	if len(vps) != 1 || vps[0].Area != screen || vps[0].Camera != r.cam {
 		t.Errorf("viewports %+v, want the player's camera over the whole screen", vps)
 	}
 }
@@ -32,8 +34,8 @@ func TestViewports_NoneWithoutALocalPlayer(t *testing.T) {
 
 func TestViewports_PlayersWithTheirOwnCamerasShareTheScreenInColumns(t *testing.T) {
 	r := newRig(t)
-	second := r.p.Local("second", r.cams.New())
-	third := r.p.Local("third", r.cams.Main()) // looks through the main camera, as the first does
+	second := r.p.Local("second", r.cams.New(cameras.TopDown(), camera.Config{}))
+	third := r.p.Local("third", r.cam) // looks through the main camera, as the first does
 
 	vps := r.p.Viewports(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(801, 600)))
 	if len(vps) != 2 {

@@ -18,7 +18,7 @@ import (
 func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	r, ok := p.Renderer().(render.Direct)
 	if !ok || r.Tier() != render.Ground {
 		t.Fatalf("the renderer is %T, want a render.Direct at the Ground tier", p.Renderer())
@@ -35,7 +35,7 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w2 := topotest.NewWorld(0)
 	hex := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 16), &cell.MultipleOccupancy{}, w2)
 	hex.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	prisms := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	prisms := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1})
 	if r, ok := prisms.Renderer().(render.Direct); !ok || r.Tier() != render.Ground {
 		t.Errorf("over a hex grid the renderer is %T, want a render.Direct at the Ground tier", prisms.Renderer())
 	}

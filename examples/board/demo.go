@@ -141,8 +141,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	// A temperate island whose weather is thrown anew every run.
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
-	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
-	s.cameras.Main().CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.vision).WithSaves(saveBasePath)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
@@ -154,7 +153,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.Main())
+	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight}))
+	s.player.Camera.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	return s.player.Bind(s.players.Defaults()...)
 }
 

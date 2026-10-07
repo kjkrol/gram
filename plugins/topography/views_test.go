@@ -32,7 +32,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64}).Main()
+	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
 	if cam.Projection().Sorts() {
 		t.Fatal("a game not begun Isometric looks isometrically")
 	}
@@ -83,7 +83,7 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: true})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: true})
 	holding := func(how camera.How) map[string]control.Binding {
 		out := map[string]control.Binding{}
 		for _, bd := range p.DefaultBindings() {
@@ -139,5 +139,22 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	}
 	if _, ok := loose["V"]; ok {
 		t.Error("loose, V is bound: there is nothing to ride")
+	}
+}
+
+// Two players of one world in relief may look at it differently: a camera begins as its Start
+// says, from above or isometrically, whatever the other's does.
+func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	cams := cameras.NewPlugin(w)
+	half := camera.Config{ViewportWidth: 64, ViewportHeight: 64}
+	above, iso := cams.New(p.Views(topography.FromAbove), half), cams.New(p.Views(topography.Isometrically), half)
+	if above.Projection().Sorts() {
+		t.Error("the camera begun FromAbove looks isometrically")
+	}
+	if !iso.Projection().Sorts() {
+		t.Error("the camera begun Isometrically looks from above")
 	}
 }

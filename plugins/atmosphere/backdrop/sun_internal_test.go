@@ -50,7 +50,7 @@ func (sorting) Wraps() bool { return false }
 
 func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	wcam := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()
+	wcam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun, weather := sky.Sun{}, air.Weather{}
 	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
 	cam := raying{height: 30}

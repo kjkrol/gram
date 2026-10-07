@@ -44,8 +44,7 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // Config is the topography: the isometric view — a Cell-sized square of the world is a TileW x
 // TileH diamond, a height lifts a point HeightUnit screen units per world unit, Headroom is how
 // far above the ground a camera looks for sprites; zero TileW, TileH, HeightUnit and Headroom are
-// 64, 32, 1 and 64, Cell must be set — whether a fresh game begins Isometric rather than from
-// above, how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
+// 64, 32, 1 and 64, Cell must be set — how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
 // view's, below which the near relief hides what lies behind it), whether View reaches a third
 // view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and a Ride inside a unit,
 // seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how
@@ -56,7 +55,6 @@ type Config struct {
 	Cell, TileW, TileH float32
 	HeightUnit         float32
 	Headroom           float32
-	Isometric          bool
 	MinPitch           float32
 	Perspective        bool
 	FieldOfView        float32
@@ -89,8 +87,8 @@ type Plugin struct {
 	hexes  *hexes.Ground
 
 	cameras   *icameras.Control
-	views     cameras.Maker // the cameras' maker, for the cameras plugin
-	camQueues cameraQueues  // the cameras' commands, which the cameras read as their Orders
+	views     func(icameras.Config) cameras.Maker // a maker of the views starting as the Config says
+	camQueues cameraQueues                        // the cameras' commands, which the cameras read as their Orders
 	coarse    control.Queue[CoarseShadows]
 	module    *module
 }
@@ -133,9 +131,13 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		return float32(low), float32(high)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
-		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
+		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
-	p.views = cameras.Maker(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
+	bend := float32(worldPlugin.Scale().Bend())
+	p.views = func(start icameras.Config) cameras.Maker {
+		views.Isometric = start.Isometric
+		return cameras.Maker(p.cameras.Maker(views, ground, extent, bend))
+	}
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -145,9 +147,23 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	return p
 }
 
-// Views make the cameras of a world in relief, for the cameras plugin: from above, isometrically
-// and, given Config.Perspective, in perspective, View going round them.
-func (p *Plugin) Views() cameras.Maker { return p.views }
+// Start is the view a camera of a world in relief begins in: FromAbove or Isometrically.
+type Start uint8
+
+const (
+	// FromAbove begins a camera looking down from above, heights not drawn.
+	FromAbove Start = iota
+	// Isometrically begins a camera in the isometric view.
+	Isometrically
+)
+
+// Views make the cameras of a world in relief, for the cameras plugin, each beginning as start
+// says: from above, isometrically and, given Config.Perspective, in perspective, View going round
+// them. Every camera of such a world is one of these: what the topography draws asks for their
+// lines of sight.
+func (p *Plugin) Views(start Start) cameras.Maker {
+	return p.views(icameras.Config{Isometric: start == Isometrically})
+}
 
 // boardSurface is the ground's look as the painter paints it out of the board's atlas — the board
 // painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from

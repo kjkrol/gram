@@ -84,9 +84,9 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 		view(w)
 	}
 	sel := NewPlugin(w)
-	cams := cameras.NewPlugin(w, cameras.TopDown(), cam)
+	cams := cameras.NewPlugin(w)
 	pl := players.NewPlugin(w, cams, sel)
-	local := pl.Local("tester", cams.Main())
+	local := pl.Local("tester", cams.New(cameras.TopDown(), cam))
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}

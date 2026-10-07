@@ -15,6 +15,7 @@ import (
 // savedStage is a world and its cameras, loaded from loadFrom when set.
 type savedStage struct {
 	cams     *cameras.Plugin
+	cam      camera.Camera
 	loadFrom string
 	stack    game.Scenes
 }
@@ -24,7 +25,8 @@ func (g *savedStage) Init(ctx game.Initializer) error {
 	g.cams = cameras.NewPlugin(ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	}), cameras.TopDown(), camera.Config{})
+	}))
+	g.cam = g.cams.New(cameras.TopDown(), camera.Config{})
 	return ctx.Use(g.cams)
 }
 func (g *savedStage) Restore(p game.Persistence) (bool, error) {
@@ -62,7 +64,7 @@ func TestPlugin_SaveLoad_CameraRoundTrip(t *testing.T) {
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	cam := g.cams.Main()
+	cam := g.cam
 	cam.MoveTo(100, 150)
 	b := cam.Bounds()
 	cam.ZoomIn(2, float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2)
@@ -75,10 +77,10 @@ func TestPlugin_SaveLoad_CameraRoundTrip(t *testing.T) {
 	if err := engine.NewEngine(oneStage{stage: g2}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if got := g2.cams.Main().Bounds(); got != wantBounds {
+	if got := g2.cam.Bounds(); got != wantBounds {
 		t.Errorf("Bounds() after Load = %+v, want %+v", got, wantBounds)
 	}
-	if got := g2.cams.Main().Zoom(); got != wantZoom {
+	if got := g2.cam.Zoom(); got != wantZoom {
 		t.Errorf("Zoom() after Load = %v, want %v", got, wantZoom)
 	}
 }

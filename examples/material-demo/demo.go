@@ -117,7 +117,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world)
-	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
+	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board)
 	for _, p := range []plugin.Plugin{s.board, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
@@ -128,7 +128,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.Main())
+	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
 	return s.player.Bind(s.players.Defaults()...)
 }
 

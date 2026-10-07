@@ -31,7 +31,7 @@ func needGPU(t *testing.T) {
 func TestClouds_ShadeAFlatWorldOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 4096, Height: 4096}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	cam.SetViewport(512, 384)
 	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40}}
 	c := New(func() sky.Sun {

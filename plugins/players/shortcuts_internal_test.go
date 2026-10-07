@@ -36,9 +36,9 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 // the cameras' under Cameras, and the players' own and the scene's keys under Game.
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
-	if err := p.Local("one", cams.Main()).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one", cams.New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).shortcuts
@@ -65,9 +65,9 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 // entity, the free camera's WASD and edge scroll are gone and the title says so.
 func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
-	cam := &ridingCam{Camera: cams.Main()}
+	cam := &ridingCam{Camera: cams.New(cameras.TopDown(), camera.Config{})}
 	pl := p.Local("one", cam)
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
@@ -155,9 +155,9 @@ func (c *shown) Show(name string) { c.names = append(c.names, name) }
 // game's own runs.
 func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
-	if err := p.Local("one", cams.Main()).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one", cams.New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	built := 0
@@ -226,7 +226,7 @@ func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
 	if !hasF5(p) {
 		t.Fatal("a game with saves has no F5 among its default keys")
 	}
-	if err := p.Local("one", cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one", cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	rt := &savingEngine{}

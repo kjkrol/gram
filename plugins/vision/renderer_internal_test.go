@@ -430,8 +430,8 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	return cameras.NewPlugin(w, p.Views(), cfg).Main()
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), cfg)
 }
 
 // behindUnder is a camera with nothing in front of its eye short of x 146: as a perspective riding

@@ -18,12 +18,14 @@ import (
 // game.Viewer over the whole screen.
 type viewedStage struct {
 	cams  *cameras.Plugin
+	cam   camera.Camera
 	stack game.Scenes
 }
 
 func (s *viewedStage) Name() string { return "stage" }
 func (s *viewedStage) Init(ctx game.Initializer) error {
-	s.cams = cameras.NewPlugin(ctx.UseWorld(testWorldConfig()), cameras.TopDown(), camera.Config{})
+	s.cams = cameras.NewPlugin(ctx.UseWorld(testWorldConfig()))
+	s.cam = s.cams.New(cameras.TopDown(), camera.Config{})
 	if err := ctx.Use(s.cams); err != nil {
 		return err
 	}
@@ -48,7 +50,7 @@ func (viewScene) Layers() []render.Layer                                        
 func (viewScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (viewScene) Focusable() bool                                                   { return true }
 func (v viewScene) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.s.cams.Main(), screen)
+	return render.Whole(v.s.cam, screen)
 }
 
 func TestLayout_AResizableScreenIsTheWindowAndTheCameraFollowsIt(t *testing.T) {
@@ -60,7 +62,7 @@ func TestLayout_AResizableScreenIsTheWindowAndTheCameraFollowsIt(t *testing.T) {
 	if w, h := eng.Layout(1200, 900); w != 1200 || h != 900 {
 		t.Errorf("Layout(1200, 900) = %d x %d, want the window", w, h)
 	}
-	cam := stage.cams.Main()
+	cam := stage.cam
 	if w, h := cam.Viewport(); w != 1200 || h != 900 {
 		t.Errorf("the camera draws to %v x %v, want the window's 1200 x 900", w, h)
 	}
@@ -79,7 +81,7 @@ func TestLayout_AFixedScreenStaysWhateverTheWindow(t *testing.T) {
 	if w, h := eng.Layout(1200, 900); w != 400 || h != 300 {
 		t.Errorf("Layout(1200, 900) = %d x %d, want the fixed 400 x 300", w, h)
 	}
-	if w, h := stage.cams.Main().Viewport(); w != 400 || h != 300 {
+	if w, h := stage.cam.Viewport(); w != 400 || h != 300 {
 		t.Errorf("the camera draws to %v x %v, want the fixed screen", w, h)
 	}
 }

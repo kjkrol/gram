@@ -15,7 +15,7 @@ import (
 
 func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	weather := air.Weather{}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
 	if p.Tier() != render.Air {
@@ -55,7 +55,7 @@ func (flung) Project(x, y, _ float32) (float32, float32) {
 // draws points elsewhere, and never flatter than it falls: no streak runs across the screen.
 func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	weather := air.Weather{Rain: 1, Wind: [2]float32{10, 0}}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
 	if f := p.fall(flung{cam}); f.Drift != 10*rainSlant {
@@ -71,7 +71,7 @@ func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	weather := air.Weather{Rain: 1}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
 	screen := render.NewImage(640, 480)

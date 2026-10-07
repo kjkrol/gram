@@ -151,6 +151,7 @@ type arena struct {
 	collision *collision.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
+	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
 }
 
@@ -173,7 +174,7 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	a.cameras = cameras.NewPlugin(a.world, cameras.TopDown(), camera.Config{})
+	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.cameras)
 	for _, p := range []plugin.Plugin{a.collision, a.cameras, a.players} {
 		if err := ctx.Use(p); err != nil {
@@ -186,7 +187,8 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	return a.players.Local("player", a.cameras.Main()).Bind(a.players.Defaults()...)
+	a.player = a.players.Local("player", a.cameras.New(cameras.TopDown(), camera.Config{}))
+	return a.player.Bind(a.players.Defaults()...)
 }
 
 func (a *arena) defineKinds() {
@@ -255,7 +257,7 @@ func (v *view) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the camera over the whole screen.
 func (v *view) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.arena.cameras.Main(), screen)
+	return render.Whole(v.arena.player.Camera, screen)
 }
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {

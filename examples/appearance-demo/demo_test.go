@@ -167,7 +167,7 @@ func (ds *drawnStage) tick(n int) {
 // draw composes a frame and tells what every entity was drawn with.
 func (ds *drawnStage) draw() []shown {
 	ds.rec.drawn = map[geom.Vec][]render.Appearance{}
-	cam := ds.arena.cameras.Main()
+	cam := ds.arena.player.Camera
 	var f render.Frame
 	f.Reset(cam)
 	ds.arena.world.Renderer().(interface {
