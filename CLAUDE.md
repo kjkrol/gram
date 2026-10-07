@@ -1218,7 +1218,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   Its commands name their camera (`control.Context.Camera`), so it knows no players: `Pan` (lets
   go of a fastening), `Zoom`, `Follow{Camera, Entity, On}` — fastens `Centred` over the entity, or
   lets go; from an entity (`kind.Entry.Told`) over that entity — and its system keeps every
-  `Centred` camera over its entity, letting go of one gone. `cameras.Keys{Up, Down, Left, Right,
+  `Centred` camera over its entity, letting go of one gone; `LookAt{Camera, Entity}` moves it
+  once onto an entity, fastened to nothing (a ui element showing a place far off). `cameras.Keys{Up, Down, Left, Right,
   ScrollSpeed, Wheel, Drag, Edge}` are a player's keys to its camera, `DefaultKeys()` W/S/A/D, the
   wheel, the middle drag and the edge (`control.Context.Edges`); a demo whose WSAD drive binds
   `cameras.Keys{Wheel, Drag, Edge}` alone. Depends on `world`. The engine has no
@@ -1394,6 +1395,56 @@ an error where the call returns one, a panic elsewhere, each through
 they are made), and a Stage written by hand is in no section: nothing is refused, so every test
 installer works as before. A plugin that needs a game's definitions takes them after it is used
 (`atmosphere.Plugin.WithWeathering` any time before the Stage is set up).
+
+### UI: a scene's screen composed of elements (`ui`, since 2026-10-07)
+
+The user's model: a Stage has many scenes (Civilization: the game, a city, the tech tree), each a
+composition of a view built out of elements. Two levels of composing, never mixed: **the world**
+(2.5D/3D) stays `render`'s — a Composer, tiers, the shared depth buffer, `Direct`; the order there
+is depth's, so a route hides behind a hill and a unit in a tunnel behind the ground — and **the
+screen** (2D) is `ui`'s tree, the order its containers' names say. **ui knows no camera** and no
+`render` rule (the user's word, twice: "nie mieszajmy ui z kamerą", "nie można mieszać render z
+ui"): the world through a camera is a `render.Feed` (`render.NewFeed(cam, picture)`: a picture —
+any `WorldRenderer`, a Composer as a rule — drawn through the camera every frame into an image of
+the size it is shown at, the camera's viewport with it; `render.Surface` is `Resize` and `Draw`;
+`ToWorld`/`ToPixels` turn its pixels into the world and back), which `ui.Image(feed)` shows as any
+picture. `ui.NewScene(name, pictures, screen)` is a `game.Scene` (one layer: the tree laid over
+the screen and drawn every frame; the pictures initialised once however many feeds show them;
+`Pictures`/`Screen` are the two halves `Layers()` used to be); `Scene.Input(players.Handle)`,
+`Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)` the scene's own,
+`Show`/`Hide`/`Toggle`/`Shown` by name, `Lay(screen)` (what a frame does before drawing — tests
+call it), and it saves which named elements are shown (`Persisted`/`Restore`: the Stage tracks
+every scene that is a `plugin.Serializable`, the engine keys a tracked value by its type and its
+`Name()`). **The notation says what it does** (the user's word): `ui.Layers(bottom, …, top)`
+covers, `ui.Columns`/`ui.Rows` split and never cover, each part `ui.Share(n, el)` (n parts of what
+is left: two `Share(1, …)` are halves), `ui.Fixed(px, el)`, `ui.Fit(el)`; an anchor wraps its
+element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never `el.At(anchor)`.
+Elements: `Panel`, `Label` (render's debug text for now), `Image`, `Window`, `Button(label,
+cmds...)` (the scene's own `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue` — a
+button gives commands the way a key does, no callbacks into the game), `Blank` (a gap, a divider
+with a `Fill`), `Layer(renderer)` (a screen renderer as an element, the telemetry); any element
+takes `Fill`, `Border` (drawn over its content), `Padding`, `Named`, `Hidden`, `Modal` (it holds
+every click and the wheel outside it while shown) and `Masked(ui.Circle | ui.Polygon(...))`: layout
+gives boxes, the shape is drawing and hitting inside the box (a round clock, a hexagonal minimap;
+`render.Image.DrawImageIn`, `FillPolygon`). Input: a click goes to the topmost element hit — a
+button gives its commands, an `Image(feed).Input(players.Through(pl))` lets it through to the
+players' bindings (and tells the player where its picture lies: `Player.area`, in place of
+`players.Viewports`), any other element keeps it. **Elements from the game are pinned to
+entities**, written as `Under` on the atlas: `ui.Label("frozen").Under(effects.Named(FrozenEf))`
+is shown once for every entity the effect is on, `.On(entity.Named/Group(...))` for those called
+so; the scene finds them in the ECS itself every frame (a query over `tag.Tags[effect.States]`,
+`entity.Base`, `Z`, `Label`), `Above` (default)/`Below`/`Beside`/`Offset` say how it stands by its
+entity in the first picture of the world that shows it, kept on the screen; `OffScreen(ui.PointAtIt
+| ui.ShowIt | ui.GoToIt)` what it does out of sight — the camera moved by a command
+(`cameras.LookAt{Camera, Entity}`, once, fastened to nothing) through the picture's Input
+(`players` implements `ui.Looker`); an entity with no place (the world's own entity, a plugin's)
+has its element where its parent lays it; a modal pinned element shows one entity at a time. A
+decision à la Europa Universalis is rules and effects: a rule puts an effect on (effect-demo's
+witch first on the ice: `winter`), another holds the game while it is on
+(`rule.Under(winter, rule.Order(world.Pause{}))` — pausing in the rule that casts would freeze the
+step before the effect's marker comes on, and the window would never show), the window's buttons
+lift it and resume. Migrated: split-screen, scenes-demo's gameplay, effect-demo, minimal; the
+rest of the demos keep their old scenes until `Scenes`/`Shows`/`game.Viewer` go.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
 gameplay entities, "Start" switching (lazily building the ECS) into a

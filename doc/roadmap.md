@@ -10,10 +10,18 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
   constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
   `Initializer` reached only for the two calls.
-- **A minimap plugin** — the split-screen demo's minimap as `plugins/minimap`: a `game.Scenic`
-  with its own camera from above fitted to the world, the composer handed over or a picture of
-  its own (the board's still, the units as dots), the players' views outlined on it, a key to
-  show and hide it, later a click on it panning the player's camera.
+- **A minimap plugin** — a `ui` element: a feed from a camera from above fitted to a window of the
+  world, the game's picture under dots of its own by kind, picked by drawing rules (what my units
+  see: `vision.Seen`), the players' views outlined on it, a key to show and hide it, a click on it
+  panning the player's camera; a round or many-sided one through `ui.Masked`.
+- **ui, what is left** — the old scenes migrated (every demo but split-screen, scenes, effect and
+  minimal) and then `Scenes`/`Shows`/`game.Viewer` replaced; fonts with Polish letters and a
+  theme; `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`, `List`; `Canvas`
+  (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; a pinned element's
+  buttons giving commands about its own entity; which half of a split screen a pinned element
+  shows in (its entity's owner's); the UI drawn into one `render.Frame` in place of a draw an
+  element; a hold of the clock that is no toggle (`world.Pause` toggles: a rule pausing in two
+  sub-steps of one tick lets the game go on).
 - **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
   work, no collision involved.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of

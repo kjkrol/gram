@@ -27,6 +27,14 @@
 // persistence, full screen — that reaches a Stage and every Scene alike. The cameras a game looks
 // through are a plugin's (plugins/cameras), started by the game itself.
 //
+// A scene's screen is composed out of elements with package ui: a [ui.Scene] takes its pictures of
+// the world — render.WorldRenderers, a Composer of the plugins' renderers — and a tree of elements
+// laid over the screen: layers covering one another, columns and rows split by share, anchors,
+// panels, labels, windows, buttons giving commands, and the world itself as a picture through a
+// camera (a render.Feed shown by ui.Image), knowing no camera. Elements pinned to entities — under
+// an effect, on a name — stand by them in the picture that shows them; the world's own drawing
+// keeps its order by depth, the screen's by the tree.
+//
 // # Plugins and rules
 //
 // A [plugin.Plugin] is installed from Stage.Init through ctx.Use. Its Install only queues ECS
@@ -109,7 +117,9 @@
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
-//	          plugins/cameras     — the cameras a game looks through: Main, New, Pan, Zoom, Follow, Keys (→ world, …)
+//	          ui                  — a scene's screen composed of elements: Layers, Columns, Rows, anchors, Panel, Label,
+//	                                Image (a render.Feed), Window, Button, elements pinned to entities (→ game, render, control, entity, effect)
+//	          plugins/cameras     — the cameras a game looks through: New, Pan, Zoom, Follow, LookAt, Keys (→ world, …)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
 //	          plugins/selection   — a Select command into a Selected tag; the roles' abilities; FollowKey (→ world, rule, cameras, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
@@ -121,7 +131,7 @@
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
 //	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
-//	          plugins/players     — a carrier over the command handlers: players, their bindings, the viewports (→ world, …)
+//	          plugins/players     — a carrier over the command handlers: players, their bindings, the viewports, Through and IssueAs for a ui scene (→ world, cameras, ui, …)
 //	Layer 10  internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
 //	                                roles' rules to the plugins' hosts (→ game, plugin, rule, world, camera, control, render)
 //	Layer 11  gram                — Run; the package you import                                     (→ game, internal/engine)
