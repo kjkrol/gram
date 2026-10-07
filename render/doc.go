@@ -20,7 +20,8 @@
 // — drawn through the camera every frame into an image of the size whoever shows it gives it
 // ([Surface]: Resize, Draw), the camera's viewport with it. Several feeds share one picture: the
 // halves of a split screen and a minimap. A feed turns its pixels into the world and back
-// (ToWorld, ToPixels), so whatever shows it knows nothing of its camera.
+// (ToWorld, ToPixels), so whatever shows it knows nothing of its camera. One filling the whole
+// screen is drawn straight onto it (DrawOn), no image between.
 //
 // # Font and DrawText
 //

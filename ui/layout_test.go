@@ -155,3 +155,30 @@ func TestScene_InitialisesAPictureOnceWhateverListsIt(t *testing.T) {
 		t.Fatalf("picture initialised %d times, want once", p.inits)
 	}
 }
+
+// straight is a surface that notes whether it was drawn straight onto the screen.
+type straight struct {
+	sized
+	onto bool
+}
+
+func (s *straight) DrawOn(*render.Image) { s.onto = true }
+
+func TestImage_FillingTheScreenDrawsStraightOntoIt(t *testing.T) {
+	dst := render.NewImage(1200, 600)
+	whole, half := &straight{}, &straight{}
+	for _, c := range []struct {
+		src *straight
+		e   *Element
+	}{{whole, Image(whole)}, {half, Columns(Share(1, Image(half)), Share(1, Blank()))}} {
+		c.e.lay(screen)
+		c.e.walk(func(e *Element) {
+			if _, ok := e.content.(*picture); ok {
+				e.content.draw(e, dst)
+			}
+		})
+	}
+	if !whole.onto || half.onto {
+		t.Fatalf("drawn straight: the whole screen's %v, the half's %v; want the whole alone", whole.onto, half.onto)
+	}
+}

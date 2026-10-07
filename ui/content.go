@@ -58,12 +58,19 @@ func (p *picture) place(e *Element, box geom.AABB) {
 	}
 }
 
+// direct is a surface that draws straight onto the screen it fills (render.Feed.DrawOn).
+type direct interface{ DrawOn(dst *render.Image) }
+
 func (p *picture) draw(e *Element, dst *render.Image) {
+	box := shrink(e.box, e.padding)
+	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) {
+		d.DrawOn(dst)
+		return
+	}
 	img := p.src.Draw()
 	if img == nil {
 		return
 	}
-	box := shrink(e.box, e.padding)
 	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
 	if e.mask != nil {
 		dst.DrawImageIn(img, x, y, e.mask.points(box))
@@ -75,6 +82,13 @@ func (p *picture) draw(e *Element, dst *render.Image) {
 }
 
 func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
+
+// fills reports whether box covers the whole of dst.
+func fills(box geom.AABB, dst *render.Image) bool {
+	b := dst.Bounds()
+	return math.Round(box.TopLeft.X) <= float64(b.Min.X) && math.Round(box.TopLeft.Y) <= float64(b.Min.Y) &&
+		math.Round(box.BottomRight.X) >= float64(b.Max.X) && math.Round(box.BottomRight.Y) >= float64(b.Max.Y)
+}
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.
 func Window(title string, elements ...*Element) *Element {

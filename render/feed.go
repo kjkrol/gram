@@ -54,6 +54,14 @@ func (f *Feed) Draw() *Image {
 	return f.img
 }
 
+// DrawOn draws the world through the camera straight onto dst, the camera's viewport dst's size:
+// a feed filling the whole screen, drawn without an image of its own between.
+func (f *Feed) DrawOn(dst *Image) {
+	b := dst.Bounds()
+	f.Resize(b.Dx(), b.Dy())
+	f.picture.DrawWorld(dst, f.cam)
+}
+
 // ToWorld is the point of the world under the feed's pixel (px, py): the ground the camera picks
 // there where it can (camera.Picker), else the point at sea level; false where it sees no ground.
 func (f *Feed) ToWorld(px, py float32) (x, y float32, ok bool) {
