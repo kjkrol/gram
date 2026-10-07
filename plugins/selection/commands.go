@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
@@ -101,7 +102,8 @@ func (p *Plugin) Queues() []control.CommandQueue {
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held.
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and C to
+// follow the one unit chosen (FollowKey).
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -114,5 +116,15 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
+		p.FollowKey(control.KeyC),
 	}
+}
+
+// FollowKey is key fastening the camera the player looks through over the one unit it has chosen
+// (Chosen) — kept in the middle of the screen as it goes — or letting it go: a cameras.Follow.
+func (p *Plugin) FollowKey(key control.Key) control.Binding {
+	return control.Command(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
+		id, ok := p.Chosen(c.Player)
+		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
+	})
 }

@@ -16,7 +16,7 @@
 // [SpaceCfg] sizes the world and sets the edge rule per axis (aabbworld.Torus, WrapX or WrapY
 // alone, OpenX or OpenY, a closed axis by default — a box stops whole at a closed edge, wraps at
 // a wrapping one, may leave by an open one); the [EntitiesCfg] bounds how many entities the world
-// holds and the sizes they spawn with; the camera.Config sizes the camera. An entity wholly past
+// holds and the sizes they spawn with. An entity wholly past
 // an open edge carries [Outside] — put on by whoever moved it there, the world's move or collision's
 // solver — and every tick it does, the rules of a [Leaving] the roles obey hear of it;
 // with none it is despawned. Put back inside, it
@@ -28,8 +28,8 @@
 // in relief (plugins/topography) writes from its ground, sight follows and collision minds (two
 // meet only where the heights they span overlap); a flat world refuses a Z. The world knows
 // its entities and nothing else: the ground is the board's, the sky the atmosphere's.
-// The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]) and the shared camera
-// ([Plugin.Camera]; the players plugin moves it through Pan and Zoom commands).
+// The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]); the cameras looking at it are
+// the cameras plugin's (plugins/cameras).
 //
 // # Base, Position and Velocity
 //
@@ -199,8 +199,7 @@
 // outlines ask the same Look. A [DirectLook] draws the sprites itself on the GPU: the renderer, a
 // render.Direct at render.Objects, readies it every frame, hands it the sprites and has it draw
 // them — the world's own flat look as instances (render.Sprites), the topography's as billboards
-// against the ground's depth. A view plugin also makes the world's cameras ([Plugin.SetCameras],
-// [Cameras]).
+// against the ground's depth.
 //
 // # Views
 //
@@ -209,8 +208,8 @@
 // number of Views ([Plugin.ViewFor] a camera) and the view.System
 // refreshes each of them once a tick, right after movement has rebuilt the Space; a View whose
 // bounds cover the whole world is not queried and simply sees everything, as does the zero View a
-// Stage has before its first tick. [Plugin.View] is the camera's, made by the plugin itself, and
-// [Plugin.ViewFor] the View of any camera of the world's; the entity renderer reads them.
+// Stage has before its first tick. [Plugin.ViewFor] is the View of a camera, made at the first
+// call; the entity renderer reads the one of the camera it draws through.
 //
 // # Telemetry
 //

@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -32,11 +33,12 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 }
 
 // The shortcuts list every binding of the local players under the plugin that owns its command,
-// the camera's under Camera, and the scene's keys under Game.
+// the cameras' under Cameras, and the players' own and the scene's keys under Game.
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
-	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	p := NewPlugin(w, cams)
+	if err := p.Local("one", cams.Main()).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).shortcuts
@@ -45,10 +47,10 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	for _, g := range groups {
 		names[g.name] = g.lines
 	}
-	if len(groups) != 3 || groups[0].name != "Camera" || groups[1].name != "World" || groups[2].name != "Game" {
-		t.Fatalf("groups %v, want Camera, World and Game in that order", names)
+	if len(groups) != 3 || groups[0].name != "World" || groups[1].name != "Cameras" || groups[2].name != "Game" {
+		t.Fatalf("groups %v, want World, Cameras and Game in that order", names)
 	}
-	if lines := strings.Join(names["Camera"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
+	if lines := strings.Join(names["Cameras"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
 	}
 	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Space") || !strings.Contains(lines, "Pause the game") {
@@ -63,17 +65,17 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 // entity, the free camera's WASD and edge scroll are gone and the title says so.
 func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
-	pl := p.Local("one")
-	cam := &ridingCam{Camera: pl.Camera}
-	pl.Camera = cam
+	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	p := NewPlugin(w, cams)
+	cam := &ridingCam{Camera: cams.Main()}
+	pl := p.Local("one", cam)
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	s := p.shortcuts
 	camera := func() string {
 		for _, g := range s.groups() {
-			if g.name == "Camera" {
+			if g.name == "Cameras" {
 				return strings.Join(g.lines, "\n")
 			}
 		}
@@ -153,8 +155,9 @@ func (c *shown) Show(name string) { c.names = append(c.names, name) }
 // game's own runs.
 func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
-	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+	cams := cameras.NewPlugin(w, cameras.TopDown(), camera.Config{})
+	p := NewPlugin(w, cams)
+	if err := p.Local("one", cams.Main()).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	built := 0
@@ -218,11 +221,12 @@ func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
 	if hasF5(NewPlugin(world.NewPlugin(cfg))) {
 		t.Error("a game that said nowhere to save has F5 among its default keys")
 	}
-	p := NewPlugin(world.NewPlugin(cfg)).WithSaves("meadow")
+	w := world.NewPlugin(cfg)
+	p := NewPlugin(w).WithSaves("meadow")
 	if !hasF5(p) {
 		t.Fatal("a game with saves has no F5 among its default keys")
 	}
-	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one", cameras.NewPlugin(w, cameras.TopDown(), camera.Config{}).Main()).Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	rt := &savingEngine{}

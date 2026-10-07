@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -30,13 +29,7 @@ import (
 type Resources struct {
 	Config    Config
 	Telemetry *Telemetry
-	Camera    camera.Camera
 }
-
-var _ plugin.Serializable = (*Resources)(nil)
-
-// Persisted returns the camera's Viewport/Zoom for Persistence.Save/Load to include automatically.
-func (r *Resources) Persisted() []any { return r.Camera.Persisted() }
 
 // Plugin is the world a Stage installs via ctx.UseWorld — never construct
 // and Use your own.
@@ -51,9 +44,7 @@ type Plugin struct {
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
-	view     *view.View // the camera's
 	views    map[camera.Camera]*view.View
-	cameras  Cameras
 	look     Look
 	looked   bool // the effects' looks are among the drawing rules
 	sections any  // the Stage's Initializer, which tells the section being defined; nil before Install
@@ -61,7 +52,6 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Builtin = (*Plugin)(nil)
-var _ plugin.Restorer = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
@@ -74,10 +64,7 @@ func NewPlugin(cfg Config) *Plugin {
 	kinds := newKinds(cfg.Heights)
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
-		cameras: icamera.NewFromSpaceWithConfig,
-		look:    ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
-	p.Res.Camera = p.NewCamera()
-	p.view = p.newView(p.Res.Camera.Bounds)
+		look: ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
@@ -135,31 +122,12 @@ func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick { return p.m
 // HasHeights reports whether this world has heights — see Config.Heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 
-// View is what the camera sees: refreshed each tick after movement, drawn by the entity renderer.
-func (p *Plugin) View() *view.View { return p.view }
-
 // newView keeps a View current over whatever bounds says, from the next tick on — a second
 // camera's, a remote player's, anything that watches a part of the world.
 func (p *Plugin) newView(bounds func() geom.AABB) *view.View {
 	v := view.New(bounds)
 	p.module.views = append(p.module.views, v)
 	return v
-}
-
-// NewCamera is another camera over this world, configured as the world's own — a player's who
-// looks on their own; ViewFor gives its View.
-func (p *Plugin) NewCamera() camera.Camera {
-	cfg := p.Res.Config
-	return p.cameras(cfg.Space.Width, cfg.Space.Height, cfg.Space.Edges, cfg.Camera)
-}
-
-// SetCameras has the world make its cameras with make from now on, its own camera anew: a view
-// plugin's projection. Call before anything asks for a camera — right after the world is made.
-func (p *Plugin) SetCameras(make Cameras) {
-	p.cameras = make
-	p.dropView(p.view)
-	p.Res.Camera = p.NewCamera()
-	p.view = p.newView(p.Res.Camera.Bounds)
 }
 
 // Scale is how many metres a world unit spans, as the world was made with.
@@ -177,12 +145,9 @@ func (p *Plugin) FlatLook() Look {
 	return ilook.NewFlat(float32(p.Res.Config.Space.Width), float32(p.Res.Config.Space.Height))
 }
 
-// ViewFor is the View of what cam sees, kept current from the next tick on: View for the world's
-// camera, one made at the first call for any other.
+// ViewFor is the View of what cam sees, kept current from the next tick on, made at the first
+// call: what the entity renderer draws through cam.
 func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
-	if cam == p.Res.Camera {
-		return p.view
-	}
 	if v, ok := p.views[cam]; ok {
 		return v
 	}
@@ -193,23 +158,6 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	p.views[cam] = v
 	return v
 }
-
-// dropView stops refreshing v; it keeps whatever it last saw.
-func (p *Plugin) dropView(v *view.View) {
-	views := p.module.views
-	for i, w := range views {
-		if w == v {
-			p.module.views = append(views[:i], views[i+1:]...)
-			return
-		}
-	}
-}
-
-// Camera returns world's shared Camera, built from Config.Space.
-func (p *Plugin) Camera() camera.Camera { return p.Res.Camera }
-
-// Restore applies the camera's Viewport/Zoom decoded by Persistence.Load.
-func (p *Plugin) Restore() { p.Res.Camera.Restore() }
 
 // =================================================================
 // plugin.Plugin contract
@@ -279,11 +227,11 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// EventHandler returns nil — the camera is moved by players' Pan and Zoom commands.
+// EventHandler returns nil — a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable returns world's persistable state (its camera's Viewport/Zoom).
-func (p *Plugin) Serializable() plugin.Serializable { return &p.Res }
+// Serializable is nil — the world's entities are saved with the ECS, its cameras by the cameras.
+func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // =================================================================
 // world-specific

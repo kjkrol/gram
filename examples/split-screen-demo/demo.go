@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -84,6 +85,7 @@ type arena struct {
 	board      *board.Plugin
 	selection  *selection.Plugin
 	nav        *navigation.Plugin
+	cameras    *cameras.Plugin
 	players    *players.Plugin
 	redPlayer  *players.Player
 	bluePlayer *players.Player
@@ -121,27 +123,27 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight},
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
+	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight})
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav)
 	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.minimapCam = s.world.NewCamera()
+	s.minimapCam = s.cameras.New()
 	return nil
 }
 
 func (s *arena) definePlayers() {
-	s.redPlayer = s.players.Local("red").OwnCamera()
-	s.bluePlayer = s.players.Local("blue").OwnCamera()
+	s.redPlayer = s.players.Local("red", s.cameras.Main())
+	s.bluePlayer = s.players.Local("blue", s.cameras.New())
 }
 
 func (s *arena) defineCells() {
@@ -213,8 +215,8 @@ func (s *arena) placeUnits() {
 	brd := s.board.Res.Logic.Board
 	// each block its player's, selected — the player's hand is on it — and followed by its camera
 	s.world.Seed(
-		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
-		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
+		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}, cameras.Follow{Camera: s.redPlayer.Camera, On: true}),
+		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}, cameras.Follow{Camera: s.bluePlayer.Camera, On: true}),
 	)
 }
 
@@ -224,6 +226,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

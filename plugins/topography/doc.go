@@ -5,7 +5,8 @@
 // fresh game begins isometric, how the ground is shaped ([Shaping]) and what its slopes cost
 // (relief.Climbing) — and puts the board in relief at once: it is the board's Map
 // (board.Plugin.WithMap) — its Look, its Dressing, its heights and its costs — the world's Ground
-// and Look, and the maker of the world's cameras. The world must have heights
+// and Look; its cameras are [Plugin.Views], a maker for the cameras plugin
+// (cameras.NewPlugin(world, topography.Views(), cfg)). The world must have heights
 // (world.Config.Heights) and may not wrap.
 //
 // # Packages

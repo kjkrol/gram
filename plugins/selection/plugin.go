@@ -46,7 +46,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 // Tags returns selection's tags: for the plugins reading who is Selected.
 func (p *Plugin) Tags() Tags { return p.tags }
 
-// Chosen is the one Selected unit player by owns (owner.Obeys) — whom the players' Follow fastens
+// Chosen is the one Selected unit player by owns (owner.Obeys) — whom FollowKey fastens
 // the camera over; false with none, or several. Nothing before the plugin is installed.
 func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
 	if p.module == nil {

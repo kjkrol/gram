@@ -33,7 +33,7 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 		halves[0].Area != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth/2, ScreenHeight)) {
 		t.Fatalf("main viewports %+v, want red's camera on the left half and blue's on the right", halves)
 	}
-	if halves[0].Camera == s.world.Camera() || halves[0].Camera == halves[1].Camera {
+	if halves[0].Camera == halves[1].Camera {
 		t.Error("the players look through a shared camera, want one of their own each")
 	}
 

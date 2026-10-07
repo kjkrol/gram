@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -63,11 +64,12 @@ func newHarness(t *testing.T) *harness {
 // newHarnessIn is newHarness over a world of the given configuration — an isometric one, say.
 func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	t.Helper()
-	return newHarnessViewed(t, cfg, nil)
+	return newHarnessViewed(t, cfg, camera.Config{}, nil)
 }
 
-// newHarnessViewed is newHarnessIn with view applied to the world before anyone asks it for a camera.
-func newHarnessViewed(t *testing.T, cfg world.Config, view func(*world.Plugin)) *harness {
+// newHarnessViewed is newHarnessIn with view applied to the world, the local player looking through
+// a camera configured by cam.
+func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view func(*world.Plugin)) *harness {
 	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{
 		Width: 1000, Height: 1000,
@@ -82,8 +84,9 @@ func newHarnessViewed(t *testing.T, cfg world.Config, view func(*world.Plugin)) 
 		view(w)
 	}
 	sel := NewPlugin(w)
-	pl := players.NewPlugin(w, sel)
-	local := pl.Local("tester")
+	cams := cameras.NewPlugin(w, cameras.TopDown(), cam)
+	pl := players.NewPlugin(w, cams, sel)
+	local := pl.Local("tester", cams.Main())
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -418,9 +421,8 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	h := newHarnessViewed(t, world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		Camera:   camera.Config{ViewportWidth: 800, ViewportHeight: 600},
 		Heights:  true,
-	}, func(w *world.Plugin) { w.SetLook(standing{}) })
+	}, camera.Config{ViewportWidth: 800, ViewportHeight: 600}, func(w *world.Plugin) { w.SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()

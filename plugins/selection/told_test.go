@@ -7,10 +7,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -50,7 +52,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	unit := kind.Named[float64](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
-	c.one, c.two = c.players.Local("one"), c.players.Add("two")
+	c.one, c.two = c.players.Local("one", cameras.TopDown()(1000, 1000, 0, camera.Config{})), c.players.Add("two")
 	c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	c.haste = c.w.Effects().Named("haste")
 	c.w.Seed(entries(c, unit)...)

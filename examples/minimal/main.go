@@ -12,11 +12,14 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -55,6 +58,7 @@ const BoxKind = "box"
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
+	cameras   *cameras.Plugin
 	players   *players.Plugin
 	stats     collision.ContactStats
 }
@@ -78,17 +82,20 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	a.players = players.NewPlugin(a.world)
-	if err := ctx.Use(a.collision); err != nil {
-		return err
+	a.cameras = cameras.NewPlugin(a.world, cameras.TopDown(), camera.Config{})
+	a.players = players.NewPlugin(a.world, a.cameras)
+	for _, p := range []plugin.Plugin{a.collision, a.cameras, a.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	return ctx.Use(a.players)
+	return nil
 }
 
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	return a.players.Local("player").Bind(a.players.Defaults()...)
+	return a.players.Local("player", a.cameras.Main()).Bind(a.players.Defaults()...)
 }
 
 func (a *arena) defineKinds() {
@@ -120,6 +127,7 @@ func (a *arena) placeUnits() {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -156,7 +164,7 @@ func (v *view) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the camera over the whole screen.
 func (v *view) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.arena.world.Camera(), screen)
+	return render.Whole(v.arena.cameras.Main(), screen)
 }
 
 func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {

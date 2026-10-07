@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -82,6 +83,7 @@ type arena struct {
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	cameras   *cameras.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
 }
 
@@ -105,15 +107,15 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: 2 * UnitCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -122,7 +124,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
+	s.player = s.players.Local("player", s.cameras.Main())
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -251,6 +253,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

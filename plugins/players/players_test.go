@@ -10,9 +10,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
@@ -46,10 +46,12 @@ type general struct{ orders control.Queue[order] }
 func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player and a general's order queue.
+// rig is a players plugin over a 1000×1000 world with one local player looking through the
+// cameras' main camera and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
+	cams   *cameras.Plugin
 	p      *players.Plugin
 	local  *players.Player
 	orders *control.Queue[order]
@@ -61,27 +63,35 @@ func newRig(t *testing.T, cfg ...camera.Config) *rig {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
+	var c camera.Config
 	if len(cfg) > 0 {
-		w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, cfg[0])
+		c = cfg[0]
 	}
+	cams := cameras.NewPlugin(w, cameras.TopDown(), c)
 	g := &general{}
-	p := players.NewPlugin(w, g)
-	return &rig{t: t, w: w, p: p, local: p.Local("tester"), orders: &g.orders}
+	p := players.NewPlugin(w, cams, g)
+	return &rig{t: t, w: w, cams: cams, p: p, local: p.Local("tester", cams.Main()), orders: &g.orders}
 }
 
-// start installs the plugin into an ECS whose plan is players' RunPlan, so camera commands land.
+// start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera
+// commands land.
 func (r *rig) start() *goke.ECS {
 	r.t.Helper()
 	ctx := &installCtx{ecs: goke.New()}
-	if err := r.p.Install(ctx); err != nil {
-		r.t.Fatal(err)
+	for _, p := range []plugin.Plugin{r.cams, r.p} {
+		if err := p.Install(ctx); err != nil {
+			r.t.Fatal(err)
+		}
 	}
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
 	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { r.p.RunPlan(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		r.cams.RunPlan(rc, d)
+		r.p.RunPlan(rc, d)
+	})
 	return ctx.ecs
 }
 
@@ -167,8 +177,8 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings()); got != want {
-		t.Errorf("Defaults has %d bindings, want the players' own and the world's clock's %d (the general suggests none)", got, want)
+	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings())+len(r.cams.DefaultBindings()); got != want {
+		t.Errorf("Defaults has %d bindings, want the players' own, the world's clock's and the cameras' %d (the general suggests none)", got, want)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)
@@ -251,13 +261,9 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	})
-	w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-	w.Res.Camera.MoveTo(950, 500)
-	ctx := control.Context{Camera: w.Res.Camera}
+	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+	cam.MoveTo(950, 500)
+	ctx := control.Context{Camera: cam}
 
 	box := ctx.WorldBox(geom.NewVec(0, 0), geom.NewVec(200, 10))
 	if width := box.BottomRight.X - box.TopLeft.X; width > 200 {
@@ -269,7 +275,7 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 func cameraRig(t *testing.T, cfg ...camera.Config) (*rig, *goke.ECS) {
 	t.Helper()
 	r := newRig(t, cfg...)
-	r.bind(players.CameraBindings()...)
+	r.bind(cameras.DefaultKeys().Bindings()...)
 	return r, r.start()
 }
 
@@ -320,8 +326,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs) // near the right edge of the 200-pixel window
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float64(zoom)
-		if moved != float64(players.DefaultScrollSpeed) {
-			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, players.DefaultScrollSpeed)
+		if moved != float64(cameras.DefaultScrollSpeed) {
+			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, cameras.DefaultScrollSpeed)
 		}
 	}
 }

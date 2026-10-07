@@ -1,4 +1,4 @@
-package players_test
+package cameras_test
 
 import (
 	"math"
@@ -9,21 +9,43 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
-// camp is a world of 10x10 units seen through a 200x200 screen, with a selection and two
-// players: one at the keyboard, through the world's camera, and two without.
+// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
+type installCtx struct {
+	ecs     *goke.ECS
+	pending []func() []goke.System
+}
+
+func (c *installCtx) UseModule(m goke.Module) {
+	regSys := goke.SystemFn{OnInit: func(*goke.SysInit) { m.RegSystems(c.ecs) }}
+	c.pending = append(c.pending, func() []goke.System { return append(m.SetupSystems(), regSys) })
+}
+func (c *installCtx) Setup(providers ...goke.SetupProvider) {
+	for _, p := range providers {
+		c.pending = append(c.pending, p.SetupSystems)
+	}
+}
+func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
+func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
+func (c *installCtx) Hosts(...plugin.Host)                            {}
+
+// camp is a world of 10x10 units seen through a 200x200 screen, with a selection, the cameras and
+// two players: one at the keyboard, through the main camera, C following, and two without.
 type camp struct {
 	t        *testing.T
 	w        *world.Plugin
 	sel      *selection.Plugin
+	cams     *cameras.Plugin
 	players  *players.Plugin
 	one, two *players.Player
 	ecs      *goke.ECS
@@ -37,7 +59,6 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
-		Camera:   camera.Config{ViewportWidth: 200, ViewportHeight: 200},
 	})
 	kind.Define[float64](c.w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
@@ -47,14 +68,18 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	})
 	unit := kind.Named[float64](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
-	c.players = players.NewPlugin(c.w, c.sel)
-	c.one, c.two = c.players.Local("one"), c.players.Add("two")
+	c.cams = cameras.NewPlugin(c.w, cameras.TopDown(), camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+	c.players = players.NewPlugin(c.w, c.cams, c.sel)
+	c.one, c.two = c.players.Local("one", c.cams.Main()), c.players.Add("two")
+	if err := c.one.Bind(c.sel.FollowKey(control.KeyC)); err != nil {
+		t.Fatal(err)
+	}
 	c.w.Seed(entries(c, unit)...)
 	if err := c.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{c.w, c.sel, c.players} {
+	for _, p := range []plugin.Plugin{c.w, c.sel, c.cams, c.players} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -71,10 +96,20 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 		c.w.RunPlan(rc, d)
 		c.w.Clock().Replay(rc, d)
 		rc.Sync()
+		c.cams.RunPlan(rc, d)
 		c.players.RunPlan(rc, d)
 	})
 	c.tick()
 	return c
+}
+
+// pressC presses C at the keyboard: one follows its chosen unit, or lets go.
+func (c *camp) pressC() {
+	ev := &control.InputEvents{}
+	ev.AddKeyEvent(control.KeyC, control.ActionPress)
+	ev.AddKeyEvent(control.KeyC, control.ActionRelease)
+	c.players.EventHandler().HandleEvents(ev)
+	c.tick()
 }
 
 func (c *camp) tick() {
@@ -127,8 +162,7 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 	mine := c.ids()[100]
 	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
 	c.tick()
-	c.w.Carrier().Put(c.one.ID, players.Follow{})
-	c.tick()
+	c.pressC()
 	if f := fastening(c.one); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c.one, 100, 100) {
 		t.Fatalf("after C: fastened %+v, centred %v; want Centred over the unit", f, centred(c.one, 100, 100))
 	}
@@ -142,8 +176,7 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 	if fastening(c.one).How != camera.Centred || !centred(c.one, 500, 420) {
 		t.Error("zooming ended the following")
 	}
-	c.w.Carrier().Put(c.one.ID, players.Follow{})
-	c.tick()
+	c.pressC()
 	if f := fastening(c.one); f != (camera.Fastening{}) {
 		t.Errorf("after C again the camera is fastened %+v, want let go", f)
 	}
@@ -158,32 +191,30 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100]}})
 	c.w.Carrier().Put(c.two.ID, selection.Select{IDs: []uid.UID64{ids[200]}})
 	c.tick()
-	c.w.Carrier().Put(c.one.ID, players.Follow{})
-	c.tick()
+	c.pressC()
 	if f := fastening(c.one); f.Entity != ids[100] {
 		t.Fatalf("one's camera is fastened %+v, want over its own selected unit, not two's", f)
 	}
-	c.w.Carrier().Put(c.one.ID, players.Pan{Dx: 40})
+	c.w.Carrier().Put(c.one.ID, cameras.Pan{Camera: c.one.Camera, Dx: 40})
 	c.tick()
 	if f := fastening(c.one); f != (camera.Fastening{}) {
 		t.Errorf("after a Pan the camera is fastened %+v, want let go", f)
 	}
 	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100], ids[300]}})
 	c.tick()
-	c.w.Carrier().Put(c.one.ID, players.Follow{})
-	c.tick()
+	c.pressC()
 	if f := fastening(c.one); f != (camera.Fastening{}) {
 		t.Errorf("with two selected C fastened %+v, want none", f)
 	}
 }
 
-// A unit told Follow as it is made has its owner's camera fastened over it from its first step;
-// one nobody owns is left alone; the camera lets go once the unit is gone.
-func TestFollow_ToldAtSpawnFastensTheOwnersCameraUntilTheUnitIsGone(t *testing.T) {
+// A unit told Follow as it is made has the camera it names fastened over it from its first step;
+// a Follow naming no camera does nothing; the camera lets go once the unit is gone.
+func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
-			unit.Entry(100).Told(players.Give{To: c.one.ID}, players.Follow{}),
-			unit.Entry(300).Told(players.Follow{}),
+			unit.Entry(100).Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.one.Camera, On: true}),
+			unit.Entry(300).Told(cameras.Follow{}),
 		}
 	})
 	mine := c.ids()[100]

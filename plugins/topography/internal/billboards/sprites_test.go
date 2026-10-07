@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
@@ -46,7 +47,6 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 320, ViewportHeight: 240},
 		Heights:  true,
 	})
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
@@ -59,7 +59,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := w.Camera()
+	cam := cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 320, ViewportHeight: 240}).Main()
 	cam.CenterOn(128, 128, 0)
 	picker := cam.(interface {
 		Pick(sx, sy float32) (float32, float32, bool)
@@ -138,7 +138,6 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 320, ViewportHeight: 240},
 		Heights:  true,
 	})
 	grid := grid.DefaultGrids{}.Hex(6, 6, 16)
@@ -149,7 +148,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	tiles.Close()
 	b.WithRenderer(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	cam := w.Camera()
+	cam := cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 320, ViewportHeight: 240}).Main()
 	c := grid.CellIndex(2, 2)
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)

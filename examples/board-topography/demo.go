@@ -27,6 +27,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -95,6 +96,7 @@ type arena struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	cameras    *cameras.Plugin
 	player     *players.Player
 	rival      *players.Player
 	vision     *vision.Plugin
@@ -127,10 +129,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Scale:    scale,
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 		Heights:  true,
 	})
-	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
@@ -168,9 +168,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		},
 	})
 	s.topography.WithAtmosphere(s.atmosphere)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+	s.cameras = cameras.NewPlugin(s.world, s.topography.Views(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
+	s.cameras.Main().CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
 	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.vision, s.atmosphere, s.players} {
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -179,7 +181,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player")
+	s.player = s.players.Local("player", s.cameras.Main())
 	s.rival = s.players.Add("rival")
 	return s.player.Bind(s.players.Defaults()...)
 }
@@ -313,6 +315,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.atmosphere.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.topography.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

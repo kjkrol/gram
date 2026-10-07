@@ -9,11 +9,13 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -33,6 +35,7 @@ const (
 type gameplayArena struct {
 	world   *world.Plugin
 	players *players.Plugin
+	cameras *cameras.Plugin
 	panel   *panelScene
 	stage   game.Stage // the Stage defined on this arena: the hud reads its Composition
 
@@ -68,12 +71,16 @@ func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
 	})
-	g.players = players.NewPlugin(g.world).WithSaves(g.basePath())
+	g.cameras = cameras.NewPlugin(g.world, cameras.TopDown(), camera.Config{})
+	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(g.basePath())
+	if err := ctx.Use(g.cameras); err != nil {
+		return err
+	}
 	return ctx.Use(g.players)
 }
 
 func (g *gameplayArena) definePlayer() error {
-	return g.players.Local("player").Bind(g.players.Defaults()...)
+	return g.players.Local("player", g.cameras.Main()).Bind(g.players.Defaults()...)
 }
 
 func (g *gameplayArena) defineKinds() {
@@ -116,6 +123,7 @@ func (g *gameplayArena) placeUnits() {
 
 func (g *gameplayArena) update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
+	g.cameras.RunPlan(ctx, d)
 	g.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -154,7 +162,7 @@ func (w *worldScene) Layers() []render.Layer {
 
 // Viewports are where the world is shown: the camera over the whole screen.
 func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(w.arena.world.Camera(), screen)
+	return render.Whole(w.arena.cameras.Main(), screen)
 }
 
 func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {

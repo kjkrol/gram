@@ -59,9 +59,10 @@ func (c *stageInit) Track(s plugin.Serializable) error {
 	return nil
 }
 
+// Screen is the window's size, which the cameras are sized to, as the engine's Initializer says.
+func (c *stageInit) Screen() (int, int) { return ScreenWidth, ScreenHeight }
+
 func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
-	cfg.Camera.ViewportWidth = ScreenWidth
-	cfg.Camera.ViewportHeight = ScreenHeight
 	c.world = world.NewPlugin(cfg)
 	c.tracked = append(c.tracked, c.world)
 	if err := c.world.Install(c); err != nil {
@@ -166,7 +167,7 @@ func (ds *drawnStage) tick(n int) {
 // draw composes a frame and tells what every entity was drawn with.
 func (ds *drawnStage) draw() []shown {
 	ds.rec.drawn = map[geom.Vec][]render.Appearance{}
-	cam := ds.arena.world.Camera()
+	cam := ds.arena.cameras.Main()
 	var f render.Frame
 	f.Reset(cam)
 	ds.arena.world.Renderer().(interface {

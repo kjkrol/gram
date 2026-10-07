@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -14,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -72,9 +74,10 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	sel := selection.NewPlugin(w)
 	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
-	rw.players = players.NewPlugin(w, rw.nav) // carries navigation's commands, as the engine does with Use
-	rw.players.Add("one")
-	rw.players.Add("two")
+	rw.players = players.NewPlugin(w, rw.nav)     // carries navigation's commands, as the engine does with Use
+	for _, name := range []string{"one", "two"} { // each looking through a camera of its own
+		rw.players.Add(name).Camera = cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
+	}
 	rw.nav.WithPlayers(rw.players)
 
 	ctx := &stubInstallCtx{ecs: goke.New()}

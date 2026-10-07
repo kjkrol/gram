@@ -130,11 +130,11 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			if c := b.Command(); c == reflect.TypeFor[Quit]() || c == reflect.TypeFor[ShowShortcuts]() {
+			h := s.p.handlerOf(b.Command())
+			if h == plugin.CommandHandler(s.p) {
 				game = append(game, line) // the players' own, but the game's as a player sees it
 				continue
 			}
-			h := s.p.handlerOf(b.Command())
 			byHandler[h] = append(byHandler[h], line)
 		}
 	}
@@ -166,12 +166,8 @@ func (s *Shortcuts) title() string {
 	return "Shortcuts"
 }
 
-// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised;
-// the players' own are the camera's.
+// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised.
 func handlerName(h plugin.CommandHandler) string {
-	if _, ok := h.(*Plugin); ok {
-		return "Camera"
-	}
 	name := reflect.TypeOf(h).String()
 	if n, ok := h.(interface{ Name() string }); ok {
 		name = n.Name()

@@ -9,10 +9,9 @@
 // which the entities give theirs to as well (world.Plugin.Commands) — and the players gather
 // their default bindings ([Plugin.Defaults]). The plugins never know players; they know plugin.CommandHandler and
 // the vocabulary in package control. [Plugin.Issue] is how a command comes in — from a binding, an
-// AI, a network — and a type no handler defines is [ErrUnknownCommand]. Players' own commands are
-// [Pan] and [Zoom], carried out on the issuing player's camera; [CameraBindings] are their
-// defaults: the wheel zooms, a middle drag pans, W, A, S and D held and the cursor at an edge
-// scroll — on the screen, so in a turned isometric view along the screen too.
+// AI, a network — and a type no handler defines is [ErrUnknownCommand]. The cameras are the cameras
+// plugin's (plugins/cameras), a handler like any other: its keys move the camera a player looks
+// through.
 //
 // # Owners
 //
@@ -29,14 +28,14 @@
 //
 // A player looks at the world through its camera, in its part of the screen. [Plugin.Viewports] is
 // what a Scene showing the world gives the engine as its game.Viewer: one viewport per camera the
-// local players look through, side by side in equal columns, the world's camera over the whole
-// screen when nobody is at this keyboard. What is drawn is the Scene's to say — its layers, the
+// local players look through, side by side in equal columns, none when nobody is at this
+// keyboard. What is drawn is the Scene's to say — its layers, the
 // commands' handlers' renderers among them; players draw nothing.
 //
 // # Players
 //
-// [Plugin.Local] adds a player at this keyboard, looking through the world's camera; [Plugin.Add]
-// one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
+// [Plugin.Local] adds a player at this keyboard, looking through the camera it is given
+// (plugins/cameras: cameras.Plugin.Main, New); [Plugin.Add] one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
 // bindings on one rule holding in one fastening of the camera are refused at Bind; a binding whose command
 // nobody defines is refused when the Stage is set up. [Player.Bindings] is the list a help screen
@@ -60,9 +59,7 @@
 //
 // # Split screen
 //
-// [Player.OwnCamera] gives a player a camera of its own over the world (world.Plugin.NewCamera),
-// saved with the game ([Plugin.Serializable], [Plugin.Restore]); call it before Use. Local players
-// with cameras of their own share the screen as [Plugin.Viewports] lays it out ([Columns], or a
+// Local players looking through cameras of their own (cameras.Plugin.New) share the screen as [Plugin.Viewports] lays it out ([Columns], or a
 // [Layout] given WithLayout), and each keeps its part, [Player.Area]. Every key reaches every local
 // player, each with bindings of its own — WASD for one, the arrows for another, a
 // control.KeyHeld firing once a tick while its key is down — and the mouse, there being one,
@@ -72,7 +69,8 @@
 //
 // The active Scene hands the tick's input to [Plugin.EventHandler], which runs every local
 // player's bindings and fills the queues; the command handlers drain theirs in their RunPlan;
-// [Plugin.RunPlan], called last, carries out Pan and Zoom. Nothing is dropped: a command given
+// [Plugin.RunPlan], called last, hands over the units given and issues the keys held for the next
+// tick. Nothing is dropped: a command given
 // after its handler's pass — by an entity's rule in a later plugin's — waits for the next
 // frame's.
 //
@@ -81,7 +79,7 @@
 // A scene showing the world hands its input to [Plugin.Handle] and nothing else: the bindings
 // turn it into commands, and the two of the players' own that need the engine are carried out
 // there — [Quit] (Shift+Esc), [ShowShortcuts] (K) and, in a game that said where it saves
-// ([Plugin.WithSaves]), [Save] (F5): default keys like the camera's, the same in every game. Keys
+// ([Plugin.WithSaves]), [Save] (F5): default keys, the same in every game. Keys
 // that are no command to a plugin — a debug toggle — are the game's own: [SceneKeys] lists them
 // with labels and what they do, given to [Plugin.OwnKeys], and Handle runs them. [Shortcuts] is
 // the players' own scene listing every key of the game — the local players' bindings, grouped by
@@ -92,14 +90,8 @@
 //
 // # Following and driving
 //
-// A player's camera may be fastened to one of its units (camera.Fastening on a camera.Fastenable
-// camera): [Follow] (C, in a game with a [Chooser] among the handlers — the selection, whose
-// Chosen is the one selected unit the player owns) fastens it camera.Centred over that unit, or
-// lets go; an entity told Follow as it is made, after its Give (kind.Entry.Told), has its owner's
-// camera fastened over it from its first step. Every tick the players keep a Centred camera on
-// its entity, at its altitude, and let go of one that is gone; a Pan lets go, a Zoom keeps. A
-// view plugin takes a fastened camera closer (topography.Ride: Behind, Inside) and keeps it there
-// by the same fastening; the bindings holding in a camera's How (control.Binding.In) fire.
+// A player's camera may be fastened to one of its units (camera.Fastening, cameras.Follow); the
+// bindings holding in its How (control.Binding.In) fire.
 //
 // A player's hand on its units is [Drive]: every tick a key is held the Drives add up into the
 // player's [Hand] ([Plugin.Hand]; [Plugin.OwnHand] an entity's own), which the plugin that moves
@@ -111,8 +103,7 @@
 //
 // # Commands
 //
-// The players' own commands are in commands.go: [Pan] and [Zoom] move a player's camera, [Give]
-// makes an entity a player's, [Follow] fastens its camera, [Drive] is its hand, [Quit] ends the
-// game, [ShowShortcuts] opens the list of keys and [Save] writes the game. [GameBindings] are
-// the keys of the last three's first two, for a game that binds its own camera keys.
+// The players' own commands are in commands.go: [Give] makes an entity a player's, [Drive] is its
+// hand, [Quit] ends the game, [ShowShortcuts] opens the list of keys and [Save] writes the game.
+// [GameBindings] are the keys of the last three's first two, for a game that binds its own keys.
 package players

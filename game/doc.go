@@ -55,7 +55,7 @@
 // # Runtime
 //
 // [Runtime] is engine-level control, one undivided interface: Paused, Pause, Resume, TogglePause,
-// Quit, SwitchStage to another Stage by name, Persistence, TPS and the active Stage's Camera. The
+// Quit, SwitchStage to another Stage by name, Persistence, TPS and ToggleFullscreen. The
 // same value reaches a Stage and every Scene's HandleEvents; there is no cut-down scene-level
 // subset. A menu's Start button calls SwitchStage directly.
 //

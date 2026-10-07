@@ -32,6 +32,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -95,6 +96,7 @@ type arena struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	cameras    *cameras.Plugin
 	player     *players.Player // the one at this keyboard: the units are its
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
@@ -124,9 +126,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 	})
-	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
@@ -138,8 +138,10 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	// A temperate island whose weather is thrown anew every run.
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.vision).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.vision, s.atmosphere, s.players} {
+	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
+	s.cameras.Main().CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.atmosphere, s.vision).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -149,7 +151,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
+	s.player = s.players.Local("player", s.cameras.Main())
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -222,6 +224,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.vision.RunPlan(ctx, d)
 	s.atmosphere.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/render"
@@ -102,14 +101,6 @@ func (e *Engine) TogglePause() {
 	} else {
 		e.current.host.ecs.Pause()
 	}
-}
-
-// Camera returns the active Stage's world camera, or nil if the Stage has no world.
-func (e *Engine) Camera() camera.Camera {
-	if e.current.world == nil {
-		return nil
-	}
-	return e.current.world.Camera()
 }
 
 // Quit ends the loop after this tick.
@@ -307,8 +298,8 @@ func (e *Engine) Draw(screen *render.Image) {
 	}
 }
 
-// Layout is the fixed screen of the Props, or with Resizable the window itself, which the active
-// world's camera is resized to follow.
+// Layout is the fixed screen of the Props, or with Resizable the window itself, which the cameras
+// of the visible scenes' viewports are resized to follow.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if !e.props.Resizable || outsideWidth <= 0 || outsideHeight <= 0 {
 		return e.props.ScreenWidth, e.props.ScreenHeight
@@ -343,26 +334,19 @@ func (e *Engine) dispatchEvents(events *control.InputEvents) {
 	}
 }
 
-// fitViewports sizes every camera of the visible scenes' viewports to its area on screen, and the
-// world's camera to the whole screen when no visible scene shows the world.
+// fitViewports sizes every camera of the visible scenes' viewports to its area on screen.
 func (e *Engine) fitViewports(screen geom.AABB) {
 	if e.current == nil {
 		return
 	}
 	stack := e.current.stage.Stack()
-	fitted := false
 	for _, name := range stack.Composition().Order() {
 		sc, _ := stack.Get(name)
 		if v, ok := sc.(game.Viewer); ok {
 			for _, vp := range v.Viewports(screen) {
 				fit(vp)
 			}
-			fitted = true
 		}
-	}
-	if cam := e.Camera(); !fitted && cam != nil {
-		w, h := pixels(screen)
-		cam.SetViewport(float32(w), float32(h))
 	}
 }
 

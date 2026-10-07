@@ -12,12 +12,14 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -103,6 +105,7 @@ type arena struct {
 	collisionStats collision.ContactStats
 
 	players *players.Plugin
+	cameras *cameras.Plugin
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -128,8 +131,9 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
 	})
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
-	s.players = players.NewPlugin(s.world).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.players} {
+	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
+	s.players = players.NewPlugin(s.world, s.cameras).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -138,7 +142,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	return s.players.Local("player").Bind(s.players.Defaults()...)
+	return s.players.Local("player", s.cameras.Main()).Bind(s.players.Defaults()...)
 }
 
 func (s *arena) defineEffects() {
@@ -199,6 +203,7 @@ func (s *arena) placeUnits() {
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

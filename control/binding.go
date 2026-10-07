@@ -121,6 +121,35 @@ func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	return geom.NewAABBAt(geom.NewVec(minX, minY), max(maxX-minX, 1), max(maxY-minY, 1))
 }
 
+const (
+	// EdgeMargin is how close to a window edge, in pixels, the cursor rests at it (CursorAtEdge).
+	EdgeMargin = 30
+	// EdgeDeadZone is the strip at the very edge that is no edge, unless the window fills the
+	// screen: a cursor parked there by the monitor's edge should not run away.
+	EdgeDeadZone = 10
+)
+
+// Edges are the window edges a cursor rests near.
+type Edges struct{ Left, Right, Top, Bottom bool }
+
+// Any reports whether the cursor rests near any edge.
+func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom }
+
+// Edges is which window edges the cursor rests near, outside the dead zone.
+func (c Context) Edges() Edges {
+	dead := float64(EdgeDeadZone)
+	if c.FillsScreen {
+		dead = 0
+	}
+	x, y := c.Cursor.X, c.Cursor.Y
+	return Edges{
+		Left:   x >= dead && x < EdgeMargin,
+		Right:  x <= c.Screen.X-dead && x > c.Screen.X-EdgeMargin,
+		Top:    y >= dead && y < EdgeMargin,
+		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-EdgeMargin,
+	}
+}
+
 // ScreenRect is the screen rectangle between a and b, at least a pixel a side.
 func ScreenRect(a, b geom.Vec) geom.AABB {
 	minX, maxX := min(a.X, b.X), max(a.X, b.X)

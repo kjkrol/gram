@@ -10,13 +10,11 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs the camera system, the Gives and the Follows and, once every plugin is installed,
-// checks that each bound command has an owner.
+// module runs the Gives and, once every plugin is installed, checks that each bound command has
+// an owner.
 type module struct {
-	p        *Plugin
-	runnable goke.Runnable
-	gives    goke.Runnable
-	follows  goke.Runnable
+	p     *Plugin
+	gives goke.Runnable
 }
 
 // =================================================================
@@ -24,20 +22,14 @@ type module struct {
 // =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
-	m.runnable = ecs.RegSys(&cameraSystem{p: m.p})
 	m.gives = ecs.RegSys(&giveSystem{gives: &m.p.gives})
-	m.follows = ecs.RegSys(&followSystem{p: m.p})
 }
 
-// RunPlan moves the cameras, hands over the units given, keeps the cameras fastened over their
-// units, then issues the KeyHeld commands of the keys still down, for the next tick; call it
+// RunPlan hands over the units given, then issues the KeyHeld commands of the keys still down, for the next tick; call it
 // after the plugins that drain theirs. A command waits in its queue for its handler's pass:
 // nothing is dropped, whoever gave it — a player, or an entity after that pass.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	ctx.Run(m.runnable, d)
 	ctx.Run(m.gives, d)
-	ctx.Sync()
-	ctx.Run(m.follows, d)
 	ctx.Sync()
 	m.p.hands.stale = true // the next reader sums the Drives given from here on
 	eventHandler{m.p}.hold()

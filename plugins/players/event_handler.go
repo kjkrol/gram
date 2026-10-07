@@ -86,7 +86,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				t.fire(pl, control.ButtonHeld{Button: control.MouseButtonMiddle}, ctx)
 			}
 		}
-		if atEdge(ctx) {
+		if ctx.Edges().Any() {
 			t.fire(pl, control.CursorAtEdge{}, ctx)
 		}
 	}

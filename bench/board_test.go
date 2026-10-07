@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -107,7 +108,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.world.Camera()
+	cam := ctx.camera(topo.Views(), camera.Config{})
 	var f render.Frame
 	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
 	topo.WithAtmosphere(low)
@@ -166,7 +167,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.world.Camera()
+	cam := ctx.camera(topo.Views(), camera.Config{})
 	var f render.Frame
 	far := grid.CellIndex(6, 6)
 	shallows := sea
@@ -203,13 +204,15 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	}
-	if far {
-		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384
-	}
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
+	var screen camera.Config
+	if far {
+		screen = camera.Config{ViewportWidth: 576, ViewportHeight: 384}
+	}
+	ctx.cam = ctx.camera(topo.Views(), screen)
 	kinds := p.CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
@@ -283,13 +286,13 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if view == "persp" { // Tab once, from the isometric view
 		for _, q := range topo.Queues() {
 			if q.Accepts() == reflect.TypeFor[topography.View]() {
-				q.Put(control.Nobody, topography.View{Camera: ctx.world.Camera()})
+				q.Put(control.Nobody, topography.View{Camera: ctx.cam})
 			}
 		}
 		ecs.Tick(step)
 	}
 	if far {
-		ctx.world.Camera().ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
+		ctx.cam.ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
 	}
 	return ctx, p.Res.Logic.Board, p.Renderer().(render.Source)
 }
@@ -306,7 +309,7 @@ func Benchmark_Board_Island(b *testing.B) {
 	}{{"above", false, false, 0}, {"iso", false, false, 0}, {"iso", false, true, 0}, {"persp", false, true, 0}, {"above", true, false, 0}, {"iso", true, false, 0},
 		{"above", false, false, 1}, {"iso", false, false, 1}, {"iso", false, true, 1}, {"persp", false, true, 1}, {"above", true, false, 1}, {"iso", true, false, 1}} {
 		ctx, brd, src := island(b, v.view, v.far, v.workers)
-		cam := ctx.world.Camera()
+		cam := ctx.cam
 		if v.screen {
 			cam.SetViewport(1920, 1080)
 			cam.CenterOn(96*32/2, 64*32/2, 0)

@@ -11,9 +11,9 @@
 // resized, keeping the middle and raising the zoom until the world covers the new screen —
 // ZoomIn, ZoomOut, with min and max zoom). It keeps its own window
 // arithmetic: wrapping on a wrapping axis of the world, held inside the world on any other.
-// The cameras themselves live in internal/camera; a game gets one from the world plugin
-// (world.Plugin.Camera, NewCamera), built from a [Config] with a viewport size and zoom limits,
-// through whichever projection the world's view gives it.
+// The cameras themselves live in internal/camera and in the view plugins; a game gets one from
+// the cameras plugin (plugins/cameras: Main, New), built from a [Config] with a viewport size and
+// zoom limits, through whichever maker it was given — cameras.TopDown, topography.Plugin.Views.
 //
 // # Projection
 //

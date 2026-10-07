@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
@@ -88,7 +89,8 @@ type Plugin struct {
 	hexes  *hexes.Ground
 
 	cameras   *icameras.Control
-	camQueues cameraQueues // the cameras' commands, which the cameras read as their Orders
+	views     cameras.Maker // the cameras' maker, for the cameras plugin
+	camQueues cameraQueues  // the cameras' commands, which the cameras read as their Orders
 	coarse    control.Queue[CoarseShadows]
 	module    *module
 }
@@ -99,10 +101,10 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says: from then on the board is
-// drawn and priced by the topography, the world's ground is its heights, its cameras are the
-// topography's and its entities stand as billboards in the isometric view. Make it right after
-// the world and the board, before anything asks for a camera; the world must have heights
-// (world.Config.Heights) and may not wrap.
+// drawn and priced by the topography, the world's ground is its heights and its entities stand as
+// billboards in the isometric view; its cameras are Views, for the cameras plugin. Make it right
+// after the world and the board; the world must have heights (world.Config.Heights) and may not
+// wrap.
 func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config) *Plugin {
 	if !worldPlugin.HasHeights() {
 		panic("topography: a map in relief needs a world with heights; set world.Config.Heights")
@@ -133,7 +135,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
 		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
-	worldPlugin.SetCameras(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
+	p.views = cameras.Maker(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -142,6 +144,10 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground))
 	return p
 }
+
+// Views make the cameras of a world in relief, for the cameras plugin: from above, isometrically
+// and, given Config.Perspective, in perspective, View going round them.
+func (p *Plugin) Views() cameras.Maker { return p.views }
 
 // boardSurface is the ground's look as the painter paints it out of the board's atlas — the board
 // painted flat and its water, nothing before board.Plugin.WithRenderer — the way to the shore from

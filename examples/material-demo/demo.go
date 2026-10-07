@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -24,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -86,6 +88,7 @@ type arena struct {
 	world   *world.Plugin
 	board   *board.Plugin
 	players *players.Plugin
+	cameras *cameras.Plugin
 	player  *players.Player
 }
 
@@ -114,8 +117,9 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world)
-	s.players = players.NewPlugin(s.world, s.board)
-	for _, p := range []plugin.Plugin{s.board, s.players} {
+	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
+	s.players = players.NewPlugin(s.world, s.cameras, s.board)
+	for _, p := range []plugin.Plugin{s.board, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -124,7 +128,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
+	s.player = s.players.Local("player", s.cameras.Main())
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -174,6 +178,7 @@ func (s *arena) placeUnits() {
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -71,7 +71,7 @@ func (p *Plugin) OwnHand(e uid.UID64) (Hand, bool) {
 
 // DriveBindings are W, S, A and D held into a Drive of the player's units — on, back, left,
 // right — while the camera is outside any entity, for a game to bind in place of the camera's
-// own keys on them (CameraBindings), which the DefaultBindings leave alone. Riding in an entity
+// own keys on them (cameras.Keys), which the DefaultBindings leave alone. Riding in an entity
 // the same keys are bound by default.
 func DriveBindings() []control.Binding {
 	return driveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD, camera.Outside,

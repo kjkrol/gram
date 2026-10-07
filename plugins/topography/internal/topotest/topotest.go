@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/relief"
@@ -152,14 +153,18 @@ func (c *InstallCtx) Systems() []goke.System {
 	return systems
 }
 
-// NewWorld is a world with heights 256 x 256, its edges as given, a camera 128 x 64.
+// NewWorld is a world with heights 256 x 256, its edges as given.
 func NewWorld(edges aabbworld.Edges) *world.Plugin {
 	return world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256, Edges: edges},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
+}
+
+// Camera is the main camera of a cameras plugin over w made by p's Views, 128 x 64.
+func Camera(w *world.Plugin, p *topography.Plugin) camera.Camera {
+	return cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64}).Main()
 }
 
 // LevelBoard is a 4x4 board of level grass over w.

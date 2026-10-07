@@ -12,8 +12,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/navigation"
-	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -35,7 +35,7 @@ type shooter struct {
 }
 
 func (s *shooter) cmd(c any) {
-	cam := s.d.a.world.Camera()
+	cam := s.d.a.cameras.Main()
 	for _, q := range s.d.a.topography.Queues() {
 		if q.Accepts() == reflect.TypeOf(c) {
 			switch v := c.(type) {
@@ -54,7 +54,7 @@ func (s *shooter) cmd(c any) {
 }
 
 // selectOne selects the one walker standing at the second stop, before anyone has moved: the
-// camera follows exactly one selected (players.Follow).
+// camera follows exactly one selected (selection.FollowKey).
 func (s *shooter) selectOne() {
 	brd := s.d.a.board.Res.Logic.Board
 	_, _, stops := island.Layout(brd)
@@ -69,7 +69,8 @@ func (s *shooter) selectOne() {
 
 // follow fastens the player's camera over its one selected unit (C).
 func (s *shooter) follow() {
-	if err := s.d.a.players.Issue(s.d.a.player, players.Follow{}); err != nil {
+	id, ok := s.d.a.selection.Chosen(s.d.a.player.ID)
+	if err := s.d.a.players.Issue(s.d.a.player, cameras.Follow{Camera: s.d.a.player.Camera, Entity: id, On: ok}); err != nil {
 		s.t.Fatal(err)
 	}
 }
@@ -90,7 +91,7 @@ func (s *shooter) showViews() {
 
 func (s *shooter) Update() error {
 	s.frame++
-	cam := s.d.a.world.Camera()
+	cam := s.d.a.cameras.Main()
 	s.shot = ""
 	switch s.frame {
 	case 2:

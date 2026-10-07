@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
@@ -27,12 +28,11 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2048, Height: 2048},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := w.Camera()
+	cam := cameras.NewPlugin(w, p.Views(), camera.Config{ViewportWidth: 128, ViewportHeight: 64}).Main()
 	if cam.Projection().Sorts() {
 		t.Fatal("a game not begun Isometric looks isometrically")
 	}

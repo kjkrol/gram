@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -33,7 +34,6 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	w := ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 4000, Height: 4000, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
-		Camera:   camera.Config{ViewportWidth: view, ViewportHeight: view},
 	})
 	kind.Define[mover](w.Kinds(), "mover", kind.Spec{
 		comp.Load(func(m mover) world.Position {
@@ -51,6 +51,8 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*spacing), float64(10 + (i/side)*spacing)}))
 	}
 	w.Seed(entries...)
+	ctx.cam = ctx.camera(cameras.TopDown(), camera.Config{ViewportWidth: view, ViewportHeight: view})
+	w.ViewFor(ctx.cam) // its View kept from the first tick, as a player's is
 	if arrange != nil {
 		arrange(w, movers)
 	}
@@ -69,18 +71,18 @@ func Benchmark_World_Draw(b *testing.B) {
 		b.Run(v.name, func(b *testing.B) {
 			ctx := newHeadless()
 			var r *render.Composer
-			var cam camera.Camera
 			ecs := benchWorldViewed(b, ctx, 5000, 56, v.view, func(w *world.Plugin, movers kind.Of[mover]) {
 				atlas := render.NewAtlas()
 				atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
 				w.WithRenderer(atlas)
-				r, cam = render.NewComposer(w.Renderer()), w.Camera()
+				r = render.NewComposer(w.Renderer())
 				ctx.pending = append(ctx.pending, func() []goke.System {
 					return []goke.System{goke.SystemFn{OnInit: r.Init}}
 				})
 			})
 			ecs.Tick(step)
+			cam := ctx.cam
 			b.ReportAllocs()
 			for b.Loop() {
 				r.DrawWorld(nil, cam)
