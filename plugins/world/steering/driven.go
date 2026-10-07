@@ -9,8 +9,8 @@ import (
 // Driven is an entity steered by hand: Ahead 1 to walk on the way it faces — Sprint urging it to
 // its Steering's Sprint — -1 to brake to a stop and then back away facing as it does, 0 to let it
 // go on as ordered or stand; Turn -1, 1 or 0 to turn anticlockwise, clockwise or not; Face, when
-// not zero, a way to turn to face instead, whatever Turn says — where an eye riding in it looks.
-// Flown, an entity that flies is flown by hand, as from inside it: it holds its height over sea
+// not zero, a way to turn to face instead, whatever Turn says — the hand's way; Look, when not
+// zero, the way an eye riding in it looks, which it turns to face before any Face. Flown, an entity that flies is flown by hand, as from inside it: it holds its height over sea
 // level whatever the ground under it does, climbing and diving only along the way it is steered,
 // which rises by Climb, -1 to 1, the sine of the rider's look up or down. Whoever steers it — a
 // camera fastened to it, say — writes it every tick; the plugins that move entities carry it out,
@@ -19,6 +19,7 @@ type Driven struct {
 	Ahead, Turn int8
 	Sprint      bool
 	Face        geom.Vec
+	Look        geom.Vec
 	Flown       bool
 	Climb       float64
 }

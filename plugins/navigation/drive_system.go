@@ -36,8 +36,9 @@ type driveSystem struct {
 	order  goke.OptComp[MoveOrder]
 	mover  goke.OptComp[unit.Mover]
 	states goke.OptComp[tag.Tags[States]]
+	places goke.OptComp[tag.Tags[unit.States]]
 
-	orderID, statesID, drivenID goke.CompID
+	orderID, statesID, placesID, drivenID goke.CompID
 }
 
 // driveTurn is how far a hand turns an entity a tick: four degrees.
@@ -48,9 +49,10 @@ const driveTurn = math.Pi / 45
 const driveMargin = 2.0
 
 func (s *driveSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Build()
+	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course, &s.driven).Optional(&s.order).Optional(&s.mover).Optional(&s.states).Optional(&s.places).Build()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.statesID = si.RegComp[tag.Tags[States]]()
+	s.placesID = si.RegComp[tag.Tags[unit.States]]()
 	s.drivenID = si.RegComp[steering.Driven]()
 }
 
@@ -59,11 +61,15 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	for s.query.Next() {
 		cur := s.query.Cursor()
 		cells, bases, steers, courses, drivens := s.cell.Slice(cur), s.base.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur), s.driven.Slice(cur)
-		orders, movers, states := s.order.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur)
+		orders, movers, states, places := s.order.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur), s.places.Slice(cur)
 		for i, id := range cur.IDs {
 			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
 			domain := unit.DomainAt(movers, i)
-			facing := in.Face.X != 0 || in.Face.Y != 0
+			face := in.Face
+			if in.Look.X != 0 || in.Look.Y != 0 { // where an eye riding in it looks, before the hand's way
+				face = in.Look
+			}
+			facing := face.X != 0 || face.Y != 0
 			if in == (steering.Driven{}) && states != nil && states[i].Has(Driving) && (orders != nil || st.Speed == 0) {
 				states[i] = states[i].Without(Driving) // let go: it stands, or goes on as ordered
 				cb.RemoveCompOne(id, s.drivenID)
@@ -80,7 +86,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				cb.RemoveCompOne(id, s.orderID)
 			}
 			if s.follow(id, &cells[i], base.Pos, domain) {
-				s.nav.enter(states, i, id)
+				s.nav.enter(places, i, id)
 			}
 
 			heading := base.Vel.Dir
@@ -89,8 +95,8 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 			switch {
 			case facing:
-				n := math.Hypot(in.Face.X, in.Face.Y)
-				heading = geom.NewVec(in.Face.X/n, in.Face.Y/n)
+				n := math.Hypot(face.X, face.Y)
+				heading = geom.NewVec(face.X/n, face.Y/n)
 			case in.Turn != 0:
 				a := float64(in.Turn) * driveTurn
 				sin, cos := math.Sincos(a)
@@ -126,7 +132,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		}
 	}
 	for _, id := range s.nav.lacking { // no batch here: a move by id at once
-		cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Entered))
+		cb.AddOne(id, s.placesID, tag.Tags[unit.States](0).With(unit.Entered))
 	}
 	s.nav.lacking = s.nav.lacking[:0]
 }

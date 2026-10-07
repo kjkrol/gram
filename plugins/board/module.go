@@ -66,7 +66,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		}
 	}
 	return append(templated,
-		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](),
+		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](), goke.LoadComp[tag.Tags[unit.States]](),
 		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
 		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[rule.Roles]](),
 	)

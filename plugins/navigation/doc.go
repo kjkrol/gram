@@ -12,9 +12,8 @@
 // ever. A kind gives a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot, zero the cell's
 // centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
 // by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
-// [Leg] is the single step in flight. Its markers ([States], carried for good — the plugin gives
-// them to every unit the world's roster makes) have [Entered] on for the step its At changed:
-// the At says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
+// [Leg] is the single step in flight. Stepping into another cell it has unit.Entered on for that
+// step (the board's marker: the At says which cell it entered). A navigated entity carries a steering.Steering profile: navigation only asks it for
 // a heading at the lookahead point and for its own top speed, braking from the profile before the
 // goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
@@ -114,7 +113,7 @@
 // under BodySpacing, it touches nobody just ahead — and stops dead otherwise, so it never walks into
 // the sea; with no hand on it, it brakes. A hand ends any order it had, giving up the cells of the
 // step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
-// cell by cell, with Entered.
+// cell by cell, with unit.Entered.
 //
 // A player's hand is the players' (players.Drive, summed a tick into players.Hand), which
 // navigation reads given the players ([Plugin.WithPlayers]): every tick each unit a hand is on —

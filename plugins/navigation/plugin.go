@@ -56,9 +56,6 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // command and default bindings. Entities move as their Steering profile says.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
-	if t := worldPlugin.Kinds().DefineTag[States](enteredName); t != Entered {
-		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", enteredName))
-	}
 	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
 		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", drivingName))
 	}

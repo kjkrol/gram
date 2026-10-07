@@ -32,7 +32,7 @@ type driveRig struct {
 	course goke.Comp[steering.Course]
 	driven goke.Comp[steering.Driven]
 	order  goke.OptComp[MoveOrder]
-	states goke.OptComp[tag.Tags[States]]
+	states goke.OptComp[tag.Tags[unit.States]]
 	mover  goke.OptComp[unit.Mover]
 	q      *goke.Query
 }
@@ -325,4 +325,6 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 }
 
 // entered reports whether the chunk's one unit has its Entered on.
-func entered(states []tag.Tags[States]) bool { return states != nil && states[0].Has(Entered) }
+func entered(states []tag.Tags[unit.States]) bool {
+	return states != nil && states[0].Has(unit.Entered)
+}

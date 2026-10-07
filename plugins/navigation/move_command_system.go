@@ -107,8 +107,7 @@ func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 // to it, the player's that selected it with its camera fastened to nothing, or its own
 // (players.OwnHand) — marking it Driving; a Driving unit with no hand on it this tick is written
 // a zero hand, to brake, which driveSystem takes off once it stands. The fields of a Driven a
-// camera writes — Face while its eye rides in the unit, Flown, Climb — are left alone: Face is
-// navigation's only from a hand's Way, cleared with the hand unless a camera rides the unit.
+// camera writes — Look, Flown, Climb — are left alone.
 func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
 	if s.hands == nil {
 		return
@@ -122,19 +121,14 @@ func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
 				owned = owners[i]
 			}
 			selected := marks != nil && marks[i].Has(s.selected)
-			h, on, ridden := s.handOn(id, owned, selected)
+			h, on := s.handOn(id, owned, selected)
 			var in steering.Driven
 			if drivens != nil {
 				in = drivens[i]
 			}
 			switch {
 			case on:
-				in.Ahead, in.Turn, in.Sprint = h.Ahead, h.Turn, h.Sprint
-				if h.Way.X != 0 || h.Way.Y != 0 {
-					in.Face = h.Way // driveSystem normalises it
-				} else if !ridden {
-					in.Face = geom.Vec{}
-				}
+				in.Ahead, in.Turn, in.Sprint, in.Face = h.Ahead, h.Turn, h.Sprint, h.Way // driveSystem normalises Face
 				if drivens != nil {
 					drivens[i] = in
 				} else {
@@ -146,10 +140,7 @@ func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
 					cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Driving))
 				}
 			case drivens != nil && states != nil && states[i].Has(Driving):
-				in.Ahead, in.Turn, in.Sprint = 0, 0, false
-				if !ridden {
-					in.Face = geom.Vec{}
-				}
+				in.Ahead, in.Turn, in.Sprint, in.Face = 0, 0, false, geom.Vec{}
 				drivens[i] = in
 			}
 		}
@@ -157,17 +148,13 @@ func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
 }
 
 // handOn is the hand on unit id — its own, or a player's: the owner's whose camera is fastened
-// to it, or, with that camera fastened to nothing, the owner's while the unit is selected — and
-// whether a camera rides it (fastened Behind or Inside), which writes its Driven's Face itself.
-func (s *moveCommandSystem) handOn(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (h players.Hand, on, ridden bool) {
+// to it, or, with that camera fastened to nothing, the owner's while the unit is selected.
+func (s *moveCommandSystem) handOn(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (h players.Hand, on bool) {
 	for _, pl := range s.hands.Players() {
 		f, fastened := camera.Fastening{}, false
 		if c, ok := pl.Camera.(camera.Fastenable); ok {
 			f = c.Fastening()
 			fastened = f.How != 0
-		}
-		if fastened && f.Entity == id && f.How != camera.Centred {
-			ridden = true
 		}
 		if on || !owner.Obeys(owned, pl.ID) {
 			continue
@@ -183,7 +170,7 @@ func (s *moveCommandSystem) handOn(id uid.UID64, owned tag.Tags[owner.Family], s
 			h, on = hand, true
 		}
 	}
-	return h, on, ridden
+	return h, on
 }
 
 // members calls fn with whom a command by gave concerns: the entity that gave it itself, or every

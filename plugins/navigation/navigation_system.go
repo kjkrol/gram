@@ -250,11 +250,10 @@ type navigationSystem struct {
 
 	arrivedEditor *goke.Editor
 
-	// the units' markers: Entered on for the step a unit's At changed — entered of them last
-	// step, lacking the ids whose chunk had no family, to get it
-	states   goke.OptComp[tag.Tags[States]]
+	// the units' markers on the board: unit.Entered put on for the step a unit's At changed, the
+	// board taking it off; lacking the ids whose chunk had no family, to get it
+	states   goke.OptComp[tag.Tags[unit.States]]
 	statesID goke.CompID
-	entered  int
 	lacking  []uid.UID64
 
 	// terrainSeen is the terrain version every route was last checked against.
@@ -301,7 +300,7 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 	s.orderID = si.RegComp[MoveOrder]()
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
-	s.statesID = si.RegComp[tag.Tags[States]]()
+	s.statesID = si.RegComp[tag.Tags[unit.States]]()
 	if s.touches != nil {
 		marks := si.NewQueryBuilder(&s.markCell)
 		s.touches.Bind(marks)
@@ -310,7 +309,6 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 }
 
 func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	s.clearEntered()
 	changed := false
 	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
 		s.terrainSeen, changed = v.Version(), true
@@ -691,7 +689,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			buf.Commit(s.arrivedEditor)
 		}
 		for _, id := range s.lacking { // after the chunk's own changes: a move by id
-			cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Entered))
+			cb.AddOne(id, s.statesID, tag.Tags[unit.States](0).With(unit.Entered))
 		}
 		s.lacking = s.lacking[:0]
 		for k, id := range s.lastIDs {
@@ -1186,18 +1184,4 @@ func shortestAxisDelta(have, want float64, size uint32, wraps bool) float64 {
 		d += s
 	}
 	return d
-}
-
-// clearEntered has Entered off on every unit, when any had it on last step.
-func (s *navigationSystem) clearEntered() {
-	if s.entered == 0 {
-		return
-	}
-	s.entered = 0
-	for s.query.All(); s.query.Next(); {
-		states := s.states.Slice(s.query.Cursor())
-		for i := range states {
-			states[i] = states[i].Without(Entered)
-		}
-	}
 }

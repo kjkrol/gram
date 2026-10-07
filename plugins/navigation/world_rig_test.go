@@ -86,7 +86,7 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 			s = append(s, comp.Load(func(u navUnit) MoveOrder { return *u.order }))
 		}
 		if u.marks {
-			s = append(s, comp.Marks[States]())
+			s = append(s, comp.Marks[unit.States]())
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))

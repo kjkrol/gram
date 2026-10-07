@@ -132,7 +132,7 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if r.sys.fastened(r.cam) != nil || r.cam.insideUnit() || r.cam.inPersp || contract.HowOf(r.cam) != contract.Centred {
 		t.Fatalf("after V again: kept %v, first person %v, in perspective %v, fastened %+v; want back in the isometric view, over the walker", r.sys.fastened(r.cam) != nil, r.cam.insideUnit(), r.cam.inPersp, r.cam.Fastening())
 	}
-	if d, _ := r.drivenOf(r.walkers[0]); d.Flown || d.Face != (geom.Vec{}) {
+	if d, _ := r.drivenOf(r.walkers[0]); d.Flown || d.Look != (geom.Vec{}) {
 		t.Errorf("out of the walker, it is driven %+v, want the eye's part of its Driven cleared", d)
 	}
 	if sx, sy := r.cam.Project(405, 305, 0); !near(sx, 200) || !near(sy, 150) || !near(r.cam.Zoom(), iso) {
@@ -192,7 +192,7 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 		t.Errorf("after the mouse went up the pitch is %v, want %v: the head raised", p, -100*LookStep)
 	}
 	d, ok := r.drivenOf(r.walkers[0])
-	if !ok || math.Abs(d.Face.X-want.X) > 1e-4 || math.Abs(d.Face.Y-want.Y) > 1e-4 || d.Ahead != 0 || d.Turn != 0 {
+	if !ok || math.Abs(d.Look.X-want.X) > 1e-4 || math.Abs(d.Look.Y-want.Y) > 1e-4 || d.Ahead != 0 || d.Turn != 0 {
 		t.Errorf("the walker is driven %+v, want to face %v", d, want)
 	}
 	if !d.Flown {
@@ -206,12 +206,12 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(float32(want.X), float32(want.Y)))) {
 		t.Errorf("a tick on, the walker not turned yet, the view looks from %v, want where the mouse put it", h)
 	}
-	// the walker faces it now: pinned to it again, no more Face
+	// the walker faces it now: pinned to it again, no more Look
 	r.walk(300, 300, want.X, want.Y)
 	r.ecs.Tick(time.Second / 60)
 	r.ecs.Tick(time.Second / 60)
-	if d, _ := r.drivenOf(r.walkers[0]); d.Face != (geom.Vec{}) {
-		t.Errorf("the walker facing where the eye looks is still driven to face %v", d.Face)
+	if d, _ := r.drivenOf(r.walkers[0]); d.Look != (geom.Vec{}) {
+		t.Errorf("the walker facing where the eye looks is still driven to face %v", d.Look)
 	}
 	r.walk(300, 300, 0, 1)
 	r.ecs.Tick(time.Second / 60)
@@ -222,7 +222,7 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 300})
 	r.hand(r.walkers[0], 0, -1)
 	r.ecs.Tick(time.Second / 60)
-	if d, _ := r.drivenOf(r.walkers[0]); d.Face != (geom.Vec{}) || d.Turn != -1 {
+	if d, _ := r.drivenOf(r.walkers[0]); d.Look != (geom.Vec{}) || d.Turn != -1 {
 		t.Errorf("the mouse and A together drive the walker %+v, want A's turn alone", d)
 	}
 	// out, the mouse does nothing

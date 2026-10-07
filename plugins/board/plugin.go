@@ -96,6 +96,10 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
 	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope)
 	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
+	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q", unit.EnteredName))
+	}
+	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
 	return p
 }
 

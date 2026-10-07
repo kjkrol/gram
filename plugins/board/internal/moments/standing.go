@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
@@ -16,7 +17,8 @@ import (
 var _ goke.System = (*standingSystem)(nil)
 
 // standingSystem runs the rules of a unit.Standing over every entity carrying unit.At, after
-// movement and collisions have had their say.
+// movement and collisions have had their say, taking unit.Entered off as it goes: whoever moves a
+// unit into another cell puts it on after the board's pass.
 type standingSystem struct {
 	r *Rules
 
@@ -25,6 +27,7 @@ type standingSystem struct {
 	at    goke.Comp[unit.At]
 	mover goke.OptComp[unit.Mover]
 	pace  goke.OptComp[steering.Pace]
+	marks goke.OptComp[tag.Tags[unit.States]]
 
 	ids    []uid.UID64
 	bases  []world.Base
@@ -38,6 +41,7 @@ func newStandingSystem(r *Rules) *standingSystem {
 	s.about = s.standing
 	plugin.Own(&r.standing, &s.mover)
 	plugin.Own(&r.standing, &s.pace)
+	plugin.Own(&r.standing, &s.marks)
 	return s
 }
 
@@ -65,6 +69,10 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.ids, s.bases, s.ats, s.movers = cursor.IDs, s.base.Slice(cursor), s.at.Slice(cursor), s.mover.Slice(cursor)
+		marks := s.marks.Slice(cursor)
+		for i := range marks {
+			marks[i] = marks[i].Without(unit.Entered)
+		}
 		if tread {
 			for i := range s.ids {
 				s.tread(i)
