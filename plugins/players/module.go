@@ -37,7 +37,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // SetupSystems checks the bindings once everything is installed: a command nobody listens to
 // is a configuration error, reported with its type and label.
 func (m *module) SetupSystems() []goke.System {
-	return []goke.System{goke.SystemFn{OnInit: func(*goke.SysInit) {
+	return []goke.System{owning{m.p}, goke.SystemFn{OnInit: func(*goke.SysInit) {
 		var missing []string
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {

@@ -2,9 +2,12 @@ package players
 
 import (
 	"log"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -28,6 +31,26 @@ func (t through) LookAt(entity uid.UID64) {
 		log.Printf("players: %v", err)
 	}
 }
+
+// Shows reports whether pl's picture shows ui elements pinned to the entity: it is pl's, or
+// nobody's.
+func (t through) Shows(entity uid.UID64) bool {
+	q := t.p.owned
+	if q == nil || !q.Seek(entity) {
+		return true
+	}
+	owners := t.p.ownedBy.At(q.Cursor())
+	return owners == nil || *owners == 0 || owners.Has(owner.Of(t.pl.ID))
+}
+
+// owning builds the query Shows reads: whose every entity in the world is.
+type owning struct{ p *Plugin }
+
+func (o owning) Init(si *goke.SysInit) {
+	o.p.owned = si.NewQueryBuilder(&o.p.ownedBase).Optional(&o.p.ownedBy).Build()
+}
+
+func (owning) Update(*goke.CmdBuf, time.Duration) {}
 
 // IssueAs is Issue for pl: how a scene's buttons and keys give their commands (ui.Scene.Issue).
 func (p *Plugin) IssueAs(pl *Player) func(cmd any) error {

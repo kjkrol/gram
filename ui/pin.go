@@ -154,31 +154,64 @@ func views(root *Element) []view {
 	return out
 }
 
-// stand works out where the element stands for each of spots this frame.
+// Owner is an Input that says which entities its picture shows elements pinned to: a player's,
+// those that are its or nobody's (players.Plugin.Through). A picture without one shows them all.
+type Owner interface{ Shows(entity uid.UID64) bool }
+
+// shows reports whether v shows elements pinned to id.
+func (v view) shows(id uid.UID64) bool {
+	o, ok := v.input.(Owner)
+	return !ok || o.Shows(id)
+}
+
+// stand works out where the element stands for each of spots this frame: by its entity in every
+// picture that shows it and has it in sight — a nobody's entity in both halves of a split screen,
+// a player's in its own — or, out of sight in all, as OffScreen says in the first that shows it.
 func (p *pin) stand(e *Element, spots []spot, vs []view, screen geom.AABB) {
 	p.instances = p.instances[:0]
 	for _, s := range spots {
-		in := instance{id: s.id}
-		if s.placed && len(vs) > 0 {
-			p.place(e, s, vs, screen, &in)
+		if !s.placed || len(vs) == 0 {
+			p.instances = append(p.instances, instance{id: s.id})
+		} else {
+			p.place(e, s, vs, screen)
 		}
-		p.instances = append(p.instances, in)
-		if e.holds {
-			break // a modal element waits its turn: one at a time
+		if e.holds && len(p.instances) > 0 {
+			p.instances = p.instances[:1] // a modal element waits its turn: one at a time
+			break
 		}
 	}
 }
 
-// place stands in by s in the first view that shows it, else as OffScreen says in the first view.
-func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB, in *instance) {
+// place stands an instance by s in every view that shows it in sight, else one as OffScreen says
+// in the first view that shows it; none where no view shows it.
+func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 	w, h := e.needs()
-	for _, v := range vs {
+	var first *view
+	seen := false
+	for k := range vs {
+		v := &vs[k]
+		if !v.shows(s.id) {
+			continue
+		}
+		if first == nil {
+			first = v
+		}
 		if px, py, _, ok := v.at.ToPixels(s.x, s.y, s.z); ok {
-			in.box = clamp(p.by(v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py))), w, h), screen)
-			return
+			box := clamp(p.by(v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py))), w, h), screen)
+			p.instances = append(p.instances, instance{id: s.id, box: box})
+			seen = true
 		}
 	}
-	v := vs[0]
+	if seen || first == nil {
+		return
+	}
+	in := instance{id: s.id}
+	p.offScreen(*first, s, w, h, screen, &in)
+	p.instances = append(p.instances, in)
+}
+
+// offScreen stands in in v as OffScreen says, s being out of its sight.
+func (p *pin) offScreen(v view, s spot, w, h float64, screen geom.AABB, in *instance) {
 	in.looker, _ = v.input.(Looker)
 	px, py, _, _ := v.at.ToPixels(s.x, s.y, s.z)
 	target := v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py)))

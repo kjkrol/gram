@@ -44,10 +44,12 @@
 // it; [Element.On] pins it to the entities a name or a group calls (entity.Named, entity.Group). The
 // scene finds them itself every frame — no rule or renderer is told of the element. It stands
 // [Element.Above] the entity (the default), [Element.Below] or [Element.Beside] it, moved by
-// [Element.Offset], in the first picture of the world on the screen that shows it, and kept on the
-// screen: it goes with the camera. While the entity is out of every picture it does what
-// [Element.OffScreen] says: [PointAtIt] stands at the edge on its side with an arrow, [ShowIt] in the
-// middle with a button moving the camera onto it, [GoToIt] moves the camera onto it as it appears —
+// [Element.Offset], in every picture of the world on the screen that has it in sight and shows it
+// — an [Owner] (players.Plugin.Through) shows a player's own entities and nobody's, so a unit's
+// element is in its owner's half of a split screen — kept on the screen: it goes with the camera.
+// While the entity is out of sight in every picture it does what [Element.OffScreen] says:
+// [PointAtIt] stands at the edge on its side with an arrow, [ShowIt] in the middle with a button
+// moving the camera onto it, [GoToIt] moves the camera onto it as it appears —
 // through the picture's [Input], a [Looker] (players.Plugin.Through: cameras.LookAt). An entity with
 // no place in the world — the world's own, a plugin's — has its element where its parent lays it: an
 // anchor's point. A modal pinned element is shown for one entity at a time, the rest waiting. A

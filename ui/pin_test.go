@@ -144,3 +144,54 @@ func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)
 	}
 }
+
+// half is a player over its half of a split screen: it shows what is its own or nobody's.
+type half struct {
+	player
+	own map[uid.UID64]bool // its entities
+	not map[uid.UID64]bool // the other player's
+}
+
+func (h *half) Shows(id uid.UID64) bool { return h.own[id] || !h.not[id] }
+
+// halves are two halves over one world, both seeing x 0..600 of it, red's on the left.
+func halves(label *Element) (root *Element, red, blue *half) {
+	red = &half{own: map[uid.UID64]bool{1: true}, not: map[uid.UID64]bool{2: true}}
+	blue = &half{own: map[uid.UID64]bool{2: true}, not: map[uid.UID64]bool{1: true}}
+	root = Layers(Columns(Share(1, Image(&shifted{}).Input(red)), Share(1, Image(&shifted{}).Input(blue))), label)
+	return root, red, blue
+}
+
+func TestPin_ANobodysEntityHasItsElementInEveryHalfThatSeesIt(t *testing.T) {
+	label := Label("x").Size(20, 10).On(nobody)
+	root, _, _ := halves(label)
+	standing(root, label, spot{id: 3, placed: true, x: 100, y: 100})
+	if n := len(label.pin.instances); n != 2 {
+		t.Fatalf("%d shown, want one in each half", n)
+	}
+}
+
+func TestPin_APlayersEntityHasItsElementInItsOwnHalfAlone(t *testing.T) {
+	label := Label("x").Size(20, 10).On(nobody)
+	root, _, _ := halves(label)
+	standing(root, label, spot{id: 2, placed: true, x: 100, y: 100})
+	in := label.pin.instances
+	if len(in) != 1 || in[0].box.TopLeft.X < 600 {
+		t.Fatalf("shown %v, want once, in blue's right half", in)
+	}
+}
+
+func TestPin_OutOfItsOwnersSightItPointsFromItsOwnersHalf(t *testing.T) {
+	label := Label("x").Size(20, 10).On(nobody)
+	red := &half{own: map[uid.UID64]bool{1: true}, not: map[uid.UID64]bool{2: true}}
+	blue := &half{own: map[uid.UID64]bool{2: true}, not: map[uid.UID64]bool{1: true}}
+	root := Layers(Columns(
+		Share(1, Image(&shifted{left: 2000}).Input(red)), // red looks far off
+		Share(1, Image(&shifted{}).Input(blue)),
+	), label)
+	standing(root, label, spot{id: 1, placed: true, x: 100, y: 100}) // red's, in blue's sight only
+	in := label.pin.instances
+	if len(in) != 1 || in[0].box.BottomRight.X > 600 || len(in[0].arrow) != 3 {
+		t.Fatalf("shown %v, want once, in red's left half, pointing", in)
+	}
+}

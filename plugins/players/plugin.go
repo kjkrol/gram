@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -37,9 +38,12 @@ type Plugin struct {
 	quits       control.Queue[Quit]
 	listings    control.Queue[ShowShortcuts]
 	saves       control.Queue[Save]
-	shortcuts   *Shortcuts // the scene listing the keys
-	savePath    string     // where Save writes; none, no saving
-	saveWith    []any      // the game's own resources saved beside the plugins'
+	shortcuts   *Shortcuts  // the scene listing the keys
+	owned       *goke.Query // whose every entity is: what Through's Shows reads
+	ownedBase   goke.Comp[world.Base]
+	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
+	savePath    string // where Save writes; none, no saving
+	saveWith    []any  // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
 	module      *module
 	layout      Layout
