@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -190,7 +191,7 @@ func TestDemo_EachPlayerFollowsAndDrivesItsOwnBlock(t *testing.T) {
 		t.Error("the players' cameras do not show their blocks")
 	}
 	for range 12 {
-		if err := s.players.Issue(s.redPlayer, players.Drive{Ahead: 1, Way: geom.NewVec(1, 0)}); err != nil {
+		if err := s.players.Issue(s.redPlayer, driving.Toward{Camera: s.redPlayer.Camera, Way: geom.NewVec(1, 0)}); err != nil {
 			t.Fatal(err)
 		}
 		s.tick(1)

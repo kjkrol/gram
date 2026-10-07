@@ -12,7 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -46,22 +46,21 @@ type Plugin struct {
 	routesShown  bool // the routes are drawn — see Routes
 	pathRenderer *pathRenderer
 	collision    *collision.Plugin
-	spacing      Spacing         // as asked; Install decides AutoSpacing
-	players      *players.Plugin // whose hands drive the units; nil, nobody drives by hand
+	spacing      Spacing     // as asked; Install decides AutoSpacing
+	handKeeping  handKeeping // what the driving asks of the keeping and the orders
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 
 // NewPlugin builds a navigation plugin over a board; hand it to the players plugin for its MoveTo
-// command and default bindings. Entities move as their Steering profile says.
-func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
+// command and default bindings. Entities move as their Steering profile says; a unit driven by
+// hand (drivingPlugin) gives its order up, and is kept out of the others' way as the spacing says.
+func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin, drivingPlugin *driving.Plugin) *Plugin {
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
-	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
-		panic(fmt.Sprintf("navigation: its markers have tags of their own before %q", drivingName))
-	}
-	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.navigation"), boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.navigation"), boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	drivingPlugin.WithKeeping(&p.handKeeping)
+	return p
 }
 
 // =================================================================
@@ -104,7 +103,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
-	moveCommandSystem.hands = p.players
+	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
 	if p.collision != nil {
 		navSys.bumps = anyBump
 		if p.spacing == BodySpacing {
@@ -112,7 +111,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, driveSystem: &driveSystem{nav: navSys}, clock: p.worldPlugin.Clock()}
+	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
 	return nil
 }
@@ -122,15 +121,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.routes.Drain(func(control.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
 	p.module.RunPlan(ctx, d)
-}
-
-// WithPlayers has navigation drive units by the players' hands (players.Drive): every tick each
-// unit a player's hand is on — the one its camera is fastened to, else those it has selected —
-// is steered as the hand says. Call it once the players plugin is made, before Use; without it
-// nobody drives a unit by hand.
-func (p *Plugin) WithPlayers(playersPlugin *players.Plugin) *Plugin {
-	p.players = playersPlugin
-	return p
 }
 
 // WithSpacing sets how units keep out of each other's way; AutoSpacing, the default, decides by

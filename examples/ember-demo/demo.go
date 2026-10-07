@@ -28,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -95,6 +96,7 @@ type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
+	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
@@ -129,11 +131,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -143,17 +145,16 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 
 func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player", s.cameras.Main())
-	taken := []control.Trigger{ // WSAD drives the selected ember, not the camera
-		control.KeyHeld{Key: control.KeyW}, control.KeyHeld{Key: control.KeyS},
-		control.KeyHeld{Key: control.KeyA}, control.KeyHeld{Key: control.KeyD},
-	}
-	var bindings []control.Binding
-	for _, b := range s.players.Defaults() {
-		if !slices.Contains(taken, b.Trigger) {
-			bindings = append(bindings, b)
-		}
-	}
-	return s.player.Bind(bindings...)
+	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the selected ember, not the camera
+	return s.player.Bind(slices.Concat(
+		s.players.DefaultBindings(),
+		s.world.DefaultBindings(),
+		view.Bindings(),
+		s.board.DefaultBindings(),
+		s.selection.DefaultBindings(),
+		s.nav.DefaultBindings(),
+		s.driving.DefaultBindings(),
+	)...)
 }
 
 func (s *arena) defineEffects() {
@@ -183,7 +184,8 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(append(players.DriveBindings(),
+	drive := driving.Tank{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	return s.player.Bind(append(drive.Bindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Douse the selected embers for a while",
 			s.world.Commands().Named(DouseCmd)))...)
 }
@@ -218,6 +220,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

@@ -29,6 +29,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -93,6 +94,7 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
@@ -141,7 +143,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Perspective: true,
 		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
@@ -170,9 +173,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.topography.WithAtmosphere(s.atmosphere)
 	s.cameras = cameras.NewPlugin(s.world, s.topography.Views(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight})
 	s.cameras.Main().CenterOn(WorldWidth/2, WorldHeight/2, 0)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.vision, s.atmosphere, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -311,6 +313,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.atmosphere.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)

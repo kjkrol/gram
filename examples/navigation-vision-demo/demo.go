@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -84,6 +85,7 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
@@ -119,12 +121,13 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize}) // the hills in relief, seen from above
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.cameras = cameras.NewPlugin(s.world, s.topography.Views(), camera.Config{})
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.topography, s.vision)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.cameras, s.players, s.vision} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.topography, s.vision)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.driving, s.cameras, s.players, s.vision} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -253,6 +256,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.topography.RunPlan(ctx, d)

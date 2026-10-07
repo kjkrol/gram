@@ -29,6 +29,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -106,6 +107,7 @@ type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
+	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
@@ -144,10 +146,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.brd = s.board.Res.Logic.Board
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -245,6 +248,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

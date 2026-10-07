@@ -43,7 +43,7 @@ type Look struct {
 // the entity's centre, its altitude and as high as it stands, kept there as the entity goes and
 // looking the way it faces — world.Base's Vel.Dir, kept when it stops; the axis of its sight where
 // the game points the sight that way — in perspective as LookFrom; and over it again. Riding, the
-// players' hand steers the entity (W, S, A and D there; the arrows behind it), Look turns it and
+// driving's keys steer the entity (plugins/driving: W, S, A and D there; the arrows behind it), Look turns it and
 // raises and lowers the head into the sky and down to the feet (the mouse there) — one that flies
 // climbing and diving along the look as it goes — Zoom narrows the field of view, Turn does
 // nothing. The eye rides at the entity's eye, over the top of the cell it stands on. View (Tab)

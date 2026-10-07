@@ -1,7 +1,6 @@
 package players
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -9,18 +8,6 @@ import (
 // control.Nobody. An entity gives it itself: as it is made (kind.Entry.Told), or in a rule or a
 // plan — captured, converted. Its units take commands from that player alone from then on.
 type Give struct{ To control.PlayerID }
-
-// Drive is a player's hand on its units this tick: Ahead 1 walks them on the way each faces,
-// -1 brakes and backs them away; Turn -1 or 1 turns them; Way, when not zero, is the way to go
-// instead, as the screen lies; Sprint urges them on. Given every tick a key is held
-// (control.KeyHeld), several in one tick adding up into the player's [Hand], which the plugin that
-// moves units reads: navigation drives the unit the player's camera is fastened to, else the
-// units it has selected. Given by an entity for itself (rule.Order), its own hand.
-type Drive struct {
-	Ahead, Turn int8
-	Way         geom.Vec
-	Sprint      bool
-}
 
 // Quit ends the game.
 type Quit struct{}
@@ -34,14 +21,13 @@ type Save struct{}
 
 // Queues are where the players' own commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.gives, &p.hands.drives, &p.quits, &p.listings, &p.saves}
+	return []control.CommandQueue{&p.gives, &p.quits, &p.listings, &p.saves}
 }
 
-// DefaultBindings are GameBindings, the keys driving the unit the camera is fastened to (W, S, A
-// and D riding inside it, the arrows behind it) and, in a game that said where it saves
-// (WithSaves), F5 to save.
+// DefaultBindings are GameBindings and, in a game that said where it saves (WithSaves), F5 to
+// save.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	keys := append(GameBindings(), ridingBindings()...)
+	keys := GameBindings()
 	if p.savePath != "" {
 		keys = append(keys, control.Command(control.KeyPress{Key: control.KeyF5}, "Save the game", func(control.Context) (Save, bool) { return Save{}, true }))
 	}

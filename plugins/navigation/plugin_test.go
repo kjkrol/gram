@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -48,7 +49,8 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{}))
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
@@ -109,7 +111,8 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	if err := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{})).Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
@@ -158,7 +161,8 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	if err := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{})).Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)

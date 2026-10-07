@@ -36,3 +36,10 @@ func (d Driven) Slope() (rise, run float64) {
 	rise = min(max(d.Climb, -steepest), steepest)
 	return rise, math.Sqrt(1 - rise*rise)
 }
+
+// Steers reports whether anything steers the entity this step — a hand going, turning or facing a
+// way, or an eye riding in it looking somewhere: an order it had gives way to it.
+func (d Driven) Steers() bool {
+	none := geom.Vec{}
+	return d.Ahead != 0 || d.Turn != 0 || d.Face != none || d.Look != none
+}

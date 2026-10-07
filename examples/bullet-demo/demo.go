@@ -28,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/bullet"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -94,6 +95,7 @@ type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
+	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
 	bullet    *bullet.Plugin
@@ -134,12 +136,12 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.brd = s.board.Res.Logic.Board
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.bullet = bullet.NewPlugin(s.world, s.selection).WithGround(s.board.Heights)
 	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{})
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.bullet)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.bullet, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.bullet)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.bullet, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -150,17 +152,17 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player", s.cameras.Main())
 	s.wild = s.players.Add("wild")
-	taken := []control.Trigger{
-		control.KeyHeld{Key: control.KeyW}, control.KeyHeld{Key: control.KeyS},
-		control.KeyHeld{Key: control.KeyA}, control.KeyHeld{Key: control.KeyD},
-	}
-	var bindings []control.Binding
-	for _, b := range s.players.Defaults() {
-		if !slices.Contains(taken, b.Trigger) {
-			bindings = append(bindings, b)
-		}
-	}
-	return s.player.Bind(bindings...)
+	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the soldier, not the camera
+	return s.player.Bind(slices.Concat(
+		s.players.DefaultBindings(),
+		s.world.DefaultBindings(),
+		view.Bindings(),
+		s.board.DefaultBindings(),
+		s.selection.DefaultBindings(),
+		s.nav.DefaultBindings(),
+		s.driving.DefaultBindings(),
+		s.bullet.DefaultBindings(),
+	)...)
 }
 
 func (s *arena) defineCells() {
@@ -196,7 +198,8 @@ func (s *arena) defineRules() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(append(players.DriveBindings(),
+	drive := driving.Tank{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	return s.player.Bind(append(drive.Bindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Fire a round the way the soldier faces", bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}),
 		control.Command(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {
@@ -264,6 +267,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

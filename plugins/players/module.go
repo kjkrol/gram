@@ -25,13 +25,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.gives = ecs.RegSys(&giveSystem{gives: &m.p.gives})
 }
 
-// RunPlan hands over the units given, then issues the KeyHeld commands of the keys still down, for the next tick; call it
-// after the plugins that drain theirs. A command waits in its queue for its handler's pass:
+// RunPlan hands over the units given, then issues the KeyHeld commands of the keys still down,
+// for the next tick; call it after the plugins that drain theirs. A command waits in its queue for its handler's pass:
 // nothing is dropped, whoever gave it — a player, or an entity after that pass.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.gives, d)
 	ctx.Sync()
-	m.p.hands.stale = true // the next reader sums the Drives given from here on
 	eventHandler{m.p}.hold()
 }
 

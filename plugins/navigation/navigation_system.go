@@ -301,6 +301,7 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
+	s.seedLegs()
 	if s.touches != nil {
 		marks := si.NewQueryBuilder(&s.markCell)
 		s.touches.Bind(marks)
@@ -351,6 +352,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		movers := s.mover.Slice(cursor)
 		zs := s.z.Slice(cursor)
 		minds, owned, arrived, lasts := s.mind.Slice(cursor), s.owners.Slice(cursor), s.arrived.Slice(cursor), s.lastOrder.Slice(cursor)
+		hands := s.hand.Slice(cursor)
 		dt := d.Seconds()
 
 		for i, id := range cursor.IDs {
@@ -358,6 +360,14 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			o := &orders[i]
 			p := &o.Path
 			leg := &o.Leg
+			if hands != nil && hands[i].Steers() { // a hand took it: the order is over, its step given up
+				if leg.Active {
+					s.releaseLeg(*leg, id)
+					s.occupancy.Enter(cells[i].Cell, id, domain)
+				}
+				cb.RemoveCompOne(id, s.orderID)
+				continue
+			}
 			st := steering.Helm{Steering: &steers[i], Course: &courses[i]}
 			current := cells[i].Cell
 			actual, ok := s.grid.CellAt(bases[i].Pos.Center())
@@ -1184,4 +1194,38 @@ func shortestAxisDelta(have, want float64, size uint32, wraps bool) float64 {
 		d += s
 	}
 	return d
+}
+
+// enter has the unit at row i of states have unit.Entered on for this step; a unit whose chunk
+// has no family is noted in lacking, to get it once the chunk's own changes are queued.
+func (s *navigationSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) {
+	if states != nil {
+		states[i] = states[i].With(unit.Entered)
+	} else {
+		s.lacking = append(s.lacking, id)
+	}
+}
+
+// ordered reports whether id carries an order now.
+func (s *navigationSystem) ordered(id uid.UID64) bool {
+	return s.query.Seek(id) && s.order.At(s.query.Cursor()) != nil
+}
+
+// seedLegs has every unit hold the cells of the step it is in the middle of — after a Populate as
+// after a Load; the cells the units stand on the board's occupancy holds itself.
+func (s *navigationSystem) seedLegs() {
+	for s.query.All(); s.query.Next(); {
+		cursor := s.query.Cursor()
+		orders, movers := s.order.Slice(cursor), s.mover.Slice(cursor)
+		if orders == nil {
+			continue
+		}
+		for i, id := range cursor.IDs {
+			if orders[i].Leg.Active {
+				for _, c := range orders[i].Leg.cells() {
+					s.occupancy.Enter(c, id, unit.DomainAt(movers, i))
+				}
+			}
+		}
+	}
 }

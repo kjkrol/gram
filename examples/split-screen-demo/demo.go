@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -78,13 +79,14 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // arena is the arena, its two blocks and the players driving them: each block is its player's,
 // selected and followed by its camera from the start (kind.Entry.Told), driven by the player's
-// own keys (players.DriveKeys) through navigation.
+// own keys (driving.Compass).
 type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
 	board      *board.Plugin
 	selection  *selection.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	cameras    *cameras.Plugin
 	players    *players.Plugin
 	redPlayer  *players.Player
@@ -128,11 +130,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world, cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight})
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -152,17 +154,19 @@ func (s *arena) defineCells() {
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
-// bindKeys gives each player its own keys to drive its block the way they say: WSAD the red,
-// the arrows the blue.
+// bindKeys gives each player its own keys to drive its block the way they say — WSAD the red,
+// the arrows the blue — and to follow it or let its camera go: C the red, Enter the blue.
 func (s *arena) bindKeys() error {
-	if err := s.redPlayer.Bind(players.DriveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
+	red := driving.Compass{Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	if err := s.redPlayer.Bind(append(red.Bindings(), s.selection.FollowKey(control.KeyC))...); err != nil {
 		return err
 	}
 	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
 	if err := s.redPlayer.Bind(append(players.GameBindings(), s.world.DefaultBindings()...)...); err != nil {
 		return err
 	}
-	return s.bluePlayer.Bind(players.DriveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
+	blue := driving.Compass{Up: control.KeyArrowUp, Down: control.KeyArrowDown, Left: control.KeyArrowLeft, Right: control.KeyArrowRight, In: camera.Outside}
+	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -225,6 +229,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)

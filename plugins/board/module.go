@@ -53,7 +53,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the cells build themselves in their own Init.
+// SetupSystems is empty — the cells build themselves in their own Init, the occupancy's upkeep
+// seeds it in its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the component types board writes or reads, so a save loads without the vision

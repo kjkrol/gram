@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -47,6 +48,7 @@ type roadWorld struct {
 	grid    grid.Grid
 	ecs     *goke.ECS
 	nav     *Plugin
+	driving *driving.Plugin
 	players *players.Plugin
 	cell    goke.Comp[unit.At]
 	base    goke.Comp[world.Base]
@@ -73,12 +75,12 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		brd.Res.Logic.Board.Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
-	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
-	rw.players = players.NewPlugin(w, rw.nav)     // carries navigation's commands, as the engine does with Use
-	for _, name := range []string{"one", "two"} { // each looking through a camera of its own
+	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
+	rw.nav = NewPlugin(brd, w, sel, rw.driving).WithCollision(c)
+	rw.players = players.NewPlugin(w, rw.nav, rw.driving) // carries their commands, as the engine does with Use
+	for _, name := range []string{"one", "two"} {         // each looking through a camera of its own
 		rw.players.Add(name).Camera = cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
 	}
-	rw.nav.WithPlayers(rw.players)
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -91,6 +93,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 	if err := rw.nav.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := rw.driving.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := rw.players.Install(ctx); err != nil {
@@ -161,6 +166,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		rw.nav.RunPlan(rc, d)
+		rw.driving.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)
 		rw.players.RunPlan(rc, d)

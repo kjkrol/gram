@@ -41,7 +41,6 @@ type Plugin struct {
 	savePath    string     // where Save writes; none, no saving
 	saveWith    []any      // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
-	hands       hands // the Drives of the tick, summed as asked for
 	module      *module
 	layout      Layout
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
@@ -232,8 +231,9 @@ func (p *Plugin) WithLayout(layout Layout) *Plugin {
 }
 
 // Viewports are where the local players look: one per camera they look through, laid out by the
-// Layout (Columns unless WithLayout); none when nobody is at this keyboard. A Scene showing the world hands them to the engine as its game.Viewer; each local
-// player keeps its part of the screen, where its mouse input comes from.
+// Layout (Columns unless WithLayout); none when nobody is at this keyboard. A Scene showing the
+// world hands them to the engine as its game.Viewer; each local player keeps its part of the
+// screen, where its mouse input comes from.
 func (p *Plugin) Viewports(screen geom.AABB) []render.Viewport {
 	var cams []camera.Camera
 	for _, pl := range p.Locals() {

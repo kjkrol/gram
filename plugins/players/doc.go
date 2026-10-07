@@ -91,19 +91,13 @@
 // # Following and driving
 //
 // A player's camera may be fastened to one of its units (camera.Fastening, cameras.Follow); the
-// bindings holding in its How (control.Binding.In) fire.
-//
-// A player's hand on its units is [Drive]: every tick a key is held the Drives add up into the
-// player's [Hand] ([Plugin.Hand]; [Plugin.OwnHand] an entity's own), which the plugin that moves
-// units reads in its pass — navigation, given the players, drives the unit the player's camera is
-// fastened to, else the units it has selected. [DriveBindings] are W, S, A and D outside any
-// entity, for a game to bind in place of the camera's own keys on them; [DriveKeys] four keys
-// into a Way, a player's own where several share the keyboard; the default bindings drive the
-// unit the camera is fastened to — W, S, A and D riding inside it, the arrows behind it.
+// bindings holding in its How (control.Binding.In) fire. Driving a unit by hand is the driving
+// plugin's (plugins/driving): its keys put the player's hand on the unit its camera is fastened
+// to, else on those it has selected.
 //
 // # Commands
 //
-// The players' own commands are in commands.go: [Give] makes an entity a player's, [Drive] is its
-// hand, [Quit] ends the game, [ShowShortcuts] opens the list of keys and [Save] writes the game.
+// The players' own commands are in commands.go: [Give] makes an entity a player's, [Quit] ends the
+// game, [ShowShortcuts] opens the list of keys and [Save] writes the game.
 // [GameBindings] are the keys of the last three's first two, for a game that binds its own keys.
 package players
