@@ -107,8 +107,8 @@
 //
 // # Driven by hand
 //
-// An entity carrying a steering.Driven — written every tick by whoever steers it, the isometric
-// camera fastened to it — is carried out after the orders: it turns by hand (Turn, or towards Face:
+// An entity carrying a steering.Driven — written every tick from the hand on it, the eye's part by
+// a camera riding in it — is carried out after the orders: it turns by hand (Turn, or towards Face:
 // where an eye riding in it looks), walks on the way it faces while the ground just ahead is a
 // cell its domain may stand on and nobody is in the way — the occupancy lets it into the cell, or,
 // under BodySpacing, it touches nobody just ahead — and stops dead otherwise, so it never walks into
@@ -116,12 +116,16 @@
 // step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
 // cell by cell, with Entered.
 //
-// A player's hand is the command [Drive]: every tick a key is held ([DriveBindings], W, S, A and D,
-// which a game binds in place of the camera's own keys on them) the player's selected units get
-// their Driven written, several Drives in a tick adding up, and the marker [Driving]; a tick
-// without one brakes a Driving unit, and once it stands — or has an order to go on with — its
-// Driven is taken off, so it steps aside for others again. A Driven navigation did not give, a
-// camera's, is left alone. A unit under orders struck by what was only sensed — a shot, a sensor —
+// A player's hand is the players' (players.Drive, summed a tick into players.Hand), which
+// navigation reads given the players ([Plugin.WithPlayers]): every tick each unit a hand is on —
+// the owner's whose camera is fastened to it (camera.Fastening), the owner's while the unit is
+// selected with that camera fastened to nothing, or its own (an entity's Drive for itself) — gets
+// the hand's part of its Driven written (Ahead, Turn, Sprint, Face from the hand's Way) and the
+// marker [Driving]; a tick without a hand brakes a Driving unit, and once it stands — or has an
+// order to go on with — its Driven is taken off, so it steps aside for others again. The eye's
+// part of a Driven — Face while a camera riding in the unit turns it, Flown, Climb — is the
+// camera's and left alone; a Driven navigation did not give is left alone whole. A unit under
+// orders struck by what was only sensed — a shot, a sensor —
 // is not Bumped by it: a sensor blocks nobody.
 //
 // # Renderer

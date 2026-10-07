@@ -120,9 +120,9 @@ func (s *Shortcuts) groups() []group {
 	seen := map[string]bool{}
 	var game []string
 	for _, pl := range s.p.Locals() {
-		mode := camera.ModeOf(pl.Camera)
+		how := camera.HowOf(pl.Camera)
 		for _, b := range pl.Bindings() {
-			if !b.Holds(mode) {
+			if !b.Holds(how) {
 				continue
 			}
 			line := fmt.Sprintf("%-22s %s", Written(b.Trigger), b.Label)
@@ -155,11 +155,11 @@ func (s *Shortcuts) groups() []group {
 	return append(out, g)
 }
 
-// title is the list's heading, naming the first-person mode while a local player's camera rides
+// title is the list's heading, naming the first person while a local player's camera rides
 // in an entity.
 func (s *Shortcuts) title() string {
 	for _, pl := range s.p.Locals() {
-		if camera.ModeOf(pl.Camera) == camera.FirstPerson {
+		if camera.HowOf(pl.Camera) == camera.Inside {
 			return "Shortcuts: first person, riding in the unit"
 		}
 	}

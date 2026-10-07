@@ -23,10 +23,12 @@ type viewCamera struct {
 	// as it stood, or the isometric camera, left as it was
 	wasPersp bool
 	was      perspPose
+	// fastening is what the camera is fastened to and how, as the camera system keeps it
+	fastening contract.Fastening
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
-var _ contract.Rider = (*viewCamera)(nil)
+var _ contract.Fastenable = (*viewCamera)(nil)
 var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
@@ -97,9 +99,11 @@ func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
 	return contract.AABB{TopLeft: geom.NewVec(float64(x0), float64(y0)), BottomRight: geom.NewVec(float64(x1), float64(y1))}
 }
 
-// FirstPerson reports whether the camera rides in a unit: its eye the unit's, the keys that move
-// a free camera steering the unit instead.
-func (c *viewCamera) FirstPerson() bool { return c.insideUnit() }
+// Fasten fastens the camera to an entity, or to nothing: the camera system reads it every tick and
+// goes behind or inside the entity as it says.
+func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
+
+func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
 // newCamera is a camera over a width x height world drawn through proj, configured by cfg, over
 // ground — its top as it is drawn — between the heights extent gives (nil: level at sea level),

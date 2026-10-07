@@ -6,6 +6,14 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 
 ## Engine
 
+- **A Stage's plugins without `ctx`** — `stage.New(name).World(cfg).Plugins(func(*world.Plugin)
+  []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
+  constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
+  `Initializer` reached only for the two calls.
+- **A minimap plugin** — the split-screen demo's minimap as `plugins/minimap`: a `game.Scenic`
+  with its own camera from above fitted to the world, the composer handed over or a picture of
+  its own (the board's still, the units as dots), the players' views outlined on it, a key to
+  show and hide it, later a click on it panning the player's camera.
 - **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
   work, no collision involved.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of

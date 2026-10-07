@@ -72,13 +72,6 @@ func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 // A look at the world, like the camera's turn: at once, in the pause too, not saved.
 type Routes struct{}
 
-// Drive is the command to steer the player's selected units by hand this tick — or, by an entity,
-// itself: Ahead 1 walks on the way each faces, -1 brakes and backs away; Turn -1 or 1 turns it.
-// Given every tick a key is held (control.KeyHeld), several in one tick adding up. A unit
-// navigation drives carries the marker Driving: a tick without a Drive brakes it, and once it
-// stands its Driven is taken off, so it steps aside again. A unit with an order drops it.
-type Drive struct{ Ahead, Turn int8 }
-
 // clickSlop is how far, in pixels, the cursor may move between a button going down and coming up
 // for the release to be a click and not a drag.
 const clickSlop = 4
@@ -90,25 +83,10 @@ func dragged(c control.Context) bool {
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where MoveTo, LookAt, Drive and Routes land — for the players plugin — and the
+// Queues are where MoveTo, LookAt and Routes land — for the players plugin — and the
 // commands a unit gives itself among others: StepAside, Detour, Pass, Hold, Settle and Stop.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return append([]control.CommandQueue{&p.moves, &p.looks, &p.drives, &p.routes}, p.given.all()...)
-}
-
-// DriveBindings are W, S, A and D held into a Drive of the player's selected units — on, back,
-// left, right — for a game to bind in place of the camera's own keys on them, which the
-// DefaultBindings leave alone.
-func DriveBindings() []control.Binding {
-	drive := func(ahead, turn int8) func(control.Context) (Drive, bool) {
-		return func(control.Context) (Drive, bool) { return Drive{Ahead: ahead, Turn: turn}, true }
-	}
-	return []control.Binding{
-		control.Command(control.KeyHeld{Key: control.KeyW}, "Walk the selected units on", drive(1, 0)),
-		control.Command(control.KeyHeld{Key: control.KeyS}, "Brake the selected units, then back them away", drive(-1, 0)),
-		control.Command(control.KeyHeld{Key: control.KeyA}, "Turn the selected units left", drive(0, -1)),
-		control.Command(control.KeyHeld{Key: control.KeyD}, "Turn the selected units right", drive(0, 1)),
-	}
+	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.given.all()...)
 }
 
 // DefaultBindings is a right click — the button up where it went down, within clickSlop — into a

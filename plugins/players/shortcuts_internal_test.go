@@ -96,7 +96,14 @@ type ridingCam struct {
 	on bool
 }
 
-func (r *ridingCam) FirstPerson() bool { return r.on }
+func (r *ridingCam) Fasten(camera.Fastening) {}
+
+func (r *ridingCam) Fastening() camera.Fastening {
+	if r.on {
+		return camera.Fastening{Entity: 1, How: camera.Inside}
+	}
+	return camera.Fastening{}
+}
 
 // The scene's keys run on their key with the modifiers they ask for, and not otherwise.
 func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {

@@ -55,17 +55,3 @@ func TestSelect_NobodySelectsTheOwnerlessAlone(t *testing.T) {
 		t.Errorf("nobody's %v, mine %v selected; want nobody's alone", h.isSelected(*nobodys), h.isSelected(*mine))
 	}
 }
-
-// C follows the one selected unit of the player who asked, whatever another player has selected.
-func TestFollow_TheOneSelectedUnitOfThePlayerWhoAsked(t *testing.T) {
-	h := followHarness(t)
-	mine := h.seed(150, 150, 10)
-	theirs := h.seedOwned(400, 400, 10, 2)
-	h.start()
-	h.sel.selects.Put(2, Select{Box: everywhere})
-	h.click(155, 155, false)
-	h.press(control.KeyC)
-	if !h.has(*mine, h.tags.Followed) || h.has(*theirs, h.tags.Followed) {
-		t.Errorf("mine followed %v, player 2's %v; want mine", h.has(*mine, h.tags.Followed), h.has(*theirs, h.tags.Followed))
-	}
-}

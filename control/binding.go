@@ -129,7 +129,7 @@ func ScreenRect(a, b geom.Vec) geom.AABB {
 }
 
 // Binding is one thing a player can do: a Trigger, the command it issues and a label saying what
-// it does, for a help screen; In has it hold in some of the camera's modes only. Build one with
+// it does, for a help screen; In has it hold in some of the camera's fastenings only. Build one with
 // Command.
 type Binding struct {
 	Trigger Trigger
@@ -137,27 +137,27 @@ type Binding struct {
 
 	command reflect.Type
 	build   func(Context) (any, bool)
-	modes   camera.Mode // zero: every mode
+	hows    camera.How // zero: every How
 }
 
-// In is b holding only while the player's camera is in one of modes (camera.ModeOf): one key may
-// do one thing in the free camera and another riding in an entity. A binding never given modes
-// holds in every one.
-func (b Binding) In(modes ...camera.Mode) Binding {
-	b.modes = 0
-	for _, m := range modes {
-		b.modes |= m
+// In is b holding only while the player's camera is fastened one of hows (camera.HowOf): one key
+// may do one thing with the camera loose and another riding in an entity. A binding never given
+// hows holds whatever the camera does.
+func (b Binding) In(hows ...camera.How) Binding {
+	b.hows = 0
+	for _, h := range hows {
+		b.hows |= h
 	}
 	return b
 }
 
-// Holds reports whether b holds while the camera is in mode.
-func (b Binding) Holds(mode camera.Mode) bool { return b.modes == 0 || b.modes&mode != 0 }
+// Holds reports whether b holds while the camera is fastened how.
+func (b Binding) Holds(how camera.How) bool { return b.hows == 0 || b.hows&how != 0 }
 
-// Overlaps reports whether b and o hold in some mode both: two such bindings on one Trigger would
+// Overlaps reports whether b and o hold in some How both: two such bindings on one Trigger would
 // both fire.
 func (b Binding) Overlaps(o Binding) bool {
-	return b.modes == 0 || o.modes == 0 || b.modes&o.modes != 0
+	return b.hows == 0 || o.hows == 0 || b.hows&o.hows != 0
 }
 
 // Command is a Binding issuing a C built from the Context when trigger fires; build may decline.

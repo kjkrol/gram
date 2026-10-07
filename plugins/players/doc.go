@@ -38,12 +38,12 @@
 // [Plugin.Local] adds a player at this keyboard, looking through the world's camera; [Plugin.Add]
 // one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
-// bindings on one rule holding in one camera mode are refused at Bind; a binding whose command
+// bindings on one rule holding in one fastening of the camera are refused at Bind; a binding whose command
 // nobody defines is refused when the Stage is set up. [Player.Bindings] is the list a help screen
-// draws. A binding may hold in some camera modes only (control.Binding.In, camera.ModeOf): the
-// camera's own WASD, middle drag and edge scroll hold while the camera is Free, and a camera riding
-// in an entity (camera.FirstPerson) leaves those keys to the plugin that steers the entity; only
-// the bindings holding in the camera's mode fire, and the shortcuts list only those. While a local
+// draws. A binding may hold in some fastenings of the camera only (control.Binding.In, camera.HowOf): the
+// camera's own WASD, middle drag and edge scroll hold while the camera is Outside, and a camera riding
+// in an entity (camera.Inside) leaves those keys to the plugin that steers the entity; only
+// the bindings holding in the camera's How fire, and the shortcuts list only those. While a local
 // player's camera rides, the window's cursor is captured and control.CursorMove reaches that player
 // wherever the cursor is — looking round with the mouse; the pass it is caught or let go no move
 // is taken.
@@ -90,10 +90,29 @@
 // uses the players has it in its stack ([Plugin.Scenes], game.Scenic), and Esc or K closes it.
 // [Written] is a rule as such a list writes it.
 //
+// # Following and driving
+//
+// A player's camera may be fastened to one of its units (camera.Fastening on a camera.Fastenable
+// camera): [Follow] (C, in a game with a [Chooser] among the handlers — the selection, whose
+// Chosen is the one selected unit the player owns) fastens it camera.Centred over that unit, or
+// lets go; an entity told Follow as it is made, after its Give (kind.Entry.Told), has its owner's
+// camera fastened over it from its first step. Every tick the players keep a Centred camera on
+// its entity, at its altitude, and let go of one that is gone; a Pan lets go, a Zoom keeps. A
+// view plugin takes a fastened camera closer (topography.Ride: Behind, Inside) and keeps it there
+// by the same fastening; the bindings holding in a camera's How (control.Binding.In) fire.
+//
+// A player's hand on its units is [Drive]: every tick a key is held the Drives add up into the
+// player's [Hand] ([Plugin.Hand]; [Plugin.OwnHand] an entity's own), which the plugin that moves
+// units reads in its pass — navigation, given the players, drives the unit the player's camera is
+// fastened to, else the units it has selected. [DriveBindings] are W, S, A and D outside any
+// entity, for a game to bind in place of the camera's own keys on them; [DriveKeys] four keys
+// into a Way, a player's own where several share the keyboard; the default bindings drive the
+// unit the camera is fastened to — W, S, A and D riding inside it, the arrows behind it.
+//
 // # Commands
 //
 // The players' own commands are in commands.go: [Pan] and [Zoom] move a player's camera, [Give]
-// makes an entity a player's, [Quit] ends the game, [ShowShortcuts] opens the list of keys and
-// [Save] writes the game. [GameBindings] are the keys of the last three's first two, for a game
-// that binds its own camera keys.
+// makes an entity a player's, [Follow] fastens its camera, [Drive] is its hand, [Quit] ends the
+// game, [ShowShortcuts] opens the list of keys and [Save] writes the game. [GameBindings] are
+// the keys of the last three's first two, for a game that binds its own camera keys.
 package players

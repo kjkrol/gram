@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
-	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
@@ -47,7 +46,7 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // 64, 32, 1 and 64, Cell must be set — whether a fresh game begins Isometric rather than from
 // above, how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
 // view's, below which the near relief hides what lies behind it), whether View reaches a third
-// view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and LookOut,
+// view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and a Ride inside a unit,
 // seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how
 // Raise, Lower and Level shape the ground (Shaping; zero: a quarter of a cell
 // a step, any slope) and what slopes do to whoever goes over them (Climbing; zero:
@@ -90,9 +89,7 @@ type Plugin struct {
 
 	cameras   *icameras.Control
 	camQueues cameraQueues // the cameras' commands, which the cameras read as their Orders
-	selecting bool         // the selection was given: the keys that ride in a unit are bound
 	coarse    control.Queue[CoarseShadows]
-	selection *selection.Plugin
 	module    *module
 }
 
@@ -135,8 +132,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
 		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
-	worldPlugin.SetCameras(icameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
+	worldPlugin.SetCameras(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -235,15 +232,6 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 
 // ShadowsCoarse reports whether the terrain's shadows are baked coarse.
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
-
-// WithSelection lets Follow fasten a camera behind the unit selectionPlugin has selected; call it
-// before the plugin is installed.
-func (p *Plugin) WithSelection(selectionPlugin *selection.Plugin) *Plugin {
-	p.selection = selectionPlugin
-	p.cameras.WithSelection(selectionPlugin.Tags().Selected)
-	p.selecting = true
-	return p
-}
 
 // Seed sets the ground's heights applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(heights func(p geom.Vec) float64) { p.seeded = heights }

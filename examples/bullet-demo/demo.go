@@ -134,6 +134,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	s.bullet = bullet.NewPlugin(s.world, s.selection).WithGround(s.board.Heights)
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.bullet)
+	s.nav.WithPlayers(s.players)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.bullet, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -191,7 +192,7 @@ func (s *arena) defineRules() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(append(navigation.DriveBindings(),
+	return s.player.Bind(append(players.DriveBindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Fire a round the way the soldier faces", bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}),
 		control.Command(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {

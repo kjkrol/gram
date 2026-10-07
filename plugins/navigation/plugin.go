@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -33,7 +34,6 @@ type Plugin struct {
 
 	moves  control.Queue[MoveTo]
 	looks  control.Queue[LookAt]
-	drives control.Queue[Drive]
 	routes control.Queue[Routes]
 	given  givenQueues
 	finder *pathFinder
@@ -46,7 +46,8 @@ type Plugin struct {
 	routesShown  bool // the routes are drawn — see Routes
 	pathRenderer *pathRenderer
 	collision    *collision.Plugin
-	spacing      Spacing // as asked; Install decides AutoSpacing
+	spacing      Spacing         // as asked; Install decides AutoSpacing
+	players      *players.Plugin // whose hands drive the units; nil, nobody drives by hand
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -106,7 +107,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
-	moveCommandSystem.drives = &p.drives
+	moveCommandSystem.hands = p.players
 	if p.collision != nil {
 		navSys.bumps = anyBump
 		if p.spacing == BodySpacing {
@@ -124,6 +125,15 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.routes.Drain(func(control.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
 	p.module.RunPlan(ctx, d)
+}
+
+// WithPlayers has navigation drive units by the players' hands (players.Drive): every tick each
+// unit a player's hand is on — the one its camera is fastened to, else those it has selected —
+// is steered as the hand says. Call it once the players plugin is made, before Use; without it
+// nobody drives a unit by hand.
+func (p *Plugin) WithPlayers(playersPlugin *players.Plugin) *Plugin {
+	p.players = playersPlugin
+	return p
 }
 
 // WithSpacing sets how units keep out of each other's way; AutoSpacing, the default, decides by

@@ -30,9 +30,6 @@ type Marquee struct {
 	Camera camera.Camera
 }
 
-// Follow is the command to follow the one selected unit with Camera, or to stop following.
-type Follow struct{ Camera camera.Camera }
-
 // Allow is the command by which an entity may be selected from now on — Selected, selected at
 // once too: one gives it itself as it is made (kind.Entry.Told); a player's goes to the units it
 // has selected.
@@ -97,15 +94,14 @@ func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where Select, Follow, Allow, Forbid and the commands for the selected and the pointed
-// at land — for the players plugin.
+// Queues are where Select, Allow, Forbid and the commands for the selected and the pointed at
+// land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.follows, &p.effectCmds, &p.allows, &p.forbids}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and C to
-// follow the one selected unit or stop following.
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -117,9 +113,6 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
 		control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
-		}),
-		control.Command(control.KeyPress{Key: control.KeyC}, "Follow the selected unit", func(c control.Context) (Follow, bool) {
-			return Follow{Camera: c.Camera}, true
 		}),
 	}
 }

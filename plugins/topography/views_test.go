@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players"
-	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
@@ -77,46 +76,38 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	topography.NewPlugin(w, b, topography.Config{Cell: 32})
 }
 
-// Given the perspective, V rides in the selected unit: riding, W, S, A and D drive it, the mouse
-// looks round, V and Tab leave, and Q, E, R and F are not bound; free, V rides in, Q and E turn
-// and R and F tilt. Without the perspective V follows the unit from behind and the arrows drive it.
-func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
+// Riding inside a unit, the mouse looks round, V and Tab leave, and Q, E, R and F are not bound;
+// outside, Q and E turn and R and F tilt, Tab switches the view and V, over or behind the unit
+// the camera follows, takes it closer. The keys that drive the unit are the players', bound to
+// nothing here.
+func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: true}).WithSelection(selection.NewPlugin(w))
-	holding := func(mode camera.Mode) map[string]control.Binding {
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: true})
+	holding := func(how camera.How) map[string]control.Binding {
 		out := map[string]control.Binding{}
 		for _, bd := range p.DefaultBindings() {
-			if bd.Holds(mode) {
+			if bd.Holds(how) {
 				out[players.Written(bd.Trigger)] = bd
 			}
 		}
 		return out
 	}
-	riding, free := holding(camera.FirstPerson), holding(camera.Free)
-	for key, want := range map[string]topography.Drive{"W (held)": {Ahead: 1}, "S (held)": {Ahead: -1}, "A (held)": {Turn: -1}, "D (held)": {Turn: 1}} {
-		bd, ok := riding[key]
-		if !ok {
-			t.Errorf("riding, %s is not bound", key)
-			continue
+	riding, loose, over := holding(camera.Inside), holding(camera.Loose), holding(camera.Centred)
+	for _, key := range []string{"W (held)", "S (held)", "A (held)", "D (held)", "Up (held)"} {
+		if _, ok := riding[key]; ok {
+			t.Errorf("riding, %s is the topography's, want the players'", key)
 		}
-		cmd, _ := bd.Build(control.Context{})
-		if d, ok := cmd.(topography.Drive); !ok || d.Ahead != want.Ahead || d.Turn != want.Turn {
-			t.Errorf("riding, %s issues %+v, want %+v", key, cmd, want)
+		if _, ok := loose[key]; ok {
+			t.Errorf("loose, %s is the topography's: the camera's WASD would be taken", key)
 		}
-		if _, ok := free[key]; ok {
-			t.Errorf("free, %s is the topography's too: the camera's WASD would be taken", key)
-		}
-	}
-	if cmd, _ := riding["W (held)"].Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
-		t.Errorf("riding, W with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
 	}
 	for _, key := range []string{"Q (held)", "E (held)", "R (held)", "F (held)"} {
 		if _, ok := riding[key]; ok {
 			t.Errorf("riding, %s is bound, want nothing: the mouse looks round", key)
 		}
-		if _, ok := free[key]; !ok {
-			t.Errorf("free, %s is not bound", key)
+		if _, ok := loose[key]; !ok {
+			t.Errorf("loose, %s is not bound", key)
 		}
 	}
 	if bd, ok := riding["mouse"]; !ok {
@@ -124,40 +115,22 @@ func TestDefaultBindings_FirstPersonKeysHoldRidingOnly(t *testing.T) {
 	} else if cmd, _ := bd.Build(control.Context{Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Dx: 3, Dy: -2}) {
 		t.Errorf("riding, a mouse move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
 	}
-	if _, ok := free["mouse"]; ok {
-		t.Error("free, the mouse looks round")
+	if _, ok := loose["mouse"]; ok {
+		t.Error("loose, the mouse looks round")
 	}
-	for _, key := range []string{"V", "Tab"} {
-		if _, ok := riding[key]; !ok {
-			t.Errorf("riding, %s is not bound", key)
-		}
-		if _, ok := free[key]; !ok {
-			t.Errorf("free, %s is not bound", key)
-		}
+	if _, ok := riding["Tab"]; !ok {
+		t.Error("riding, Tab is not bound")
 	}
-	if cmd, _ := riding["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.LookOut]() {
-		t.Errorf("riding, V issues %T, want LookOut: it leaves", cmd)
+	if _, ok := loose["Tab"]; !ok {
+		t.Error("loose, Tab is not bound")
 	}
-	if cmd, _ := free["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.LookOut]() {
-		t.Errorf("free, V issues %T, want LookOut: it rides in", cmd)
+	if cmd, _ := riding["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Ride]() {
+		t.Errorf("riding, V issues %T, want Ride: it leaves", cmd)
 	}
-
-	w2 := topotest.NewWorld(0)
-	b2, _ := topotest.LevelBoard(w2)
-	flat := topography.NewPlugin(w2, b2, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true}).WithSelection(selection.NewPlugin(w2))
-	keys := map[string]control.Binding{}
-	for _, bd := range flat.DefaultBindings() {
-		keys[players.Written(bd.Trigger)] = bd
+	if cmd, _ := over["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Ride]() {
+		t.Errorf("over the unit, V issues %T, want Ride: it goes behind", cmd)
 	}
-	if cmd, _ := keys["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Follow]() {
-		t.Errorf("without the perspective V issues %T, want Follow", cmd)
-	}
-	if bd, ok := keys["Up (held)"]; !ok {
-		t.Error("without the perspective the arrows do not drive the followed unit")
-	} else if cmd, _ := bd.Build(control.Context{Mods: control.Mods{Shift: true}}); cmd != (topography.Drive{Ahead: 1, Sprint: true}) {
-		t.Errorf("without the perspective the up arrow with Shift held issues %+v, want Drive{Ahead: 1, Sprint: true}", cmd)
-	}
-	if _, ok := keys["W (held)"]; ok {
-		t.Error("without the perspective the topography binds W")
+	if _, ok := loose["V"]; ok {
+		t.Error("loose, V is bound: there is nothing to ride")
 	}
 }

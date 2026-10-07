@@ -19,8 +19,8 @@
 // (control.Issued), hits and unselects only the Selectable entities that player owns
 // (plugins/players/owner.Obeys), so another player's selection stays as it is and one Selected tag
 // serves every player. Units nobody owns belong to the virtual player control.Nobody — the game's
-// code, a script, an AI run as nobody — and only a Select nobody gave reaches them. Follow takes
-// the one selected unit of the player who asked.
+// code, a script, an AI run as nobody — and only a Select nobody gave reaches them. The players'
+// Follow (C) fastens a player's camera over the one unit it has selected.
 //
 // # Selected and Pointed
 //
@@ -33,15 +33,6 @@
 //	hasten := rule.Cast(haste).On(s.selection.Selected(hasty))
 //	freeze := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
-//
-// # Followed and FollowSystem
-//
-// The third tag, Followed, is the unit a camera follows. A [Follow] command (C by default) tags
-// the one Selected unit — none with several selected — or, when one is followed already, untags
-// it; its Camera is the one of the player who asked. Every tick the [FollowSystem] centres that
-// camera on the followed unit at its
-// altitude (camera.Camera.CenterOn). A player who moves the camera by hand ends the following: at
-// an unchanged zoom, the point centred the tick before is drawn elsewhere; zooming does not.
 //
 // # Renderer
 //

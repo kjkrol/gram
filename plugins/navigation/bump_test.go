@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -40,16 +41,17 @@ type roadUnit struct {
 }
 
 type roadWorld struct {
-	t     *testing.T
-	grid  grid.Grid
-	ecs   *goke.ECS
-	nav   *Plugin
-	cell  goke.Comp[unit.At]
-	base  goke.Comp[world.Base]
-	order goke.OptComp[MoveOrder]
-	q     *goke.Query
-	kinds map[uid.UID64]kind.ID
-	byRow map[int]uid.UID64 // row index → entity, in the order given
+	t       *testing.T
+	grid    grid.Grid
+	ecs     *goke.ECS
+	nav     *Plugin
+	players *players.Plugin
+	cell    goke.Comp[unit.At]
+	base    goke.Comp[world.Base]
+	order   goke.OptComp[MoveOrder]
+	q       *goke.Query
+	kinds   map[uid.UID64]kind.ID
+	byRow   map[int]uid.UID64 // row index → entity, in the order given
 }
 
 const roadCell = 32
@@ -70,9 +72,10 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	sel := selection.NewPlugin(w)
 	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
-	if err := w.Carry(rw.nav); err != nil { // as the engine does with Use
-		t.Fatal(err)
-	}
+	rw.players = players.NewPlugin(w, rw.nav) // carries navigation's commands, as the engine does with Use
+	rw.players.Add("one")
+	rw.players.Add("two")
+	rw.nav.WithPlayers(rw.players)
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -85,6 +88,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 	if err := rw.nav.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := rw.players.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -154,6 +160,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		rw.nav.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)
+		rw.players.RunPlan(rc, d)
 	})
 	rw.ecs = ctx.ecs
 	for rw.q.All(); rw.q.Next(); {

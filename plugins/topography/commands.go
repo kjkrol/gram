@@ -19,7 +19,7 @@ func (p *Plugin) Queues() []control.CommandQueue {
 // coarser or fine again.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
-	return append(cameraBindings(p.cfg.Perspective, p.selecting),
+	return append(cameraBindings(p.cfg.Perspective),
 		control.Command(control.KeyPress{Key: control.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
 		control.Command(control.KeyPress{Key: control.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
 		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",

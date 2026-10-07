@@ -43,7 +43,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		mods := pl.in.withHeld(mods)
 		ctx.Mods = mods
 		moved := ev.CursorDelta.X != 0 || ev.CursorDelta.Y != 0
-		if moved && settled && (under || camera.ModeOf(pl.Camera) == camera.FirstPerson) {
+		if moved && settled && (under || camera.HowOf(pl.Camera) == camera.Inside) {
 			t.fire(pl, control.CursorMove{}, ctx)
 		}
 		for _, c := range ev.ClickQueue {
@@ -92,12 +92,12 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-// fire issues the command of every binding of pl on trigger that holds in the mode of pl's camera
+// fire issues the command of every binding of pl on trigger that holds however pl's camera is fastened
 // and builds one.
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
-	mode := camera.ModeOf(pl.Camera)
+	how := camera.HowOf(pl.Camera)
 	for _, b := range pl.bindings {
-		if b.Trigger != trigger || !b.Holds(mode) {
+		if b.Trigger != trigger || !b.Holds(how) {
 			continue
 		}
 		if cmd, ok := b.Build(ctx); ok {

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
@@ -19,7 +20,6 @@ type Plugin struct {
 	worldPlugin  *world.Plugin
 	selects      control.Queue[Select]
 	marqueeQueue control.Queue[Marquee]
-	follows      control.Queue[Follow]
 	effectCmds   control.Queue[effectCommand]
 	allows       control.Queue[Allow]
 	forbids      control.Queue[Forbid]
@@ -38,7 +38,6 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	tags := Tags{
 		Selectable: reg.DefineTag[Family]("selection.selectable"),
 		Selected:   reg.DefineTag[Family]("selection.selected"),
-		Followed:   reg.DefineTag[Family]("selection.followed"),
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
 	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.selection"), worldPlugin: worldPlugin, tags: tags}
@@ -46,6 +45,15 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 
 // Tags returns selection's tags: for the plugins reading who is Selected.
 func (p *Plugin) Tags() Tags { return p.tags }
+
+// Chosen is the one Selected unit player by owns (owner.Obeys) — whom the players' Follow fastens
+// the camera over; false with none, or several. Nothing before the plugin is installed.
+func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
+	if p.module == nil {
+		return 0, false
+	}
+	return p.module.sys.chosen(by)
+}
 
 // IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition —
 // vision.NewPlugin(w).WithViews(render.Show(sel.IsSelected)).
@@ -62,7 +70,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
 	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Effects()
 	sys.allows, sys.forbids = &p.allows, &p.forbids
-	p.module = &module{sys: sys, follow: NewFollowSystem(&p.follows, p.tags)}
+	p.module = &module{sys: sys}
 	ctx.UseModule(p.module)
 	return nil
 }

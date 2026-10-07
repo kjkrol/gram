@@ -31,10 +31,11 @@
 // [State] is the persistable part — the viewport and zoom — which the Camera hands to saves
 // through Persisted and takes back through Restore. Config is construction-time only.
 //
-// # Modes and vanishing points
+// # Fastening and vanishing points
 //
-// A camera may say more of itself through small interfaces: a [Rider] rides in an entity, which
-// [ModeOf] reads as [FirstPerson] — the Mode bindings hold in (control.Binding.In) — and a
+// A camera may say more of itself through small interfaces: a [Fastenable] one is fastened to an
+// entity — its [Fastening] says to which and [How]: Centred over it, Behind it or Inside it,
+// first person; [HowOf] is what the bindings hold in (control.Binding.In) — and a
 // [Vanisher] has vanishing points, where a direction is drawn: a perspective's, where the sky puts
 // the sun. An [Eyed] camera has an eye at a point, from which the air far off is hazed. A
 // [Picker] finds the ground under a screen point itself, walking the line of sight over the

@@ -128,6 +128,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.selection = selection.NewPlugin(s.world)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
 	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
+	s.nav.WithPlayers(s.players)
 	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -178,7 +179,7 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(append(navigation.DriveBindings(),
+	return s.player.Bind(append(players.DriveBindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Douse the selected embers for a while",
 			s.world.Commands().Named(DouseCmd)))...)
 }
