@@ -183,6 +183,9 @@ func (d *drawing) Init(si *goke.SysInit) {
 			if e.pin != nil {
 				d.pins = append(d.pins, e)
 			}
+			if l, ok := e.content.(*layered); ok {
+				l.r.Init(si)
+			}
 		})
 	}
 	if len(d.pins) > 0 {

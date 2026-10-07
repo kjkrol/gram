@@ -1,5 +1,5 @@
 // Command minimal is the smallest gram game that does something: one Stage with a world of
-// bouncing boxes, a collision plugin counting their contacts, and one Scene drawing them.
+// bouncing boxes, a collision plugin counting their contacts, and one Scene showing them.
 // It is the README's example, kept here so it compiles and runs.
 package main
 
@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -24,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -62,6 +62,8 @@ type arena struct {
 	players   *players.Plugin
 	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
+	picture   *render.Composer // the boxes, as the scene shows them
+	tps       *game.TPS
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
@@ -109,8 +111,10 @@ func (a *arena) defineKinds() {
 	})
 }
 
+// defineScenes is the one scene: the world's picture and the screen it is shown on.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&view{arena: a, tps: ctx.TPS()}}
+	a.tps = ctx.TPS()
+	return []game.Scene{ui.NewScene("view", a.pictures, a.screen).Input(a.players.Handle)}
 }
 
 func (a *arena) placeUnits() {
@@ -134,41 +138,29 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
-// view is the one Scene: the boxes over a dark background, with a telemetry line.
-type view struct {
-	arena *arena
-	tps   *game.TPS
-}
-
-func (v *view) Name() string    { return "view" }
-func (v *view) Focusable() bool { return true }
-
 // The scene's colours: the boxes and the backdrop.
 var (
 	boxColor        = color.RGBA{R: 90, G: 200, B: 110, A: 255}
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-func (v *view) Layers() []render.Layer {
-	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
+// pictures dresses the boxes and hands the world's picture.
+func (a *arena) pictures() []render.WorldRenderer {
+	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
-	v.arena.world.WithRenderer(atlas)
-
-	count := func() int { return v.arena.world.Res.Telemetry.Count }
-	return []render.Layer{
-		render.SolidBackground{Color: backgroundColor},
-		render.NewComposer(v.arena.world.Renderer()),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
-	}
+	a.world.WithRenderer(atlas)
+	a.picture = render.NewComposer(a.world.Renderer())
+	return []render.WorldRenderer{a.picture}
 }
 
-// Viewports are where the world is shown: the camera over the whole screen.
-func (v *view) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.arena.player.Camera, screen)
-}
-
-func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	v.arena.players.Handle(events, runtime, composition)
+// screen is the world through the player's camera on a dark backdrop, a telemetry line over it.
+func (a *arena) screen() *ui.Element {
+	count := func() int { return a.world.Res.Telemetry.Count }
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(a.player.Camera, a.picture)).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&a.tps.Ticks, count).With(a.stats.Reporter(&a.tps.Ticks))),
+	)
 }

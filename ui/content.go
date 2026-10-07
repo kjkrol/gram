@@ -104,3 +104,14 @@ type blank struct{}
 func (blank) place(*Element, geom.AABB)     {}
 func (blank) draw(*Element, *render.Image)  {}
 func (blank) needs(*Element) (w, h float64) { return 0, 0 }
+
+// Layer is an element drawn by r, a screen layer drawing itself in the screen's pixels — a
+// telemetry line, a background of its own; the scene initialises it once.
+func Layer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
+
+type layered struct{ r render.Renderer }
+
+func (*layered) place(*Element, geom.AABB)            {}
+func (l *layered) draw(_ *Element, dst *render.Image) { l.r.Draw(dst) }
+func (*layered) needs(*Element) (w, h float64)        { return 0, 0 }
+func (*layered) container()                           {} // hit by nothing: it draws, it takes no click
