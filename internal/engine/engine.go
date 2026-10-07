@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"math"
 	"os"
 	"time"
 
 	"github.com/gogpu/gogpu"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/render"
@@ -298,16 +296,13 @@ func (e *Engine) Draw(screen *render.Image) {
 	}
 }
 
-// Layout is the fixed screen of the Props, or with Resizable the window itself, which the cameras
-// of the visible scenes' viewports are resized to follow.
+// Layout is the fixed screen of the Props, or with Resizable the window itself; the scenes lay
+// their screens over it, the pictures of the world sized as they are shown.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if !e.props.Resizable || outsideWidth <= 0 || outsideHeight <= 0 {
 		return e.props.ScreenWidth, e.props.ScreenHeight
 	}
-	if outsideWidth != e.width || outsideHeight != e.height {
-		e.width, e.height = outsideWidth, outsideHeight
-		e.fitViewports(geom.NewAABBAt(geom.Vec{}, float64(e.width), float64(e.height)))
-	}
+	e.width, e.height = outsideWidth, outsideHeight
 	return e.width, e.height
 }
 
@@ -332,39 +327,4 @@ func (e *Engine) dispatchEvents(events *control.InputEvents) {
 	if sc, ok := stack.Get(active); ok {
 		sc.HandleEvents(events, e, comp)
 	}
-}
-
-// fitViewports sizes every camera of the visible scenes' viewports to its area on screen.
-func (e *Engine) fitViewports(screen geom.AABB) {
-	if e.current == nil {
-		return
-	}
-	stack := e.current.stage.Stack()
-	for _, name := range stack.Composition().Order() {
-		sc, _ := stack.Get(name)
-		if v, ok := sc.(game.Viewer); ok {
-			for _, vp := range v.Viewports(screen) {
-				fit(vp)
-			}
-		}
-	}
-}
-
-// fit resizes vp's camera to its area, when it differs.
-func fit(vp render.Viewport) {
-	w, h := vp.Camera.Viewport()
-	if aw, ah := pixels(vp.Area); int(w) != aw || int(h) != ah {
-		vp.Camera.SetViewport(float32(aw), float32(ah))
-	}
-}
-
-// pixels is the size of a screen rectangle in whole pixels.
-func pixels(r geom.AABB) (w, h int) {
-	return int(math.Round(r.BottomRight.X - r.TopLeft.X)), int(math.Round(r.BottomRight.Y - r.TopLeft.Y))
-}
-
-// screenBox is the screen image's rectangle.
-func screenBox(screen *render.Image) geom.AABB {
-	b := screen.Bounds()
-	return geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 }

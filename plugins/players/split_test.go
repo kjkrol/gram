@@ -31,7 +31,9 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 		t.Fatal(err)
 	}
 	ecs := r.start()
-	r.p.Viewports(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
+	// the scene's pictures, side by side: each tells its player where it lies
+	r.p.Through(left).Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)))
+	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)))
 	return r, left, right, ecs
 }
 

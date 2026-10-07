@@ -4,12 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"reflect"
-	"slices"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -46,7 +43,6 @@ type Plugin struct {
 	saveWith    []any  // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
 	module      *module
-	layout      Layout
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
 	// lets go of the window's cursor
 	captured   bool
@@ -210,58 +206,6 @@ func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
 // Renderer is nil — players draw nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
-
-// Layout splits the screen into n parts, one per camera the local players look through, in the
-// order the players were added.
-type Layout func(screen geom.AABB, n int) []geom.AABB
-
-// Columns is the default Layout: n equal columns side by side, each a whole number of pixels wide,
-// the last taking what is left over.
-func Columns(screen geom.AABB, n int) []geom.AABB {
-	out := make([]geom.AABB, n)
-	w := math.Floor((screen.BottomRight.X - screen.TopLeft.X) / float64(n))
-	for i := range out {
-		x := screen.TopLeft.X + float64(i)*w
-		out[i] = geom.NewAABB(geom.NewVec(x, screen.TopLeft.Y), geom.NewVec(x+w, screen.BottomRight.Y))
-	}
-	out[n-1].BottomRight.X = screen.BottomRight.X
-	return out
-}
-
-// WithLayout sets how Viewports splits the screen between the local players' cameras.
-func (p *Plugin) WithLayout(layout Layout) *Plugin {
-	p.layout = layout
-	return p
-}
-
-// Viewports are where the local players look: one per camera they look through, laid out by the
-// Layout (Columns unless WithLayout); none when nobody is at this keyboard. A Scene showing the
-// world hands them to the engine as its game.Viewer; each local player keeps its part of the
-// screen, where its mouse input comes from.
-func (p *Plugin) Viewports(screen geom.AABB) []render.Viewport {
-	var cams []camera.Camera
-	for _, pl := range p.Locals() {
-		if !slices.Contains(cams, pl.Camera) {
-			cams = append(cams, pl.Camera)
-		}
-	}
-	if len(cams) == 0 {
-		return nil
-	}
-	layout := p.layout
-	if layout == nil {
-		layout = Columns
-	}
-	areas := layout(screen, len(cams))
-	out := make([]render.Viewport, len(cams))
-	for i, cam := range cams {
-		out[i] = render.Viewport{Camera: cam, Area: areas[i]}
-	}
-	for _, pl := range p.Locals() {
-		pl.area = areas[slices.Index(cams, pl.Camera)]
-	}
-	return out
-}
 
 // EventHandler translates this tick's input through every local player's bindings; call it from
 // the active Scene's HandleEvents.

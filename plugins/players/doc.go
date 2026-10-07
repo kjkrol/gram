@@ -24,13 +24,14 @@
 // script or an AI run as nobody speaks for. A side of its own — the wild, a rival — is a player
 // without a keyboard ([Plugin.Add]) owning its units.
 //
-// # Viewports
+// # Pictures of the world
 //
-// A player looks at the world through its camera, in its part of the screen. [Plugin.Viewports] is
-// what a Scene showing the world gives the engine as its game.Viewer: one viewport per camera the
-// local players look through, side by side in equal columns, none when nobody is at this
-// keyboard. What is drawn is the Scene's to say — its layers, the
-// commands' handlers' renderers among them; players draw nothing.
+// A player looks at the world through its camera, in a picture on a ui scene's screen:
+// ui.Image(render.NewFeed(cam, picture)).Input([Plugin.Through](pl)) tells the player every frame
+// where its picture lies ([Player.Area]), shows the elements pinned to its own entities and
+// nobody's, and moves its camera for them (cameras.LookAt). [Plugin.IssueAs] is how the scene's
+// buttons and keys give their commands as the player. What is drawn is the scene's to say; players
+// draw nothing.
 //
 // # Players
 //
@@ -60,8 +61,8 @@
 //
 // # Split screen
 //
-// Local players looking through cameras of their own (cameras.Plugin.New) share the screen as [Plugin.Viewports] lays it out ([Columns], or a
-// [Layout] given WithLayout), and each keeps its part, [Player.Area]. Every key reaches every local
+// Local players looking through cameras of their own (cameras.Plugin.New) share the screen as the
+// scene lays their pictures out (ui.Columns), and each keeps its part, [Player.Area]. Every key reaches every local
 // player, each with bindings of its own — WASD for one, the arrows for another, a
 // control.KeyHeld firing once a tick while its key is down — and the mouse, there being one,
 // reaches the player whose part of the screen it is over, in the pixels of that part.
