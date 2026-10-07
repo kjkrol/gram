@@ -21,6 +21,9 @@
 // over that entity from its first step. Who is followed is whoever builds the Follow: the
 // selection's key (selection.Plugin.FollowKey) follows the one unit the player has chosen. A camera
 // fastened Behind or Inside an entity is the view plugin's to keep (plugins/topography).
+// [MouseLook] switches whether a camera riding inside an entity looks round with the mouse, the
+// cursor captured (camera.MouseLooker; camera.Config.MouseLook says it at the start, off by
+// default); [MouseLookKey] binds it to a key.
 //
 // # Keys
 //

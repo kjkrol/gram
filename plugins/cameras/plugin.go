@@ -33,6 +33,7 @@ type Plugin struct {
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
 	follows     control.Queue[Follow]
+	looks       control.Queue[MouseLook]
 	module      *module
 }
 

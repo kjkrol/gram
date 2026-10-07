@@ -12,10 +12,10 @@ import (
 
 var _ goke.System = (*cameraSystem)(nil)
 
-// cameraSystem carries out Pan, Zoom and Follow on the cameras they name — a Pan lets go of
-// whatever the camera was fastened to, a Zoom keeps it — and every tick keeps each camera fastened
-// Centred over its entity, letting go of one that is gone. Cameras fastened Behind or Inside are
-// the view plugin's.
+// cameraSystem carries out Pan, Zoom, Follow and MouseLook on the cameras they name — a Pan lets
+// go of whatever the camera was fastened to, a Zoom keeps it — and every tick keeps each camera
+// fastened Centred over its entity, letting go of one that is gone. Cameras fastened Behind or
+// Inside are the view plugin's.
 type cameraSystem struct {
 	p *Plugin
 
@@ -65,6 +65,11 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			return
 		}
 		s.fasten(cam, i.Command.Entity)
+	})
+	s.p.looks.Drain(func(i control.Issued[MouseLook]) {
+		if m, ok := i.Command.Camera.(camera.MouseLooker); ok {
+			m.SetMouseLook(!m.MouseLook())
+		}
 	})
 	s.keep()
 }

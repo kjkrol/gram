@@ -30,9 +30,21 @@ type Follow struct {
 	On     bool
 }
 
-// Queues are where Pan, Zoom and Follow land.
+// MouseLook switches whether Camera, riding in an entity (camera.Inside), looks round with the
+// mouse — the cursor captured — or not (camera.MouseLooker; camera.Config.MouseLook at the start).
+type MouseLook struct{ Camera camera.Camera }
+
+// Queues are where Pan, Zoom, Follow and MouseLook land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows}
+	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.looks}
+}
+
+// MouseLookKey is key switching looking round with the mouse, in first person, for the camera the
+// player looks through.
+func MouseLookKey(key control.Key) control.Binding {
+	return control.Command(control.KeyPress{Key: key}, "Look round with the mouse in first person, or not", func(c control.Context) (MouseLook, bool) {
+		return MouseLook{Camera: c.Camera}, true
+	})
 }
 
 // DefaultBindings are DefaultKeys.

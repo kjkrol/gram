@@ -25,10 +25,12 @@ type viewCamera struct {
 	was      perspPose
 	// fastening is what the camera is fastened to and how, as the camera system keeps it
 	fastening contract.Fastening
+	mouseLook bool // the eye inside a unit looks round with the mouse
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
 var _ contract.Fastenable = (*viewCamera)(nil)
+var _ contract.MouseLooker = (*viewCamera)(nil)
 var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
@@ -105,6 +107,12 @@ func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
 
 func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
+// MouseLook reports whether the eye inside a unit looks round with the mouse.
+func (c *viewCamera) MouseLook() bool { return c.mouseLook }
+
+// SetMouseLook has the eye inside a unit look round with the mouse, or not.
+func (c *viewCamera) SetMouseLook(on bool) { c.mouseLook = on }
+
 // newCamera is a camera over a width x height world drawn through proj, configured by cfg, over
 // ground — its top as it is drawn — between the heights extent gives (nil: level at sea level),
 // which Pick walks over, its perspective view of fov
@@ -121,7 +129,7 @@ func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg
 	persp := newPerspCamera(iso.proj, fov, world, vp, ground, extent)
 	persp.bend = bend
 	persp.look()
-	c := &viewCamera{iso: iso, persp: persp, reaches: reaches}
+	c := &viewCamera{iso: iso, persp: persp, reaches: reaches, mouseLook: cfg.MouseLook}
 	c.cur = c.iso
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)

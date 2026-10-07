@@ -6,12 +6,13 @@ import (
 )
 
 // capture catches the window's cursor while a local player's camera rides in an entity
-// (camera.Inside) — the mouse looks round then, without end — and lets it go otherwise; it
+// (camera.Inside) looking round with the mouse (camera.MouseLooks) — the mouse looks round then,
+// without end — and lets it go otherwise; it
 // reports whether the cursor stayed as it was this pass, its move worth taking.
 func (p *Plugin) capture() bool {
 	riding := false
 	for _, pl := range p.Locals() {
-		riding = riding || camera.HowOf(pl.Camera) == camera.Inside
+		riding = riding || camera.HowOf(pl.Camera) == camera.Inside && camera.MouseLooks(pl.Camera)
 	}
 	if riding == p.captured {
 		return true

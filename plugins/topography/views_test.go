@@ -110,10 +110,17 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 			t.Errorf("loose, %s is not bound", key)
 		}
 	}
+	cam := topotest.Camera(w, p)
 	if bd, ok := riding["mouse"]; !ok {
-		t.Error("riding, the mouse does not look round")
-	} else if cmd, _ := bd.Build(control.Context{Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Dx: 3, Dy: -2}) {
-		t.Errorf("riding, a mouse move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
+		t.Error("riding, there is no binding of the mouse")
+	} else {
+		if _, built := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); built {
+			t.Error("riding, the mouse looks round with mouse look off")
+		}
+		cam.(camera.MouseLooker).SetMouseLook(true)
+		if cmd, _ := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Camera: cam, Dx: 3, Dy: -2}) {
+			t.Errorf("riding, mouse look on, a move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
+		}
 	}
 	if _, ok := loose["mouse"]; ok {
 		t.Error("loose, the mouse looks round")

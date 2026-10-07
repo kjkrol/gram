@@ -217,7 +217,10 @@ func (s *arena) defineCommands() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)),
+		cameras.MouseLookKey(control.KeyO), // first person looks round with the mouse only once asked
+	)
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {

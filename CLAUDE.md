@@ -366,8 +366,11 @@ at the altitude; `Pan` lets go, `Zoom` keeps), the topography's camera system `B
 with an ease of `followEase` until its `Vel.Dir` runs up the screen, held through other
 selections, orders, pans and turns — and `Inside` — first person, the eye where the unit's
 `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle`
-(`perspCamera.across`; the camera's own field without one), the mouse `Look`
-(`control.CursorMove`, cursor captured by players; across turns the view and the unit via
+(`perspCamera.across`; the camera's own field without one), the mouse `Look` — opt-in (the user's
+word, 2026-10-07: only in first person, only once asked): `camera.Config.MouseLook` at the start,
+`cameras.MouseLook{Camera}` switching it (`cameras.MouseLookKey(key)`, board-topography's O), a
+`camera.MouseLooker` the topography's view camera is; off, the binding builds nothing and the cursor
+is not captured — (`control.CursorMove`, cursor captured by players; across turns the view and the unit via
 `steering.Driven.Look` — the eye's way, before the hand's `Face` — up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
 −sin(pitch): the drive system asks a flyer for the run (`Driven.Slope`) along the ground, and the
 altitude system, the one writer of heights, holds a flown flyer's `Z.Altitude` over sea level,

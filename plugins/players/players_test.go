@@ -371,11 +371,14 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 }
 
-// riding is the rig's camera, riding in an entity while on.
+// riding is the rig's camera, riding in an entity while on, looking round with the mouse.
 type riding struct {
 	camera.Camera
 	on bool
 }
+
+func (r *riding) MouseLook() bool   { return true }
+func (r *riding) SetMouseLook(bool) {}
 
 func (r *riding) Fasten(camera.Fastening) {}
 

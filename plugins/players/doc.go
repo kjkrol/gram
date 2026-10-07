@@ -43,7 +43,8 @@
 // camera's own WASD, middle drag and edge scroll hold while the camera is Outside, and a camera riding
 // in an entity (camera.Inside) leaves those keys to the plugin that steers the entity; only
 // the bindings holding in the camera's How fire, and the shortcuts list only those. While a local
-// player's camera rides, the window's cursor is captured and control.CursorMove reaches that player
+// player's camera rides looking round with the mouse (camera.MouseLooks), the window's cursor is
+// captured and control.CursorMove reaches that player
 // wherever the cursor is — looking round with the mouse; the pass it is caught or let go no move
 // is taken.
 //

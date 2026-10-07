@@ -82,6 +82,9 @@ type Config struct {
 	MinZoom float32
 	// MaxZoom caps ZoomIn; 0 leaves it unrestricted.
 	MaxZoom float32
+	// MouseLook has the eye, riding in an entity (Inside), look round with the mouse, the cursor
+	// captured (MouseLooker); a camera without first person ignores it.
+	MouseLook bool
 }
 
 // State is a Camera's persistable visible window and zoom.
