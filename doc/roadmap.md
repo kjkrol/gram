@@ -69,7 +69,10 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   that does not end the flight), a trail drawn behind it, a mine that feels a tread (a landed
   shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
 - **A unit spawned in the game on the board** — `world.Spawn` of a unit with `At` and `Mover` does
-  not enter it into the board's `cell.Occupancy` (navigation seeds it at Setup alone).
+  not enter it into the board's `cell.Occupancy` (the board seeds it at Setup alone).
+- **The board keeps every unit's cell** — `unit.At` and `unit.Entered` follow a unit only where
+  navigation or the driving moves it; one pushed by collision, or moved by a game's own system,
+  keeps a stale cell. The board's units' pass knows the cell under each centre already.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 

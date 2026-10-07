@@ -24,7 +24,8 @@
 // Scenes; the live [game.Composition] over it says which are visible, in what order, and which is
 // active — the topmost focusable one, the only Scene whose HandleEvents runs. A Stage has no input
 // handling of its own. [game.Runtime] is one undivided interface — pause, quit, switch Stage,
-// persistence, the camera — that reaches a Stage and every Scene alike.
+// persistence, full screen — that reaches a Stage and every Scene alike. The cameras a game looks
+// through are a plugin's (plugins/cameras), started by the game itself.
 //
 // # Plugins and rules
 //
@@ -99,36 +100,39 @@
 //	          plugin              — the extension contract: Plugin, Installer, CommandHandler, Serializable,
 //	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
 //	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
-//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
+//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the driving (→ control, tag)
 //	Layer 4   rule                — rules at a plugin's moments: On, Then, the filters, the steps; roles (Role, Plays)
 //	                                and commands about effects (Cast, Lift, Toggle, Trigger)    (→ control, plugin, entity, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, the Views; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
+//	          plugins/cameras     — the cameras a game looks through: Main, New, Pan, Zoom, Follow, Keys (→ world, …)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
-//	          plugins/selection   — a Select command into a Selected tag; the roles' abilities     (→ world, rule, …)
+//	          plugins/selection   — a Select command into a Selected tag; the roles' abilities; FollowKey (→ world, rule, cameras, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
+//	Layer 8   plugins/driving     — units driven by hand: Ahead, Back, Turn, Toward, Tank and Compass keys (→ world, selection, board, …)
+//	Layer 9   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, driving, world, …)
 //	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
 //	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
-//	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
-//	Layer 9   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
+//	          plugins/players     — a carrier over the command handlers: players, their bindings, the viewports (→ world, …)
+//	Layer 10  internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
 //	                                roles' rules to the plugins' hosts (→ game, plugin, rule, world, camera, control, render)
-//	Layer 10  gram                — Run; the package you import                                     (→ game, internal/engine)
+//	Layer 11  gram                — Run; the package you import                                     (→ game, internal/engine)
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
 //
 //	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere
+//	                     plugins/{cameras, collision, selection, vision} ──► plugins/board ──► plugins/driving ──► plugins/navigation
+//	                                                                            └──► plugins/bullet, plugins/topography, plugins/atmosphere
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,
