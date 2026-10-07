@@ -1185,15 +1185,17 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never
-  imports players. `Viewports(screen)` is what a Scene showing the world returns as its
-  `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
-  draws nothing, the Scene lists every layer itself. `NewPlugin` registers the owners' family
+  imports players. A player's picture of the world on a ui screen takes `Through(pl)` as its
+  Input (`ui.Image(feed).Input(...)`): it tells the player where the picture lies (`Player.Area`),
+  shows the elements pinned to the player's own entities and nobody's (`ui.Owner`, read through a
+  query of owners) and moves its camera for them (`ui.Looker`: `cameras.LookAt`); `IssueAs(pl)` is
+  how a ui scene's buttons and keys give their commands; players draws nothing. `NewPlugin` registers the owners' family
   (`players/owner`) with the world's kinds, 64 names saved by name. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.
-  Local players looking through cameras of their own (`cameras.Plugin.New`) split the screen
-  (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
+  Local players looking through cameras of their own (`cameras.Plugin.New`) split the screen as
+  the scene lays out their pictures (`ui.Columns`); keys reach every local player, the mouse the one under it in its
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
   players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
   on a camera carry the player's (`selection.Select.Camera`, `topography.Ride{Camera}`). `Player.Bind` refuses two on one
@@ -1224,7 +1226,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   ScrollSpeed, Wheel, Drag, Edge}` are a player's keys to its camera, `DefaultKeys()` W/S/A/D, the
   wheel, the middle drag and the edge (`control.Context.Edges`); a demo whose WSAD drive binds
   `cameras.Keys{Wheel, Drag, Edge}` alone. Depends on `world`. The engine has no
-  `Runtime.Camera`: it sizes the cameras of the visible scenes' viewports (`game.Viewer`).
+  `Runtime.Camera` and sizes no camera: a `render.Feed` gives its camera the size it is shown at.
 - **`driving`** — units driven by hand, with or without navigation:
   `driving.NewPlugin(world, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`,
   `Back`, `Turn{Way}`, `Toward{Way}` (the screen's way) add up a tick into a hand — a player's
@@ -1341,7 +1343,7 @@ is a plain helper function each of their `HandleEvents` calls, not an
 engine concept.
 
 Within one active `Stage`, `game.Scene` is what `Game.Draw`/`HandleEvents`
-used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, `render.WorldRenderer`s — a `render.Composer` over the plugins' `Source`s — drawn per viewport of a `game.Viewer` scene, a run of them onto an image of the viewport's area unless it covers the screen; each layer is Init once however many scenes list it), `HandleEvents`,
+used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, each Init once however many scenes list it; a world layer listed straight in a scene is refused — the world is shown through a `ui.Image` of a `render.Feed`, `game.Viewer` and the engine's viewports went on 2026-10-08), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the static, `Name()`-keyed registry of
 every `Scene` it can show (`game.NewStack(scenes...)`); `Stack.Composition()`
 (the only way to reach it — `Stage` has no accessor of its own) is the live
@@ -1420,33 +1422,46 @@ every scene that is a `plugin.Serializable`, the engine keys a tracked value by 
 covers, `ui.Columns`/`ui.Rows` split and never cover, each part `ui.Share(n, el)` (n parts of what
 is left: two `Share(1, …)` are halves), `ui.Fixed(px, el)`, `ui.Fit(el)`; an anchor wraps its
 element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never `el.At(anchor)`.
-Elements: `Panel`, `Label` (render's debug text for now), `Image`, `Window`, `Button(label,
+Elements: `Panel`, `Label` (in the theme's font: `render.Font`, Go Regular through x/image's
+opentype, glyphs drawn on demand into a sheet, Polish letters and all; `render.DrawText`),
+`Image`, `Window`, `Button(label,
 cmds...)` (the scene's own `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue` — a
 button gives commands the way a key does, no callbacks into the game), `Blank` (a gap, a divider
 with a `Fill`), `Layer(renderer)` (a screen renderer as an element, the telemetry); any element
 takes `Fill`, `Border` (drawn over its content), `Padding`, `Named`, `Hidden`, `Modal` (it holds
 every click and the wheel outside it while shown) and `Masked(ui.Circle | ui.Polygon(...))`: layout
 gives boxes, the shape is drawing and hitting inside the box (a round clock, a hexagonal minimap;
-`render.Image.DrawImageIn`, `FillPolygon`). Input: a click goes to the topmost element hit — a
+`render.Image.DrawImageIn`, `FillPolygon`). `ui.Theme{Font, Text, Shadow, Panel, Border, Title,
+Button}` is how elements look where they say nothing of their own (`Scene.Theme`; an element's own
+`Fill`/`Border` wins). A feed filling the screen is drawn straight onto it (`Feed.DrawOn`, as the
+engine drew a full-screen viewport: board-topography measured the same through ui as before).
+Input: a click goes to the topmost element hit — a
 button gives its commands, an `Image(feed).Input(players.Through(pl))` lets it through to the
-players' bindings (and tells the player where its picture lies: `Player.area`, in place of
-`players.Viewports`), any other element keeps it. **Elements from the game are pinned to
+players' bindings (and tells the player where its picture lies: `Player.Area`), any other
+element keeps it. **Elements from the game are pinned to
 entities**, written as `Under` on the atlas: `ui.Label("frozen").Under(effects.Named(FrozenEf))`
 is shown once for every entity the effect is on, `.On(entity.Named/Group(...))` for those called
 so; the scene finds them in the ECS itself every frame (a query over `tag.Tags[effect.States]`,
 `entity.Base`, `Z`, `Label`), `Above` (default)/`Below`/`Beside`/`Offset` say how it stands by its
-entity in the first picture of the world that shows it, kept on the screen; `OffScreen(ui.PointAtIt
+entity in every picture of the world that has it in sight and shows it (`ui.Owner`: a player's
+picture shows its own entities and nobody's — a unit's element in its owner's half of a split
+screen), kept on the screen; `OffScreen(ui.PointAtIt
 | ui.ShowIt | ui.GoToIt)` what it does out of sight — the camera moved by a command
 (`cameras.LookAt{Camera, Entity}`, once, fastened to nothing) through the picture's Input
 (`players` implements `ui.Looker`); an entity with no place (the world's own entity, a plugin's)
 has its element where its parent lays it; a modal pinned element shows one entity at a time. A
+pinned element's button gives every `rule.Command` for `ui.It` (`rule.Lift(greeting).On(ui.It)`,
+defined in the register as any) for the entity it is shown for — `entity.ID(id)`, a `Whom` of
+identifiers the world finds at once: one window serves every host. A
 conversation is rules and effects (`examples/dialog-demo`, the user's word: a demo of its own, the
 effect demo stays a plain demo of effects): the host's rule of a `vision.Sighting` puts `greeting`
 on it when the traveller is near, the window `Under(greeting)` above it holds three answers, each
 button's commands lift the greeting and cast the host's reaction and `talked`; a rule lets the
-greeting go once nobody is in sight. Migrated: split-screen, scenes-demo's gameplay, minimal, and
-dialog-demo written on ui; the rest of the demos keep their old scenes until
-`Scenes`/`Shows`/`game.Viewer` go.
+greeting go once nobody is in sight; its two hosts speak Polish. Every demo shows its world
+through a ui scene: a demo's `mainScene` has `pictures()` (atlases, `WithRenderer`, the composer)
+and `screen()` (the feed through the player's camera, a backdrop `Blank`, the telemetry and the
+clock's HUD as `ui.Layer`s). The scenes-demo's menu and the players' list of shortcuts stay
+scenes of screen layers: their keys switch the Stage and quit through `game.Runtime`.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
 gameplay entities, "Start" switching (lazily building the ECS) into a

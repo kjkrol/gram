@@ -118,7 +118,7 @@
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
 //	          ui                  — a scene's screen composed of elements: Layers, Columns, Rows, anchors, Panel, Label,
-//	                                Image (a render.Feed), Window, Button, elements pinned to entities (→ game, render, control, entity, effect)
+//	                                Image (a render.Feed), Window, Button, Theme, elements pinned to entities, It (→ game, render, control, entity, effect, rule)
 //	          plugins/cameras     — the cameras a game looks through: New, Pan, Zoom, Follow, LookAt, Keys (→ world, …)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
 //	          plugins/selection   — a Select command into a Selected tag; the roles' abilities; FollowKey (→ world, rule, cameras, …)
@@ -131,7 +131,7 @@
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
 //	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
-//	          plugins/players     — a carrier over the command handlers: players, their bindings, the viewports, Through and IssueAs for a ui scene (→ world, cameras, ui, …)
+//	          plugins/players     — a carrier over the command handlers: players, their bindings, Through and IssueAs for a ui scene (→ world, cameras, ui, …)
 //	Layer 10  internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
 //	                                roles' rules to the plugins' hosts (→ game, plugin, rule, world, camera, control, render)
 //	Layer 11  gram                — Run; the package you import                                     (→ game, internal/engine)
