@@ -71,6 +71,25 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 		[]Vertex{v(0, 0), v(w, 0), v(0, h), v(w, h)}, []uint16{0, 1, 2, 1, 2, 3})
 }
 
+// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon pts
+// (dst's pixels, a fan round the first point), laid over as blend says.
+func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
+	if len(pts) < 3 {
+		return
+	}
+	r := src.rect()
+	sx, sy := float32(r.X)-x, float32(r.Y)-y
+	verts := make([]Vertex, len(pts))
+	for k, p := range pts {
+		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: sx + p[0], SrcY: sy + p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+	}
+	indices := make([]uint16, 0, 3*(len(pts)-2))
+	for k := 1; k+1 < len(pts); k++ {
+		indices = append(indices, 0, uint16(k), uint16(k+1))
+	}
+	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+}
+
 // Present draws screen over the window's surface view — w by h pixels of format, its texels
 // blended where the sizes differ — into enc, the window's frame encoder, which the window submits
 // and presents; everything drawn before is submitted first.

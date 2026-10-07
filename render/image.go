@@ -132,6 +132,12 @@ func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
 	gpu.DrawImage(i.gpu(), src.gpu(), o.GeoM.affine(), [4]float32{1, 1, 1, 1}, o.Filter == FilterLinear, gpu.SourceOver)
 }
 
+// DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex polygon
+// pts, in the image's pixels: a picture cut round, or to any convex shape.
+func (i *Image) DrawImageIn(src *Image, x, y float32, pts [][2]float32) {
+	gpu.DrawImageIn(i.gpu(), src.gpu(), x, y, pts, gpu.SourceOver)
+}
+
 // DrawTrianglesShaderOptions is what a shader draws with: its uniforms by name, each a []float32,
 // and up to four images.
 type DrawTrianglesShaderOptions struct {

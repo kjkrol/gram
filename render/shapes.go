@@ -71,3 +71,28 @@ func ActualFPS() float64 { return rates.fps }
 
 // ActualTPS is how many times a second the engine updated in the last second.
 func ActualTPS() float64 { return rates.tps }
+
+// FillPolygon lays c over the convex polygon pts, in dst's pixels.
+func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
+	if len(pts) < 3 {
+		return
+	}
+	cr, cg, cb, ca := rgbaOf(c)
+	verts := make([]gpu.Vertex, len(pts))
+	for k, p := range pts {
+		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+	}
+	indices := make([]uint16, 0, 3*(len(pts)-2))
+	for k := 1; k+1 < len(pts); k++ {
+		indices = append(indices, 0, uint16(k), uint16(k+1))
+	}
+	gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
+}
+
+// StrokePolygon lays c over the outline of the closed polygon pts, width wide.
+func StrokePolygon(dst *Image, pts [][2]float32, width float32, c color.Color) {
+	for k, p := range pts {
+		q := pts[(k+1)%len(pts)]
+		StrokeLine(dst, p[0], p[1], q[0], q[1], width, c)
+	}
+}
