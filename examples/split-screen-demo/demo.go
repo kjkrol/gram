@@ -5,7 +5,6 @@ package main
 
 import (
 	"image/color"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -29,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -92,7 +92,7 @@ type arena struct {
 	redPlayer  *players.Player
 	bluePlayer *players.Player
 	minimapCam camera.Camera
-	composer   *render.Composer
+	picture    *render.Composer // the arena, as every half and the minimap show it
 }
 
 // newStage defines the game a section at a time, each building on those before it.
@@ -107,18 +107,9 @@ func newArena() (*arena, game.Stage) {
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
 		Scenes(s.defineScenes).
-		Shows("main", "minimap").
 		Layout(s.layOut).
 		Units(s.placeUnits).
 		Update(s.update)
-}
-
-// picture is the one composer of the arena, shared by the players' views and the minimap.
-func (s *arena) picture() *render.Composer {
-	if s.composer == nil {
-		s.composer = render.NewComposer(s.board.Renderer(), s.world.Renderer())
-	}
-	return s.composer
 }
 
 func (s *arena) usePlugins(ctx game.Initializer) error {
@@ -171,7 +162,7 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}, &minimapScene{arena: s}}
+	return []game.Scene{ui.NewScene("main", s.pictures, s.screen).Input(s.players.Handle)}
 }
 
 // block is the row a block spawns from: where it starts.
@@ -247,20 +238,9 @@ var (
 	dividerColor = color.RGBA{R: 240, G: 240, B: 240, A: 255}
 )
 
-// mainScene is the arena seen by both players, each in its half, with a line between the halves.
-type mainScene struct {
-	arena *arena
-	right geom.AABB // the right half, as Viewports last laid it out
-}
-
-var _ game.Scene = (*mainScene)(nil)
-var _ game.Viewer = (*mainScene)(nil)
-
-func (m *mainScene) Name() string    { return "main" }
-func (m *mainScene) Focusable() bool { return true }
-
-func (m *mainScene) Layers() []render.Layer {
-	s := m.arena
+// pictures dresses the arena — its blocks and its cells — and hands its one picture, which the
+// players' halves and the minimap all show.
+func (s *arena) pictures() []render.WorldRenderer {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
@@ -276,77 +256,24 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	return []render.Layer{s.picture(), divider{&m.right}}
+	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer())
+	return []render.WorldRenderer{s.picture}
 }
 
-// Viewports are the two players' halves; the right one is kept for the divider.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	vps := m.arena.players.Viewports(screen)
-	if len(vps) > 1 {
-		m.right = vps[1].Area
-	}
-	return vps
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-// divider draws the line between the halves, at the left edge of the right one, as the scene last
-// laid them out.
-type divider struct{ right *geom.AABB }
-
-func (divider) Init(*goke.SysInit) {}
-
-func (d divider) Draw(screen *render.Image) {
-	if x := float32(d.right.TopLeft.X); x > 0 {
-		render.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, dividerColor)
-	}
-}
-
-// minimapScene shows the whole arena through a camera of its own, in a frame at the bottom of the
-// screen; it never takes input.
-type minimapScene struct {
-	arena *arena
-	area  geom.AABB
-}
-
-var _ game.Scene = (*minimapScene)(nil)
-var _ game.Viewer = (*minimapScene)(nil)
-
-func (m *minimapScene) Name() string    { return "minimap" }
-func (m *minimapScene) Focusable() bool { return false }
-
-func (m *minimapScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
-
-// Layers are the picture the players' views draw, through the minimap's camera, and the frame.
-func (m *minimapScene) Layers() []render.Layer {
-	return []render.Layer{m.arena.picture(), frame{m}}
-}
-
-// Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of
-// the screen, the camera zoomed out until the whole arena fits.
-func (m *minimapScene) Viewports(screen geom.AABB) []render.Viewport {
-	const w, h = MinimapWidth, MinimapWidth * WorldHeight / WorldWidth
-	x := math.Round((screen.TopLeft.X + screen.BottomRight.X - w) / 2)
-	area := geom.NewAABBAt(geom.NewVec(x, screen.BottomRight.Y-h-10), w, h)
-	if area.BottomRight.Sub(area.TopLeft) != m.area.BottomRight.Sub(m.area.TopLeft) {
-		cam := m.arena.minimapCam
-		cam.SetViewport(w, h)
-		cam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
-		cam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
-	}
-	m.area = area
-	return []render.Viewport{{Camera: m.arena.minimapCam, Area: area}}
-}
-
-// frame outlines the minimap.
-type frame struct{ m *minimapScene }
-
-func (frame) Init(*goke.SysInit) {}
-
-func (f frame) Draw(screen *render.Image) {
-	a := f.m.area
-	size := a.BottomRight.Sub(a.TopLeft)
-	render.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, dividerColor)
+// screen is each player's half, a line between, and the minimap at the bottom over them, the arena
+// whole.
+func (s *arena) screen() *ui.Element {
+	s.minimapCam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
+	s.minimapCam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	red := render.NewFeed(s.redPlayer.Camera, s.picture)
+	blue := render.NewFeed(s.bluePlayer.Camera, s.picture)
+	minimap := render.NewFeed(s.minimapCam, s.picture)
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Columns(
+			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
+			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
+			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
+		),
+		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Size(MinimapWidth, MinimapWidth*WorldHeight/WorldWidth).Margin(10),
+	)
 }

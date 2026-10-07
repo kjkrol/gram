@@ -180,19 +180,20 @@ func (e *Element) paintHere(dst *render.Image) {
 	for _, c := range e.children {
 		c.paint(dst)
 	}
+	e.edge(dst)
 }
 
-// background paints the fill and the border, in the mask's shape if there is one.
+// background paints the fill, in the mask's shape if there is one.
 func (e *Element) background(dst *render.Image) {
-	if e.fill.A == 0 && (e.border.A == 0 || e.stroke == 0) {
-		return
-	}
-	pts := outline(e.box, e.mask)
 	if e.fill.A > 0 {
-		render.FillPolygon(dst, pts, e.fill)
+		render.FillPolygon(dst, outline(e.box, e.mask), e.fill)
 	}
+}
+
+// edge draws the border over everything the element shows, in the mask's shape if there is one.
+func (e *Element) edge(dst *render.Image) {
 	if e.border.A > 0 && e.stroke > 0 {
-		render.StrokePolygon(dst, pts, float32(e.stroke), e.border)
+		render.StrokePolygon(dst, outline(e.box, e.mask), float32(e.stroke), e.border)
 	}
 }
 

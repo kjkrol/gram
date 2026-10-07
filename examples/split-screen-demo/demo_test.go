@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/ui"
 )
 
 func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
@@ -26,27 +27,25 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	}
 	s := d.a
 	main, _ := d.stage.Stack().Get("main")
-	minimap, _ := d.stage.Stack().Get("minimap")
-	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight))
+	main.(*ui.Scene).Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight)))
 
-	halves := main.(*mainScene).Viewports(screen)
-	if len(halves) != 2 || halves[0].Camera != s.redPlayer.Camera || halves[1].Camera != s.bluePlayer.Camera ||
-		halves[0].Area != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth/2, ScreenHeight)) {
-		t.Fatalf("main viewports %+v, want red's camera on the left half and blue's on the right", halves)
+	half := (ScreenWidth - 2) / 2.0
+	if a := s.redPlayer.Area(); a != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(half, ScreenHeight)) {
+		t.Errorf("red looks over %v, want the left half", a)
 	}
-	if halves[0].Camera == halves[1].Camera {
+	if a := s.bluePlayer.Area(); a != geom.NewAABB(geom.NewVec(half+2, 0), geom.NewVec(ScreenWidth, ScreenHeight)) {
+		t.Errorf("blue looks over %v, want the right half", a)
+	}
+	if s.redPlayer.Camera == s.bluePlayer.Camera {
 		t.Error("the players look through a shared camera, want one of their own each")
 	}
-
-	vp := minimap.(*minimapScene).Viewports(screen)
-	if len(vp) != 1 {
-		t.Fatalf("%d minimap viewports, want 1", len(vp))
+	if w, h := s.redPlayer.Camera.Viewport(); w != float32(math.Round(half)) || h != ScreenHeight {
+		t.Errorf("red's camera sees %vx%v, want its half", w, h)
 	}
-	a := vp[0].Area
-	if a.TopLeft.X < 0 || a.TopLeft.Y < 0 || a.BottomRight.X > ScreenWidth || a.BottomRight.Y > ScreenHeight || a.BottomRight.X-a.TopLeft.X != MinimapWidth {
-		t.Fatalf("minimap viewport %+v, want one %d wide on the screen", vp, MinimapWidth)
+	if w, _ := s.minimapCam.Viewport(); w != MinimapWidth {
+		t.Errorf("the minimap is %v wide, want %d", w, MinimapWidth)
 	}
-	b := vp[0].Camera.Bounds()
+	b := s.minimapCam.Bounds()
 	if b.TopLeft.X > 0 || b.TopLeft.Y > 0 || b.BottomRight.X < WorldWidth-1 || b.BottomRight.Y < WorldHeight-1 {
 		t.Errorf("the minimap shows %v, want the whole %dx%d arena", b, WorldWidth, WorldHeight)
 	}

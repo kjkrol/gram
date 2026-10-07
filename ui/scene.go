@@ -53,6 +53,14 @@ func (s *Scene) Layers() []render.Layer {
 
 func (s *Scene) Focusable() bool { return true }
 
+// Lay lays the scene's elements over screen, as every frame does before drawing: the pictures
+// get their sizes, the players where their pictures lie.
+func (s *Scene) Lay(screen geom.AABB) {
+	if s.root != nil {
+		s.root.lay(screen)
+	}
+}
+
 // Show shows every element called name.
 func (s *Scene) Show(name string) { s.each(name, func(e *Element) { e.hidden = false }) }
 
@@ -119,7 +127,7 @@ func (d *drawing) Draw(screen *render.Image) {
 	}
 	b := screen.Bounds()
 	box := geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
-	root.lay(box)
+	d.scene.Lay(box)
 	if len(d.pins) > 0 {
 		d.find()
 		vs := views(root)

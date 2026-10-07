@@ -95,3 +95,12 @@ func (*window) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 func (*window) draw(*Element, *render.Image) {}
 
 func (*window) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+
+// Blank is an element showing nothing of its own: a gap, or with a Fill a divider, a plate.
+func Blank() *Element { return newElement(blank{}) }
+
+type blank struct{}
+
+func (blank) place(*Element, geom.AABB)     {}
+func (blank) draw(*Element, *render.Image)  {}
+func (blank) needs(*Element) (w, h float64) { return 0, 0 }
