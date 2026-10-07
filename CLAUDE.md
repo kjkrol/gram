@@ -211,7 +211,7 @@ names, groups and the plugins' commands: `selection.Family`), `kinds.DefineTag[F
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
 to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
 flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` answers
-`marks.Carries(tag)` for the families the host's rules name. This keeps goke's 128-component
+`marks.Carries(tag)` for the families the host's rules name. This keeps goke's 512-component
 budget for data. The bits serve two ways (`entity/tag` doc): **tags** are groups a kind gives
 (`comp.Tagged`); **markers** are states switched on and off — a plugin's family `States`, carried
 for good (`comp.Marks[F]()` in a kind, `Roster().Unit.Default` for every unit, attached once where
@@ -1120,7 +1120,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
   Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
-  exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
+  exported, fixed-size fields). goke registers 512 component types at most — every fact is one.
 - **`rule/effect`** (core) — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
   Then(next), Grant(tags...), Alter(func(*T))})` registers it and `e.Named(name)` is the `effect.Effect`, carrying its owner
@@ -1229,7 +1229,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   through the camera the command names: on the unit it is fastened to, else on the player's
   selected units (`owner.Obeys`); an entity's own (`rule.Order`) — written into `steering.Driven`
   (`Ahead`, `Turn`, `Sprint`, `Face`) with the marker `driving.Driving` (`handSystem`, at once);
-  the `driveSystem` (in the simulation; one query both share, goke allowing 64 a world) turns the
+  the `driveSystem` (in the simulation; one query both share) turns the
   unit — by `Turn`, or to `Look` (the eye's, a riding camera's) before `Face` — walks, brakes,
   backs, flies it, never onto ground its domain may not take nor where the `Keeping` says no,
   its `unit.At` and occupancy hold following it with `unit.Entered`; with no hand it brakes and

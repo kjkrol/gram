@@ -18,8 +18,8 @@ github.com/kjkrol/aabbworld v1.10.0 h1:yrApkL9fcI/XX3vPFKH4Mifimbd4h6+ouWyxp0Aj2
 github.com/kjkrol/aabbworld v1.10.0/go.mod h1:V6azBQgb9/UrxEdU9uLaICGeocn1si/taviOskcOg3A=
 github.com/kjkrol/astar v1.1.1 h1:gsPGclCd6BTGbsZkpMgbqBA/VgVg/pgtKAsHZIiL0Yc=
 github.com/kjkrol/astar v1.1.1/go.mod h1:hBjF0fn4Bznw+o8H3VqJ9Gm9Pdd+7or+pgOAYPznuuc=
-github.com/kjkrol/goke/v3 v3.2.4 h1:hjY1rZZ6KhOIeu9M1wZNjmpjJORQRaYTvCpiFli+gS8=
-github.com/kjkrol/goke/v3 v3.2.4/go.mod h1:58uVZD5rzMFkDp7kOxpwobjcwDV04SYZ58eQzxLeusU=
+github.com/kjkrol/goke/v3 v3.3.0 h1:dVqXIpjK+YQQHzPoNIi42a1AsdJo8U2AcYNY36FSKoE=
+github.com/kjkrol/goke/v3 v3.3.0/go.mod h1:58uVZD5rzMFkDp7kOxpwobjcwDV04SYZ58eQzxLeusU=
 github.com/kjkrol/uid v0.3.0 h1:awbHtzOA6tUF/aICp6M/TOMPh6yldNZrzhQd0cvFOjs=
 github.com/kjkrol/uid v0.3.0/go.mod h1:NdpQ5cqvoXGfMDtmgGY4WGmvOK/JrwI74lKWF5SHeWA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

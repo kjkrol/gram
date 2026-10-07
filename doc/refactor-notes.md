@@ -977,7 +977,7 @@ ready-made behaviors, the named-branch notation, and two layers (behaviors stay 
   the name, not a pointer), laid out afresh for each world, so their steps bind that world's goke
   columns. Two different trees under one name panic.
 - **Fields exported, arrays fixed**: goke refuses unexported fields and reads only fixed sizes.
-  goke registers at most 128 component types; every fact, action, `Asked[W]` and `Replied[W]` is
+  goke registered at most 128 component types (before goke 3.3.0; 512 since); every fact, action, `Asked[W]` and `Replied[W]` is
   one — worth watching as trees grow.
 - **Conversation**: delivered a tick later through the command buffer (no recursion, no chunk
   order); asks reach only an entity with a mind (goke errors adding to a gone entity); a relay

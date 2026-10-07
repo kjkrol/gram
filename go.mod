@@ -9,7 +9,7 @@ require (
 	github.com/gogpu/wgpu v0.34.5
 	github.com/kjkrol/aabbworld v1.10.0
 	github.com/kjkrol/astar v1.1.1
-	github.com/kjkrol/goke/v3 v3.2.4
+	github.com/kjkrol/goke/v3 v3.3.0
 	github.com/kjkrol/uid v0.3.0
 	golang.org/x/image v0.46.0
 )
