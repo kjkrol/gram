@@ -227,3 +227,20 @@ func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 		t.Errorf("the unit gone, the camera is fastened %+v, want let go", f)
 	}
 }
+
+// LookAt centres the camera on the entity once, fastened to nothing: the entity moving on leaves it.
+func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
+	c := newCamp(t, twoUnits)
+	far := c.ids()[200]
+	c.moveTo(far, 700, 600)
+	c.w.Carrier().Put(c.one.ID, cameras.LookAt{Camera: c.one.Camera, Entity: far})
+	c.tick()
+	if !centred(c.one, 700, 600) || fastening(c.one) != (camera.Fastening{}) {
+		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c.one, 700, 600), fastening(c.one))
+	}
+	c.moveTo(far, 300, 300)
+	c.tick()
+	if centred(c.one, 300, 300) {
+		t.Error("the camera followed the entity after a LookAt")
+	}
+}

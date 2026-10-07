@@ -22,6 +22,8 @@ type Element struct {
 	border   color.RGBA
 	stroke   float64 // the border's width
 	mask     Mask
+	pin      *pin      // Under, On: shown once for each entity it names, by it
+	parent   geom.AABB // the box its parent last gave it
 	box      geom.AABB // where it was last laid
 }
 
@@ -107,6 +109,16 @@ func (e *Element) Hits(p geom.Vec) bool {
 	if e.hidden {
 		return false
 	}
+	if e.pin != nil {
+		hit := false
+		e.pin.each(e, e.parent, func(*instance) { hit = hit || e.hitsHere(p) })
+		return hit
+	}
+	return e.hitsHere(p)
+}
+
+// hitsHere is Hits where the element was last laid.
+func (e *Element) hitsHere(p geom.Vec) bool {
 	if _, ok := e.content.(container); ok && e.fill.A == 0 {
 		for _, c := range e.children {
 			if c.Hits(p) {
@@ -138,6 +150,7 @@ func (e *Element) needs() (w, h float64) {
 
 // lay places the element in box and its children in turn.
 func (e *Element) lay(box geom.AABB) {
+	e.parent = box
 	e.box = shrink(box, e.margin)
 	e.content.place(e, shrink(e.box, e.padding))
 }
@@ -147,6 +160,21 @@ func (e *Element) paint(dst *render.Image) {
 	if e.hidden {
 		return
 	}
+	if e.pin == nil {
+		e.paintHere(dst)
+		return
+	}
+	e.pin.each(e, e.parent, func(in *instance) {
+		e.paintHere(dst)
+		paintArrow(dst, in)
+		if in.show {
+			e.pin.show.paint(dst)
+		}
+	})
+}
+
+// paintHere draws the element and its children where it was last laid.
+func (e *Element) paintHere(dst *render.Image) {
 	e.background(dst)
 	e.content.draw(e, dst)
 	for _, c := range e.children {

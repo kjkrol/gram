@@ -30,13 +30,20 @@ type Follow struct {
 	On     bool
 }
 
+// LookAt moves Camera, once, to have Entity in the middle of the screen at its altitude, fastening
+// it to nothing: a window about a place far off showing the place.
+type LookAt struct {
+	Camera camera.Camera
+	Entity uid.UID64
+}
+
 // MouseLook switches whether Camera, riding in an entity (camera.Inside), looks round with the
 // mouse — the cursor captured — or not (camera.MouseLooker; camera.Config.MouseLook at the start).
 type MouseLook struct{ Camera camera.Camera }
 
-// Queues are where Pan, Zoom, Follow and MouseLook land.
+// Queues are where Pan, Zoom, Follow, LookAt and MouseLook land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.looks}
+	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.looks}
 }
 
 // MouseLookKey is key switching looking round with the mouse, in first person, for the camera the

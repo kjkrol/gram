@@ -55,17 +55,21 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 		}
 		within = modal
 	}
-	hit, pressed := topmost(within, c.Pos, nil)
+	t := topmost(within, c.Pos, nil)
 	switch {
-	case pressed != nil:
+	case t.button != nil:
 		if c.Action == control.ActionPress {
-			s.give(pressed.content.(*button).cmd)
+			if t.look != nil {
+				t.look()
+			} else {
+				s.give(t.button.content.(*button).cmd)
+			}
 		}
 		return false
-	case hit == nil:
+	case t.hit == nil:
 		return modal == nil
 	default:
-		p, ok := hit.content.(*picture)
+		p, ok := t.hit.content.(*picture)
 		return ok && p.input != nil
 	}
 }
@@ -76,14 +80,14 @@ func (s *Scene) through(modal *Element, p geom.Vec) bool {
 	if modal != nil {
 		return false
 	}
-	hit, pressed := topmost(s.root, p, nil)
-	if pressed != nil {
+	t := topmost(s.root, p, nil)
+	if t.button != nil {
 		return false
 	}
-	if hit == nil {
+	if t.hit == nil {
 		return true
 	}
-	pic, ok := hit.content.(*picture)
+	pic, ok := t.hit.content.(*picture)
 	return ok && pic.input != nil
 }
 
@@ -138,24 +142,50 @@ func (s *Scene) modal() *Element {
 	return top
 }
 
-// topmost is the last element drawn under p, none of its own a container's, and the button it lies
-// in, if any.
-func topmost(e *Element, p geom.Vec, in *Element) (hit, pressed *Element) {
+// target is what a point of the screen hits: the last element drawn there, none of its own a
+// container's; the button it lies in, if any; and, for a pinned element's Show button, the move of
+// the camera it gives.
+type target struct {
+	hit, button *Element
+	look        func()
+}
+
+// topmost is what p hits under e, in the button in, if any.
+func topmost(e *Element, p geom.Vec, in *Element) target {
 	if e.hidden {
-		return nil, nil
+		return target{}
 	}
+	if e.pin == nil {
+		return topmostHere(e, p, in)
+	}
+	var t target
+	e.pin.each(e, e.parent, func(at *instance) {
+		if h := topmostHere(e, p, in); h.hit != nil {
+			t = h
+		}
+		if at.show && e.pin.show.hitsHere(p) {
+			id, looker := at.id, at.looker
+			t = target{hit: e.pin.show, button: e.pin.show, look: func() { looker.LookAt(id) }}
+		}
+	})
+	return t
+}
+
+// topmostHere is topmost where e was last laid.
+func topmostHere(e *Element, p geom.Vec, in *Element) target {
 	if _, ok := e.content.(*button); ok {
 		in = e
 	}
+	var t target
 	if _, ok := e.content.(container); !ok || e.fill.A > 0 {
 		if inside(e.box, p) && (e.mask == nil || e.mask.contains(e.box, p)) {
-			hit, pressed = e, in
+			t = target{hit: e, button: in}
 		}
 	}
 	for _, c := range e.children {
-		if h, b := topmost(c, p, in); h != nil {
-			hit, pressed = h, b
+		if h := topmost(c, p, in); h.hit != nil {
+			t = h
 		}
 	}
-	return hit, pressed
+	return t
 }

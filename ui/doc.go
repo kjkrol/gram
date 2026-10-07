@@ -38,6 +38,20 @@
 // shown [Element.Modal] element — a window, or an anchor round one — holds every click and the
 // wheel outside it. [Scene.Keys] are the scene's own keys, giving commands the same way.
 //
+// # Pinned to entities
+//
+// An element [Element.Under] an effect is shown once for every entity the effect is on, pinned to
+// it; [Element.On] pins it to the entities a name or a group calls (entity.Named, entity.Group). The
+// scene finds them itself every frame — no rule or renderer is told of the element. It stands
+// [Element.Above] the entity (the default), [Element.Below] or [Element.Beside] it, moved by
+// [Element.Offset], in the first picture of the world on the screen that shows it, and kept on the
+// screen: it goes with the camera. While the entity is out of every picture it does what
+// [Element.OffScreen] says: [PointAtIt] stands at the edge on its side with an arrow, [ShowIt] in the
+// middle with a button moving the camera onto it, [GoToIt] moves the camera onto it as it appears —
+// through the picture's [Input], a [Looker] (players.Plugin.Through: cameras.LookAt). An entity with
+// no place in the world — the world's own, a plugin's — has its element where its parent lays it: an
+// anchor's point. A modal pinned element is shown for one entity at a time, the rest waiting.
+//
 // # Shapes
 //
 // Layout gives boxes; an element's shape is how it is drawn and hit inside its box.

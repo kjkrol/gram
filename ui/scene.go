@@ -4,8 +4,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/effect"
 )
 
 // Scene is a game.Scene whose screen is a tree of elements: Pictures are its pictures of the world,
@@ -78,6 +81,14 @@ func (s *Scene) each(name string, fn func(*Element)) {
 type drawing struct {
 	scene    *Scene
 	pictures []render.WorldRenderer
+	pins     []*Element // the elements pinned to entities
+
+	query  *goke.Query // every entity carrying effect markers, and its place if it has one
+	states goke.Comp[tag.Tags[effect.States]]
+	base   goke.OptComp[entity.Base]
+	z      goke.OptComp[entity.Z]
+	label  goke.OptComp[entity.Label]
+	spots  map[*Element][]spot
 }
 
 func (d *drawing) Init(si *goke.SysInit) {
@@ -88,6 +99,17 @@ func (d *drawing) Init(si *goke.SysInit) {
 			p.Init(si)
 		}
 	}
+	if d.scene.root != nil {
+		d.scene.root.walk(func(e *Element) {
+			if e.pin != nil {
+				d.pins = append(d.pins, e)
+			}
+		})
+	}
+	if len(d.pins) > 0 {
+		d.query = si.NewQueryBuilder(&d.states).Optional(&d.base).Optional(&d.z).Optional(&d.label).Build()
+		d.spots = map[*Element][]spot{}
+	}
 }
 
 func (d *drawing) Draw(screen *render.Image) {
@@ -96,6 +118,50 @@ func (d *drawing) Draw(screen *render.Image) {
 		return
 	}
 	b := screen.Bounds()
-	root.lay(geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+	box := geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
+	root.lay(box)
+	if len(d.pins) > 0 {
+		d.find()
+		vs := views(root)
+		for _, e := range d.pins {
+			e.pin.stand(e, d.spots[e], vs, box)
+		}
+	}
 	root.paint(screen)
+}
+
+// find notes, for every pinned element, the entities it is shown for and their points: those with
+// a place in the world, and those with none that are called something (the world's own entity, a
+// plugin's).
+func (d *drawing) find() {
+	for _, e := range d.pins {
+		d.spots[e] = d.spots[e][:0]
+	}
+	for d.query.All(); d.query.Next(); {
+		cur := d.query.Cursor()
+		states, bases, zs, labels := d.states.Slice(cur), d.base.Slice(cur), d.z.Slice(cur), d.label.Slice(cur)
+		for i, id := range cur.IDs {
+			for _, e := range d.pins {
+				p := e.pin
+				switch {
+				case p.under != nil && states[i].Has(p.under.Mark()):
+				case labels != nil && !p.on.Nobody() && p.on.Holds(labels[i]):
+				default:
+					continue
+				}
+				s := spot{id: id}
+				if bases != nil {
+					var z *entity.Z
+					if zs != nil {
+						z = &zs[i]
+					}
+					s.placed = true
+					s.x, s.y, s.z = p.point(bases[i], z)
+				} else if labels == nil || labels[i] == (entity.Label{}) {
+					continue // a cell, say: no place known here, and nothing that calls it
+				}
+				d.spots[e] = append(d.spots[e], s)
+			}
+		}
+	}
 }
