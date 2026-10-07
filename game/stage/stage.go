@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 )
 
@@ -122,6 +123,13 @@ func (b built) Init(ctx game.Initializer) error {
 	}
 	for _, name := range shows {
 		composition.Show(name)
+	}
+	for _, sc := range scenes {
+		if s, ok := sc.(plugin.Serializable); ok { // a scene keeping state of its own: a ui scene's elements shown
+			if err := ctx.Track(s); err != nil {
+				return err
+			}
+		}
 	}
 	return ctx.Track(composition)
 }

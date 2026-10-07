@@ -5,4 +5,10 @@ package main
 const (
 	// kinds of units
 	MoverKind = "mover"
+
+	// scenes
+	WorldScene = "world"
+
+	// elements of a scene's screen
+	PanelElement = "panel"
 )

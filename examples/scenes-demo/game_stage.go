@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 	"slices"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -37,8 +37,8 @@ type gameplayArena struct {
 	players *players.Plugin
 	player  *players.Player // the one at the keyboard
 	cameras *cameras.Plugin
-	panel   *panelScene
-	stage   game.Stage // the Stage defined on this arena: the hud reads its Composition
+	scene   *ui.Scene        // the one scene: the world, the hud, the panel over them
+	picture *render.Composer // the world, as the scene shows it
 
 	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
 	SaveBasePath string
@@ -48,16 +48,14 @@ type gameplayArena struct {
 // saveBasePath overrides where its saves are read and written, empty for the demo's own.
 func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
 	g := &gameplayArena{SaveBasePath: saveBasePath}
-	g.stage = stage.New("gameplay").
+	return g, stage.New("gameplay").
 		Plugins(g.usePlugins).
 		Players(g.definePlayer).
 		Kinds(g.defineKinds).
 		Scenes(g.defineScenes).
-		Shows("world", "hud").
 		Restore(g.restore).
 		Units(g.placeUnits).
 		Update(g.update)
-	return g, g.stage
 }
 
 func (g *gameplayArena) basePath() string {
@@ -94,9 +92,14 @@ func (g *gameplayArena) defineKinds() {
 	})
 }
 
+// defineScenes is the one scene: P opens and closes the panel, the rest of the keys are the
+// player's.
 func (g *gameplayArena) defineScenes() []game.Scene {
-	g.panel = &panelScene{arena: g}
-	return []game.Scene{&worldScene{arena: g}, g.panel, &hudScene{arena: g}}
+	g.scene = ui.NewScene(WorldScene, g.pictures, g.screen).
+		Input(g.players.Handle).
+		Issue(g.players.IssueAs(g.player)).
+		Keys(control.Give(control.KeyPress{Key: control.KeyP}, "Panel", ui.Toggle{Name: PanelElement}))
+	return []game.Scene{g.scene}
 }
 
 func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
@@ -132,102 +135,33 @@ func (g *gameplayArena) update(ctx goke.RunCtx, d time.Duration) {
 
 // =========================== Scene ===========================
 
-// worldScene draws the moving entities — always visible, and active
-// whenever the panel isn't shown. P opens the panel.
-type worldScene struct{ arena *gameplayArena }
-
-var _ game.Scene = (*worldScene)(nil)
-
-func (w *worldScene) Name() string { return "world" }
-
-// The scene's colours: the movers, the backdrop and the panel's plate.
+// The scene's colours: the movers and the backdrop.
 var (
 	moverColor      = color.RGBA{R: 90, G: 200, B: 110, A: 255}
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 40, A: 255}
-	panelColor      = color.RGBA{R: 235, G: 235, B: 235, A: 255}
 )
 
-func (w *worldScene) Layers() []render.Layer {
-	s := w.arena
-	moverKind := kind.Named[world.Position](s.world.Kinds(), MoverKind)
-
+// pictures dresses the movers and hands the world's picture.
+func (g *gameplayArena) pictures() []render.WorldRenderer {
+	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
 	atlas := render.NewAtlas()
 	atlas.Add(moverKind, EntitySize, render.Solid(moverColor))
 	atlas.Close()
-	s.world.WithRenderer(atlas)
-
-	return []render.Layer{
-		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
-		render.NewComposer(s.world.Renderer()),
-	}
+	g.world.WithRenderer(atlas)
+	g.picture = render.NewComposer(g.world.Renderer())
+	return []render.WorldRenderer{g.picture}
 }
 
-// Viewports are where the world is shown: the camera over the whole screen.
-func (w *worldScene) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(w.arena.player.Camera, screen)
-}
-
-func (w *worldScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	w.arena.players.Handle(events, runtime, composition)
-	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == control.KeyP {
-			composition.Show(w.arena.panel.Name())
-		}
-	}
-}
-
-func (w *worldScene) Focusable() bool { return true }
-
-// panelScene is a modal box toggled by P: while shown it takes the input,
-// and the world beneath keeps ticking.
-type panelScene struct{ arena *gameplayArena }
-
-var _ game.Scene = (*panelScene)(nil)
-
-func (p *panelScene) Name() string { return "panel" }
-
-func (p *panelScene) Layers() []render.Layer { return []render.Layer{&panelRenderer{}} }
-
-func (p *panelScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	p.arena.players.Handle(events, runtime, composition)
-	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && k.Key == control.KeyP {
-			composition.Hide(p.Name())
-		}
-	}
-}
-
-func (p *panelScene) Focusable() bool { return true }
-
-type panelRenderer struct{}
-
-func (r *panelRenderer) Init(*goke.SysInit) {}
-
-func (r *panelRenderer) Draw(screen *render.Image) {
-	const w, h = 300, 140
-	x, y := float32(ScreenWidth-w)/2, float32(ScreenHeight-h)/2
-	render.FillRect(screen, x, y, w, h, panelColor)
-	render.DebugPrintAt(screen, "PANEL\n\nthe world keeps ticking behind me\nP to close", int(x)+12, int(y)+12)
-}
-
-// hudScene is a passive overlay: always on top, never focusable, so it never takes input.
-type hudScene struct{ arena *gameplayArena }
-
-var _ game.Scene = (*hudScene)(nil)
-
-func (h *hudScene) Name() string { return "hud" }
-
-func (h *hudScene) Layers() []render.Layer { return []render.Layer{&hudRenderer{arena: h.arena}} }
-
-func (h *hudScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
-
-func (h *hudScene) Focusable() bool { return false }
-
-type hudRenderer struct{ arena *gameplayArena }
-
-func (r *hudRenderer) Init(*goke.SysInit) {}
-
-func (r *hudRenderer) Draw(screen *render.Image) {
-	active := r.arena.stage.Stack().Composition().Active()
-	render.DebugPrintAt(screen, fmt.Sprintf("active scene: %s  (P: toggle panel, F5: save, K: keys)", active), 8, ScreenHeight-20)
+// screen is the world on a backdrop, the keys at the bottom, and the panel: a modal window over
+// it all, hidden until P — while it is shown, the world keeps ticking behind it and takes no click.
+func (g *gameplayArena) screen() *ui.Element {
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(g.player.Camera, g.picture)).Input(g.players.Through(g.player)),
+		ui.BottomLeft(ui.Label("P: panel, F5: save, K: keys")).Margin(8),
+		ui.Center(ui.Window("PANEL",
+			ui.Label("the world keeps ticking behind me"),
+			ui.Button("Close (or P)", ui.Hide{Name: PanelElement}),
+		)).Named(PanelElement).Hidden().Modal(),
+	)
 }

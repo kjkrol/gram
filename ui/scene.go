@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"slices"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
 )
@@ -23,9 +26,13 @@ type Scene struct {
 	keys     []control.Binding
 	issue    func(cmd any) error
 	passed   control.InputEvents // what of this tick's input goes on to input
+	shown    []string            // the names of the elements shown, as saved
+	loaded   bool                // shown came from a save: laid on the elements once they are made
 }
 
 var _ game.Scene = (*Scene)(nil)
+var _ plugin.Serializable = (*Scene)(nil)
+var _ plugin.Restorer = (*Scene)(nil)
 
 // NewScene is the scene name: the pictures of the world it shows, and its screen.
 func NewScene(name string, pictures func() []render.WorldRenderer, screen func() *Element) *Scene {
@@ -48,6 +55,11 @@ func (s *Scene) Layers() []render.Layer {
 		pictures = s.pictures()
 	}
 	s.root = s.screen()
+	if s.loaded {
+		s.reveal()
+	} else {
+		s.note()
+	}
 	return []render.Layer{&drawing{scene: s, pictures: pictures}}
 }
 
@@ -62,16 +74,64 @@ func (s *Scene) Lay(screen geom.AABB) {
 }
 
 // Show shows every element called name.
-func (s *Scene) Show(name string) { s.each(name, func(e *Element) { e.hidden = false }) }
+func (s *Scene) Show(name string) {
+	s.each(name, func(e *Element) { e.hidden = false })
+	s.note()
+}
 
 // Hide hides every element called name.
-func (s *Scene) Hide(name string) { s.each(name, func(e *Element) { e.hidden = true }) }
+func (s *Scene) Hide(name string) {
+	s.each(name, func(e *Element) { e.hidden = true })
+	s.note()
+}
 
 // Toggle shows the elements called name where any is hidden, else hides them.
 func (s *Scene) Toggle(name string) {
 	hidden := false
 	s.each(name, func(e *Element) { hidden = hidden || e.hidden })
 	s.each(name, func(e *Element) { e.hidden = !hidden })
+	s.note()
+}
+
+// Shown reports whether an element called name is shown.
+func (s *Scene) Shown(name string) bool {
+	shown := false
+	s.each(name, func(e *Element) { shown = shown || !e.hidden })
+	return shown
+}
+
+// Persisted is the names of the elements shown: a game saved with a window open loads with it open.
+func (s *Scene) Persisted() []any { return []any{&s.shown} }
+
+// Restore lays the names loaded on the elements, now or once they are made.
+func (s *Scene) Restore() {
+	s.loaded = true
+	s.reveal()
+}
+
+// note writes down the names of the elements shown.
+func (s *Scene) note() {
+	s.shown = s.shown[:0]
+	if s.root == nil {
+		return
+	}
+	s.root.walk(func(e *Element) {
+		if e.name != "" && !e.hidden && !slices.Contains(s.shown, e.name) {
+			s.shown = append(s.shown, e.name)
+		}
+	})
+}
+
+// reveal shows the named elements shown and hides the rest.
+func (s *Scene) reveal() {
+	if s.root == nil {
+		return
+	}
+	s.root.walk(func(e *Element) {
+		if e.name != "" {
+			e.hidden = !slices.Contains(s.shown, e.name)
+		}
+	})
 }
 
 func (s *Scene) each(name string, fn func(*Element)) {

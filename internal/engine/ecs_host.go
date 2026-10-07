@@ -107,12 +107,17 @@ func (h *ecsHost) runPopulate() error {
 	return nil
 }
 
-// saveTargets collects Persisted from every tracked Serializable, keyed by Go type name.
+// saveTargets collects Persisted from every tracked Serializable, keyed by Go type name — and by
+// its own name too where it has one, so several of a type (a stage's ui scenes) keep theirs apart.
 func (h *ecsHost) saveTargets() map[string][]any {
 	out := make(map[string][]any)
 	for _, v := range h.tracked {
 		if s, ok := v.(plugin.Serializable); ok {
-			out[reflect.TypeOf(v).String()] = s.Persisted()
+			key := reflect.TypeOf(v).String()
+			if n, ok := v.(interface{ Name() string }); ok {
+				key += " " + n.Name()
+			}
+			out[key] = s.Persisted()
 		}
 	}
 	return out
