@@ -137,7 +137,7 @@ entity plays it; a same-sided `collision.Meeting` rule still once a pair, `Dispa
 a `Touch` is each unit's own and a `Sighting` each observer's; an entity playing two roles that obey
 one rule obeys it once per role). A kind plays roles through one component,
 `rule.Plays(roles...)` (a `rule.Played`; a kind carrying a component type twice panics), a cell
-through its kind (`cell.Kinds.Define(name, kind, roles...)`, in the Cells section: every cell the
+through its kind (`cell.Kinds.Define(name, kind, roles...)`, in the Kinds section: every cell the
 Layout lays as that kind carries the roles' tags) or alone (`cell.Entry.Plays(roles...)` on a
 Layout entry, the lake's cells and not every water; `board.Plugin.Plays` is gone, 2026-10-06), a
 plugin through its own `Plays` (`world.Self.Plays`, which every plugin embeds). `Roles.Define`
@@ -1058,7 +1058,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
 - **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`; the view system refreshes it),
   `view.EntitySet` (a bit set by entity index), `view.New(bounds)` and `view.System`
   (`view.NewSystem(space, &views, w, h)`), registered by the world after movement. The world's
-  `Plugin.View/ViewFor` hand out `*view.View`; `players.Player.View` is one.
+  `Plugin.View/ViewFor` hand out `*view.View`, one a camera.
   Imports nothing of the world.
 - **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
@@ -1175,9 +1175,10 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   one carrier, for players and entities alike) and gathers its `DefaultBindings()`; nothing clears
   a queue — a command waits for its handler's pass, given after it for the next frame's (the old
   end-of-frame clear dropped entities' `Despawn`s given in later passes); `Defaults()` is all of
-  them, the cameras' keys among them. `Local(name, cam)` is a player at the keyboard looking
-  through cam (`cameras.Plugin.Main`, `New`) and its `View`, `Add(name)` one without (an AI, a
-  client); nobody takes players in a constructor, so it may take every handler in its own;
+  them, the cameras' keys among them. `Local(name)` is a player at the keyboard, `Add(name)` one
+  without (an AI, a client); **a player owns no camera** (2026-10-08, the user's word: a camera's
+  kind and window are how a picture is shown, the scene's): it acts through the picture a scene
+  wires it to; nobody takes players in a constructor, so it may take every handler in its own;
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
   defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
   `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
@@ -1186,19 +1187,25 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never
   imports players. A player's picture of the world on a ui screen takes `Through(pl)` as its
-  Input (`ui.Image(feed).Input(...)`): it tells the player where the picture lies (`Player.Area`),
-  shows the elements pinned to the player's own entities and nobody's (`ui.Owner`, read through a
-  query of owners) and moves its camera for them (`ui.Looker`: `cameras.LookAt`); `IssueAs(pl)` is
+  Input (`ui.Image(feed).Input(...)`) — the wire: the active scene alone, before each pass of
+  input, tells the player where the picture lies (`Player.Area`) and what it shows
+  (`ui.Input.Over(area, shown)`, the feed's camera), so the mouse over it is the player's and every
+  command it gives, from a key too, carries that picture's camera (`control.Context.Camera`); two
+  of one player's pictures in one pass panic (one view a scene), a player no scene wires gets no
+  mouse and its keys no camera (`Context.World` through none is the screen's point); it shows the
+  elements pinned to the player's own entities and nobody's (`ui.Owner`, read through a query of
+  owners) and moves its picture's camera for them (`ui.Looker`: `cameras.LookAt`); `IssueAs(pl)` is
   how a ui scene's buttons and keys give their commands; players draws nothing. `NewPlugin` registers the owners' family
   (`players/owner`) with the world's kinds, 64 names saved by name. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.
-  Local players looking through cameras of their own (`cameras.Plugin.New`) split the screen as
-  the scene lays out their pictures (`ui.Columns`); keys reach every local player, the mouse the one under it in its
+  Local players acting through pictures of their own, each through a camera of its own, split the
+  screen as the scene lays out their pictures (`ui.Columns`); keys reach every local player, the mouse the one under it in its
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
   players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
-  on a camera carry the player's (`selection.Select.Camera`, `topography.Ride{Camera}`). `Player.Bind` refuses two on one
+  on a camera carry the one of the picture the player acts through (`selection.Select.Camera`,
+  `topography.Ride{Camera}`). `Player.Bind` refuses two on one
   trigger holding in one fastening of the camera (`control.Binding.In(hows...)`, `camera.HowOf`;
   only bindings holding in the camera's `How` fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
   Following and driving are not the players' any more (2026-10-07, the user's word): the cameras
@@ -1208,16 +1215,22 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   (K) — default keys of the players' own, listed under "Game" — are carried out there, having the
   Runtime at hand, `players.Save` (F5) too, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a debug toggle) are
   run; `players.RunPlan` runs last and empties the queues. Depends on `world`.
-- **`cameras`** — the cameras a game looks through, started by the demo itself (2026-10-07, the
-  user's word): `cameras.NewPlugin(world)` makes no camera; each is made where it is given to a
-  player (the user's word: configured per player), `Local(name, s.cameras.New(maker,
-  camera.Config{...}))`, with a maker and a config of its own — `cameras.TopDown()`
-  (`internal/camera`, a flat world, wrapping on a wrapping axis) or a view plugin's
-  (`topography.Plugin.Views(start)`, which refuses a wrapping world: a torus is a flat world's);
-  viewport, zoom and `MouseLook` per camera — a minimap's the same way, every one saved in the order
-  made; a zero viewport is sized to the window, as the plugin is installed or at once after
-  (`plugin.Screen`, the engine's Initializer and the demos' test installers). No `Main()`: a game
-  keeps its cameras itself (`player.Camera`).
+- **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
+  **each is made where a scene shows it** (2026-10-08, the user's word: the kind of camera and its
+  window are how a picture is shown), beside the picture in the Scenes section,
+  `render.NewFeed(s.cameras.New(maker, camera.Config{...}), picture)`, with a maker and a config of
+  its own — `cameras.TopDown()` (`internal/camera`, a flat world, wrapping on a wrapping axis) or a
+  view plugin's (`topography.Plugin.Views(start)`, which refuses a wrapping world: a torus is a flat
+  world's). `camera.Config` has no pixels — whoever shows a camera sizes it (`render.Feed.Resize`
+  every frame) — and says how it starts: `Zoom` (the scale), `Whole` (the whole world in view at
+  every size, centred, the background in bars, not panned or zoomed — a minimap; a
+  `camera.Fitting`; a camera in relief refuses it), `Follow` (the name of the entity it starts
+  fastened `Centred` over, found by its `entity.Label` once in the world), `MinZoom`, `MaxZoom`,
+  `MouseLook`. A top-down camera starts shown at the world's size, a camera in relief as if a pixel
+  wide, both over the world's middle. Every camera is saved — its window, zoom and fastening
+  (one riding `Inside` comes back inside: the topography's camera system fastens it again) — each
+  on its own in the order made, so one made after a Load (a scene's) takes the state of the camera
+  made in its place. A game keeps no camera: tests find them in `Plugin.Cameras()`.
   Its commands name their camera (`control.Context.Camera`), so it knows no players: `Pan` (lets
   go of a fastening), `Zoom`, `Follow{Camera, Entity, On}` — fastens `Centred` over the entity, or
   lets go; from an entity (`kind.Entry.Told`) over that entity — and its system keeps every
@@ -1328,8 +1341,7 @@ string)`) — every game writes its own small `Game` implementation, even
 for a single Stage, since only a concrete type can supply its own `Props`.
 A `Stage` is what `Game` itself used to be:
 `Init`/`Restore`/`Spawn`/`Update`, each with its **own** `*goke.ECS`, built
-fresh (plus a fresh `world.Plugin` if its `Init` calls `ctx.UseWorld`; the
-cameras plugin sizes an unset viewport to the screen, `plugin.Screen`) the moment `Runtime.SwitchStage`
+fresh (plus a fresh `world.Plugin` if its `Init` calls `ctx.UseWorld`) the moment `Runtime.SwitchStage`
 enters it — so a menu Stage can sit idle with zero gameplay entities until
 the player actually starts the game, at which point the gameplay Stage's
 `Init`/`Restore`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
@@ -1370,29 +1382,39 @@ sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
-`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f).Cells(f)
-.Kinds(f).Controls(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
-hands back a `game.Stage`. Each link returns a type holding the links after it and none before
-(`Start`, `AfterPlugins`… each embedding the next), so a chain out of order does not compile, a
-link may be left out, and `Update` alone must come. A section takes a function of whatever shape
-it needs (`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
-`[]game.Scene`). The Stage so built keeps its name, makes the stack, shows the first scene or
-those `Shows` names, tracks the Composition, starts fresh without `Restore`, and seeds `Layout`
-then `Units` in `Spawn`. The order is what builds on what: players before the kinds, effects
-before the rules, roles before the commands for their players (`selection.Selected(role)`) and
-the kinds playing them, everything before the keys; what is drawn — atlases, an effect's looks, a
-board's covers — is the scene's `Layers`. A demo groups its plugins in an **arena** (the user's
+`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f)
+.Kinds(f...).Controls(f).Restore(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)` hands back a
+`game.Stage` (the order since 2026-10-08, the user's word: the scenes last, once the world is
+there; `Cells` went into `Kinds` and `Layout` and `Units` into `Spawn` — the board's words left
+the core). Each link returns a type holding the links after it and none before (`Start`,
+`AfterPlugins`… each embedding the next), so a chain out of order does not compile, a link may be
+left out, and `Update` alone must come. A section takes a function of whatever shape it needs
+(`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
+`[]game.Scene`); `Kinds` and `Spawn` take several, run in their order —
+`Kinds(s.defineCells, s.defineKinds)`, `Spawn(s.spawnCells, s.spawnUnits)` (board-topography's
+`spawnGround`: the board and its heights). The Stage so built keeps its name, starts fresh
+without `Restore`, and makes its scenes once the world is there — at the end of `Restore` when it
+loaded a save, else at the end of `Spawn` (no method of `game.Stage` of its own: the engine is
+unchanged): the stack, the first scene shown or those `Shows` names (a loaded game those shown
+when saved), the Composition and the ui scenes tracked — a value tracked after a Load gets its
+saved state as it is tracked. The scenes are made before `Populate`: nothing in them reads the
+entities spawned. The order is what builds on what: players before the kinds, effects before the
+rules, roles before the commands for their players (`selection.Selected(role)`) and the kinds
+playing them, everything before the keys, the world before the scenes that show it; what is
+drawn — atlases, an effect's looks, a board's covers, the cameras — is the scene's. A demo groups its plugins in an **arena** (the user's
 word, 2026-10-06), the collector every section builds on: `newArena()` makes the `arena` struct
 (plugins and players alone, no embedded Stage) and hands back it and the `game.Stage` defined on
 it (`stage.New(name).Plugins(a.usePlugins)…`), the sections the arena's methods (`usePlugins`,
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
-`bindKeys`, `defineLooks`, `defineScenes`, `layOut`, `placeUnits`, `update`); the demo's `Demo`
-keeps both, its scenes the arena. **A thing in its section**: the Stage tells
+`bindKeys`, `spawnCells`, `spawnUnits`, `defineScenes`, `update`); the demo's `Demo` keeps both,
+its scenes the arena. A demo's names — its Stage's and its scenes' too (`…Stage`, `MainScene`) —
+are constants in `names.go`. **A thing in its section**: the Stage tells
 the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
-and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Define` (Cells),
-`Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
-Controls), `board.Seed` (Layout), `world.Seed` (Units) — by
+and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
+`Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules),
+`world.Commands().Define` (Commands), `cell.Kinds.Define` and `kind.Define` (Kinds), `Player.Bind`
+(Players or Controls), `board.Seed`, `topography.Seed` and `world.Seed` (Spawn) — by
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as
 they are made), and a Stage written by hand is in no section: nothing is refused, so every test
@@ -1411,9 +1433,9 @@ ui"): the world through a camera is a `render.Feed` (`render.NewFeed(cam, pictur
 any `render.Picture`, a Composer as a rule — drawn through the camera every frame into an image of
 the size it is shown at, the camera's viewport with it; `render.Surface` is `Resize` and `Draw`;
 `ToWorld`/`ToPixels` turn its pixels into the world and back), which `ui.Image(feed)` shows as any
-picture. `ui.NewScene(name, pictures, screen)` is a `game.Scene` (one layer: the tree laid over
-the screen and drawn every frame; the pictures initialised once however many feeds show them;
-`Pictures`/`Screen` are the two halves `Layers()` used to be); `Scene.Input(players.Handle)`,
+picture. `ui.NewScene(name, screen)` is a `game.Scene` made once the world is there, its screen
+the tree (one layer: the tree laid over the screen and drawn every frame; each picture its feeds
+show — `render.Feed.Picture` — initialised once however many feeds show it); `Scene.Input(players.Handle)`,
 `Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)` the scene's own,
 `Show`/`Hide`/`Toggle`/`Shown` by name, `Lay(screen)` (what a frame does before drawing — tests
 call it), and it saves which named elements are shown (`Persisted`/`Restore`: the Stage tracks
@@ -1437,8 +1459,12 @@ Button}` is how elements look where they say nothing of their own (`Scene.Theme`
 engine drew a full-screen viewport: board-topography measured the same through ui as before).
 Input: a click goes to the topmost element hit — a
 button gives its commands, an `Image(feed).Input(players.Through(pl))` lets it through to the
-players' bindings (and tells the player where its picture lies: `Player.Area`), any other
-element keeps it. **Elements from the game are pinned to
+players' bindings (and, the scene being active, tells the player before each pass of input where
+its picture lies and what it shows — `ui.Input.Over(area, shown)` — so its commands go through
+that picture's camera), any other element keeps it. An anchored element may ask for a fraction of
+its parent's box (`Element.Fraction(w, h)`, kept as the window changes), an axis asked for as 0
+following the proportions of the world a feed shows whole (`render.Feed.Proportions`): a minimap a
+fifth of the screen wide. **Elements from the game are pinned to
 entities**, written as `Under` on the atlas: `ui.Label("frozen").Under(effects.Named(FrozenEf))`
 is shown once for every entity the effect is on, `.On(entity.Named/Group(...))` for those called
 so; the scene finds them in the ECS itself every frame (a query over `tag.Tags[effect.States]`,
@@ -1458,9 +1484,9 @@ effect demo stays a plain demo of effects): the host's rule of a `vision.Sightin
 on it when the traveller is near, the window `Under(greeting)` above it holds three answers, each
 button's commands lift the greeting and cast the host's reaction and `talked`; a rule lets the
 greeting go once nobody is in sight; its two hosts speak Polish. Every demo shows its world
-through a ui scene: a demo's `mainScene` has `pictures()` (atlases, `WithRenderer`, the composer)
-and `screen()` (the feed through the player's camera, a backdrop `Blank`, the telemetry and the
-clock's HUD as `ui.Layer`s). The scenes-demo's menu and the players' list of shortcuts stay
+through a ui scene made in its `defineScenes`: `picture()` (atlases, `WithRenderer`, the composer,
+handed back, kept nowhere) and the screen — the feed through a camera made beside it, the
+player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Layer`s. The scenes-demo's menu and the players' list of shortcuts stay
 scenes of screen layers: their keys switch the Stage and quit through `game.Runtime`.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no

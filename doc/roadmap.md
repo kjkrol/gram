@@ -4,100 +4,19 @@
 
 What is left to do, in no particular order yet. Take an item out when it lands.
 
-## Pictures, cameras and the Stage's order
-
-Agreed on 2026-10-08 (the user's word), reading `examples/split-screen-demo`: a camera's kind and
-window are how a picture is shown, so they are chosen where the scene is built, not with the
-players; a player is wired to the pictures it acts through, and owns no camera.
-
-- **The chain** — `Plugins`, `Players`, `Effects`, `Rules`, `Commands`, `Kinds`, `Controls`,
-  `Restore`, `Spawn`, `Scenes`, `Shows`, `Update`: the scenes come last, as the engine already
-  builds their layers after Restore or Spawn.
-  - `Cells` goes into `Kinds(steps...)`, run in order: `Kinds(s.defineCells, s.defineKinds)`,
-    `cell.Kinds.Define` checking `section.Kinds` — a kind of cell is a kind, and the board's word
-    leaves the core as `Layout` does.
-  - `Layout` and `Units` become one link, `Spawn(steps...)`, run in order, and one part,
-    `section.Spawn`, which `board.Seed`, `world.Seed` and `topography.Seed` check: `Layout` was
-    the board's type named in the core, and both seeds only declare (`Populate` does the work),
-    so the split guarded nothing. A demo names its steps by what they spawn, as `defineKinds`
-    says what it defines: `Spawn(s.spawnCells, s.spawnUnits)`, board-topography's `spawnGround`.
-  - `Scenes` after `Spawn`, with no new method of `game.Stage` and no change to the engine: what
-    ends `Init` today (the game's scenes, the plugins', the stack, the first shown or `Shows`, the
-    Composition tracked) is a private step of `game/stage`, run once after the world — at the end
-    of `Restore` when it loaded a save, else at the end of `Spawn`. The first scene shown is the
-    first `defineScenes` gives, or those `.Shows(...)` names; a loaded game shows those shown when
-    it was saved. The scenes are made before `Populate`: nothing in them reads the entities spawned.
-  - A value tracked after a Load gets its saved state as it is tracked (the engine keeps the
-    loaded groups by name), so the Composition and the ui scenes, tracked now after the Load, come
-    back from it.
-  - `ui.NewScene(name, screen *Element)`: no `pictures`/`screen` callbacks — the scene is made when
-    everything exists, and initialises once each picture its feeds show (a Feed knows its
-    picture), so no picture is handed from one function to another through the arena. A scene's
-    name is a constant (`MainScene`), as every other name.
-- **`render.WorldRenderer` → `render.Picture`** — what is in the world, before a camera;
-  `render.Image` is taken: the GPU texture a Feed draws the picture into. 31 files.
-- **Cameras made in Scenes** — `render.NewFeed(s.cameras.New(maker, cfg), picture)`: the camera's
-  kind (`cameras.TopDown()`, `topography.Views(start)`) and config beside the picture it shows.
-  - `camera.Config` loses `ViewportWidth/Height`: the pixels are the layout's (`Feed.Resize` every
-    frame; split-screen's half configured as 640 is laid as 639). It says the camera's window
-    instead: a start scale (zoom), or `Whole` — the whole world, zoom `min(w/W, h/H)` worked out
-    at every resize, the world centred, the background in bars along the longer axis. Neither the
-    cover floor (`minZoom`, `max(w/W, h/H)`) nor `fitAxis` (which sticks a world smaller than the
-    window to its top left) may hold for `Whole`. One zoom for both axes keeps a cell square
-    whatever the window's proportions.
-  - A start fastening, `camera.Config{Follow: entity.Named(RedBlock)}` (the unit named by
-    `kind.Entry.Named`), which the cameras' system takes up at the first tick; a loaded camera
-    keeps its own state. Following is the camera's mode, not a player's: a minimap following the
-    hero is nobody's. Out go `Told(cameras.Follow{…})` at spawn, the minimap's camera made in
-    `usePlugins` and its `ZoomOut(1e6)` + `CenterOn` in `screen()`.
-  - Cameras are made after a Load: the cameras plugin keeps the states loaded and gives each to
-    the camera made in its place (the order made, as saved).
-  - Every camera saves its fastening (`camera.Fastening{Entity, How}`) beside its window and zoom:
-    none does today, so a camera following a unit stands still after a load. One riding `Inside`
-    comes back inside: `perspCamera.Restore` stops letting go, the topography's camera system
-    fastens it again from the fastening loaded.
-  - Every viewport is the layout's, so the plugin's sizing of unsized cameras (`unsized`,
-    `plugin.Screen`) goes.
-- **Players wired to pictures** — `players.Local(name)`, no camera. The wire is
-  `ui.Image(feed).Input(s.players.Through(pl))`: the socket ui's (`ui.Input`, `Looker`, `Owner`),
-  the plug players' (`through`, `plugins/players/ui.go`). ui still knows no camera:
-  - `ui.Input.Over(area, shown render.Surface)` hands the plug what its element shows; players asks
-    a `*render.Feed` for its camera (`Feed.Camera()`) and keeps, for the player, the pairs {area,
-    camera} its pictures were laid at this frame.
-  - The event handler — players' alone; selection, navigation and the rest only give bindings,
-    which read a ready `control.Context` — builds the context from the pair under the mouse, and
-    for keys from the player's view in the active scene (`covers`, `localPoint`, `screenOf` read
-    the pair). `Select`, `MoveTo`, `Pan` and every binding stay as they are.
-  - Only the active scene's pictures wire a player's view (a city scene's view while it is
-    active; a scene shown under a modal does not): today two shown scenes with `Through(pl)`
-    overwrite `pl.area`, the last drawn winning.
-  - `through.LookAt` (`ui.OffScreen(GoToIt)`) moves the camera of its own picture.
-  - `Player.Camera` goes, and `Player.View`, which nothing reads.
-  - A local player no picture shows has no camera — a menu Stage has neither players nor
-    cameras; whatever reads the context's camera bears its absence (`screenOf` calls
-    `Viewport()` on it today).
-  - A picture is to a player its view (`Through`: the keys, `Pan`, `Zoom`, `Follow`, `Ride` and
-    the list under K are about its camera), one it clicks through (a minimap: the point under the
-    cursor through the minimap's camera, the camera commands still the view's — see "A minimap
-    plugin"), or one it only watches (no Input: split-screen's minimap). The second is not built
-    yet; the wire leaves room for it.
-- **ui: sizes relative to the parent, proportions locked** — a feed in `Whole` reports the world's
-  W:H as what its element needs, so a scene gives only its share of the screen and the element
-  keeps the world's proportions as the window changes. Split-screen's minimap: a share of the
-  screen, `Whole`, fastened to nothing (fastened, it could show one player alone).
-- **Every demo** — split-screen's shape: `definePlayers` without cameras; `defineScenes` building
-  the picture, the cameras, the feeds and the layout in one place.
-
 ## Engine
 
 - **A Stage's plugins without `ctx`** — `stage.New(name).World(cfg).Plugins(func(*world.Plugin)
   []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
   constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
   `Initializer` reached only for the two calls.
-- **A minimap plugin** — a `ui` element: a feed from a camera from above fitted to a window of the
-  world, the game's picture under dots of its own by kind, picked by drawing rules (what my units
-  see: `vision.Seen`), the players' views outlined on it, a key to show and hide it, a click on it
-  panning the player's camera; a round or many-sided one through `ui.Masked`.
+- **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
+  (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
+  rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
+  hide it, a click on it panning the player's view; a round or many-sided one through `ui.Masked`.
+  The click needs a picture a player only clicks through: the point under the cursor worked out
+  through the minimap's camera, the camera commands still going to the player's view — today a
+  player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
   `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
   scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:

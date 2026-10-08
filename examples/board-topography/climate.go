@@ -62,7 +62,7 @@ func (s *arena) defineWinterCells() {
 }
 
 // defineClimate is what the weather does to the island, all by the kinds' names: the winter's
-// kinds themselves are defined in the Cells section, later.
+// kinds themselves are defined in the Kinds section, later.
 func (s *arena) defineClimate() weathering.Config {
 	snowy := map[string]string{}
 	for name := range snowyColors {

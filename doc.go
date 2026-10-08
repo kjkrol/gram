@@ -25,13 +25,14 @@
 // active — the topmost focusable one, the only Scene whose HandleEvents runs. A Stage has no input
 // handling of its own. [game.Runtime] is one undivided interface — pause, quit, switch Stage,
 // persistence, full screen — that reaches a Stage and every Scene alike. The cameras a game looks
-// through are a plugin's (plugins/cameras), started by the game itself.
+// through are a plugin's (plugins/cameras), made by the scene that shows them, beside the picture
+// they are seen through; a player owns none — it acts through the picture a scene wires it to.
 //
-// A scene's screen is composed out of elements with package ui: a [ui.Scene] takes its pictures of
-// the world — render.Pictures, a Composer of the plugins' renderers — and a tree of elements
-// laid over the screen: layers covering one another, columns and rows split by share, anchors,
+// A scene's screen is composed out of elements with package ui: a [ui.Scene] takes a tree of
+// elements laid over the screen, made once the world is there: layers covering one another, columns and rows split by share, anchors,
 // panels, labels, windows, buttons giving commands, and the world itself as a picture through a
-// camera (a render.Feed shown by ui.Image), knowing no camera. Elements pinned to entities — under
+// camera (a render.Feed of a render.Picture, a Composer of the plugins' renderers, shown by
+// ui.Image), knowing no camera. Elements pinned to entities — under
 // an effect, on a name — stand by them in the picture that shows them; the world's own drawing
 // keeps its order by depth, the screen's by the tree.
 //

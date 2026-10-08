@@ -51,7 +51,7 @@ func Kinds(forest float64) []cell.Kind {
 	return kinds
 }
 
-// Define registers the island's kinds with dict, in a Stage's Cells section.
+// Define registers the island's kinds with dict, in a Stage's Kinds section.
 func Define(dict cell.Kinds, forest float64) {
 	for _, k := range Kinds(forest) {
 		dict.Define(k.Name.String(), k)
