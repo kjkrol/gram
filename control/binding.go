@@ -64,6 +64,11 @@ type ButtonHeld struct{ Button MouseButton }
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.
 type CursorAtEdge struct{}
 
+// CursorOver fires once a tick while the cursor lies over the player's picture of the world, still
+// or not, its command landing in the tick after: what the cursor points at as the camera moves
+// under it (selection's Hover).
+type CursorOver struct{}
+
 // CursorMove fires every pass the cursor moves, Context.Delta by how much: looking round with the
 // mouse. It reaches the player the cursor is over, and one whose camera rides in an entity wherever
 // the cursor is — the carrier captures it then, so it moves without end.
@@ -77,6 +82,7 @@ func (Wheel) trigger()        {}
 func (ButtonHeld) trigger()   {}
 func (CursorAtEdge) trigger() {}
 func (CursorMove) trigger()   {}
+func (CursorOver) trigger()   {}
 
 // Context is what a binding builds its command from: the player, its camera and this tick's input
 // in screen pixels; World and WorldBox go through the camera.

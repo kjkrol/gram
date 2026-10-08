@@ -8,7 +8,8 @@ import (
 type Family struct{}
 
 // Tags is selection's tags: Selectable marks an entity the player may select, Selected one
-// the player has. A kind gives Selectable with comp.Tagged; the plugin flips Selected.
+// the player has, Hovered the one the cursor points at. A kind gives Selectable with comp.Tagged;
+// the plugin flips Selected and Hovered.
 type Tags struct {
-	Selectable, Selected tag.Tag[Family]
+	Selectable, Selected, Hovered tag.Tag[Family]
 }

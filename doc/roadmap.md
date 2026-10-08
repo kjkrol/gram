@@ -22,8 +22,6 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:
   switching the Stage, quitting); the UI drawn into one `render.Frame` in place of a draw an
   element, once a profile asks for it.
-- **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
-  work, no collision involved.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
 - **`RouteStyle`** — how a route is drawn becomes a style, as `vision.ConeStyle` is: `CellArrows`,

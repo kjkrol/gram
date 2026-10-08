@@ -86,3 +86,27 @@ func TestSplitScreen_TheMouseReachesThePlayerUnderItInItsOwnPixels(t *testing.T)
 		t.Errorf("a click at x 650: %v, want only the right player, at x 250 of its half", got)
 	}
 }
+
+func TestCursorOver_FiresEveryTickForThePlayerWhosePictureTheCursorLiesOver(t *testing.T) {
+	r := newRig(t)
+	right := r.p.Local("right")
+	r.bind(control.Command(control.CursorOver{}, "Over", func(c control.Context) (order, bool) { return order{int(c.Cursor.X)}, true }))
+	if err := right.Bind(control.Command(control.CursorOver{}, "Over", orderOf(-1))); err != nil {
+		t.Fatal(err)
+	}
+	ecs := r.start()
+	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
+	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)), render.NewFeed(r.cams.New(cameras.TopDown(), camera.Config{}), nil))
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(100, 300)})
+	for range 3 { // the cursor still, no input pass between the ticks: once a tick
+		ecs.Tick(time.Second / 60)
+		if got := cells(r); len(got[r.local.ID]) != 1 || got[r.local.ID][0] != 100 || len(got[right.ID]) != 0 {
+			t.Fatalf("a tick with the cursor over the left picture gave %v, want one from the left player at x 100", got)
+		}
+	}
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(900, 300)}) // past both pictures
+	ecs.Tick(time.Second / 60)
+	if got := cells(r); len(got) != 0 {
+		t.Errorf("with the cursor over no picture: %v, want nothing", got)
+	}
+}

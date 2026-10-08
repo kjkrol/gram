@@ -21,6 +21,7 @@ type Plugin struct {
 	selects      control.Queue[Select]
 	marqueeQueue control.Queue[Marquee]
 	effectCmds   control.Queue[effectCommand]
+	hovers       control.Queue[Hover]
 	allows       control.Queue[Allow]
 	forbids      control.Queue[Forbid]
 	marquees     marquees
@@ -38,6 +39,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	tags := Tags{
 		Selectable: reg.DefineTag[Family]("selection.selectable"),
 		Selected:   reg.DefineTag[Family]("selection.selected"),
+		Hovered:    reg.DefineTag[Family]("selection.hovered"),
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
 	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.selection"), worldPlugin: worldPlugin, tags: tags}
@@ -69,6 +71,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
 	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Effects()
+	sys.hovers = &p.hovers
 	sys.allows, sys.forbids = &p.allows, &p.forbids
 	p.module = &module{sys: sys}
 	ctx.UseModule(p.module)

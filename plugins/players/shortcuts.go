@@ -202,6 +202,8 @@ func Written(t control.Trigger) string {
 		return "cursor at an edge"
 	case control.CursorMove:
 		return "mouse"
+	case control.CursorOver:
+		return "cursor over the world"
 	}
 	return fmt.Sprintf("%T", t)
 }

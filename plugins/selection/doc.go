@@ -36,6 +36,13 @@
 //	freeze := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
 //
+// # Hovered
+//
+// Every tick the cursor lies over a player's picture of the world (control.CursorOver, among the
+// default bindings) it gives a [Hover], and the entity drawn under it, picked as Pointed picks,
+// carries Hovered until the next tick: what a ui element pinned Where the tag is carried stands by
+// (ui.Tagged). One tag serves every player: two cursors over a split screen hover two entities.
+//
 // # Renderer
 //
 // [Plugin.WithRenderer] builds the [Renderer], a render.Source outlining every Selected entity on

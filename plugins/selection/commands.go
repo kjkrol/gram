@@ -31,6 +31,16 @@ type Marquee struct {
 	Camera camera.Camera
 }
 
+// Hover is the command noting the entity drawn under the cursor as Hovered — the one it points
+// at, the nearest of those drawn there: given every tick the cursor lies over the player's picture
+// (control.CursorOver), at the world point At and the screen point Screen of the view Camera draws.
+// A tick without one, nobody is Hovered.
+type Hover struct {
+	At     geom.Vec
+	Screen geom.AABB
+	Camera camera.Camera
+}
+
 // Allow is the command by which an entity may be selected from now on — Selected, selected at
 // once too: one gives it itself as it is made (kind.Entry.Told); a player's goes to the units it
 // has selected.
@@ -98,12 +108,12 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // Queues are where Select, Allow, Forbid and the commands for the selected and the pointed at
 // land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held, and C to
-// follow the one unit chosen (FollowKey).
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held, C to
+// follow the one unit chosen (FollowKey), and the cursor over the world into a Hover.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -117,6 +127,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
 		p.FollowKey(control.KeyC),
+		control.Command(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
+			return Hover{At: c.World(c.Cursor), Screen: control.ScreenRect(c.Cursor, c.Cursor), Camera: c.Camera}, true
+		}),
 	}
 }
 

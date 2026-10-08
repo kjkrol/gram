@@ -93,9 +93,10 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	tags := Tags{Selectable: 0, Selected: 1}
+	tags := Tags{Selectable: 0, Selected: 1, Hovered: 2}
 	sys := NewSelectionSystem(&sel.selects, space, tags, w.Look)
 	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
+	sys.hovers = &sel.hovers
 
 	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
@@ -449,5 +450,35 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	h.click(int(wx), int(wy), false)
 	if !h.isSelected(*walker) {
 		t.Error("clicking the walker where it stands did not select it")
+	}
+}
+
+// hoverAt has the local player point at the screen point (x, y), as its cursor over the world does
+// every tick, and runs a tick.
+func (h *harness) hoverAt(x, y float64) {
+	at := geom.NewVec(x, y)
+	if err := h.players.Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
+		h.t.Fatal(err)
+	}
+	h.ecs.Tick(time.Second)
+}
+
+func TestSystem_HoverMarksTheEntityUnderTheCursorAlone(t *testing.T) {
+	h := newHarness(t)
+	a := h.seed(50, 50, 10)
+	b := h.seedOwned(300, 300, 10, control.Nobody)
+	h.start()
+
+	h.hoverAt(55, 55)
+	if !h.has(*a, h.tags.Hovered) || h.has(*b, h.tags.Hovered) {
+		t.Fatalf("pointing at a: a hovered %v, b %v; want a alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+	}
+	h.hoverAt(305, 305)
+	if h.has(*a, h.tags.Hovered) || !h.has(*b, h.tags.Hovered) {
+		t.Fatalf("pointing at b, nobody's: a hovered %v, b %v; want b alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+	}
+	h.ecs.Tick(time.Second) // the cursor left the picture: no Hover this tick
+	if h.has(*b, h.tags.Hovered) {
+		t.Error("b stays hovered with the cursor gone")
 	}
 }

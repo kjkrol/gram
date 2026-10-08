@@ -65,6 +65,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				}
 			}
 		}
+		pl.in.over = false
 		if !under {
 			continue
 		}
@@ -73,6 +74,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		}
 
 		inside := ctx.Cursor.X >= 0 && ctx.Cursor.X < ctx.Screen.X && ctx.Cursor.Y >= 0 && ctx.Cursor.Y < ctx.Screen.Y
+		pl.in.over = inside
 		if !inside {
 			continue
 		}
@@ -108,12 +110,15 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 	}
 }
 
-// hold issues, for every local player, the command of each KeyHeld binding whose key is down, as
-// of the player's last input pass.
+// hold issues, for every local player, the command of each KeyHeld binding whose key is down and
+// of its CursorOver bindings while the cursor lay over its picture, as of its last input pass.
 func (t eventHandler) hold() {
 	for _, pl := range t.p.Locals() {
 		for _, key := range pl.in.steering {
 			t.fire(pl, control.KeyHeld{Key: key}, pl.in.last)
+		}
+		if pl.in.over {
+			t.fire(pl, control.CursorOver{}, pl.in.last)
 		}
 	}
 }
@@ -125,6 +130,7 @@ type input struct {
 	keys     []control.Key                    // keys down that some binding holds, last pressed last
 	steering []control.Key                    // keys down that some KeyHeld binding is on
 	last     control.Context                  // the context of the last input pass
+	over     bool                             // the cursor lay over the player's picture at the last pass
 }
 
 func (in *input) press(button control.MouseButton, at geom.Vec) {
