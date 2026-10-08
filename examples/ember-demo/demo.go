@@ -15,6 +15,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -25,7 +26,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -34,6 +37,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -93,9 +97,11 @@ type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
+	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	cameras   *cameras.Plugin
 	player    *players.Player
 }
 
@@ -103,17 +109,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("ember-demo").
+	return s, stage.New(EmberStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -126,10 +130,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -139,17 +144,16 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 
 func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
-	taken := []control.Trigger{ // WSAD drives the selected ember, not the camera
-		control.KeyHeld{Key: control.KeyW}, control.KeyHeld{Key: control.KeyS},
-		control.KeyHeld{Key: control.KeyA}, control.KeyHeld{Key: control.KeyD},
-	}
-	var bindings []control.Binding
-	for _, b := range s.players.Defaults() {
-		if !slices.Contains(taken, b.Trigger) {
-			bindings = append(bindings, b)
-		}
-	}
-	return s.player.Bind(bindings...)
+	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the selected ember, not the camera
+	return s.player.Bind(slices.Concat(
+		s.players.DefaultBindings(),
+		s.world.DefaultBindings(),
+		view.Bindings(),
+		s.board.DefaultBindings(),
+		s.selection.DefaultBindings(),
+		s.nav.DefaultBindings(),
+		s.driving.DefaultBindings(),
+	)...)
 }
 
 func (s *arena) defineEffects() {
@@ -179,20 +183,22 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(append(players.DriveBindings(),
+	drive := driving.Tank{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	return s.player.Bind(append(drive.Bindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Douse the selected embers for a while",
 			s.world.Commands().Named(DouseCmd)))...)
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}}
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	brd := s.board.Res.Logic.Board
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
@@ -214,7 +220,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -225,17 +233,14 @@ type mainScene struct {
 	arena *arena
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // The scene's colours: the meadow and a doused ember's soot.
 var (
 	grassColor = color.RGBA{R: 55, G: 80, B: 55, A: 255}
 	sootColor  = color.RGBA{R: 70, G: 65, B: 60, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
 	doused := s.world.Effects().Named(DousedEf)
@@ -254,15 +259,11 @@ func (m *mainScene) Layers() []render.Layer {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through a camera of its own, the player's view.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

@@ -64,6 +64,11 @@ type ButtonHeld struct{ Button MouseButton }
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.
 type CursorAtEdge struct{}
 
+// CursorOver fires once a tick while the cursor lies over the player's picture of the world, still
+// or not, its command landing in the tick after: what the cursor points at as the camera moves
+// under it (selection's Hover).
+type CursorOver struct{}
+
 // CursorMove fires every pass the cursor moves, Context.Delta by how much: looking round with the
 // mouse. It reaches the player the cursor is over, and one whose camera rides in an entity wherever
 // the cursor is — the carrier captures it then, so it moves without end.
@@ -77,6 +82,7 @@ func (Wheel) trigger()        {}
 func (ButtonHeld) trigger()   {}
 func (CursorAtEdge) trigger() {}
 func (CursorMove) trigger()   {}
+func (CursorOver) trigger()   {}
 
 // Context is what a binding builds its command from: the player, its camera and this tick's input
 // in screen pixels; World and WorldBox go through the camera.
@@ -94,8 +100,11 @@ type Context struct {
 
 // World is the ground point under screen position s: a camera.Picker's own Pick — a camera
 // drawing heights finds the ground under the cursor itself, so a click on a hill lands on the
-// hill — else the camera's FromScreen.
+// hill — else the camera's FromScreen; through no camera, s itself.
 func (c Context) World(s geom.Vec) geom.Vec {
+	if c.Camera == nil {
+		return s
+	}
 	sx, sy := float32(s.X), float32(s.Y)
 	if p, ok := c.Camera.(camera.Picker); ok {
 		x, y, _ := p.Pick(sx, sy)
@@ -107,10 +116,12 @@ func (c Context) World(s geom.Vec) geom.Vec {
 
 // WorldBox is the world rectangle between screen points a and b, at least one unit a side and no
 // wider than what was dragged even across a wrapping seam; through a camera.Picker it spans the
-// ground points under the two corners.
+// ground points under the two corners; through no camera, the screen's rectangle itself.
 func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	var x0, y0, x1, y1 float32
-	if _, picks := c.Camera.(camera.Picker); !picks {
+	if c.Camera == nil {
+		x0, y0, x1, y1 = float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
+	} else if _, picks := c.Camera.(camera.Picker); !picks {
 		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
 	} else {
 		pa, pb := c.World(a), c.World(b)
@@ -119,6 +130,35 @@ func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	minX, maxX := float64(min(x0, x1)), float64(max(x0, x1))
 	minY, maxY := float64(min(y0, y1)), float64(max(y0, y1))
 	return geom.NewAABBAt(geom.NewVec(minX, minY), max(maxX-minX, 1), max(maxY-minY, 1))
+}
+
+const (
+	// EdgeMargin is how close to a window edge, in pixels, the cursor rests at it (CursorAtEdge).
+	EdgeMargin = 30
+	// EdgeDeadZone is the strip at the very edge that is no edge, unless the window fills the
+	// screen: a cursor parked there by the monitor's edge should not run away.
+	EdgeDeadZone = 10
+)
+
+// Edges are the window edges a cursor rests near.
+type Edges struct{ Left, Right, Top, Bottom bool }
+
+// Any reports whether the cursor rests near any edge.
+func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom }
+
+// Edges is which window edges the cursor rests near, outside the dead zone.
+func (c Context) Edges() Edges {
+	dead := float64(EdgeDeadZone)
+	if c.FillsScreen {
+		dead = 0
+	}
+	x, y := c.Cursor.X, c.Cursor.Y
+	return Edges{
+		Left:   x >= dead && x < EdgeMargin,
+		Right:  x <= c.Screen.X-dead && x > c.Screen.X-EdgeMargin,
+		Top:    y >= dead && y < EdgeMargin,
+		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-EdgeMargin,
+	}
 }
 
 // ScreenRect is the screen rectangle between a and b, at least a pixel a side.

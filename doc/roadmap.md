@@ -10,12 +10,18 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
   constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
   `Initializer` reached only for the two calls.
-- **A minimap plugin** — the split-screen demo's minimap as `plugins/minimap`: a `game.Scenic`
-  with its own camera from above fitted to the world, the composer handed over or a picture of
-  its own (the board's still, the units as dots), the players' views outlined on it, a key to
-  show and hide it, later a click on it panning the player's camera.
-- **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
-  work, no collision involved.
+- **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
+  (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
+  rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
+  hide it, a click on it panning the player's view; a round or many-sided one through `ui.Masked`.
+  The click needs a picture a player only clicks through: the point under the cursor worked out
+  through the minimap's camera, the camera commands still going to the player's view — today a
+  player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
+- **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
+  `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
+  scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:
+  switching the Stage, quitting); the UI drawn into one `render.Frame` in place of a draw an
+  element, once a profile asks for it.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
 - **`RouteStyle`** — how a route is drawn becomes a style, as `vision.ConeStyle` is: `CellArrows`,
@@ -69,7 +75,10 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   that does not end the flight), a trail drawn behind it, a mine that feels a tread (a landed
   shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
 - **A unit spawned in the game on the board** — `world.Spawn` of a unit with `At` and `Mover` does
-  not enter it into the board's `cell.Occupancy` (navigation seeds it at Setup alone).
+  not enter it into the board's `cell.Occupancy` (the board seeds it at Setup alone).
+- **The board keeps every unit's cell** — `unit.At` and `unit.Entered` follow a unit only where
+  navigation or the driving moves it; one pushed by collision, or moved by a game's own system,
+  keeps a stale cell. The board's units' pass knows the cell under each centre already.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 

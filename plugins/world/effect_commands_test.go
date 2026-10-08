@@ -131,6 +131,25 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	}
 }
 
+// A command for an entity's ID reaches that entity, named or not.
+func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
+	g := &guardStage{}
+	runGuards(t, g)
+	var passerBy uid.UID64
+	for g.query.All(); g.query.Next(); {
+		cur := g.query.Cursor()
+		for i, id := range cur.IDs {
+			if g.base.Slice(cur)[i].Pos.TopLeft.X == 300 {
+				passerBy = id
+			}
+		}
+	}
+	g.give(t, rule.Cast(g.alert).On(entity.ID(passerBy)))
+	if on := g.alerted(); len(on) != 1 || !on[300] {
+		t.Fatalf("alert the passer-by by its ID: units at %v alerted, want the one at 300 alone", on)
+	}
+}
+
 // What the units are called is saved with them: a loaded game's captain is still the one found.
 func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	path := t.TempDir() + "/save"

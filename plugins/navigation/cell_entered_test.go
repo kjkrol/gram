@@ -33,7 +33,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
 	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 
-	var statesComp goke.OptComp[tag.Tags[States]]
+	var statesComp goke.OptComp[tag.Tags[unit.States]]
 	var orderComp goke.OptComp[MoveOrder]
 	var cellComp goke.Comp[unit.At]
 	var enteredQ, orderQ *goke.Query
@@ -53,7 +53,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 			cur := enteredQ.Cursor()
 			states, cells := statesComp.Slice(cur), cellComp.Slice(cur)
 			for i, id := range cur.IDs {
-				if states != nil && states[i].Has(Entered) {
+				if states != nil && states[i].Has(unit.Entered) {
 					ew.entered[id] = cells[i].Cell
 				}
 			}

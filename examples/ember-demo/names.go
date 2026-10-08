@@ -9,4 +9,8 @@ const (
 	DousedEf = "doused"
 
 	DouseCmd = "douse the embers"
+
+	// the stage and its scenes
+	EmberStage = "ember-demo"
+	MainScene  = "main"
 )

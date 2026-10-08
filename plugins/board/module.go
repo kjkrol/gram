@@ -53,7 +53,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the cells build themselves in their own Init.
+// SetupSystems is empty — the cells build themselves in their own Init, the occupancy's upkeep
+// seeds it in its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
 // LoadComps lists the component types board writes or reads, so a save loads without the vision
@@ -66,7 +67,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		}
 	}
 	return append(templated,
-		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](),
+		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](), goke.LoadComp[tag.Tags[unit.States]](),
 		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
 		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[rule.Roles]](),
 	)

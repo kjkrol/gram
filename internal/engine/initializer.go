@@ -22,8 +22,6 @@ type initializer struct {
 	hosts []plugin.Host
 	// part is the section of the Stage's definition under way, for one built in sections
 	part section.Part
-
-	screenWidth, screenHeight int
 }
 
 var (
@@ -109,20 +107,17 @@ func (c *initializer) deliver() error {
 	return hosts.Deliver(c.hosts, c.world.Kinds().Played()...)
 }
 
-// Track registers s for Save and Load under its Go type name.
+// Track registers s for Save and Load under its Go type name; tracked after a Load, s gets the
+// state the save holds for it at once.
 func (c *initializer) Track(s plugin.Serializable) error {
 	c.host.track(s)
-	return nil
+	return c.host.loadLate(s)
 }
 
 func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
 	section.Must(c, "the world used", section.Plugins)
 	if c.world != nil {
 		panic("gram: UseWorld called more than once in the same Stage")
-	}
-	if cfg.Camera.ViewportWidth == 0 && cfg.Camera.ViewportHeight == 0 {
-		cfg.Camera.ViewportWidth = uint32(c.screenWidth)
-		cfg.Camera.ViewportHeight = uint32(c.screenHeight)
 	}
 	c.world = world.NewPlugin(cfg)
 	if err := c.useBuiltin(c.world); err != nil {

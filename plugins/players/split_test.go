@@ -1,16 +1,16 @@
 package players_test
 
 import (
-	"bytes"
-	"encoding/gob"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // splitRig is two local players with cameras of their own, the screen split into two columns of
@@ -18,7 +18,7 @@ import (
 func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
-	left, right := r.local.OwnCamera(), r.p.Local("right").OwnCamera()
+	left, right := r.local, r.p.Local("right")
 	if err := left.Bind(control.Command(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
 		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 100 + int(c.Cursor.X)}, true
@@ -32,7 +32,9 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 		t.Fatal(err)
 	}
 	ecs := r.start()
-	r.p.Viewports(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
+	// the scene's pictures, side by side: each tells its player where it lies
+	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
+	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)), render.NewFeed(r.cams.New(cameras.TopDown(), camera.Config{}), nil))
 	return r, left, right, ecs
 }
 
@@ -85,33 +87,26 @@ func TestSplitScreen_TheMouseReachesThePlayerUnderItInItsOwnPixels(t *testing.T)
 	}
 }
 
-func TestOwnCamera_IsSavedAndRestoredWithTheGame(t *testing.T) {
-	newPlayers := func() (*players.Plugin, *players.Player) {
-		w := world.NewPlugin(world.Config{
-			Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		})
-		p := players.NewPlugin(w)
-		p.Local("first")
-		return p, p.Local("second").OwnCamera()
+func TestCursorOver_FiresEveryTickForThePlayerWhosePictureTheCursorLiesOver(t *testing.T) {
+	r := newRig(t)
+	right := r.p.Local("right")
+	r.bind(control.Command(control.CursorOver{}, "Over", func(c control.Context) (order, bool) { return order{int(c.Cursor.X)}, true }))
+	if err := right.Bind(control.Command(control.CursorOver{}, "Over", orderOf(-1))); err != nil {
+		t.Fatal(err)
 	}
-	saved, second := newPlayers()
-	second.Camera.Translate(120, 80)
-	var buf bytes.Buffer
-	for _, v := range saved.Serializable().Persisted() {
-		if err := gob.NewEncoder(&buf).Encode(v); err != nil {
-			t.Fatal(err)
+	ecs := r.start()
+	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
+	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)), render.NewFeed(r.cams.New(cameras.TopDown(), camera.Config{}), nil))
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(100, 300)})
+	for range 3 { // the cursor still, no input pass between the ticks: once a tick
+		ecs.Tick(time.Second / 60)
+		if got := cells(r); len(got[r.local.ID]) != 1 || got[r.local.ID][0] != 100 || len(got[right.ID]) != 0 {
+			t.Fatalf("a tick with the cursor over the left picture gave %v, want one from the left player at x 100", got)
 		}
 	}
-	loaded, again := newPlayers()
-	dec := gob.NewDecoder(&buf)
-	for _, v := range loaded.Serializable().Persisted() {
-		if err := dec.Decode(v); err != nil {
-			t.Fatal(err)
-		}
-	}
-	loaded.Restore()
-	if got, want := again.Camera.Bounds(), second.Camera.Bounds(); got != want {
-		t.Errorf("the second player's camera after a load shows %v, want %v", got, want)
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(900, 300)}) // past both pictures
+	ecs.Tick(time.Second / 60)
+	if got := cells(r); len(got) != 0 {
+		t.Errorf("with the cursor over no picture: %v, want nothing", got)
 	}
 }

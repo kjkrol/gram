@@ -5,4 +5,13 @@ package main
 const (
 	// kinds of units
 	MoverKind = "mover"
+
+	// the stages and their scenes
+	MenuStage     = "menu"
+	GameplayStage = "gameplay"
+	MenuScene     = "menu"
+	WorldScene    = "world"
+
+	// elements of a scene's screen
+	PanelElement = "panel"
 )

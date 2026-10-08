@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -14,12 +15,15 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
@@ -45,7 +49,9 @@ type roadWorld struct {
 	grid    grid.Grid
 	ecs     *goke.ECS
 	nav     *Plugin
+	driving *driving.Plugin
 	players *players.Plugin
+	cams    []camera.Camera // each player's, by id − 1: what its picture is drawn through
 	cell    goke.Comp[unit.At]
 	base    goke.Comp[world.Base]
 	order   goke.OptComp[MoveOrder]
@@ -71,11 +77,14 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		brd.Res.Logic.Board.Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
-	rw.nav = NewPlugin(brd, w, sel).WithCollision(c)
-	rw.players = players.NewPlugin(w, rw.nav) // carries navigation's commands, as the engine does with Use
-	rw.players.Add("one")
-	rw.players.Add("two")
-	rw.nav.WithPlayers(rw.players)
+	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
+	rw.nav = NewPlugin(brd, w, sel, rw.driving).WithCollision(c)
+	rw.players = players.NewPlugin(w, rw.nav, rw.driving) // carries their commands, as the engine does with Use
+	for _, name := range []string{"one", "two"} {         // each acting through a picture of its own
+		cam := cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
+		rw.players.Through(rw.players.Add(name)).Over(geom.AABB{}, render.NewFeed(cam, nil))
+		rw.cams = append(rw.cams, cam)
+	}
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -88,6 +97,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		t.Fatal(err)
 	}
 	if err := rw.nav.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := rw.driving.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := rw.players.Install(ctx); err != nil {
@@ -158,6 +170,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		rw.nav.RunPlan(rc, d)
+		rw.driving.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)
 		rw.players.RunPlan(rc, d)

@@ -10,12 +10,14 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/ui"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -46,42 +48,61 @@ type general struct{ orders control.Queue[order] }
 func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player and a general's order queue.
+// rig is a players plugin over a 1000×1000 world with one local player acting through a picture
+// over the whole screen drawn through a camera of its own, and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
+	cams   *cameras.Plugin
+	cam    camera.Camera // the local player's
 	p      *players.Plugin
 	local  *players.Player
+	wire   ui.Input // the local player's picture's
 	orders *control.Queue[order]
 }
 
-func newRig(t *testing.T, cfg ...camera.Config) *rig {
+// look has the local player act through a picture drawn through cam over the whole screen, as a
+// scene showing it wires it.
+func (r *rig) look(cam camera.Camera) {
+	r.cam = cam
+	r.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
+}
+
+func newRig(t *testing.T) *rig {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	if len(cfg) > 0 {
-		w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, cfg[0])
-	}
+	cams := cameras.NewPlugin(w)
+	cam := cams.New(cameras.TopDown(), camera.Config{})
 	g := &general{}
-	p := players.NewPlugin(w, g)
-	return &rig{t: t, w: w, p: p, local: p.Local("tester"), orders: &g.orders}
+	p := players.NewPlugin(w, cams, g)
+	local := p.Local("tester")
+	r := &rig{t: t, w: w, cams: cams, p: p, local: local, wire: p.Through(local), orders: &g.orders}
+	r.look(cam)
+	return r
 }
 
-// start installs the plugin into an ECS whose plan is players' RunPlan, so camera commands land.
+// start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera
+// commands land.
 func (r *rig) start() *goke.ECS {
 	r.t.Helper()
 	ctx := &installCtx{ecs: goke.New()}
-	if err := r.p.Install(ctx); err != nil {
-		r.t.Fatal(err)
+	for _, p := range []plugin.Plugin{r.cams, r.p} {
+		if err := p.Install(ctx); err != nil {
+			r.t.Fatal(err)
+		}
 	}
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
 	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { r.p.RunPlan(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		r.cams.RunPlan(rc, d)
+		r.p.RunPlan(rc, d)
+	})
 	return ctx.ecs
 }
 
@@ -167,8 +188,8 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings()); got != want {
-		t.Errorf("Defaults has %d bindings, want the players' own and the world's clock's %d (the general suggests none)", got, want)
+	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings())+len(r.cams.DefaultBindings()); got != want {
+		t.Errorf("Defaults has %d bindings, want the players' own, the world's clock's and the cameras' %d (the general suggests none)", got, want)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)
@@ -251,13 +272,10 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	})
-	w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-	w.Res.Camera.MoveTo(950, 500)
-	ctx := control.Context{Camera: w.Res.Camera}
+	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{})
+	cam.SetViewport(200, 200)
+	cam.MoveTo(950, 500)
+	ctx := control.Context{Camera: cam}
 
 	box := ctx.WorldBox(geom.NewVec(0, 0), geom.NewVec(200, 10))
 	if width := box.BottomRight.X - box.TopLeft.X; width > 200 {
@@ -266,10 +284,10 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 }
 
 // cameraRig is a rig with the default camera bindings, started, so Pan and Zoom reach the camera.
-func cameraRig(t *testing.T, cfg ...camera.Config) (*rig, *goke.ECS) {
+func cameraRig(t *testing.T) (*rig, *goke.ECS) {
 	t.Helper()
-	r := newRig(t, cfg...)
-	r.bind(players.CameraBindings()...)
+	r := newRig(t)
+	r.bind(cameras.DefaultKeys().Bindings()...)
 	return r, r.start()
 }
 
@@ -280,7 +298,7 @@ func (r *rig) move(ev *control.InputEvents, ecs *goke.ECS) {
 
 func TestCamera_WheelZooms(t *testing.T) {
 	r, ecs := cameraRig(t)
-	cam := r.local.Camera
+	cam := r.cam
 	r.move(&control.InputEvents{ScrollDelta: 1}, ecs)
 	if cam.Zoom() <= 1 {
 		t.Fatalf("Zoom() after a notch up = %v, want > 1", cam.Zoom())
@@ -294,8 +312,9 @@ func TestCamera_WheelZooms(t *testing.T) {
 
 func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 	for _, zoom := range []float32{1, 2} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-		cam := r.local.Camera
+		r, ecs := cameraRig(t)
+		cam := r.cam
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
@@ -311,8 +330,9 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 
 func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 	for _, zoom := range []float32{1, 2, 4} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-		cam := r.local.Camera
+		r, ecs := cameraRig(t)
+		cam := r.cam
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
@@ -320,8 +340,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs) // near the right edge of the 200-pixel window
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float64(zoom)
-		if moved != float64(players.DefaultScrollSpeed) {
-			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, players.DefaultScrollSpeed)
+		if moved != float64(cameras.DefaultScrollSpeed) {
+			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, cameras.DefaultScrollSpeed)
 		}
 	}
 }
@@ -340,7 +360,7 @@ func TestCamera_EdgeDeadZoneAndWindowEdges(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r, ecs := cameraRig(t)
-			cam := r.local.Camera
+			cam := r.cam
 			cam.ZoomIn(2, 500, 500)
 			before := cam.Bounds()
 			ev := tc.ev
@@ -365,11 +385,14 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 }
 
-// riding is the rig's camera, riding in an entity while on.
+// riding is the rig's camera, riding in an entity while on, looking round with the mouse.
 type riding struct {
 	camera.Camera
 	on bool
 }
+
+func (r *riding) MouseLook() bool   { return true }
+func (r *riding) SetMouseLook(bool) {}
 
 func (r *riding) Fasten(camera.Fastening) {}
 
@@ -385,8 +408,8 @@ func (r *riding) Fastening() camera.Fastening {
 func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	r := newRig(t)
 	players.CaptureWith(r.p, func(bool) {})
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
 	r.bind(
 		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
 		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
@@ -417,8 +440,8 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r := newRig(t)
 	var caught []bool
 	players.CaptureWith(r.p, func(on bool) { caught = append(caught, on) })
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
 	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))

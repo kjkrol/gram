@@ -24,7 +24,7 @@ type Config struct {
 	FieldOfView        float32
 }
 
-// Maker makes a world's cameras as cfg says (world.Plugin.SetCameras): over ground — its top as it
+// Maker makes a world's cameras as cfg says (topography.Plugin.Views): over ground — its top as it
 // is drawn at a point — between the heights extent gives (nil: level at sea level), the ground far
 // off sinking bend per distance² under a perspective eye's level. It refuses a wrapping world.
 func Maker(cfg Config, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {

@@ -1,7 +1,6 @@
 package world
 
 import (
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
@@ -37,7 +36,3 @@ type DirectLook interface {
 
 // The world's own look, before any view sets another, is the flat one.
 var _ DirectLook = (*ilook.Flat)(nil)
-
-// Cameras makes a camera over a width x height world with the given edges, configured by cfg; a
-// view plugin puts its own in with Plugin.SetCameras.
-type Cameras func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera

@@ -97,7 +97,7 @@ func (o Of) Entry(c ID) Entry { return Entry{Kind: o.k.Name.String(), Cell: c} }
 type Kinds interface {
 	// Define registers k under name, assigning its SpriteID by call order, and has every cell the
 	// Layout lays as it play plays, for good — it hands nothing back, and Named is the kind
-	// wherever it is built on. A name defined twice panics, in a Stage's Cells section.
+	// wherever it is built on. A name defined twice panics, in a Stage's Kinds section.
 	Define(name string, k Kind, plays ...*rule.Part)
 	// Named is the kind defined as name, as the handle a game builds on — Entry for the Layout,
 	// SpriteID for the atlas; an unknown name panics.

@@ -2,7 +2,6 @@ package world
 
 import (
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/clock"
 )
 
@@ -11,7 +10,6 @@ import (
 type Config struct {
 	Space    SpaceCfg
 	Entities EntitiesCfg
-	Camera   camera.Config
 	// Heights gives the world heights: entities carry a Z, terrain an altitude, sight an eye, and
 	// collision meets entities only where their Zs overlap. A flat world (the default) is a set of
 	// planes — see Layers — and refuses heights where it meets them.

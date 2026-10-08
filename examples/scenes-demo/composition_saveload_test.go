@@ -23,47 +23,29 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-func TestGameplayStage_Composition_SurvivesSaveLoad(t *testing.T) {
+// The panel open as the game is saved is open as it is loaded.
+func TestGameplayStage_PanelOpenSurvivesSaveLoad(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 
-	playedArena, played := NewGameplayStage(basePath)
-	eng := engine.NewEngine(oneStageGame{stage: played, props: testProps()})
+	played, stage := NewGameplayStage(basePath)
+	eng := engine.NewEngine(oneStageGame{stage: stage, props: testProps()})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-
-	played.Stack().Composition().Show(playedArena.panel.Name())
-	if got, want := played.Stack().Composition().Active(), playedArena.panel.Name(); got != want {
-		t.Fatalf("Active() before save = %q, want %q", got, want)
-	}
-
+	played.scene.Show(PanelElement)
 	if err := eng.Persistence().Save(basePath, ""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	arena2, stage2 := NewGameplayStage(basePath)
+	loaded, stage2 := NewGameplayStage(basePath)
 	eng2 := engine.NewEngine(oneStageGame{stage: stage2, props: testProps()})
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init (fresh process/engine): %v", err)
 	}
-
-	wantOrder := []string{"world", "hud", "panel"}
-	if got := stage2.Stack().Composition().Order(); !equalStrings(got, wantOrder) {
-		t.Errorf("Order() after Load = %v, want %v", got, wantOrder)
+	if !loaded.scene.Shown(PanelElement) {
+		t.Error("the panel open when saved is closed when loaded")
 	}
-	if got, want := stage2.Stack().Composition().Active(), arena2.panel.Name(); got != want {
-		t.Errorf("Active() after Load = %q, want %q (the panel should still be on top and focused)", got, want)
+	if got := stage2.Stack().Composition().Active(); got != WorldScene {
+		t.Errorf("Active() after Load = %q, want %q", got, WorldScene)
 	}
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

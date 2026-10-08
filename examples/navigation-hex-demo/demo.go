@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -19,13 +20,16 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 // The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates: every row
@@ -83,9 +87,11 @@ type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
+	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
 	players   *players.Plugin
+	cameras   *cameras.Plugin
 	player    *players.Player // the one at this keyboard: the units are its
 }
 
@@ -94,15 +100,13 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-navigation-hex-demo").
+	return s, stage.New(BoardNavigationHexStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
+		Kinds(s.defineCells, s.defineKinds).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnCells, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -115,9 +119,11 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -140,7 +146,7 @@ func (s *arena) defineScenes() []game.Scene {
 		}},
 	}
 	s.players.OwnKeys(main.keys)
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) defineCells() {
@@ -180,7 +186,7 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
 	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
@@ -197,7 +203,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
@@ -213,7 +219,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -225,10 +233,6 @@ type mainScene struct {
 	keys  players.SceneKeys
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // The scene's colours: the two bands and the ground.
 var (
 	redColor   = color.RGBA{R: 220, G: 90, B: 90, A: 255}
@@ -238,7 +242,8 @@ var (
 	roadColor  = color.RGBA{R: 150, G: 130, B: 80, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
@@ -260,19 +265,14 @@ func (m *mainScene) Layers() []render.Layer {
 
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through a camera of its own, the player's view.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
 
 const (
 	// hexSprite is the texture side for a hex sprite: the hex's height, so nothing is upscaled.

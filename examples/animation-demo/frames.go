@@ -16,7 +16,7 @@ const (
 
 // bugFrame draws frame i of the bug's gait, authored facing east within the circle inscribed in
 // its box (it is Turning): a body with legs swinging fore and aft as it walks. A placeholder
-// until the game's own sheet lands — drop a PNG beside the demo and switch placeUnits' drawer to
+// until the game's own sheet lands — drop a PNG beside the demo and switch spawnUnits' drawer to
 // sheetFrames (below); nothing else changes.
 func bugFrame(i int) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {

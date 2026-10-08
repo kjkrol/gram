@@ -1,5 +1,5 @@
 // Command appearance-demo shows a game declaring how its entities are drawn in one place — the
-// world's atlas in the scene's Layers: every walker is drawn by the twin of the way it goes
+// world's atlas in the scene's pictures: every walker is drawn by the twin of the way it goes
 // (Facing), the leader turned smoothly with his crown on (Turning), the ghost as a ghost
 // whatever happens, and the angry under the angry effect's own look (Under). They bounce off
 // one another, so they turn, and the looks follow. R makes everyone angry for a while: an
@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -23,12 +24,14 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -88,6 +91,7 @@ type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
+	cameras   *cameras.Plugin
 
 	player *players.Player
 }
@@ -97,7 +101,7 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("appearance-demo").
+	return s, stage.New(AppearanceStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -105,8 +109,8 @@ func newArena() (*arena, game.Stage) {
 		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnUnits).
 		Scenes(s.defineScenes).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -116,8 +120,9 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world)
-	for _, p := range []plugin.Plugin{s.collision, s.players} {
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras)
+	for _, p := range []plugin.Plugin{s.collision, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -132,7 +137,7 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the Layers
+	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the scene's pictures
 }
 
 func (s *arena) defineRules() {
@@ -164,7 +169,8 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}}
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 // boxAt is the box of side Size round at.
@@ -172,7 +178,7 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
@@ -197,17 +203,16 @@ func (s *arena) placeUnits() {
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
 // =========================== Scene ===========================
 
-type mainScene struct{ arena *arena }
-
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
+type mainScene struct {
+	arena *arena
+}
 
 // The scene's colours: the walkers calm and angry with their light noses, the ghost's pale and
 // its eyes, the crown's gold, the backdrop.
@@ -221,13 +226,20 @@ var (
 	backgroundColor = color.RGBA{R: 40, G: 44, B: 52, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	s.world.WithRenderer(s.looks())
-	return []render.Layer{
-		render.NewCachedRenderer(render.SolidBackground{Color: backgroundColor}, ScreenWidth, ScreenHeight),
-		render.NewComposer(s.world.Renderer()),
-	}
+	return render.NewComposer(s.world.Renderer())
+}
+
+// screen is the world through a camera of its own, the player's view, on its backdrop.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
+	)
 }
 
 // looks declares every look in one place, on the world's atlas: the walker by the twin of the
@@ -280,14 +292,3 @@ func spook(dst *render.Canvas, size int) {
 	dst.FillRect(r-4, r-3, 2, 3, eyeColor)
 	dst.FillRect(r+2, r-3, 2, 3, eyeColor)
 }
-
-// Viewports are where the world is shown: the local player's view.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

@@ -1,9 +1,12 @@
 package entity
 
 import (
+	"fmt"
 	"hash/fnv"
 	"slices"
 	"strings"
+
+	"github.com/kjkrol/uid"
 )
 
 // Label is what an entity is called: its own name, borne by it alone, and the group it is in,
@@ -25,10 +28,11 @@ func hashed(name string) uint64 {
 }
 
 // Whom says which entities a command is for, or who sets it off: those Named, those in a Group,
-// or the World itself.
+// those of an ID, or the World itself.
 type Whom struct {
 	world         bool
 	names, groups []uint64
+	ids           []uid.UID64
 	said          []string
 }
 
@@ -53,6 +57,19 @@ func Group(names ...string) Whom {
 	return w
 }
 
+// ID are the entities of these identifiers: what the game's code knows of an entity — a ui
+// element pinned to it — where it has no name.
+func ID(ids ...uid.UID64) Whom {
+	w := Whom{}
+	for _, id := range ids {
+		w.ids, w.said = append(w.ids, id), append(w.said, fmt.Sprintf("entity %d", id))
+	}
+	return w
+}
+
+// IDs are the identifiers it names (ID).
+func (w Whom) IDs() []uid.UID64 { return w.ids }
+
 // Target marks Whom as whom a command may be for.
 func (Whom) Target() {}
 
@@ -60,7 +77,9 @@ func (Whom) Target() {}
 func (w Whom) IsWorld() bool { return w.world }
 
 // Nobody reports whether it names no one: the zero Whom.
-func (w Whom) Nobody() bool { return !w.world && len(w.names) == 0 && len(w.groups) == 0 }
+func (w Whom) Nobody() bool {
+	return !w.world && len(w.names) == 0 && len(w.groups) == 0 && len(w.ids) == 0
+}
 
 // Holds reports whether an entity labelled l is among those it names.
 func (w Whom) Holds(l Label) bool {

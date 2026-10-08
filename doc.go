@@ -15,16 +15,26 @@
 // (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
 // none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
 // A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
-// Players(…).Effects(…).Rules(…).Commands(…).Cells(…).Kinds(…).Controls(…).Scenes(…).
-// Layout(…).Units(…).Update(…) — always in that order, which the compiler keeps, each plugin
-// refusing what is defined out of its section.
+// Players(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Restore(…).Spawn(…).
+// Scenes(…).Update(…) — always in that order, which the compiler keeps, each plugin refusing what
+// is defined out of its section; the scenes are made once the world is there, loaded or spawned.
 //
 // Within a Stage, a Scene is one thing it can show: its renderers (Layers, built once on entering
 // the Stage) and its input handling. The Stage's [game.Scenes] is the static registry of its
 // Scenes; the live [game.Composition] over it says which are visible, in what order, and which is
 // active — the topmost focusable one, the only Scene whose HandleEvents runs. A Stage has no input
 // handling of its own. [game.Runtime] is one undivided interface — pause, quit, switch Stage,
-// persistence, the camera — that reaches a Stage and every Scene alike.
+// persistence, full screen — that reaches a Stage and every Scene alike. The cameras a game looks
+// through are a plugin's (plugins/cameras), made by the scene that shows them, beside the picture
+// they are seen through; a player owns none — it acts through the picture a scene wires it to.
+//
+// A scene's screen is composed out of elements with package ui: a [ui.Scene] takes a tree of
+// elements laid over the screen, made once the world is there: layers covering one another, columns and rows split by share, anchors,
+// panels, labels, windows, buttons giving commands, and the world itself as a picture through a
+// camera (a render.Feed of a render.Picture, a Composer of the plugins' renderers, shown by
+// ui.Image), knowing no camera. Elements pinned to entities — under
+// an effect, on a name — stand by them in the picture that shows them; the world's own drawing
+// keeps its order by depth, the screen's by the tree.
 //
 // # Plugins and rules
 //
@@ -99,36 +109,43 @@
 //	          plugin              — the extension contract: Plugin, Installer, CommandHandler, Serializable,
 //	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
 //	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
-//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the cameras (→ control, tag)
+//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the driving (→ control, tag)
 //	Layer 4   rule                — rules at a plugin's moments: On, Then, the filters, the steps; roles (Role, Plays)
 //	                                and commands about effects (Cast, Lift, Toggle, Trigger)    (→ control, plugin, entity, steps, tag, effect, kind/comp)
 //	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
 //	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, Camera; it runs
+//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, the Views; it runs
 //	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
+//	          ui                  — a scene's screen composed of elements: Layers, Columns, Rows, anchors, Panel, Label,
+//	                                Image (a render.Feed), Window, Button, words read off a Text, Theme, elements pinned to
+//	                                entities Under, On and Where, It, About (→ game, render, control, entity, effect, rule)
+//	          plugins/cameras     — the cameras a game looks through: New, Pan, Zoom, Follow, LookAt, Keys (→ world, …)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
-//	          plugins/selection   — a Select command into a Selected tag; the roles' abilities     (→ world, rule, …)
+//	          plugins/selection   — a Select command into a Selected tag; Hovered; the roles' abilities; FollowKey (→ world, rule, cameras, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	Layer 8   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, world, …)
+//	          plugins/dialog      — conversations as data: nodes from YAML, Talk, Memory, Window, Stance (→ world, ui, players/owner, …)
+//	Layer 8   plugins/driving     — units driven by hand: Ahead, Back, Turn, Toward, Tank and Compass keys (→ world, selection, board, …)
+//	Layer 9   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, driving, world, …)
 //	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
 //	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
 //	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
 //	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
 //	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
-//	          plugins/players     — a carrier over the command handlers: players, their bindings, Pan and Zoom (→ world, …)
-//	Layer 9   internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
+//	          plugins/players     — a carrier over the command handlers: players, their bindings, Through and IssueAs for a ui scene (→ world, cameras, ui, …)
+//	Layer 10  internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
 //	                                roles' rules to the plugins' hosts (→ game, plugin, rule, world, camera, control, render)
-//	Layer 10  gram                — Run; the package you import                                     (→ game, internal/engine)
+//	Layer 11  gram                — Run; the package you import                                     (→ game, internal/engine)
 //
 // Expressed as a directed graph (arrow = "is imported by"), showing the spine:
 //
 //	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
 //	control ───┘                              │  ▲
 //	                                          ▼  │
-//	                     plugins/{collision, selection, vision} ──► plugins/board ──► plugins/navigation, plugins/bullet, plugins/topography, plugins/atmosphere
+//	                     plugins/{cameras, collision, selection, vision} ──► plugins/board ──► plugins/driving ──► plugins/navigation
+//	                                                                            └──► plugins/bullet, plugins/topography, plugins/atmosphere
 //
 // Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
 // line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,

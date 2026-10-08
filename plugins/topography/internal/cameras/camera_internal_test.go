@@ -15,7 +15,7 @@ func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
 func testCamera(t *testing.T, edges aabbworld.Edges) contract.Camera {
 	t.Helper()
-	return newCamera(testProjection, 640, 640, edges, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	return sized(newCamera(testProjection, 640, 640, edges, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
 }
 
 func TestCamera_RefusesAWrappingWorld(t *testing.T) {
@@ -57,8 +57,8 @@ func TestCamera_ZoomKeepsTheAnchorAndBoundsStayInTheWorld(t *testing.T) {
 		t.Errorf("after ZoomIn the anchor moved from (%v, %v) to (%v, %v) at zoom %v", bx, by, ax, ay, cam.Zoom())
 	}
 	// over ground the anchor is the point as it is drawn, on the ground's height
-	hilly := newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true,
-		func(x, y float32) float32 { return 100 }, func() (float32, float32) { return 0, 100 }, 0)
+	hilly := sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, true,
+		func(x, y float32) float32 { return 100 }, func() (float32, float32) { return 0, 100 }, 0), 400, 300)
 	hilly.MoveTo(100, 300)
 	hx, hy := hilly.Project(330, 300, 100)
 	hilly.ZoomIn(2, 330, 300)

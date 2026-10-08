@@ -645,15 +645,15 @@ func (c *perspCamera) State() contract.State {
 }
 
 // Persisted hands saves where the eye is and how high, the heading, the pitch and how far the
-// view is narrowed; Restore draws from there, out of any unit: a save keeps the view, not the eye
-// in a unit.
+// view is narrowed; Restore draws from there, out of any unit, and the camera system takes a camera
+// fastened Inside back into its unit (viewCamera.Persisted keeps the fastening).
 func (c *perspCamera) Persisted() []any {
 	return []any{&c.origin, &c.alt, &c.heading, &c.pitch, &c.narrow}
 }
 
 func (c *perspCamera) Restore() {
 	c.inside = false
-	c.pitch = max(c.pitch, c.minPitch) // a game saved riding in a unit comes back free
+	c.pitch = max(c.pitch, c.minPitch) // out of the unit until the camera system takes it back in
 	c.look()
 	c.confine()
 }

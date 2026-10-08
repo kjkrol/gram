@@ -55,7 +55,9 @@ func (o *SingleOccupancy) Enter(c ID, entity uid.UID64, domain Domain) {
 }
 
 func (o *SingleOccupancy) Leave(c ID, entity uid.UID64) {
-	o.holders[c] = leave(o.holders[c], entity)
+	if o.holders != nil {
+		o.holders[c] = leave(o.holders[c], entity)
+	}
 }
 
 // Holder is the entity holding c in a domain domain shares — whom a step into c would meet — if
@@ -90,7 +92,9 @@ func (o *MultipleOccupancy) Enter(c ID, entity uid.UID64, domain Domain) {
 }
 
 func (o *MultipleOccupancy) Leave(c ID, entity uid.UID64) {
-	o.holders[c] = leave(o.holders[c], entity)
+	if o.holders != nil {
+		o.holders[c] = leave(o.holders[c], entity)
+	}
 }
 
 // Holder is the first entity holding c in a domain domain shares, if any.

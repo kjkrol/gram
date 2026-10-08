@@ -120,7 +120,7 @@ func (s *Shortcuts) groups() []group {
 	seen := map[string]bool{}
 	var game []string
 	for _, pl := range s.p.Locals() {
-		how := camera.HowOf(pl.Camera)
+		how := camera.HowOf(pl.pic.camera)
 		for _, b := range pl.Bindings() {
 			if !b.Holds(how) {
 				continue
@@ -130,11 +130,11 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			if c := b.Command(); c == reflect.TypeFor[Quit]() || c == reflect.TypeFor[ShowShortcuts]() {
+			h := s.p.handlerOf(b.Command())
+			if h == plugin.CommandHandler(s.p) {
 				game = append(game, line) // the players' own, but the game's as a player sees it
 				continue
 			}
-			h := s.p.handlerOf(b.Command())
 			byHandler[h] = append(byHandler[h], line)
 		}
 	}
@@ -159,19 +159,15 @@ func (s *Shortcuts) groups() []group {
 // in an entity.
 func (s *Shortcuts) title() string {
 	for _, pl := range s.p.Locals() {
-		if camera.HowOf(pl.Camera) == camera.Inside {
+		if camera.HowOf(pl.pic.camera) == camera.Inside {
 			return "Shortcuts: first person, riding in the unit"
 		}
 	}
 	return "Shortcuts"
 }
 
-// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised;
-// the players' own are the camera's.
+// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised.
 func handlerName(h plugin.CommandHandler) string {
-	if _, ok := h.(*Plugin); ok {
-		return "Camera"
-	}
 	name := reflect.TypeOf(h).String()
 	if n, ok := h.(interface{ Name() string }); ok {
 		name = n.Name()
@@ -206,6 +202,8 @@ func Written(t control.Trigger) string {
 		return "cursor at an edge"
 	case control.CursorMove:
 		return "mouse"
+	case control.CursorOver:
+		return "cursor over the world"
 	}
 	return fmt.Sprintf("%T", t)
 }

@@ -24,9 +24,11 @@ func (p *persistence) Save(basePath, label string, resources ...any) error {
 // Load restores a snapshot written by Save; a resource the save does not hold keeps its value.
 func (p *persistence) Load(basePath, label string, resources ...any) error {
 	comps := p.host.providedComps()
-	if err := load(p.host.ecs, basePath, label, comps, p.host.persistGroups(resources...)); err != nil {
+	loaded, err := load(p.host.ecs, basePath, label, comps, p.host.persistGroups(resources...))
+	if err != nil {
 		return err
 	}
+	p.host.loaded = loaded
 	p.host.runRestore()
 	systems := p.host.postLoadSystems()
 	p.host.addPendingSetup(func() []goke.System { return systems })

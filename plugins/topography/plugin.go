@@ -7,12 +7,14 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
@@ -43,8 +45,7 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // Config is the topography: the isometric view — a Cell-sized square of the world is a TileW x
 // TileH diamond, a height lifts a point HeightUnit screen units per world unit, Headroom is how
 // far above the ground a camera looks for sprites; zero TileW, TileH, HeightUnit and Headroom are
-// 64, 32, 1 and 64, Cell must be set — whether a fresh game begins Isometric rather than from
-// above, how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
+// 64, 32, 1 and 64, Cell must be set — how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
 // view's, below which the near relief hides what lies behind it), whether View reaches a third
 // view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and a Ride inside a unit,
 // seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how
@@ -55,7 +56,6 @@ type Config struct {
 	Cell, TileW, TileH float32
 	HeightUnit         float32
 	Headroom           float32
-	Isometric          bool
 	MinPitch           float32
 	Perspective        bool
 	FieldOfView        float32
@@ -88,7 +88,8 @@ type Plugin struct {
 	hexes  *hexes.Ground
 
 	cameras   *icameras.Control
-	camQueues cameraQueues // the cameras' commands, which the cameras read as their Orders
+	views     func(icameras.Config) cameras.Maker // a maker of the views starting as the Config says
+	camQueues cameraQueues                        // the cameras' commands, which the cameras read as their Orders
 	coarse    control.Queue[CoarseShadows]
 	module    *module
 }
@@ -99,10 +100,10 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says: from then on the board is
-// drawn and priced by the topography, the world's ground is its heights, its cameras are the
-// topography's and its entities stand as billboards in the isometric view. Make it right after
-// the world and the board, before anything asks for a camera; the world must have heights
-// (world.Config.Heights) and may not wrap.
+// drawn and priced by the topography, the world's ground is its heights and its entities stand as
+// billboards in the isometric view; its cameras are Views, for the cameras plugin. Make it right
+// after the world and the board; the world must have heights (world.Config.Heights) and may not
+// wrap.
 func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config) *Plugin {
 	if !worldPlugin.HasHeights() {
 		panic("topography: a map in relief needs a world with heights; set world.Config.Heights")
@@ -131,9 +132,13 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		return float32(low), float32(high)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
-		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
+		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
-	worldPlugin.SetCameras(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
+	bend := float32(worldPlugin.Scale().Bend())
+	p.views = func(start icameras.Config) cameras.Maker {
+		views.Isometric = start.Isometric
+		return cameras.Maker(p.cameras.Maker(views, ground, extent, bend))
+	}
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -141,6 +146,24 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	}
 	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground))
 	return p
+}
+
+// Start is the view a camera of a world in relief begins in: FromAbove or Isometrically.
+type Start uint8
+
+const (
+	// FromAbove begins a camera looking down from above, heights not drawn.
+	FromAbove Start = iota
+	// Isometrically begins a camera in the isometric view.
+	Isometrically
+)
+
+// Views make the cameras of a world in relief, for the cameras plugin, each beginning as start
+// says: from above, isometrically and, given Config.Perspective, in perspective, View going round
+// them. Every camera of such a world is one of these: what the topography draws asks for their
+// lines of sight.
+func (p *Plugin) Views(start Start) cameras.Maker {
+	return p.views(icameras.Config{Isometric: start == Isometrically})
 }
 
 // boardSurface is the ground's look as the painter paints it out of the board's atlas — the board
@@ -234,7 +257,12 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
 // Seed sets the ground's heights applied when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(heights func(p geom.Vec) float64) { p.seeded = heights }
+func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
+	if err := p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
+		panic("topography: " + err.Error())
+	}
+	p.seeded = heights
+}
 
 // Populate raises the seeded heights.
 func (p *Plugin) Populate() error {

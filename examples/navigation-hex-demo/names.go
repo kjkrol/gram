@@ -11,4 +11,8 @@ const (
 	// kinds of units
 	RedKind  = "red"
 	BlueKind = "blue"
+
+	// the stage and its scenes
+	BoardNavigationHexStage = "board-navigation-hex-demo"
+	MainScene               = "main"
 )

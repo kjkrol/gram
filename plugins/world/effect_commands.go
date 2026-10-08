@@ -119,7 +119,9 @@ func (c *effectCommands) carry(cmd rule.Command) {
 	c.found = c.found[:0]
 	if whom.IsWorld() {
 		c.found = append(c.found, c.world())
-	} else {
+	}
+	c.found = append(c.found, whom.IDs()...)
+	if !whom.IsWorld() && len(whom.IDs()) == 0 {
 		c.each(func(id uid.UID64, l entity.Label) {
 			if whom.Holds(l) {
 				c.found = append(c.found, id)

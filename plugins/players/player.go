@@ -8,38 +8,34 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/view"
 )
 
-// Player is whoever acts in the game and may look at a part of it: a camera and the View through
-// it, its part of the screen, and — at this keyboard — the bindings that turn its input into
-// commands.
+// Player is whoever acts in the game: the picture of the world it acts through — wired by the
+// scene shown (Plugin.Through), none in a Stage without one — and, at this keyboard, the bindings
+// that turn its input into commands.
 type Player struct {
-	ID     control.PlayerID
-	Name   string
-	Camera camera.Camera
-	View   *view.View
+	ID   control.PlayerID
+	Name string
 
 	world    *world.Plugin
-	own      bool      // looks through a camera of its own, saved with the game
-	area     geom.AABB // its part of the screen, as last laid out; zero is all of it
+	pic      picture  // the picture it acts through, as last wired
+	wiredBy  *through // the wire that told it of pic, and in which pass of input
+	wiredIn  uint64
 	local    bool
 	bindings []control.Binding
 	in       input // what the event handler has seen of its keys and buttons
 }
 
-// OwnCamera gives the player a camera of its own over the world, and its View, saved with the
-// game; call before Use. Two local players with cameras of their own split the screen.
-func (p *Player) OwnCamera() *Player {
-	p.Camera = p.world.NewCamera()
-	p.View = p.world.ViewFor(p.Camera)
-	p.own = true
-	return p
+// picture is a picture of the world a player acts through: where it lies on the screen — zero is
+// all of it — and the camera it is drawn through, nil for none.
+type picture struct {
+	area   geom.AABB
+	camera camera.Camera
 }
 
-// Area is the player's part of the screen, in pixels, as the viewports last laid it out; zero
+// Area is the player's part of the screen, in pixels, as its picture was last laid out; zero
 // before.
-func (p *Player) Area() geom.AABB { return p.area }
+func (p *Player) Area() geom.AABB { return p.pic.area }
 
 // Bind adds bindings to the player; two on one Trigger holding in one camera mode are an error,
 // never a silent last-one-wins.

@@ -37,4 +37,8 @@ const (
 	ScoutKind    = "scout"
 	PorterKind   = "porter"
 	WandererKind = "wanderer"
+
+	// the stage and its scenes
+	WireStage = "wire-demo"
+	MainScene = "main"
 )

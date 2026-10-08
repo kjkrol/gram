@@ -201,7 +201,7 @@ func (s *cameraSystem) fasten(cam *viewCamera, id uid.UID64, inside bool) {
 }
 
 // letGo ends the system's keeping of cam and reports whether it kept it: its entity's Driven
-// loses what the eye wrote — the look's Face, Flown, Climb — and an eye inside it comes out.
+// loses what the eye wrote — its Look, Flown, Climb — and an eye inside it comes out.
 func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
@@ -225,14 +225,14 @@ func (s *cameraSystem) comeOut(cam *viewCamera) {
 	}
 }
 
-// write sets the eye's part of how id is driven — the way it is to face, whether it is flown
-// from inside and how steeply — when it carries a Driven; the hand's part is navigation's.
-func (s *cameraSystem) write(id uid.UID64, face geom.Vec, flown bool, climb float64) {
+// write sets the eye's part of how id is driven — the way it looks, whether it is flown from
+// inside and how steeply — when it carries a Driven; the hand's part is whoever drives it.
+func (s *cameraSystem) write(id uid.UID64, look geom.Vec, flown bool, climb float64) {
 	if !s.query.Seek(id) {
 		return
 	}
 	if d := s.driven.At(s.query.Cursor()); d != nil {
-		d.Face, d.Flown, d.Climb = face, flown, climb
+		d.Look, d.Flown, d.Climb = look, flown, climb
 	}
 }
 
@@ -297,9 +297,9 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 				}
 			}
 			if driven != nil && f.inside { // flown from inside: the way it is steered rises as the rider looks up
-				driven.Face = geom.Vec{}
+				driven.Look = geom.Vec{}
 				if f.aiming {
-					driven.Face = f.aim
+					driven.Look = f.aim
 				}
 				driven.Flown, driven.Climb = true, -math.Sin(float64(f.cam.Pitch()))
 			}

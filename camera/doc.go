@@ -7,13 +7,18 @@
 // A [Camera] converts between world and screen (ToScreen, FromScreen, ToScreenQuads, which splits
 // a rectangle into the [Quad]s its wrapped images project to), culls (Visible, Bounds) and is
 // controlled (MoveTo and Translate in world units, CenterOn a world point at a height in the middle
-// of the screen, Pan in screen pixels — the same at any zoom —, SetViewport when the window is
-// resized, keeping the middle and raising the zoom until the world covers the new screen —
-// ZoomIn, ZoomOut, with min and max zoom). It keeps its own window
-// arithmetic: wrapping on a wrapping axis of the world, held inside the world on any other.
-// The cameras themselves live in internal/camera; a game gets one from the world plugin
-// (world.Plugin.Camera, NewCamera), built from a [Config] with a viewport size and zoom limits,
-// through whichever projection the world's view gives it.
+// of the screen, Pan in screen pixels — the same at any zoom —, SetViewport as whoever shows it
+// gives it its size, keeping the middle and raising the zoom until the world covers the new
+// screen — ZoomIn, ZoomOut, with min and max zoom). It keeps its own window arithmetic: wrapping on
+// a wrapping axis of the world, held inside the world on any other. One keeping the whole world
+// in view ([Config].Whole, a minimap) fits all of it at every size instead, centred, and is not
+// panned or zoomed — a [Fitting] camera says so, and the world's size, which a picture of it keeps;
+// one zoom for both axes keeps the world's proportions whatever the screen's.
+// The cameras themselves live in internal/camera and in the view plugins; a game gets one from
+// the cameras plugin (plugins/cameras: New), built from a [Config] — the scale it starts at, the
+// whole world, the entity it follows from the start, zoom limits — through whichever maker it was
+// given — cameras.TopDown, topography.Plugin.Views. Its pixels are whoever shows it's: a
+// render.Feed sizes it every frame.
 //
 // # Projection
 //
@@ -28,8 +33,8 @@
 //
 // # State
 //
-// [State] is the persistable part — the viewport and zoom — which the Camera hands to saves
-// through Persisted and takes back through Restore. Config is construction-time only.
+// [State] is the camera's window and zoom. Persisted hands saves the window, the zoom and the
+// fastening, which Restore takes back; Config is construction-time only.
 //
 // # Fastening and vanishing points
 //

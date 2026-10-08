@@ -10,4 +10,12 @@ const (
 	// kinds of units
 	RedKind  = "red"
 	BlueKind = "blue"
+
+	// the blocks, by name: what each player's camera follows
+	RedBlock  = "red block"
+	BlueBlock = "blue block"
+
+	// the stage and its scenes
+	SplitScreenStage = "split-screen-demo"
+	MainScene        = "main"
 )

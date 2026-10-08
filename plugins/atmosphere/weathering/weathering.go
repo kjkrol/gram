@@ -95,7 +95,7 @@ func (w *Weathering) Running() bool { return !w.still }
 
 // New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
 // effects fx's. It defines the effects at once; the kinds cfg names are resolved as the weather
-// first touches the board, so they may be defined after it (a Stage's Cells section comes after
+// first touches the board, so they may be defined after it (a Stage's Kinds section comes after
 // its Effects) — an unknown name panics then.
 func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()

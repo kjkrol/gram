@@ -27,7 +27,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -38,6 +40,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -92,9 +95,11 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	cameras    *cameras.Plugin
 	player     *players.Player
 	rival      *players.Player
 	vision     *vision.Plugin
@@ -106,19 +111,17 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-topography").
+	return s, stage.New(BoardTopographyStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
-		Scenes(s.defineScenes).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnGround, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -127,21 +130,19 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		Scale:    scale,
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 		Heights:  true,
 	})
-	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
-		Isometric:   true,
 		Perspective: true,
 		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
@@ -168,9 +169,9 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 		},
 	})
 	s.topography.WithAtmosphere(s.atmosphere)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.vision, s.atmosphere, s.players} {
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -213,12 +214,15 @@ func (s *arena) defineCommands() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)),
+		cameras.MouseLookKey(control.KeyO), // first person looks round with the mouse only once asked
+	)
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -276,7 +280,7 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnGround() {
 	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
@@ -284,7 +288,7 @@ func (s *arena) layOut() {
 	s.topography.Seed(func(p geom.Vec) float64 { return heights(p) * metres })
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
@@ -309,10 +313,12 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.atmosphere.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.topography.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -325,10 +331,6 @@ type mainScene struct {
 	tps   *game.TPS
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // The scene's colours: the player's walkers and giants, the rival's, the hawk.
 var (
 	playerColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
@@ -336,7 +338,8 @@ var (
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the units, the hawk and the island and hands the world's picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
@@ -357,20 +360,19 @@ func (m *mainScene) Layers() []render.Layer {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	count := func() int { return s.world.Res.Telemetry.Count }
-	layers := []render.Layer{render.NewComposer(
+	return render.NewComposer(
 		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
 		s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
-		s.nav.Renderer(), s.atmosphere.Precipitation())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
+		s.nav.Renderer(), s.atmosphere.Precipitation())
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the island through a camera of its own, the player's view, the telemetry and the clock over it.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	count := func() int { return s.world.Res.Telemetry.Count }
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
+		ui.Layer(s.world.Clock().HUD()),
+	)
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

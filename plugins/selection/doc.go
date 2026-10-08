@@ -19,8 +19,10 @@
 // (control.Issued), hits and unselects only the Selectable entities that player owns
 // (plugins/players/owner.Obeys), so another player's selection stays as it is and one Selected tag
 // serves every player. Units nobody owns belong to the virtual player control.Nobody — the game's
-// code, a script, an AI run as nobody — and only a Select nobody gave reaches them. The players'
-// Follow (C) fastens a player's camera over the one unit it has selected.
+// code, a script, an AI run as nobody — and only a Select nobody gave reaches them.
+// [Plugin.FollowKey] (C by default) fastens the camera the player looks through over the one unit
+// it has selected ([Plugin.Chosen]): a cameras.Follow the selection builds, so the cameras plugin
+// never knows the selection.
 //
 // # Selected and Pointed
 //
@@ -33,6 +35,13 @@
 //	hasten := rule.Cast(haste).On(s.selection.Selected(hasty))
 //	freeze := rule.Cast(frozen).On(s.selection.Pointed()).For(3 * time.Second)
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", hasten))
+//
+// # Hovered
+//
+// Every tick the cursor lies over a player's picture of the world (control.CursorOver, among the
+// default bindings) it gives a [Hover], and the entity drawn under it, picked as Pointed picks,
+// carries Hovered until the next tick: what a ui element pinned Where the tag is carried stands by
+// (ui.Tagged). One tag serves every player: two cursors over a split screen hover two entities.
 //
 // # Renderer
 //

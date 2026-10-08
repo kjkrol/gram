@@ -1,0 +1,54 @@
+# The miller's conversations: greet is where every one begins (MillerGreetNode).
+
+miller.greet:
+  speaker: Miller
+  say: ["Hello, traveller! Fine weather for the mill."]
+  choices:
+    - text: "Good to see you again, miller!"
+      if: friend
+      next: miller.flour
+    - text: "Hello to you too!"
+      if: "!friend"
+      mood: 40
+      next: miller.glad
+    - text: "Who are you?"
+      next: miller.who
+    - text: "Out of my way."
+      mood: -60
+      next: end
+
+miller.who:
+  speaker: Miller
+  say: ["The miller of this meadow.", "My sails turn whenever the wind blows."]
+  choices:
+    - text: "Nice to meet you."
+      mood: 20
+      next: miller.glad
+    - text: "A mill without a river?"
+      mood: -10
+      next: miller.wind
+    - text: "I see."
+      next: end
+
+miller.wind:
+  speaker: Miller
+  say: ["A windmill, clever one."]
+  choices:
+    - text: "Of course. Sorry."
+      mood: 10
+      next: end
+
+miller.glad:
+  speaker: Miller
+  say: ["Glad to meet you. Come back any time!"]
+  choices:
+    - text: "Bye."
+      next: end
+
+miller.flour:
+  speaker: Miller
+  say: ["Back again! Take a sack of flour for the road."]
+  choices:
+    - text: "Thank you, friend."
+      mood: 10
+      next: end

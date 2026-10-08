@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/ui"
 )
 
 // ownerStage is a world with two players and one unit the second owns; loadFrom, when set, is the
@@ -24,6 +25,8 @@ type ownerStage struct {
 
 	world   *world.Plugin
 	players *players.Plugin
+	first   *players.Player
+	second  *players.Player
 	unit    kind.Of[struct{}]
 	owners  goke.Comp[tag.Tags[owner.Family]]
 	query   *goke.Query
@@ -38,8 +41,9 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	s.players = players.NewPlugin(s.world)
-	s.players.Local("first")
+	s.first = s.players.Local("first")
 	second := s.players.Add("second")
+	s.second = second
 	ctx.Setup(ownersProbe{s})
 	kind.Define[struct{}](s.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
@@ -122,5 +126,28 @@ func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
 	}
 	if got := loader.ownersOfTheUnit(t); !owner.Obeys(got, 2) || owner.Obeys(got, 1) {
 		t.Errorf("after a load the unit is owned by %b, want the second player alone", got)
+	}
+}
+
+// A player's picture shows elements pinned to its own units and nobody's, not another's.
+func TestThrough_ShowsWhatIsThePlayersOwn(t *testing.T) {
+	s := &ownerStage{}
+	if err := engine.NewEngine(ownerGame{s}).Init(); err != nil {
+		t.Fatal(err)
+	}
+	s.query.All()
+	s.query.Next()
+	unit := s.query.Cursor().IDs[0]
+	first, _ := s.players.Through(s.first).(ui.Owner)
+	second, _ := s.players.Through(s.second).(ui.Owner)
+	if first == nil || second == nil {
+		t.Fatal("a player's Through is no ui.Owner")
+	}
+	if first.Shows(unit) || !second.Shows(unit) {
+		t.Errorf("the second's unit shown to the first %v, to the second %v; want to the second alone",
+			first.Shows(unit), second.Shows(unit))
+	}
+	if !first.Shows(unit + 1000) {
+		t.Error("an entity the players know nothing of is hidden, want shown to all")
 	}
 }

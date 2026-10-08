@@ -4,8 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -25,6 +27,7 @@ func needGPU(t *testing.T) {
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
 	screen := render.NewImage(100, 100)
@@ -39,7 +42,7 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 		t.Errorf("the sun's disc in the middle is %v, want white", c)
 	}
 	screen.Clear()
-	b.Draw(render.Target{Screen: screen}, shifted{Camera: w.Camera(), dx: 150}, render.UniformsOf(map[string]any{}))
+	b.Draw(render.Target{Screen: screen}, shifted{Camera: cam, dx: 150}, render.UniformsOf(map[string]any{}))
 	screen.ReadPixels(pix)
 	if c := at(70, 30); c != [4]byte{128, 179, 255, 255} {
 		t.Errorf("past the world's edge from above the screen is %v, want the sky's colour", c)

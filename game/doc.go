@@ -21,21 +21,22 @@
 // reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
 // Update advances the simulation one tick by running the plugins' RunPlan in the order the game
 // needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand: package
-// game/stage defines a Stage a section at a time — plugins, players, cells, effects, rules,
-// commands, kinds, controls, looks, scenes, layout, units, update — always in that order.
+// game/stage defines a Stage a section at a time — plugins, players, effects, rules, commands,
+// kinds, controls, restore, spawn, scenes, update — always in that order, its scenes made once the
+// world is there, loaded or spawned.
 //
 // # Scene, Scenes and Composition
 //
 // A [Scene] is one thing a Stage can show: Layers, bottom to top, built once when the Stage is
-// entered — render.Renderers drawn on the screen and render.WorldRenderers drawn through each
-// viewport of a Scene that is a [Viewer] (a player's view, split-screen halves, a minimap; a menu
-// or a pause screen shows no world and needs none); HandleEvents, this tick's input, run only while the Scene is active (the
+// entered — render.Renderers drawn on the screen; a scene showing the world is a ui.Scene, its
+// screen composed of elements, the world among them a picture through a camera (a player's view,
+// split-screen halves, a minimap); HandleEvents, this tick's input, run only while the Scene is active (the
 // moves of the game go to the players plugin's EventHandler, the rest — pause, quit — stay here); and
 // Focusable, whether it can ever be active. [Scenes], built by [NewStack], is the Stage's static
 // registry of them by Name. Its [Composition] is the live state: which Scenes are visible, in what
 // order, and Active, the topmost focusable one — so a non-focusable HUD can sit on top and never
-// steal input. Composition is Serializable; a Stage hands it to Initializer.Track in Init so
-// visibility and order survive a save.
+// steal input. Composition is Serializable; a Stage hands it to Initializer.Track so visibility and
+// order survive a save — tracked after a Load, it gets the saved state as it is tracked.
 //
 // # Initializer
 //
@@ -55,7 +56,7 @@
 // # Runtime
 //
 // [Runtime] is engine-level control, one undivided interface: Paused, Pause, Resume, TogglePause,
-// Quit, SwitchStage to another Stage by name, Persistence, TPS and the active Stage's Camera. The
+// Quit, SwitchStage to another Stage by name, Persistence, TPS and ToggleFullscreen. The
 // same value reaches a Stage and every Scene's HandleEvents; there is no cut-down scene-level
 // subset. A menu's Start button calls SwitchStage directly.
 //

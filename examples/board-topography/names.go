@@ -21,6 +21,10 @@ const (
 	RivalKind   = "rival"
 	HawkKind    = "hawk"
 	PlateauKind = "plateau"
+
+	// the stage and its scenes
+	BoardTopographyStage = "board-topography"
+	MainScene            = "main"
 )
 
 // snowyCell is the name of the kind of cell a kind turns into under snow.

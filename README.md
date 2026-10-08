@@ -77,6 +77,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Collisions** | `plugins/collision` | Collision over the world's space: `Collider` to take part, `Physics` to bounce and be pushed apart, `Meeting`/`Struck` for rules |
 | **Shooting** | `plugins/bullet` | Shots as entities a `Shoot` fires from a unit's muzzle, flown past the step cap and swept by collision, or thrown in an arc; `Landing`, `Resting` and `Blast` for rules; a weapon is the game's rules and effects over them |
 | **Sight** | `plugins/vision` | A `Sight` cone scanned each tick into `Sighted`, nearest first; `Sighting` rules per observer; outlines shown with Shift+C; in a world with heights the eye looks over walls, forests and hills by height |
+| **Conversations** | `plugins/dialog` | Conversations written as data: nodes of lines and answers loaded from YAML, every unit with lines of its own, answers offered on conditions, leading on and giving commands; what each speaker makes of whom it talked with, remembered; one window for every speaker |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain and occupancy; `MoveOrder` paths that re-route when terrain changes |
 | **Topography** | `plugins/topography` | A map in relief over the board: the ground's heights shaped by the player and pricing every slope, the sun's light on the relief and the terrain's shadows, grounds blending, round coasts, water glinting and running, rivers and roads drawn across the cells, the clouds' shadows, less detail far off; each kind styled by name; seen from above, isometrically or in perspective, Tab goes round |
 | **Selection** | `plugins/selection` | A `Select` command into a `Selected` tag, with default bindings (click, marquee, shift-add) and a highlight renderer |
@@ -88,10 +89,15 @@ cgo. Without a GPU the tests that draw skip themselves.
 # Example
 
 The smallest game that does something: one Stage with a torus of bouncing boxes, a collision
-plugin counting their contacts, and one Scene drawing them. This is
+plugin counting their contacts, and one Scene showing them: a `ui` screen of the world's picture
+through a camera from above — the player's view — a backdrop under it and a telemetry line over
+it. This is
 [`examples/minimal`](examples/minimal/main.go); run it with `make demo-minimal`.
 
 ```go
+// Command minimal is the smallest gram game that does something: one Stage with a world of
+// bouncing boxes, a collision plugin counting their contacts, and one Scene showing them.
+// It is the README's example, kept here so it compiles and runs.
 package main
 
 import (
@@ -103,15 +109,18 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -139,27 +148,33 @@ type box struct {
 	vel world.Velocity
 }
 
-// BoxKind is the name the one kind of unit is defined by, and found by again.
-const BoxKind = "box"
+// The names this game defines its things by: the one kind of unit, the Stage and its scene.
+const (
+	BoxKind    = "box"
+	ArenaStage = "arena"
+	ViewScene  = "view"
+)
 
 // arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
+	cameras   *cameras.Plugin
 	players   *players.Plugin
+	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — cells, effects, rules — is left out.
+// section this game has no use for — effects, rules, controls — is left out.
 func newArena() game.Stage {
 	a := &arena{}
-	return stage.New("arena").
+	return stage.New(ArenaStage).
 		Plugins(a.usePlugins).
 		Players(a.definePlayer).
 		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
-		Units(a.placeUnits).
 		Update(a.update)
 }
 
@@ -169,17 +184,21 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	a.players = players.NewPlugin(a.world)
-	if err := ctx.Use(a.collision); err != nil {
-		return err
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.cameras)
+	for _, p := range []plugin.Plugin{a.collision, a.cameras, a.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	return ctx.Use(a.players)
+	return nil
 }
 
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	return a.players.Local("player").Bind(a.players.Defaults()...)
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
 func (a *arena) defineKinds() {
@@ -191,18 +210,28 @@ func (a *arena) defineKinds() {
 	})
 }
 
+// defineScenes is the one scene: the boxes through a camera from above on a dark backdrop, the
+// player's view, a telemetry line over them.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&view{arena: a, tps: ctx.TPS()}}
+	tps := ctx.TPS()
+	count := func() int { return a.world.Res.Telemetry.Count }
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.picture())
+	return []game.Scene{ui.NewScene(ViewScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(view).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&tps.Ticks, count).With(a.stats.Reporter(&tps.Ticks))),
+	)).Input(a.players.Handle)}
 }
 
-func (a *arena) placeUnits() {
+func (a *arena) spawnUnits() {
+	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
 	entries := make([]kind.Entry, boxCount)
 	for i := range entries {
 		var vel world.Velocity
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
-		entries[i] = kind.Named[box](a.world.Kinds(), BoxKind).Entry(box{pos: placement.Place(i, boxCount), vel: vel})
+		entries[i] = boxKind.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
 }
@@ -210,18 +239,10 @@ func (a *arena) placeUnits() {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
-
-// view is the one Scene: the boxes over a dark background, with a telemetry line.
-type view struct {
-	arena *arena
-	tps   *game.TPS
-}
-
-func (v *view) Name() string    { return "view" }
-func (v *view) Focusable() bool { return true }
 
 // The scene's colours: the boxes and the backdrop.
 var (
@@ -229,28 +250,14 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-func (v *view) Layers() []render.Layer {
-	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
+// picture dresses the boxes and hands the world's picture.
+func (a *arena) picture() render.Picture {
+	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
-	v.arena.world.WithRenderer(atlas)
-
-	count := func() int { return v.arena.world.Res.Telemetry.Count }
-	return []render.Layer{
-		render.SolidBackground{Color: backgroundColor},
-		render.NewComposer(v.arena.world.Renderer()),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
-	}
-}
-
-// Viewports are where the world is shown: the camera over the whole screen.
-func (v *view) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.arena.world.Camera(), screen)
-}
-
-func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	v.arena.players.Handle(events, runtime, composition)
+	a.world.WithRenderer(atlas)
+	return render.NewComposer(a.world.Renderer())
 }
 ```
 
@@ -283,7 +290,7 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 | [`minimal`](examples/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-minimal` |
 | [`collision-demo`](examples/collision-demo) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-collision` |
 | [`appearance-demo`](examples/appearance-demo) | Walkers bouncing off one another, drawn by the world's ready-made drawing rules: facing the way each goes, red while angry, a ghost as a ghost whatever it feels, the leader with a crown on; R makes everyone angry for a while — what is drawn follows, the Appearance is never touched | `make demo-appearance` |
-| [`scenes-demo`](examples/scenes-demo) | A menu Stage switching into a gameplay Stage, a modal Scene over the ticking world, a non-focusable HUD | `make demo-scenes` |
+| [`scenes-demo`](examples/scenes-demo) | A menu Stage switching into a gameplay Stage whose `ui` screen has the world, a line of keys and a modal panel over the ticking world, open or closed as the game was saved | `make demo-scenes` |
 | [`navigation-demo`](examples/navigation-demo) | A board with terrain, units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens under the units | `make demo-navigation` |
 | [`navigation-hex-demo`](examples/navigation-hex-demo) | The same on a hex board: hex cells and route arrows at 60°, a wall of solid hex cells | `make demo-navigation-hex` |
 | [`navigation-vision-demo`](examples/navigation-vision-demo) | Navigated units with sight cones that stop at walls and fade in forests, and a hawk that flies over both and sees through the forest | `make demo-navigation-vision` |
@@ -292,11 +299,12 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 | [`board-topography`](examples/board-topography) | The same island in relief through the topography: a range of peaks and a plateau lit by the sun, sea cliffs, streams and rivers whose water runs and falls, roads over bridges, slower up the slopes and routed round them, the ground shaped under the cursor; seen isometrically, from above or in perspective, Tab goes round; units billboards, the hawk 40 up looking over what a walker's cone climbs and stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
 | [`board-atlas`](examples/board-atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
 | [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
+| [`dialog-demo`](examples/dialog-demo) | Conversations read from YAML: the traveller walked up to the miller or the smith is greeted in a window above the host, each with lines of its own; the answers lead on and move what the host makes of the traveller, which it remembers — pointed at with the traveller selected, a host says Friend, Neutral or Enemy under it, and greets the traveller again accordingly | `make demo-dialog` |
 | [`bullet-demo`](examples/bullet-demo) | A soldier on WSAD shoots: F fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
 | [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of cells that is its strip, the haste one for the selected | `make demo-trapdoor` |
 | [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a cell with a name, which stood on sets off the command that names it | `make demo-pressure-plate` |
 | [`wire-demo`](examples/wire-demo) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of cells, the lever and the plate cells with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
-| [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives | `make demo-split-screen` |
+| [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives — one `ui` screen: two feeds in `Columns`, a line between, the minimap anchored over them | `make demo-split-screen` |
 | [`vision-demo`](examples/vision-demo) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
 
 Every demo opens a window, so `go test` cannot exercise it; each ships its own tests of the
@@ -319,27 +327,31 @@ compile, a section the game has no use for is left out, and what is defined in t
 is refused:
 
 ```go
-stage.New("meadow").
-	Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
-	Players(s.definePlayer).    // the players, the plugins' default keys
-	Effects(s.defineEffects).   // the states
-	Rules(s.defineRules).       // the roles, the rules, the plans
-	Commands(s.defineCommands). // what can be asked for
-	Cells(s.defineCells).       // the kinds of cells, the roles their cells play
-	Kinds(s.defineKinds).       // the kinds of units
-	Controls(s.bindKeys).       // the game's own keys, each a command
-	Scenes(s.defineScenes).     // the scenes
-	Layout(s.layOut).           // a fresh game's board
-	Units(s.placeUnits).        // a fresh game's units
-	Update(s.update)            // the tick; hands back the game.Stage
+stage.New(MeadowStage).
+	Plugins(s.usePlugins).               // ctx.UseWorld, ctx.Use
+	Players(s.definePlayer).             // the players, the plugins' default keys
+	Effects(s.defineEffects).            // the states
+	Rules(s.defineRules).                // the roles, the rules, the plans
+	Commands(s.defineCommands).          // what can be asked for
+	Kinds(s.defineCells, s.defineKinds). // the kinds of cells and of units
+	Controls(s.bindKeys).                // the game's own keys, each a command
+	Restore(s.restore).                  // a saved game, resumed…
+	Spawn(s.spawnCells, s.spawnUnits).   // …or a fresh one: its board, its units
+	Scenes(s.defineScenes).              // the scenes, their pictures and cameras
+	Update(s.update)                     // the tick; hands back the game.Stage
 ```
 
 Within a Stage, a Scene is one thing it can show: its renderers, built once, and its input
-handling. The Stage's `Scenes` registry is static; the `Composition` over it is live — which
-Scenes are visible, in what order, and which is *active*, the topmost focusable one and the only
-Scene whose `HandleEvents` runs. A HUD that is not focusable can sit on top and never steal
-input. `Runtime` (pause, quit, switch Stage, persistence, camera) is one interface that reaches a
-Stage and every Scene alike.
+handling. The scenes are made once the world is there — at the end of `Restore` when it loaded a
+save, else of `Spawn` — and a scene makes what it shows the world through: a picture of the world
+(`render.Picture`, a Composer of the plugins' renderers) seen through a camera made beside it,
+`render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}), picture)`,
+and the player whose view it is wired to it (`ui.Image(feed).Input(s.players.Through(player))`):
+a player owns no camera. The Stage's `Scenes` registry is static; the `Composition` over it is
+live — which Scenes are visible, in what order, and which is *active*, the topmost focusable one
+and the only Scene whose `HandleEvents` runs. A HUD that is not focusable can sit on top and
+never steal input. `Runtime` (pause, quit, switch Stage, persistence, full screen) is one
+interface that reaches a Stage and every Scene alike.
 
 ## Plugins, rules and plans
 
@@ -483,7 +495,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections; the cameras live in `internal/camera` and come from the world |
 | [`control`](control/doc.go) | The input vocabulary: `InputEvents`, `KeyEvent`, `ClickEvent`, `EventHandler`; commands and bindings: `Queue`, `Issued` (by a player or an entity), `Carrier`, `Binding`, `Command`, the triggers of bindings |
-| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers; `Appearance` and the drawing rules (`Over`, `As`, `With`, `Show`) a renderer runs every frame through `Rules` |
+| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` of a world view over `Source`s and its `Frame`, a `Feed` of the world through a camera as a picture, a `Font` (Go Regular by default) and `DrawText`, `Atlas` baked at `Close`, sprite drawers, cached and telemetry renderers; `Appearance` and the drawing rules (`Over`, `As`, `With`, `Show`) a renderer runs every frame through `Rules` |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Restorer`; the hosts a plugin runs the rules of its moments with (`Rules`, `PairRules`, `StepRules`), the `Tick` they hand them, `Marks`, and what a moment is (`About`, `Met`, `Placed`, `Aimed`) |
 | [`entity/tag`](entity/tag/doc.go) | Tag families: `Tags`, `Tag`, `Any`; a leaf |
 | [`entity/kind`](entity/kind/doc.go) | What an entity is: `Spec`, `Const`/`Load` (`kind/comp`), `Define`, `Of`, `Registry` |
@@ -496,6 +508,7 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/world/steering`](plugins/world/steering/doc.go) | `Steering` profiles (knobs) and the `Course` asked of an entity through its `Helm`, carried out by the `System` each step; the commands an entity gives itself (`Away`, `Toward`, `Turn`); `Pace`, the ground's share of its speed; `Driven` for an entity steered by hand |
 | [`plugins/world/view`](plugins/world/view/doc.go) | A `View` of the world with its `EntitySet`, refreshed by the `System` after movement |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence` |
+| [`ui`](ui/doc.go) | A scene's screen composed of elements in a tree: `Layers` over one another, `Columns`/`Rows` split by `Share`, `Fixed`, `Fit`, anchors (`TopLeft`…`BottomRight`); `Panel`, `Label`, `Image` (a `render.Feed` of the world, any `render.Surface`), `Window`, `Button` (it gives commands), `LabelOf`/`ButtonOf`/`WindowOf` (words read off a `Text` for the entity pinned), `Layer` (a screen renderer); shapes (`Circle`, `Polygon`); elements pinned to entities `Under` an effect, `On` a name or `Where` a tag is carried, standing by them in their owner's picture, pointing at them off the screen, their buttons giving commands for the entity (`It`, `About`); a `Theme` with fonts that have Polish letters; the input routed to buttons, modal windows and the players |
 | [`game/stage`](game/stage/doc.go) | A Stage defined a section at a time, in one order the compiler keeps: `New(name).Plugins(…).Players(…)…Update(…)`; [`plugin/section`](plugin/section/section.go) names the parts, for a plugin refusing what is defined out of its place |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
@@ -509,7 +522,8 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V takes a camera that follows a unit behind it and inside it, first person — with the cameras turned and tilted. The commands (`View`, `Turn`, `Ride`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `MeanOfCells`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; the crowd — rules over the moment `Touch` and the commands `StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; its own crowd rules, as in StarCraft II: an ally standing makes way and stays aside, a group gathers round its point, strangers are gone round, nobody is stepped into water, off a cliff or into a wall |
 | [`plugins/bullet`](plugins/bullet/doc.go) | Shots fired and flown: `Shoot` (by a player from its selected units, by an entity, aimed), `Shots`/`Ammo`/`Body`, the `Flight`, a `Landing`, a `Resting` and a `Burst` into `Blast`s |
-| [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; `Selected(roles...)` and `Pointed()`, whom a command is for; highlight renderer |
+| [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; `Selected(roles...)` and `Pointed()`, whom a command is for; `Hovered`, the entity under the cursor; highlight renderer |
+| [`plugins/dialog`](plugins/dialog/doc.go) | Conversations as data: `Node`s loaded from YAML (`Load`) or defined in code, a unit's `Script`, `Begin`, `Choose`, `Mood`; `TalkingEf` and `TalkedEf`, the handles; `Talk` and `Memory`; `Window` and `Stance` for a scene |
 | [`plugins/players`](plugins/players/doc.go) | A carrier over the command handlers: players and their bindings, `Pan` and `Zoom`; `Follow`, a player's camera fastened over its unit (`camera.Fastening`), and `Drive`, its hand on its units, summed into a `Hand` navigation reads; whose a unit is (`players/owner`) — a player selects, orders, follows and drives its own units alone |
 | [`internal/steps`](internal/steps/doc.go) | The engine running the steps of rules and plans; `rule` and `rule/plan` are its faces |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop (gogpu), one active Stage, persistence, input capture |

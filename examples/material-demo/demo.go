@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -24,11 +25,13 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -86,6 +89,7 @@ type arena struct {
 	world   *world.Plugin
 	board   *board.Plugin
 	players *players.Plugin
+	cameras *cameras.Plugin
 	player  *players.Player
 }
 
@@ -93,17 +97,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("material-demo").
+	return s, stage.New(MaterialStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -114,8 +116,9 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world)
-	s.players = players.NewPlugin(s.world, s.board)
-	for _, p := range []plugin.Plugin{s.board, s.players} {
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board)
+	for _, p := range []plugin.Plugin{s.board, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -159,14 +162,15 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}}
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
 	s.world.Seed(wardKind.Entry(wardRow{at: geom.NewVec(ScreenWidth/2, ScreenHeight/2)}).Named(WardName))
 }
@@ -174,6 +178,7 @@ func (s *arena) placeUnits() {
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -184,17 +189,14 @@ type mainScene struct {
 	arena *arena
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // The scene's colours: the meadow and the calmed ward's ash.
 var (
 	grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 	ashColor   = color.RGBA{R: 120, G: 115, B: 110, A: 255}
 )
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
 	calm := s.world.Effects().Named(CalmEf)
@@ -210,15 +212,11 @@ func (m *mainScene) Layers() []render.Layer {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	return []render.Layer{render.NewComposer(s.board.Renderer(), s.world.Renderer())}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer())
 }
 
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through a camera of its own, the player's view.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

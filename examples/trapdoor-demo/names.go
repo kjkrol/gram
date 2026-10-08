@@ -21,6 +21,10 @@ const (
 	// kinds of units
 	ScoutKind    = "scout"
 	WandererKind = "wanderer"
+
+	// the stage and its scenes
+	TrapdoorStage = "trapdoor-demo"
+	MainScene     = "main"
 )
 
 // pullCmd is the name of the command pulling the lever called lever.

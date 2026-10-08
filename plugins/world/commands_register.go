@@ -39,9 +39,16 @@ func (c *Commands) Define(name string, cmd rule.Command) {
 
 // Named is the command defined as name; an unknown name panics.
 func (c *Commands) Named(name string) rule.Command {
-	cmd, ok := c.byName[name]
+	cmd, ok := c.Lookup(name)
 	if !ok {
 		panic(fmt.Sprintf("world: no command is defined as %q", name))
 	}
 	return cmd
+}
+
+// Lookup is Named for a plugin reading names a game wrote — a dialog's answers: false for an
+// unknown one.
+func (c *Commands) Lookup(name string) (rule.Command, bool) {
+	cmd, ok := c.byName[name]
+	return cmd, ok
 }

@@ -6,18 +6,23 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 )
 
-func TestPlugin_MakesTheWorldsCamerasIsometric(t *testing.T) {
+func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	w := topotest.NewWorld(0)
-	if w.Camera().Projection().Sorts() {
-		t.Fatal("a world is isometric before the plugin")
-	}
 	b, _ := topotest.LevelBoard(w)
-	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	for name, cam := range map[string]camera.Camera{"the world's": w.Camera(), "a new one": w.NewCamera()} {
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	cams := cameras.NewPlugin(w)
+	isometric := func() camera.Camera {
+		cam := cams.New(p.Views(topography.Isometrically), camera.Config{})
+		cam.SetViewport(128, 64)
+		cam.MoveTo(0, 0)
+		return cam
+	}
+	for name, cam := range map[string]camera.Camera{"the first": isometric(), "another": isometric()} {
 		if !cam.Projection().Sorts() || cam.Projection().Wraps() {
 			t.Errorf("%s camera draws through %T, want the plugin's isometric projection", name, cam.Projection())
 		}
@@ -25,11 +30,8 @@ func TestPlugin_MakesTheWorldsCamerasIsometric(t *testing.T) {
 			t.Errorf("%s camera draws a height 10 at the screen's origin: heights are not lifted", name)
 		}
 		if vw, vh := cam.Viewport(); vw != 128 || vh != 64 {
-			t.Errorf("%s camera is %v x %v, want the world's 128 x 64", name, vw, vh)
+			t.Errorf("%s camera is %v x %v, want the configured 128 x 64", name, vw, vh)
 		}
-	}
-	if w.ViewFor(w.Camera()) != w.View() {
-		t.Error("the world's View does not follow its new camera")
 	}
 }
 
@@ -39,10 +41,10 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 	for _, perspective := range []bool{false, true} {
 		w := topotest.NewWorld(0)
 		b, grid := topotest.LevelBoard(w)
-		topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: perspective})
+		p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: perspective})
 		wall := grid.CellIndex(2, 1)
 		b.Res.Logic.Board.Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
-		cam := w.Camera()
+		cam := topotest.Camera(w, p)
 		picker, ok := cam.(camera.Picker)
 		if !ok {
 			t.Fatal("the topography's camera is no camera.Picker")

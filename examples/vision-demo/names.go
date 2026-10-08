@@ -18,4 +18,8 @@ const (
 	// kinds of units
 	PreyKind   = "prey"
 	HunterKind = "hunter"
+
+	// the stage and its scenes
+	VisionStage = "vision-demo"
+	MainScene   = "main"
 )

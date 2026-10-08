@@ -1,6 +1,9 @@
 package selection_test
 
 import (
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
 
@@ -51,6 +54,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
+	c.players.Through(c.one).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil)) // the whole world on the screen
 	c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	c.haste = c.w.Effects().Named("haste")
 	c.w.Seed(entries(c, unit)...)

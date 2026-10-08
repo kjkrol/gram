@@ -5,7 +5,6 @@ package main
 
 import (
 	"image/color"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -20,13 +19,16 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -42,8 +44,9 @@ const (
 	BlockSpeed   = CellSize * 5
 	MaxEntCount  = 8 // the two blocks; the walls are cells, not entities
 
-	// MinimapWidth is the minimap's width in pixels; its height keeps the arena's proportions.
-	MinimapWidth = 240
+	// MinimapShare is the share of the screen's width the minimap takes, whatever the window's size;
+	// its height keeps the arena's proportions.
+	MinimapShare = 0.2
 )
 
 // =========================== Game ===========================
@@ -75,73 +78,60 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// arena is the arena, its two blocks and the players driving them: each block is its player's,
-// selected and followed by its camera from the start (kind.Entry.Told), driven by the player's
-// own keys (players.DriveKeys) through navigation.
+// arena is the arena, its two blocks and the players driving them: each block is its player's and
+// selected from the start (kind.Entry.Told), followed by the camera of its player's half
+// (camera.Config.Follow), driven by the player's own keys (driving.Compass).
 type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
 	board      *board.Plugin
 	selection  *selection.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
+	cameras    *cameras.Plugin
 	players    *players.Plugin
 	redPlayer  *players.Player
 	bluePlayer *players.Player
-	minimapCam camera.Camera
-	composer   *render.Composer
 }
 
-// newStage defines the game a section at a time, each building on those before it.
 // newArena makes the arena — the collector of the stage's plugins, which every
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("split-screen-demo").
+	return s, stage.New(SplitScreenStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Shows("main", "minimap").
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
-}
-
-// picture is the one composer of the arena, shared by the players' views and the minimap.
-func (s *arena) picture() *render.Composer {
-	if s.composer == nil {
-		s.composer = render.NewComposer(s.board.Renderer(), s.world.Renderer())
-	}
-	return s.composer
 }
 
 func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight},
 	})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav)
-	s.nav.WithPlayers(s.players)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.players} {
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
 	}
-	s.minimapCam = s.world.NewCamera()
 	return nil
 }
 
 func (s *arena) definePlayers() {
-	s.redPlayer = s.players.Local("red").OwnCamera()
-	s.bluePlayer = s.players.Local("blue").OwnCamera()
+	s.redPlayer = s.players.Local("red")
+	s.bluePlayer = s.players.Local("blue")
 }
 
 func (s *arena) defineCells() {
@@ -150,21 +140,19 @@ func (s *arena) defineCells() {
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
-// bindKeys gives each player its own keys to drive its block the way they say: WSAD the red,
-// the arrows the blue.
+// bindKeys gives each player its own keys to drive its block the way they say — WSAD the red,
+// the arrows the blue — and to follow it or let its camera go: C the red, Enter the blue.
 func (s *arena) bindKeys() error {
-	if err := s.redPlayer.Bind(players.DriveKeys(control.KeyW, control.KeyS, control.KeyA, control.KeyD)...); err != nil {
+	red := driving.Compass{Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	if err := s.redPlayer.Bind(append(red.Bindings(), s.selection.FollowKey(control.KeyC))...); err != nil {
 		return err
 	}
 	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
 	if err := s.redPlayer.Bind(append(players.GameBindings(), s.world.DefaultBindings()...)...); err != nil {
 		return err
 	}
-	return s.bluePlayer.Bind(players.DriveKeys(control.KeyArrowUp, control.KeyArrowDown, control.KeyArrowLeft, control.KeyArrowRight)...)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{&mainScene{arena: s}, &minimapScene{arena: s}}
+	blue := driving.Compass{Up: control.KeyArrowUp, Down: control.KeyArrowDown, Left: control.KeyArrowLeft, Right: control.KeyArrowRight, In: camera.Outside}
+	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
 // block is the row a block spawns from: where it starts.
@@ -179,7 +167,7 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	cellAt := s.board.Res.Logic.Board.CellIndex
 	var cells []cell.Entry
 	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
@@ -207,14 +195,15 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: FloorCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
-	// each block its player's, selected — the player's hand is on it — and followed by its camera
+	// each block its player's and selected — the player's hand is on it — called by the name its
+	// player's camera follows
 	s.world.Seed(
-		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
-		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}, players.Follow{}),
+		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Named(RedBlock).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
+		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Named(BlueBlock).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
 	)
 }
 
@@ -223,7 +212,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -238,20 +229,27 @@ var (
 	dividerColor = color.RGBA{R: 240, G: 240, B: 240, A: 255}
 )
 
-// mainScene is the arena seen by both players, each in its half, with a line between the halves.
-type mainScene struct {
-	arena *arena
-	right geom.AABB // the right half, as Viewports last laid it out
+// defineScenes is the one scene: each player's half through a camera following its block, a line
+// between, and the minimap at the bottom over them — the arena whole, following nobody, so it shows
+// both.
+func (s *arena) defineScenes() []game.Scene {
+	picture := s.picture()
+	red := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}), picture)
+	blue := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}), picture)
+	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
+	return []game.Scene{ui.NewScene(MainScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Columns(
+			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
+			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
+			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
+		),
+		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Fraction(MinimapShare, 0).Margin(10),
+	)).Input(s.players.Handle)}
 }
 
-var _ game.Scene = (*mainScene)(nil)
-var _ game.Viewer = (*mainScene)(nil)
-
-func (m *mainScene) Name() string    { return "main" }
-func (m *mainScene) Focusable() bool { return true }
-
-func (m *mainScene) Layers() []render.Layer {
-	s := m.arena
+// picture dresses the arena — its blocks and its cells — and hands its one picture, which the
+// players' halves and the minimap all show.
+func (s *arena) picture() render.Picture {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
@@ -267,77 +265,5 @@ func (m *mainScene) Layers() []render.Layer {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	return []render.Layer{s.picture(), divider{&m.right}}
-}
-
-// Viewports are the two players' halves; the right one is kept for the divider.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	vps := m.arena.players.Viewports(screen)
-	if len(vps) > 1 {
-		m.right = vps[1].Area
-	}
-	return vps
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-// divider draws the line between the halves, at the left edge of the right one, as the scene last
-// laid them out.
-type divider struct{ right *geom.AABB }
-
-func (divider) Init(*goke.SysInit) {}
-
-func (d divider) Draw(screen *render.Image) {
-	if x := float32(d.right.TopLeft.X); x > 0 {
-		render.StrokeLine(screen, x, 0, x, float32(screen.Bounds().Dy()), 2, dividerColor)
-	}
-}
-
-// minimapScene shows the whole arena through a camera of its own, in a frame at the bottom of the
-// screen; it never takes input.
-type minimapScene struct {
-	arena *arena
-	area  geom.AABB
-}
-
-var _ game.Scene = (*minimapScene)(nil)
-var _ game.Viewer = (*minimapScene)(nil)
-
-func (m *minimapScene) Name() string    { return "minimap" }
-func (m *minimapScene) Focusable() bool { return false }
-
-func (m *minimapScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
-
-// Layers are the picture the players' views draw, through the minimap's camera, and the frame.
-func (m *minimapScene) Layers() []render.Layer {
-	return []render.Layer{m.arena.picture(), frame{m}}
-}
-
-// Viewports is the minimap: the arena's proportions, MinimapWidth wide, at the bottom middle of
-// the screen, the camera zoomed out until the whole arena fits.
-func (m *minimapScene) Viewports(screen geom.AABB) []render.Viewport {
-	const w, h = MinimapWidth, MinimapWidth * WorldHeight / WorldWidth
-	x := math.Round((screen.TopLeft.X + screen.BottomRight.X - w) / 2)
-	area := geom.NewAABBAt(geom.NewVec(x, screen.BottomRight.Y-h-10), w, h)
-	if area.BottomRight.Sub(area.TopLeft) != m.area.BottomRight.Sub(m.area.TopLeft) {
-		cam := m.arena.minimapCam
-		cam.SetViewport(w, h)
-		cam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
-		cam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
-	}
-	m.area = area
-	return []render.Viewport{{Camera: m.arena.minimapCam, Area: area}}
-}
-
-// frame outlines the minimap.
-type frame struct{ m *minimapScene }
-
-func (frame) Init(*goke.SysInit) {}
-
-func (f frame) Draw(screen *render.Image) {
-	a := f.m.area
-	size := a.BottomRight.Sub(a.TopLeft)
-	render.StrokeRect(screen, float32(a.TopLeft.X), float32(a.TopLeft.Y), float32(size.X), float32(size.Y), 2, dividerColor)
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer())
 }

@@ -18,7 +18,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/examples/island"
@@ -32,7 +31,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -41,6 +42,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -92,9 +94,11 @@ type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	cameras    *cameras.Plugin
 	player     *players.Player // the one at this keyboard: the units are its
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
@@ -106,17 +110,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board").
+	return s, stage.New(BoardStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
+		Kinds(s.defineCells, s.defineKinds).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnCells, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -124,22 +126,22 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Camera:   camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight},
 	})
-	s.world.Camera().CenterOn(WorldWidth/2, WorldHeight/2, 0)
 
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
 	// A temperate island whose weather is thrown anew every run.
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.atmosphere, s.vision).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.vision, s.atmosphere, s.players} {
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.vision).WithSaves(saveBasePath)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -167,7 +169,7 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -199,13 +201,13 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	layout, _, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	entries := make([]kind.Entry, 0, len(s.stops))
 	for i, from := range s.stops {
@@ -219,9 +221,11 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.atmosphere.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -234,14 +238,12 @@ type mainScene struct {
 	tps   *game.TPS
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
 // unitColor is the walkers': the one colour the scene names itself, the island's are its kinds'.
 var unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
 
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the units and the island and hands the world's picture: the tiles and the
+// bands, the units, the clouds' shadows over them all, then the cones, the overlays and the rain.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 
@@ -257,20 +259,16 @@ func (m *mainScene) Layers() []render.Layer {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
+	return render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())
+}
+
+// screen is the world through a camera of its own, the player's view, the telemetry and the clock over it.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
-	// the tiles and the bands, the units, the clouds' shadows over them all, then the cones, the
-	// overlays and the rain
-	layers := []render.Layer{render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())}
-	return append(layers, render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter()), s.world.Clock().HUD())
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
+		ui.Layer(s.world.Clock().HUD()),
+	)
 }
-
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
-}
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }

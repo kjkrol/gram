@@ -5,12 +5,10 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -21,47 +19,37 @@ import (
 // moveCommandSystem carries out MoveTo commands: every Selected entity of the player who gave one
 // (owner.Obeys) — or the entity that gave it itself — whose domain the target takes gets its order
 // as the keeping says — a free cell each, or a spot round the point — or with Append the target
-// queued behind the order in flight. A LookAt has every such entity stop and turn. Every tick
-// each unit a player's hand is on (players.Hand) is steered by it: its Driven written and
-// Driving marked.
+// queued behind the order in flight. A LookAt has every such entity stop and turn.
 type moveCommandSystem struct {
 	keep     keeping
 	moves    *control.Queue[MoveTo]
 	looks    *control.Queue[LookAt]
-	hands    *players.Plugin // whose hands drive; nil: nobody's
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
 	group   uint32 // the last group a MoveTo was given; found in the orders and LastOrders at the first
 	grouped bool
 
-	query    *goke.Query
-	cell     goke.Comp[unit.At]
-	marks    goke.Comp[tag.Tags[selection.Family]]
-	owners   goke.OptComp[tag.Tags[owner.Family]]
-	order    goke.OptComp[MoveOrder]
-	mover    goke.OptComp[unit.Mover]
-	base     goke.OptComp[world.Base]
-	z        goke.OptComp[world.Z]
-	steer    goke.OptComp[steering.Steering]
-	orderID  goke.CompID
-	drivenID goke.CompID
-	statesID goke.CompID
+	query   *goke.Query
+	cell    goke.Comp[unit.At]
+	marks   goke.Comp[tag.Tags[selection.Family]]
+	owners  goke.OptComp[tag.Tags[owner.Family]]
+	order   goke.OptComp[MoveOrder]
+	mover   goke.OptComp[unit.Mover]
+	base    goke.OptComp[world.Base]
+	z       goke.OptComp[world.Z]
+	steer   goke.OptComp[steering.Steering]
+	orderID goke.CompID
 
-	// self finds an entity that gives itself an order, selected or not, and walks every unit for
-	// the driving
-	self       *goke.Query
-	selfCell   goke.Comp[unit.At]
-	selfOrder  goke.OptComp[MoveOrder]
-	selfMover  goke.OptComp[unit.Mover]
-	selfBase   goke.OptComp[world.Base]
-	selfZ      goke.OptComp[world.Z]
-	selfSteer  goke.OptComp[steering.Steering]
-	selfLast   goke.OptComp[LastOrder]
-	selfDriven goke.OptComp[steering.Driven]
-	selfStates goke.OptComp[tag.Tags[States]]
-	selfOwners goke.OptComp[tag.Tags[owner.Family]]
-	selfMarks  goke.OptComp[tag.Tags[selection.Family]]
+	// self finds an entity that gives itself an order, selected or not
+	self      *goke.Query
+	selfCell  goke.Comp[unit.At]
+	selfOrder goke.OptComp[MoveOrder]
+	selfMover goke.OptComp[unit.Mover]
+	selfBase  goke.OptComp[world.Base]
+	selfZ     goke.OptComp[world.Z]
+	selfSteer goke.OptComp[steering.Steering]
+	selfLast  goke.OptComp[LastOrder]
 }
 
 // issuer is who gave a command: a player, or an entity for itself.
@@ -92,98 +80,12 @@ func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.drivenID = si.RegComp[steering.Driven]()
-	s.statesID = si.RegComp[tag.Tags[States]]()
-	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfDriven).Optional(&s.selfStates).Optional(&s.selfOwners).Optional(&s.selfMarks).Build()
+	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Build()
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
 	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
-	s.drive(cb)
-}
-
-// drive writes every unit's Driven from the hand on it — the player's whose camera is fastened
-// to it, the player's that selected it with its camera fastened to nothing, or its own
-// (players.OwnHand) — marking it Driving; a Driving unit with no hand on it this tick is written
-// a zero hand, to brake, which driveSystem takes off once it stands. The fields of a Driven a
-// camera writes — Face while its eye rides in the unit, Flown, Climb — are left alone: Face is
-// navigation's only from a hand's Way, cleared with the hand unless a camera rides the unit.
-func (s *moveCommandSystem) drive(cb *goke.CmdBuf) {
-	if s.hands == nil {
-		return
-	}
-	for s.self.All(); s.self.Next(); {
-		cur := s.self.Cursor()
-		drivens, states, owners, marks := s.selfDriven.Slice(cur), s.selfStates.Slice(cur), s.selfOwners.Slice(cur), s.selfMarks.Slice(cur)
-		for i, id := range cur.IDs {
-			var owned tag.Tags[owner.Family]
-			if owners != nil {
-				owned = owners[i]
-			}
-			selected := marks != nil && marks[i].Has(s.selected)
-			h, on, ridden := s.handOn(id, owned, selected)
-			var in steering.Driven
-			if drivens != nil {
-				in = drivens[i]
-			}
-			switch {
-			case on:
-				in.Ahead, in.Turn, in.Sprint = h.Ahead, h.Turn, h.Sprint
-				if h.Way.X != 0 || h.Way.Y != 0 {
-					in.Face = h.Way // driveSystem normalises it
-				} else if !ridden {
-					in.Face = geom.Vec{}
-				}
-				if drivens != nil {
-					drivens[i] = in
-				} else {
-					cb.AddOne(id, s.drivenID, in)
-				}
-				if states != nil {
-					states[i] = states[i].With(Driving)
-				} else {
-					cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Driving))
-				}
-			case drivens != nil && states != nil && states[i].Has(Driving):
-				in.Ahead, in.Turn, in.Sprint = 0, 0, false
-				if !ridden {
-					in.Face = geom.Vec{}
-				}
-				drivens[i] = in
-			}
-		}
-	}
-}
-
-// handOn is the hand on unit id — its own, or a player's: the owner's whose camera is fastened
-// to it, or, with that camera fastened to nothing, the owner's while the unit is selected — and
-// whether a camera rides it (fastened Behind or Inside), which writes its Driven's Face itself.
-func (s *moveCommandSystem) handOn(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (h players.Hand, on, ridden bool) {
-	for _, pl := range s.hands.Players() {
-		f, fastened := camera.Fastening{}, false
-		if c, ok := pl.Camera.(camera.Fastenable); ok {
-			f = c.Fastening()
-			fastened = f.How != 0
-		}
-		if fastened && f.Entity == id && f.How != camera.Centred {
-			ridden = true
-		}
-		if on || !owner.Obeys(owned, pl.ID) {
-			continue
-		}
-		if (fastened && f.Entity == id) || (!fastened && selected) {
-			if hand, ok := s.hands.Hand(pl.ID); ok {
-				h, on = hand, true
-			}
-		}
-	}
-	if !on {
-		if hand, ok := s.hands.OwnHand(id); ok {
-			h, on = hand, true
-		}
-	}
-	return h, on, ridden
 }
 
 // members calls fn with whom a command by gave concerns: the entity that gave it itself, or every

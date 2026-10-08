@@ -1,4 +1,4 @@
 // Package camera holds gram's top-down camera behind the camera.Camera contract, with its window
-// arithmetic and wrapping. NewFromSpace and NewFromSpaceWithConfig build it; the world plugin does
-// it for a game (world.Plugin.Camera, NewCamera) unless a view plugin gives the world its own.
+// arithmetic and wrapping. NewFromSpace and NewFromSpaceWithConfig build it; a game gets it from the
+// cameras plugin (cameras.TopDown) unless a view plugin gives its own.
 package camera

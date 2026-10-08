@@ -15,6 +15,7 @@ type ecsHost struct {
 	resources *storage
 
 	tracked      []any
+	loaded       map[string][]byte // the groups of the last Load, encoded, for values tracked after it
 	pendingSetup []func() []goke.System
 	names        map[string]bool
 	layers       map[render.Layer]bool // registered, when comparable
@@ -26,6 +27,22 @@ func newECSHost() *ecsHost {
 
 // track records v among the values the host later loads, restores, populates and saves.
 func (h *ecsHost) track(v any) { h.tracked = append(h.tracked, v) }
+
+// loadLate gives v, tracked after a Load, the state the save holds for it, and restores it: a
+// Stage's scenes, made once the world is loaded.
+func (h *ecsHost) loadLate(v any) error {
+	s, ok := v.(plugin.Serializable)
+	if !ok || h.loaded == nil {
+		return nil
+	}
+	if err := decodeGroup(h.loaded, trackKey(v), s.Persisted()); err != nil {
+		return err
+	}
+	if r, ok := v.(plugin.Restorer); ok {
+		r.Restore()
+	}
+	return nil
+}
 
 // addPendingSetup queues producer to run once, during flushPendingSetup.
 func (h *ecsHost) addPendingSetup(producer func() []goke.System) {
@@ -107,15 +124,25 @@ func (h *ecsHost) runPopulate() error {
 	return nil
 }
 
-// saveTargets collects Persisted from every tracked Serializable, keyed by Go type name.
+// saveTargets collects Persisted from every tracked Serializable, keyed by Go type name — and by
+// its own name too where it has one, so several of a type (a stage's ui scenes) keep theirs apart.
 func (h *ecsHost) saveTargets() map[string][]any {
 	out := make(map[string][]any)
 	for _, v := range h.tracked {
 		if s, ok := v.(plugin.Serializable); ok {
-			out[reflect.TypeOf(v).String()] = s.Persisted()
+			out[trackKey(v)] = s.Persisted()
 		}
 	}
 	return out
+}
+
+// trackKey is the name a tracked value is saved under.
+func trackKey(v any) string {
+	key := reflect.TypeOf(v).String()
+	if n, ok := v.(interface{ Name() string }); ok {
+		key += " " + n.Name()
+	}
+	return key
 }
 
 // persistGroups combines tracked and plugin Serializables with extra into one name-keyed map.

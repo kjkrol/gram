@@ -43,7 +43,7 @@ type Look struct {
 // the entity's centre, its altitude and as high as it stands, kept there as the entity goes and
 // looking the way it faces — world.Base's Vel.Dir, kept when it stops; the axis of its sight where
 // the game points the sight that way — in perspective as LookFrom; and over it again. Riding, the
-// players' hand steers the entity (W, S, A and D there; the arrows behind it), Look turns it and
+// driving's keys steer the entity (plugins/driving: W, S, A and D there; the arrows behind it), Look turns it and
 // raises and lowers the head into the sky and down to the feet (the mouse there) — one that flies
 // climbing and diving along the look as it goes — Zoom narrows the field of view, Turn does
 // nothing. The eye rides at the entity's eye, over the top of the cell it stands on. View (Tab)
@@ -122,8 +122,9 @@ func (q *cameraQueues) Looks(fn func(cam camera.Camera, dx, dy float32)) {
 // cameraBindings switch the player's view on Tab, turn the camera while Q or E is held, raise its
 // head while R is and bow it while F is, outside any entity (camera.Outside); V takes the camera
 // closer round the unit it follows (Ride): behind it, inside it where the game reaches the
-// perspective, over it again. Riding inside, the mouse looks round, Tab leaves, Q, E, R and F do
-// nothing, and the players' keys (W, S, A and D) drive the unit.
+// perspective, over it again. Riding inside, the mouse looks round where the camera looks by mouse
+// (camera.MouseLooks: camera.Config.MouseLook, cameras.MouseLook), Tab leaves, Q, E, R and F do
+// nothing, and the driving's keys (W, S, A and D) drive the unit.
 func cameraBindings(perspective bool) []control.Binding {
 	turn := func(angle float32) func(control.Context) (Turn, bool) {
 		return func(c control.Context) (Turn, bool) { return Turn{Camera: c.Camera, Angle: angle}, true }
@@ -151,8 +152,8 @@ func cameraBindings(perspective bool) []control.Binding {
 		control.Command(control.KeyHeld{Key: control.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Outside),
 		control.Command(control.KeyPress{Key: control.KeyV}, closer, ride).In(camera.Centred, camera.Behind),
 		control.Command(control.KeyPress{Key: control.KeyV}, "Leave the unit: over it again", ride).In(camera.Inside),
-		control.Command(control.CursorMove{}, "Look round: across turns, up and down the head", func(c control.Context) (Look, bool) {
-			return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, true
+		control.Command(control.CursorMove{}, "Look round, where the camera looks by mouse: across turns, up and down the head", func(c control.Context) (Look, bool) {
+			return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, camera.MouseLooks(c.Camera)
 		}).In(camera.Inside),
 	}
 }

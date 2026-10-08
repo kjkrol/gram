@@ -1,12 +1,14 @@
 // Package topography is a map in relief over a board: the ground's heights, the light and the
 // water on them, drawn on the GPU, and the views of it — from above, isometric and in perspective.
 //
-// [NewPlugin] takes the world, the board and the [Config] — the views' sizes and reach, whether a
-// fresh game begins isometric, how the ground is shaped ([Shaping]) and what its slopes cost
-// (relief.Climbing) — and puts the board in relief at once: it is the board's Map
-// (board.Plugin.WithMap) — its Look, its Dressing, its heights and its costs — the world's Ground
-// and Look, and the maker of the world's cameras. The world must have heights
-// (world.Config.Heights) and may not wrap.
+// [NewPlugin] takes the world, the board and the [Config] — the views' sizes and reach, how the
+// ground is shaped ([Shaping]) and what its slopes cost (relief.Climbing) — and puts the board in
+// relief at once: it is the board's Map (board.Plugin.WithMap) — its Look, its Dressing, its
+// heights and its costs — the world's Ground and Look. Its cameras are [Plugin.Views], a maker for
+// the cameras plugin, each camera beginning as its [Start] says — cameras.Plugin.New(
+// topography.Views(topography.Isometrically), cfg) for a player looking isometrically, FromAbove
+// for one looking down — and every camera of a world in relief is one of them. The world must
+// have heights (world.Config.Heights) and may not wrap.
 //
 // # Packages
 //

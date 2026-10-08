@@ -11,7 +11,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -21,7 +21,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -31,6 +33,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -82,9 +85,11 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	nav        *navigation.Plugin
+	driving    *driving.Plugin
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	cameras    *cameras.Plugin
 	player     *players.Player // the one at this keyboard: the units are its
 	vision     *vision.Plugin
 }
@@ -94,14 +99,12 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-navigation-vision-demo").
+	return s, stage.New(BoardNavigationVisionStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -116,11 +119,13 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: CellSize}) // the hills in relief, seen from above
 	s.selection = selection.NewPlugin(s.world)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection).WithCollision(s.collision)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
 		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
-	s.players = players.NewPlugin(s.world, s.board, s.selection, s.nav, s.topography, s.vision)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.players, s.vision} {
+	s.cameras = cameras.NewPlugin(s.world)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.topography, s.vision)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.topography, s.selection, s.nav, s.driving, s.cameras, s.players, s.vision} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -144,7 +149,7 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{main}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
@@ -186,7 +191,7 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down column 12 with a gap at row 8, a forest either side of the gap, and a road
 	// along row 1 with both flanks.
@@ -230,7 +235,7 @@ func (s *arena) layOut() {
 	s.topography.Seed(heights)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 	brd := s.board.Res.Logic.Board
@@ -249,9 +254,11 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
+	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.topography.RunPlan(ctx, d)
+	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
@@ -262,11 +269,8 @@ type mainScene struct {
 	arena *arena
 }
 
-var _ game.Scene = (*mainScene)(nil)
-
-func (m *mainScene) Name() string { return "main" }
-
-func (m *mainScene) Layers() []render.Layer {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
@@ -293,19 +297,14 @@ func (m *mainScene) Layers() []render.Layer {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return []render.Layer{render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())}
+	return render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// Viewports are where the world is shown: the local players' views.
-func (m *mainScene) Viewports(screen geom.AABB) []render.Viewport {
-	return m.arena.players.Viewports(screen)
+// screen is the world through a camera of its own, the player's view.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
-
-func (m *mainScene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	m.arena.players.Handle(events, runtime, composition)
-}
-
-func (m *mainScene) Focusable() bool { return true }
 
 const (
 	wallCol = 12

@@ -78,7 +78,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
 	p.kinds.Guard = func(name string) {
-		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Cells); err != nil {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
 			panic("board: " + err.Error())
 		}
 	}
@@ -96,6 +96,10 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
 	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope)
 	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
+	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q", unit.EnteredName))
+	}
+	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
 	return p
 }
 
@@ -257,7 +261,7 @@ func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) {
-	if err := p.worldPlugin.InSection("the board's layout seeded", section.Layout); err != nil {
+	if err := p.worldPlugin.InSection("the board's layout seeded", section.Spawn); err != nil {
 		panic("board: " + err.Error())
 	}
 	p.seeded = &layout

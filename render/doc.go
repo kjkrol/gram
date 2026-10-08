@@ -2,17 +2,34 @@
 // Scenes or plugins. A Scene's Layers and a plugin's Renderer are made of these. Everything is
 // drawn on the GPU through WebGPU (render/gpu over gogpu), in WGSL shaders.
 //
-// # Layers: Renderer and WorldRenderer
+// # Layers: Renderer and Picture
 //
 // A Scene's layers are [Layer]s, Init once, at registration. A [Renderer] draws on the screen once
-// a frame, in screen pixels: a background, a menu, a telemetry line. A [WorldRenderer] shows the
-// world: the engine draws it once a frame per [Viewport] of its scene — a camera and a rectangle of
-// the screen — handing it that camera, so one renderer serves a player's view, the halves of a
-// split screen and a minimap alike; no renderer keeps a camera of its own. [Whole] is the one
-// viewport of a camera over the whole screen. [SolidBackground] fills the screen with one color; [CachedRenderer] draws an inner Renderer once into an offscreen image and
-// reuses it until Invalidate or the screen changes size, for a board that rarely changes; [TelemetryRenderer] prints the
-// frame and tick rates and the entity count, and under them the lines of any [Reporter] it is
-// built With — a plugin's own, such as the sky's time of day or collision's contacts a second.
+// a frame, in screen pixels: a background, a menu, a telemetry line. A [Picture] is what is in
+// the world before a camera: drawn through the camera it is handed, so one picture serves a
+// player's view, the halves of a split screen and a minimap alike; no picture keeps a camera of
+// its own. [SolidBackground] fills the screen with one color; [CachedRenderer] draws an inner
+// Renderer once into an offscreen image and reuses it until Invalidate or the screen changes
+// size, for a board that rarely changes; [TelemetryRenderer] prints the frame and tick rates and
+// the entity count, and under them the lines of any [Reporter] it is built With — a plugin's own,
+// such as the sky's time of day or collision's contacts a second.
+//
+// # Feed and Surface
+//
+// A [Feed] is the world seen through a camera: a [Picture] — a Composer, as a rule — drawn
+// through the camera every frame into an image of the size whoever shows it gives it ([Surface]:
+// Resize, Draw), the camera's viewport with it. Several feeds share one picture: the
+// halves of a split screen and a minimap. A feed turns its pixels into the world and back
+// (ToWorld, ToPixels), so whatever shows it knows nothing of its camera. One filling the whole
+// screen is drawn straight onto it (DrawOn), no image between.
+//
+// # Font and DrawText
+//
+// A [Font] is a TrueType or OpenType face at a size ([NewFont]), its glyphs drawn on demand into a
+// sheet of its own; [DefaultFont] is Go Regular at 14 pixels, with the Latin letters of every
+// European language. [DrawText] draws a string — lines under one another at its newlines — in one
+// draw, in a colour; [Font.Measure] is how much room it takes. The debug text ([DebugPrint]) stays
+// for telemetry.
 //
 // # Atlas and AtlasSource
 //
@@ -28,7 +45,7 @@
 //
 // # Composer, Frame and Source
 //
-// A [Composer] is the WorldRenderer of a scene's world: one picture per viewport from several
+// A [Composer] is the Picture of a scene's world, drawn through each camera from several
 // [Source]s — the board's, the world's, sight's, the selection's, the routes' renderers. Each
 // source hands its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: a sprite
 // ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft

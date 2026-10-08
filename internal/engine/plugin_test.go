@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
@@ -186,26 +185,6 @@ func TestInitializer_Use_RejectsBuiltinPlugin(t *testing.T) {
 	}
 }
 
-func TestEngine_Init_WorldViewportDefaultsToScreenSize(t *testing.T) {
-	props := game.Props{ScreenWidth: 200, ScreenHeight: 150}
-	var got camera.Camera
-	stage := &stubStage{initFn: func(ctx game.Initializer) error {
-		got = ctx.UseWorld(world.Config{
-			Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		}).Camera()
-		return nil
-	}}
-	eng := NewEngine(oneStageGame{stage: stage, props: props})
-	if err := eng.Init(); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	b := got.Bounds()
-	if w, h := b.BottomRight.X-b.TopLeft.X, b.BottomRight.Y-b.TopLeft.Y; w != 200 || h != 150 {
-		t.Errorf("Camera().Bounds() size = %vx%v, want 200x150 (screen size, not world size)", w, h)
-	}
-}
-
 func TestInitializer_UseWorld_ReturnsInstalledInstance(t *testing.T) {
 	var got *world.Plugin
 	eng := newTestEngine(func(ctx game.Initializer) error {
@@ -246,8 +225,5 @@ func TestEngine_Init_StageWithoutUseWorldGetsNoWorld(t *testing.T) {
 	}
 	if eng.current.world != nil {
 		t.Errorf("Stage world = %v, want nil when the Stage never calls UseWorld", eng.current.world)
-	}
-	if cam := eng.Camera(); cam != nil {
-		t.Errorf("Engine.Camera() = %v, want nil without a world", cam)
 	}
 }

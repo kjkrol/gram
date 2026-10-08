@@ -25,4 +25,8 @@ const (
 	WandererKind = "wanderer"
 	RoundKind    = "round"
 	GrenadeKind  = "grenade"
+
+	// the stage and its scenes
+	BulletStage = "bullet-demo"
+	MainScene   = "main"
 )

@@ -24,7 +24,7 @@
 // with the type erased, as a carrier sorts commands into them, and [Carrier] is one: the world's
 // takes the players' commands and those its entities give themselves (Order in a rule or a
 // plan) to the queues of their types. A [Binding] is a [Trigger] — [KeyPress], [KeyHeld], [ButtonPress], [Drag], [Wheel], [ButtonHeld],
-// [CursorAtEdge], [CursorMove], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
+// [CursorAtEdge], [CursorMove], [CursorOver], each with exactly its [Mods] — the command [Command] builds from a [Context] (the
 // player, its camera, the cursor, a drag's start and end, World and WorldBox through the camera —
 // a camera.Picker's own pick of the ground, else, over Ground, on the ground: a click on a hill
 // lands on the hill)

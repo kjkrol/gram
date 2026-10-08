@@ -12,9 +12,8 @@
 // ever. A kind gives a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot, zero the cell's
 // centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
 // by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
-// [Leg] is the single step in flight. Its markers ([States], carried for good — the plugin gives
-// them to every unit the world's roster makes) have [Entered] on for the step its At changed:
-// the At says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
+// [Leg] is the single step in flight. Stepping into another cell it has unit.Entered on for that
+// step (the board's marker: the At says which cell it entered). A navigated entity carries a steering.Steering profile: navigation only asks it for
 // a heading at the lookahead point and for its own top speed, braking from the profile before the
 // goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
@@ -107,26 +106,13 @@
 //
 // # Driven by hand
 //
-// An entity carrying a steering.Driven — written every tick from the hand on it, the eye's part by
-// a camera riding in it — is carried out after the orders: it turns by hand (Turn, or towards Face:
-// where an eye riding in it looks), walks on the way it faces while the ground just ahead is a
-// cell its domain may stand on and nobody is in the way — the occupancy lets it into the cell, or,
-// under BodySpacing, it touches nobody just ahead — and stops dead otherwise, so it never walks into
-// the sea; with no hand on it, it brakes. A hand ends any order it had, giving up the cells of the
-// step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
-// cell by cell, with Entered.
-//
-// A player's hand is the players' (players.Drive, summed a tick into players.Hand), which
-// navigation reads given the players ([Plugin.WithPlayers]): every tick each unit a hand is on —
-// the owner's whose camera is fastened to it (camera.Fastening), the owner's while the unit is
-// selected with that camera fastened to nothing, or its own (an entity's Drive for itself) — gets
-// the hand's part of its Driven written (Ahead, Turn, Sprint, Face from the hand's Way) and the
-// marker [Driving]; a tick without a hand brakes a Driving unit, and once it stands — or has an
-// order to go on with — its Driven is taken off, so it steps aside for others again. The eye's
-// part of a Driven — Face while a camera riding in the unit turns it, Flown, Climb — is the
-// camera's and left alone; a Driven navigation did not give is left alone whole. A unit under
-// orders struck by what was only sensed — a shot, a sensor —
-// is not Bumped by it: a sensor blocks nobody.
+// Driving a unit by hand is the driving plugin's (plugins/driving), which [NewPlugin] takes: it
+// hands the driving its spacing's say over whether a driven unit may walk on into the cell ahead
+// — the occupancy lets it in, or, under BodySpacing, it touches nobody just ahead — and whether a
+// unit is under orders, which the driving leaves be with no hand on it. A unit a hand is on
+// (steering.Driven.Steers) gives its order up in navigation's pass, the cells of the step in
+// progress let go; navigation's RunPlan comes before the driving's. A unit under orders struck by
+// what was only sensed — a shot, a sensor — is not Bumped by it: a sensor blocks nobody.
 //
 // # Renderer
 //

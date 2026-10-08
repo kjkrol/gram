@@ -25,7 +25,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
 		}
-		ctx := control.Context{Player: pl.ID, Camera: pl.Camera, Cursor: pl.in.cursor, Delta: ev.CursorDelta,
+		ctx := control.Context{Player: pl.ID, Camera: pl.pic.camera, Cursor: pl.in.cursor, Delta: ev.CursorDelta,
 			Wheel: ev.ScrollDelta, Screen: screenOf(pl), Mods: mods, FillsScreen: ev.WindowFillsScreen}
 
 		for _, k := range ev.KeyEvents {
@@ -43,7 +43,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		mods := pl.in.withHeld(mods)
 		ctx.Mods = mods
 		moved := ev.CursorDelta.X != 0 || ev.CursorDelta.Y != 0
-		if moved && settled && (under || camera.HowOf(pl.Camera) == camera.Inside) {
+		if moved && settled && (under || camera.HowOf(pl.pic.camera) == camera.Inside) {
 			t.fire(pl, control.CursorMove{}, ctx)
 		}
 		for _, c := range ev.ClickQueue {
@@ -65,6 +65,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				}
 			}
 		}
+		pl.in.over = false
 		if !under {
 			continue
 		}
@@ -73,6 +74,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		}
 
 		inside := ctx.Cursor.X >= 0 && ctx.Cursor.X < ctx.Screen.X && ctx.Cursor.Y >= 0 && ctx.Cursor.Y < ctx.Screen.Y
+		pl.in.over = inside
 		if !inside {
 			continue
 		}
@@ -86,7 +88,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				t.fire(pl, control.ButtonHeld{Button: control.MouseButtonMiddle}, ctx)
 			}
 		}
-		if atEdge(ctx) {
+		if ctx.Edges().Any() {
 			t.fire(pl, control.CursorAtEdge{}, ctx)
 		}
 	}
@@ -95,7 +97,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 // fire issues the command of every binding of pl on trigger that holds however pl's camera is fastened
 // and builds one.
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
-	how := camera.HowOf(pl.Camera)
+	how := camera.HowOf(pl.pic.camera)
 	for _, b := range pl.bindings {
 		if b.Trigger != trigger || !b.Holds(how) {
 			continue
@@ -108,12 +110,15 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 	}
 }
 
-// hold issues, for every local player, the command of each KeyHeld binding whose key is down, as
-// of the player's last input pass.
+// hold issues, for every local player, the command of each KeyHeld binding whose key is down and
+// of its CursorOver bindings while the cursor lay over its picture, as of its last input pass.
 func (t eventHandler) hold() {
 	for _, pl := range t.p.Locals() {
 		for _, key := range pl.in.steering {
 			t.fire(pl, control.KeyHeld{Key: key}, pl.in.last)
+		}
+		if pl.in.over {
+			t.fire(pl, control.CursorOver{}, pl.in.last)
 		}
 	}
 }
@@ -125,6 +130,7 @@ type input struct {
 	keys     []control.Key                    // keys down that some binding holds, last pressed last
 	steering []control.Key                    // keys down that some KeyHeld binding is on
 	last     control.Context                  // the context of the last input pass
+	over     bool                             // the cursor lay over the player's picture at the last pass
 }
 
 func (in *input) press(button control.MouseButton, at geom.Vec) {
@@ -202,19 +208,26 @@ func holds(bindings []control.Binding, key control.Key) bool {
 	return false
 }
 
-// screenOf is the size of pl's part of the screen, in pixels, as its camera shows the world.
+// screenOf is the size of pl's picture, in pixels: its camera's screen, else its area's.
 func screenOf(pl *Player) geom.Vec {
-	w, h := pl.Camera.Viewport()
-	return geom.NewVec(float64(w), float64(h))
+	if cam := pl.pic.camera; cam != nil {
+		w, h := cam.Viewport()
+		return geom.NewVec(float64(w), float64(h))
+	}
+	return pl.pic.area.BottomRight.Sub(pl.pic.area.TopLeft)
 }
 
-// covers reports whether the screen point at is in pl's part of the screen; zero is all of it.
+// covers reports whether the screen point at is in pl's picture; an area of zero is all of the
+// screen, and a player acting through no picture has none.
 func covers(pl *Player, at geom.Vec) bool {
-	a := pl.area
+	if pl.pic.camera == nil {
+		return false
+	}
+	a := pl.pic.area
 	return a == (geom.AABB{}) || at.X >= a.TopLeft.X && at.X < a.BottomRight.X && at.Y >= a.TopLeft.Y && at.Y < a.BottomRight.Y
 }
 
 // localPoint is the screen point at in the pixels of pl's part of the screen.
 func localPoint(pl *Player, at geom.Vec) geom.Vec {
-	return geom.NewVec(at.X-pl.area.TopLeft.X, at.Y-pl.area.TopLeft.Y)
+	return geom.NewVec(at.X-pl.pic.area.TopLeft.X, at.Y-pl.pic.area.TopLeft.Y)
 }

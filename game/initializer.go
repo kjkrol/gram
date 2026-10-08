@@ -13,7 +13,8 @@ type Initializer interface {
 	// UseWorld builds and installs this Stage's world.Plugin from cfg; a second call panics.
 	UseWorld(cfg world.Config) *world.Plugin
 
-	// Track saves and loads s alongside the game's Plugins.
+	// Track saves and loads s alongside the game's Plugins; tracked after a Load — a Stage's
+	// scenes, made once the world is there — s gets the state the save holds for it at once.
 	Track(s plugin.Serializable) error
 
 	// TPS returns the engine's measured-ticks-per-second counter.

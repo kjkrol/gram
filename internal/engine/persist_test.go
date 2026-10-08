@@ -34,7 +34,7 @@ func TestSaveLoad_RoundTrip(t *testing.T) {
 	ecs2 := goke.New()
 	a2 := &stateA{}
 	b2 := &stateB{}
-	if err := load(ecs2, basePath, "", nil, map[string][]any{"a": {a2}, "b": {b2}}); err != nil {
+	if _, err := load(ecs2, basePath, "", nil, map[string][]any{"a": {a2}, "b": {b2}}); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if tmps, _ := filepath.Glob(filepath.Join(os.TempDir(), "gram-ecs-*.tmp")); len(tmps) != 0 {
@@ -60,7 +60,7 @@ func TestSaveLoad_ToleratesResourceAddedAfterSave(t *testing.T) {
 	ecs2 := goke.New()
 	a2 := &stateA{}
 	c2 := &stateB{S: "default"}
-	if err := load(ecs2, basePath, "", nil, map[string][]any{"a": {a2}, "c": {c2}}); err != nil {
+	if _, err := load(ecs2, basePath, "", nil, map[string][]any{"a": {a2}, "c": {c2}}); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 

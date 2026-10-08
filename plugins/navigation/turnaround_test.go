@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -56,7 +57,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		brd.Res.Logic.Board.Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
-	tw.nav = NewPlugin(brd, w, sel)
+	tw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel))
 	var c *collision.Plugin
 	if collide {
 		c = collision.NewPlugin(w)

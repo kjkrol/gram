@@ -1,5 +1,5 @@
 // Command minimal is the smallest gram game that does something: one Stage with a world of
-// bouncing boxes, a collision plugin counting their contacts, and one Scene drawing them.
+// bouncing boxes, a collision plugin counting their contacts, and one Scene showing them.
 // It is the README's example, kept here so it compiles and runs.
 package main
 
@@ -12,15 +12,18 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 const (
@@ -48,27 +51,33 @@ type box struct {
 	vel world.Velocity
 }
 
-// BoxKind is the name the one kind of unit is defined by, and found by again.
-const BoxKind = "box"
+// The names this game defines its things by: the one kind of unit, the Stage and its scene.
+const (
+	BoxKind    = "box"
+	ArenaStage = "arena"
+	ViewScene  = "view"
+)
 
 // arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
+	cameras   *cameras.Plugin
 	players   *players.Plugin
+	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — cells, effects, rules — is left out.
+// section this game has no use for — effects, rules, controls — is left out.
 func newArena() game.Stage {
 	a := &arena{}
-	return stage.New("arena").
+	return stage.New(ArenaStage).
 		Plugins(a.usePlugins).
 		Players(a.definePlayer).
 		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
-		Units(a.placeUnits).
 		Update(a.update)
 }
 
@@ -78,17 +87,21 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 	})
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
-	a.players = players.NewPlugin(a.world)
-	if err := ctx.Use(a.collision); err != nil {
-		return err
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.cameras)
+	for _, p := range []plugin.Plugin{a.collision, a.cameras, a.players} {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
 	}
-	return ctx.Use(a.players)
+	return nil
 }
 
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	return a.players.Local("player").Bind(a.players.Defaults()...)
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
 func (a *arena) defineKinds() {
@@ -100,11 +113,20 @@ func (a *arena) defineKinds() {
 	})
 }
 
+// defineScenes is the one scene: the boxes through a camera from above on a dark backdrop, the
+// player's view, a telemetry line over them.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	return []game.Scene{&view{arena: a, tps: ctx.TPS()}}
+	tps := ctx.TPS()
+	count := func() int { return a.world.Res.Telemetry.Count }
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.picture())
+	return []game.Scene{ui.NewScene(ViewScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(view).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&tps.Ticks, count).With(a.stats.Reporter(&tps.Ticks))),
+	)).Input(a.players.Handle)}
 }
 
-func (a *arena) placeUnits() {
+func (a *arena) spawnUnits() {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
@@ -120,18 +142,10 @@ func (a *arena) placeUnits() {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
-
-// view is the one Scene: the boxes over a dark background, with a telemetry line.
-type view struct {
-	arena *arena
-	tps   *game.TPS
-}
-
-func (v *view) Name() string    { return "view" }
-func (v *view) Focusable() bool { return true }
 
 // The scene's colours: the boxes and the backdrop.
 var (
@@ -139,26 +153,12 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-func (v *view) Layers() []render.Layer {
-	boxKind := kind.Named[box](v.arena.world.Kinds(), BoxKind)
+// picture dresses the boxes and hands the world's picture.
+func (a *arena) picture() render.Picture {
+	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
-	v.arena.world.WithRenderer(atlas)
-
-	count := func() int { return v.arena.world.Res.Telemetry.Count }
-	return []render.Layer{
-		render.SolidBackground{Color: backgroundColor},
-		render.NewComposer(v.arena.world.Renderer()),
-		render.NewTelemetryRenderer(&v.tps.Ticks, count).With(v.arena.stats.Reporter(&v.tps.Ticks)),
-	}
-}
-
-// Viewports are where the world is shown: the camera over the whole screen.
-func (v *view) Viewports(screen geom.AABB) []render.Viewport {
-	return render.Whole(v.arena.world.Camera(), screen)
-}
-
-func (v *view) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
-	v.arena.players.Handle(events, runtime, composition)
+	a.world.WithRenderer(atlas)
+	return render.NewComposer(a.world.Renderer())
 }

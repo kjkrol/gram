@@ -14,14 +14,14 @@ import (
 
 // =========================== Stage ===========================
 
-// MenuStage is the splash/menu — no entities, no gameplay plugins: a Stage of one scene.
-type MenuStage struct {
+// Menu is the splash/menu — no entities, no gameplay plugins: a Stage of one scene.
+type Menu struct {
 	game.Stage // defined in sections: NewMenuStage
 }
 
-// NewMenuStage builds a MenuStage that switches to the Stage named gameplayName on start.
-func NewMenuStage(gameplayName string) *MenuStage {
-	return &MenuStage{Stage: stage.New("menu").
+// NewMenuStage builds the Menu that switches to the Stage named gameplayName on start.
+func NewMenuStage(gameplayName string) *Menu {
+	return &Menu{Stage: stage.New(MenuStage).
 		Scenes(func() []game.Scene { return []game.Scene{&menuScene{gameplayName: gameplayName}} }).
 		Update(func(goke.RunCtx, time.Duration) {})}
 }
@@ -36,7 +36,7 @@ type menuScene struct{ gameplayName string }
 
 var _ game.Scene = (*menuScene)(nil)
 
-func (m *menuScene) Name() string { return "menu" }
+func (m *menuScene) Name() string { return MenuScene }
 
 func (m *menuScene) Layers() []render.Layer { return []render.Layer{&menuRenderer{}} }
 

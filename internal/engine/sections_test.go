@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -56,8 +57,8 @@ func walkerSpec() kind.Spec {
 
 func (s *sectioned) update(ctx goke.RunCtx, d time.Duration) { s.world.RunPlan(ctx, d) }
 
-// The sections run in the chain's order, each once; the Stage keeps its name, shows the first of
-// its scenes, starts fresh and seeds the layout before the units.
+// The sections run in the chain's order, each once, Kinds' and Spawn's steps in theirs; the Stage
+// keeps its name, starts fresh, and makes its scenes once the world is spawned, the first shown.
 func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
@@ -65,15 +66,14 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 		Players(func() { s.note("players") }).
 		Effects(func() error { s.note("effects"); return nil }).
 		Rules(func(game.Initializer) error { s.note("rules"); return nil }).
-		Kinds(s.defineUnit).
+		Kinds(func() { s.note("cells") }, s.defineUnit).
+		Spawn(func() { s.note("ground") }, func() { s.note("units"); s.world.Seed(s.unit.Entry(struct{}{})) }).
 		Scenes(func() []game.Scene { s.note("scenes"); return []game.Scene{&scene{name: "main"}, &scene{name: "help"}} }).
-		Layout(func() { s.note("layout") }).
-		Units(func() { s.note("units"); s.world.Seed(s.unit.Entry(struct{}{})) }).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	want := []string{"plugins", "players", "effects", "rules", "kinds", "scenes", "layout", "units"}
+	want := []string{"plugins", "players", "effects", "rules", "cells", "kinds", "ground", "units", "scenes"}
 	if !slices.Equal(s.ran, want) {
 		t.Errorf("sections ran %v, want %v", s.ran, want)
 	}
@@ -85,19 +85,19 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	}
 }
 
-// Shows names the scenes shown in place of the first; Restore reporting true leaves the layout and
-// the units unseeded.
+// Shows names the scenes shown in place of the first; Restore reporting true spawns nothing and
+// still makes the scenes.
 func TestStage_ShowsAndRestore(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
 		Plugins(s.useWorld).
+		Restore(func(game.Persistence) (bool, error) { return true, nil }).
+		Spawn(func() { s.note("ground") }, func() { s.note("units") }).
 		Scenes(func() []game.Scene {
+			s.note("scenes")
 			return []game.Scene{&scene{name: "main"}, &scene{name: "help"}, &scene{name: "hud"}}
 		}).
 		Shows("main", "hud").
-		Restore(func(game.Persistence) (bool, error) { return true, nil }).
-		Layout(func() { s.note("layout") }).
-		Units(func() { s.note("units") }).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -105,8 +105,53 @@ func TestStage_ShowsAndRestore(t *testing.T) {
 	if got := st.Stack().Composition().Order(); !slices.Equal(got, []string{"main", "hud"}) {
 		t.Errorf("shown %v, want main and hud", got)
 	}
-	if slices.Contains(s.ran, "layout") || slices.Contains(s.ran, "units") {
-		t.Errorf("ran %v: a restored Stage seeds nothing", s.ran)
+	if !slices.Equal(s.ran, []string{"plugins", "scenes"}) {
+		t.Errorf("ran %v: a restored Stage spawns nothing and makes its scenes", s.ran)
+	}
+}
+
+// kept is a scene keeping state of its own, saved with the game.
+type kept struct {
+	scene
+	note     string
+	restored bool
+}
+
+func (k *kept) Persisted() []any { return []any{&k.note} }
+func (k *kept) Restore()         { k.restored = true }
+
+// A loaded game's scenes, made once it is loaded, are as they were saved: the scenes shown and a
+// scene's own state.
+func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
+	basePath := filepath.Join(t.TempDir(), "meadow")
+	define := func(s *sectioned, k *kept, restore func(game.Persistence) (bool, error)) game.Stage {
+		return stage.New("meadow").
+			Plugins(s.useWorld).
+			Restore(restore).
+			Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}, k, &scene{name: "hud"}} }).
+			Update(s.update)
+	}
+	fresh := &kept{scene: scene{name: "help"}}
+	eng := NewEngine(oneStageGame{stage: define(&sectioned{}, fresh, func(game.Persistence) (bool, error) { return false, nil })})
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	eng.current.stage.Stack().Composition().Show("hud")
+	fresh.note = "seen"
+	if err := eng.Persistence().Save(basePath, ""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded := &kept{scene: scene{name: "help"}}
+	st := define(&sectioned{}, loaded, func(p game.Persistence) (bool, error) { return true, p.Load(basePath, "") })
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init of the loaded game: %v", err)
+	}
+	if got := st.Stack().Composition().Order(); !slices.Equal(got, []string{"main", "hud"}) {
+		t.Errorf("a loaded game shows %v, want main and hud as saved", got)
+	}
+	if loaded.note != "seen" || !loaded.restored {
+		t.Errorf("a loaded game's scene has %q, restored %v; want its saved state, restored", loaded.note, loaded.restored)
 	}
 }
 
@@ -191,13 +236,13 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	}
 }
 
-// Units seeded in Layout are refused; in Units they are taken. The engine tells the section it is
+// Units seeded in Controls are refused; in Spawn they are taken. The engine tells the section it is
 // in to whoever asks.
 func TestStage_SeedsInTheirSections(t *testing.T) {
 	s := &sectioned{}
 	var during section.Part
 	st := stage.New("meadow").Plugins(s.useWorld).Kinds(s.defineUnit).
-		Layout(func() (err error) {
+		Controls(func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
 					err = fmt.Errorf("panic: %v", r)
@@ -206,16 +251,16 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 			s.world.Seed(s.unit.Entry(struct{}{}))
 			return nil
 		}).Update(s.update)
-	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "it belongs in Units") {
-		t.Errorf("units seeded in Layout: Init = %v, want them refused as belonging in Units", err)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "it belongs in Spawn") {
+		t.Errorf("units seeded in Controls: Init = %v, want them refused as belonging in Spawn", err)
 	}
 	s = &sectioned{}
 	st = stage.New("meadow").
 		Plugins(func(ctx game.Initializer) { s.useWorld(ctx); during = ctx.(section.Reader).Section() }).
 		Kinds(s.defineUnit).
-		Units(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
+		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
-		t.Errorf("units seeded in Units: Init = %v", err)
+		t.Errorf("units seeded in Spawn: Init = %v", err)
 	}
 	if during != section.Plugins {
 		t.Errorf("in Plugins the engine says %v", during)
@@ -223,7 +268,7 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 }
 
 // The board and the players refuse what is theirs out of its section: a kind of cell outside
-// Cells, a board seeded outside Layout, a player added outside Players, keys bound outside
+// Kinds, a board seeded outside Spawn, a player added outside Players, keys bound outside
 // Players and Controls.
 func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	type built struct {
@@ -248,8 +293,8 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string
 	}{
-		"a kind of cell defined": {func(b *built) error { b.board.CellKinds().Define("grass", grass); return nil }, "Cells"},
-		"the board seeded":       {func(b *built) error { b.board.Seed(board.Layout{}); return nil }, "Layout"},
+		"a kind of cell defined": {func(b *built) error { b.board.CellKinds().Define("grass", grass); return nil }, "Kinds"},
+		"the board seeded":       {func(b *built) error { b.board.Seed(board.Layout{}); return nil }, "Spawn"},
 		"a player added":         {func(b *built) error { b.players.Add("late"); return nil }, "Players"},
 		"keys bound":             {func(b *built) error { return b.player.Bind() }, "Players"},
 	} {
@@ -275,9 +320,9 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	b := &built{}
 	st := stage.New("meadow").Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
-		Cells(func() { b.board.CellKinds().Define("grass", grass) }).
+		Kinds(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).
-		Layout(func() { b.board.Seed(board.Layout{Default: "grass"}) }).
+		Spawn(func() { b.board.Seed(board.Layout{Default: "grass"}) }).
 		Update(b.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Errorf("each in its section: Init = %v", err)

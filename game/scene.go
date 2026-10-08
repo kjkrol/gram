@@ -1,7 +1,6 @@
 package game
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/render"
 )
@@ -11,8 +10,9 @@ type Scene interface {
 	// Name uniquely identifies this scene.
 	Name() string
 
-	// Layers returns this scene's layers, bottom to top: render.Renderers drawn on the screen and
-	// render.WorldRenderers drawn through each viewport; called once, when the Stage is entered.
+	// Layers returns this scene's layers, bottom to top, render.Renderers drawn on the screen — the
+	// world among them through a ui.Image of a render.Feed (ui.Scene); called once, when the Stage
+	// is entered.
 	Layers() []render.Layer
 
 	// HandleEvents handles this tick's input, while this scene is active.
@@ -26,11 +26,4 @@ type Scene interface {
 // sections has them in its stack after the game's own, hidden until something shows them.
 type Scenic interface {
 	Scenes() []Scene
-}
-
-// Viewer is a Scene showing the world: its WorldRenderers are drawn once per viewport it gives
-// for the screen, every frame — a player's camera over the whole screen, two halves of a split
-// screen, a minimap in a corner. A scene with world layers must be one.
-type Viewer interface {
-	Viewports(screen geom.AABB) []render.Viewport
 }

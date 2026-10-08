@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
@@ -26,6 +27,16 @@ type Select struct {
 // Marquee is the box of a selection being dragged, in the pixels of the view Camera draws: shown
 // until the Select that ends it.
 type Marquee struct {
+	Screen geom.AABB
+	Camera camera.Camera
+}
+
+// Hover is the command noting the entity drawn under the cursor as Hovered — the one it points
+// at, the nearest of those drawn there: given every tick the cursor lies over the player's picture
+// (control.CursorOver), at the world point At and the screen point Screen of the view Camera draws.
+// A tick without one, nobody is Hovered.
+type Hover struct {
+	At     geom.Vec
 	Screen geom.AABB
 	Camera camera.Camera
 }
@@ -97,11 +108,12 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // Queues are where Select, Allow, Forbid and the commands for the selected and the pointed at
 // land — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids}
+	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
-// drew, Shift for an additive one, the box shown as a Marquee while the button is held.
+// drew, Shift for an additive one, the box shown as a Marquee while the button is held, C to
+// follow the one unit chosen (FollowKey), and the cursor over the world into a Hover.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -114,5 +126,18 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
+		p.FollowKey(control.KeyC),
+		control.Command(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
+			return Hover{At: c.World(c.Cursor), Screen: control.ScreenRect(c.Cursor, c.Cursor), Camera: c.Camera}, true
+		}),
 	}
+}
+
+// FollowKey is key fastening the camera the player looks through over the one unit it has chosen
+// (Chosen) — kept in the middle of the screen as it goes — or letting it go: a cameras.Follow.
+func (p *Plugin) FollowKey(key control.Key) control.Binding {
+	return control.Command(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
+		id, ok := p.Chosen(c.Player)
+		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
+	})
 }

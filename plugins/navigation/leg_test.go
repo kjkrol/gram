@@ -296,13 +296,16 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			var cell goke.Comp[unit.At]
 			var order goke.Comp[MoveOrder]
-			f := si.NewFactory(&cell, &order)
+			var base goke.Comp[world.Base]
+			var steer goke.Comp[steering.Steering]
+			var course goke.Comp[steering.Course]
+			f := si.NewFactory(&cell, &order, &base, &steer, &course)
 			f.Create(1)
 			f.Next()
 			cell.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 			order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		}},
-		m.SetupSystems()[0],
+		m.navigationSystem, // its Init seeds the occupancy
 	)
 
 	for _, c := range leg.cells() {

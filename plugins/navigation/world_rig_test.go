@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -58,7 +59,8 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
 	nw.board = brd.Res.Logic.Board
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	nw.nav = NewPlugin(brd, w, selection.NewPlugin(w)).WithSpacing(CellSpacing)
+	sel := selection.NewPlugin(w)
+	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
@@ -86,7 +88,7 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 			s = append(s, comp.Load(func(u navUnit) MoveOrder { return *u.order }))
 		}
 		if u.marks {
-			s = append(s, comp.Marks[States]())
+			s = append(s, comp.Marks[unit.States]())
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
