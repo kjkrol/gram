@@ -197,7 +197,7 @@ type mainScene struct {
 var grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 
 // pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	bugKind := kind.Named[unitRow](s.world.Kinds(), BugKind)
 
@@ -217,7 +217,7 @@ func (m *mainScene) pictures() []render.WorldRenderer {
 	s.selection.WithRenderer(nil)
 
 	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the world through the player's camera.

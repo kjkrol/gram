@@ -247,7 +247,7 @@ var unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
 
 // pictures dresses the units and the island and hands the world's picture: the tiles and the
 // bands, the units, the clouds' shadows over them all, then the cones, the overlays and the rain.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 
@@ -264,7 +264,7 @@ func (m *mainScene) pictures() []render.WorldRenderer {
 	s.selection.WithRenderer(nil)
 
 	m.picture = render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the world through the player's camera, the telemetry and the clock over it.

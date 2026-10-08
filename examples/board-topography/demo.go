@@ -343,7 +343,7 @@ var (
 )
 
 // pictures dresses the units, the hawk and the island and hands the world's picture.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
@@ -368,7 +368,7 @@ func (m *mainScene) pictures() []render.WorldRenderer {
 		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
 		s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
 		s.nav.Renderer(), s.atmosphere.Precipitation())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the island through the player's camera, the telemetry and the clock over it.

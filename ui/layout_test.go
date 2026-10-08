@@ -146,7 +146,7 @@ func (*counting) DrawWorld(*render.Image, camera.Camera) {}
 
 func TestScene_InitialisesAPictureOnceWhateverListsIt(t *testing.T) {
 	p := &counting{}
-	s := NewScene("main", func() []render.WorldRenderer { return []render.WorldRenderer{p, p} },
+	s := NewScene("main", func() []render.Picture { return []render.Picture{p, p} },
 		func() *Element { return Layers() })
 	for _, l := range s.Layers() {
 		l.Init(nil)

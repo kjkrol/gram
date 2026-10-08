@@ -28,7 +28,7 @@
 // through are a plugin's (plugins/cameras), started by the game itself.
 //
 // A scene's screen is composed out of elements with package ui: a [ui.Scene] takes its pictures of
-// the world — render.WorldRenderers, a Composer of the plugins' renderers — and a tree of elements
+// the world — render.Pictures, a Composer of the plugins' renderers — and a tree of elements
 // laid over the screen: layers covering one another, columns and rows split by share, anchors,
 // panels, labels, windows, buttons giving commands, and the world itself as a picture through a
 // camera (a render.Feed shown by ui.Image), knowing no camera. Elements pinned to entities — under

@@ -287,7 +287,7 @@ var (
 )
 
 // pictures dresses the unit and the board from the game's own atlas and hands the world's picture.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	worldAtlas := render.NewAtlas()
@@ -309,7 +309,7 @@ func (m *mainScene) pictures() []render.WorldRenderer {
 	s.selection.WithRenderer(nil)
 
 	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the world through the player's camera, the telemetry and the clock over it.

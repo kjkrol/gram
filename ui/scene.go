@@ -19,7 +19,7 @@ import (
 // Both are asked for once, as the Stage is entered.
 type Scene struct {
 	name     string
-	pictures func() []render.WorldRenderer
+	pictures func() []render.Picture
 	screen   func() *Element
 	root     *Element
 	input    func(*control.InputEvents, game.Runtime, game.Composition)
@@ -37,7 +37,7 @@ var _ plugin.Serializable = (*Scene)(nil)
 var _ plugin.Restorer = (*Scene)(nil)
 
 // NewScene is the scene name: the pictures of the world it shows, and its screen.
-func NewScene(name string, pictures func() []render.WorldRenderer, screen func() *Element) *Scene {
+func NewScene(name string, pictures func() []render.Picture, screen func() *Element) *Scene {
 	return &Scene{name: name, pictures: pictures, screen: screen, theme: DefaultTheme()}
 }
 
@@ -52,7 +52,7 @@ func (s *Scene) Name() string { return s.name }
 // Layers is the one layer drawing the screen: it initialises the pictures, lays the elements over
 // the screen every frame and draws them.
 func (s *Scene) Layers() []render.Layer {
-	var pictures []render.WorldRenderer
+	var pictures []render.Picture
 	if s.pictures != nil {
 		pictures = s.pictures()
 	}
@@ -172,7 +172,7 @@ func (s *Scene) each(name string, fn func(*Element)) {
 // drawing is the scene's layer: the screen's elements, laid and drawn every frame.
 type drawing struct {
 	scene    *Scene
-	pictures []render.WorldRenderer
+	pictures []render.Picture
 	pins     []*Element // the elements pinned to entities
 
 	query  *goke.Query // every entity carrying effect markers, and its place if it has one
@@ -184,7 +184,7 @@ type drawing struct {
 }
 
 func (d *drawing) Init(si *goke.SysInit) {
-	seen := map[render.WorldRenderer]bool{}
+	seen := map[render.Picture]bool{}
 	for _, p := range d.pictures {
 		if !seen[p] {
 			seen[p] = true

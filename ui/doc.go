@@ -5,7 +5,7 @@
 // # Scene
 //
 // A [Scene] is a game.Scene whose screen is a tree of elements: [NewScene] takes its name, its
-// pictures of the world — render.WorldRenderers, a Composer of the plugins' renderers as a rule,
+// pictures of the world — render.Pictures, a Composer of the plugins' renderers as a rule,
 // each initialised once however many feeds show it — and its screen, both asked for once as the
 // Stage is entered. Every frame the tree is laid over the screen and drawn. [Scene.Input] hands the
 // scene's input to the players' bindings; [Scene.Show], [Scene.Hide] and [Scene.Toggle] show and

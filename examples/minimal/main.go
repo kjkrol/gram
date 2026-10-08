@@ -145,14 +145,14 @@ var (
 )
 
 // pictures dresses the boxes and hands the world's picture.
-func (a *arena) pictures() []render.WorldRenderer {
+func (a *arena) pictures() []render.Picture {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	a.world.WithRenderer(atlas)
 	a.picture = render.NewComposer(a.world.Renderer())
-	return []render.WorldRenderer{a.picture}
+	return []render.Picture{a.picture}
 }
 
 // screen is the world through the player's camera on a dark backdrop, a telemetry line over it.

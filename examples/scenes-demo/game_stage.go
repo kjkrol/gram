@@ -142,14 +142,14 @@ var (
 )
 
 // pictures dresses the movers and hands the world's picture.
-func (g *gameplayArena) pictures() []render.WorldRenderer {
+func (g *gameplayArena) pictures() []render.Picture {
 	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
 	atlas := render.NewAtlas()
 	atlas.Add(moverKind, EntitySize, render.Solid(moverColor))
 	atlas.Close()
 	g.world.WithRenderer(atlas)
 	g.picture = render.NewComposer(g.world.Renderer())
-	return []render.WorldRenderer{g.picture}
+	return []render.Picture{g.picture}
 }
 
 // screen is the world on a backdrop, the keys at the bottom, and the panel: a modal window over

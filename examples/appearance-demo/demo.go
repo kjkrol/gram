@@ -228,11 +228,11 @@ var (
 )
 
 // pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	s.world.WithRenderer(s.looks())
 	m.picture = render.NewComposer(s.world.Renderer())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the world through the player's camera, on its backdrop.

@@ -242,7 +242,7 @@ var (
 )
 
 // pictures dresses the meadow and the two and hands the world's picture.
-func (s *arena) pictures() []render.WorldRenderer {
+func (s *arena) pictures() []render.Picture {
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), TravellerKind), UnitSize, render.Diamond(travellerColor))
 	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), HostKind), UnitSize, render.Solid(hostColor))
@@ -257,7 +257,7 @@ func (s *arena) pictures() []render.WorldRenderer {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.WorldRenderer{s.picture}
+	return []render.Picture{s.picture}
 }
 
 // screen is the meadow; above the host, the hello it says and the traveller's three answers, and

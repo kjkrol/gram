@@ -1408,7 +1408,7 @@ is depth's, so a route hides behind a hill and a unit in a tunnel behind the gro
 screen** (2D) is `ui`'s tree, the order its containers' names say. **ui knows no camera** and no
 `render` rule (the user's word, twice: "nie mieszajmy ui z kamerą", "nie można mieszać render z
 ui"): the world through a camera is a `render.Feed` (`render.NewFeed(cam, picture)`: a picture —
-any `WorldRenderer`, a Composer as a rule — drawn through the camera every frame into an image of
+any `render.Picture`, a Composer as a rule — drawn through the camera every frame into an image of
 the size it is shown at, the camera's viewport with it; `render.Surface` is `Resize` and `Draw`;
 `ToWorld`/`ToPixels` turn its pixels into the world and back), which `ui.Image(feed)` shows as any
 picture. `ui.NewScene(name, pictures, screen)` is a `game.Scene` (one layer: the tree laid over

@@ -299,7 +299,7 @@ var (
 )
 
 // pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.WorldRenderer {
+func (m *mainScene) pictures() []render.Picture {
 	s := m.arena
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
@@ -344,7 +344,7 @@ func (m *mainScene) pictures() []render.WorldRenderer {
 	s.selection.WithRenderer(nil)
 
 	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.WorldRenderer{m.picture}
+	return []render.Picture{m.picture}
 }
 
 // screen is the world through the player's camera.

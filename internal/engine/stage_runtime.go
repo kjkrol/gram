@@ -81,7 +81,7 @@ func checkLayers(sc game.Scene, layers []render.Layer) error {
 		if _, ok := l.(render.Renderer); ok {
 			continue
 		}
-		if _, ok := l.(render.WorldRenderer); ok {
+		if _, ok := l.(render.Picture); ok {
 			return fmt.Errorf("gram: scene %q: %T is a world layer; show it through a ui.Image(render.NewFeed(camera, it))", sc.Name(), l)
 		}
 		if _, ok := l.(render.Source); ok {

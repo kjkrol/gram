@@ -15,7 +15,7 @@ type Surface interface {
 // initialises it once.
 type Feed struct {
 	cam     camera.Camera
-	picture WorldRenderer
+	picture Picture
 	img     *Image
 	w, h    int
 }
@@ -23,7 +23,7 @@ type Feed struct {
 var _ Surface = (*Feed)(nil)
 
 // NewFeed is the world picture draws seen through cam.
-func NewFeed(cam camera.Camera, picture WorldRenderer) *Feed {
+func NewFeed(cam camera.Camera, picture Picture) *Feed {
 	return &Feed{cam: cam, picture: picture}
 }
 

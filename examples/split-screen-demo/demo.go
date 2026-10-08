@@ -240,7 +240,7 @@ var (
 
 // pictures dresses the arena — its blocks and its cells — and hands its one picture, which the
 // players' halves and the minimap all show.
-func (s *arena) pictures() []render.WorldRenderer {
+func (s *arena) pictures() []render.Picture {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
@@ -257,7 +257,7 @@ func (s *arena) pictures() []render.WorldRenderer {
 	s.board.Res.Render.ShowGridLines = false
 
 	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer())
-	return []render.WorldRenderer{s.picture}
+	return []render.Picture{s.picture}
 }
 
 // screen is each player's half, a line between, and the minimap at the bottom over them, the arena
