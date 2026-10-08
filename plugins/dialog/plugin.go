@@ -116,7 +116,7 @@ func (p *Plugin) Window() *ui.Element {
 	if p.talking == (effect.Effect{}) {
 		panic("dialog: Window before DefineEffects")
 	}
-	rows := []*ui.Element{ui.LabelOf(p.LineText())}
+	rows := []*ui.Element{ui.LabelOf(p.LineText()), ui.Blank().Size(0, 6)} // a gap before the answers
 	for i := range MaxChoices {
 		rows = append(rows, ui.ButtonOf(p.ChoiceText(i), Choose{Index: i}))
 	}
