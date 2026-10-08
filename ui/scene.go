@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/uid"
 )
 
 // Scene is a game.Scene whose screen is a tree of elements laid over the screen; the pictures of
@@ -208,6 +209,11 @@ func (d *drawing) Init(si *goke.SysInit) {
 		d.query = si.NewQueryBuilder(&d.states).Optional(&d.base).Optional(&d.z).Optional(&d.label).Build()
 		d.spots = map[*Element][]spot{}
 	}
+	for _, e := range d.pins {
+		if e.pin.where != nil {
+			e.pin.where.bind(si)
+		}
+	}
 }
 
 func (d *drawing) Draw(screen *render.Image) {
@@ -240,19 +246,28 @@ func (d *drawing) find() {
 				default:
 					continue
 				}
-				s := spot{id: id}
-				if bases != nil {
-					var z *entity.Z
-					if zs != nil {
-						z = &zs[i]
-					}
-					s.placed = true
-					s.x, s.y, s.z = p.point(bases[i], z)
-				} else if labels == nil || labels[i] == (entity.Label{}) {
-					continue // a cell, say: no place known here, and nothing that calls it
-				}
-				d.spots[e] = append(d.spots[e], s)
+				d.note(e, id, at(bases, i), at(zs, i), at(labels, i))
 			}
 		}
 	}
+	for _, e := range d.pins {
+		if e.pin.where != nil {
+			e.pin.where.each(func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label) {
+				d.note(e, id, base, z, label)
+			})
+		}
+	}
+}
+
+// note has e shown for the entity id: at its point where it has a place, where its parent lays
+// e where it has none but is called something.
+func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label) {
+	s := spot{id: id}
+	if base != nil {
+		s.placed = true
+		s.x, s.y, s.z = e.pin.point(*base, z)
+	} else if label == nil || *label == (entity.Label{}) {
+		return // a cell, say: no place known here, and nothing that calls it
+	}
+	d.spots[e] = append(d.spots[e], s)
 }

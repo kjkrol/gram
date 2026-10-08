@@ -138,7 +138,7 @@ func (s *Scene) press(events *control.InputEvents) {
 func (s *Scene) giveAbout(cmd any, id uid.UID64, pinned bool) {
 	cmd, ok := about(cmd, id, pinned)
 	if !ok {
-		log.Printf("ui: scene %q: a command for ui.It given outside an element pinned to an entity", s.name)
+		log.Printf("ui: scene %q: a command for ui.It (or an About) given outside an element pinned to an entity", s.name)
 		return
 	}
 	s.give(cmd)
@@ -211,6 +211,9 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 
 // topmostHere is topmost where e was last laid.
 func topmostHere(e *Element, p geom.Vec, in *Element) target {
+	if e.absent() {
+		return target{}
+	}
 	if _, ok := e.content.(*button); ok {
 		in = e
 	}

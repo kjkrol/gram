@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 const (
@@ -22,22 +23,49 @@ func Panel(e *Element) *Element {
 // Label is a line of text, or lines of it, one under another.
 func Label(text string) *Element { return newElement(&label{text: text}) }
 
-type label struct{ text string }
+// Text is what an element reads its words off every frame: for the entity it is pinned to —
+// pinned — or for none. False leaves the element out: it takes no room and nothing hits it.
+type Text interface {
+	Text(of uid.UID64, pinned bool) (string, bool)
+}
+
+// LabelOf is a Label whose words t says, every frame: a pinned element's for its entity.
+func LabelOf(t Text) *Element { return newElement(&label{src: t}) }
+
+type label struct {
+	text string
+	src  Text // where the words come from; nil: text
+}
+
+// words are what the label says for the entity e is drawn for, and whether it says anything.
+func (l *label) words(e *Element) (string, bool) {
+	if l.src == nil {
+		return l.text, true
+	}
+	return l.src.Text(e.of, e.ofPinned)
+}
+
+func (l *label) absent(e *Element) bool {
+	_, ok := l.words(e)
+	return !ok
+}
 
 func (*label) place(*Element, geom.AABB) {}
 
 func (l *label) draw(e *Element, dst *render.Image) {
+	text, _ := l.words(e)
 	box := shrink(e.box, e.padding)
 	th := e.look()
 	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
 	if th.Shadow.A > 0 {
-		render.DrawText(dst, th.Font, l.text, x+1, y+1, th.Shadow)
+		render.DrawText(dst, th.Font, text, x+1, y+1, th.Shadow)
 	}
-	render.DrawText(dst, th.Font, l.text, x, y, th.Text)
+	render.DrawText(dst, th.Font, text, x, y, th.Text)
 }
 
 func (l *label) needs(e *Element) (w, h float64) {
-	tw, th := e.look().Font.Measure(l.text)
+	text, _ := l.words(e)
+	tw, th := e.look().Font.Measure(text)
 	return math.Ceil(float64(tw)), math.Ceil(float64(th))
 }
 
@@ -88,26 +116,34 @@ func fills(box geom.AABB, dst *render.Image) bool {
 }
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.
-func Window(title string, elements ...*Element) *Element {
-	t := Label(title).Padding(4)
-	t.style = titleStyle
-	parts := []Part{Fit(t)}
+func Window(title string, elements ...*Element) *Element { return window(Label(title), elements) }
+
+// WindowOf is a Window whose title t says, every frame; with no title it is left out, elements
+// and all.
+func WindowOf(title Text, elements ...*Element) *Element { return window(LabelOf(title), elements) }
+
+func window(title *Element, elements []*Element) *Element {
+	title.Padding(4)
+	title.style = titleStyle
+	parts := []Part{Fit(title)}
 	for _, e := range elements {
 		parts = append(parts, Fit(e))
 	}
-	w := newElement(&window{}, Rows(parts...)).Padding(panelPadding)
+	w := newElement(&windowed{title: title}, Rows(parts...)).Padding(panelPadding)
 	w.style, w.stroke = panelStyle, panelStroke
 	return w
 }
 
-// window is a panel with a title.
-type window struct{}
+// windowed is a panel with a title.
+type windowed struct{ title *Element }
 
-func (*window) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
+func (w *windowed) absent(*Element) bool { return w.title.absent() }
 
-func (*window) draw(*Element, *render.Image) {}
+func (*windowed) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 
-func (*window) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+func (*windowed) draw(*Element, *render.Image) {}
+
+func (*windowed) needs(e *Element) (w, h float64) { return e.children[0].needs() }
 
 // Blank is an element showing nothing of its own: a gap, or with a Fill a divider, a plate.
 func Blank() *Element { return newElement(blank{}) }

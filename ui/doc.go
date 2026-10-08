@@ -32,6 +32,10 @@
 // hold the input while it is shown. Any element takes a background ([Element.Fill]), a border
 // ([Element.Border]) and [Element.Padding].
 //
+// [LabelOf], [ButtonOf] and [WindowOf] read their words off a [Text] every frame, for the entity
+// a pinned element is shown for: a name over a unit, a conversation's line. A Text saying nothing
+// leaves its element out — it takes no room in a split and nothing hits it.
+//
 // # Theme
 //
 // A [Theme] is how a scene's elements look where they say nothing of their own: the font and the
@@ -66,7 +70,10 @@
 // no place in the world — the world's own, a plugin's — has its element where its parent lays it: an
 // anchor's point. A modal pinned element is shown for one entity at a time, the rest waiting. A
 // command for [It] — rule.Lift(greeting).On(ui.It), defined in the register as any — is given by a
-// pinned element's button for the entity it is shown for (entity.ID): one window serves them all.
+// pinned element's button for the entity it is shown for (entity.ID): one window serves them all;
+// so is a plugin's own command that is an [About] (dialog.Choose). [Element.Where] pins an element
+// to the entities a [Pin] holds: [Tagged], those carrying a tag of any family — the one under the
+// cursor (selection's Hovered).
 //
 // # Shapes
 //

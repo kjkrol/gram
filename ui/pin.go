@@ -5,7 +5,9 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
@@ -37,6 +39,7 @@ const (
 type pin struct {
 	under     *effect.Effect
 	on        entity.Whom
+	where     Pin
 	placing   placing
 	dx, dy    float64
 	off       OffScreen
@@ -76,6 +79,57 @@ func (e *Element) Under(ef effect.Effect) *Element {
 func (e *Element) On(whom entity.Whom) *Element {
 	e.pinned().on = whom
 	return e
+}
+
+// Where shows the element for every entity p holds, pinned to it as Under does: Tagged, the
+// entities carrying a tag — the one the cursor points at (selection's Hovered).
+func (e *Element) Where(p Pin) *Element {
+	e.pinned().where = p
+	return e
+}
+
+// Pin is the entities an element is shown for: Tagged.
+type Pin interface {
+	// bind builds what finds them on the scene's ECS.
+	bind(si *goke.SysInit)
+	// each tells every entity it holds, with its place where it has one and what it is called.
+	each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label))
+}
+
+// Tagged is the entities carrying t, a tag of any family.
+func Tagged[F any](t tag.Tag[F]) Pin { return &tagged[F]{t: t} }
+
+type tagged[F any] struct {
+	t     tag.Tag[F]
+	query *goke.Query
+	tags  goke.Comp[tag.Tags[F]]
+	base  goke.OptComp[entity.Base]
+	z     goke.OptComp[entity.Z]
+	label goke.OptComp[entity.Label]
+}
+
+func (g *tagged[F]) bind(si *goke.SysInit) {
+	g.query = si.NewQueryBuilder(&g.tags).Optional(&g.base).Optional(&g.z).Optional(&g.label).Build()
+}
+
+func (g *tagged[F]) each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label)) {
+	for g.query.All(); g.query.Next(); {
+		cur := g.query.Cursor()
+		tags, bases, zs, labels := g.tags.Slice(cur), g.base.Slice(cur), g.z.Slice(cur), g.label.Slice(cur)
+		for i, id := range cur.IDs {
+			if tags[i].Has(g.t) {
+				fn(id, at(bases, i), at(zs, i), at(labels, i))
+			}
+		}
+	}
+}
+
+// at is the i-th of a chunk's optional column, nil where the chunk has none.
+func at[T any](column []T, i int) *T {
+	if column == nil {
+		return nil
+	}
+	return &column[i]
 }
 
 // Above stands the pinned element above its entity: the default.
@@ -186,6 +240,7 @@ func (p *pin) stand(e *Element, spots []spot, vs []view, screen geom.AABB) {
 // place stands an instance by s in every view that shows it in sight, else one as OffScreen says
 // in the first view that shows it; none where no view shows it.
 func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
+	e.drawnFor(s.id, true)
 	w, h := e.needs()
 	var first *view
 	seen := false
@@ -322,6 +377,7 @@ func (p *pin) each(e *Element, parent geom.AABB, fn func(in *instance)) {
 	defer func() { e.parent = parent }()
 	for k := range p.instances {
 		in := &p.instances[k]
+		e.drawnFor(in.id, true)
 		if in.box == (geom.AABB{}) {
 			e.lay(parent)
 		} else {

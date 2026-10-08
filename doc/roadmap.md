@@ -20,9 +20,8 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
   `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
   scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:
-  switching the Stage, quitting); a label's text read off its pinned entity; non-rule commands
-  about `ui.It`; the UI drawn into one `render.Frame` in place of a draw an element, once a
-  profile asks for it.
+  switching the Stage, quitting); the UI drawn into one `render.Frame` in place of a draw an
+  element, once a profile asks for it.
 - **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
   work, no collision involved.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of

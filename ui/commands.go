@@ -15,8 +15,20 @@ type it struct{}
 
 func (it) Target() {}
 
-// about is cmd for the entity id where it is for It: false where it is and no entity is pinned.
+// About is a command of a plugin's own that is for the entity the element giving it is pinned
+// to, as a rule.Command for It is: About is the command for that entity — dialog.Choose, the
+// answer to whoever the window stands above.
+type About interface{ About(of uid.UID64) any }
+
+// about is cmd for the entity id where it is for It or an About: false where it is and no entity
+// is pinned.
 func about(cmd any, id uid.UID64, pinned bool) (any, bool) {
+	if a, ok := cmd.(About); ok {
+		if !pinned {
+			return nil, false
+		}
+		return a.About(id), true
+	}
 	c, ok := cmd.(rule.Command)
 	if !ok {
 		return cmd, true

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
@@ -92,5 +93,53 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	d.find()
 	if n := len(d.spots[label]); n != 0 {
 		t.Fatalf("%d spots after the effect ended, want none", n)
+	}
+}
+
+// marked is a tag family of a test's own.
+type marked struct{}
+
+// An element Where a tag is carried is shown for the entities carrying it alone.
+func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
+	})
+	mark := w.Kinds().DefineTag[marked]("marked")
+	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float64) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Load(func(x float64) tag.Tags[marked] {
+			if x < 200 {
+				return tag.Tags[marked](0).With(mark)
+			}
+			return 0
+		}),
+	})
+	unit := kind.Named[float64](w.Kinds(), "unit")
+	w.Seed(unit.Entry(100), unit.Entry(300))
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &installer{ecs: goke.New()}
+	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	label := Label("here").Where(Tagged(mark))
+	s := NewScene("main", Layers(label))
+	d := s.Layers()[0].(*drawing)
+	var systems []goke.System
+	for _, produce := range ctx.pending {
+		systems = append(systems, produce()...)
+	}
+	ctx.ecs.Setup(append(systems, goke.SystemFn{OnInit: d.Init})...)
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) { w.RunPlan(rc, dt); rc.Sync() })
+	ctx.ecs.Tick(time.Second / 10)
+	d.find()
+	spots := d.spots[label]
+	if len(spots) != 1 || spots[0].x != 105 {
+		t.Fatalf("spots %+v, want the marked unit alone, at x 105", spots)
 	}
 }

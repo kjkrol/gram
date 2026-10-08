@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Element is a part of a scene's screen: given a box by its parent, it places its children in it,
@@ -27,9 +28,11 @@ type Element struct {
 	style    style   // the theme's colours it takes where it says none
 	theme    *Theme  // its scene's; nil: the default
 	mask     Mask
-	pin      *pin      // Under, On: shown once for each entity it names, by it
+	pin      *pin      // Under, On, Where: shown once for each entity it names, by it
 	parent   geom.AABB // the box its parent last gave it
 	box      geom.AABB // where it was last laid
+	of       uid.UID64 // the entity it is drawn for now, when ofPinned: what a Text reads
+	ofPinned bool
 }
 
 // content is what an element of one kind does: places its children in its box less the padding,
@@ -42,6 +45,24 @@ type content interface {
 
 // container is a content that is only where its children are: hit by nothing of its own.
 type container interface{ container() }
+
+// leaving is a content that may be left out for the entity it is drawn for: a Text saying nothing.
+type leaving interface{ absent(e *Element) bool }
+
+// absent reports whether the element is left out for the entity it is drawn for now: it takes no
+// room, is not drawn and nothing hits it.
+func (e *Element) absent() bool {
+	l, ok := e.content.(leaving)
+	return ok && l.absent(e)
+}
+
+// gone reports whether the element is not there now: hidden, or left out.
+func (e *Element) gone() bool { return e.hidden || e.absent() }
+
+// drawnFor has the element and every element under it drawn for the entity id, pinned or not.
+func (e *Element) drawnFor(id uid.UID64, pinned bool) {
+	e.walk(func(c *Element) { c.of, c.ofPinned = id, pinned })
+}
 
 func newElement(c content, children ...*Element) *Element {
 	return &Element{content: c, children: children}
@@ -133,6 +154,9 @@ func (e *Element) Hits(p geom.Vec) bool {
 
 // hitsHere is Hits where the element was last laid.
 func (e *Element) hitsHere(p geom.Vec) bool {
+	if e.absent() {
+		return false
+	}
 	if _, ok := e.content.(container); ok && e.fillColor().A == 0 {
 		for _, c := range e.children {
 			if c.Hits(p) {
@@ -149,6 +173,9 @@ func (e *Element) hitsHere(p geom.Vec) bool {
 
 // needs is the size the element takes where its parent leaves it the choice.
 func (e *Element) needs() (w, h float64) {
+	if e.absent() {
+		return 0, 0
+	}
 	w, h = e.w, e.h
 	if w == 0 || h == 0 {
 		cw, ch := e.content.needs(e)
@@ -189,6 +216,9 @@ func (e *Element) paint(dst *render.Image) {
 
 // paintHere draws the element and its children where it was last laid.
 func (e *Element) paintHere(dst *render.Image) {
+	if e.absent() {
+		return
+	}
 	e.background(dst)
 	e.content.draw(e, dst)
 	for _, c := range e.children {
