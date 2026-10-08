@@ -132,8 +132,55 @@ func (a anchoring) place(e *Element, box geom.AABB) {
 		cw, ch = e.w, e.h
 	}
 	w, h := size(box)
+	switch {
+	case e.fw > 0 || e.fh > 0:
+		cw, ch = e.share(w, h, c)
+	case c.fw > 0 || c.fh > 0:
+		cw, ch = c.share(w, h, c)
+	}
 	at := box.TopLeft.Add(geom.NewVec((w-cw)*a.x, (h-ch)*a.y))
 	c.lay(geom.NewAABBAt(at, cw, ch))
+}
+
+// share is the size of c where e asks for a Fraction of a w by h box: an axis asked for as 0
+// following the proportions of the picture c shows, else c's own size; a picture with proportions
+// asked for both keeps them within.
+func (e *Element) share(w, h float64, c *Element) (float64, float64) {
+	sw, sh := e.fw*w, e.fh*h
+	if pw, ph, ok := c.proportions(); ok && pw > 0 && ph > 0 {
+		switch {
+		case sw > 0 && sh > 0:
+			k := min(sw/pw, sh/ph)
+			return pw * k, ph * k
+		case sw > 0:
+			return sw, sw * ph / pw
+		default:
+			return sh * pw / ph, sh
+		}
+	}
+	nw, nh := c.needs()
+	if sw == 0 {
+		sw = nw
+	}
+	if sh == 0 {
+		sh = nh
+	}
+	return sw, sh
+}
+
+// proportions are the width and height of what the element's picture shows, where it says them
+// (render.Feed.Proportions).
+func (e *Element) proportions() (w, h float64, ok bool) {
+	p, is := e.content.(*picture)
+	if !is {
+		return 0, 0, false
+	}
+	if s, says := p.src.(interface {
+		Proportions() (float64, float64, bool)
+	}); says {
+		return s.Proportions()
+	}
+	return 0, 0, false
 }
 
 func (anchoring) draw(*Element, *render.Image) {}

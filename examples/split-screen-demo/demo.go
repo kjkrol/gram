@@ -44,8 +44,9 @@ const (
 	BlockSpeed   = CellSize * 5
 	MaxEntCount  = 8 // the two blocks; the walls are cells, not entities
 
-	// MinimapWidth is the minimap's width in pixels; its height keeps the arena's proportions.
-	MinimapWidth = 240
+	// MinimapShare is the share of the screen's width the minimap takes, whatever the window's size;
+	// its height keeps the arena's proportions.
+	MinimapShare = 0.2
 )
 
 // =========================== Game ===========================
@@ -242,7 +243,7 @@ func (s *arena) defineScenes() []game.Scene {
 			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
 			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
 		),
-		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Size(MinimapWidth, MinimapWidth*WorldHeight/WorldWidth).Margin(10),
+		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Fraction(MinimapShare, 0).Margin(10),
 	)).Input(s.players.Handle)}
 }
 

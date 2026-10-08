@@ -94,6 +94,12 @@ type Config struct {
 	MouseLook bool
 }
 
+// Fitting is a camera that may keep the whole world in view (Config.Whole): Fits says whether it
+// does, and the world's size — the proportions a picture of it keeps as it is laid out.
+type Fitting interface {
+	Fits() (worldWidth, worldHeight float32, ok bool)
+}
+
 // State is a Camera's persistable visible window and zoom.
 type State struct {
 	Viewport AABB

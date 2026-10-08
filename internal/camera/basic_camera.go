@@ -25,6 +25,7 @@ type basicCamera struct {
 
 var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
+var _ contract.Fitting = (*basicCamera)(nil)
 
 // Fasten fastens the camera to an entity, or to nothing; whoever keeps it there reads Fastening.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -341,11 +342,17 @@ func (c *basicCamera) setZoom(zoom float32) {
 	c.place(cx-w/2, cy-h/2, w, h)
 }
 
+// Fits reports whether the camera keeps the whole world in view, and the world's size.
+func (c *basicCamera) Fits() (float32, float32, bool) {
+	return float32(c.world.X), float32(c.world.Y), c.whole
+}
+
 // fit shows the whole world as large as the viewport takes it, centred, the world's proportions
 // kept: the background in bars along the longer side.
 func (c *basicCamera) fit() {
 	c.zoom = float32(min(c.viewportSize.X/c.world.X, c.viewportSize.Y/c.world.Y))
-	w, h := c.viewportSize.X/float64(c.zoom), c.viewportSize.Y/float64(c.zoom)
+	w := max(c.viewportSize.X/float64(c.zoom), c.world.X) // the world whole, rounding notwithstanding
+	h := max(c.viewportSize.Y/float64(c.zoom), c.world.Y)
 	c.effective = plane.NewAABB(geom.NewVec((c.world.X-w)/2, (c.world.Y-h)/2), w, h)
 }
 

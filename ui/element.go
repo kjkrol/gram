@@ -16,6 +16,7 @@ type Element struct {
 	hidden   bool
 	holds    bool    // Modal: it holds the input while shown
 	w, h     float64 // the size asked for (Size); 0 where its content says
+	fw, fh   float64 // the share of its parent's box asked for (Fraction); 0 where Size or its content says
 	margin   float64 // kept free round the element, inside the box its parent gives it
 	padding  float64 // kept free round its children, inside its own box
 	fill     color.RGBA
@@ -61,6 +62,15 @@ func (e *Element) Hidden() *Element {
 // Size asks for w by h pixels: what an anchor places, what Fit takes.
 func (e *Element) Size(w, h float64) *Element {
 	e.w, e.h = w, h
+	return e
+}
+
+// Fraction asks for w and h of the box its parent gives it — what an anchor places — so the
+// element keeps its share as the window changes; an axis asked for as 0 follows the proportions of
+// the picture it shows (a feed keeping the whole world in view), else its own size. A picture with
+// proportions asked for both keeps them within that share.
+func (e *Element) Fraction(w, h float64) *Element {
+	e.fw, e.fh = w, h
 	return e
 }
 

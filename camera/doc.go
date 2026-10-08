@@ -12,7 +12,8 @@
 // screen — ZoomIn, ZoomOut, with min and max zoom). It keeps its own window arithmetic: wrapping on
 // a wrapping axis of the world, held inside the world on any other. One keeping the whole world
 // in view ([Config].Whole, a minimap) fits all of it at every size instead, centred, and is not
-// panned or zoomed; one zoom for both axes keeps the world's proportions whatever the screen's.
+// panned or zoomed — a [Fitting] camera says so, and the world's size, which a picture of it keeps;
+// one zoom for both axes keeps the world's proportions whatever the screen's.
 // The cameras themselves live in internal/camera and in the view plugins; a game gets one from
 // the cameras plugin (plugins/cameras: New), built from a [Config] — the scale it starts at, the
 // whole world, the entity it follows from the start, zoom limits — through whichever maker it was

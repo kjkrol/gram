@@ -33,6 +33,17 @@ func (f *Feed) Camera() camera.Camera { return f.cam }
 // Picture is what the feed draws.
 func (f *Feed) Picture() Picture { return f.picture }
 
+// Proportions are the width and height of the world the feed shows whole, when its camera keeps
+// the whole world in view (camera.Fitting): what a picture of it keeps as it is laid out.
+func (f *Feed) Proportions() (w, h float64, ok bool) {
+	if c, is := f.cam.(camera.Fitting); is {
+		if cw, ch, whole := c.Fits(); whole {
+			return float64(cw), float64(ch), true
+		}
+	}
+	return 0, 0, false
+}
+
 // Resize gives the feed its size, the camera's viewport with it.
 func (f *Feed) Resize(w, h int) {
 	if w == f.w && h == f.h {

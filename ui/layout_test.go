@@ -111,6 +111,35 @@ type sized struct{ w, h int }
 func (s *sized) Resize(w, h int)   { s.w, s.h = w, h }
 func (*sized) Draw() *render.Image { return nil }
 
+// proportioned is a surface showing a world 4 wide and 3 high whole.
+type proportioned struct{ sized }
+
+func (*proportioned) Proportions() (float64, float64, bool) { return 4, 3, true }
+
+// An element asking for a Fraction keeps its share of the box as the box changes, the proportions
+// of the world its picture shows whole kept; a picture without them takes its share as asked.
+func TestFraction_KeepsTheShareAndThePictureItsProportions(t *testing.T) {
+	for _, box := range []geom.AABB{screen, geom.NewAABBAt(geom.NewVec(0, 0), 800, 1000)} {
+		minimap := &proportioned{}
+		BottomMiddle(Image(minimap)).Fraction(0.25, 0).lay(box)
+		w, _ := size(box)
+		if minimap.w != int(w/4) || minimap.h != int(w/4*3/4) {
+			t.Errorf("in %v the minimap is %d x %d, want a quarter of the width, 4:3", box, minimap.w, minimap.h)
+		}
+		both := &proportioned{}
+		Center(Image(both)).Fraction(0.5, 0.5).lay(box)
+		bw, bh := size(box)
+		if both.w*3 != both.h*4 || (both.w != int(bw/2) && both.h != int(bh/2)) {
+			t.Errorf("in %v the picture asked for half each way is %d x %d, want 4:3 filling one side", box, both.w, both.h)
+		}
+		plain := &sized{}
+		TopLeft(Image(plain)).Fraction(0.5, 0.25).lay(box)
+		if plain.w != int(bw/2) || plain.h != int(bh/4) {
+			t.Errorf("in %v a plain picture is %d x %d, want half by a quarter", box, plain.w, plain.h)
+		}
+	}
+}
+
 func TestImage_GivesItsSurfaceItsBox(t *testing.T) {
 	left, right := &sized{}, &sized{}
 	Columns(Share(1, Image(left)), Share(1, Image(right).Padding(5))).lay(screen)

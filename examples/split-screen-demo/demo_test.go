@@ -41,8 +41,8 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	if w, h := red.Viewport(); w != float32(math.Round(half)) || h != ScreenHeight {
 		t.Errorf("red's camera sees %vx%v, want its half", w, h)
 	}
-	if w, _ := minimap.Viewport(); w != MinimapWidth {
-		t.Errorf("the minimap is %v wide, want %d", w, MinimapWidth)
+	if w, h := minimap.Viewport(); w != float32(math.Round(MinimapShare*(ScreenWidth-20))) || math.Abs(float64(h/w)-float64(WorldHeight)/WorldWidth) > 0.01 {
+		t.Errorf("the minimap is %v x %v, want its share of the screen's width, the arena's proportions", w, h)
 	}
 	b := minimap.Bounds()
 	if b.TopLeft.X > 0 || b.TopLeft.Y > 0 || b.BottomRight.X < WorldWidth-1 || b.BottomRight.Y < WorldHeight-1 {

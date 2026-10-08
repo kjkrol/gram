@@ -19,7 +19,10 @@
 // each element taking its [Part]: a [Share] of what is left, [Fixed] pixels, or what it needs
 // ([Fit]). An anchor wraps an element and places it at its point of the box — [TopLeft],
 // [TopMiddle], [TopRight], [MiddleLeft], [Center], [MiddleRight], [BottomLeft], [BottomMiddle],
-// [BottomRight] — at the [Element.Size] asked for, kept [Element.Margin] pixels off the edges.
+// [BottomRight] — at the [Element.Size] asked for, or the [Element.Fraction] of the box, kept
+// [Element.Margin] pixels off the edges. A Fraction keeps its share as the window changes; an axis
+// asked for as 0 follows the proportions of the world a feed shows whole (camera.Config.Whole,
+// render.Feed.Proportions): a minimap a fifth of the screen wide, as high as the world's shape says.
 //
 // # Elements
 //
