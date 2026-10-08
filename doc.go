@@ -119,12 +119,14 @@
 //	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
 //	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
 //	          ui                  — a scene's screen composed of elements: Layers, Columns, Rows, anchors, Panel, Label,
-//	                                Image (a render.Feed), Window, Button, Theme, elements pinned to entities, It (→ game, render, control, entity, effect, rule)
+//	                                Image (a render.Feed), Window, Button, words read off a Text, Theme, elements pinned to
+//	                                entities Under, On and Where, It, About (→ game, render, control, entity, effect, rule)
 //	          plugins/cameras     — the cameras a game looks through: New, Pan, Zoom, Follow, LookAt, Keys (→ world, …)
 //	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
-//	          plugins/selection   — a Select command into a Selected tag; the roles' abilities; FollowKey (→ world, rule, cameras, …)
+//	          plugins/selection   — a Select command into a Selected tag; Hovered; the roles' abilities; FollowKey (→ world, rule, cameras, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
+//	          plugins/dialog      — conversations as data: nodes from YAML, Talk, Memory, Window, Stance (→ world, ui, players/owner, …)
 //	Layer 8   plugins/driving     — units driven by hand: Ahead, Back, Turn, Toward, Tank and Compass keys (→ world, selection, board, …)
 //	Layer 9   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, driving, world, …)
 //	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)

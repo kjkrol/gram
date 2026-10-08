@@ -42,7 +42,7 @@ make demo-board-atlas                                              # a small fla
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
-make demo-dialog                                                   # a conversation: the host greets the traveller walked up to it in a window above it, three answers (ui pinned Under effects)
+make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
 make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
@@ -1154,8 +1154,34 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   serves every player; `Plugin.Chosen(by)` is the issuer's one selected unit, and
   `Plugin.FollowKey(key)` the binding building a `cameras.Follow` of it for the camera the player
   looks through (C among the `DefaultBindings`; split-screen gives each player its own key): the
-  selection says whom, the cameras plugin knows no selection. Depends on `world`, `cameras` (the
+  selection says whom, the cameras plugin knows no selection. The cursor over the world gives a
+  `Hover` every tick (`control.CursorOver`, among the `DefaultBindings`): the entity drawn under it,
+  picked as `Pointed` picks, carries the tag `Hovered` until the next tick — what a ui element
+  `Where(ui.Tagged(Hovered))` stands by; one tag for every player. Depends on `world`, `cameras` (the
   command type) and the leaf `players/owner`.
+- **`dialog`** — conversations as data (since 2026-10-08, the user's word: content and outcomes of
+  talks are no effects — a Stage has 63 — but the plugin's state; two effects are their handles):
+  `dialog.NewPlugin(world, Config{Friend, Enemy, Rest})`, handed to `players.NewPlugin`. A `Node`
+  (`Speaker`, `Say`, `Choices`) of `Choice`s (`Text`, `If`, `Mood`, `Next` or `End`, `Do` — command
+  names of `world.Commands()`, a `ui.It` in them the speaker), by name, the Stage's: `Plugin.Load(fsys,
+  path)` reads a YAML map of them (`go.yaml.in/yaml/v3`, known fields only; errors with the line),
+  `Plugin.Define(name, node)` in code, both in the Commands section; an answer to an undefined node
+  panics as the Stage is set up. `If` is `friend`/`neutral`/`enemy` (the speaker's mood towards the
+  listener, `Config`), `talked` (talked to the end before) or an effect's name on the speaker, `!`
+  denying. Every unit may have lines of its own: `Plugin.Script(node)` is the `Script` component
+  where its conversations begin (`comp.Const` a kind's, `comp.Load` each one's). `DefineEffects()`
+  (Effects section) defines `dialog.TalkingEf` — on the speaker while it talks; taken off by
+  anyone, a rule seeing nobody, the conversation is over — and `TalkedEf` (`Config.Rest` after one
+  talked to the end). Commands: `Begin{At}` an entity's own, `plugin.Aimed` (the listener is the
+  moment's subject), from its `Script` without `At`, refused while either talks; `Choose{Index,
+  Speaker}` from the window's button (a `ui.About`), by a player the listener obeys
+  (`owner.Obeys`), the index among the answers offered now; `Mood{By}` an entity's own, aimed. The
+  state is the speaker's `Talk{Node, With}` and `Memory` (mood −100..100 and `Met` for up to 8
+  others, the mildest forgotten), given where missing, saved; the `talkSystem` runs under
+  `clock.Simulate`. For a scene, `ui.Text`s: `Window()` (one for every speaker, `Under(TalkingEf)`:
+  `SpeakerText`, `LineText`, a button per `ChoiceText(i)`, `MaxChoices` 6) and `Stance(chooser,
+  player)` — Friend/Neutral/Enemy, what the pinned entity makes of the player's chosen unit
+  (`selection.Plugin` is the `Chooser`). Depends on `world`, `ui`, `players/owner`.
 - **`players/owner`** — whose a unit is, a leaf importing only `entity/tag` and `control`: `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
@@ -1181,7 +1207,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   wires it to; nobody takes players in a constructor, so it may take every handler in its own;
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
   defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
-  `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
+  `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, `CursorOver` (once a tick
+  while the cursor lies over the player's picture, issued with `KeyHeld`'s) with exact `Mods`,
   `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
   `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
@@ -1446,7 +1473,9 @@ is left: two `Share(1, …)` are halves), `ui.Fixed(px, el)`, `ui.Fit(el)`; an a
 element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never `el.At(anchor)`.
 Elements: `Panel`, `Label` (in the theme's font: `render.Font`, Go Regular through x/image's
 opentype, glyphs drawn on demand into a sheet, Polish letters and all; `render.DrawText`),
-`Image`, `Window`, `Button(label,
+`Image`, `Window`, `LabelOf`/`ButtonOf`/`WindowOf` (their words read off a `ui.Text` every frame,
+`Text(of, pinned)`, for the entity a pinned element is shown for; a Text saying nothing leaves the
+element out — no room, no hit), `Button(label,
 cmds...)` (the scene's own `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue` — a
 button gives commands the way a key does, no callbacks into the game), `Blank` (a gap, a divider
 with a `Fill`), `Layer(renderer)` (a screen renderer as an element, the telemetry); any element
@@ -1478,12 +1507,13 @@ screen), kept on the screen; `OffScreen(ui.PointAtIt
 has its element where its parent lays it; a modal pinned element shows one entity at a time. A
 pinned element's button gives every `rule.Command` for `ui.It` (`rule.Lift(greeting).On(ui.It)`,
 defined in the register as any) for the entity it is shown for — `entity.ID(id)`, a `Whom` of
-identifiers the world finds at once: one window serves every host. A
-conversation is rules and effects (`examples/dialog-demo`, the user's word: a demo of its own, the
-effect demo stays a plain demo of effects): the host's rule of a `vision.Sighting` puts `greeting`
-on it when the traveller is near, the window `Under(greeting)` above it holds three answers, each
-button's commands lift the greeting and cast the host's reaction and `talked`; a rule lets the
-greeting go once nobody is in sight; its two hosts speak Polish. Every demo shows its world
+identifiers the world finds at once: one window serves every host; a plugin's own command that is
+a `ui.About` (`dialog.Choose`) gets the entity the same way. `Element.Where(ui.Tagged(t))` pins an
+element to the entities carrying a tag of any family (the one hovered). A conversation is the
+dialog plugin's (`examples/dialog-demo`): the miller and the smith, lines of their own in
+`dialogs/*.yaml`, a host's rule of a `vision.Sighting` gives `dialog.Begin{}` while it is neither
+talking nor just done, another takes `TalkingEf` off once nobody is in sight; `Window()` above the
+host, `Stance` under the hovered one. Every demo shows its world
 through a ui scene made in its `defineScenes`: `picture()` (atlases, `WithRenderer`, the composer,
 handed back, kept nowhere) and the screen — the feed through a camera made beside it, the
 player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Layer`s. The scenes-demo's menu and the players' list of shortcuts stay
