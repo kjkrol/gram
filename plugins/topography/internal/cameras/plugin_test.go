@@ -17,7 +17,10 @@ func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	cams := cameras.NewPlugin(w)
 	isometric := func() camera.Camera {
-		return cams.New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
+		cam := cams.New(p.Views(topography.Isometrically), camera.Config{})
+		cam.SetViewport(128, 64)
+		cam.MoveTo(0, 0)
+		return cam
 	}
 	for name, cam := range map[string]camera.Camera{"the first": isometric(), "another": isometric()} {
 		if !cam.Projection().Sorts() || cam.Projection().Wraps() {

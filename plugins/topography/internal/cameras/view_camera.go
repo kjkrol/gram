@@ -117,14 +117,19 @@ func (c *viewCamera) SetMouseLook(on bool) { c.mouseLook = on }
 // ground — its top as it is drawn — between the heights extent gives (nil: level at sea level),
 // which Pick walks over, its perspective view of fov
 // (radians), the ground far off sinking bend per distance² under the eye's level, reached when
-// reaches; it refuses a wrapping world.
+// reaches; it starts over the world's middle, a pixel wide until whoever shows it gives it its
+// size, and refuses a wrapping world and a camera keeping the whole world in view.
 func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) *viewCamera {
-	vp := geom.NewAABBAt(geom.NewVec(0, 0), float64(width), float64(height))
-	if cfg.ViewportWidth != 0 && cfg.ViewportHeight != 0 {
-		vp = geom.NewAABBAt(geom.NewVec(0, 0), float64(cfg.ViewportWidth), float64(cfg.ViewportHeight))
+	if cfg.Whole {
+		panic("topography: a camera in relief cannot keep the whole world in view (camera.Config.Whole): that is a top-down camera's")
 	}
+	vp := geom.NewAABBAt(geom.NewVec(float64(width)/2-0.5, float64(height)/2-0.5), 1, 1)
 	world := geom.NewVec(float64(width), float64(height))
 	iso := newIsoCamera(proj, world, vp, edges)
+	if cfg.Zoom > 0 {
+		iso.zoom = cfg.Zoom
+		iso.CenterOn(world.X/2, world.Y/2, 0)
+	}
 	iso.extent, iso.ground = extent, ground
 	persp := newPerspCamera(iso.proj, fov, world, vp, ground, extent)
 	persp.bend = bend
@@ -350,11 +355,11 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 	c.persp.SetMaxZoom(maxZoom)
 }
 
-// Persisted hands saves every view's state and which view the camera is in; Restore puts them
-// back, the perspective view falling back to the isometric one where the game no longer reaches
-// it.
+// Persisted hands saves every view's state, which view the camera is in and what it is fastened
+// to; Restore puts them back, the perspective view falling back to the isometric one where the
+// game no longer reaches it — the camera system takes a camera fastened Inside back into its unit.
 func (c *viewCamera) Persisted() []any {
-	return append(append(c.iso.Persisted(), c.persp.Persisted()...), &c.inPersp)
+	return append(append(c.iso.Persisted(), c.persp.Persisted()...), &c.inPersp, &c.fastening)
 }
 
 func (c *viewCamera) Restore() {

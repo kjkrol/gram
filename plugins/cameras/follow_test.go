@@ -70,7 +70,10 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.sel = selection.NewPlugin(c.w)
 	c.cams = cameras.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
-	c.one, c.two = c.players.Local("one", c.cams.New(cameras.TopDown(), camera.Config{ViewportWidth: 200, ViewportHeight: 200})), c.players.Add("two")
+	cam := c.cams.New(cameras.TopDown(), camera.Config{})
+	cam.SetViewport(200, 200)
+	cam.MoveTo(0, 0)
+	c.one, c.two = c.players.Local("one", cam), c.players.Add("two")
 	if err := c.one.Bind(c.sel.FollowKey(control.KeyC)); err != nil {
 		t.Fatal(err)
 	}
@@ -242,5 +245,25 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	c.tick()
 	if centred(c.one, 300, 300) {
 		t.Error("the camera followed the entity after a LookAt")
+	}
+}
+
+// A camera whose config follows an entity by name starts fastened Centred over it once it is in
+// the world, and keeps it in the middle as it goes.
+func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
+	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}
+	})
+	scout := c.ids()[300]
+	cam := c.cams.New(cameras.TopDown(), camera.Config{Follow: "scout"})
+	cam.SetViewport(200, 200)
+	c.tick()
+	if f := cam.(camera.Fastenable).Fastening(); f != (camera.Fastening{Entity: scout, How: camera.Centred}) {
+		t.Fatalf("the camera is fastened %+v, want Centred over the scout", f)
+	}
+	c.moveTo(scout, 600, 500)
+	c.tick()
+	if sx, sy := cam.Project(605, 505, 0); math.Abs(float64(sx-100)) > 0.5 || math.Abs(float64(sy-100)) > 0.5 {
+		t.Errorf("the scout is drawn at (%v, %v), want the middle of the screen", sx, sy)
 	}
 }

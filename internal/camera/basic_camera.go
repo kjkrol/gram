@@ -17,6 +17,7 @@ type basicCamera struct {
 	minZoomCfg   float32 // 0 = only the automatic world-fit floor applies
 	maxZoom      float32 // 0 = unrestricted
 	zoom         float32
+	whole        bool // the whole world in view at every size, centred: not panned, not zoomed
 
 	effective plane.AABB // the current visible window — always valid and clamped to the world
 	fastening contract.Fastening
@@ -54,13 +55,16 @@ func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contr
 	return newBasicCamera(geom.NewVec(float64(width), float64(height)), vp, edges)
 }
 
-// NewFromSpaceWithConfig is NewFromSpace with cfg's viewport size and zoom limits.
+// NewFromSpaceWithConfig is a camera over a width x height world as cfg says it starts: shown at
+// the world's size until whoever shows it gives it its own (SetViewport), which keeps the middle;
+// at cfg's zoom round the world's middle.
 func NewFromSpaceWithConfig(width, height uint32, edges aabbworld.Edges, cfg contract.Config) contract.Camera {
-	var viewport []contract.AABB
-	if cfg.ViewportWidth != 0 && cfg.ViewportHeight != 0 {
-		viewport = []contract.AABB{geom.NewAABBAt(geom.NewVec(0, 0), float64(cfg.ViewportWidth), float64(cfg.ViewportHeight))}
+	c := NewFromSpace(width, height, edges).(*basicCamera)
+	c.whole = cfg.Whole
+	if cfg.Zoom > 0 && !c.whole {
+		c.setZoom(cfg.Zoom)
 	}
-	return limited(NewFromSpace(width, height, edges, viewport...), cfg)
+	return limited(c, cfg)
 }
 
 // limited applies cfg's zoom limits to cam.
@@ -115,6 +119,11 @@ func (c *basicCamera) Viewport() (float32, float32) {
 
 func (c *basicCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
+		return
+	}
+	if c.whole {
+		c.viewportSize = geom.NewVec(float64(w), float64(h))
+		c.fit()
 		return
 	}
 	cx := c.effective.TopLeft.X + c.effective.Size.X/2
@@ -268,8 +277,12 @@ func (c *basicCamera) Pan(dx, dy float32) {
 	c.Translate(float64(dx)/float64(c.zoom), float64(dy)/float64(c.zoom))
 }
 
-// place puts a w x h window at (x, y): wrapped on a wrapping axis, held inside the world otherwise.
+// place puts a w x h window at (x, y): wrapped on a wrapping axis, held inside the world otherwise;
+// a camera keeping the whole world in view stays where it is.
 func (c *basicCamera) place(x, y, w, h float64) {
+	if c.whole {
+		return
+	}
 	x = fitAxis(x, w, c.world.X, c.edges.WrapsX())
 	y = fitAxis(y, h, c.world.Y, c.edges.WrapsY())
 	c.effective = plane.NewAABB(geom.NewVec(x, y), w, h)
@@ -291,6 +304,9 @@ func (c *basicCamera) Zoom() float32 { return c.zoom }
 
 // ZoomIn multiplies the zoom by factor, keeping world point (anchorX, anchorY) fixed on screen.
 func (c *basicCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
+	if c.whole {
+		return
+	}
 	beforeX, beforeY := c.ToScreen(anchorX, anchorY)
 
 	newZoom := c.zoom * factor
@@ -325,6 +341,14 @@ func (c *basicCamera) setZoom(zoom float32) {
 	c.place(cx-w/2, cy-h/2, w, h)
 }
 
+// fit shows the whole world as large as the viewport takes it, centred, the world's proportions
+// kept: the background in bars along the longer side.
+func (c *basicCamera) fit() {
+	c.zoom = float32(min(c.viewportSize.X/c.world.X, c.viewportSize.Y/c.world.Y))
+	w, h := c.viewportSize.X/float64(c.zoom), c.viewportSize.Y/float64(c.zoom)
+	c.effective = plane.NewAABB(geom.NewVec((c.world.X-w)/2, (c.world.Y-h)/2), w, h)
+}
+
 // minZoom is the larger of the automatic world-fit floor and any SetMinZoom override.
 func (c *basicCamera) minZoom() float32 {
 	byW := float32(c.viewportSize.X) / float32(c.world.X)
@@ -355,16 +379,21 @@ func (c *basicCamera) State() contract.State {
 	return contract.State{Viewport: c.effective.AABB, Zoom: c.zoom}
 }
 
-// Persisted returns pointers to the live Viewport and Zoom for Persistence to save and load.
+// Persisted returns pointers to the live window, zoom and fastening for Persistence to save and
+// load.
 func (c *basicCamera) Persisted() []any {
-	return []any{&c.effective.AABB, &c.zoom}
+	return []any{&c.effective.AABB, &c.zoom, &c.fastening}
 }
 
-// Restore rebuilds derived state after a Load has written through Persisted's pointers.
+// Restore rebuilds derived state after a Load has written through Persisted's pointers; a camera
+// keeping the whole world in view fits it again.
 func (c *basicCamera) Restore() {
 	w := c.effective.BottomRight.X - c.effective.TopLeft.X
 	h := c.effective.BottomRight.Y - c.effective.TopLeft.Y
 	c.effective = plane.NewAABB(c.effective.TopLeft, w, h)
+	if c.whole && c.viewportSize.X > 0 && c.viewportSize.Y > 0 {
+		c.fit()
+	}
 }
 
 // Rays are the camera's lines of sight: straight down onto the ground from over the window's

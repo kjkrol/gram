@@ -306,14 +306,6 @@ func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return e.width, e.height
 }
 
-// screen is the size the screen has now: the window's once a resizable one has been laid out.
-func (e *Engine) screen() (int, int) {
-	if e.props.Resizable && e.width > 0 && e.height > 0 {
-		return e.width, e.height
-	}
-	return e.props.ScreenWidth, e.props.ScreenHeight
-}
-
 // =================================================================
 
 // dispatchEvents hands input to the active Scene's HandleEvents and to nothing else.

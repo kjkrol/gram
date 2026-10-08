@@ -422,11 +422,12 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
-	}, camera.Config{ViewportWidth: 800, ViewportHeight: 600}, func(w *world.Plugin) { w.SetLook(standing{}) })
+	}, camera.Config{}, func(w *world.Plugin) { w.SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()
 	cam := h.local.Camera
+	cam.SetViewport(800, 600)
 	cam.MoveTo(300, 300)
 
 	// The hawk is drawn 40 up over its box; a click there selects it.

@@ -9,7 +9,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -108,7 +107,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.camera(topo.Views(topography.FromAbove), camera.Config{})
+	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
 	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
 	topo.WithAtmosphere(low)
@@ -167,7 +166,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.camera(topo.Views(topography.FromAbove), camera.Config{})
+	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
 	far := grid.CellIndex(6, 6)
 	shallows := sea
@@ -208,15 +207,15 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Perspective: view == "persp"})
-	var screen camera.Config
+	var screenW, screenH float32 // the whole world, unless far
 	if far {
-		screen = camera.Config{ViewportWidth: 576, ViewportHeight: 384}
+		screenW, screenH = 576, 384
 	}
 	start := topography.Isometrically
 	if view == "above" {
 		start = topography.FromAbove
 	}
-	ctx.cam = ctx.camera(topo.Views(start), screen)
+	ctx.cam = ctx.camera(topo.Views(start), screenW, screenH)
 	kinds := p.CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})

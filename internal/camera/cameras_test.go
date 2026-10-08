@@ -11,9 +11,18 @@ import (
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
+// sized is a top-down camera over a side x side world shown w x h pixels, its window at the
+// world's top-left corner.
+func sized(side uint32, w, h float32) contract.Camera {
+	cam := camera.NewFromSpaceWithConfig(side, side, 0, contract.Config{})
+	cam.SetViewport(w, h)
+	cam.MoveTo(0, 0)
+	return cam
+}
+
 func TestCameras_ReportTheirViewportInPixels(t *testing.T) {
 	for name, cam := range map[string]contract.Camera{
-		"top-down": camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down": sized(640, 400, 300),
 	} {
 		cam.ZoomIn(2, 320, 320)
 		if w, h := cam.Viewport(); w != 400 || h != 300 {
@@ -24,7 +33,7 @@ func TestCameras_ReportTheirViewportInPixels(t *testing.T) {
 
 func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 	for name, cam := range map[string]contract.Camera{
-		"top-down": camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down": sized(640, 400, 300),
 	} {
 		for _, zoom := range []float32{1, 2} {
 			cam.ZoomIn(zoom, 320, 320)
@@ -35,7 +44,7 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 			}
 		}
 	}
-	cam := camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300})
+	cam := sized(640, 400, 300)
 	cam.CenterOn(0, 0, 0)
 	if b := cam.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 {
 		t.Errorf("centred on the corner the window starts at %v, want it held inside the world at (0, 0)", b.TopLeft)
@@ -44,7 +53,7 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 
 func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testing.T) {
 	for name, cam := range map[string]contract.Camera{
-		"top-down": camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}),
+		"top-down": sized(640, 400, 300),
 	} {
 		cam.CenterOn(330, 310, 0)
 		cam.SetViewport(500, 400)
@@ -55,12 +64,12 @@ func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *test
 			t.Errorf("%s: the point in the middle moved to (%v, %v), want (250, 200)", name, sx, sy)
 		}
 	}
-	small := camera.NewFromSpaceWithConfig(640, 640, 0, contract.Config{ViewportWidth: 640, ViewportHeight: 640})
+	small := sized(640, 640, 640)
 	small.SetViewport(1280, 960)
 	if z := small.Zoom(); !near(z, 2) {
 		t.Errorf("a 640-unit world in a 1280-pixel window is at zoom %v, want 2: scaled up to cover it", z)
 	}
-	large := camera.NewFromSpaceWithConfig(4000, 4000, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300})
+	large := sized(4000, 400, 300)
 	large.SetViewport(1200, 900)
 	if b := large.Bounds(); large.Zoom() != 1 || b.BottomRight.X-b.TopLeft.X != 1200 {
 		t.Errorf("a large world in a larger window: zoom %v, bounds %v; want zoom 1 showing 1200 units", large.Zoom(), b)

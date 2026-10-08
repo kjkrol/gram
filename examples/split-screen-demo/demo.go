@@ -128,14 +128,13 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 			return err
 		}
 	}
-	s.minimapCam = s.cameras.New(cameras.TopDown(), camera.Config{ViewportWidth: MinimapWidth, ViewportHeight: MinimapWidth * WorldHeight / WorldWidth}) // the arena whole, as the minimap shows it
+	s.minimapCam = s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}) // the arena whole, as the minimap shows it
 	return nil
 }
 
 func (s *arena) definePlayers() {
-	half := camera.Config{ViewportWidth: ScreenWidth / 2, ViewportHeight: ScreenHeight} // each its own half of the screen
-	s.redPlayer = s.players.Local("red", s.cameras.New(cameras.TopDown(), half))
-	s.bluePlayer = s.players.Local("blue", s.cameras.New(cameras.TopDown(), half))
+	s.redPlayer = s.players.Local("red", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.bluePlayer = s.players.Local("blue", s.cameras.New(cameras.TopDown(), camera.Config{}))
 }
 
 func (s *arena) defineCells() {
@@ -261,8 +260,6 @@ func (s *arena) pictures() []render.Picture {
 // screen is each player's half, a line between, and the minimap at the bottom over them, the arena
 // whole.
 func (s *arena) screen() *ui.Element {
-	s.minimapCam.ZoomOut(1e6, WorldWidth/2, WorldHeight/2)
-	s.minimapCam.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	red := render.NewFeed(s.redPlayer.Camera, s.picture)
 	blue := render.NewFeed(s.bluePlayer.Camera, s.picture)
 	minimap := render.NewFeed(s.minimapCam, s.picture)

@@ -32,7 +32,9 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
+	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{})
+	cam.SetViewport(128, 64)
+	cam.MoveTo(0, 0)
 	if cam.Projection().Sorts() {
 		t.Fatal("a game not begun Isometric looks isometrically")
 	}
@@ -149,8 +151,7 @@ func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	cams := cameras.NewPlugin(w)
-	half := camera.Config{ViewportWidth: 64, ViewportHeight: 64}
-	above, iso := cams.New(p.Views(topography.FromAbove), half), cams.New(p.Views(topography.Isometrically), half)
+	above, iso := cams.New(p.Views(topography.FromAbove), camera.Config{}), cams.New(p.Views(topography.Isometrically), camera.Config{})
 	if above.Projection().Sorts() {
 		t.Error("the camera begun FromAbove looks isometrically")
 	}

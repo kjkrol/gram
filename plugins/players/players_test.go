@@ -58,18 +58,14 @@ type rig struct {
 	orders *control.Queue[order]
 }
 
-func newRig(t *testing.T, cfg ...camera.Config) *rig {
+func newRig(t *testing.T) *rig {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	var c camera.Config
-	if len(cfg) > 0 {
-		c = cfg[0]
-	}
 	cams := cameras.NewPlugin(w)
-	cam := cams.New(cameras.TopDown(), c)
+	cam := cams.New(cameras.TopDown(), camera.Config{})
 	g := &general{}
 	p := players.NewPlugin(w, cams, g)
 	return &rig{t: t, w: w, cams: cams, cam: cam, p: p, local: p.Local("tester", cam), orders: &g.orders}
@@ -263,7 +259,8 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
-	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{})
+	cam.SetViewport(200, 200)
 	cam.MoveTo(950, 500)
 	ctx := control.Context{Camera: cam}
 
@@ -274,9 +271,9 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 }
 
 // cameraRig is a rig with the default camera bindings, started, so Pan and Zoom reach the camera.
-func cameraRig(t *testing.T, cfg ...camera.Config) (*rig, *goke.ECS) {
+func cameraRig(t *testing.T) (*rig, *goke.ECS) {
 	t.Helper()
-	r := newRig(t, cfg...)
+	r := newRig(t)
 	r.bind(cameras.DefaultKeys().Bindings()...)
 	return r, r.start()
 }
@@ -302,8 +299,9 @@ func TestCamera_WheelZooms(t *testing.T) {
 
 func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 	for _, zoom := range []float32{1, 2} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+		r, ecs := cameraRig(t)
 		cam := r.local.Camera
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
@@ -319,8 +317,9 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 
 func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 	for _, zoom := range []float32{1, 2, 4} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
+		r, ecs := cameraRig(t)
 		cam := r.local.Camera
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()

@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -19,13 +20,16 @@ var _ goke.System = (*cameraSystem)(nil)
 type cameraSystem struct {
 	p *Plugin
 
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	z     goke.OptComp[world.Z]
+	query    *goke.Query
+	base     goke.Comp[world.Base]
+	z        goke.OptComp[world.Z]
+	labelled *goke.Query // every entity called something: whom a camera starts fastened to
+	label    goke.Comp[entity.Label]
 }
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.base).Optional(&s.z).Build()
+	s.labelled = si.NewQueryBuilder(&s.label).Build()
 }
 
 func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
@@ -79,7 +83,38 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			m.SetMouseLook(!m.MouseLook())
 		}
 	})
+	s.start()
 	s.keep()
+}
+
+// start fastens Centred every camera waiting for the entity its config names, once it is in the
+// world.
+func (s *cameraSystem) start() {
+	if len(s.p.starts) == 0 {
+		return
+	}
+	waiting := s.p.starts[:0]
+	for _, st := range s.p.starts {
+		if id, ok := s.called(st.whom); ok {
+			st.cam.Fasten(camera.Fastening{Entity: id, How: camera.Centred})
+		} else {
+			waiting = append(waiting, st)
+		}
+	}
+	s.p.starts = waiting
+}
+
+// called is the entity whom names, when one is in the world.
+func (s *cameraSystem) called(whom entity.Whom) (uid.UID64, bool) {
+	for s.labelled.All(); s.labelled.Next(); {
+		cur := s.labelled.Cursor()
+		for i, l := range s.label.Slice(cur) {
+			if whom.Holds(l) {
+				return cur.IDs[i], true
+			}
+		}
+	}
+	return 0, false
 }
 
 // fasten fastens cam Centred over id, when id is in the world.

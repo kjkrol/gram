@@ -6,11 +6,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -184,27 +182,6 @@ func TestInitializer_Use_RejectsBuiltinPlugin(t *testing.T) {
 	}
 	if p.installed != 0 {
 		t.Errorf("installed = %d, want 0 (rejected before Install)", p.installed)
-	}
-}
-
-func TestEngine_Init_CamerasViewportDefaultsToScreenSize(t *testing.T) {
-	props := game.Props{ScreenWidth: 200, ScreenHeight: 150}
-	var got camera.Camera
-	stage := &stubStage{initFn: func(ctx game.Initializer) error {
-		cams := cameras.NewPlugin(ctx.UseWorld(world.Config{
-			Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		}))
-		got = cams.New(cameras.TopDown(), camera.Config{})
-		return ctx.Use(cams)
-	}}
-	eng := NewEngine(oneStageGame{stage: stage, props: props})
-	if err := eng.Init(); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	b := got.Bounds()
-	if w, h := b.BottomRight.X-b.TopLeft.X, b.BottomRight.Y-b.TopLeft.Y; w != 200 || h != 150 {
-		t.Errorf("the main camera's Bounds() size = %vx%v, want 200x150 (screen size, not world size)", w, h)
 	}
 }
 

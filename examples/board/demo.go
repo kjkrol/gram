@@ -151,7 +151,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{ViewportWidth: ScreenWidth, ViewportHeight: ScreenHeight}))
+	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
 	s.player.Camera.CenterOn(WorldWidth/2, WorldHeight/2, 0)
 	return s.player.Bind(s.players.Defaults()...)
 }

@@ -22,8 +22,6 @@ type initializer struct {
 	hosts []plugin.Host
 	// part is the section of the Stage's definition under way, for one built in sections
 	part section.Part
-
-	screenWidth, screenHeight int
 }
 
 var (
@@ -108,9 +106,6 @@ func (c *initializer) deliver() error {
 	}
 	return hosts.Deliver(c.hosts, c.world.Kinds().Played()...)
 }
-
-// Screen is the window's size in pixels, which the cameras are sized to.
-func (c *initializer) Screen() (width, height int) { return c.screenWidth, c.screenHeight }
 
 // Track registers s for Save and Load under its Go type name; tracked after a Load, s gets the
 // state the save holds for it at once.

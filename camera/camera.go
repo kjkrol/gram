@@ -33,9 +33,9 @@ type Camera interface {
 	Depth(x, y, z float32) float32
 	// Viewport is the screen the camera draws to, in pixels.
 	Viewport() (w, h float32)
-	// SetViewport resizes the screen the camera draws to — a window resized — keeping the point in
-	// the middle of it; a screen larger than the world at the current zoom raises the zoom until the
-	// world covers it.
+	// SetViewport resizes the screen the camera draws to — as whoever shows it gives it its size —
+	// keeping the point in the middle of it; a screen larger than the world at the current zoom
+	// raises the zoom until the world covers it; a camera keeping the whole world in view fits it.
 	SetViewport(w, h float32)
 	ToScreen(x, y float32) (float32, float32)
 	// FromScreen inverts ToScreen: screen coordinates back to world coordinates.
@@ -63,7 +63,7 @@ type Camera interface {
 	ZoomOut(factor float32, anchorX, anchorY float32)
 	// State returns the camera's current Viewport/Zoom.
 	State() State
-	// Persisted returns pointers to the live Viewport and Zoom for Persistence to save and load.
+	// Persisted returns pointers to the live window, zoom and fastening for saves and loads.
 	Persisted() []any
 	// Restore rebuilds derived state after a Load has written through Persisted's pointers.
 	Restore()
@@ -73,11 +73,18 @@ type Camera interface {
 	SetMaxZoom(maxZoom float32)
 }
 
-// Config optionally overrides a camera's construction; the zero value is NewFromSpace's defaults.
-// It is construction-time only and never persisted.
+// Config is how a camera starts: its window on the world, what it follows. Its pixels are whoever
+// shows it's (a render.Feed sizes it every frame). It is construction-time only and never
+// persisted: a loaded camera is as it was saved.
 type Config struct {
-	// ViewportWidth/Height size the initial visible window at (0,0); zero is the full surface.
-	ViewportWidth, ViewportHeight uint32
+	// Zoom is the scale it starts at, screen pixels a world unit; 0 is 1.
+	Zoom float32
+	// Whole keeps the whole world in view at whatever size the camera is shown, centred, the
+	// background in bars along the longer side: a minimap. Such a camera is not panned or zoomed.
+	Whole bool
+	// Follow is the name of the entity it starts fastened Centred over (its entity.Label), found
+	// once it is in the world; empty, it starts fastened to nothing.
+	Follow string
 	// MinZoom raises ZoomOut's floor above the automatic world-fit one; 0 keeps only that.
 	MinZoom float32
 	// MaxZoom caps ZoomIn; 0 leaves it unrestricted.

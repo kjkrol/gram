@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -51,7 +50,7 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*spacing), float64(10 + (i/side)*spacing)}))
 	}
 	w.Seed(entries...)
-	ctx.cam = ctx.camera(cameras.TopDown(), camera.Config{ViewportWidth: view, ViewportHeight: view})
+	ctx.cam = ctx.camera(cameras.TopDown(), float32(view), float32(view))
 	w.ViewFor(ctx.cam) // its View kept from the first tick, as a player's is
 	if arrange != nil {
 		arrange(w, movers)

@@ -2,15 +2,18 @@
 //
 // # Making cameras
 //
-// [NewPlugin] takes the world and makes no camera: each is made where it is given to a player
-// ([Plugin.New]), with a [Maker] and a camera.Config of its own — one player looking from above,
-// another isometrically, one looking round with the mouse, another not; a minimap's the same way.
-// The zero Config sees the window's size at zoom 1. [TopDown] is the plain camera from above over
+// [NewPlugin] takes the world and makes no camera: each is made where a scene shows it
+// ([Plugin.New], render.NewFeed), with a [Maker] and a camera.Config of its own — one player
+// looking from above, another isometrically, one looking round with the mouse, another not; a
+// minimap keeping the whole world in view (camera.Config.Whole). Whoever shows a camera sizes it;
+// camera.Config.Follow names the entity it starts fastened Centred over, found by its name once it
+// is in the world. [TopDown] is the plain camera from above over
 // a flat world — wrapping on a wrapping axis, held inside the world on any other; in a world in
 // relief the cameras are the view plugin's (topography.Plugin.Views: starting from above or
 // isometrically, Tab going round the views), whose drawing asks for their lines of sight. A local
 // player looks through the camera it is given (players.Plugin.Local). Every camera made is saved
-// with the game, in the order made.
+// with the game, in the order made — its window, zoom and fastening — and one made after a Load
+// takes the state of the camera made in its place.
 //
 // # Commands
 //

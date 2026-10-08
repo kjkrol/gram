@@ -164,7 +164,10 @@ func NewWorld(edges aabbworld.Edges) *world.Plugin {
 
 // Camera is the main camera of a cameras plugin over w made by p's Views, 128 x 64.
 func Camera(w *world.Plugin, p *topography.Plugin) camera.Camera {
-	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 128, ViewportHeight: 64})
+	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam.SetViewport(128, 64)
+	cam.MoveTo(0, 0)
+	return cam
 }
 
 // LevelBoard is a 4x4 board of level grass over w.

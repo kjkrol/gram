@@ -59,7 +59,9 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 320, ViewportHeight: 240})
+	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam.SetViewport(320, 240)
+	cam.MoveTo(0, 0)
 	cam.CenterOn(128, 128, 0)
 	picker := cam.(interface {
 		Pick(sx, sy float32) (float32, float32, bool)
@@ -148,7 +150,9 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	tiles.Close()
 	b.WithRenderer(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{ViewportWidth: 320, ViewportHeight: 240})
+	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam.SetViewport(320, 240)
+	cam.MoveTo(0, 0)
 	c := grid.CellIndex(2, 2)
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)

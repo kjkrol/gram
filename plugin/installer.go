@@ -20,9 +20,3 @@ type Installer interface {
 type Host interface {
 	Add(rule any) error
 }
-
-// Screen is an Installer that knows the window's size in pixels: the engine's, for a plugin that
-// sizes what it makes to the screen (the cameras).
-type Screen interface {
-	Screen() (width, height int)
-}

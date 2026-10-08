@@ -60,7 +60,6 @@ func (c *stageInit) Track(s plugin.Serializable) error {
 }
 
 // Screen is the window's size, which the cameras are sized to, as the engine's Initializer says.
-func (c *stageInit) Screen() (int, int) { return ScreenWidth, ScreenHeight }
 
 func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 	c.world = world.NewPlugin(cfg)

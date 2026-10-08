@@ -70,14 +70,17 @@ func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// camera is the main camera of the world's cameras, made by make: cfg's viewport, the whole world
-// for none.
-func (c *headless) camera(make cameras.Maker, cfg camera.Config) camera.Camera {
-	if cfg.ViewportWidth == 0 {
+// camera is the main camera of the world's cameras, made by make and shown w x h pixels from the
+// world's top-left corner: the whole world for none.
+func (c *headless) camera(make cameras.Maker, w, h float32) camera.Camera {
+	if w == 0 {
 		space := c.world.Res.Config.Space
-		cfg.ViewportWidth, cfg.ViewportHeight = space.Width, space.Height
+		w, h = float32(space.Width), float32(space.Height)
 	}
-	return cameras.NewPlugin(c.world).New(make, cfg)
+	cam := cameras.NewPlugin(c.world).New(make, camera.Config{})
+	cam.SetViewport(w, h)
+	cam.MoveTo(0, 0)
+	return cam
 }
 
 // start runs the fresh-spawn half of entering a Stage after Init and Spawn: Populate on every
