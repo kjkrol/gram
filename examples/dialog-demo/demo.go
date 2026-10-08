@@ -1,10 +1,14 @@
-// Command dialog-demo is a conversation: walk the traveller (right click) up to a host, who looks
-// west, the way the traveller comes, sees it near and says hello in a window above it; the traveller
-// answers one of three ways, and the host shows what it made of the answer. Walk away without a
-// word and the hello is gone. Two hosts stand in the meadow; one window serves both.
+// Command dialog-demo is conversations written as data: walk the traveller (right click) up to a
+// host, who looks west, the way the traveller comes, sees it near and talks in a window above it.
+// The miller and the smith each say lines of their own, read from dialogs/*.yaml; the answers lead
+// on through the conversation and move what the host makes of the traveller, which it remembers:
+// point at a host with the traveller selected and it says so under it — Friend, Neutral or Enemy —
+// and meets the traveller again accordingly. Walk away mid-word and the conversation is over. One
+// window serves both hosts.
 package main
 
 import (
+	"embed"
 	"image/color"
 	"math"
 	"time"
@@ -23,6 +27,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -32,9 +37,13 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
+
+// dialogs are the hosts' conversations, a file each.
+//
+//go:embed dialogs
+var dialogs embed.FS
 
 const (
 	TPS          = 60
@@ -70,7 +79,7 @@ func NewDemo() *Demo {
 
 func (d *Demo) Props() game.Props {
 	return game.Props{
-		Title:       "gram dialog demo — right click: walk up to the host",
+		Title:       "gram dialog demo — right click: walk up to a host; point at one to see what it makes of you",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -91,6 +100,7 @@ type arena struct {
 	driving   *driving.Plugin
 	nav       *navigation.Plugin
 	vision    *vision.Plugin
+	dialog    *dialog.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
 	player    *players.Player
@@ -125,9 +135,10 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world)
+	s.dialog = dialog.NewPlugin(s.world, dialog.Config{})
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.vision)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.cameras, s.players} {
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.vision, s.dialog)
+	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.dialog, s.cameras, s.players} {
 		if err := ctx.Use(p); err != nil {
 			return err
 		}
@@ -140,47 +151,45 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	effects := s.world.Effects()
-	effects.Define(GreetingEf, effect.Spec{effect.Described("The host has said hello and waits for an answer.")})
-	effects.Define(TalkedEf, effect.Spec{effect.Described("The host has been answered."), effect.Lasts(10 * time.Second)})
-	effects.Define(PleasedEf, effect.Spec{effect.Lasts(3 * time.Second)})
-	effects.Define(PuzzledEf, effect.Spec{effect.Lasts(3 * time.Second)})
-	effects.Define(OffendedEf, effect.Spec{effect.Lasts(3 * time.Second)})
-}
+// defineEffects are the conversations' handles, the dialog plugin's own.
+func (s *arena) defineEffects() { s.dialog.DefineEffects() }
 
-// defineRoles: the host, seeing the traveller near and not answered of late, says hello; seeing
-// nobody, it lets the hello go.
+// defineRoles: the host, seeing the traveller near, not talking and not just done talking, begins
+// a conversation with it; seeing nobody, it ends the one it holds.
 func (s *arena) defineRoles() {
 	effects := s.world.Effects()
-	greeting, talked := effects.Named(GreetingEf), effects.Named(TalkedEf)
+	talking, talked := effects.Named(dialog.TalkingEf), effects.Named(dialog.TalkedEf)
 	roles := s.world.Roles()
 	roles.Define(TravellerRole)
+	traveller := roles.Named(TravellerRole)
 	roles.Define(HostRole,
-		rule.Then[vision.Sighting]("say hello", rule.Other(roles.Named(TravellerRole)),
-			rule.If(rule.Not(vision.Sighting.Nobody), rule.Unless(greeting, rule.Unless(talked, rule.Apply(greeting))))),
-		rule.Then[vision.Sighting]("let the hello go", rule.Other(roles.Named(TravellerRole)),
-			rule.If(vision.Sighting.Nobody, rule.Dispel(greeting))),
+		rule.Then[vision.Sighting]("talk", rule.Other(traveller),
+			rule.If(rule.Not(vision.Sighting.Nobody), rule.Unless(talking, rule.Unless(talked, rule.Order(dialog.Begin{}))))),
+		rule.Then[vision.Sighting]("part", rule.Other(traveller),
+			rule.If(vision.Sighting.Nobody, rule.Dispel(talking))),
 	)
 }
 
-// defineCommands are what the traveller's answers do to the host the window stands above (ui.It):
-// one window serves every host.
-func (s *arena) defineCommands() {
-	effects, commands := s.world.Effects(), s.world.Commands()
-	commands.Define(EndGreetingCmd, rule.Lift(effects.Named(GreetingEf)).On(ui.It))
-	commands.Define(TalkedCmd, rule.Cast(effects.Named(TalkedEf)).On(ui.It))
-	commands.Define(PleaseCmd, rule.Cast(effects.Named(PleasedEf)).On(ui.It))
-	commands.Define(PuzzleCmd, rule.Cast(effects.Named(PuzzledEf)).On(ui.It))
-	commands.Define(OffendCmd, rule.Cast(effects.Named(OffendedEf)).On(ui.It))
+// defineCommands loads the hosts' conversations, a file each: what they say is data.
+func (s *arena) defineCommands() error {
+	for _, file := range []string{"dialogs/miller.yaml", "dialogs/smith.yaml"} {
+		if err := s.dialog.Load(dialogs, file); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *arena) defineCells() {
 	s.board.CellKinds().Define(MeadowCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-// unitRow is the row a unit spawns from: the cell it starts on.
-type unitRow struct{ start cell.ID }
+// unitRow is the row a unit spawns from: the cell it starts on and, for a host, the node its
+// conversations begin at.
+type unitRow struct {
+	start cell.ID
+	talks string
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
@@ -191,6 +200,8 @@ func (s *arena) defineKinds() {
 	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: hostSight}),
 		comp.Const(world.Eye{Angle: hostCone}), // looking west, the way the traveller comes
+		// where its conversations begin: each host's lines its own
+		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.talks) }),
 	)
 }
 
@@ -211,8 +222,8 @@ func (s *arena) spawnUnits() {
 	brd := s.board.Res.Logic.Board
 	s.world.Seed(
 		traveller.Entry(unitRow{start: brd.CellIndex(3, 7)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		host.Entry(unitRow{start: brd.CellIndex(16, 4)}),
-		host.Entry(unitRow{start: brd.CellIndex(16, 10)}),
+		host.Entry(unitRow{start: brd.CellIndex(16, 4), talks: MillerGreetNode}),
+		host.Entry(unitRow{start: brd.CellIndex(16, 10), talks: SmithGreetNode}),
 	)
 }
 
@@ -223,6 +234,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.nav.RunPlan(ctx, d)
 	s.driving.RunPlan(ctx, d)
 	s.vision.RunPlan(ctx, d)
+	s.dialog.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
@@ -256,23 +268,12 @@ func (s *arena) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the meadow through a camera of its own, the player's view; above the host, the hello
-// it says and the traveller's three answers, and once answered what it made of the answer.
+// screen is the meadow through a camera of its own, the player's view; above every host that
+// talks, its conversation, and under the one the cursor points at, what it makes of the traveller.
 func (s *arena) screen() *ui.Element {
-	effects, commands := s.world.Effects(), s.world.Commands()
-	answer := func(label, reaction string) *ui.Element {
-		return ui.Button(label, commands.Named(EndGreetingCmd), commands.Named(TalkedCmd), commands.Named(reaction)).Named(reaction)
-	}
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), s.picture())).Input(s.players.Through(s.player)),
-		ui.Window("Gospodarz",
-			ui.Label("Cześć, wędrowcze!"),
-			answer("Cześć i tobie!", PleaseCmd),
-			answer("A ty kto?", PuzzleCmd),
-			answer("Z drogi.", OffendCmd),
-		).Under(effects.Named(GreetingEf)).Above().Offset(0, -6),
-		ui.Label("Miło cię poznać.").Under(effects.Named(PleasedEf)).Above().Offset(0, -6),
-		ui.Label("Gospodarz, jak widać.").Under(effects.Named(PuzzledEf)).Above().Offset(0, -6),
-		ui.Label("Hmpf!").Under(effects.Named(OffendedEf)).Above().Offset(0, -6),
+		s.dialog.Window().Above().Offset(0, -6),
+		ui.LabelOf(s.dialog.Stance(s.selection, s.player.ID)).Where(ui.Tagged(s.selection.Tags().Hovered)).Below().Offset(0, 4),
 	)
 }

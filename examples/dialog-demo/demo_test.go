@@ -9,12 +9,13 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -71,10 +72,11 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 // testStage is the demo built fresh, without a window, its scene's layers initialised.
 type testStage struct {
 	*arena
-	stage game.Stage
-	ecs   *goke.ECS
-	base  goke.Comp[world.Base]
-	units *goke.Query
+	stage  game.Stage
+	ecs    *goke.ECS
+	base   goke.Comp[world.Base]
+	units  *goke.Query
+	layers []render.Layer // the scene's, initialised
 }
 
 func buildStage(t *testing.T) *testStage {
@@ -104,7 +106,8 @@ func buildStage(t *testing.T) *testStage {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { s.units = si.NewQueryBuilder(&s.base).Build() }})
-	for _, l := range s.scene.Layers() { // as the engine does, entering the Stage
+	s.layers = s.scene.Layers()
+	for _, l := range s.layers { // as the engine does, entering the Stage
 		systems = append(systems, goke.SystemFn{OnInit: l.Init})
 	}
 	ctx.ecs.Setup(systems...)
@@ -155,66 +158,112 @@ func (s *testStage) put(id uid.UID64, x, y uint32) {
 	}
 }
 
-var screen = geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight))
-
-// click presses the left button in the middle of the element called name.
-func (s *testStage) click(t *testing.T, name string) {
-	t.Helper()
-	s.scene.Lay(screen)
-	e := s.scene.Element(name)
-	if e == nil || !s.scene.Shown(name) {
-		t.Fatalf("no %q shown", name)
+// says is what host says now and the answers it offers; "" and none for nothing.
+func (s *testStage) says(host uid.UID64) (string, []string) {
+	line, _ := s.dialog.LineText().Text(host, true)
+	var offered []string
+	for i := range dialog.MaxChoices {
+		if text, ok := s.dialog.ChoiceText(i).Text(host, true); ok {
+			offered = append(offered, text)
+		}
 	}
-	b := e.Box()
-	at := geom.NewVec((b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2)
-	s.scene.HandleEvents(&control.InputEvents{MousePos: at, ClickQueue: []control.ClickEvent{
-		{Button: control.MouseButtonLeft, Action: control.ActionPress, Pos: at}}}, nil, nil)
+	return line, offered
 }
 
-// The traveller beside the host is greeted; an answer ends the hello, shows what the host made of
-// it and keeps it from saying hello again for a while.
-func TestDemo_TheHostGreetsTheTravellerWhoAnswers(t *testing.T) {
-	s := buildStage(t)
-	effects := s.world.Effects()
-	greeting, talked, pleased := effects.Named(GreetingEf), effects.Named(TalkedEf), effects.Named(PleasedEf)
+// answer has the player choose text among host's answers, as the window's button does.
+func (s *testStage) answer(t *testing.T, host uid.UID64, text string) {
+	t.Helper()
+	_, offered := s.says(host)
+	i := slices.Index(offered, text)
+	if i < 0 {
+		t.Fatalf("%q is not offered, only %q", text, offered)
+	}
+	if err := s.players.Issue(s.player, dialog.Choose{Index: i, Speaker: host}); err != nil {
+		t.Fatal(err)
+	}
 	s.tick(2)
-	hosts, traveller := s.all(t, HostKind), s.all(t, TravellerKind)[0]
-	host, other := hosts[1], hosts[0] // the lower host, at (16, 10); the upper one far off
-	if effects.Has(host, greeting) {
-		t.Fatal("the host says hello to a traveller far off")
+}
+
+// stance is what host makes of the traveller, as the label under it says while pointed at.
+func (s *testStage) stance(host uid.UID64) string {
+	word, _ := s.dialog.Stance(s.selection, s.player.ID).Text(host, true)
+	return word
+}
+
+// hosts are the miller, at (16, 4), and the smith, at (16, 10), and the traveller.
+func (s *testStage) hosts(t *testing.T) (miller, smith, traveller uid.UID64) {
+	t.Helper()
+	h := s.all(t, HostKind)
+	return h[0], h[1], s.all(t, TravellerKind)[0]
+}
+
+// Each host greets the traveller beside it with lines of its own, read from its file; walked off,
+// the conversation is over.
+func TestDemo_EachHostSaysLinesOfItsOwn(t *testing.T) {
+	s := buildStage(t)
+	s.tick(2)
+	miller, smith, traveller := s.hosts(t)
+	if line, _ := s.says(miller); line != "" {
+		t.Fatalf("the miller says %q to a traveller far off", line)
+	}
+	s.put(traveller, 15, 4)
+	s.tick(3)
+	line, offered := s.says(miller)
+	if line != "Hello, traveller! Fine weather for the mill." || !slices.Equal(offered, []string{"Hello to you too!", "Who are you?", "Out of my way."}) {
+		t.Fatalf("the miller says %q offering %q", line, offered)
 	}
 	s.put(traveller, 15, 10)
 	s.tick(3)
-	if !effects.Has(host, greeting) || effects.Has(other, greeting) {
-		t.Fatalf("greeting: the host beside %v, the other %v; want the one beside alone",
-			effects.Has(host, greeting), effects.Has(other, greeting))
+	if line, _ := s.says(miller); line != "" {
+		t.Errorf("the miller still says %q with the traveller gone", line)
 	}
-	s.click(t, PleaseCmd)
+	if line, _ := s.says(smith); line != "Hm. A traveller." {
+		t.Errorf("the smith says %q, want its own greeting", line)
+	}
+}
+
+// A kind answer makes the miller a friend: the label under it says so, it lets the traveller be for
+// a while after, and then greets it as a friend.
+func TestDemo_AKindAnswerMakesTheMillerAFriendWhoRemembersIt(t *testing.T) {
+	s := buildStage(t)
 	s.tick(2)
-	if effects.Has(host, greeting) || !effects.Has(host, talked) || !effects.Has(host, pleased) {
-		t.Fatalf("after the answer: greeting %v, talked %v, pleased %v; want the hello over, the host pleased",
-			effects.Has(host, greeting), effects.Has(host, talked), effects.Has(host, pleased))
+	miller, _, traveller := s.hosts(t)
+	s.put(traveller, 15, 4)
+	s.tick(3)
+	if got := s.stance(miller); got != "Neutral" {
+		t.Fatalf("before a word the miller makes %q of the traveller, want Neutral", got)
 	}
-	if effects.Has(other, talked) || effects.Has(other, pleased) {
-		t.Error("the answer reached the other host too")
+	s.answer(t, miller, "Hello to you too!")
+	if line, _ := s.says(miller); line != "Glad to meet you. Come back any time!" {
+		t.Fatalf("after the answer the miller says %q", line)
+	}
+	s.answer(t, miller, "Bye.")
+	if got := s.stance(miller); got != "Friend" {
+		t.Fatalf("the miller makes %q of the traveller, want Friend", got)
 	}
 	s.tick(TPS)
-	if effects.Has(host, greeting) {
-		t.Error("the host said hello again right after it was answered")
+	if line, _ := s.says(miller); line != "" {
+		t.Fatalf("the miller talks again at once: %q", line)
+	}
+	s.tick(10 * TPS)
+	if _, offered := s.says(miller); len(offered) == 0 || offered[0] != "Good to see you again, miller!" {
+		t.Errorf("meeting again the miller offers %q, want a friend's answer first", offered)
 	}
 }
 
-// The traveller walking off without a word lets the hello go.
-func TestDemo_TheHelloGoesWithTheTraveller(t *testing.T) {
+// A rude answer makes the smith an enemy, who offers the traveller a way to make up.
+func TestDemo_ARudeAnswerMakesTheSmithAnEnemy(t *testing.T) {
 	s := buildStage(t)
-	greeting := s.world.Effects().Named(GreetingEf)
 	s.tick(2)
-	host, traveller := s.all(t, HostKind)[1], s.all(t, TravellerKind)[0]
+	_, smith, traveller := s.hosts(t)
 	s.put(traveller, 15, 10)
 	s.tick(3)
-	s.put(traveller, 3, 7)
-	s.tick(3)
-	if s.world.Effects().Has(host, greeting) {
-		t.Error("the hello stays with the traveller gone")
+	s.answer(t, smith, "Leave me alone.")
+	if got := s.stance(smith); got != "Enemy" {
+		t.Fatalf("the smith makes %q of the traveller, want Enemy", got)
+	}
+	s.tick(11 * TPS)
+	if _, offered := s.says(smith); len(offered) == 0 || offered[0] != "Sorry about before." {
+		t.Errorf("meeting again the smith offers %q, want a way to make up first", offered)
 	}
 }
