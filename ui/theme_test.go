@@ -14,7 +14,7 @@ var red = color.RGBA{R: 255, A: 255}
 func TestTheme_ElementsTakeTheScenesColoursWhereTheySayNone(t *testing.T) {
 	plain := Panel(Label("a"))
 	own := Panel(Label("b")).Fill(red)
-	s := NewScene("main", nil, func() *Element { return Layers(plain, own) })
+	s := NewScene("main", Layers(plain, own))
 	th := DefaultTheme()
 	th.Panel = color.RGBA{B: 255, A: 255}
 	s.Theme(th)
@@ -33,7 +33,7 @@ func TestTheme_ALabelMeasuresInTheThemesFont(t *testing.T) {
 		t.Fatal(err)
 	}
 	label := Label("Cześć")
-	s := NewScene("main", nil, func() *Element { return Layers(label) })
+	s := NewScene("main", Layers(label))
 	th := DefaultTheme()
 	th.Font = big
 	s.Theme(th)

@@ -77,9 +77,9 @@ func (d *Demo) Stages() (map[string]game.Stage, string) {
 
 // =========================== Stage ===========================
 
-// arena is the arena, its two blocks and the players driving them: each block is its player's,
-// selected and followed by its camera from the start (kind.Entry.Told), driven by the player's
-// own keys (driving.Compass).
+// arena is the arena, its two blocks and the players driving them: each block is its player's and
+// selected from the start (kind.Entry.Told), followed by the camera of its player's half
+// (camera.Config.Follow), driven by the player's own keys (driving.Compass).
 type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
@@ -91,11 +91,8 @@ type arena struct {
 	players    *players.Plugin
 	redPlayer  *players.Player
 	bluePlayer *players.Player
-	minimapCam camera.Camera
-	picture    *render.Composer // the arena, as every half and the minimap show it
 }
 
-// newStage defines the game a section at a time, each building on those before it.
 // newArena makes the arena — the collector of the stage's plugins, which every
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
@@ -128,13 +125,12 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 			return err
 		}
 	}
-	s.minimapCam = s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}) // the arena whole, as the minimap shows it
 	return nil
 }
 
 func (s *arena) definePlayers() {
-	s.redPlayer = s.players.Local("red", s.cameras.New(cameras.TopDown(), camera.Config{}))
-	s.bluePlayer = s.players.Local("blue", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.redPlayer = s.players.Local("red")
+	s.bluePlayer = s.players.Local("blue")
 }
 
 func (s *arena) defineCells() {
@@ -156,10 +152,6 @@ func (s *arena) bindKeys() error {
 	}
 	blue := driving.Compass{Up: control.KeyArrowUp, Down: control.KeyArrowDown, Left: control.KeyArrowLeft, Right: control.KeyArrowRight, In: camera.Outside}
 	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{ui.NewScene(MainScene, s.pictures, s.screen).Input(s.players.Handle)}
 }
 
 // block is the row a block spawns from: where it starts.
@@ -206,10 +198,11 @@ func (s *arena) spawnUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
-	// each block its player's, selected — the player's hand is on it — and followed by its camera
+	// each block its player's and selected — the player's hand is on it — called by the name its
+	// player's camera follows
 	s.world.Seed(
-		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}, cameras.Follow{Camera: s.redPlayer.Camera, On: true}),
-		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}, cameras.Follow{Camera: s.bluePlayer.Camera, On: true}),
+		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Named(RedBlock).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
+		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Named(BlueBlock).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
 	)
 }
 
@@ -235,9 +228,27 @@ var (
 	dividerColor = color.RGBA{R: 240, G: 240, B: 240, A: 255}
 )
 
-// pictures dresses the arena — its blocks and its cells — and hands its one picture, which the
+// defineScenes is the one scene: each player's half through a camera following its block, a line
+// between, and the minimap at the bottom over them — the arena whole, following nobody, so it shows
+// both.
+func (s *arena) defineScenes() []game.Scene {
+	picture := s.picture()
+	red := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}), picture)
+	blue := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}), picture)
+	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
+	return []game.Scene{ui.NewScene(MainScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Columns(
+			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
+			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
+			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
+		),
+		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Size(MinimapWidth, MinimapWidth*WorldHeight/WorldWidth).Margin(10),
+	)).Input(s.players.Handle)}
+}
+
+// picture dresses the arena — its blocks and its cells — and hands its one picture, which the
 // players' halves and the minimap all show.
-func (s *arena) pictures() []render.Picture {
+func (s *arena) picture() render.Picture {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
@@ -253,22 +264,5 @@ func (s *arena) pictures() []render.Picture {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = false
 
-	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer())
-	return []render.Picture{s.picture}
-}
-
-// screen is each player's half, a line between, and the minimap at the bottom over them, the arena
-// whole.
-func (s *arena) screen() *ui.Element {
-	red := render.NewFeed(s.redPlayer.Camera, s.picture)
-	blue := render.NewFeed(s.bluePlayer.Camera, s.picture)
-	minimap := render.NewFeed(s.minimapCam, s.picture)
-	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Columns(
-			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
-			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
-			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
-		),
-		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Size(MinimapWidth, MinimapWidth*WorldHeight/WorldWidth).Margin(10),
-	)
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer())
 }

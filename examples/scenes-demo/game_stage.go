@@ -37,8 +37,7 @@ type gameplayArena struct {
 	players *players.Plugin
 	player  *players.Player // the one at the keyboard
 	cameras *cameras.Plugin
-	scene   *ui.Scene        // the one scene: the world, the hud, the panel over them
-	picture *render.Composer // the world, as the scene shows it
+	scene   *ui.Scene // the one scene: the world, the hud, the panel over them
 
 	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
 	SaveBasePath string
@@ -79,7 +78,7 @@ func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
 }
 
 func (g *gameplayArena) definePlayer() error {
-	g.player = g.players.Local("player", g.cameras.New(cameras.TopDown(), camera.Config{}))
+	g.player = g.players.Local("player")
 	return g.player.Bind(g.players.Defaults()...)
 }
 
@@ -95,7 +94,7 @@ func (g *gameplayArena) defineKinds() {
 // defineScenes is the one scene: P opens and closes the panel, the rest of the keys are the
 // player's.
 func (g *gameplayArena) defineScenes() []game.Scene {
-	g.scene = ui.NewScene(WorldScene, g.pictures, g.screen).
+	g.scene = ui.NewScene(WorldScene, g.screen()).
 		Input(g.players.Handle).
 		Issue(g.players.IssueAs(g.player)).
 		Keys(control.Give(control.KeyPress{Key: control.KeyP}, "Panel", ui.Toggle{Name: PanelElement}))
@@ -141,23 +140,23 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 40, A: 255}
 )
 
-// pictures dresses the movers and hands the world's picture.
-func (g *gameplayArena) pictures() []render.Picture {
+// picture dresses the movers and hands the world's picture.
+func (g *gameplayArena) picture() render.Picture {
 	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
 	atlas := render.NewAtlas()
 	atlas.Add(moverKind, EntitySize, render.Solid(moverColor))
 	atlas.Close()
 	g.world.WithRenderer(atlas)
-	g.picture = render.NewComposer(g.world.Renderer())
-	return []render.Picture{g.picture}
+	return render.NewComposer(g.world.Renderer())
 }
 
-// screen is the world on a backdrop, the keys at the bottom, and the panel: a modal window over
-// it all, hidden until P — while it is shown, the world keeps ticking behind it and takes no click.
+// screen is the world through a camera of its own on a backdrop, the player's view, the keys at the
+// bottom, and the panel: a modal window over it all, hidden until P — while it is shown, the world
+// keeps ticking behind it and takes no click.
 func (g *gameplayArena) screen() *ui.Element {
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(g.player.Camera, g.picture)).Input(g.players.Through(g.player)),
+		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), g.picture())).Input(g.players.Through(g.player)),
 		ui.BottomLeft(ui.Label("P: panel, F5: save, K: keys")).Margin(8),
 		ui.Center(ui.Window("PANEL",
 			ui.Label("the world keeps ticking behind me"),

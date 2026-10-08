@@ -158,7 +158,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -203,7 +203,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -257,8 +257,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
 }
 
 // The scene's colours: the units, the haste's glow and the meadow with its trapdoors.
@@ -271,8 +270,8 @@ var (
 	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
 )
 
-// pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
@@ -294,12 +293,11 @@ func (m *mainScene) pictures() []render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through the player's camera.
+// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }

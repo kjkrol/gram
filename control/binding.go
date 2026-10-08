@@ -94,8 +94,11 @@ type Context struct {
 
 // World is the ground point under screen position s: a camera.Picker's own Pick — a camera
 // drawing heights finds the ground under the cursor itself, so a click on a hill lands on the
-// hill — else the camera's FromScreen.
+// hill — else the camera's FromScreen; through no camera, s itself.
 func (c Context) World(s geom.Vec) geom.Vec {
+	if c.Camera == nil {
+		return s
+	}
 	sx, sy := float32(s.X), float32(s.Y)
 	if p, ok := c.Camera.(camera.Picker); ok {
 		x, y, _ := p.Pick(sx, sy)
@@ -107,10 +110,12 @@ func (c Context) World(s geom.Vec) geom.Vec {
 
 // WorldBox is the world rectangle between screen points a and b, at least one unit a side and no
 // wider than what was dragged even across a wrapping seam; through a camera.Picker it spans the
-// ground points under the two corners.
+// ground points under the two corners; through no camera, the screen's rectangle itself.
 func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	var x0, y0, x1, y1 float32
-	if _, picks := c.Camera.(camera.Picker); !picks {
+	if c.Camera == nil {
+		x0, y0, x1, y1 = float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
+	} else if _, picks := c.Camera.(camera.Picker); !picks {
 		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
 	} else {
 		pa, pb := c.World(a), c.World(b)

@@ -1,6 +1,6 @@
-// Package players is whoever acts in the game: a [Player] with a camera, a View through it and —
-// at this keyboard — the bindings that turn its input into commands, carried to the plugin that
-// defined each one.
+// Package players is whoever acts in the game: a [Player] acting through a picture of the world a
+// scene wires it to and — at this keyboard — the bindings that turn its input into commands,
+// carried to the plugin that defined each one.
 //
 // # A carrier to the command handlers
 //
@@ -10,8 +10,8 @@
 // their default bindings ([Plugin.Defaults]). The plugins never know players; they know plugin.CommandHandler and
 // the vocabulary in package control. [Plugin.Issue] is how a command comes in — from a binding, an
 // AI, a network — and a type no handler defines is [ErrUnknownCommand]. The cameras are the cameras
-// plugin's (plugins/cameras), a handler like any other: its keys move the camera a player looks
-// through.
+// plugin's (plugins/cameras), a handler like any other: its keys move the camera of the picture a
+// player acts through.
 //
 // # Owners
 //
@@ -26,17 +26,23 @@
 //
 // # Pictures of the world
 //
-// A player looks at the world through its camera, in a picture on a ui scene's screen:
-// ui.Image(render.NewFeed(cam, picture)).Input([Plugin.Through](pl)) tells the player every frame
-// where its picture lies ([Player.Area]), shows the elements pinned to its own entities and
-// nobody's, and moves its camera for them (cameras.LookAt). [Plugin.IssueAs] is how the scene's
-// buttons and keys give their commands as the player. What is drawn is the scene's to say; players
-// draw nothing.
+// A player owns no camera: it acts through a picture on a ui scene's screen, which the scene makes
+// with a camera beside it. ui.Image(render.NewFeed(cam, picture)).Input([Plugin.Through](pl)) is
+// the wire: the active scene tells the player, before each pass of input, where its picture lies
+// ([Player.Area]) and what it shows, so the mouse over it is the player's, in its pixels, and every
+// command the player gives — from a key too — carries that picture's camera
+// (control.Context.Camera); it shows the elements pinned to the player's own entities and
+// nobody's, and moves its picture's camera for them (cameras.LookAt). A scene gives a player one
+// view: two of its pictures in one pass panic. A player no scene wires acts through no picture —
+// no mouse reaches it, its keys carry no camera. [Plugin.IssueAs] is how the scene's buttons and
+// keys give their commands as the player. What is drawn is the scene's to say; players draw
+// nothing.
 //
 // # Players
 //
-// [Plugin.Local] adds a player at this keyboard, looking through the camera it is given
-// (plugins/cameras: cameras.Plugin.Main, New); [Plugin.Add] one without a keyboard — an AI, a remote client — whose commands come through Issue. A game
+// [Plugin.Local] adds a player at this keyboard, acting through the picture a scene wires it to;
+// [Plugin.Add] one without a keyboard — an AI, a remote client — whose commands come through
+// Issue. A game
 // binds a player with [Player.Bind]: the Defaults whole, single entries of its own, or fewer. Two
 // bindings on one rule holding in one fastening of the camera are refused at Bind; a binding whose command
 // nobody defines is refused when the Stage is set up. [Player.Bindings] is the list a help screen
@@ -61,8 +67,9 @@
 //
 // # Split screen
 //
-// Local players looking through cameras of their own (cameras.Plugin.New) share the screen as the
-// scene lays their pictures out (ui.Columns), and each keeps its part, [Player.Area]. Every key reaches every local
+// Local players acting through pictures of their own, each drawn through a camera of its own,
+// share the screen as the scene lays their pictures out (ui.Columns), and each keeps its part,
+// [Player.Area]. Every key reaches every local
 // player, each with bindings of its own — WASD for one, the arrows for another, a
 // control.KeyHeld firing once a tick while its key is down — and the mouse, there being one,
 // reaches the player whose part of the screen it is over, in the pixels of that part.

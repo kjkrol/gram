@@ -4,10 +4,11 @@
 //
 // # Scene
 //
-// A [Scene] is a game.Scene whose screen is a tree of elements: [NewScene] takes its name, its
-// pictures of the world — render.Pictures, a Composer of the plugins' renderers as a rule,
-// each initialised once however many feeds show it — and its screen, both asked for once as the
-// Stage is entered. Every frame the tree is laid over the screen and drawn. [Scene.Input] hands the
+// A [Scene] is a game.Scene whose screen is a tree of elements: [NewScene] takes its name and the
+// tree, made once the world is there (the Stage's Scenes) — the pictures of the world, a Composer
+// of the plugins' renderers as a rule, and the cameras they are seen through made beside the
+// elements that show them; each picture its feeds show is initialised once however many show it.
+// Every frame the tree is laid over the screen and drawn. [Scene.Input] hands the
 // scene's input to the players' bindings; [Scene.Show], [Scene.Hide] and [Scene.Toggle] show and
 // hide elements by name ([Element.Named]), [Scene.Element] finds one, [Scene.Shown] asks.
 //
@@ -39,8 +40,10 @@
 // A click goes to the topmost element it hits. A [Button] gives its command: one of the scene's own
 // — [Show], [Hide], [Toggle] an element by name — or any other through [Scene.Issue], the way a key
 // gives it (players.Plugin.IssueAs). A picture with an [Input] ([Element.Input]: players.Plugin.Through
-// for a player) lets the click through to [Scene.Input], the players' bindings, and is told every
-// frame where it lies, so the mouse over it is that player's; any other element keeps the click. A
+// for a player) lets the click through to [Scene.Input], the players' bindings, and is told, before
+// each pass of input of the active scene, where it lies and what it shows, so the mouse over it is
+// that player's and its commands go through the picture's camera; any other element keeps the
+// click. A
 // shown [Element.Modal] element — a window, or an anchor round one — holds every click and the
 // wheel outside it. [Scene.Keys] are the scene's own keys, giving commands the same way.
 //

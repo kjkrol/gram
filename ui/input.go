@@ -43,8 +43,30 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 	}
 	s.press(events)
 	if s.input != nil {
+		s.wire()
 		s.input(&s.passed, runtime, composition)
 	}
+}
+
+// wire tells every picture's Input shown where the picture lies, as last laid, and what it shows:
+// those of the active scene alone, before its input.
+func (s *Scene) wire() {
+	if s.root == nil {
+		return
+	}
+	var visit func(e *Element)
+	visit = func(e *Element) {
+		if e.hidden {
+			return
+		}
+		if p, ok := e.content.(*picture); ok && p.input != nil {
+			p.input.Over(shrink(e.box, e.padding), p.src)
+		}
+		for _, c := range e.children {
+			visit(c)
+		}
+	}
+	visit(s.root)
 }
 
 // click acts on c and reports whether it goes on to Input.

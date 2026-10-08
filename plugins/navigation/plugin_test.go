@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 )
 
@@ -52,7 +53,8 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
-	local := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{}))
+	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +116,9 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
-	if err := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{})).Bind(navPlugin.DefaultBindings()...); err != nil {
+	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
 	handle := func(ev *control.InputEvents) (looks []LookAt, moves []MoveTo) {
@@ -164,7 +168,9 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
-	if err := pl.Local("tester", cameras.TopDown()(50, 50, 0, camera.Config{})).Bind(navPlugin.DefaultBindings()...); err != nil {
+	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
 	events := &control.InputEvents{}

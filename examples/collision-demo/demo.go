@@ -142,7 +142,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -157,7 +157,7 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -213,9 +213,8 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	tps     *game.TPS
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
+	tps   *game.TPS
 }
 
 // The scene's colours: a palette of the bodies' colours — the one past entityColors is the
@@ -234,8 +233,8 @@ var (
 	backgroundColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
 )
 
-// pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 
 	atlas := s.world.NewAtlas()
@@ -254,17 +253,16 @@ func (m *mainScene) pictures() []render.Picture {
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
-	m.picture = render.NewComposer(s.world.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.world.Renderer())
 }
 
-// screen is the world through the player's camera, on its backdrop, a telemetry line over it.
+// screen is the world through a camera of its own, the player's view, on its backdrop, a telemetry line over it.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
 		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, entityCount).With(s.collisionStats.Reporter(&m.tps.Ticks))),
 	)
 }

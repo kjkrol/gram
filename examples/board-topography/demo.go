@@ -180,8 +180,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player", s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}))
-	s.player.Camera.CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.player = s.players.Local("player")
 	s.rival = s.players.Add("rival")
 	return s.player.Bind(s.players.Defaults()...)
 }
@@ -223,7 +222,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -327,10 +326,9 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	keys    players.SceneKeys
-	tps     *game.TPS
-	picture *render.Composer // the island, as the scene shows it
+	arena *arena
+	keys  players.SceneKeys
+	tps   *game.TPS
 }
 
 // The scene's colours: the player's walkers and giants, the rival's, the hawk.
@@ -340,8 +338,8 @@ var (
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 )
 
-// pictures dresses the units, the hawk and the island and hands the world's picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the units, the hawk and the island and hands the world's picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
@@ -362,19 +360,18 @@ func (m *mainScene) pictures() []render.Picture {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(
+	return render.NewComposer(
 		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
 		s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
 		s.nav.Renderer(), s.atmosphere.Precipitation())
-	return []render.Picture{m.picture}
 }
 
-// screen is the island through the player's camera, the telemetry and the clock over it.
+// screen is the island through a camera of its own, the player's view, the telemetry and the clock over it.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
 		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
 		ui.Layer(s.world.Clock().HUD()),
 	)

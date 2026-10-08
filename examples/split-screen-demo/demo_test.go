@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
@@ -26,8 +27,8 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := d.a
-	main, _ := d.stage.Stack().Get(MainScene)
-	main.(*ui.Scene).Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight)))
+	main := lay(t, d.stage)
+	main.HandleEvents(&control.InputEvents{}, nil, d.stage.Stack().Composition()) // the active scene wires its players
 
 	half := (ScreenWidth - 2) / 2.0
 	if a := s.redPlayer.Area(); a != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(half, ScreenHeight)) {
@@ -36,19 +37,29 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 	if a := s.bluePlayer.Area(); a != geom.NewAABB(geom.NewVec(half+2, 0), geom.NewVec(ScreenWidth, ScreenHeight)) {
 		t.Errorf("blue looks over %v, want the right half", a)
 	}
-	if s.redPlayer.Camera == s.bluePlayer.Camera {
-		t.Error("the players look through a shared camera, want one of their own each")
-	}
-	if w, h := s.redPlayer.Camera.Viewport(); w != float32(math.Round(half)) || h != ScreenHeight {
+	red, _, minimap := s.cameras.Cameras()[0], s.cameras.Cameras()[1], s.cameras.Cameras()[2]
+	if w, h := red.Viewport(); w != float32(math.Round(half)) || h != ScreenHeight {
 		t.Errorf("red's camera sees %vx%v, want its half", w, h)
 	}
-	if w, _ := s.minimapCam.Viewport(); w != MinimapWidth {
+	if w, _ := minimap.Viewport(); w != MinimapWidth {
 		t.Errorf("the minimap is %v wide, want %d", w, MinimapWidth)
 	}
-	b := s.minimapCam.Bounds()
+	b := minimap.Bounds()
 	if b.TopLeft.X > 0 || b.TopLeft.Y > 0 || b.BottomRight.X < WorldWidth-1 || b.BottomRight.Y < WorldHeight-1 {
 		t.Errorf("the minimap shows %v, want the whole %dx%d arena", b, WorldWidth, WorldHeight)
 	}
+}
+
+// lay lays st's main scene over the window, as a frame does: its pictures get their sizes.
+func lay(t *testing.T, st game.Stage) *ui.Scene {
+	t.Helper()
+	sc, ok := st.Stack().Get(MainScene)
+	if !ok {
+		t.Fatal("no main scene")
+	}
+	main := sc.(*ui.Scene)
+	main.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight)))
+	return main
 }
 
 // stageInit is a game.Initializer that drives the real Stage without a window; Scene.Layers() is
@@ -172,25 +183,27 @@ func (s *testStage) block(k string) (at geom.Vec, driven *steering.Driven) {
 // the way they say and nobody else's.
 func TestDemo_EachPlayerFollowsAndDrivesItsOwnBlock(t *testing.T) {
 	s := buildStage(t)
+	lay(t, s.stage)
 	s.tick(2)
+	cams := map[*players.Player]camera.Camera{s.redPlayer: s.cameras.Cameras()[0], s.bluePlayer: s.cameras.Cameras()[1]}
 	redAt, _ := s.block(RedKind)
 	blueAt, _ := s.block(BlueKind)
 	for _, pl := range []*players.Player{s.redPlayer, s.bluePlayer} {
-		f := pl.Camera.(camera.Fastenable).Fastening()
+		f := cams[pl].(camera.Fastenable).Fastening()
 		if f.How != camera.Centred {
 			t.Errorf("%s's camera is fastened %+v, want Centred over its block from the start", pl.Name, f)
 		}
 	}
 	// a block near the arena's edge is kept as near the middle as the window may go: in view
 	shows := func(pl *players.Player, at geom.Vec) bool {
-		b := pl.Camera.Bounds()
+		b := cams[pl].Bounds()
 		return at.X >= b.TopLeft.X && at.X <= b.BottomRight.X && at.Y >= b.TopLeft.Y && at.Y <= b.BottomRight.Y
 	}
 	if !shows(s.redPlayer, redAt) || !shows(s.bluePlayer, blueAt) {
 		t.Error("the players' cameras do not show their blocks")
 	}
 	for range 12 {
-		if err := s.players.Issue(s.redPlayer, driving.Toward{Camera: s.redPlayer.Camera, Way: geom.NewVec(1, 0)}); err != nil {
+		if err := s.players.Issue(s.redPlayer, driving.Toward{Camera: cams[s.redPlayer], Way: geom.NewVec(1, 0)}); err != nil {
 			t.Fatal(err)
 		}
 		s.tick(1)

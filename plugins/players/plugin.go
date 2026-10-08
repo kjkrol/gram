@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -42,6 +41,7 @@ type Plugin struct {
 	savePath    string // where Save writes; none, no saving
 	saveWith    []any  // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
+	pass        uint64 // the passes of input handled: a player's picture is wired anew for each
 	module      *module
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
 	// lets go of the window's cursor
@@ -72,20 +72,17 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 	return p
 }
 
-// Local adds a player at this keyboard, looking through cam (plugins/cameras); bind it before Use.
-// Two local players looking through two cameras split the screen.
-func (p *Plugin) Local(name string, cam camera.Camera) *Player {
-	if cam == nil {
-		panic(fmt.Sprintf("players: the local player %q needs a camera to look through", name))
-	}
+// Local adds a player at this keyboard, acting through the picture of the world a scene wires it
+// to (Through); bind it before Use. Two local players acting through pictures of their own split
+// the screen.
+func (p *Plugin) Local(name string) *Player {
 	pl := p.Add(name)
 	pl.local = true
-	pl.Camera, pl.View = cam, p.worldPlugin.ViewFor(cam)
 	return pl
 }
 
 // Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
-// Issue; it looks through no camera.
+// Issue; it acts through no picture.
 func (p *Plugin) Add(name string) *Player {
 	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
 		panic("players: " + err.Error())
@@ -175,6 +172,7 @@ func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, compo
 		log.Printf("players: saved %q", p.savePath)
 	})
 	p.shortcuts.keys.Handle(events, runtime, composition)
+	p.pass++
 }
 
 // WithSaves says where the game is saved — basePath, with the game's own resources beside the

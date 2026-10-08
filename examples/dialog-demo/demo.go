@@ -94,7 +94,6 @@ type arena struct {
 	cameras   *cameras.Plugin
 	players   *players.Plugin
 	player    *players.Player
-	picture   *render.Composer // the meadow, as the scene shows it
 	scene     *ui.Scene
 }
 
@@ -137,7 +136,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -196,7 +195,7 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	s.scene = ui.NewScene(MainScene, s.pictures, s.screen).
+	s.scene = ui.NewScene(MainScene, s.screen()).
 		Input(s.players.Handle).
 		Issue(s.players.IssueAs(s.player))
 	return []game.Scene{s.scene}
@@ -239,8 +238,8 @@ var (
 	hostColor      = color.RGBA{R: 120, G: 160, B: 230, A: 255}
 )
 
-// pictures dresses the meadow and the two and hands the world's picture.
-func (s *arena) pictures() []render.Picture {
+// picture dresses the meadow and the two and hands the world's picture.
+func (s *arena) picture() render.Picture {
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), TravellerKind), UnitSize, render.Diamond(travellerColor))
 	worldAtlas.Add(kind.Named[unitRow](s.world.Kinds(), HostKind), UnitSize, render.Solid(hostColor))
@@ -254,19 +253,18 @@ func (s *arena) pictures() []render.Picture {
 
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
-	s.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{s.picture}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the meadow; above the host, the hello it says and the traveller's three answers, and
-// once answered what it made of the answer.
+// screen is the meadow through a camera of its own, the player's view; above the host, the hello
+// it says and the traveller's three answers, and once answered what it made of the answer.
 func (s *arena) screen() *ui.Element {
 	effects, commands := s.world.Effects(), s.world.Commands()
 	answer := func(label, reaction string) *ui.Element {
 		return ui.Button(label, commands.Named(EndGreetingCmd), commands.Named(TalkedCmd), commands.Named(reaction)).Named(reaction)
 	}
 	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Image(render.NewFeed(s.player.Camera, s.picture)).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), s.picture())).Input(s.players.Through(s.player)),
 		ui.Window("Gospodarz",
 			ui.Label("Cześć, wędrowcze!"),
 			answer("Cześć i tobie!", PleaseCmd),

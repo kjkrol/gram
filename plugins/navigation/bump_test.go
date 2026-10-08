@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
@@ -50,6 +51,7 @@ type roadWorld struct {
 	nav     *Plugin
 	driving *driving.Plugin
 	players *players.Plugin
+	cams    []camera.Camera // each player's, by id − 1: what its picture is drawn through
 	cell    goke.Comp[unit.At]
 	base    goke.Comp[world.Base]
 	order   goke.OptComp[MoveOrder]
@@ -78,8 +80,10 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
 	rw.nav = NewPlugin(brd, w, sel, rw.driving).WithCollision(c)
 	rw.players = players.NewPlugin(w, rw.nav, rw.driving) // carries their commands, as the engine does with Use
-	for _, name := range []string{"one", "two"} {         // each looking through a camera of its own
-		rw.players.Add(name).Camera = cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
+	for _, name := range []string{"one", "two"} {         // each acting through a picture of its own
+		cam := cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
+		rw.players.Through(rw.players.Add(name)).Over(geom.AABB{}, render.NewFeed(cam, nil))
+		rw.cams = append(rw.cams, cam)
 	}
 
 	ctx := &stubInstallCtx{ecs: goke.New()}

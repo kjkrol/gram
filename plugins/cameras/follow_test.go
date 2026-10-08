@@ -1,6 +1,7 @@
 package cameras_test
 
 import (
+	"github.com/kjkrol/gram/ui"
 	"math"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -48,6 +50,8 @@ type camp struct {
 	cams     *cameras.Plugin
 	players  *players.Plugin
 	one, two *players.Player
+	cam      camera.Camera // the one one acts through
+	wire     ui.Input      // one's picture's
 	ecs      *goke.ECS
 	base     goke.Comp[world.Base]
 	q        *goke.Query
@@ -73,7 +77,9 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	cam := c.cams.New(cameras.TopDown(), camera.Config{})
 	cam.SetViewport(200, 200)
 	cam.MoveTo(0, 0)
-	c.one, c.two = c.players.Local("one", cam), c.players.Add("two")
+	c.one, c.two = c.players.Local("one"), c.players.Add("two")
+	c.wire = c.players.Through(c.one)
+	c.look(cam)
 	if err := c.one.Bind(c.sel.FollowKey(control.KeyC)); err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +110,13 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	})
 	c.tick()
 	return c
+}
+
+// look has one act through a picture drawn through cam over the whole screen, as a scene showing
+// it wires it.
+func (c *camp) look(cam camera.Camera) {
+	c.cam = cam
+	c.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
 }
 
 // pressC presses C at the keyboard: one follows its chosen unit, or lets go.
@@ -141,14 +154,14 @@ func (c *camp) moveTo(id uid.UID64, x, y float64) {
 	}
 }
 
-// centred reports whether pl's camera draws the middle of the 10x10 box at (x, y) in the middle
+// centred reports whether one's camera draws the middle of the 10x10 box at (x, y) in the middle
 // of its screen.
-func centred(pl *players.Player, x, y float64) bool {
-	sx, sy := pl.Camera.Project(float32(x+5), float32(y+5), 0)
+func centred(c *camp, x, y float64) bool {
+	sx, sy := c.cam.Project(float32(x+5), float32(y+5), 0)
 	return math.Abs(float64(sx-100)) < 0.5 && math.Abs(float64(sy-100)) < 0.5
 }
 
-func fastening(pl *players.Player) camera.Fastening { return pl.Camera.(camera.Fastenable).Fastening() }
+func fastening(c *camp) camera.Fastening { return c.cam.(camera.Fastenable).Fastening() }
 
 // twoUnits is a unit of player one at 100 and one of player two at 200, both selectable.
 func twoUnits(c *camp, unit kind.Of[float64]) []kind.Entry {
@@ -166,21 +179,21 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
 	c.tick()
 	c.pressC()
-	if f := fastening(c.one); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c.one, 100, 100) {
-		t.Fatalf("after C: fastened %+v, centred %v; want Centred over the unit", f, centred(c.one, 100, 100))
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
+		t.Fatalf("after C: fastened %+v, centred %v; want Centred over the unit", f, centred(c, 100, 100))
 	}
 	c.moveTo(mine, 500, 420)
 	c.tick()
-	if !centred(c.one, 500, 420) {
+	if !centred(c, 500, 420) {
 		t.Error("the camera did not follow the unit to its new place")
 	}
-	c.one.Camera.ZoomIn(2, 505, 425)
+	c.cam.ZoomIn(2, 505, 425)
 	c.tick()
-	if fastening(c.one).How != camera.Centred || !centred(c.one, 500, 420) {
+	if fastening(c).How != camera.Centred || !centred(c, 500, 420) {
 		t.Error("zooming ended the following")
 	}
 	c.pressC()
-	if f := fastening(c.one); f != (camera.Fastening{}) {
+	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("after C again the camera is fastened %+v, want let go", f)
 	}
 }
@@ -195,18 +208,18 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 	c.w.Carrier().Put(c.two.ID, selection.Select{IDs: []uid.UID64{ids[200]}})
 	c.tick()
 	c.pressC()
-	if f := fastening(c.one); f.Entity != ids[100] {
+	if f := fastening(c); f.Entity != ids[100] {
 		t.Fatalf("one's camera is fastened %+v, want over its own selected unit, not two's", f)
 	}
-	c.w.Carrier().Put(c.one.ID, cameras.Pan{Camera: c.one.Camera, Dx: 40})
+	c.w.Carrier().Put(c.one.ID, cameras.Pan{Camera: c.cam, Dx: 40})
 	c.tick()
-	if f := fastening(c.one); f != (camera.Fastening{}) {
+	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("after a Pan the camera is fastened %+v, want let go", f)
 	}
 	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100], ids[300]}})
 	c.tick()
 	c.pressC()
-	if f := fastening(c.one); f != (camera.Fastening{}) {
+	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("with two selected C fastened %+v, want none", f)
 	}
 }
@@ -216,17 +229,17 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
-			unit.Entry(100).Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.one.Camera, On: true}),
+			unit.Entry(100).Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.cam, On: true}),
 			unit.Entry(300).Told(cameras.Follow{}),
 		}
 	})
 	mine := c.ids()[100]
-	if f := fastening(c.one); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c.one, 100, 100) {
-		t.Fatalf("one's camera is fastened %+v, centred %v; want Centred over the unit told Follow", f, centred(c.one, 100, 100))
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
+		t.Fatalf("one's camera is fastened %+v, centred %v; want Centred over the unit told Follow", f, centred(c, 100, 100))
 	}
 	c.w.Carrier().PutFrom(mine, world.Despawn{})
 	c.tick()
-	if f := fastening(c.one); f != (camera.Fastening{}) {
+	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("the unit gone, the camera is fastened %+v, want let go", f)
 	}
 }
@@ -236,14 +249,14 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	far := c.ids()[200]
 	c.moveTo(far, 700, 600)
-	c.w.Carrier().Put(c.one.ID, cameras.LookAt{Camera: c.one.Camera, Entity: far})
+	c.w.Carrier().Put(c.one.ID, cameras.LookAt{Camera: c.cam, Entity: far})
 	c.tick()
-	if !centred(c.one, 700, 600) || fastening(c.one) != (camera.Fastening{}) {
-		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c.one, 700, 600), fastening(c.one))
+	if !centred(c, 700, 600) || fastening(c) != (camera.Fastening{}) {
+		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c, 700, 600), fastening(c))
 	}
 	c.moveTo(far, 300, 300)
 	c.tick()
-	if centred(c.one, 300, 300) {
+	if centred(c, 300, 300) {
 		t.Error("the camera followed the entity after a LookAt")
 	}
 }

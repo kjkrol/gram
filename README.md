@@ -89,7 +89,8 @@ cgo. Without a GPU the tests that draw skip themselves.
 
 The smallest game that does something: one Stage with a torus of bouncing boxes, a collision
 plugin counting their contacts, and one Scene showing them: a `ui` screen of the world's picture
-through the player's camera, a backdrop under it and a telemetry line over it. This is
+through a camera from above — the player's view — a backdrop under it and a telemetry line over
+it. This is
 [`examples/minimal`](examples/minimal/main.go); run it with `make demo-minimal`.
 
 ```go
@@ -146,8 +147,12 @@ type box struct {
 	vel world.Velocity
 }
 
-// BoxKind is the name the one kind of unit is defined by, and found by again.
-const BoxKind = "box"
+// The names this game defines its things by: the one kind of unit, the Stage and its scene.
+const (
+	BoxKind    = "box"
+	ArenaStage = "arena"
+	ViewScene  = "view"
+)
 
 // arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
@@ -157,20 +162,18 @@ type arena struct {
 	players   *players.Plugin
 	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
-	picture   *render.Composer // the boxes, as the scene shows them
-	tps       *game.TPS
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — cells, effects, rules — is left out.
+// section this game has no use for — effects, rules, controls — is left out.
 func newArena() game.Stage {
 	a := &arena{}
-	return stage.New("arena").
+	return stage.New(ArenaStage).
 		Plugins(a.usePlugins).
 		Players(a.definePlayer).
 		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
-		Units(a.placeUnits).
 		Update(a.update)
 }
 
@@ -193,7 +196,7 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	a.player = a.players.Local("player", a.cameras.New(cameras.TopDown(), camera.Config{}))
+	a.player = a.players.Local("player")
 	return a.player.Bind(a.players.Defaults()...)
 }
 
@@ -206,13 +209,20 @@ func (a *arena) defineKinds() {
 	})
 }
 
-// defineScenes is the one scene: the world's picture and the screen it is shown on.
+// defineScenes is the one scene: the boxes through a camera from above on a dark backdrop, the
+// player's view, a telemetry line over them.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	a.tps = ctx.TPS()
-	return []game.Scene{ui.NewScene("view", a.pictures, a.screen).Input(a.players.Handle)}
+	tps := ctx.TPS()
+	count := func() int { return a.world.Res.Telemetry.Count }
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.picture())
+	return []game.Scene{ui.NewScene(ViewScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(view).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&tps.Ticks, count).With(a.stats.Reporter(&tps.Ticks))),
+	)).Input(a.players.Handle)}
 }
 
-func (a *arena) placeUnits() {
+func (a *arena) spawnUnits() {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
@@ -239,25 +249,14 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-// pictures dresses the boxes and hands the world's picture.
-func (a *arena) pictures() []render.Picture {
+// picture dresses the boxes and hands the world's picture.
+func (a *arena) picture() render.Picture {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	a.world.WithRenderer(atlas)
-	a.picture = render.NewComposer(a.world.Renderer())
-	return []render.Picture{a.picture}
-}
-
-// screen is the world through the player's camera on a dark backdrop, a telemetry line over it.
-func (a *arena) screen() *ui.Element {
-	count := func() int { return a.world.Res.Telemetry.Count }
-	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(a.player.Camera, a.picture)).Input(a.players.Through(a.player)),
-		ui.Layer(render.NewTelemetryRenderer(&a.tps.Ticks, count).With(a.stats.Reporter(&a.tps.Ticks))),
-	)
+	return render.NewComposer(a.world.Renderer())
 }
 ```
 
@@ -327,27 +326,31 @@ compile, a section the game has no use for is left out, and what is defined in t
 is refused:
 
 ```go
-stage.New("meadow").
-	Plugins(s.usePlugins).      // ctx.UseWorld, ctx.Use
-	Players(s.definePlayer).    // the players, the plugins' default keys
-	Effects(s.defineEffects).   // the states
-	Rules(s.defineRules).       // the roles, the rules, the plans
-	Commands(s.defineCommands). // what can be asked for
-	Cells(s.defineCells).       // the kinds of cells, the roles their cells play
-	Kinds(s.defineKinds).       // the kinds of units
-	Controls(s.bindKeys).       // the game's own keys, each a command
-	Scenes(s.defineScenes).     // the scenes
-	Layout(s.layOut).           // a fresh game's board
-	Units(s.placeUnits).        // a fresh game's units
-	Update(s.update)            // the tick; hands back the game.Stage
+stage.New(MeadowStage).
+	Plugins(s.usePlugins).               // ctx.UseWorld, ctx.Use
+	Players(s.definePlayer).             // the players, the plugins' default keys
+	Effects(s.defineEffects).            // the states
+	Rules(s.defineRules).                // the roles, the rules, the plans
+	Commands(s.defineCommands).          // what can be asked for
+	Kinds(s.defineCells, s.defineKinds). // the kinds of cells and of units
+	Controls(s.bindKeys).                // the game's own keys, each a command
+	Restore(s.restore).                  // a saved game, resumed…
+	Spawn(s.spawnCells, s.spawnUnits).   // …or a fresh one: its board, its units
+	Scenes(s.defineScenes).              // the scenes, their pictures and cameras
+	Update(s.update)                     // the tick; hands back the game.Stage
 ```
 
 Within a Stage, a Scene is one thing it can show: its renderers, built once, and its input
-handling. The Stage's `Scenes` registry is static; the `Composition` over it is live — which
-Scenes are visible, in what order, and which is *active*, the topmost focusable one and the only
-Scene whose `HandleEvents` runs. A HUD that is not focusable can sit on top and never steal
-input. `Runtime` (pause, quit, switch Stage, persistence, camera) is one interface that reaches a
-Stage and every Scene alike.
+handling. The scenes are made once the world is there — at the end of `Restore` when it loaded a
+save, else of `Spawn` — and a scene makes what it shows the world through: a picture of the world
+(`render.Picture`, a Composer of the plugins' renderers) seen through a camera made beside it,
+`render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}), picture)`,
+and the player whose view it is wired to it (`ui.Image(feed).Input(s.players.Through(player))`):
+a player owns no camera. The Stage's `Scenes` registry is static; the `Composition` over it is
+live — which Scenes are visible, in what order, and which is *active*, the topmost focusable one
+and the only Scene whose `HandleEvents` runs. A HUD that is not focusable can sit on top and
+never steal input. `Runtime` (pause, quit, switch Stage, persistence, full screen) is one
+interface that reaches a Stage and every Scene alike.
 
 ## Plugins, rules and plans
 

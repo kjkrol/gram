@@ -53,9 +53,6 @@ type picture struct {
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
 	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
-	if p.input != nil {
-		p.input.Over(box)
-	}
 }
 
 // direct is a surface that draws straight onto the screen it fills (render.Feed.DrawOn).

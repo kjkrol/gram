@@ -15,7 +15,9 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/ui"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -46,8 +48,8 @@ type general struct{ orders control.Queue[order] }
 func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player looking through the
-// cameras' main camera and a general's order queue.
+// rig is a players plugin over a 1000×1000 world with one local player acting through a picture
+// over the whole screen drawn through a camera of its own, and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
@@ -55,7 +57,15 @@ type rig struct {
 	cam    camera.Camera // the local player's
 	p      *players.Plugin
 	local  *players.Player
+	wire   ui.Input // the local player's picture's
 	orders *control.Queue[order]
+}
+
+// look has the local player act through a picture drawn through cam over the whole screen, as a
+// scene showing it wires it.
+func (r *rig) look(cam camera.Camera) {
+	r.cam = cam
+	r.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
 }
 
 func newRig(t *testing.T) *rig {
@@ -68,7 +78,10 @@ func newRig(t *testing.T) *rig {
 	cam := cams.New(cameras.TopDown(), camera.Config{})
 	g := &general{}
 	p := players.NewPlugin(w, cams, g)
-	return &rig{t: t, w: w, cams: cams, cam: cam, p: p, local: p.Local("tester", cam), orders: &g.orders}
+	local := p.Local("tester")
+	r := &rig{t: t, w: w, cams: cams, p: p, local: local, wire: p.Through(local), orders: &g.orders}
+	r.look(cam)
+	return r
 }
 
 // start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera
@@ -285,7 +298,7 @@ func (r *rig) move(ev *control.InputEvents, ecs *goke.ECS) {
 
 func TestCamera_WheelZooms(t *testing.T) {
 	r, ecs := cameraRig(t)
-	cam := r.local.Camera
+	cam := r.cam
 	r.move(&control.InputEvents{ScrollDelta: 1}, ecs)
 	if cam.Zoom() <= 1 {
 		t.Fatalf("Zoom() after a notch up = %v, want > 1", cam.Zoom())
@@ -300,7 +313,7 @@ func TestCamera_WheelZooms(t *testing.T) {
 func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 	for _, zoom := range []float32{1, 2} {
 		r, ecs := cameraRig(t)
-		cam := r.local.Camera
+		cam := r.cam
 		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
@@ -318,7 +331,7 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 	for _, zoom := range []float32{1, 2, 4} {
 		r, ecs := cameraRig(t)
-		cam := r.local.Camera
+		cam := r.cam
 		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
@@ -347,7 +360,7 @@ func TestCamera_EdgeDeadZoneAndWindowEdges(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r, ecs := cameraRig(t)
-			cam := r.local.Camera
+			cam := r.cam
 			cam.ZoomIn(2, 500, 500)
 			before := cam.Bounds()
 			ev := tc.ev
@@ -395,8 +408,8 @@ func (r *riding) Fastening() camera.Fastening {
 func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	r := newRig(t)
 	players.CaptureWith(r.p, func(bool) {})
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
 	r.bind(
 		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
 		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
@@ -427,8 +440,8 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r := newRig(t)
 	var caught []bool
 	players.CaptureWith(r.p, func(on bool) { caught = append(caught, on) })
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
 	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))

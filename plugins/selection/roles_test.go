@@ -1,6 +1,7 @@
 package selection_test
 
 import (
+	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
 
@@ -58,7 +59,8 @@ func newSquad(t *testing.T) *squad {
 	})
 	sel := selection.NewPlugin(w)
 	s := &squad{t: t, w: w, sel: sel, players: players.NewPlugin(w, sel), kinds: map[string]kind.Of[soldier]{}}
-	s.me, s.rival = s.players.Local("me", cameras.TopDown()(1000, 1000, 0, camera.Config{})), s.players.Add("rival")
+	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
+	s.players.Through(s.me).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil)) // the whole world on the screen
 	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	s.haste = w.Effects().Named("haste")
 	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})

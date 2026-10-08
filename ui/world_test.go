@@ -61,7 +61,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	label := Label("frozen").Under(frozen)
-	s := NewScene("main", nil, func() *Element { return Layers(label) })
+	s := NewScene("main", Layers(label))
 	d := s.Layers()[0].(*drawing)
 	var systems []goke.System
 	for _, produce := range ctx.pending {

@@ -149,7 +149,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	s.wild = s.players.Add("wild")
 	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the soldier, not the camera
 	return s.player.Bind(slices.Concat(
@@ -209,7 +209,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -276,8 +276,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
 }
 
 // The scene's colours: the units, the shots, the wounds' pale and the burst's spark, the ground.
@@ -296,8 +295,8 @@ var (
 	lowWallColor  = color.RGBA{R: 150, G: 150, B: 160, A: 255}
 )
 
-// pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
@@ -341,12 +340,11 @@ func (m *mainScene) pictures() []render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through the player's camera.
+// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }

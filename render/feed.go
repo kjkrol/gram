@@ -27,6 +27,12 @@ func NewFeed(cam camera.Camera, picture Picture) *Feed {
 	return &Feed{cam: cam, picture: picture}
 }
 
+// Camera is the camera the feed draws its picture through.
+func (f *Feed) Camera() camera.Camera { return f.cam }
+
+// Picture is what the feed draws.
+func (f *Feed) Picture() Picture { return f.picture }
+
 // Resize gives the feed its size, the camera's viewport with it.
 func (f *Feed) Resize(w, h int) {
 	if w == f.w && h == f.h {

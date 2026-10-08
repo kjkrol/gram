@@ -120,7 +120,7 @@ func (s *Shortcuts) groups() []group {
 	seen := map[string]bool{}
 	var game []string
 	for _, pl := range s.p.Locals() {
-		how := camera.HowOf(pl.Camera)
+		how := camera.HowOf(pl.pic.camera)
 		for _, b := range pl.Bindings() {
 			if !b.Holds(how) {
 				continue
@@ -159,7 +159,7 @@ func (s *Shortcuts) groups() []group {
 // in an entity.
 func (s *Shortcuts) title() string {
 	for _, pl := range s.p.Locals() {
-		if camera.HowOf(pl.Camera) == camera.Inside {
+		if camera.HowOf(pl.pic.camera) == camera.Inside {
 			return "Shortcuts: first person, riding in the unit"
 		}
 	}

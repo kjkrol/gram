@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/render"
 )
 
 // splitRig is two local players with cameras of their own, the screen split into two columns of
@@ -17,7 +18,7 @@ import (
 func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
-	left, right := r.local, r.p.Local("right", r.cams.New(cameras.TopDown(), camera.Config{}))
+	left, right := r.local, r.p.Local("right")
 	if err := left.Bind(control.Command(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
 		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 100 + int(c.Cursor.X)}, true
@@ -32,8 +33,8 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 	}
 	ecs := r.start()
 	// the scene's pictures, side by side: each tells its player where it lies
-	r.p.Through(left).Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)))
-	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)))
+	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
+	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)), render.NewFeed(r.cams.New(cameras.TopDown(), camera.Config{}), nil))
 	return r, left, right, ecs
 }
 

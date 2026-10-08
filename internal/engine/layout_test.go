@@ -38,7 +38,7 @@ func (s *viewedStage) Spawn() error                           { return nil }
 func (s *viewedStage) Update(goke.RunCtx, time.Duration)      {}
 func (s *viewedStage) Stack() game.Scenes {
 	if s.stack == nil {
-		s.scene = ui.NewScene("view", nil, func() *ui.Element { return ui.Image(render.NewFeed(s.cam, nil)) })
+		s.scene = ui.NewScene("view", ui.Image(render.NewFeed(s.cam, nil)))
 		s.stack, _ = game.NewStack(s.scene)
 	}
 	return s.stack

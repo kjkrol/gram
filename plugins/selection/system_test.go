@@ -34,6 +34,7 @@ type harness struct {
 	space     *aabbworld.Space
 	players   *players.Plugin
 	local     *players.Player
+	cam       camera.Camera // the local player's, through which it acts over the whole screen
 	sel       *Plugin
 	world     *world.Plugin
 	sys       *SelectionSystem
@@ -86,7 +87,9 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	sel := NewPlugin(w)
 	cams := cameras.NewPlugin(w)
 	pl := players.NewPlugin(w, cams, sel)
-	local := pl.Local("tester", cams.New(cameras.TopDown(), cam))
+	local := pl.Local("tester")
+	camera := cams.New(cameras.TopDown(), cam)
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(camera, nil)) // as a scene showing it wires it
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +97,7 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	sys := NewSelectionSystem(&sel.selects, space, tags, w.Look)
 	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
 
-	return &harness{t: t, world: w, space: space, players: pl, local: local, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
+	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
 // seed queues a Selectable size x size entity at (x,y), the local player's; the returned id is
@@ -359,7 +362,7 @@ func TestSystem_Update_SelectByID_TagsExactlyGivenEntities(t *testing.T) {
 func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 	h := newHarness(t)
 	h.start()
-	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.local.Camera]; return b, ok }
+	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.cam]; return b, ok }
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
 	press.AddClickEvent(10, 10, control.MouseButtonLeft, control.ActionPress)
@@ -426,7 +429,7 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()
-	cam := h.local.Camera
+	cam := h.cam
 	cam.SetViewport(800, 600)
 	cam.MoveTo(300, 300)
 

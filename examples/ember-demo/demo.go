@@ -143,7 +143,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the selected ember, not the camera
 	return s.player.Bind(slices.Concat(
 		s.players.DefaultBindings(),
@@ -191,7 +191,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) spawnCells() {
@@ -230,8 +230,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
 }
 
 // The scene's colours: the meadow and a doused ember's soot.
@@ -240,8 +239,8 @@ var (
 	sootColor  = color.RGBA{R: 70, G: 65, B: 60, A: 255}
 )
 
-// pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
 	doused := s.world.Effects().Named(DousedEf)
@@ -260,12 +259,11 @@ func (m *mainScene) pictures() []render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through the player's camera.
+// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }

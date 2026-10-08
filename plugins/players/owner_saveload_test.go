@@ -7,13 +7,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -43,7 +41,7 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	s.players = players.NewPlugin(s.world)
-	s.first = s.players.Local("first", cameras.TopDown()(1000, 1000, 0, camera.Config{}))
+	s.first = s.players.Local("first")
 	second := s.players.Add("second")
 	s.second = second
 	ctx.Setup(ownersProbe{s})

@@ -121,7 +121,7 @@ func TestImage_GivesItsSurfaceItsBox(t *testing.T) {
 
 func TestScene_ShowsHidesAndTogglesByName(t *testing.T) {
 	panel := Label("panel").Named("panel").Hidden()
-	s := NewScene("main", nil, func() *Element { return Layers(panel) })
+	s := NewScene("main", Layers(panel))
 	s.Layers()
 	s.Show("panel")
 	if panel.hidden {
@@ -144,10 +144,9 @@ type counting struct{ inits int }
 func (c *counting) Init(*goke.SysInit)                   { c.inits++ }
 func (*counting) DrawWorld(*render.Image, camera.Camera) {}
 
-func TestScene_InitialisesAPictureOnceWhateverListsIt(t *testing.T) {
+func TestScene_InitialisesAPictureOnceHoweverManyFeedsShowIt(t *testing.T) {
 	p := &counting{}
-	s := NewScene("main", func() []render.Picture { return []render.Picture{p, p} },
-		func() *Element { return Layers() })
+	s := NewScene("main", Layers(Image(render.NewFeed(nil, p)), Image(render.NewFeed(nil, p))))
 	for _, l := range s.Layers() {
 		l.Init(nil)
 	}

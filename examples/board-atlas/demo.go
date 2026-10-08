@@ -125,7 +125,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -140,7 +140,7 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 type unitRow struct{ start, target cell.ID }
@@ -263,9 +263,8 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	tps     *game.TPS
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
+	tps   *game.TPS
 }
 
 //go:embed shimmer.wgsl
@@ -284,8 +283,8 @@ var (
 	woodColor, woodDimColor   = color.RGBA{R: 70, G: 120, B: 60, A: 255}, color.RGBA{R: 30, G: 85, B: 40, A: 255}
 )
 
-// pictures dresses the unit and the board from the game's own atlas and hands the world's picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the unit and the board from the game's own atlas and hands the world's picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	worldAtlas := render.NewAtlas()
@@ -306,16 +305,15 @@ func (m *mainScene) pictures() []render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through the player's camera, the telemetry and the clock over it.
+// screen is the world through a camera of its own, the player's view, the telemetry and the clock over it.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
 		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter())),
 		ui.Layer(s.world.Clock().HUD()),
 	)

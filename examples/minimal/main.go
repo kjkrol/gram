@@ -66,12 +66,10 @@ type arena struct {
 	players   *players.Plugin
 	player    *players.Player // the one at the keyboard
 	stats     collision.ContactStats
-	picture   *render.Composer // the boxes, as the scene shows them
-	tps       *game.TPS
 }
 
 // newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — cells, effects, rules — is left out.
+// section this game has no use for — effects, rules, controls — is left out.
 func newArena() game.Stage {
 	a := &arena{}
 	return stage.New(ArenaStage).
@@ -102,7 +100,7 @@ func (a *arena) usePlugins(ctx game.Initializer) error {
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
 // K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
-	a.player = a.players.Local("player", a.cameras.New(cameras.TopDown(), camera.Config{}))
+	a.player = a.players.Local("player")
 	return a.player.Bind(a.players.Defaults()...)
 }
 
@@ -115,10 +113,17 @@ func (a *arena) defineKinds() {
 	})
 }
 
-// defineScenes is the one scene: the world's picture and the screen it is shown on.
+// defineScenes is the one scene: the boxes through a camera from above on a dark backdrop, the
+// player's view, a telemetry line over them.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	a.tps = ctx.TPS()
-	return []game.Scene{ui.NewScene(ViewScene, a.pictures, a.screen).Input(a.players.Handle)}
+	tps := ctx.TPS()
+	count := func() int { return a.world.Res.Telemetry.Count }
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.picture())
+	return []game.Scene{ui.NewScene(ViewScene, ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(view).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&tps.Ticks, count).With(a.stats.Reporter(&tps.Ticks))),
+	)).Input(a.players.Handle)}
 }
 
 func (a *arena) spawnUnits() {
@@ -148,23 +153,12 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-// pictures dresses the boxes and hands the world's picture.
-func (a *arena) pictures() []render.Picture {
+// picture dresses the boxes and hands the world's picture.
+func (a *arena) picture() render.Picture {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	a.world.WithRenderer(atlas)
-	a.picture = render.NewComposer(a.world.Renderer())
-	return []render.Picture{a.picture}
-}
-
-// screen is the world through the player's camera on a dark backdrop, a telemetry line over it.
-func (a *arena) screen() *ui.Element {
-	count := func() int { return a.world.Res.Telemetry.Count }
-	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(a.player.Camera, a.picture)).Input(a.players.Through(a.player)),
-		ui.Layer(render.NewTelemetryRenderer(&a.tps.Ticks, count).With(a.stats.Reporter(&a.tps.Ticks))),
-	)
+	return render.NewComposer(a.world.Renderer())
 }

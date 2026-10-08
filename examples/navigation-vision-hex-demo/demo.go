@@ -141,7 +141,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}))
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -156,7 +156,7 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
@@ -275,12 +275,11 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
 }
 
-// pictures dresses the world and hands its picture.
-func (m *mainScene) pictures() []render.Picture {
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
@@ -307,14 +306,13 @@ func (m *mainScene) pictures() []render.Picture {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through the player's camera.
+// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
 
 const (

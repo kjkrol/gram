@@ -22,8 +22,8 @@ func (l *looker) SetMouseLook(on bool) { l.on = on }
 // through, and off again.
 func TestMouseLook_TheKeySwitchesItOnAndOff(t *testing.T) {
 	c := newCamp(t, func(*camp, kind.Of[float64]) []kind.Entry { return nil })
-	cam := &looker{Camera: c.one.Camera}
-	c.one.Camera = cam
+	cam := &looker{Camera: c.cam}
+	c.look(cam)
 	if err := c.one.Bind(cameras.MouseLookKey(control.KeyO)); err != nil {
 		t.Fatal(err)
 	}

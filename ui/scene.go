@@ -14,31 +14,29 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// Scene is a game.Scene whose screen is a tree of elements: Pictures are its pictures of the world,
-// each initialised once however many feeds show it, and Screen the elements laid over the screen.
-// Both are asked for once, as the Stage is entered.
+// Scene is a game.Scene whose screen is a tree of elements laid over the screen; the pictures of
+// the world its feeds show are initialised once each, however many feeds show one.
 type Scene struct {
-	name     string
-	pictures func() []render.Picture
-	screen   func() *Element
-	root     *Element
-	input    func(*control.InputEvents, game.Runtime, game.Composition)
-	keys     []control.Binding
-	issue    func(cmd any) error
-	passed   control.InputEvents // what of this tick's input goes on to input
-	shown    []string            // the names of the elements shown, as saved
-	loaded   bool                // shown came from a save: laid on the elements once they are made
-	drawing  *drawing            // the scene's layer, which finds the entities its pinned elements are for
-	theme    Theme
+	name    string
+	root    *Element
+	input   func(*control.InputEvents, game.Runtime, game.Composition)
+	keys    []control.Binding
+	issue   func(cmd any) error
+	passed  control.InputEvents // what of this tick's input goes on to input
+	shown   []string            // the names of the elements shown, as saved
+	loaded  bool                // shown came from a save: laid on the elements once they are made
+	drawing *drawing            // the scene's layer, which finds the entities its pinned elements are for
+	theme   Theme
 }
 
 var _ game.Scene = (*Scene)(nil)
 var _ plugin.Serializable = (*Scene)(nil)
 var _ plugin.Restorer = (*Scene)(nil)
 
-// NewScene is the scene name: the pictures of the world it shows, and its screen.
-func NewScene(name string, pictures func() []render.Picture, screen func() *Element) *Scene {
-	return &Scene{name: name, pictures: pictures, screen: screen, theme: DefaultTheme()}
+// NewScene is the scene name, its screen the element screen: made once the world is there (the
+// Stage's Scenes), the pictures and their cameras beside the elements that show them.
+func NewScene(name string, screen *Element) *Scene {
+	return &Scene{name: name, root: screen, theme: DefaultTheme()}
 }
 
 // Input hands the scene's input, while it is active, to fn: the players' bindings, as a rule.
@@ -49,14 +47,19 @@ func (s *Scene) Input(fn func(*control.InputEvents, game.Runtime, game.Compositi
 
 func (s *Scene) Name() string { return s.name }
 
-// Layers is the one layer drawing the screen: it initialises the pictures, lays the elements over
-// the screen every frame and draws them.
+// Layers is the one layer drawing the screen: it initialises the pictures its feeds show, lays the
+// elements over the screen every frame and draws them.
 func (s *Scene) Layers() []render.Layer {
 	var pictures []render.Picture
-	if s.pictures != nil {
-		pictures = s.pictures()
+	if s.root != nil {
+		s.root.walk(func(e *Element) {
+			if p, ok := e.content.(*picture); ok {
+				if f, ok := p.src.(interface{ Picture() render.Picture }); ok && f.Picture() != nil {
+					pictures = append(pictures, f.Picture())
+				}
+			}
+		})
 	}
-	s.root = s.screen()
 	s.dress()
 	if s.loaded {
 		s.reveal()
@@ -70,7 +73,7 @@ func (s *Scene) Layers() []render.Layer {
 func (s *Scene) Focusable() bool { return true }
 
 // Lay lays the scene's elements over screen, as every frame does before drawing: the pictures
-// get their sizes, the players where their pictures lie, the pinned elements their entities.
+// get their sizes, the pinned elements their entities.
 func (s *Scene) Lay(screen geom.AABB) {
 	if s.root == nil {
 		return

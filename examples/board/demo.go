@@ -151,8 +151,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 }
 
 func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player", s.cameras.New(cameras.TopDown(), camera.Config{}))
-	s.player.Camera.CenterOn(WorldWidth/2, WorldHeight/2, 0)
+	s.player = s.players.Local("player")
 	return s.player.Bind(s.players.Defaults()...)
 }
 
@@ -170,7 +169,7 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -234,18 +233,17 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 // =========================== Scene ===========================
 
 type mainScene struct {
-	arena   *arena
-	keys    players.SceneKeys
-	tps     *game.TPS
-	picture *render.Composer // the world, as the scene shows it
+	arena *arena
+	keys  players.SceneKeys
+	tps   *game.TPS
 }
 
 // unitColor is the walkers': the one colour the scene names itself, the island's are its kinds'.
 var unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
 
-// pictures dresses the units and the island and hands the world's picture: the tiles and the
+// picture dresses the units and the island and hands the world's picture: the tiles and the
 // bands, the units, the clouds' shadows over them all, then the cones, the overlays and the rain.
-func (m *mainScene) pictures() []render.Picture {
+func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 
@@ -261,16 +259,15 @@ func (m *mainScene) pictures() []render.Picture {
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	m.picture = render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())
-	return []render.Picture{m.picture}
+	return render.NewComposer(s.atmosphere.Renderer(), s.board.Renderer(), s.world.Renderer(), s.atmosphere.Clouds(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer(), s.atmosphere.Precipitation())
 }
 
-// screen is the world through the player's camera, the telemetry and the clock over it.
+// screen is the world through a camera of its own, the player's view, the telemetry and the clock over it.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Image(render.NewFeed(s.player.Camera, m.picture)).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
 		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
 		ui.Layer(s.world.Clock().HUD()),
 	)

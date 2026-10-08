@@ -35,7 +35,7 @@ type shooter struct {
 }
 
 func (s *shooter) cmd(c any) {
-	cam := s.d.a.player.Camera
+	cam := s.d.a.cameras.Cameras()[0] // the player's view, the one camera
 	for _, q := range s.d.a.topography.Queues() {
 		if q.Accepts() == reflect.TypeOf(c) {
 			switch v := c.(type) {
@@ -70,7 +70,7 @@ func (s *shooter) selectOne() {
 // follow fastens the player's camera over its one selected unit (C).
 func (s *shooter) follow() {
 	id, ok := s.d.a.selection.Chosen(s.d.a.player.ID)
-	if err := s.d.a.players.Issue(s.d.a.player, cameras.Follow{Camera: s.d.a.player.Camera, Entity: id, On: ok}); err != nil {
+	if err := s.d.a.players.Issue(s.d.a.player, cameras.Follow{Camera: s.d.a.cameras.Cameras()[0], Entity: id, On: ok}); err != nil {
 		s.t.Fatal(err)
 	}
 }
@@ -91,7 +91,7 @@ func (s *shooter) showViews() {
 
 func (s *shooter) Update() error {
 	s.frame++
-	cam := s.d.a.player.Camera
+	cam := s.d.a.cameras.Cameras()[0] // the player's view, the one camera
 	s.shot = ""
 	switch s.frame {
 	case 2:

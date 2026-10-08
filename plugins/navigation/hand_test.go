@@ -28,7 +28,7 @@ func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 		t.Fatalf("no hand on it, the unit has order %+v, want one on its way", o)
 	}
 	ahead := o.Leg.To
-	if !rw.nav.worldPlugin.Carrier().Put(1, driving.Turn{Camera: rw.players.ByID(1).Camera, Way: 1}) {
+	if !rw.nav.worldPlugin.Carrier().Put(1, driving.Turn{Camera: rw.cams[0], Way: 1}) {
 		t.Fatal("the world carries no Turn")
 	}
 	rw.tick(1)

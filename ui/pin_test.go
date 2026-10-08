@@ -79,7 +79,7 @@ func TestPin_GoToItMovesTheCameraOnceAsTheEntityAppears(t *testing.T) {
 func TestPin_ShowItsButtonMovesTheCameraOntoTheEntity(t *testing.T) {
 	red := &looking{}
 	panel := Window("far off").On(nobody).OffScreen(ShowIt)
-	s := built(NewScene("main", nil, func() *Element { return Layers(Image(&shifted{}).Input(red), panel) }))
+	s := built(NewScene("main", Layers(Image(&shifted{}).Input(red), panel)))
 	panel.pin.stand(panel, []spot{{id: 9, placed: true, x: 5000, y: 5000}}, views(s.root), screen)
 	in := panel.pin.instances[0]
 	if !in.show {
@@ -119,7 +119,7 @@ func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 	lift := rule.Lift(greeting).On(It)
 	answer := Button("hello", lift).Named("answer")
 	window := Window("host", answer).On(nobody)
-	s := built(NewScene("main", nil, func() *Element { return Layers(Image(&shifted{}), window) }).
+	s := built(NewScene("main", Layers(Image(&shifted{}), window)).
 		Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
 	window.pin.stand(window, []spot{{id: 7, placed: true, x: 300, y: 300}}, views(s.root), screen)
 	window.pin.each(window, window.parent, func(*instance) {})
@@ -136,9 +136,7 @@ func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 
 func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
 	var issued []any
-	s := built(NewScene("main", nil, func() *Element {
-		return Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)
-	}).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	s := built(NewScene("main", Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

@@ -4,11 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
@@ -38,7 +40,7 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
-	if err := p.Local("one", cams.New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).shortcuts
@@ -68,7 +70,8 @@ func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
 	cam := &ridingCam{Camera: cams.New(cameras.TopDown(), camera.Config{})}
-	pl := p.Local("one", cam)
+	pl := p.Local("one")
+	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil)) // it acts through a picture drawn through cam
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +160,7 @@ func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
-	if err := p.Local("one", cams.New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	built := 0
@@ -226,7 +229,7 @@ func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
 	if !hasF5(p) {
 		t.Fatal("a game with saves has no F5 among its default keys")
 	}
-	if err := p.Local("one", cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})).Bind(p.Defaults()...); err != nil {
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	rt := &savingEngine{}
