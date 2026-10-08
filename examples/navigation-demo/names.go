@@ -15,4 +15,8 @@ const (
 	// kinds of units
 	RedKind  = "red"
 	BlueKind = "blue"
+
+	// the stage and its scenes
+	BoardNavigationStage = "board-navigation-demo"
+	MainScene            = "main"
 )

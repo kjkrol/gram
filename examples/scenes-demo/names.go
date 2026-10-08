@@ -6,8 +6,11 @@ const (
 	// kinds of units
 	MoverKind = "mover"
 
-	// scenes
-	WorldScene = "world"
+	// the stages and their scenes
+	MenuStage     = "menu"
+	GameplayStage = "gameplay"
+	MenuScene     = "menu"
+	WorldScene    = "world"
 
 	// elements of a scene's screen
 	PanelElement = "panel"

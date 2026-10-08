@@ -112,17 +112,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("bullet-demo").
+	return s, stage.New(BulletStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -211,7 +209,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -228,7 +226,7 @@ func (s *arena) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	at := s.cellAt
 	var cells []cell.Entry
 	for x := uint32(1); x < GridWidth-1; x++ {
@@ -248,7 +246,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	at := s.cellAt

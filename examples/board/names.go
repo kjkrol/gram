@@ -11,6 +11,10 @@ const (
 
 	// kinds of units
 	UnitKind = "unit"
+
+	// the stage and its scenes
+	BoardStage = "board"
+	MainScene  = "main"
 )
 
 // snowyCell is the name of the kind of cell a kind turns into under snow.

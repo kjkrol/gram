@@ -103,7 +103,7 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("vision-demo").
+	return s, stage.New(VisionStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -111,8 +111,8 @@ func newArena() (*arena, game.Stage) {
 		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnUnits).
 		Scenes(s.defineScenes).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -168,7 +168,7 @@ func (s *arena) defineCommands() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -198,7 +198,7 @@ func sees() kind.Spec {
 	}
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1

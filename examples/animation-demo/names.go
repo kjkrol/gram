@@ -5,4 +5,8 @@ const (
 	BugKind = "bug"
 
 	GrassCell = "grass"
+
+	// the stage and its scenes
+	AnimationStage = "animation-demo"
+	MainScene      = "main"
 )

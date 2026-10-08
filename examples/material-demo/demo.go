@@ -97,17 +97,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("material-demo").
+	return s, stage.New(MaterialStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -165,14 +163,14 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
 	s.world.Seed(wardKind.Entry(wardRow{at: geom.NewVec(ScreenWidth/2, ScreenHeight/2)}).Named(WardName))
 }

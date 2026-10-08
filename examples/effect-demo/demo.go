@@ -96,18 +96,16 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("effect-demo").
+	return s, stage.New(EffectStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRoles).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -223,7 +221,7 @@ func (s *arena) defineKinds() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 // The lake: where the water lies, and where the boat sails.
@@ -232,7 +230,7 @@ const (
 	lakeTop, lakeBottom uint32 = 4, 11
 )
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	water := s.board.CellKinds().Named(WaterCell)
 	lake := s.world.Roles().Named(LakeRole)
@@ -244,7 +242,7 @@ func (s *arena) layOut() {
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
 	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
 	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)

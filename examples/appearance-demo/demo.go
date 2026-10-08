@@ -101,7 +101,7 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("appearance-demo").
+	return s, stage.New(AppearanceStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
@@ -109,8 +109,8 @@ func newArena() (*arena, game.Stage) {
 		Commands(s.defineCommands).
 		Kinds(s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnUnits).
 		Scenes(s.defineScenes).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -170,7 +170,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 // boxAt is the box of side Size round at.
@@ -178,7 +178,7 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}

@@ -10,4 +10,8 @@ const (
 	// kinds of units
 	RedKind  = "red"
 	BlueKind = "blue"
+
+	// the stage and its scenes
+	SplitScreenStage = "split-screen-demo"
+	MainScene        = "main"
 )

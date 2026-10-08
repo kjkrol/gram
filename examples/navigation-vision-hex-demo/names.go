@@ -15,6 +15,10 @@ const (
 	BlueKind   = "blue"
 	YellowKind = "yellow"
 	HawkKind   = "hawk"
+
+	// the stage and its scenes
+	BoardNavigationVisionHexStage = "board-navigation-vision-hex-demo"
+	MainScene                     = "main"
 )
 
 // scouts are the kinds of walkers, in the order of their colours.

@@ -239,7 +239,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // Seed adds entries to the entities spawned when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(entries ...kind.Entry) {
-	p.must("units seeded", section.Units)
+	p.must("units seeded", section.Spawn)
 	p.seeded = append(p.seeded, entries...)
 }
 

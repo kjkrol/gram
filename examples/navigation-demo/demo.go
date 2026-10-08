@@ -93,16 +93,14 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-navigation-demo").
+	return s, stage.New(BoardNavigationStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Rules(s.defineRules).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
+		Kinds(s.defineCells, s.defineKinds).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnCells, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -147,7 +145,7 @@ func (s *arena) defineScenes() []game.Scene {
 		}},
 	}
 	s.players.OwnKeys(main.keys)
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineCells() {
@@ -189,7 +187,7 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
@@ -207,7 +205,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board

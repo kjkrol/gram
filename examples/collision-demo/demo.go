@@ -113,15 +113,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("collision-demo").
+	return s, stage.New(CollisionStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
 		Restore(s.restore).
-		Units(s.placeUnits).
+		Spawn(s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -157,7 +157,7 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -190,7 +190,7 @@ func (s *arena) defineKinds() {
 	}
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
 	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }

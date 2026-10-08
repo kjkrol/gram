@@ -112,10 +112,11 @@ func (c *initializer) deliver() error {
 // Screen is the window's size in pixels, which the cameras are sized to.
 func (c *initializer) Screen() (width, height int) { return c.screenWidth, c.screenHeight }
 
-// Track registers s for Save and Load under its Go type name.
+// Track registers s for Save and Load under its Go type name; tracked after a Load, s gets the
+// state the save holds for it at once.
 func (c *initializer) Track(s plugin.Serializable) error {
 	c.host.track(s)
-	return nil
+	return c.host.loadLate(s)
 }
 
 func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {

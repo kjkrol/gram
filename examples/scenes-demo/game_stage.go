@@ -48,13 +48,13 @@ type gameplayArena struct {
 // saveBasePath overrides where its saves are read and written, empty for the demo's own.
 func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
 	g := &gameplayArena{SaveBasePath: saveBasePath}
-	return g, stage.New("gameplay").
+	return g, stage.New(GameplayStage).
 		Plugins(g.usePlugins).
 		Players(g.definePlayer).
 		Kinds(g.defineKinds).
-		Scenes(g.defineScenes).
 		Restore(g.restore).
-		Units(g.placeUnits).
+		Spawn(g.spawnUnits).
+		Scenes(g.defineScenes).
 		Update(g.update)
 }
 
@@ -116,7 +116,7 @@ func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-func (g *gameplayArena) placeUnits() {
+func (g *gameplayArena) spawnUnits() {
 	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
 	entries := make([]kind.Entry, EntityCount)

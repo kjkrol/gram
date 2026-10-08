@@ -106,14 +106,12 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-navigation-vision-hex-demo").
+	return s, stage.New(BoardNavigationVisionHexStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -158,7 +156,7 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 // unit is the row every unit kind spawns from: where it starts and where it heads.
@@ -200,7 +198,7 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column with a gap at r = gapRow, a forest either side of the
 	// gap, and a road along r = 0 with both flanks.
@@ -246,7 +244,7 @@ func (s *arena) layOut() {
 	s.topography.Seed(heights)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 	brd := s.board.Res.Logic.Board

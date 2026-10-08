@@ -109,17 +109,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("ember-demo").
+	return s, stage.New(EmberStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -193,14 +191,14 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", m.pictures, m.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, m.pictures, m.screen).Input(s.players.Handle)}
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	brd := s.board.Res.Logic.Board
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}

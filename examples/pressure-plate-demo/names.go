@@ -19,6 +19,10 @@ const (
 	// kinds of units
 	ScoutKind    = "scout"
 	WandererKind = "wanderer"
+
+	// the stage and its scenes
+	PressurePlateStage = "pressure-plate-demo"
+	MainScene          = "main"
 )
 
 // openCmd is the name of the command opening the strip of trapdoors called group.

@@ -10,4 +10,8 @@ const (
 	CalmEf = "calm"
 
 	CalmCmd = "calm the ward"
+
+	// the stage and its scenes
+	MaterialStage = "material-demo"
+	MainScene     = "main"
 )

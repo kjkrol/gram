@@ -100,15 +100,13 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-navigation-hex-demo").
+	return s, stage.New(BoardNavigationHexStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
+		Kinds(s.defineCells, s.defineKinds).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnCells, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -148,7 +146,7 @@ func (s *arena) defineScenes() []game.Scene {
 		}},
 	}
 	s.players.OwnKeys(main.keys)
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineCells() {
@@ -188,7 +186,7 @@ func (s *arena) defineKinds() {
 }
 
 // cellAt is the cell at column x, row y.
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
 	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
@@ -205,7 +203,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board

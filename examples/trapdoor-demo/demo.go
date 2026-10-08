@@ -122,18 +122,16 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("trapdoor-demo").
+	return s, stage.New(TrapdoorStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -205,7 +203,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) defineKinds() {
@@ -221,7 +219,7 @@ func (s *arena) defineKinds() {
 
 func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	var cells []cell.Entry
 	for _, l := range levers {
 		for y := stripTop; y <= stripBottom; y++ {
@@ -233,7 +231,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	for i := range uint32(3) {

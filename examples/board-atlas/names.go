@@ -11,4 +11,8 @@ const (
 
 	// kinds of units
 	UnitKind = "unit"
+
+	// the stage and its scenes
+	BoardAtlasStage = "board-atlas"
+	MainScene       = "main"
 )

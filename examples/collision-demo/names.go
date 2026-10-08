@@ -8,4 +8,8 @@ const (
 
 	// roles
 	BodyRole = "body"
+
+	// the stage and its scenes
+	CollisionStage = "collision-demo"
+	MainScene      = "main"
 )

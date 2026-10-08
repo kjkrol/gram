@@ -110,17 +110,15 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board").
+	return s, stage.New(BoardStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayer).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
-		Scenes(s.defineScenes).
+		Kinds(s.defineCells, s.defineKinds).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnCells, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -172,7 +170,7 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -204,13 +202,13 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	layout, _, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	entries := make([]kind.Entry, 0, len(s.stops))
 	for i, from := range s.stops {

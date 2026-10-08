@@ -26,7 +26,7 @@ func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := d.a
-	main, _ := d.stage.Stack().Get("main")
+	main, _ := d.stage.Stack().Get(MainScene)
 	main.(*ui.Scene).Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(ScreenWidth, ScreenHeight)))
 
 	half := (ScreenWidth - 2) / 2.0

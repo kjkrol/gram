@@ -25,4 +25,8 @@ const (
 	WitchKind  = "witch"
 	WalkerKind = "walker"
 	BoatKind   = "boat"
+
+	// the stage and its scenes
+	EffectStage = "effect-demo"
+	MainScene   = "main"
 )

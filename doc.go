@@ -15,9 +15,9 @@
 // (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
 // none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
 // A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
-// Players(…).Effects(…).Rules(…).Commands(…).Cells(…).Kinds(…).Controls(…).Scenes(…).
-// Layout(…).Units(…).Update(…) — always in that order, which the compiler keeps, each plugin
-// refusing what is defined out of its section.
+// Players(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Restore(…).Spawn(…).
+// Scenes(…).Update(…) — always in that order, which the compiler keeps, each plugin refusing what
+// is defined out of its section; the scenes are made once the world is there, loaded or spawned.
 //
 // Within a Stage, a Scene is one thing it can show: its renderers (Layers, built once on entering
 // the Stage) and its input handling. The Stage's [game.Scenes] is the static registry of its

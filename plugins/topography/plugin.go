@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
@@ -256,7 +257,12 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
 // Seed sets the ground's heights applied when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(heights func(p geom.Vec) float64) { p.seeded = heights }
+func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
+	if err := p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
+		panic("topography: " + err.Error())
+	}
+	p.seeded = heights
+}
 
 // Populate raises the seeded heights.
 func (p *Plugin) Populate() error {

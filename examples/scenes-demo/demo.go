@@ -15,7 +15,7 @@ const (
 // Demo is the thinnest possible game.Game — just the two Stages and which
 // one starts active. All real behavior lives on the menu's and the gameplay's arenas.
 type Demo struct {
-	menu     *MenuStage
+	menu     *Menu
 	gameplay game.Stage
 }
 

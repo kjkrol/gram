@@ -78,7 +78,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
 	p.kinds.Guard = func(name string) {
-		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Cells); err != nil {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
 			panic("board: " + err.Error())
 		}
 	}
@@ -261,7 +261,7 @@ func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) {
-	if err := p.worldPlugin.InSection("the board's layout seeded", section.Layout); err != nil {
+	if err := p.worldPlugin.InSection("the board's layout seeded", section.Spawn); err != nil {
 		panic("board: " + err.Error())
 	}
 	p.seeded = &layout

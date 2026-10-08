@@ -28,6 +28,7 @@ const (
 	PuzzleCmd      = "puzzle the host"
 	OffendCmd      = "offend the host"
 
-	// scenes
-	MainScene = "main"
+	// the stage and its scenes
+	DialogStage = "dialog-demo"
+	MainScene   = "main"
 )

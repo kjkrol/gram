@@ -100,15 +100,13 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("split-screen-demo").
+	return s, stage.New(SplitScreenStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
+		Spawn(s.spawnCells, s.spawnUnits).
 		Scenes(s.defineScenes).
-		Layout(s.layOut).
-		Units(s.placeUnits).
 		Update(s.update)
 }
 
@@ -162,7 +160,7 @@ func (s *arena) bindKeys() error {
 }
 
 func (s *arena) defineScenes() []game.Scene {
-	return []game.Scene{ui.NewScene("main", s.pictures, s.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, s.pictures, s.screen).Input(s.players.Handle)}
 }
 
 // block is the row a block spawns from: where it starts.
@@ -177,7 +175,7 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnCells() {
 	cellAt := s.board.Res.Logic.Board.CellIndex
 	var cells []cell.Entry
 	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
@@ -205,7 +203,7 @@ func (s *arena) layOut() {
 	s.board.Seed(board.Layout{Default: FloorCell, Cells: cells})
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board

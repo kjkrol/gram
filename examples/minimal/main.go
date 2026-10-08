@@ -51,8 +51,12 @@ type box struct {
 	vel world.Velocity
 }
 
-// BoxKind is the name the one kind of unit is defined by, and found by again.
-const BoxKind = "box"
+// The names this game defines its things by: the one kind of unit, the Stage and its scene.
+const (
+	BoxKind    = "box"
+	ArenaStage = "arena"
+	ViewScene  = "view"
+)
 
 // arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
@@ -70,12 +74,12 @@ type arena struct {
 // section this game has no use for — cells, effects, rules — is left out.
 func newArena() game.Stage {
 	a := &arena{}
-	return stage.New("arena").
+	return stage.New(ArenaStage).
 		Plugins(a.usePlugins).
 		Players(a.definePlayer).
 		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
-		Units(a.placeUnits).
 		Update(a.update)
 }
 
@@ -114,10 +118,10 @@ func (a *arena) defineKinds() {
 // defineScenes is the one scene: the world's picture and the screen it is shown on.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	a.tps = ctx.TPS()
-	return []game.Scene{ui.NewScene("view", a.pictures, a.screen).Input(a.players.Handle)}
+	return []game.Scene{ui.NewScene(ViewScene, a.pictures, a.screen).Input(a.players.Handle)}
 }
 
-func (a *arena) placeUnits() {
+func (a *arena) spawnUnits() {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)

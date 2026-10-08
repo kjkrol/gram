@@ -111,19 +111,17 @@ type arena struct {
 // section builds on — and defines the stage on it, a section at a time.
 func newArena() (*arena, game.Stage) {
 	s := &arena{}
-	return s, stage.New("board-topography").
+	return s, stage.New(BoardTopographyStage).
 		Plugins(s.usePlugins).
 		Players(s.definePlayers).
 		Effects(s.defineEffects).
 		Rules(s.defineRules).
 		Commands(s.defineCommands).
-		Cells(s.defineCells).
-		Kinds(s.defineKinds).
+		Kinds(s.defineCells, s.defineKinds).
 		Controls(s.bindKeys).
-		Scenes(s.defineScenes).
 		Restore(s.restore).
-		Layout(s.layOut).
-		Units(s.placeUnits).
+		Spawn(s.spawnGround, s.spawnUnits).
+		Scenes(s.defineScenes).
 		Update(s.update)
 }
 
@@ -225,7 +223,7 @@ func (s *arena) bindKeys() error {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene("main", main.pictures, main.screen).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.pictures, main.screen).Input(s.players.Handle)}
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -283,7 +281,7 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) layOut() {
+func (s *arena) spawnGround() {
 	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
 	s.stops = stops
 	s.board.Seed(layout)
@@ -291,7 +289,7 @@ func (s *arena) layOut() {
 	s.topography.Seed(func(p geom.Vec) float64 { return heights(p) * metres })
 }
 
-func (s *arena) placeUnits() {
+func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
