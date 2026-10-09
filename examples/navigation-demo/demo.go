@@ -47,12 +47,6 @@ const (
 
 // =========================== Game ===========================
 
-// NewDemo is the board/navigation/selection demo — exactly one Stage (arena below).
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 // arena wires the board/navigation/selection demo; its plugins are its own fields.
@@ -68,11 +62,10 @@ type arena struct {
 	player    *players.Player // the one at this keyboard: the units are its
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the board/navigation/selection demo, defined on the arena s: its window and its one
+// Stage, a section at a time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram board & navigation plugins demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,

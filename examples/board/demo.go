@@ -62,12 +62,6 @@ const (
 
 // =========================== Game ===========================
 
-// NewDemo is the board demo — exactly one Stage (arena below).
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 type arena struct {
@@ -85,11 +79,10 @@ type arena struct {
 	stops      []cell.ID // where the units start, as the layout says
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the board demo, defined on the arena s: its window and its one Stage, a section at a
+// time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram — the island on the simple map",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,

@@ -111,7 +111,8 @@ func (c *benchInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.h
 
 // newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
 func newStage() (*arena, game.Stage) {
-	a, g := newDemo()
+	a := &arena{}
+	g := NewDemo(a)
 	return a, stageOf(g)
 }
 

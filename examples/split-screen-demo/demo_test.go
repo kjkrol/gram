@@ -22,7 +22,8 @@ import (
 )
 
 func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
-	a, d := newDemo()
+	a := &arena{}
+	d := NewDemo(a)
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -232,6 +233,7 @@ func stageOf(g game.Game) game.Stage {
 
 // newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
 func newStage() (*arena, game.Stage) {
-	a, g := newDemo()
+	a := &arena{}
+	g := NewDemo(a)
 	return a, stageOf(g)
 }

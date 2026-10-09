@@ -13,7 +13,8 @@ import (
 // The demo sets itself up without a window: its plugins install, its keys bind without a clash,
 // its giants spawn within the world's sizes.
 func TestDemo_StartsWithoutAWindow(t *testing.T) {
-	a, d := newDemo()
+	a := &arena{}
+	d := NewDemo(a)
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +26,8 @@ func TestDemo_StartsWithoutAWindow(t *testing.T) {
 // The island has two sides: the player at the keyboard and a rival without one, each with walkers
 // of its own kind.
 func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
-	a, d := newDemo()
+	a := &arena{}
+	d := NewDemo(a)
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
 // plateau once had none and the first frame panicked. Needs a GPU; skipped without one.
 func TestDemo_DrawsAFrame(t *testing.T) {
 	needGPU(t)
-	e := engine.NewEngine(NewDemo())
+	e := engine.NewEngine(NewDemo(&arena{}))
 	if err := e.Init(); err != nil {
 		t.Fatal(err)
 	}

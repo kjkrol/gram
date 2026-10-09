@@ -48,12 +48,6 @@ const (
 
 // =========================== Game ===========================
 
-// NewDemo is the demo — one Stage.
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 type unitRow struct {
@@ -73,11 +67,10 @@ type arena struct {
 	player    *players.Player
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the effect demo, defined on the arena s: its window and its one Stage, a section at a
+// time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram — an ice witch writes the terrain",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,

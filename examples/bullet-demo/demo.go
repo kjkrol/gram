@@ -61,12 +61,6 @@ const (
 
 // =========================== Game ===========================
 
-// NewDemo is the bullet demo — exactly one Stage (arena below).
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 // unitRow is the row every unit spawns from: where it starts and, a wanderer, where it walks to.
@@ -87,11 +81,10 @@ type arena struct {
 	brd       *board.Board
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the bullet demo, defined on the arena s: its window and its one Stage, a section at a
+// time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram — a soldier shoots",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,

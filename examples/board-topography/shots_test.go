@@ -164,7 +164,8 @@ func TestShots(t *testing.T) {
 		t.Skip("set GRAM_SHOTS to a directory to save what the demo draws")
 	}
 	needGPU(t)
-	a, d := newDemo()
+	a := &arena{}
+	d := NewDemo(a)
 	e := engine.NewEngine(d)
 	if err := e.Init(); err != nil {
 		t.Fatal(err)

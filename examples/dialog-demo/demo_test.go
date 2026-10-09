@@ -279,7 +279,8 @@ func TestDemo_ARudeAnswerMakesTheSmithAnEnemy(t *testing.T) {
 
 // newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
 func newStage() (*arena, game.Stage) {
-	a, g := newDemo()
+	a := &arena{}
+	g := NewDemo(a)
 	return a, stageOf(g)
 }
 
@@ -292,7 +293,7 @@ func stageOf(g game.Game) game.Stage {
 // The demo sets itself up through the engine, without a window: its conversations are defined in
 // the dialogs' own section, which refuses them anywhere else.
 func TestDemo_StartsWithoutAWindow(t *testing.T) {
-	if err := engine.NewEngine(NewDemo()).Init(); err != nil {
+	if err := engine.NewEngine(NewDemo(&arena{})).Init(); err != nil {
 		t.Fatal(err)
 	}
 }

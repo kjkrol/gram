@@ -11,7 +11,8 @@ import (
 // The demo sets itself up without a window: its plugins install, the embers spawn on their
 // rounds, the Ember material joins the composer's shader.
 func TestDemo_StartsWithoutAWindow(t *testing.T) {
-	a, d := newDemo()
+	a := &arena{}
+	d := NewDemo(a)
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}

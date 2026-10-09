@@ -31,7 +31,7 @@ const (
 	boxCount                  = 300
 )
 
-func main() { gram.Run(newGame()) }
+func main() { gram.Run(newGame(&arena{})) }
 
 // box is the row every entity spawns from: where it starts and how it moves.
 type box struct {
@@ -56,11 +56,10 @@ type arena struct {
 	stats     collision.ContactStats
 }
 
-// newGame is the game: its window and its one Stage, defined a section at a time in the order a
-// Stage is always defined in; a section this game has no use for — effects, rules, controls — is
-// left out.
-func newGame() game.Game {
-	a := &arena{}
+// newGame is the game defined on the arena a: its window and its one Stage, defined a section at
+// a time in the order a Stage is always defined in; a section this game has no use for — effects,
+// rules, controls — is left out.
+func newGame(a *arena) game.Game {
 	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
 		stage.New(ArenaStage).
 			World(world.Config{

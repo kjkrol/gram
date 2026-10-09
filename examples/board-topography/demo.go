@@ -62,12 +62,6 @@ var scale = world.Scale{Metres: 100.0 / CellSize}
 
 // =========================== Game ===========================
 
-// NewDemo is the island demo — exactly one Stage (arena below).
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 type arena struct {
@@ -87,11 +81,10 @@ type arena struct {
 	stops      []cell.ID
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the island demo, defined on the arena s: its window and its one Stage, a section at a
+// time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram — the island in relief",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,

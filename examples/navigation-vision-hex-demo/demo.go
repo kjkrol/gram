@@ -59,12 +59,6 @@ var (
 
 // =========================== Game ===========================
 
-// NewDemo is the hex board + navigation + vision demo — exactly one Stage (arena below).
-func NewDemo() game.Game {
-	_, g := newDemo()
-	return g
-}
-
 // =========================== Stage ===========================
 
 type arena struct {
@@ -81,11 +75,10 @@ type arena struct {
 	vision     *vision.Plugin
 }
 
-// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
-// and the game defined on it: its props and its Stage, a section at a time.
-func newDemo() (*arena, game.Game) {
-	s := &arena{}
-	return s, game.New(game.Props{
+// NewDemo is the hex board + navigation + vision demo, defined on the arena s: its window and its
+// one Stage, a section at a time.
+func NewDemo(s *arena) game.Game {
+	return game.New(game.Props{
 		Title:       "gram — sight across a hex board: walls cut, forests dim, a hawk flies over",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
