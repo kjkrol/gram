@@ -11,6 +11,11 @@
 // for the state it saves. A
 // [Builtin] plugin is one the engine installs itself, such as the world; Use refuses it.
 //
+// A plugin tells the Stage of itself as it is made: over a world through world.NewSelf, which notes
+// it among the world's [Made], else by [Made.Add] on the Made a Stage without a world hands its
+// game. The Stage uses the plugins in the order made, so the order a game defines them in is the
+// order they are installed in.
+//
 // # Installer
 //
 // [Installer] is ECS wiring — UseModule, Setup, RegSys, ECS — and Hosts, which tells the engine

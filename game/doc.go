@@ -5,7 +5,9 @@
 //
 // # Game
 //
-// A [Game] supplies [Props] — window title and size, and TargetTPS, the engine's one fixed step —
+// A [Game] supplies [Props] — the window's title, a short name, and its size; a Description of what
+// the game is and how it is played, shown over the list of shortcuts ([Runtime].Props); and
+// TargetTPS, the engine's one fixed step —
 // and its Stages by Name, plus which starts active. Props.Resizable lets the player resize and
 // maximize the window: the screen is then the window, and the world camera draws to all of it —
 // more of a large world, a small one scaled up to cover it. F11 toggles fullscreen in every

@@ -100,7 +100,9 @@
 // [Self] is the one entity a plugin has in the world, called by the plugin's name: it carries the
 // plugin's knobs — components the plugin only reads, which an effect's Alter turns — the roles
 // the plugin plays and the effects it is under, any number at once (effect.Wide). A plugin makes
-// it with [NewSelf] as it is made and embeds it, so the plugin is whom a command may be for
+// it with [NewSelf] as it is made — handing itself, which the world notes as made over it
+// ([Plugin.Made]: the Stage uses the plugins in the order made) — and embeds it, so the plugin is
+// whom a command may be for
 // (rule.Cast(bloodMoon).On(s.atmosphere)), plays roles (Plays) — the rules of its own moments
 // fire while it plays their role — and learns from Changed that its knobs were turned. The
 // world's own is the clock's entity, which entity.World names. The entities are made as the

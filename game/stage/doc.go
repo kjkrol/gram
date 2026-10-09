@@ -5,7 +5,8 @@
 //		s := &arena{}
 //		return s, game.New(props,
 //			stage.New(MeadowStage).
-//				World(worldCfg, s.makePlugins).                    // the world, the plugins over it
+//				World(worldCfg).                                   // the world…
+//				Plugins(s.makePlugins).                            // …and the plugins the arena makes over it
 //				Players(s.definePlayer).                           // the players, the plugins' default keys
 //				Effects(s.defineEffects).                          // the states
 //				Rules(s.defineRules).                              // the roles, the rules, the plans
@@ -21,11 +22,13 @@
 //
 // # The world and the plugins
 //
-// [Start.World] makes the Stage's world from its world.Config each time the Stage is entered and
-// hands it to a function of the game's — the arena's makePlugins — that makes the plugins over it,
-// keeping them, and hands them back in the order they are used; the Stage uses them, the game
-// touching no game.Initializer. [Start.Plugins] does the same for a Stage without a world; a
-// menu's has neither.
+// [Start.World] makes the Stage's world from its world.Config each time the Stage is entered;
+// [AfterWorld.Plugins] hands it to a function of the game's — the arena's makePlugins — that makes
+// the plugins over it, keeping them, each telling the world of itself as it is made
+// (world.NewSelf). The Stage uses them in the order made: the order a game defines its plugins in
+// is the order they are used in, the game touching no game.Initializer. [Start.Plugins] does the
+// same for a Stage without a world, its plugins adding themselves to a plugin.Made; a menu's has
+// neither.
 //
 // # The order
 //
