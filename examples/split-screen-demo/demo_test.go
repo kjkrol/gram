@@ -22,13 +22,13 @@ import (
 )
 
 func TestDemo_TwoHalvesAndAMinimapOfTheWholeArena(t *testing.T) {
-	d := NewDemo()
+	a, d := newDemo()
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
-	s := d.a
-	main := lay(t, d.stage)
-	main.HandleEvents(&control.InputEvents{}, nil, d.stage.Stack().Composition()) // the active scene wires its players
+	s := a
+	main := lay(t, stageOf(d))
+	main.HandleEvents(&control.InputEvents{}, nil, stageOf(d).Stack().Composition()) // the active scene wires its players
 
 	half := (ScreenWidth - 2) / 2.0
 	if a := s.redPlayer.Area(); a != geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(half, ScreenHeight)) {
@@ -125,7 +125,7 @@ type testStage struct {
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
 	s := &testStage{}
-	s.arena, s.stage = newArena()
+	s.arena, s.stage = newStage()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -222,4 +222,16 @@ func TestDemo_EachPlayerFollowsAndDrivesItsOwnBlock(t *testing.T) {
 	if !shows(s.redPlayer, redNow) {
 		t.Error("red's camera did not follow its block")
 	}
+}
+
+// stageOf is the one Stage of g.
+func stageOf(g game.Game) game.Stage {
+	stages, first := g.Stages()
+	return stages[first]
+}
+
+// newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
+func newStage() (*arena, game.Stage) {
+	a, g := newDemo()
+	return a, stageOf(g)
 }

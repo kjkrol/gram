@@ -121,7 +121,7 @@ func newDrawnStage(t *testing.T) *drawnStage {
 	t.Helper()
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 	ds := &drawnStage{t: t}
-	ds.arena, ds.stage = newArena()
+	ds.arena, ds.stage = newStage()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := ds.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -266,3 +266,15 @@ func (c *stageInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 // Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
 // does with the roles played once a Stage's Init returns.
 func (c *stageInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+
+// newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
+func newStage() (*arena, game.Stage) {
+	a, g := newDemo()
+	return a, stageOf(g)
+}
+
+// stageOf is the one Stage of g.
+func stageOf(g game.Game) game.Stage {
+	stages, first := g.Stages()
+	return stages[first]
+}

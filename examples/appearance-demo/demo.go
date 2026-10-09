@@ -54,29 +54,10 @@ var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 
 // =========================== Game ===========================
 
-// Demo is the appearance demo — one Stage.
-type Demo struct {
-	a     *arena
-	stage game.Stage
-}
-
-var _ game.Game = (*Demo)(nil)
-
-func NewDemo() *Demo {
-	a, st := newArena()
-	return &Demo{a: a, stage: st}
-}
-
-func (d *Demo) Props() game.Props {
-	return game.Props{
-		Title:       "gram appearance demo — R: everyone angry for a while",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
-		TargetTPS: TPS,
-	}
-}
-
-func (d *Demo) Stages() (map[string]game.Stage, string) {
-	return map[string]game.Stage{d.stage.Name(): d.stage}, d.stage.Name()
+// NewDemo is the appearance demo — one Stage.
+func NewDemo() game.Game {
+	_, g := newDemo()
+	return g
 }
 
 // =========================== Stage ===========================
@@ -96,22 +77,26 @@ type arena struct {
 	player *players.Player
 }
 
-// newStage defines the game a section at a time, each building on those before it.
-// newArena makes the arena — the collector of the stage's plugins, which every
-// section builds on — and defines the stage on it, a section at a time.
-func newArena() (*arena, game.Stage) {
+// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
+// and the game defined on it: its props and its Stage, a section at a time.
+func newDemo() (*arena, game.Game) {
 	s := &arena{}
-	return s, stage.New(AppearanceStage).
-		Plugins(s.usePlugins).
-		Players(s.definePlayer).
-		Effects(s.defineEffects).
-		Rules(s.defineRules).
-		Commands(s.defineCommands).
-		Kinds(s.defineKinds).
-		Controls(s.bindKeys).
-		Spawn(s.spawnUnits).
-		Scenes(s.defineScenes).
-		Update(s.update)
+	return s, game.New(game.Props{
+		Title:       "gram appearance demo — R: everyone angry for a while",
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
+		TargetTPS: TPS,
+	},
+		stage.New(AppearanceStage).
+			Plugins(s.usePlugins).
+			Players(s.definePlayer).
+			Effects(s.defineEffects).
+			Rules(s.defineRules).
+			Commands(s.defineCommands).
+			Kinds(s.defineKinds).
+			Controls(s.bindKeys).
+			Spawn(s.spawnUnits).
+			Scenes(s.defineScenes).
+			Update(s.update))
 }
 
 func (s *arena) usePlugins(ctx game.Initializer) error {

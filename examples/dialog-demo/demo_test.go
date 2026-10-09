@@ -84,7 +84,7 @@ type testStage struct {
 func buildStage(t *testing.T) *testStage {
 	t.Helper()
 	s := &testStage{}
-	s.arena, s.stage = newArena()
+	s.arena, s.stage = newStage()
 	ctx := &stageInit{ecs: goke.New()}
 	if err := s.stage.Init(ctx); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -274,4 +274,16 @@ func TestDemo_ARudeAnswerMakesTheSmithAnEnemy(t *testing.T) {
 	if _, offered := s.says(smith); len(offered) == 0 || offered[0] != "Sorry about before." {
 		t.Errorf("meeting again the smith offers %q, want a way to make up first", offered)
 	}
+}
+
+// newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
+func newStage() (*arena, game.Stage) {
+	a, g := newDemo()
+	return a, stageOf(g)
+}
+
+// stageOf is the one Stage of g.
+func stageOf(g game.Game) game.Stage {
+	stages, first := g.Stages()
+	return stages[first]
 }

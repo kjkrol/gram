@@ -13,11 +13,11 @@ import (
 // The demo sets itself up without a window: its plugins install, its keys bind without a clash,
 // its giants spawn within the world's sizes.
 func TestDemo_StartsWithoutAWindow(t *testing.T) {
-	d := NewDemo()
+	a, d := newDemo()
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
-	if d.a.world == nil || d.a.topography == nil {
+	if a.world == nil || a.topography == nil {
 		t.Fatal("the demo's world or topography was not made")
 	}
 }
@@ -25,11 +25,11 @@ func TestDemo_StartsWithoutAWindow(t *testing.T) {
 // The island has two sides: the player at the keyboard and a rival without one, each with walkers
 // of its own kind.
 func TestDemo_ThePlayerAndARivalOwnWalkersOfTheirOwn(t *testing.T) {
-	d := NewDemo()
+	a, d := newDemo()
 	if err := engine.NewEngine(d).Init(); err != nil {
 		t.Fatal(err)
 	}
-	s := d.a
+	s := a
 	if s.player.ID != 1 || s.rival.ID != 2 {
 		t.Errorf("the player is %d, the rival %d; want players 1 and 2", s.player.ID, s.rival.ID)
 	}

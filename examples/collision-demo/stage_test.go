@@ -70,7 +70,7 @@ func buildStage(tb testing.TB) (*goke.ECS, *arena) {
 
 	rng = rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 
-	a, stage := newArena()
+	a, stage := newStage()
 	ctx := &benchInit{ecs: goke.New()}
 	if err := stage.Init(ctx); err != nil {
 		tb.Fatalf("Init: %v", err)
@@ -108,3 +108,15 @@ func (c *benchInit) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 // Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
 // does with the roles played once a Stage's Init returns.
 func (c *benchInit) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+
+// newStage makes the arena and the demo's one Stage, for a test that drives the Stage itself.
+func newStage() (*arena, game.Stage) {
+	a, g := newDemo()
+	return a, stageOf(g)
+}
+
+// stageOf is the one Stage of g.
+func stageOf(g game.Game) game.Stage {
+	stages, first := g.Stages()
+	return stages[first]
+}

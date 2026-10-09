@@ -32,18 +32,7 @@ const (
 	boxCount                  = 300
 )
 
-func main() { gram.Run(&Game{stage: newArena()}) }
-
-// Game is the game itself: window props and one Stage.
-type Game struct{ stage game.Stage }
-
-func (g *Game) Props() game.Props {
-	return game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60}
-}
-
-func (g *Game) Stages() (map[string]game.Stage, string) {
-	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
-}
+func main() { gram.Run(newGame()) }
 
 // box is the row every entity spawns from: where it starts and how it moves.
 type box struct {
@@ -68,17 +57,19 @@ type arena struct {
 	stats     collision.ContactStats
 }
 
-// newArena defines the Stage a section at a time, in the order a Stage is always defined in; a
-// section this game has no use for — effects, rules, controls — is left out.
-func newArena() game.Stage {
+// newGame is the game: its window and its one Stage, defined a section at a time in the order a
+// Stage is always defined in; a section this game has no use for — effects, rules, controls — is
+// left out.
+func newGame() game.Game {
 	a := &arena{}
-	return stage.New(ArenaStage).
-		Plugins(a.usePlugins).
-		Players(a.definePlayer).
-		Kinds(a.defineKinds).
-		Spawn(a.spawnUnits).
-		Scenes(a.defineScenes).
-		Update(a.update)
+	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
+		stage.New(ArenaStage).
+			Plugins(a.usePlugins).
+			Players(a.definePlayer).
+			Kinds(a.defineKinds).
+			Spawn(a.spawnUnits).
+			Scenes(a.defineScenes).
+			Update(a.update))
 }
 
 func (a *arena) usePlugins(ctx game.Initializer) error {

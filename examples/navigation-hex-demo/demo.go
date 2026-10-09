@@ -55,29 +55,10 @@ var (
 
 // =========================== Game ===========================
 
-// Demo is the navigation demo on a hex board — exactly one Stage (arena below).
-type Demo struct {
-	a     *arena
-	stage game.Stage
-}
-
-var _ game.Game = (*Demo)(nil)
-
-func NewDemo() *Demo {
-	a, st := newArena()
-	return &Demo{a: a, stage: st}
-}
-
-func (d *Demo) Props() game.Props {
-	return game.Props{
-		Title:       "gram navigation on a hex board",
-		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
-		TargetTPS: TPS,
-	}
-}
-
-func (d *Demo) Stages() (map[string]game.Stage, string) {
-	return map[string]game.Stage{d.stage.Name(): d.stage}, d.stage.Name()
+// NewDemo is the navigation demo on a hex board — exactly one Stage (arena below).
+func NewDemo() game.Game {
+	_, g := newDemo()
+	return g
 }
 
 // =========================== Stage ===========================
@@ -95,19 +76,23 @@ type arena struct {
 	player    *players.Player // the one at this keyboard: the units are its
 }
 
-// newStage defines the game a section at a time, each building on those before it.
-// newArena makes the arena — the collector of the stage's plugins, which every
-// section builds on — and defines the stage on it, a section at a time.
-func newArena() (*arena, game.Stage) {
+// newDemo makes the arena — the collector of the stage's plugins, which every section builds on —
+// and the game defined on it: its props and its Stage, a section at a time.
+func newDemo() (*arena, game.Game) {
 	s := &arena{}
-	return s, stage.New(BoardNavigationHexStage).
-		Plugins(s.usePlugins).
-		Players(s.definePlayer).
-		Kinds(s.defineCells, s.defineKinds).
-		Restore(s.restore).
-		Spawn(s.spawnCells, s.spawnUnits).
-		Scenes(s.defineScenes).
-		Update(s.update)
+	return s, game.New(game.Props{
+		Title:       "gram navigation on a hex board",
+		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
+		TargetTPS: TPS,
+	},
+		stage.New(BoardNavigationHexStage).
+			Plugins(s.usePlugins).
+			Players(s.definePlayer).
+			Kinds(s.defineCells, s.defineKinds).
+			Restore(s.restore).
+			Spawn(s.spawnCells, s.spawnUnits).
+			Scenes(s.defineScenes).
+			Update(s.update))
 }
 
 func (s *arena) usePlugins(ctx game.Initializer) error {
