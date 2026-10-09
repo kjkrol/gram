@@ -85,7 +85,10 @@ func newDemo() (*arena, game.Game) {
 		TargetTPS: TPS,
 	},
 		stage.New(MaterialStage).
-			Plugins(s.usePlugins).
+			World(world.Config{
+				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{MaxCount: 1, MinSize: CellSize, MaxSize: WardPx},
+			}, s.makePlugins).
 			Players(s.definePlayer).
 			Effects(s.defineEffects).
 			Commands(s.defineCommands).
@@ -96,21 +99,15 @@ func newDemo() (*arena, game.Game) {
 			Update(s.update))
 }
 
-func (s *arena) usePlugins(ctx game.Initializer) error {
-	s.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: CellSize, MaxSize: WardPx},
-	})
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board)
-	for _, p := range []plugin.Plugin{s.board, s.cameras, s.players} {
-		if err := ctx.Use(p); err != nil {
-			return err
-		}
-	}
-	return nil
+	return []plugin.Plugin{s.board, s.cameras, s.players}
 }
 
 func (s *arena) definePlayer() error {

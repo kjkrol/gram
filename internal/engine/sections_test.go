@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -37,9 +38,11 @@ type sectioned struct {
 
 func (s *sectioned) note(name string) { s.ran = append(s.ran, name) }
 
-func (s *sectioned) useWorld(ctx game.Initializer) {
+// makeWorld keeps the world the Stage made, and makes no plugins over it.
+func (s *sectioned) makeWorld(w *world.Plugin) []plugin.Plugin {
 	s.note("plugins")
-	s.world = ctx.UseWorld(testWorldConfig())
+	s.world = w
+	return nil
 }
 
 func (s *sectioned) defineUnit() {
@@ -62,7 +65,7 @@ func (s *sectioned) update(ctx goke.RunCtx, d time.Duration) { s.world.RunPlan(c
 func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
-		Plugins(s.useWorld).
+		World(testWorldConfig(), s.makeWorld).
 		Players(func() { s.note("players") }).
 		Effects(func() error { s.note("effects"); return nil }).
 		Rules(func(game.Initializer) error { s.note("rules"); return nil }).
@@ -90,7 +93,7 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 func TestStage_ShowsAndRestore(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
-		Plugins(s.useWorld).
+		World(testWorldConfig(), s.makeWorld).
 		Restore(func(game.Persistence) (bool, error) { return true, nil }).
 		Spawn(func() { s.note("ground") }, func() { s.note("units") }).
 		Scenes(func() []game.Scene {
@@ -126,7 +129,7 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 	basePath := filepath.Join(t.TempDir(), "meadow")
 	define := func(s *sectioned, k *kept, restore func(game.Persistence) (bool, error)) game.Stage {
 		return stage.New("meadow").
-			Plugins(s.useWorld).
+			World(testWorldConfig(), s.makeWorld).
 			Restore(restore).
 			Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}, k, &scene{name: "hud"}} }).
 			Update(s.update)
@@ -159,7 +162,7 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 	s := &sectioned{}
 	boom := errors.New("boom")
-	st := stage.New("meadow").Plugins(s.useWorld).Effects(func() error { return boom }).Update(s.update)
+	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).Effects(func() error { return boom }).Update(s.update)
 	err := NewEngine(oneStageGame{stage: st}).Init()
 	if !errors.Is(err, boom) || !strings.Contains(err.Error(), "meadow") || !strings.Contains(err.Error(), "Effects") {
 		t.Errorf("Init = %v, want boom of the stage meadow, in Effects", err)
@@ -191,8 +194,9 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		wants  string // the section it belongs in
 		kinds  bool   // done in Kinds, a wrong place, rather than in Effects
 		panics bool
+		plugin bool // in Plugins, the plugin is handed over rather than used
 	}{
-		"a plugin used":     {do: useAPlugin, wants: "Plugins"},
+		"a plugin used":     {do: useAPlugin, wants: "Plugins", plugin: true},
 		"a role defined":    {do: plays, wants: "Rules", kinds: true, panics: true},
 		"an effect defined": {do: effectDefined, wants: "Effects", kinds: true, panics: true},
 		"a kind defined":    {do: kindDefined, wants: "Kinds", panics: true},
@@ -208,7 +212,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 				}()
 				return tc.do(s, ctx)
 			}
-			chain := stage.New("meadow").Plugins(s.useWorld)
+			chain := stage.New("meadow").World(testWorldConfig(), s.makeWorld)
 			var st game.Stage
 			if tc.kinds {
 				st = chain.Kinds(wrong).Update(s.update)
@@ -225,9 +229,15 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 
 			// in Plugins anything goes
 			s = &sectioned{}
-			st = stage.New("meadow").Plugins(func(ctx game.Initializer) error {
-				s.useWorld(ctx)
-				return tc.do(s, ctx)
+			st = stage.New("meadow").World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
+				s.makeWorld(w)
+				if tc.plugin {
+					return []plugin.Plugin{&stubPlugin{name: "late"}}
+				}
+				if err := tc.do(s, nil); err != nil {
+					t.Errorf("in Plugins: %v, want it taken", err)
+				}
+				return nil
 			}).Update(s.update)
 			if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 				t.Errorf("in Plugins: Init = %v, want it taken", err)
@@ -241,7 +251,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 func TestStage_SeedsInTheirSections(t *testing.T) {
 	s := &sectioned{}
 	var during section.Part
-	st := stage.New("meadow").Plugins(s.useWorld).Kinds(s.defineUnit).
+	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).Kinds(s.defineUnit).
 		Controls(func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -255,8 +265,12 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 		t.Errorf("units seeded in Controls: Init = %v, want them refused as belonging in Spawn", err)
 	}
 	s = &sectioned{}
+	spy := &stubPlugin{name: "spy", installFn: func(ctx plugin.Installer) error {
+		during = ctx.(section.Reader).Section()
+		return nil
+	}}
 	st = stage.New("meadow").
-		Plugins(func(ctx game.Initializer) { s.useWorld(ctx); during = ctx.(section.Reader).Section() }).
+		World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin { s.makeWorld(w); return []plugin.Plugin{spy} }).
 		Kinds(s.defineUnit).
 		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
@@ -277,15 +291,12 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		players *players.Plugin
 		player  *players.Player
 	}
-	plugins := func(b *built) func(ctx game.Initializer) error {
-		return func(ctx game.Initializer) error {
-			b.useWorld(ctx)
+	plugins := func(b *built) func(w *world.Plugin) []plugin.Plugin {
+		return func(w *world.Plugin) []plugin.Plugin {
+			b.makeWorld(w)
 			b.board = board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, b.world)
 			b.players = players.NewPlugin(b.world)
-			if err := ctx.Use(b.board); err != nil {
-				return err
-			}
-			return ctx.Use(b.players)
+			return []plugin.Plugin{b.board, b.players}
 		}
 	}
 	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
@@ -300,7 +311,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := &built{}
-			st := stage.New("meadow").Plugins(plugins(b)).
+			st := stage.New("meadow").World(testWorldConfig(), plugins(b)).
 				Players(func() { b.player = b.players.Add("ai") }).
 				Effects(func() (err error) {
 					defer func() {
@@ -318,7 +329,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	}
 	// each in its own section is taken
 	b := &built{}
-	st := stage.New("meadow").Plugins(plugins(b)).
+	st := stage.New("meadow").World(testWorldConfig(), plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
 		Kinds(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).

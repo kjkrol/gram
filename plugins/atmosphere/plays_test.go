@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/world"
@@ -33,12 +34,14 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 		var noted effect.Effect
 		var ecs *goke.ECS
 		st := stage.New("sky").
-			Plugins(func(ctx game.Initializer) error {
-				w = ctx.UseWorld(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
-				a, ecs = atmosphere.NewPlugin(w, atmosphere.Config{}), ctx.ECS()
-				return ctx.Use(a)
-			}).
-			Effects(func() {
+			World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}},
+				func(made *world.Plugin) []plugin.Plugin {
+					w = made
+					a = atmosphere.NewPlugin(w, atmosphere.Config{})
+					return []plugin.Plugin{a}
+				}).
+			Effects(func(ctx game.Initializer) {
+				ecs = ctx.ECS()
 				w.Effects().Define("noted", effect.Spec{})
 				noted = w.Effects().Named("noted")
 			}).

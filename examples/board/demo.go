@@ -96,7 +96,10 @@ func newDemo() (*arena, game.Game) {
 		TargetTPS: TPS,
 	},
 		stage.New(BoardStage).
-			Plugins(s.usePlugins).
+			World(world.Config{
+				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+			}, s.makePlugins).
 			Players(s.definePlayer).
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
@@ -107,12 +110,10 @@ func newDemo() (*arena, game.Game) {
 			Update(s.update))
 }
 
-func (s *arena) usePlugins(ctx game.Initializer) error {
-	s.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-	})
-
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	s.world = w
 	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
@@ -126,13 +127,8 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.vision).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
-		if err := ctx.Use(p); err != nil {
-			return err
-		}
-	}
 	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
-	return nil
+	return []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players}
 }
 
 func (s *arena) definePlayer() error {

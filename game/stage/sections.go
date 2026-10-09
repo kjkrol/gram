@@ -5,7 +5,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // New begins the Stage named name: go on with its sections, each once and in their order — any
@@ -19,9 +21,17 @@ func New(name string) Start {
 // it has the sections that come later, never one that came before.
 type Start struct{ AfterPlugins }
 
-// Plugins makes and uses the Stage's plugins: ctx.UseWorld, ctx.Use.
-func (s Start) Plugins[F Step](f F) AfterPlugins {
-	s.d.add(section.Plugins, stepOf(f))
+// World makes the Stage's world from cfg — anew each time the Stage is entered — and its plugins
+// over it with plugins, used in the order it hands them: a game's arena keeps them as it makes
+// them.
+func (s Start) World(cfg world.Config, plugins func(w *world.Plugin) []plugin.Plugin) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error { return s.d.use(ctx, plugins(ctx.UseWorld(cfg))) })
+	return s.AfterPlugins
+}
+
+// Plugins makes and uses, in the order it hands them, the plugins of a Stage without a world.
+func (s Start) Plugins(plugins func() []plugin.Plugin) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error { return s.d.use(ctx, plugins()) })
 	return s.AfterPlugins
 }
 

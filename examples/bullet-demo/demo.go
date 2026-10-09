@@ -98,7 +98,11 @@ func newDemo() (*arena, game.Game) {
 		TargetTPS: TPS,
 	},
 		stage.New(BulletStage).
-			Plugins(s.usePlugins).
+			World(world.Config{
+				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: 4, MaxSize: EntitySize},
+				Heights:  true,
+			}, s.makePlugins).
 			Players(s.definePlayers).
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
@@ -109,12 +113,10 @@ func newDemo() (*arena, game.Game) {
 			Update(s.update))
 }
 
-func (s *arena) usePlugins(ctx game.Initializer) error {
-	s.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: 4, MaxSize: EntitySize},
-		Heights:  true,
-	})
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
@@ -125,12 +127,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.bullet = bullet.NewPlugin(s.world, s.selection).WithGround(s.board.Heights)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.bullet)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.bullet, s.cameras, s.players} {
-		if err := ctx.Use(p); err != nil {
-			return err
-		}
-	}
-	return nil
+	return []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.bullet, s.cameras, s.players}
 }
 
 func (s *arena) definePlayers() error {

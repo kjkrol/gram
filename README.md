@@ -161,7 +161,10 @@ func newGame() game.Game {
 	a := &arena{}
 	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
 		stage.New(ArenaStage).
-			Plugins(a.usePlugins).
+			World(world.Config{
+				Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
+				Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
+			}, a.makePlugins).
 			Players(a.definePlayer).
 			Kinds(a.defineKinds).
 			Spawn(a.spawnUnits).
@@ -169,20 +172,14 @@ func newGame() game.Game {
 			Update(a.update))
 }
 
-func (a *arena) usePlugins(ctx game.Initializer) error {
-	a.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
-	})
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (a *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	a.world = w
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.cameras)
-	for _, p := range []plugin.Plugin{a.collision, a.cameras, a.players} {
-		if err := ctx.Use(p); err != nil {
-			return err
-		}
-	}
-	return nil
+	return []plugin.Plugin{a.collision, a.cameras, a.players}
 }
 
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
@@ -319,7 +316,7 @@ is refused:
 
 ```go
 stage.New(MeadowStage).
-	Plugins(s.usePlugins).               // ctx.UseWorld, ctx.Use
+	World(worldCfg, s.makePlugins).      // the world, the plugins over it
 	Players(s.definePlayer).             // the players, the plugins' default keys
 	Effects(s.defineEffects).            // the states
 	Rules(s.defineRules).                // the roles, the rules, the plans

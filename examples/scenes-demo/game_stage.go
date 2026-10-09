@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
@@ -48,7 +49,10 @@ type gameplayArena struct {
 func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
 	g := &gameplayArena{SaveBasePath: saveBasePath}
 	return g, stage.New(GameplayStage).
-		Plugins(g.usePlugins).
+		World(world.Config{
+			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
+			Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
+		}, g.makePlugins).
 		Players(g.definePlayer).
 		Kinds(g.defineKinds).
 		Restore(g.restore).
@@ -64,17 +68,13 @@ func (g *gameplayArena) basePath() string {
 	return saveBasePath
 }
 
-func (g *gameplayArena) usePlugins(ctx game.Initializer) error {
-	g.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
-	})
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (g *gameplayArena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	g.world = w
 	g.cameras = cameras.NewPlugin(g.world)
 	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(g.basePath())
-	if err := ctx.Use(g.cameras); err != nil {
-		return err
-	}
-	return ctx.Use(g.players)
+	return []plugin.Plugin{g.cameras, g.players}
 }
 
 func (g *gameplayArena) definePlayer() error {

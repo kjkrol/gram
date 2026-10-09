@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -29,7 +30,7 @@ func (scenicPlugin) Scenes() []game.Scene { return []game.Scene{plainScene{"plug
 // hidden until something shows them: the game adds nothing for them.
 func TestStage_HasTheScenesOfItsPlugins(t *testing.T) {
 	st := stage.New("meadow").
-		Plugins(func(ctx game.Initializer) error { return ctx.Use(&scenicPlugin{stubPlugin{name: "test.scenic"}}) }).
+		Plugins(func() []plugin.Plugin { return []plugin.Plugin{&scenicPlugin{stubPlugin{name: "test.scenic"}}} }).
 		Scenes(func() []game.Scene { return []game.Scene{plainScene{"main"}} }).
 		Update(func(goke.RunCtx, time.Duration) {})
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {

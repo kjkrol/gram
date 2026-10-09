@@ -98,7 +98,12 @@ func newDemo() (*arena, game.Game) {
 		TargetTPS: TPS,
 	},
 		stage.New(BoardTopographyStage).
-			Plugins(s.usePlugins).
+			World(world.Config{
+				Scale:    scale,
+				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Heights:  true,
+			}, s.makePlugins).
 			Players(s.definePlayers).
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
@@ -111,13 +116,10 @@ func newDemo() (*arena, game.Game) {
 			Update(s.update))
 }
 
-func (s *arena) usePlugins(ctx game.Initializer) error {
-	s.world = ctx.UseWorld(world.Config{
-		Scale:    scale,
-		Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-		Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-		Heights:  true,
-	})
+// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
+// in the order they are used.
+func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+	s.world = w
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
@@ -157,12 +159,7 @@ func (s *arena) usePlugins(ctx game.Initializer) error {
 	s.topography.WithAtmosphere(s.atmosphere)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
-	for _, p := range []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players} {
-		if err := ctx.Use(p); err != nil {
-			return err
-		}
-	}
-	return nil
+	return []plugin.Plugin{s.collision, s.board, s.selection, s.topography, s.nav, s.driving, s.vision, s.atmosphere, s.cameras, s.players}
 }
 
 func (s *arena) definePlayers() error {

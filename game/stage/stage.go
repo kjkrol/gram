@@ -36,6 +36,7 @@ type def struct {
 
 	ctx   game.Initializer
 	stack game.Scenes
+	used  []plugin.Plugin // the plugins World or Plugins made as the Stage was last entered
 }
 
 type step struct {
@@ -45,6 +46,17 @@ type step struct {
 
 func (d *def) add(part section.Part, run func(game.Initializer) error) {
 	d.steps = append(d.steps, step{part: part, run: run})
+}
+
+// use uses plugins in their order and keeps them as the Stage's.
+func (d *def) use(ctx game.Initializer, plugins []plugin.Plugin) error {
+	d.used = plugins
+	for _, p := range plugins {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // stepOf is f as a section runs it.
