@@ -72,7 +72,8 @@ type arena struct {
 // a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — an entity drawn by a material of the game's own WGSL; C calms it",
+		Title:       "gram material demo",
+		Description: "An entity drawn by a material of the game's own WGSL; C calms it.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

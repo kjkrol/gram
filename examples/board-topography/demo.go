@@ -85,7 +85,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — the island in relief",
+		Title:       "gram board topography",
+		Description: "The island in relief.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

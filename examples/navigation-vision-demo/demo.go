@@ -72,7 +72,8 @@ type arena struct {
 // Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — sight across a board: walls cut, forests dim, a hawk flies over",
+		Title:       "gram navigation vision demo",
+		Description: "Sight across a board: walls cut, forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

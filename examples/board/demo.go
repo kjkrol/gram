@@ -83,7 +83,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — the island on the simple map",
+		Title:       "gram board",
+		Description: "The island on the simple map.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

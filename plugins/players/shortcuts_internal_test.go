@@ -1,6 +1,7 @@
 package players
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,7 +139,10 @@ func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 type engineStub struct {
 	game.Runtime
 	quit, paused bool
+	props        game.Props
 }
+
+func (e *engineStub) Props() game.Props { return e.props }
 
 func (e *engineStub) Quit()        { e.quit = true }
 func (e *engineStub) Paused() bool { return e.paused }
@@ -165,7 +169,7 @@ func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 	}
 	built := 0
 	p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road", Do: func(game.Runtime, game.Composition) { built++ }}})
-	rt, comp := &engineStub{}, &shown{}
+	rt, comp := &engineStub{props: game.Props{Description: "Walk up to a host and answer it."}}, &shown{}
 	press := func(key control.Key, shift bool) {
 		events := &control.InputEvents{}
 		events.Modifiers.Shift = shift
@@ -179,6 +183,9 @@ func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 	press(control.KeyK, false)
 	if len(comp.names) != 1 || comp.names[0] != ShortcutsName || !rt.paused {
 		t.Errorf("K showed %v, paused %v; want the shortcuts shown and the game held", comp.names, rt.paused)
+	}
+	if p.shortcuts.description != "Walk up to a host and answer it." {
+		t.Errorf("the shortcuts open over %q, want the game's description", p.shortcuts.description)
 	}
 	press(control.KeyR, false)
 	if built != 1 {
@@ -238,5 +245,13 @@ func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
 	p.Handle(events, rt, &shown{})
 	if len(rt.vault.saved) != 1 || rt.vault.saved[0] != "meadow" {
 		t.Errorf("F5 saved %v, want the game written under meadow once", rt.vault.saved)
+	}
+}
+
+func TestWrapped_BreaksBetweenWordsWithinTheWidth(t *testing.T) {
+	got := wrapped("Walk up to a host and answer it.", 12)
+	want := []string{"Walk up to a", "host and", "answer it."}
+	if !slices.Equal(got, want) {
+		t.Errorf("wrapped %q, want %q", got, want)
 	}
 }

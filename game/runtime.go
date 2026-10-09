@@ -19,4 +19,6 @@ type Runtime interface {
 
 	// ToggleFullscreen switches the window to fullscreen and back; F11 does it in every game.
 	ToggleFullscreen()
+	// Props are the game's, as it started: its title, its description.
+	Props() Props
 }

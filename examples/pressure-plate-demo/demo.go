@@ -93,7 +93,8 @@ type arena struct {
 // section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — pressure plates and trapdoors",
+		Title:       "gram pressure plate demo",
+		Description: "Pressure plates and trapdoors.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

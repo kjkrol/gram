@@ -95,7 +95,8 @@ type arena struct {
 // a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — trapdoors under a lever",
+		Title:       "gram trapdoor demo",
+		Description: "Trapdoors under a lever.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

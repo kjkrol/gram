@@ -76,7 +76,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — sight, avoidance and a hunter",
+		Title:       "gram vision demo",
+		Description: "Sight, avoidance and a hunter.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

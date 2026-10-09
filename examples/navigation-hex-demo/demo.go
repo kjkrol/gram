@@ -73,7 +73,7 @@ type arena struct {
 // Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram navigation on a hex board",
+		Title:       "gram navigation hex demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

@@ -50,10 +50,11 @@ const ShortcutsName = "gram.shortcuts"
 // It is the players' own scene, in every Stage that uses them (Plugin.Scenes); K opens it (the
 // command ShowShortcuts, a default key), given the scene hands its input to Plugin.Handle.
 type Shortcuts struct {
-	p     *Plugin
-	keys  SceneKeys
-	layer *shortcutsLayer
-	held  bool // the game was paused already when the scene opened
+	p           *Plugin
+	keys        SceneKeys
+	layer       *shortcutsLayer
+	held        bool   // the game was paused already when the scene opened
+	description string // the game's (game.Props), as the scene last opened
 }
 
 var _ game.Scene = (*Shortcuts)(nil)
@@ -76,8 +77,10 @@ func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 // stack — see game.Scenic.
 func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts} }
 
-// Open shows the scene on top and holds the game paused while it is up.
+// Open shows the scene on top, the game's description over the keys, and holds the game paused
+// while it is up.
 func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
+	s.description = runtime.Props().Description
 	s.held = runtime.Paused()
 	runtime.Pause()
 	composition.Show(ShortcutsName)
@@ -281,9 +284,17 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 	x, y := shortcutsMargin, shortcutsMargin
 	render.DebugPrintAt(screen, l.s.title(), x, y)
 	y += 2 * shortcutsLine
+	if d := l.s.description; d != "" {
+		for _, line := range wrapped(d, (b.Dx()-2*shortcutsMargin)/render.GlyphWidth) {
+			render.DebugPrintAt(screen, line, x, y)
+			y += shortcutsLine
+		}
+		y += shortcutsLine
+	}
+	top := y
 	for _, g := range l.s.groups() {
-		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > 3*shortcutsLine {
-			x, y = x+shortcutsColumn, shortcutsMargin+2*shortcutsLine // the next column
+		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > top+shortcutsLine {
+			x, y = x+shortcutsColumn, top // the next column
 		}
 		render.DebugPrintAt(screen, g.name, x, y)
 		y += shortcutsLine
@@ -293,4 +304,23 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 		}
 		y += shortcutsLine
 	}
+}
+
+// wrapped is text in lines of at most width characters, broken between words.
+func wrapped(text string, width int) []string {
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(text) {
+		if line != "" && len(line)+1+len(word) > width {
+			lines, line = append(lines, line), ""
+		}
+		if line != "" {
+			line += " "
+		}
+		line += word
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }

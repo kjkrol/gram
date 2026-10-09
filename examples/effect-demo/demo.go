@@ -71,7 +71,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — an ice witch writes the terrain",
+		Title:       "gram effect demo",
+		Description: "An ice witch writes the terrain.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

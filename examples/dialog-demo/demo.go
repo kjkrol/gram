@@ -86,7 +86,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram dialog demo — right click: walk up to a host; point at one to see what it makes of you",
+		Title:       "gram dialog demo",
+		Description: "Right click: walk up to a host and answer it. Point at a host with the traveller selected to see what it makes of him.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

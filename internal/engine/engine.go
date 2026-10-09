@@ -105,6 +105,9 @@ func (e *Engine) TogglePause() {
 func (e *Engine) Quit() { e.quit = true }
 
 // ToggleFullscreen switches the window to fullscreen and back.
+// Props are the game's, read once as the engine was made.
+func (e *Engine) Props() game.Props { return e.props }
+
 func (e *Engine) ToggleFullscreen() {
 	if e.app != nil {
 		e.app.ToggleFullscreen()

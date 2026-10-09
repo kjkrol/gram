@@ -72,7 +72,8 @@ type arena struct {
 // a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — a sprite drawn frame after frame; Space freezes the gait",
+		Title:       "gram animation demo",
+		Description: "A sprite drawn frame after frame; Space freezes the gait.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

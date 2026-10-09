@@ -84,7 +84,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — embers animated by their own state; WSAD drives the selected, F douses",
+		Title:       "gram ember demo",
+		Description: "Embers animated by their own state; WSAD drives the selected, F douses.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

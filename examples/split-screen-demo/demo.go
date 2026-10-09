@@ -72,7 +72,8 @@ type arena struct {
 // at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram split-screen demo — red: WSAD, blue: arrows",
+		Title:       "gram split screen demo",
+		Description: "Red: WSAD, blue: arrows.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

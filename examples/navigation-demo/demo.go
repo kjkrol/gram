@@ -66,7 +66,7 @@ type arena struct {
 // Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram board & navigation plugins demo",
+		Title:       "gram navigation demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

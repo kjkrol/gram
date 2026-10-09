@@ -100,7 +100,8 @@ type arena struct {
 // time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — wires: a lever, a plate and a switch",
+		Title:       "gram wire demo",
+		Description: "Wires: a lever, a plate and a switch.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

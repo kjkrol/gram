@@ -74,7 +74,8 @@ type arena struct {
 // at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram appearance demo — R: everyone angry for a while",
+		Title:       "gram appearance demo",
+		Description: "R: everyone angry for a while.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},

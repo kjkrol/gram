@@ -68,7 +68,8 @@ type arena struct {
 // at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram — a board from the game's own atlas",
+		Title:       "gram board atlas",
+		Description: "A board from the game's own atlas.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},
