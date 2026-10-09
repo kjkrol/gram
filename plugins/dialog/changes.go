@@ -75,8 +75,8 @@ func (w *when[T]) holds(on, other uid.UID64) bool {
 	return w.query.Seek(on) && w.fn(w.comp.At(w.query.Cursor()), other)
 }
 
-// Changes are what answers change in the game, by name: the Stage defines them where it defines
-// its commands, before the files whose answers name them.
+// Changes are what answers change in the game, by name: the Stage defines them in the plugin's
+// section (Conversations), before the files whose answers name them.
 type Changes struct {
 	p      *Plugin
 	byName map[string]Change
@@ -98,8 +98,8 @@ func (c *Changes) Define(name string, ch Change) {
 	c.byName[name] = ch
 }
 
-// Conditions are when answers are offered, by name: the Stage defines them where it defines its
-// commands, before the files whose answers name them.
+// Conditions are when answers are offered, by name: the Stage defines them in the plugin's
+// section (Conversations), before the files whose answers name them.
 type Conditions struct {
 	p      *Plugin
 	byName map[string]Condition
@@ -124,6 +124,15 @@ func (c *Conditions) Define(name string, cond Condition) {
 	c.byName[name] = cond
 }
 
+// ConversationsPart is the dialog plugin's part of a Stage's definition: after its commands — the
+// answers name them — and before its kinds, whose Scripts name the nodes.
+var ConversationsPart = section.Define("Conversations", section.Commands, section.Kinds)
+
+// Conversations is the dialog plugin's section of a Stage, written where its part lies
+// (stage.With): f defines what the answers change and when they are offered, and loads the
+// conversations.
+func Conversations(f func(d *Plugin) error) section.Section { return section.Of(ConversationsPart, f) }
+
 // bind has every change and condition defined find its component on the ECS.
 func (p *Plugin) bind(si *goke.SysInit) {
 	for _, ch := range p.changes.byName {
@@ -143,9 +152,9 @@ func (ch Change) apply(speaker, listener uid.UID64) {
 	ch.c.apply(speaker, listener)
 }
 
-// must panics for something defined out of the Commands section of a Stage.
+// must panics for something defined out of the plugin's section of a Stage (Conversations).
 func (p *Plugin) must(what string) {
-	if err := p.w.InSection(what, section.Commands); err != nil {
+	if err := p.w.InSection(what, ConversationsPart); err != nil {
 		panic(fmt.Sprintf("dialog: %v", err))
 	}
 }

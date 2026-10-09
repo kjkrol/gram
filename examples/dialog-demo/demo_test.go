@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/dialog"
@@ -286,4 +287,12 @@ func newStage() (*arena, game.Stage) {
 func stageOf(g game.Game) game.Stage {
 	stages, first := g.Stages()
 	return stages[first]
+}
+
+// The demo sets itself up through the engine, without a window: its conversations are defined in
+// the dialogs' own section, which refuses them anywhere else.
+func TestDemo_StartsWithoutAWindow(t *testing.T) {
+	if err := engine.NewEngine(NewDemo()).Init(); err != nil {
+		t.Fatal(err)
+	}
 }

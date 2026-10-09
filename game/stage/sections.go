@@ -144,3 +144,48 @@ func (s AfterShows) Update(f func(ctx goke.RunCtx, d time.Duration)) game.Stage 
 	s.d.update = f
 	return built{s.d}
 }
+
+// With writes plugins' sections into the Stage where it stands — each between the parts its
+// plugin says, or it panics as the chain is built: With(dialog.Conversations(s.defineConversations))
+// after the rules, before the kinds. Each runs with the plugin it is of, among those World or
+// Plugins made.
+func (s AfterPlugins) With(sections ...section.Section) AfterPlugins {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterPlayers) With(sections ...section.Section) AfterPlayers {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterEffects) With(sections ...section.Section) AfterEffects {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterRules) With(sections ...section.Section) AfterRules {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterCommands) With(sections ...section.Section) AfterCommands {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterKinds) With(sections ...section.Section) AfterKinds {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterControls) With(sections ...section.Section) AfterControls {
+	s.d.with(sections)
+	return s
+}

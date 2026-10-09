@@ -23,10 +23,12 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/uid"
 )
 
 // sectioned is what a Stage built in sections keeps between them, and the order they ran in.
@@ -337,5 +339,123 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		Update(b.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Errorf("each in its section: Init = %v", err)
+	}
+}
+
+// testPart is a part of a test plugin's own, after the commands and before the kinds.
+var testPart = section.Define("Test", section.Commands, section.Kinds)
+
+// partPlugin is a plugin with a section of its own: it keeps the Installer it was used with, to
+// tell which part is being defined.
+type partPlugin struct {
+	stubPlugin
+	ctx plugin.Installer
+}
+
+func newPartPlugin() *partPlugin {
+	p := &partPlugin{stubPlugin: stubPlugin{name: "test.part"}}
+	p.installFn = func(ctx plugin.Installer) error { p.ctx = ctx; return nil }
+	return p
+}
+
+// A plugin's section runs where the game writes it, with the plugin it is of, told to the plugins
+// as the plugin's own part.
+func TestStage_RunsAPluginsSectionWhereItIsWritten(t *testing.T) {
+	s := &sectioned{}
+	pp := newPartPlugin()
+	var got *partPlugin
+	var during section.Part
+	st := stage.New("meadow").
+		World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin { s.makeWorld(w); return []plugin.Plugin{pp} }).
+		Rules(func() { s.note("rules") }).
+		With(section.Of(testPart, func(p *partPlugin) error {
+			s.note("test")
+			got, during = p, p.ctx.(section.Reader).Section()
+			return nil
+		})).
+		Kinds(s.defineUnit).
+		Update(s.update)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if !slices.Equal(s.ran, []string{"plugins", "rules", "test", "kinds"}) {
+		t.Errorf("ran %v, want the plugin's section between the rules and the kinds", s.ran)
+	}
+	if got != pp || during != testPart {
+		t.Errorf("the section had plugin %v during %v, want the one used, during Test", got, during)
+	}
+}
+
+// A plugin's section written after the part it comes before, or before the part it comes after,
+// panics as the chain is built, naming it.
+func TestStage_PanicsForAPluginsSectionWrittenOutOfItsPlace(t *testing.T) {
+	sec := section.Of(testPart, func(*partPlugin) error { return nil })
+	for name, build := range map[string]func(){
+		"too late":  func() { stage.New("meadow").Kinds(func() {}).With(sec) },
+		"too early": func() { stage.New("meadow").Rules(func() {}).With(sec).Commands(func() {}) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "Test") {
+					t.Errorf("built: %v, want a panic naming the section", r)
+				}
+			}()
+			build()
+		})
+	}
+}
+
+// A plugin's section of a plugin the Stage does not use stops Init, naming the plugin's type.
+func TestStage_APluginsSectionNeedsItsPlugin(t *testing.T) {
+	s := &sectioned{}
+	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).
+		With(section.Of(testPart, func(*partPlugin) error { return nil })).
+		Update(s.update)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "partPlugin") {
+		t.Errorf("Init = %v, want it refused for want of the plugin", err)
+	}
+}
+
+// The dialogs refuse a change defined out of their section, and take it in it.
+func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
+	type mood struct{ N int8 }
+	warm := dialog.Alter(func(m *mood, _ uid.UID64) { m.N++ })
+	run := func(chain func(d **dialog.Plugin) game.Stage) error {
+		var d *dialog.Plugin
+		return NewEngine(oneStageGame{stage: chain(&d)}).Init()
+	}
+	err := run(func(d **dialog.Plugin) game.Stage {
+		return stage.New("meadow").
+			World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
+				*d = dialog.NewPlugin(w, dialog.Config{})
+				return []plugin.Plugin{*d}
+			}).
+			Effects(func() (err error) {
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("panic: %v", r)
+					}
+				}()
+				(*d).DefineEffects()
+				(*d).Changes().Define("warm", warm)
+				return nil
+			}).
+			Update(func(goke.RunCtx, time.Duration) {})
+	})
+	if err == nil || !strings.Contains(err.Error(), "it belongs in Conversations") {
+		t.Errorf("a change defined in Effects: Init = %v, want it refused as belonging in Conversations", err)
+	}
+	err = run(func(d **dialog.Plugin) game.Stage {
+		return stage.New("meadow").
+			World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
+				*d = dialog.NewPlugin(w, dialog.Config{})
+				return []plugin.Plugin{*d}
+			}).
+			Effects(func() { (*d).DefineEffects() }).
+			With(dialog.Conversations(func(d *dialog.Plugin) error { d.Changes().Define("warm", warm); return nil })).
+			Update(func(goke.RunCtx, time.Duration) {})
+	})
+	if err != nil {
+		t.Errorf("a change defined in Conversations: Init = %v", err)
 	}
 }

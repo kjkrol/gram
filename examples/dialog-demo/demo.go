@@ -106,7 +106,7 @@ func newDemo() (*arena, game.Game) {
 			Players(s.definePlayer).
 			Effects(s.defineEffects).
 			Rules(s.defineRoles).
-			Commands(s.defineCommands).
+			With(dialog.Conversations(s.defineConversations)).
 			Kinds(s.defineCells, s.defineKinds).
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
@@ -154,23 +154,23 @@ func (s *arena) defineRoles() {
 	)
 }
 
-// defineCommands says what the hosts' answers change in this game — their Regard — and when they
-// are offered, then loads the conversations naming them, a file each: what they say is data.
-func (s *arena) defineCommands() error {
+// defineConversations says what the hosts' answers change in this game — their Regard — and when
+// they are offered, then loads the conversations naming them, a file each: what they say is data.
+func (s *arena) defineConversations(d *dialog.Plugin) error {
 	like := func(by int8) dialog.Change {
 		return dialog.Alter(func(r *Regard, listener uid.UID64) { r.Like(listener, by) })
 	}
-	changes := s.dialog.Changes()
+	changes := d.Changes()
 	changes.Define(WarmChange, like(40))
 	changes.Define(PleaseChange, like(20))
 	changes.Define(ForgiveChange, like(50))
 	changes.Define(IrkChange, like(-20))
 	changes.Define(OffendChange, like(-60))
-	conditions := s.dialog.Conditions()
+	conditions := d.Conditions()
 	conditions.Define(FriendCond, dialog.When((*Regard).Friendly))
 	conditions.Define(EnemyCond, dialog.When((*Regard).Hostile))
 	for _, file := range []string{"dialogs/miller.yaml", "dialogs/smith.yaml"} {
-		if err := s.dialog.Load(dialogs, file); err != nil {
+		if err := d.Load(dialogs, file); err != nil {
 			return err
 		}
 	}

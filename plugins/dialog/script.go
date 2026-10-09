@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"go.yaml.in/yaml/v3"
@@ -73,8 +72,8 @@ func idOf(name string) uint64 {
 }
 
 // Define says the node called name, written in code: what Load does for every node of a file.
-// Call it where the Stage defines its commands, after the commands, changes and conditions the
-// node's answers name; a name defined twice, an unknown one, or too many answers panics.
+// Call it in the plugin's section (Conversations), after the changes and conditions the node's
+// answers name; a name defined twice, an unknown one, or too many answers panics.
 func (p *Plugin) Define(name string, n Node) {
 	if err := p.define(name, n); err != nil {
 		panic(err)
@@ -82,8 +81,8 @@ func (p *Plugin) Define(name string, n Node) {
 }
 
 // Load reads the nodes of the YAML file at path in fsys — a map of Nodes by name — and defines
-// them; several files may be loaded, a character's each. Call it where the Stage defines its
-// commands, after the commands, changes and conditions the answers name.
+// them; several files may be loaded, a character's each. Call it in the plugin's section
+// (Conversations), after the changes and conditions the answers name.
 func (p *Plugin) Load(fsys fs.FS, path string) error {
 	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
@@ -110,7 +109,7 @@ func (p *Plugin) Load(fsys fs.FS, path string) error {
 
 // define compiles n and keeps it as name.
 func (p *Plugin) define(name string, n Node) error {
-	if err := p.w.InSection(fmt.Sprintf("dialog node %q defined", name), section.Commands); err != nil {
+	if err := p.w.InSection(fmt.Sprintf("dialog node %q defined", name), ConversationsPart); err != nil {
 		return fmt.Errorf("dialog: %w", err)
 	}
 	if name == "" || name == End {
