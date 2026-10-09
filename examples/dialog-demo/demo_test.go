@@ -72,11 +72,13 @@ func (c *stageInit) UseWorld(cfg world.Config) *world.Plugin {
 // testStage is the demo built fresh, without a window, its scene's layers initialised.
 type testStage struct {
 	*arena
-	stage  game.Stage
-	ecs    *goke.ECS
-	base   goke.Comp[world.Base]
-	units  *goke.Query
-	layers []render.Layer // the scene's, initialised
+	stage   game.Stage
+	ecs     *goke.ECS
+	base    goke.Comp[world.Base]
+	units   *goke.Query
+	regard  goke.Comp[Regard]
+	regards *goke.Query
+	layers  []render.Layer // the scene's, initialised
 }
 
 func buildStage(t *testing.T) *testStage {
@@ -105,7 +107,10 @@ func buildStage(t *testing.T) *testStage {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { s.units = si.NewQueryBuilder(&s.base).Build() }})
+	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		s.units = si.NewQueryBuilder(&s.base).Build()
+		s.regards = si.NewQueryBuilder(&s.regard).Build()
+	}})
 	s.layers = s.scene.Layers()
 	for _, l := range s.layers { // as the engine does, entering the Stage
 		systems = append(systems, goke.SystemFn{OnInit: l.Init})
@@ -185,9 +190,12 @@ func (s *testStage) answer(t *testing.T, host uid.UID64, text string) {
 }
 
 // stance is what host makes of the traveller, as the label under it says while pointed at.
-func (s *testStage) stance(host uid.UID64) string {
-	word, _ := s.dialog.Stance(s.selection, s.player.ID).Text(host, true)
-	return word
+func (s *testStage) stance(t *testing.T, host, traveller uid.UID64) string {
+	t.Helper()
+	if !s.regards.Seek(host) {
+		t.Fatalf("host %d has no Regard", host)
+	}
+	return s.regard.At(s.regards.Cursor()).Stance(traveller)
 }
 
 // hosts are the miller, at (16, 4), and the smith, at (16, 10), and the traveller.
@@ -230,7 +238,7 @@ func TestDemo_AKindAnswerMakesTheMillerAFriendWhoRemembersIt(t *testing.T) {
 	miller, _, traveller := s.hosts(t)
 	s.put(traveller, 15, 4)
 	s.tick(3)
-	if got := s.stance(miller); got != "Neutral" {
+	if got := s.stance(t, miller, traveller); got != "Neutral" {
 		t.Fatalf("before a word the miller makes %q of the traveller, want Neutral", got)
 	}
 	s.answer(t, miller, "Hello to you too!")
@@ -238,7 +246,7 @@ func TestDemo_AKindAnswerMakesTheMillerAFriendWhoRemembersIt(t *testing.T) {
 		t.Fatalf("after the answer the miller says %q", line)
 	}
 	s.answer(t, miller, "Bye.")
-	if got := s.stance(miller); got != "Friend" {
+	if got := s.stance(t, miller, traveller); got != "Friend" {
 		t.Fatalf("the miller makes %q of the traveller, want Friend", got)
 	}
 	s.tick(TPS)
@@ -259,7 +267,7 @@ func TestDemo_ARudeAnswerMakesTheSmithAnEnemy(t *testing.T) {
 	s.put(traveller, 15, 10)
 	s.tick(3)
 	s.answer(t, smith, "Leave me alone.")
-	if got := s.stance(smith); got != "Enemy" {
+	if got := s.stance(t, smith, traveller); got != "Enemy" {
 		t.Fatalf("the smith makes %q of the traveller, want Enemy", got)
 	}
 	s.tick(11 * TPS)

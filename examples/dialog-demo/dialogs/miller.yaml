@@ -9,12 +9,12 @@ miller.greet:
       next: miller.flour
     - text: "Hello to you too!"
       if: "!friend"
-      mood: 40
+      then: [warm]
       next: miller.glad
     - text: "Who are you?"
       next: miller.who
     - text: "Out of my way."
-      mood: -60
+      then: [offend]
       next: end
 
 miller.who:
@@ -22,10 +22,10 @@ miller.who:
   say: ["The miller of this meadow.", "My sails turn whenever the wind blows."]
   choices:
     - text: "Nice to meet you."
-      mood: 20
+      then: [please]
       next: miller.glad
     - text: "A mill without a river?"
-      mood: -10
+      then: [irk]
       next: miller.wind
     - text: "I see."
       next: end
@@ -35,7 +35,7 @@ miller.wind:
   say: ["A windmill, clever one."]
   choices:
     - text: "Of course. Sorry."
-      mood: 10
+      then: [please]
       next: end
 
 miller.glad:
@@ -50,5 +50,5 @@ miller.flour:
   say: ["Back again! Take a sack of flour for the road."]
   choices:
     - text: "Thank you, friend."
-      mood: 10
+      then: [please]
       next: end

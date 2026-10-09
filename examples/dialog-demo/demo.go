@@ -38,6 +38,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/ui"
+	"github.com/kjkrol/uid"
 )
 
 // dialogs are the hosts' conversations, a file each.
@@ -170,8 +171,21 @@ func (s *arena) defineRoles() {
 	)
 }
 
-// defineCommands loads the hosts' conversations, a file each: what they say is data.
+// defineCommands says what the hosts' answers change in this game — their Regard — and when they
+// are offered, then loads the conversations naming them, a file each: what they say is data.
 func (s *arena) defineCommands() error {
+	like := func(by int8) dialog.Change {
+		return dialog.Alter(func(r *Regard, listener uid.UID64) { r.Like(listener, by) })
+	}
+	changes := s.dialog.Changes()
+	changes.Define(WarmChange, like(40))
+	changes.Define(PleaseChange, like(20))
+	changes.Define(ForgiveChange, like(50))
+	changes.Define(IrkChange, like(-20))
+	changes.Define(OffendChange, like(-60))
+	conditions := s.dialog.Conditions()
+	conditions.Define(FriendCond, dialog.When((*Regard).Friendly))
+	conditions.Define(EnemyCond, dialog.When((*Regard).Hostile))
 	for _, file := range []string{"dialogs/miller.yaml", "dialogs/smith.yaml"} {
 		if err := s.dialog.Load(dialogs, file); err != nil {
 			return err
@@ -202,6 +216,7 @@ func (s *arena) defineKinds() {
 		comp.Const(world.Eye{Angle: hostCone}), // looking west, the way the traveller comes
 		// where its conversations begin: each host's lines its own
 		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.talks) }),
+		comp.Const(Regard{}), // what it makes of whom it talked with: this game's model
 	)
 }
 
@@ -274,6 +289,9 @@ func (s *arena) screen() *ui.Element {
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), s.picture())).Input(s.players.Through(s.player)),
 		s.dialog.Window().Above().Offset(0, -6),
-		ui.LabelOf(s.dialog.Stance(s.selection, s.player.ID)).Where(ui.Tagged(s.selection.Tags().Hovered)).Below().Offset(0, 4),
+		ui.LabelOf(ui.Of(func(r *Regard) (string, bool) { // what the host makes of the traveller
+			chosen, ok := s.selection.Chosen(s.player.ID)
+			return r.Stance(chosen), ok
+		})).Where(ui.Tagged(s.selection.Tags().Hovered)).Below().Offset(0, 4),
 	)
 }

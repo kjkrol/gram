@@ -49,16 +49,13 @@ greet:
   say: ["Hello, traveller!"]
   choices:
     - text: "Hello to you too!"
-      mood: 40
-      next: glad
-    - text: "Good to see you again!"
-      if: talked
+      then: [warm]
       next: glad
     - text: "You again, friend!"
       if: friend
       next: glad
     - text: "Out of my way."
-      mood: -80
+      then: [offend]
       next: end
 
 glad:
@@ -66,9 +63,16 @@ glad:
   say: ["Glad to meet you.", "Come back any time!"]
   choices:
     - text: "Bye."
-      next: end
+      then: [flour]
       do: [blush]
+      next: end
 `
+
+// liking is what a test's speaker makes of everybody it talked with: the game's model, one number.
+type liking struct{ N int8 }
+
+// sacks is how many sacks of flour a test's entity was given.
+type sacks struct{ N int8 }
 
 // who is a row of a test's entities: where it stands and whose it is.
 type who struct {
@@ -77,7 +81,7 @@ type who struct {
 }
 
 // rig is a world of three: a host nobody owns, a guest player 1 owns and a stranger player 2 owns,
-// each with a Script beginning at greet.
+// each with a Script beginning at greet, a liking and sacks.
 type rig struct {
 	t                     *testing.T
 	w                     *world.Plugin
@@ -86,6 +90,9 @@ type rig struct {
 	host, guest, stranger uid.UID64
 	talking, talked       effect.Effect
 	blush                 effect.Effect
+	carried               *goke.Query // every entity's liking and sacks
+	liking                goke.Comp[liking]
+	sacks                 goke.Comp[sacks]
 }
 
 // define makes the world and the dialog plugin and defines what the rig's tests share, loading
@@ -99,6 +106,10 @@ func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 	d.DefineEffects()
 	w.Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
 	w.Commands().Define("blush", rule.Cast(w.Effects().Named("blush")).On(ui.It))
+	d.Changes().Define("warm", dialog.Alter(func(l *liking, _ uid.UID64) { l.N += 40 }))
+	d.Changes().Define("offend", dialog.Alter(func(l *liking, _ uid.UID64) { l.N -= 80 }))
+	d.Changes().Define("flour", dialog.AlterListener(func(s *sacks, _ uid.UID64) { s.N++ }))
+	d.Conditions().Define("friend", dialog.When(func(l *liking, _ uid.UID64) bool { return l.N >= 30 }))
 	return w, d, d.Load(fstest.MapFS{"hosts.yaml": {Data: []byte(file)}}, "hosts.yaml")
 }
 
@@ -120,6 +131,8 @@ func newRig(t *testing.T) *rig {
 			return tag.Tags[owner.Family](0).With(owner.Of(r.by))
 		}),
 		comp.Const(d.Script("greet")),
+		comp.Const(liking{}),
+		comp.Const(sacks{}),
 	})
 	body := kind.Named[who](w.Kinds(), "body")
 	w.Seed(body.Entry(who{x: 100}), body.Entry(who{x: 300, by: 1}), body.Entry(who{x: 500, by: 2}))
@@ -143,7 +156,10 @@ func newRig(t *testing.T) *rig {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+		r.carried = si.NewQueryBuilder(&r.liking, &r.sacks).Build()
+	}})
 	r.ecs.Setup(systems...)
 	r.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
 		w.RunPlan(rc, dt)
@@ -200,37 +216,45 @@ func (r *rig) offered(speaker uid.UID64) []string {
 	return out
 }
 
-// chosen is a selection with one unit chosen for every player.
-type chosen uid.UID64
+// held is what id carries of the game's: its liking and its sacks.
+func (r *rig) held(id uid.UID64) (liking, sacks) {
+	r.t.Helper()
+	if !r.carried.Seek(id) {
+		r.t.Fatalf("entity %d carries no liking", id)
+	}
+	cur := r.carried.Cursor()
+	return *r.liking.At(cur), *r.sacks.At(cur)
+}
 
-func (c chosen) Chosen(control.PlayerID) (uid.UID64, bool) { return uid.UID64(c), true }
-
-func TestConversation_BeginsIsAnsweredAndRemembered(t *testing.T) {
+func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
 	if got := r.line(r.host); got != "Hello, traveller!" || !r.talking.On(r.host) {
 		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.talking.On(r.host))
 	}
 	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|Out of my way." {
-		t.Fatalf("offered %q, want the two answers that need nothing", got)
+		t.Fatalf("offered %q, want the answers that need no friend", got)
 	}
 	r.choose(1, r.host, 0)
 	if got := r.line(r.host); got != "Glad to meet you.\nCome back any time!" {
 		t.Fatalf("after the answer the host says %q, want the next node's lines", got)
 	}
-	if got, _ := r.d.Stance(chosen(r.guest), 1).Text(r.host, true); got != "Friend" {
-		t.Fatalf("the host makes %q of the guest, want Friend", got)
+	if l, _ := r.held(r.host); l.N != 40 {
+		t.Fatalf("the host's liking is %d, want 40: warm changed the speaker", l.N)
 	}
 	r.choose(1, r.host, 0) // Bye
 	if r.line(r.host) != "" || r.talking.On(r.host) || !r.talked.On(r.host) {
 		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.talking.On(r.host), r.talked.On(r.host))
 	}
+	if _, s := r.held(r.guest); s.N != 1 {
+		t.Errorf("the guest holds %d sacks, want 1: flour changed the listener", s.N)
+	}
 	if !r.blush.On(r.host) {
 		t.Error("Bye's command for ui.It did not reach the host")
 	}
 	r.begin(r.host, r.guest)
-	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|Good to see you again!|You again, friend!|Out of my way." {
-		t.Errorf("meeting again offered %q, want those for one talked to and a friend too", got)
+	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|You again, friend!|Out of my way." {
+		t.Errorf("meeting again offered %q, want a friend's answer too: the game's condition holds", got)
 	}
 }
 
@@ -266,17 +290,14 @@ func TestConversation_OneTalksWithOneAtATime(t *testing.T) {
 	}
 }
 
-func TestMood_MovesWhatTheSpeakerMakesOfWhomItIsAbout(t *testing.T) {
+func TestFeel_MakesTheGamesChangeTowardsWhomItIsAbout(t *testing.T) {
 	r := newRig(t)
-	m := dialog.Mood{By: -80}
-	m.Aim(r.guest)
-	r.w.Carrier().PutFrom(r.host, m)
+	f := dialog.Feel{Change: "offend"}
+	f.Aim(r.guest)
+	r.w.Carrier().PutFrom(r.host, f)
 	r.tick(2)
-	if got, _ := r.d.Stance(chosen(r.guest), 1).Text(r.host, true); got != "Enemy" {
-		t.Errorf("the host makes %q of the guest, want Enemy", got)
-	}
-	if _, ok := r.d.Stance(chosen(r.host), 1).Text(r.host, true); ok {
-		t.Error("a stance towards itself is said, want nothing")
+	if l, _ := r.held(r.host); l.N != -80 {
+		t.Errorf("the host's liking is %d, want -80", l.N)
 	}
 }
 
@@ -284,6 +305,7 @@ func TestLoad_RefusesWhatItCannotRead(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
 		"a misspelt field":     {"a:\n  speaker: X\n  choices:\n    - text: \"hi\"\n      nxt: end\n", "line 5"},
 		"an unknown command":   {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      do: [shout]\n", `"shout"`},
+		"an unknown change":    {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      then: [hug]\n", `"hug"`},
 		"an unknown if":        {"a:\n  choices:\n    - text: \"hi\"\n      if: angry\n      next: end\n", `"angry"`},
 		"an answer to nowhere": {"a:\n  choices:\n    - text: \"hi\"\n", "leads nowhere"},
 	} {
@@ -317,4 +339,17 @@ func TestSetup_PanicsForAnAnswerLeadingToAnUndefinedNode(t *testing.T) {
 		systems = append(systems, produce()...)
 	}
 	ctx.ecs.Setup(systems...)
+}
+
+func TestConditions_RefuseANameAnEffectBears(t *testing.T) {
+	_, d, err := define("a:\n  say: [\"hi\"]\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("a condition named as the effect blush was defined, want a panic")
+		}
+	}()
+	d.Conditions().Define("blush", dialog.When(func(*liking, uid.UID64) bool { return true }))
 }

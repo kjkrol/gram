@@ -22,17 +22,16 @@ type Node struct {
 	Choices []Choice `yaml:"choices"` // at most MaxChoices
 }
 
-// Choice is one answer: its words, when it is offered, what the speaker makes of it, where it
-// leads and what it does in the game.
+// Choice is one answer: its words, when it is offered, what it changes in the game, where it leads
+// and the commands it gives.
 type Choice struct {
 	Text string `yaml:"text"`
-	// If is when the answer is offered: friend, neutral or enemy — what the speaker makes of the
-	// listener (Config) — talked — they talked to the end before — or the name of an effect the
-	// speaker is under; "!" before it, when it does not hold. Empty: always.
+	// If is when the answer is offered: a condition the game defined (Plugin.Conditions) or the
+	// name of an effect the speaker is under; "!" before it, when it does not hold. Empty: always.
 	If   string   `yaml:"if"`
-	Mood int8     `yaml:"mood"` // added to what the speaker makes of the listener, -100 to 100
+	Then []string `yaml:"then"` // changes the game defined (Plugin.Changes), made in order as it is chosen
 	Next string   `yaml:"next"` // the node it leads to, or End
-	Do   []string `yaml:"do"`   // commands of the Stage's register (world.Commands), given as it is chosen
+	Do   []string `yaml:"do"`   // commands of the Stage's register (world.Commands), given after the changes
 }
 
 // End is the Next of an answer that ends the conversation.
@@ -53,28 +52,18 @@ type node struct {
 type choice struct {
 	text string
 	when condition
-	mood int8
+	then []Change
 	next string // "" for End
 	do   []rule.Command
 }
 
-// condition is a Choice's If.
+// condition is a Choice's If: the game's, or an effect on the speaker, or none.
 type condition struct {
-	what   what
-	effect effect.Effect // for underEffect
-	not    bool
+	game     checker
+	effect   effect.Effect
+	isEffect bool
+	not      bool
 }
-
-type what uint8
-
-const (
-	always what = iota
-	isFriend
-	isNeutral
-	isEnemy
-	hasTalked
-	underEffect
-)
 
 // idOf is a node's name as a Talk and a Script keep it.
 func idOf(name string) uint64 {
@@ -84,8 +73,8 @@ func idOf(name string) uint64 {
 }
 
 // Define says the node called name, written in code: what Load does for every node of a file.
-// Call it where the Stage defines its commands, after those the node's answers give; a name
-// defined twice, an unknown command or condition, or too many answers panics.
+// Call it where the Stage defines its commands, after the commands, changes and conditions the
+// node's answers name; a name defined twice, an unknown one, or too many answers panics.
 func (p *Plugin) Define(name string, n Node) {
 	if err := p.define(name, n); err != nil {
 		panic(err)
@@ -94,7 +83,7 @@ func (p *Plugin) Define(name string, n Node) {
 
 // Load reads the nodes of the YAML file at path in fsys — a map of Nodes by name — and defines
 // them; several files may be loaded, a character's each. Call it where the Stage defines its
-// commands, after those the answers give.
+// commands, after the commands, changes and conditions the answers name.
 func (p *Plugin) Load(fsys fs.FS, path string) error {
 	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
@@ -145,6 +134,14 @@ func (p *Plugin) define(name string, n Node) error {
 		} else if next == "" {
 			return fmt.Errorf("dialog: the node %q, the answer %q leads nowhere: say next, or %q", name, ch.Text, End)
 		}
+		var then []Change
+		for _, change := range ch.Then {
+			found, ok := p.changes.byName[change]
+			if !ok {
+				return fmt.Errorf("dialog: the node %q, the answer %q: no change is defined as %q", name, ch.Text, change)
+			}
+			then = append(then, found)
+		}
 		var do []rule.Command
 		for _, cmd := range ch.Do {
 			found, ok := p.w.Commands().Lookup(cmd)
@@ -153,7 +150,7 @@ func (p *Plugin) define(name string, n Node) error {
 			}
 			do = append(do, found)
 		}
-		c.choices = append(c.choices, choice{text: ch.Text, when: when, mood: ch.Mood, next: next, do: do})
+		c.choices = append(c.choices, choice{text: ch.Text, when: when, then: then, next: next, do: do})
 	}
 	if p.nodes == nil {
 		p.nodes = map[uint64]*node{}
@@ -169,27 +166,21 @@ func (p *Plugin) condition(text string) (condition, error) {
 	if rest, ok := strings.CutPrefix(text, "!"); ok {
 		c.not, text = true, strings.TrimSpace(rest)
 	}
-	switch text {
-	case "":
+	if text == "" {
 		if c.not {
 			return c, fmt.Errorf("%q says no condition", "!")
 		}
-		c.what = always
-	case "friend":
-		c.what = isFriend
-	case "neutral":
-		c.what = isNeutral
-	case "enemy":
-		c.what = isEnemy
-	case "talked":
-		c.what = hasTalked
-	default:
-		ef, ok := p.w.Effects().Lookup(text)
-		if !ok {
-			return c, fmt.Errorf("the condition %q is no effect, nor friend, neutral, enemy or talked", text)
-		}
-		c.what, c.effect = underEffect, ef
+		return c, nil
 	}
+	if cond, ok := p.conditions.byName[text]; ok {
+		c.game = cond.c
+		return c, nil
+	}
+	ef, ok := p.w.Effects().Lookup(text)
+	if !ok {
+		return c, fmt.Errorf("%q is neither a condition the game defined nor an effect", text)
+	}
+	c.effect, c.isEffect = ef, true
 	return c, nil
 }
 

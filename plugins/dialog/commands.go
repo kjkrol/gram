@@ -33,20 +33,21 @@ func (c Choose) About(of uid.UID64) any {
 	return c
 }
 
-// Mood is the command by which an entity changes what it makes of whom it is about (plugin.Aimed)
-// by By: a rule's Order — struck, it likes the striker less.
-type Mood struct {
-	By    int8
-	with  uid.UID64
-	aimed bool
+// Feel is the command by which an entity undergoes the game's change called Change (Plugin.Changes)
+// towards whom it is about (plugin.Aimed), as if it spoke and that one answered: a rule's Order —
+// struck, the host likes the striker less.
+type Feel struct {
+	Change string
+	with   uid.UID64
+	aimed  bool
 }
 
-// Aim tells the command whom the mood is towards.
-func (m *Mood) Aim(who uid.UID64) { m.with, m.aimed = who, true }
+// Aim tells the command whom the change is towards.
+func (f *Feel) Aim(who uid.UID64) { f.with, f.aimed = who, true }
 
 var (
 	_ plugin.Aimed = (*Begin)(nil)
-	_ plugin.Aimed = (*Mood)(nil)
+	_ plugin.Aimed = (*Feel)(nil)
 	_ ui.About     = Choose{}
 )
 
@@ -54,12 +55,12 @@ var (
 type queues struct {
 	begins  control.Queue[Begin]
 	chooses control.Queue[Choose]
-	moods   control.Queue[Mood]
+	feels   control.Queue[Feel]
 }
 
-// Queues are Begin's, Choose's and Mood's — for the players plugin.
+// Queues are Begin's, Choose's and Feel's — for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.told.begins, &p.told.chooses, &p.told.moods}
+	return []control.CommandQueue{&p.told.begins, &p.told.chooses, &p.told.feels}
 }
 
 // DefaultBindings is none: a conversation is begun by rules and answered by the window's buttons.

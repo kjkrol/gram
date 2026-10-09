@@ -19,25 +19,26 @@ const (
 	TalkedEf  = "dialog.talked"  // on the speaker for Config.Rest after a conversation talked to the end
 )
 
-// Config is how the plugin weighs moods and how long a speaker rests after a conversation.
+// Config is how long a speaker rests after a conversation.
 type Config struct {
-	Friend int8          // the mood from which the speaker is a friend; 30 when zero
-	Enemy  int8          // the mood up to which it is an enemy; -30 when zero
-	Rest   time.Duration // how long TalkedEf lasts; ten seconds when zero
+	Rest time.Duration // how long TalkedEf lasts; ten seconds when zero
 }
 
-// Plugin carries conversations: the nodes a Stage defines (Define, Load), the conversations its
-// entities hold (Talk) and what they make of whom they talked with (Memory).
+// Plugin carries conversations: the nodes a Stage defines (Define, Load) and the conversations its
+// entities hold (Talk). What a conversation changes in the game is the game's: its own components,
+// changed and asked by name (Changes, Conditions).
 type Plugin struct {
 	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
 
-	w       *world.Plugin
-	cfg     Config
-	nodes   map[uint64]*node
-	told    queues
-	talking effect.Effect
-	talked  effect.Effect
-	module  *module
+	w          *world.Plugin
+	cfg        Config
+	nodes      map[uint64]*node
+	changes    Changes
+	conditions Conditions
+	told       queues
+	talking    effect.Effect
+	talked     effect.Effect
+	module     *module
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -45,16 +46,12 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the dialog plugin over w; hand it to the players plugin for its commands.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
-	if cfg.Friend == 0 {
-		cfg.Friend = 30
-	}
-	if cfg.Enemy == 0 {
-		cfg.Enemy = -30
-	}
 	if cfg.Rest == 0 {
 		cfg.Rest = 10 * time.Second
 	}
-	return &Plugin{Self: world.NewSelf(w, "gram.dialog"), w: w, cfg: cfg}
+	p := &Plugin{Self: world.NewSelf(w, "gram.dialog"), w: w, cfg: cfg}
+	p.changes.p, p.conditions.p = p, p
+	return p
 }
 
 // =================================================================
@@ -98,6 +95,13 @@ func (p *Plugin) DefineEffects() {
 	p.talking, p.talked = effects.Named(TalkingEf), effects.Named(TalkedEf)
 }
 
+// Changes are what answers change in the game, by name: the game's own model of a conversation's
+// outcome, made by Alter and AlterListener over its components.
+func (p *Plugin) Changes() *Changes { return &p.changes }
+
+// Conditions are when answers are offered, by name: made by When over the game's components.
+func (p *Plugin) Conditions() *Conditions { return &p.conditions }
+
 // Script is where the conversations of a kind's entities begin: the node called node — a kind's
 // component, comp.Const(p.Script(node)) for all of them, or each one's own through comp.Load. An
 // unknown node panics.
@@ -121,15 +125,4 @@ func (p *Plugin) Window() *ui.Element {
 		rows = append(rows, ui.ButtonOf(p.ChoiceText(i), Choose{Index: i}))
 	}
 	return ui.WindowOf(p.SpeakerText(), rows...).Under(p.talking)
-}
-
-// stance is the word for mood.
-func (p *Plugin) stance(mood int8) string {
-	switch {
-	case mood >= p.cfg.Friend:
-		return "Friend"
-	case mood <= p.cfg.Enemy:
-		return "Enemy"
-	}
-	return "Neutral"
 }

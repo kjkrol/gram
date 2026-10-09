@@ -17,39 +17,36 @@ import (
 var _ goke.System = (*talkSystem)(nil)
 
 // talkSystem carries the conversations on: it ends those whose TalkingEf was taken off, whose
-// listener is gone or whose node is no more, then carries out the step's Begin, Choose and Mood.
-// An entity without Talk or Memory gets it as it first needs it.
+// listener is gone or whose node is no more, then carries out the step's Begin, Choose and Feel —
+// the game's changes made on the game's components. An entity without Talk gets it as it first
+// needs it.
 type talkSystem struct {
 	p *Plugin
 
-	talks    *goke.Query
-	talk     goke.Comp[Talk]
-	memories *goke.Query
-	memory   goke.Comp[Memory]
-	scripts  *goke.Query
-	script   goke.Comp[Script]
-	bodies   *goke.Query
-	body     goke.Comp[entity.Base]
-	owners   goke.OptComp[tag.Tags[owner.Family]]
-	talkID   goke.CompID
-	memoryID goke.CompID
+	talks   *goke.Query
+	talk    goke.Comp[Talk]
+	scripts *goke.Query
+	script  goke.Comp[Script]
+	bodies  *goke.Query
+	body    goke.Comp[entity.Base]
+	owners  goke.OptComp[tag.Tags[owner.Family]]
+	talkID  goke.CompID
 
-	cb          *goke.CmdBuf          // the pass's, while it runs
-	freshTalk   map[uid.UID64]*Talk   // Talks on their way to entities without one, this pass
-	freshMemory map[uid.UID64]*Memory // Memories on their way to entities without one
-	offered     []*choice             // offers' scratch
+	cb        *goke.CmdBuf        // the pass's, while it runs
+	freshTalk map[uid.UID64]*Talk // Talks on their way to entities without one, this pass
+	offered   []*choice           // offers' scratch
 }
 
 func newTalkSystem(p *Plugin) *talkSystem {
-	return &talkSystem{p: p, freshTalk: map[uid.UID64]*Talk{}, freshMemory: map[uid.UID64]*Memory{}}
+	return &talkSystem{p: p, freshTalk: map[uid.UID64]*Talk{}}
 }
 
 func (s *talkSystem) Init(si *goke.SysInit) {
 	s.talks = si.NewQueryBuilder(&s.talk).Build()
-	s.memories = si.NewQueryBuilder(&s.memory).Build()
 	s.scripts = si.NewQueryBuilder(&s.script).Build()
 	s.bodies = si.NewQueryBuilder(&s.body).Optional(&s.owners).Build()
-	s.talkID, s.memoryID = si.RegComp[Talk](), si.RegComp[Memory]()
+	s.talkID = si.RegComp[Talk]()
+	s.p.bind(si)
 }
 
 func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -57,15 +54,11 @@ func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.watch()
 	s.p.told.begins.Drain(s.begin)
 	s.p.told.chooses.Drain(s.choose)
-	s.p.told.moods.Drain(s.mood)
+	s.p.told.feels.Drain(s.feel)
 	for id, t := range s.freshTalk {
 		cb.AddOne(id, s.talkID, *t)
 	}
-	for id, m := range s.freshMemory {
-		cb.AddOne(id, s.memoryID, *m)
-	}
 	clear(s.freshTalk)
-	clear(s.freshMemory)
 	s.cb = nil
 }
 
@@ -143,7 +136,7 @@ func (s *talkSystem) busy(id uid.UID64) bool {
 }
 
 // choose carries out a Choose: the answer offered at the Index, chosen by a player the listener
-// obeys — what the speaker makes of it, the commands it gives, where it leads.
+// obeys — the game's changes it makes, the commands it gives, where it leads.
 func (s *talkSystem) choose(i control.Issued[Choose]) {
 	c := i.Command
 	t := s.found(c.Speaker)
@@ -158,8 +151,8 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 	if ch == nil {
 		return
 	}
-	if ch.mood != 0 {
-		s.memoryOf(c.Speaker).feel(t.With, ch.mood)
+	for _, change := range ch.then {
+		change.apply(c.Speaker, t.With)
 	}
 	for _, cmd := range ch.do {
 		if cmd.Whom == ui.It {
@@ -174,23 +167,27 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 	t.Node = idOf(ch.next)
 }
 
-// mood carries out a Mood: the entity that gave it feels By more for whom it is about.
-func (s *talkSystem) mood(i control.Issued[Mood]) {
-	m := i.Command
-	if !i.ByEntity || !m.aimed {
-		log.Printf("dialog: a Mood is an entity's own, about another (rule.Order on a moment naming somebody)")
+// feel carries out a Feel: the game's change, the entity that gave it the speaker and whom it is
+// about the listener.
+func (s *talkSystem) feel(i control.Issued[Feel]) {
+	f := i.Command
+	if !i.ByEntity || !f.aimed {
+		log.Printf("dialog: a Feel is an entity's own, about another (rule.Order on a moment naming somebody)")
 		return
 	}
-	s.memoryOf(i.Entity).feel(m.with, m.By)
+	change, ok := s.p.changes.byName[f.Change]
+	if !ok {
+		log.Printf("dialog: entity %d feels %q, which no change is defined as", i.Entity, f.Change)
+		return
+	}
+	change.apply(i.Entity, f.with)
 }
 
-// end ends speaker's conversation t: TalkingEf off and, talked to the end, TalkedEf on and the
-// listener remembered as met.
+// end ends speaker's conversation t: TalkingEf off and, talked to the end, TalkedEf on.
 func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
 	effects := s.p.w.Effects()
 	effects.Dispel(speaker, s.p.talking)
 	if toTheEnd {
-		s.memoryOf(speaker).met(t.With)
 		effects.Cast(s.cb, speaker, s.p.talked)
 	}
 	*t = Talk{}
@@ -219,30 +216,22 @@ func (s *talkSystem) offer(n *node, speaker, listener uid.UID64, index int) *cho
 
 // offers appends to dst the answers of n whose conditions hold now.
 func (s *talkSystem) offers(dst []*choice, n *node, speaker, listener uid.UID64) []*choice {
-	mood, met := s.memoryRead(speaker).of(listener)
 	for k := range n.choices {
-		if ch := &n.choices[k]; s.holds(ch.when, speaker, mood, met) {
+		if ch := &n.choices[k]; s.holds(ch.when, speaker, listener) {
 			dst = append(dst, ch)
 		}
 	}
 	return dst
 }
 
-// holds reports whether c holds for a speaker feeling mood for the listener, met or not.
-func (s *talkSystem) holds(c condition, speaker uid.UID64, mood int8, met bool) bool {
-	var yes bool
-	switch c.what {
-	case always:
-		yes = true
-	case isFriend:
-		yes = mood >= s.p.cfg.Friend
-	case isEnemy:
-		yes = mood <= s.p.cfg.Enemy
-	case isNeutral:
-		yes = mood > s.p.cfg.Enemy && mood < s.p.cfg.Friend
-	case hasTalked:
-		yes = met
-	case underEffect:
+// holds reports whether c holds between speaker and listener: the game's condition, an effect on
+// the speaker, or none.
+func (s *talkSystem) holds(c condition, speaker, listener uid.UID64) bool {
+	yes := true
+	switch {
+	case c.game != nil:
+		yes = c.game.holds(speaker, listener)
+	case c.isEffect:
 		yes = s.p.w.Effects().Has(speaker, c.effect)
 	}
 	return yes != c.not
@@ -267,30 +256,6 @@ func (s *talkSystem) talkOf(id uid.UID64) *Talk {
 	t := &Talk{}
 	s.freshTalk[id] = t
 	return t
-}
-
-// memoryOf is id's Memory, given it this pass where it has none.
-func (s *talkSystem) memoryOf(id uid.UID64) *Memory {
-	if m, ok := s.freshMemory[id]; ok {
-		return m
-	}
-	if s.memories.Seek(id) {
-		return s.memory.At(s.memories.Cursor())
-	}
-	m := &Memory{}
-	s.freshMemory[id] = m
-	return m
-}
-
-// memoryRead is id's Memory as it stands, empty for one with none.
-func (s *talkSystem) memoryRead(id uid.UID64) *Memory {
-	if m, ok := s.freshMemory[id]; ok {
-		return m
-	}
-	if s.memories.Seek(id) {
-		return s.memory.At(s.memories.Cursor())
-	}
-	return &Memory{}
 }
 
 // read is id's Talk as it stands: what the window reads every frame.

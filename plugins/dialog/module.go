@@ -58,6 +58,5 @@ func (m *module) SetupSystems() []goke.System {
 // LoadComps lists the component types dialog owns, and the owners' tags it reads to know who may
 // answer — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[Script](), goke.LoadComp[Talk](), goke.LoadComp[Memory](),
-		goke.LoadComp[tag.Tags[owner.Family]]()}
+	return []goke.CompToken{goke.LoadComp[Script](), goke.LoadComp[Talk](), goke.LoadComp[tag.Tags[owner.Family]]()}
 }
