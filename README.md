@@ -303,7 +303,8 @@ logic underneath.
 
 ## Stage and Scene
 
-A `game.Game` supplies `Props` (window, tick rate) and its Stages by name. A Stage is one
+A `game.Game` supplies `Props` (window, tick rate) and its Stages by name —
+`game.New(props, stages...)` is one, starting with the first. A Stage is one
 self-contained context — a menu, the gameplay — with its own goke ECS, built fresh the moment
 `Runtime.SwitchStage` enters it. Its lifecycle is `Init` (install plugins), `Restore` (resume
 from a save, or report there is none), `Spawn` (seed the initial state, only when nothing was
@@ -316,18 +317,25 @@ is refused:
 
 ```go
 stage.New(MeadowStage).
-	World(worldCfg, s.makePlugins).      // the world, the plugins over it
-	Players(s.definePlayer).             // the players, the plugins' default keys
-	Effects(s.defineEffects).            // the states
-	Rules(s.defineRules).                // the roles, the rules, the plans
-	Commands(s.defineCommands).          // what can be asked for
-	Kinds(s.defineCells, s.defineKinds). // the kinds of cells and of units
-	Controls(s.bindKeys).                // the game's own keys, each a command
-	Restore(s.restore).                  // a saved game, resumed…
-	Spawn(s.spawnCells, s.spawnUnits).   // …or a fresh one: its board, its units
-	Scenes(s.defineScenes).              // the scenes, their pictures and cameras
-	Update(s.update)                     // the tick; hands back the game.Stage
+	World(worldCfg, s.makePlugins).                    // the world, the plugins the arena makes over it
+	Players(s.definePlayer).                           // the players, the plugins' default keys
+	Effects(s.defineEffects).                          // the states
+	Rules(s.defineRules).                              // the roles, the rules, the plans
+	Commands(s.defineCommands).                        // what can be asked for
+	With(dialog.Conversations(s.defineConversations)). // a plugin's own section, in its place
+	Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
+	Controls(s.bindKeys).                              // the game's own keys, each a command
+	Restore(s.restore).                                // a saved game, resumed…
+	Spawn(s.spawnCells, s.spawnUnits).                 // …or a fresh one: its board, its units
+	Scenes(s.defineScenes).                            // the scenes, their pictures and cameras
+	Update(s.update)                                   // the tick; hands back the game.Stage
 ```
+
+The game never touches the engine's Initializer: the Stage makes the world from its config and
+uses the plugins the arena makes over it, in their order. A plugin may bring a section of its own
+(`plugin/section`), written with `With` where it belongs — the dialogs' conversations after the
+commands their answers give and before the kinds whose scripts name them; written elsewhere, the
+chain panics as it is built.
 
 Within a Stage, a Scene is one thing it can show: its renderers, built once, and its input
 handling. The scenes are made once the world is there — at the end of `Restore` when it loaded a

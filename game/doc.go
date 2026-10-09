@@ -9,21 +9,24 @@
 // and its Stages by Name, plus which starts active. Props.Resizable lets the player resize and
 // maximize the window: the screen is then the window, and the world camera draws to all of it —
 // more of a large world, a small one scaled up to cover it. F11 toggles fullscreen in every
-// game ([Runtime].ToggleFullscreen). Every game writes its own small Game, even
-// for a single Stage, since only a concrete type can supply its own Props. The engine never keeps
-// a copy of the Stage set: it asks Stages() whenever it resolves a name.
+// game ([Runtime].ToggleFullscreen). [New] is the Game of props and stages a game keeping
+// nothing else of its own needs — game.New(props, menu, gameplay), the first starting unless
+// [Defined.Starting] names another; a game wanting more writes its own. The engine never keeps a
+// copy of the Stage set: it asks Stages() whenever it resolves a name.
 //
 // # Stage
 //
 // A [Stage] is one self-contained context the game can be in, with its own plugins and its own
 // goke ECS, both built fresh when the Stage is entered. Init installs plugins through the
-// Initializer, may call UseWorld once and defines the game's roles and rules; Restore resumes from a save or
+// Initializer, may call UseWorld once and defines the game's roles and rules — package game/stage
+// does both for a game, from a world.Config and the plugins its arena makes; Restore resumes from a save or
 // reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
 // Update advances the simulation one tick by running the plugins' RunPlan in the order the game
 // needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand: package
-// game/stage defines a Stage a section at a time — plugins, players, effects, rules, commands,
-// kinds, controls, restore, spawn, scenes, update — always in that order, its scenes made once the
-// world is there, loaded or spawned.
+// game/stage defines a Stage a section at a time — the world and its plugins, players, effects,
+// rules, commands, kinds, controls, restore, spawn, scenes, update — always in that order, a
+// plugin's own sections written among them, its scenes made once the world is there, loaded or
+// spawned.
 //
 // # Scene, Scenes and Composition
 //

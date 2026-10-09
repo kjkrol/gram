@@ -6,10 +6,10 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 
 ## Engine
 
-- **A Stage's plugins without `ctx`** — `stage.New(name).World(cfg).Plugins(func(*world.Plugin)
-  []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
-  constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
-  `Initializer` reached only for the two calls.
+- **The board's sections** — the board's words back in the chain as sections of its own
+  (`section.Define`, `stage.With`): `board.Cells(s.defineCells)` before the kinds of units, the
+  Layout in Spawn. A plugin's section runs only within Init today; one in Spawn — run only for a
+  fresh game — needs the Stage to take sections there too.
 - **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
   (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
   rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and

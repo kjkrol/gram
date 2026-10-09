@@ -1,21 +1,31 @@
 // Package stage defines a game.Stage a section at a time, always in the same order: a chain
 // begun with [New] and ended with Update, each link one part of the game and nothing else.
 //
-//	func newStage() game.Stage {
-//		s := &myStage{}
-//		return stage.New(MeadowStage).
-//			Plugins(s.usePlugins).               // ctx.UseWorld, ctx.Use
-//			Players(s.definePlayer).             // the players, the plugins' default keys
-//			Effects(s.defineEffects).            // the states
-//			Rules(s.defineRules).                // the roles, the rules, the plans
-//			Commands(s.defineCommands).          // what can be asked for
-//			Kinds(s.defineCells, s.defineKinds). // the kinds of cells and of units
-//			Controls(s.bindKeys).                // the game's own keys, each a command
-//			Restore(s.restore).                  // a saved game, resumed…
-//			Spawn(s.spawnCells, s.spawnUnits).   // …or a fresh one: its board, its units
-//			Scenes(s.defineScenes).              // the scenes, once the world is there
-//			Update(s.update)                     // the tick
+//	func newDemo() (*arena, game.Game) {
+//		s := &arena{}
+//		return s, game.New(props,
+//			stage.New(MeadowStage).
+//				World(worldCfg, s.makePlugins).                    // the world, the plugins over it
+//				Players(s.definePlayer).                           // the players, the plugins' default keys
+//				Effects(s.defineEffects).                          // the states
+//				Rules(s.defineRules).                              // the roles, the rules, the plans
+//				Commands(s.defineCommands).                        // what can be asked for
+//				With(dialog.Conversations(s.defineConversations)). // a plugin's own section
+//				Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
+//				Controls(s.bindKeys).                              // the game's own keys, each a command
+//				Restore(s.restore).                                // a saved game, resumed…
+//				Spawn(s.spawnCells, s.spawnUnits).                 // …or a fresh one: its board, its units
+//				Scenes(s.defineScenes).                            // the scenes, once the world is there
+//				Update(s.update))                                  // the tick
 //	}
+//
+// # The world and the plugins
+//
+// [Start.World] makes the Stage's world from its world.Config each time the Stage is entered and
+// hands it to a function of the game's — the arena's makePlugins — that makes the plugins over it,
+// keeping them, and hands them back in the order they are used; the Stage uses them, the game
+// touching no game.Initializer. [Start.Plugins] does the same for a Stage without a world; a
+// menu's has neither.
 //
 // # The order
 //
@@ -32,6 +42,15 @@
 // An effect altering a cell's Ground to another kind resolves that kind as it runs
 // (cell.Kinds.Named in the Alter), the kinds being defined after the effects. How things look once
 // drawn — the atlases, an effect's looks, a board's covers — is a scene's, in its Layers.
+//
+// # The plugins' sections
+//
+// A plugin may have a part of the definition of its own, between two of the Stage's
+// (plugin/section.Define): the dialogs' Conversations, after the commands their answers give and
+// before the kinds whose Scripts name their nodes. Any link from World to Controls takes
+// With(sections...), a plugin's Section run where it is written, with the plugin it is of among
+// those the Stage uses; one written after the part it comes before, or before the part it comes
+// after, panics as the chain is built. What a plugin's section defines it refuses elsewhere.
 //
 // # What the Stage does itself
 //
@@ -55,9 +74,10 @@
 // As a section begins the Stage tells the engine (package plugin/section), and the plugins refuse
 // what is defined in another: a plugin used outside Plugins, an effect outside Effects, a role or
 // a plan outside Rules, a command outside Commands, a kind of cell or of unit outside Kinds, keys
-// bound outside Players and Controls, a board, its heights or units seeded outside Spawn. How a
-// thing is drawn is no section's: the looks are declared on the world's atlas in a scene's Layers
-// (world.Plugin.NewAtlas). Plugins takes anything, for the plugins define what is their own as
-// they are made. A Stage written by hand — its own Init,
+// bound outside Players and Controls, a board, its heights or units seeded outside Spawn, a
+// dialog's changes and files outside Conversations. How a thing is drawn is no section's: the
+// looks are declared on the world's atlas in a scene's Layers (world.Plugin.NewAtlas). World and
+// Plugins take anything, for the plugins define what is their own as they are made. A Stage
+// written by hand — its own Init,
 // Spawn and Update — is in no section, and nothing is refused.
 package stage

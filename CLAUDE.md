@@ -12,8 +12,9 @@ driven by a `gram.Engine` that wraps
 [goke](https://github.com/kjkrol/goke) (a type-safe, archetype-based ECS)
 in a window's loop — a tick and a picture a frame — drawing everything on the GPU through WebGPU
 ([gogpu](https://github.com/gogpu/gogpu), pure Go over Vulkan; Ebitengine is gone since 2026-09-29).
-Everything beyond the tick loop is installed as a `plugin.Plugin`, added
-from `Stage.Init` via `ctx.Use`. See "Stage / Scene" below for the model.
+Everything beyond the tick loop is installed as a `plugin.Plugin`, made by
+the game's arena over the Stage's world and used by the Stage (`stage.New(name).World(cfg,
+a.makePlugins)`). See "Stage / Scene" below for the model.
 
 Since this is a library third parties `go get` and browse on pkg.go.dev,
 the extension contract — `game.Game`/`Stage`/`Scene`/`Stack`/`Composition`/
@@ -221,8 +222,10 @@ effect's own `Effect.Mark()` "effect.<name>", `unit.Entered`). Putting a compone
 entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
 often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
 `Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
-component, empty when off (`effect.Active`). A `Stage` builds its plugins as its own struct fields
-inside `Init` and installs each via `ctx.Use(p)`, which registers
+component, empty when off (`effect.Active`). A game's arena makes its plugins as its own struct
+fields in `makePlugins(w *world.Plugin) []plugin.Plugin` — anew each time the Stage is entered,
+over the world `stage.World(cfg, …)` made — and the Stage uses each in the order handed back,
+via `ctx.Use(p)` (since 2026-10-09, the user's word: no `ctx` in a game's code), which registers
 `p.Serializable()` (if any) and calls `p.Install`. There is no dependency
 retry mechanism: a plugin needing another plugin's *logic* takes it as
 an explicit constructor argument (e.g.
@@ -664,10 +667,10 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
 
 ### Built-in plugins (`plugins/`)
 
-- **`world`** — foundation a Stage installs by calling
-  `ctx.UseWorld(cfg)` in `Init`, once (a second call panics); `cfg` sizes
-  the space, toroidality, entity bounds and camera, and a Stage that never
-  calls it gets no world. `SpaceCfg.Edges` (`aabbworld.Edges`) sets the edge rule
+- **`world`** — foundation a Stage makes from the `world.Config` its chain begins with
+  (`stage.New(name).World(cfg, a.makePlugins)`; `ctx.UseWorld(cfg)` underneath, once — a second
+  call panics); `cfg` sizes the space, toroidality, entity bounds and camera, and a Stage without
+  `World` gets no world. `SpaceCfg.Edges` (`aabbworld.Edges`) sets the edge rule
   per axis — `aabbworld.Torus`, `WrapX`/`WrapY` alone, `OpenX`/`OpenY`, a closed
   axis by default: a box stops whole at a closed edge, wraps at a wrapping one,
   and may leave by an open one. An entity wholly past an open edge carries
@@ -1166,7 +1169,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Say`, `Choices`) of `Choice`s (`Text`, `If`, `Then`, `Next` or `End`, `Do` — command names of
   `world.Commands()`, a `ui.It` in them the speaker), by name, the Stage's: `Plugin.Load(fsys, path)`
   reads a YAML map of them (`go.yaml.in/yaml/v3`, known fields only; errors with the line and the
-  node), `Plugin.Define(name, node)` in code, both in the Commands section after the names they
+  node), `Plugin.Define(name, node)` in code, both in the plugin's own section — `dialog.Conversations(f)`
+  written with `stage.With` after the commands, before the kinds (`ConversationsPart`) — after the names they
   use; an answer to an undefined node panics as the Stage is set up. **What an answer changes is the
   game's**: `Plugin.Changes().Define(name, dialog.Alter(func(v *T, listener)))` — a function of the
   speaker's component `T`, the game's own on its kinds (`AlterListener`: the listener's), as
@@ -1369,11 +1373,12 @@ many times as the time gone says, and a frame that falls behind runs at most 5 s
 rest, so the game slows down instead of spiralling; what is drawn goes by `clock.Clock.Shown`, the
 game time run on past the last step by the time held toward the next) alongside a named collection of
 `game.Stage`s plus which one starts active (`Stages() (map[string]Stage,
-string)`) — every game writes its own small `Game` implementation, even
-for a single Stage, since only a concrete type can supply its own `Props`.
+string)`) — `game.New(props, stages...)` is that `Game` (since 2026-10-09, the user's word: no
+mechanical `Demo` type with `Props` and `Stages`), the first stage starting unless
+`Defined.Starting(name)` says; a game wanting more writes its own.
 A `Stage` is what `Game` itself used to be:
 `Init`/`Restore`/`Spawn`/`Update`, each with its **own** `*goke.ECS`, built
-fresh (plus a fresh `world.Plugin` if its `Init` calls `ctx.UseWorld`) the moment `Runtime.SwitchStage`
+fresh (plus a fresh `world.Plugin` if its chain begins with `World`) the moment `Runtime.SwitchStage`
 enters it — so a menu Stage can sit idle with zero gameplay entities until
 the player actually starts the game, at which point the gameplay Stage's
 `Init`/`Restore`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
@@ -1414,8 +1419,9 @@ sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
-`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f)
-.Kinds(f...).Controls(f).Restore(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)` hands back a
+`examples/minimal`): `stage.New(name).World(cfg, a.makePlugins).Players(f).Effects(f).Rules(f)
+.Commands(f).Kinds(f...).Controls(f).Restore(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)`
+hands back a
 `game.Stage` (the order since 2026-10-08, the user's word: the scenes last, once the world is
 there; `Cells` went into `Kinds` and `Layout` and `Units` into `Spawn` — the board's words left
 the core). Each link returns a type holding the links after it and none before (`Start`,
@@ -1424,7 +1430,17 @@ left out, and `Update` alone must come. A section takes a function of whatever s
 (`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
 `[]game.Scene`); `Kinds` and `Spawn` take several, run in their order —
 `Kinds(s.defineCells, s.defineKinds)`, `Spawn(s.spawnCells, s.spawnUnits)` (board-topography's
-`spawnGround`: the board and its heights). The Stage so built keeps its name, starts fresh
+`spawnGround`: the board and its heights). `World(cfg, plugins)` makes the world from `cfg` and
+uses the plugins `plugins(w)` hands back, in their order; `Plugins(func() []plugin.Plugin)` the
+same for a Stage without a world (a menu's has neither; the `Plugins` taking the Initializer went
+on 2026-10-09). **A plugin may have a section of its own** (since 2026-10-09, the user's word: the
+chain's words grow with the plugins, the core keeps none of theirs): `section.Define(name, after,
+before)` names a part between two of the Stage's, `section.Of[P](part, f)` is a `section.Section`
+running `f` with the plugin of type `P` the Stage uses, and every link from `World` to `Controls`
+takes `With(sections...)` — the section runs where it is written; written after the part it comes
+before, or before the part it comes after, it panics as the chain is built; a Stage using no `P`
+fails `Init`. The dialogs' is the first: `With(dialog.Conversations(s.defineConversations))` after
+the commands, before the kinds. The Stage so built keeps its name, starts fresh
 without `Restore`, and makes its scenes once the world is there — at the end of `Restore` when it
 loaded a save, else at the end of `Spawn` (no method of `game.Stage` of its own: the engine is
 unchanged): the stack, the first scene shown or those `Shows` names (a loaded game those shown
@@ -1434,22 +1450,24 @@ entities spawned. The order is what builds on what: players before the kinds, ef
 rules, roles before the commands for their players (`selection.Selected(role)`) and the kinds
 playing them, everything before the keys, the world before the scenes that show it; what is
 drawn — atlases, an effect's looks, a board's covers, the cameras — is the scene's. A demo groups its plugins in an **arena** (the user's
-word, 2026-10-06), the collector every section builds on: `newArena()` makes the `arena` struct
-(plugins and players alone, no embedded Stage) and hands back it and the `game.Stage` defined on
-it (`stage.New(name).Plugins(a.usePlugins)…`), the sections the arena's methods (`usePlugins`,
-`definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
-`bindKeys`, `spawnCells`, `spawnUnits`, `defineScenes`, `update`); the demo's `Demo` keeps both,
-its scenes the arena. A demo's names — its Stage's and its scenes' too (`…Stage`, `MainScene`) —
+word, 2026-10-06), the collector every section builds on: `newDemo()` makes the `arena` struct
+(plugins and players alone, no embedded Stage) and hands back it and the game defined on it —
+`game.New(props, stage.New(name).World(cfg, a.makePlugins)…)` — `NewDemo()` the game alone; the
+sections are the arena's methods (`makePlugins`, `definePlayer`, `defineEffects`, `defineRules`,
+`defineCommands`, a plugin's section's own like `defineConversations(d *dialog.Plugin)`,
+`defineCells`, `defineKinds`, `bindKeys`, `spawnCells`, `spawnUnits`, `defineScenes`, `update`); its
+scenes the arena; tests reach the arena and the one Stage through `newDemo`. A demo's names — its Stage's and its scenes' too (`…Stage`, `MainScene`) —
 are constants in `names.go`. **A thing in its section**: the Stage tells
 the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
-and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
+and `UseWorld` (Plugins: the Stage's `World`/`Plugins` link), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
 `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules),
 `world.Commands().Define` (Commands), `cell.Kinds.Define` and `kind.Define` (Kinds), `Player.Bind`
-(Players or Controls), `board.Seed`, `topography.Seed` and `world.Seed` (Spawn) — by
+(Players or Controls), `board.Seed`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
+`Load`, `Define`, `Changes`/`Conditions().Define` (its `ConversationsPart`) — by
 an error where the call returns one, a panic elsewhere, each through
-`world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as
-they are made), and a Stage written by hand is in no section: nothing is refused, so every test
+`world.Plugin.InSection(what, want...)`. `World`/`Plugins` take anything (plugins define their
+own as they are made), and a Stage written by hand is in no section: nothing is refused, so every test
 installer works as before. A plugin that needs a game's definitions takes them after it is used
 (`atmosphere.Plugin.WithWeathering` any time before the Stage is set up).
 

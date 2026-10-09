@@ -8,8 +8,10 @@
 // A [Node] is who speaks, what is said and the answers offered, each a [Choice]: its words, when
 // it is offered (If), what it changes in the game (Then), where it leads (Next, or [End]) and the
 // commands it gives (Do, the Stage's register). [Plugin.Load] reads a file of them by name,
-// [Plugin.Define] says one in code; both where the Stage defines its commands, after the names
-// their answers use. Node names are the Stage's, shared by every file; a file a character's, say.
+// [Plugin.Define] says one in code; both in the plugin's own section of a Stage,
+// [Conversations] — after the commands, before the kinds:
+// stage.With(dialog.Conversations(s.defineConversations)) — after the changes and conditions their
+// answers name. Node names are the Stage's, shared by every file; a file a character's, say.
 //
 //	greet:
 //	  speaker: Miller
