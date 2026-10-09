@@ -1,0 +1,57 @@
+package main
+
+import (
+	"image/color"
+
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
+)
+
+type mainScene struct {
+	arena *arena
+}
+
+// The scene's colours: the units and the meadow with its plates and trapdoors.
+var (
+	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
+	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
+	plateColor    = color.RGBA{R: 160, G: 160, B: 170, A: 255}
+	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
+)
+
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
+	s := m.arena
+	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
+
+	worldAtlas := render.NewAtlas()
+	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor))
+	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
+	worldAtlas.Close()
+	s.world.WithRenderer(worldAtlas)
+
+	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas.Add(GrassCell, render.Solid(grassColor))
+	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
+	boardAtlas.Add(PlateCell, render.Solid(plateColor))
+	boardAtlas.Add(PitCell, render.Solid(pitColor))
+	boardAtlas.Close()
+	s.board.WithRenderer(boardAtlas)
+
+	s.nav.WithRenderer(nil)
+	s.selection.WithRenderer(nil)
+
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+}
+
+// screen is the world through a camera of its own, the player's view.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
+}

@@ -12,13 +12,11 @@
 package main
 
 import (
-	"image/color"
 	"log"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -37,7 +35,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
@@ -266,65 +263,4 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// =========================== Scene ===========================
-
-type mainScene struct {
-	arena *arena
-}
-
-// The scene's colours: the units, the haste's glow, the meadow and its works.
-var (
-	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
-	hasteColor    = color.RGBA{R: 170, G: 220, B: 255, A: 255}
-	porterColor   = color.RGBA{R: 150, G: 110, B: 200, A: 255}
-	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
-	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
-	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
-	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
-	plateColor    = color.RGBA{R: 160, G: 160, B: 170, A: 255}
-	leverColor    = color.RGBA{R: 200, G: 170, B: 60, A: 255}
-	fenceColor    = color.RGBA{R: 85, G: 60, B: 40, A: 255}
-	gateColor     = color.RGBA{R: 70, G: 75, B: 90, A: 255}
-	gatewayColor  = color.RGBA{R: 150, G: 130, B: 95, A: 255}
-)
-
-// picture dresses the world and hands its picture.
-func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
-	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-
-	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
-		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor)) // the scout aglow with haste
-	worldAtlas.Add(porterKind, EntitySize, render.Solid(porterColor))
-	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
-	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
-
-	boardAtlas := s.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
-	boardAtlas.Add(PitCell, render.Solid(pitColor))
-	boardAtlas.Add(PlateCell, render.Solid(plateColor))
-	boardAtlas.Add(LeverCell, render.Solid(leverColor))
-	boardAtlas.Add(FenceCell, render.Solid(fenceColor))
-	boardAtlas.Add(GateCell, render.Solid(gateColor))
-	boardAtlas.Add(GatewayCell, render.Solid(gatewayColor))
-	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
-
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-}
-
-// screen is the world through a camera of its own, the player's view.
-func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }

@@ -8,7 +8,6 @@ package main
 
 import (
 	"embed"
-	"image/color"
 	"log"
 	"slices"
 	"time"
@@ -202,45 +201,4 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// =========================== Scene ===========================
-
-type mainScene struct {
-	arena *arena
-}
-
-// The scene's colours: the meadow and a doused ember's soot.
-var (
-	grassColor = color.RGBA{R: 55, G: 80, B: 55, A: 255}
-	sootColor  = color.RGBA{R: 70, G: 65, B: 60, A: 255}
-)
-
-// picture dresses the world and hands its picture.
-func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
-	doused := s.world.Effects().Named(DousedEf)
-
-	worldAtlas := s.world.NewAtlas()
-	worldAtlas.Add(emberKind, EntitySize, emberMaterial).
-		Under(doused, render.Dot(5, sootColor))
-	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
-
-	boardAtlas := s.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
-
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-}
-
-// screen is the world through a camera of its own, the player's view.
-func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }

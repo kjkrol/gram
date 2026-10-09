@@ -11,7 +11,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -237,57 +236,3 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
-
-// =========================== Scene ===========================
-
-type mainScene struct {
-	arena *arena
-}
-
-// picture dresses the world and hands its picture.
-func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
-	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
-
-	worldAtlas := render.NewAtlas()
-	for i := range scouts {
-		worldAtlas.Add(scoutKind(i), EntitySize, render.Solid(unitColors[i]))
-	}
-	worldAtlas.Add(hawkKind, EntitySize, render.Diamond(hawkColor))
-	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
-
-	boardAtlas := s.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(WallCell, render.Solid(wallColor))
-	boardAtlas.Add(ForestCell, render.Solid(forestColor))
-	boardAtlas.Add(RoadCell, render.Solid(roadColor))
-	boardAtlas.Add(HillCell, render.Solid(hillColor))
-	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-
-	s.nav.WithRenderer(nil)
-
-	s.vision.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
-
-	return render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
-}
-
-// screen is the world through a camera of its own, the player's view.
-func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
-}
-
-const (
-	wallCol = 12
-	gapRow  = 8
-
-	roadLeft, roadRight uint32 = 2, GridWidth - 3
-	roadTop, roadBottom uint32 = 1, 13
-)
-
-// hillHeight is how high the hill stands over the grass.
-const hillHeight = 12

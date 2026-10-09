@@ -99,17 +99,10 @@ func (a *arena) defineKinds() {
 	})
 }
 
-// defineScenes is the one scene: the boxes through a camera from above on a dark backdrop, the
-// player's view, a telemetry line over them.
+// defineScenes is the one scene, made once the world is there.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	tps := ctx.TPS()
-	count := func() int { return a.world.Res.Telemetry.Count }
-	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.picture())
-	return []game.Scene{ui.NewScene(ViewScene, ui.Layers( // from the bottom up: each covers those before it
-		ui.Blank().Fill(backgroundColor),
-		ui.Image(view).Input(a.players.Through(a.player)),
-		ui.Layer(render.NewTelemetryRenderer(&tps.Ticks, count).With(a.stats.Reporter(&tps.Ticks))),
-	)).Input(a.players.Handle)}
+	m := &mainScene{arena: a, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(ViewScene, m.screen()).Input(a.players.Handle)}
 }
 
 func (a *arena) spawnUnits() {
@@ -133,14 +126,34 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
+// mainScene is the one scene, built out of the arena's plugins: the boxes through a camera from
+// above on a dark backdrop, the player's view, a telemetry line over them.
+type mainScene struct {
+	arena *arena
+	tps   *game.TPS
+}
+
 // The scene's colours: the boxes and the backdrop.
 var (
 	boxColor        = color.RGBA{R: 90, G: 200, B: 110, A: 255}
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
+// screen lays the scene out, from the bottom up: each covers those before it.
+func (m *mainScene) screen() *ui.Element {
+	a := m.arena
+	count := func() int { return a.world.Res.Telemetry.Count }
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())
+	return ui.Layers(
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(view).Input(a.players.Through(a.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(a.stats.Reporter(&m.tps.Ticks))),
+	)
+}
+
 // picture dresses the boxes and hands the world's picture.
-func (a *arena) picture() render.Picture {
+func (m *mainScene) picture() render.Picture {
+	a := m.arena
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	atlas := render.NewAtlas()
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))

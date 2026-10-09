@@ -1,0 +1,57 @@
+package main
+
+import (
+	"image/color"
+
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
+)
+
+type mainScene struct {
+	arena *arena
+	tps   *game.TPS
+}
+
+// The scene's colours: the prey, the hunter and the backdrop's grey.
+var (
+	preyColor       = color.RGBA{R: 120, G: 190, B: 255, A: 255}
+	hunterColor     = color.RGBA{R: 225, G: 70, B: 70, A: 255}
+	backgroundColor = color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}
+)
+
+// picture dresses the world and hands its picture.
+func (m *mainScene) picture() render.Picture {
+	s := m.arena
+	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
+
+	atlas := render.NewAtlas()
+	atlas.Add(preyKind, RectSize, render.Solid(preyColor))
+	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
+	atlas.Close()
+	s.world.WithRenderer(atlas)
+	s.vision.WithRenderer(atlas)
+
+	return render.NewComposer(s.vision.Renderer(), s.world.Renderer())
+}
+
+// screen is the world through a camera of its own, the player's view, on its backdrop, a telemetry line over it.
+func (m *mainScene) screen() *ui.Element {
+	s := m.arena
+	count := func() int { return s.world.Res.Telemetry.Count }
+	return ui.Layers( // from the bottom up: each covers those before it
+		ui.Blank().Fill(backgroundColor),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
+		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks))),
+	)
+}
+
+func (s *arena) bindKeys() error {
+	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
+		s.world.Commands().Named(FleeCmd)))
+}
