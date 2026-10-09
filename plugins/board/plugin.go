@@ -72,11 +72,11 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
-		Self:        world.NewSelf(worldPlugin, "gram.board"),
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
+	p.Self = world.NewSelf(worldPlugin, p)
 	p.kinds.Guard = func(name string) {
 		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
 			panic("board: " + err.Error())

@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -31,11 +30,8 @@ func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules fu
 	t.Helper()
 	n := &night{}
 	st := stage.New("night").
-		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}},
-			func(w *world.Plugin) []plugin.Plugin {
-				n.w, n.a = w, atmosphere.NewPlugin(w, atmosphere.Config{Calendar: cal})
-				return []plugin.Plugin{n.a}
-			}).
+		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}}).
+		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, atmosphere.Config{Calendar: cal}) }).
 		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {
 			if rules != nil {

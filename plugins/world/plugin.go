@@ -38,8 +38,9 @@ type Plugin struct {
 	module   *module
 	roles    Roles
 	plans    Plans
-	named    Commands // the commands about effects, by name
-	*Self             // the world's own entity, the clock's: what entity.World names
+	named    Commands    // the commands about effects, by name
+	made     plugin.Made // the plugins made over the world, in the order made: the Stage uses them
+	*Self                // the world's own entity, the clock's: what entity.World names
 	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
@@ -80,9 +81,14 @@ func NewPlugin(cfg Config) *Plugin {
 		panic(err)
 	}
 	p.roles.w, p.plans.w, p.named.w = p, p, p
-	p.Self = NewSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
+	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
 	return p
 }
+
+// Made are the plugins made over the world, in the order made — each told of itself by
+// NewSelf — which the Stage uses in that order; a plugin made over the world without an entity of
+// its own adds itself here.
+func (p *Plugin) Made() *plugin.Made { return &p.made }
 
 // InSection is an error for what when the Stage, built in sections (package game/stage), is
 // defining another part than those want names; nil for a Stage written by hand. For plugins,

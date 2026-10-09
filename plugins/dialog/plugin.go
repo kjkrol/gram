@@ -49,7 +49,8 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	if cfg.Rest == 0 {
 		cfg.Rest = 10 * time.Second
 	}
-	p := &Plugin{Self: world.NewSelf(w, "gram.dialog"), w: w, cfg: cfg}
+	p := &Plugin{w: w, cfg: cfg}
+	p.Self = world.NewSelf(w, p)
 	p.changes.p, p.conditions.p = p, p
 	return p
 }

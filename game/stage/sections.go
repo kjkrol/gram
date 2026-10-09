@@ -14,24 +14,45 @@ import (
 // may be left out — and end with Update, which hands back the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterRestore{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}
+	return Start{AfterWorld{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterRestore{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
 // it has the sections that come later, never one that came before.
-type Start struct{ AfterPlugins }
+type Start struct{ AfterWorld }
 
-// World makes the Stage's world from cfg — anew each time the Stage is entered — and its plugins
-// over it with plugins, used in the order it hands them: a game's arena keeps them as it makes
-// them.
-func (s Start) World(cfg world.Config, plugins func(w *world.Plugin) []plugin.Plugin) AfterPlugins {
-	s.d.add(section.Plugins, func(ctx game.Initializer) error { return s.d.use(ctx, plugins(ctx.UseWorld(cfg))) })
+// World makes the Stage's world from cfg, anew each time the Stage is entered: what its plugins
+// are made over.
+func (s Start) World(cfg world.Config) AfterWorld {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		s.d.world = ctx.UseWorld(cfg)
+		return nil
+	})
+	return s.AfterWorld
+}
+
+// Plugins has plugins make the plugins of a Stage without a world — each adding itself to made as
+// it is made — and uses them in the order made.
+func (s Start) Plugins(plugins func(made *plugin.Made)) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		var made plugin.Made
+		plugins(&made)
+		return s.d.use(ctx, made.All())
+	})
 	return s.AfterPlugins
 }
 
-// Plugins makes and uses, in the order it hands them, the plugins of a Stage without a world.
-func (s Start) Plugins(plugins func() []plugin.Plugin) AfterPlugins {
-	s.d.add(section.Plugins, func(ctx game.Initializer) error { return s.d.use(ctx, plugins()) })
+// AfterWorld is a Stage with a world and no plugins yet.
+type AfterWorld struct{ AfterPlugins }
+
+// Plugins has plugins make the plugins over the Stage's world, anew each time the Stage is
+// entered — each telling the world of itself as it is made (world.NewSelf) — and uses them in the
+// order made: a game's arena keeps them as it makes them.
+func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		plugins(s.d.world)
+		return s.d.use(ctx, s.d.world.Made().All())
+	})
 	return s.AfterPlugins
 }
 

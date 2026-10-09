@@ -112,8 +112,9 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
 	brd := boardPlugin.Res.Logic.Board
-	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.topography"), cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
 		climbing: cfg.Climbing}
+	p.Self = world.NewSelf(worldPlugin, p)
 	if p.climbing == (relief.Climbing{}) {
 		p.climbing = relief.DefaultClimbing
 	}

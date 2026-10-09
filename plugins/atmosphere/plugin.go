@@ -61,8 +61,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
-	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.atmosphere", comp.Const(sky.DefaultMoon())), cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	p.Self = world.NewSelf(worldPlugin, p, comp.Const(sky.DefaultMoon()))
 	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {

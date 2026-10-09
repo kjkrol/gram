@@ -50,7 +50,9 @@ var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin keeps and moves the cameras of worldPlugin's world; it makes none itself.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.cameras"), worldPlugin: worldPlugin}
+	p := &Plugin{worldPlugin: worldPlugin}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // New is a camera over the world made by make and configured by cfg — each camera its own, made

@@ -20,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -109,7 +108,8 @@ func newDemo() (*arena, game.Game) {
 			World(world.Config{
 				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-			}, s.makePlugins).
+			}).
+			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
@@ -121,8 +121,8 @@ func newDemo() (*arena, game.Game) {
 }
 
 // makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// in the order they are used.
-func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+// each telling the world of itself as it is made: the Stage uses them in that order.
+func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
@@ -133,7 +133,6 @@ func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
-	return []plugin.Plugin{s.collision, s.board, s.selection, s.nav, s.driving, s.cameras, s.players}
 }
 
 func (s *arena) definePlayer() error {

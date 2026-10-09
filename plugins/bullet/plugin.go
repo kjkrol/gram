@@ -43,7 +43,9 @@ var _ plugin.Plugin = (*Plugin)(nil)
 // NewPlugin builds the bullet plugin over w, firing a player's Shoot from the units sel marks
 // Selected; make it after collision, which the shots are sensors of.
 func NewPlugin(w *world.Plugin, sel *selection.Plugin) *Plugin {
-	return &Plugin{Self: world.NewSelf(w, "gram.bullet"), worldPlugin: w, shots: NewShots(w), selected: sel.Tags().Selected}
+	p := &Plugin{worldPlugin: w, shots: NewShots(w), selected: sel.Tags().Selected}
+	p.Self = world.NewSelf(w, p)
+	return p
 }
 
 // Shots is the plugin's register of the kinds of shots: Define an ammo in a Stage's Kinds

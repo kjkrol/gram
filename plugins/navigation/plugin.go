@@ -58,7 +58,8 @@ var _ plugin.Plugin = (*Plugin)(nil)
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin, drivingPlugin *driving.Plugin) *Plugin {
 	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
 	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
-	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.navigation"), boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	p := &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	return p
 }

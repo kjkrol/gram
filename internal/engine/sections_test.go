@@ -41,10 +41,9 @@ type sectioned struct {
 func (s *sectioned) note(name string) { s.ran = append(s.ran, name) }
 
 // makeWorld keeps the world the Stage made, and makes no plugins over it.
-func (s *sectioned) makeWorld(w *world.Plugin) []plugin.Plugin {
+func (s *sectioned) makeWorld(w *world.Plugin) {
 	s.note("plugins")
 	s.world = w
-	return nil
 }
 
 func (s *sectioned) defineUnit() {
@@ -67,7 +66,7 @@ func (s *sectioned) update(ctx goke.RunCtx, d time.Duration) { s.world.RunPlan(c
 func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
-		World(testWorldConfig(), s.makeWorld).
+		World(testWorldConfig()).Plugins(s.makeWorld).
 		Players(func() { s.note("players") }).
 		Effects(func() error { s.note("effects"); return nil }).
 		Rules(func(game.Initializer) error { s.note("rules"); return nil }).
@@ -95,7 +94,7 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 func TestStage_ShowsAndRestore(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
-		World(testWorldConfig(), s.makeWorld).
+		World(testWorldConfig()).Plugins(s.makeWorld).
 		Restore(func(game.Persistence) (bool, error) { return true, nil }).
 		Spawn(func() { s.note("ground") }, func() { s.note("units") }).
 		Scenes(func() []game.Scene {
@@ -131,7 +130,7 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 	basePath := filepath.Join(t.TempDir(), "meadow")
 	define := func(s *sectioned, k *kept, restore func(game.Persistence) (bool, error)) game.Stage {
 		return stage.New("meadow").
-			World(testWorldConfig(), s.makeWorld).
+			World(testWorldConfig()).Plugins(s.makeWorld).
 			Restore(restore).
 			Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}, k, &scene{name: "hud"}} }).
 			Update(s.update)
@@ -164,7 +163,7 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 	s := &sectioned{}
 	boom := errors.New("boom")
-	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).Effects(func() error { return boom }).Update(s.update)
+	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).Effects(func() error { return boom }).Update(s.update)
 	err := NewEngine(oneStageGame{stage: st}).Init()
 	if !errors.Is(err, boom) || !strings.Contains(err.Error(), "meadow") || !strings.Contains(err.Error(), "Effects") {
 		t.Errorf("Init = %v, want boom of the stage meadow, in Effects", err)
@@ -214,7 +213,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 				}()
 				return tc.do(s, ctx)
 			}
-			chain := stage.New("meadow").World(testWorldConfig(), s.makeWorld)
+			chain := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld)
 			var st game.Stage
 			if tc.kinds {
 				st = chain.Kinds(wrong).Update(s.update)
@@ -231,15 +230,15 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 
 			// in Plugins anything goes
 			s = &sectioned{}
-			st = stage.New("meadow").World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
+			st = stage.New("meadow").World(testWorldConfig()).Plugins(func(w *world.Plugin) {
 				s.makeWorld(w)
 				if tc.plugin {
-					return []plugin.Plugin{&stubPlugin{name: "late"}}
+					w.Made().Add(&stubPlugin{name: "late"})
+					return
 				}
 				if err := tc.do(s, nil); err != nil {
 					t.Errorf("in Plugins: %v, want it taken", err)
 				}
-				return nil
 			}).Update(s.update)
 			if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 				t.Errorf("in Plugins: Init = %v, want it taken", err)
@@ -253,7 +252,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 func TestStage_SeedsInTheirSections(t *testing.T) {
 	s := &sectioned{}
 	var during section.Part
-	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).Kinds(s.defineUnit).
+	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).Kinds(s.defineUnit).
 		Controls(func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -272,7 +271,7 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 		return nil
 	}}
 	st = stage.New("meadow").
-		World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin { s.makeWorld(w); return []plugin.Plugin{spy} }).
+		World(testWorldConfig()).Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(spy) }).
 		Kinds(s.defineUnit).
 		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
@@ -293,12 +292,11 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		players *players.Plugin
 		player  *players.Player
 	}
-	plugins := func(b *built) func(w *world.Plugin) []plugin.Plugin {
-		return func(w *world.Plugin) []plugin.Plugin {
+	plugins := func(b *built) func(w *world.Plugin) {
+		return func(w *world.Plugin) {
 			b.makeWorld(w)
 			b.board = board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, b.world)
 			b.players = players.NewPlugin(b.world)
-			return []plugin.Plugin{b.board, b.players}
 		}
 	}
 	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
@@ -313,7 +311,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := &built{}
-			st := stage.New("meadow").World(testWorldConfig(), plugins(b)).
+			st := stage.New("meadow").World(testWorldConfig()).Plugins(plugins(b)).
 				Players(func() { b.player = b.players.Add("ai") }).
 				Effects(func() (err error) {
 					defer func() {
@@ -331,7 +329,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	}
 	// each in its own section is taken
 	b := &built{}
-	st := stage.New("meadow").World(testWorldConfig(), plugins(b)).
+	st := stage.New("meadow").World(testWorldConfig()).Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
 		Kinds(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).
@@ -366,7 +364,7 @@ func TestStage_RunsAPluginsSectionWhereItIsWritten(t *testing.T) {
 	var got *partPlugin
 	var during section.Part
 	st := stage.New("meadow").
-		World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin { s.makeWorld(w); return []plugin.Plugin{pp} }).
+		World(testWorldConfig()).Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(pp) }).
 		Rules(func() { s.note("rules") }).
 		With(section.Of(testPart, func(p *partPlugin) error {
 			s.note("test")
@@ -408,7 +406,7 @@ func TestStage_PanicsForAPluginsSectionWrittenOutOfItsPlace(t *testing.T) {
 // A plugin's section of a plugin the Stage does not use stops Init, naming the plugin's type.
 func TestStage_APluginsSectionNeedsItsPlugin(t *testing.T) {
 	s := &sectioned{}
-	st := stage.New("meadow").World(testWorldConfig(), s.makeWorld).
+	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).
 		With(section.Of(testPart, func(*partPlugin) error { return nil })).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "partPlugin") {
@@ -426,10 +424,7 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 	}
 	err := run(func(d **dialog.Plugin) game.Stage {
 		return stage.New("meadow").
-			World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
-				*d = dialog.NewPlugin(w, dialog.Config{})
-				return []plugin.Plugin{*d}
-			}).
+			World(testWorldConfig()).Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
 			Effects(func() (err error) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -447,15 +442,48 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 	}
 	err = run(func(d **dialog.Plugin) game.Stage {
 		return stage.New("meadow").
-			World(testWorldConfig(), func(w *world.Plugin) []plugin.Plugin {
-				*d = dialog.NewPlugin(w, dialog.Config{})
-				return []plugin.Plugin{*d}
-			}).
+			World(testWorldConfig()).Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
 			Effects(func() { (*d).DefineEffects() }).
 			With(dialog.Conversations(func(d *dialog.Plugin) error { d.Changes().Define("warm", warm); return nil })).
 			Update(func(goke.RunCtx, time.Duration) {})
 	})
 	if err != nil {
 		t.Errorf("a change defined in Conversations: Init = %v", err)
+	}
+}
+
+// A Stage uses the plugins made for it in the order made: those made over its world, each telling
+// the world of itself, and those of a Stage without one.
+func TestStage_UsesThePluginsInTheOrderMade(t *testing.T) {
+	var installed []string
+	stub := func(name string) *stubPlugin {
+		return &stubPlugin{name: name, installFn: func(plugin.Installer) error { installed = append(installed, name); return nil }}
+	}
+	var made []string
+	st := stage.New("meadow").World(testWorldConfig()).Plugins(func(w *world.Plugin) {
+		w.Made().Add(stub("first"))
+		players.NewPlugin(w) // tells the world of itself
+		w.Made().Add(stub("second"))
+		for _, p := range w.Made().All() {
+			made = append(made, p.Name())
+		}
+	}).Update(func(goke.RunCtx, time.Duration) {})
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if !slices.Equal(made, []string{"first", "gram.players", "second"}) || !slices.Equal(installed, []string{"first", "second"}) {
+		t.Errorf("made %v, installed %v; want them in the order made", made, installed)
+	}
+
+	installed = nil
+	st = stage.New("menu").Plugins(func(made *plugin.Made) {
+		made.Add(stub("third"))
+		made.Add(stub("fourth"))
+	}).Update(func(goke.RunCtx, time.Duration) {})
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init without a world: %v", err)
+	}
+	if !slices.Equal(installed, []string{"third", "fourth"}) {
+		t.Errorf("without a world installed %v, want third, then fourth", installed)
 	}
 }

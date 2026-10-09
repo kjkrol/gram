@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
@@ -67,7 +66,8 @@ func newGame() game.Game {
 			World(world.Config{
 				Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
 				Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
-			}, a.makePlugins).
+			}).
+			Plugins(a.makePlugins).
 			Players(a.definePlayer).
 			Kinds(a.defineKinds).
 			Spawn(a.spawnUnits).
@@ -76,13 +76,12 @@ func newGame() game.Game {
 }
 
 // makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// in the order they are used.
-func (a *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+// each telling the world of itself as it is made: the Stage uses them in that order.
+func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.cameras)
-	return []plugin.Plugin{a.collision, a.cameras, a.players}
 }
 
 // definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,

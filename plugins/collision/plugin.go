@@ -32,7 +32,9 @@ var _ plugin.Plugin = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	worldPlugin.Roster().Unit.Default(comp.Const(Collider{}))
 	worldPlugin.Roster().Unit.Default(comp.Const(Physics{}))
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.collision"), worldPlugin: worldPlugin}
+	p := &Plugin{worldPlugin: worldPlugin}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // =================================================================

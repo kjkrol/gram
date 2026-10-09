@@ -30,7 +30,7 @@ func (scenicPlugin) Scenes() []game.Scene { return []game.Scene{plainScene{"plug
 // hidden until something shows them: the game adds nothing for them.
 func TestStage_HasTheScenesOfItsPlugins(t *testing.T) {
 	st := stage.New("meadow").
-		Plugins(func() []plugin.Plugin { return []plugin.Plugin{&scenicPlugin{stubPlugin{name: "test.scenic"}}} }).
+		Plugins(func(made *plugin.Made) { made.Add(&scenicPlugin{stubPlugin{name: "test.scenic"}}) }).
 		Scenes(func() []game.Scene { return []game.Scene{plainScene{"main"}} }).
 		Update(func(goke.RunCtx, time.Duration) {})
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {

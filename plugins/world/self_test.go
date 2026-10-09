@@ -14,7 +14,9 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
@@ -44,9 +46,20 @@ type skyStage struct {
 
 func (g *skyStage) Name() string { return "stage" }
 
+// skyPlugin is a plugin of a test that is only its name: what its Self is called by.
+type skyPlugin struct{}
+
+func (skyPlugin) Name() string                       { return "test.sky" }
+func (skyPlugin) Install(plugin.Installer) error     { return nil }
+func (skyPlugin) RunPlan(goke.RunCtx, time.Duration) {}
+func (skyPlugin) WithRenderer(render.AtlasSource)    {}
+func (skyPlugin) Renderer() render.Layer             { return nil }
+func (skyPlugin) EventHandler() control.EventHandler { return nil }
+func (skyPlugin) Serializable() plugin.Serializable  { return nil }
+
 func (g *skyStage) Init(ctx game.Initializer) error {
 	g.world, g.ecs = ctx.UseWorld(testWorldConfig()), ctx.ECS()
-	g.sky = world.NewSelf(g.world, "test.sky", comp.Const(dial{Level: 1}))
+	g.sky = world.NewSelf(g.world, skyPlugin{}, comp.Const(dial{Level: 1}))
 	ctx.Setup(g)
 	fx := g.world.Effects()
 	fx.Define("storm", effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })})

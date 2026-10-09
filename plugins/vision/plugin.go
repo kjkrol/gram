@@ -42,7 +42,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
 // start hidden — see Cones.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.vision"), worldPlugin: worldPlugin, hidden: true}
+	p := &Plugin{worldPlugin: worldPlugin, hidden: true}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // =================================================================

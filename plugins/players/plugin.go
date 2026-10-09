@@ -63,7 +63,8 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 		}
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
-	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.players"), worldPlugin: worldPlugin}
+	p := &Plugin{worldPlugin: worldPlugin}
+	p.Self = world.NewSelf(worldPlugin, p)
 	p.shortcuts = newShortcuts(p)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	if err := worldPlugin.Carry(p.handlers...); err != nil {

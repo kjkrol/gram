@@ -19,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
@@ -92,7 +91,8 @@ func newDemo() (*arena, game.Game) {
 			World(world.Config{
 				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
 				Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
-			}, s.makePlugins).
+			}).
+			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Effects(s.defineEffects).
 			Rules(s.defineRoles).
@@ -105,15 +105,14 @@ func newDemo() (*arena, game.Game) {
 }
 
 // makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// in the order they are used.
-func (s *arena) makePlugins(w *world.Plugin) []plugin.Plugin {
+// each telling the world of itself as it is made: the Stage uses them in that order.
+func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.vision = vision.NewPlugin(s.world)
 	s.vision.Hide(false) // the cones are what this demo shows: drawn from the start, Shift+C hides them
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.vision)
-	return []plugin.Plugin{s.vision, s.collision, s.cameras, s.players}
 }
 
 func (s *arena) definePlayer() error {

@@ -42,7 +42,9 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		Hovered:    reg.DefineTag[Family]("selection.hovered"),
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.selection"), worldPlugin: worldPlugin, tags: tags}
+	p := &Plugin{worldPlugin: worldPlugin, tags: tags}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // Tags returns selection's tags: for the plugins reading who is Selected.

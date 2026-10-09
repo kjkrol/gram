@@ -56,7 +56,9 @@ func NewPlugin(worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Pl
 		panic(fmt.Sprintf("driving: its markers have tags of their own before %q", drivingName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.driving"), worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	p := &Plugin{worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // WithGround has the driven units walk the board: never onto ground their domain may not stand

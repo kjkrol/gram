@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // Step is what a section is given: a function defining that part of the Stage, with the
@@ -36,7 +37,8 @@ type def struct {
 
 	ctx   game.Initializer
 	stack game.Scenes
-	used  []plugin.Plugin // the plugins World or Plugins made as the Stage was last entered
+	world *world.Plugin   // the world World made as the Stage was last entered
+	used  []plugin.Plugin // the plugins Plugins made as the Stage was last entered
 	last  section.Part    // the last of the Stage's own parts written so far
 }
 
