@@ -143,3 +143,59 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 		t.Fatalf("spots %+v, want the marked unit alone, at x 105", spots)
 	}
 }
+
+// score is a component of a test's own.
+type score struct{ N int8 }
+
+// A label Of a component reads it off each entity it is shown for, and says nothing of one
+// without it.
+func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
+	})
+	at := func(x float64) comp.Comp {
+		return comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)})
+	}
+	kind.Define[int8](w.Kinds(), "scored", kind.Spec{
+		comp.Load(func(n int8) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(100*float64(n), 100), 10, 10)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Load(func(n int8) score { return score{N: n} }),
+	})
+	kind.Define[struct{}](w.Kinds(), "plain", kind.Spec{at(900), comp.Const(world.Velocity{})})
+	scored, plain := kind.Named[int8](w.Kinds(), "scored"), kind.Named[struct{}](w.Kinds(), "plain")
+	w.Seed(scored.Entry(1), scored.Entry(2), plain.Entry(struct{}{}))
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &installer{ecs: goke.New()}
+	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	src := Of(func(s *score) (string, bool) { return string(rune('0' + s.N)), true })
+	d := NewScene("main", Layers(LabelOf(src).On(nobody))).Layers()[0].(*drawing)
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	var systems []goke.System
+	for _, produce := range ctx.pending {
+		systems = append(systems, produce()...)
+	}
+	systems = append(systems, goke.SystemFn{OnInit: d.Init}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+	}})
+	ctx.ecs.Setup(systems...)
+	said := map[float64]string{}
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		for i, id := range cur.IDs {
+			if text, ok := src.Text(id, true); ok {
+				said[base.Slice(cur)[i].Pos.TopLeft.X] = text
+			}
+		}
+	}
+	if len(said) != 2 || said[100] != "1" || said[200] != "2" {
+		t.Fatalf("said %v, want 1 at x 100 and 2 at x 200, nothing for the one without a score", said)
+	}
+}

@@ -34,7 +34,9 @@
 //
 // [LabelOf], [ButtonOf] and [WindowOf] read their words off a [Text] every frame, for the entity
 // a pinned element is shown for: a name over a unit, a conversation's line. A Text saying nothing
-// leaves its element out — it takes no room in a split and nothing hits it.
+// leaves its element out — it takes no room in a split and nothing hits it. [Of] is a Text read off
+// a component of the entity pinned, the words a game's function says: what a host makes of the
+// selected unit, under the host the cursor points at.
 //
 // # Theme
 //

@@ -203,6 +203,11 @@ func (d *drawing) Init(si *goke.SysInit) {
 			if l, ok := e.content.(*layered); ok {
 				l.r.Init(si)
 			}
+			if l, ok := e.content.(*label); ok {
+				if b, ok := l.src.(bound); ok {
+					b.bind(si)
+				}
+			}
 		})
 	}
 	if len(d.pins) > 0 {

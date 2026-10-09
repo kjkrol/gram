@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -31,6 +32,29 @@ type Text interface {
 
 // LabelOf is a Label whose words t says, every frame: a pinned element's for its entity.
 func LabelOf(t Text) *Element { return newElement(&label{src: t}) }
+
+// Of is a Text read off the component T of the entity an element is pinned to, every frame: fn
+// says the words. An entity without T, or an element pinned to none, says nothing. T is a
+// component, its fields of a fixed length as every component's.
+func Of[T any](fn func(v *T) (string, bool)) Text { return &readOff[T]{fn: fn} }
+
+type readOff[T any] struct {
+	fn    func(v *T) (string, bool)
+	query *goke.Query
+	comp  goke.Comp[T]
+}
+
+func (r *readOff[T]) bind(si *goke.SysInit) { r.query = si.NewQueryBuilder(&r.comp).Build() }
+
+func (r *readOff[T]) Text(of uid.UID64, pinned bool) (string, bool) {
+	if !pinned || r.query == nil || !r.query.Seek(of) {
+		return "", false
+	}
+	return r.fn(r.comp.At(r.query.Cursor()))
+}
+
+// bound is a Text that reads the scene's ECS: the scene binds it as it begins (Of).
+type bound interface{ bind(si *goke.SysInit) }
 
 type label struct {
 	text string
