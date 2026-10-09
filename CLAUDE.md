@@ -1160,28 +1160,33 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Where(ui.Tagged(Hovered))` stands by; one tag for every player. Depends on `world`, `cameras` (the
   command type) and the leaf `players/owner`.
 - **`dialog`** — conversations as data (since 2026-10-08, the user's word: content and outcomes of
-  talks are no effects — a Stage has 63 — but the plugin's state; two effects are their handles):
-  `dialog.NewPlugin(world, Config{Friend, Enemy, Rest})`, handed to `players.NewPlugin`. A `Node`
-  (`Speaker`, `Say`, `Choices`) of `Choice`s (`Text`, `If`, `Mood`, `Next` or `End`, `Do` — command
-  names of `world.Commands()`, a `ui.It` in them the speaker), by name, the Stage's: `Plugin.Load(fsys,
-  path)` reads a YAML map of them (`go.yaml.in/yaml/v3`, known fields only; errors with the line),
-  `Plugin.Define(name, node)` in code, both in the Commands section; an answer to an undefined node
-  panics as the Stage is set up. `If` is `friend`/`neutral`/`enemy` (the speaker's mood towards the
-  listener, `Config`), `talked` (talked to the end before) or an effect's name on the speaker, `!`
-  denying. Every unit may have lines of its own: `Plugin.Script(node)` is the `Script` component
-  where its conversations begin (`comp.Const` a kind's, `comp.Load` each one's). `DefineEffects()`
-  (Effects section) defines `dialog.TalkingEf` — on the speaker while it talks; taken off by
-  anyone, a rule seeing nobody, the conversation is over — and `TalkedEf` (`Config.Rest` after one
-  talked to the end). Commands: `Begin{At}` an entity's own, `plugin.Aimed` (the listener is the
-  moment's subject), from its `Script` without `At`, refused while either talks; `Choose{Index,
-  Speaker}` from the window's button (a `ui.About`), by a player the listener obeys
-  (`owner.Obeys`), the index among the answers offered now; `Mood{By}` an entity's own, aimed. The
-  state is the speaker's `Talk{Node, With}` and `Memory` (mood −100..100 and `Met` for up to 8
-  others, the mildest forgotten), given where missing, saved; the `talkSystem` runs under
+  talks are no effects — a Stage has 63 — two effects are their handles; since 2026-10-09 what a
+  talk changes is the game's, not the plugin's: no model of liking in the library):
+  `dialog.NewPlugin(world, Config{Rest})`, handed to `players.NewPlugin`. A `Node` (`Speaker`,
+  `Say`, `Choices`) of `Choice`s (`Text`, `If`, `Then`, `Next` or `End`, `Do` — command names of
+  `world.Commands()`, a `ui.It` in them the speaker), by name, the Stage's: `Plugin.Load(fsys, path)`
+  reads a YAML map of them (`go.yaml.in/yaml/v3`, known fields only; errors with the line and the
+  node), `Plugin.Define(name, node)` in code, both in the Commands section after the names they
+  use; an answer to an undefined node panics as the Stage is set up. **What an answer changes is the
+  game's**: `Plugin.Changes().Define(name, dialog.Alter(func(v *T, listener)))` — a function of the
+  speaker's component `T`, the game's own on its kinds (`AlterListener`: the listener's), as
+  `effect.Alter[T]` is — named by an answer's `then:`; `Plugin.Conditions().Define(name,
+  dialog.When(func(v *T, listener) bool))` named by its `if:` (an effect's name on the speaker
+  too, `!` denying; a condition named as an effect panics). `T` is a component: fields of a fixed
+  length, no strings — names, nodes and functions live in the plugin, `Talk` keeps a node's hash.
+  Every unit may have lines of its own: `Plugin.Script(node)` is the `Script` component where its
+  conversations begin (`comp.Const` a kind's, `comp.Load` each one's). `DefineEffects()` (Effects
+  section) defines `dialog.TalkingEf` — on the speaker while it talks; taken off by anyone, a rule
+  seeing nobody, the conversation is over — and `TalkedEf` (`Config.Rest` after one talked to the
+  end). Commands: `Begin{At}` an entity's own, `plugin.Aimed` (the listener is the moment's subject),
+  from its `Script` without `At`, refused while either talks; `Choose{Index, Speaker}` from the
+  window's button (a `ui.About`), by a player the listener obeys (`owner.Obeys`), the index among the
+  answers offered now — its changes made, its commands given, on to its next node; `Feel{Change}` an
+  entity's own, aimed: a game's change from a rule (struck, the host likes the striker less). The
+  state is the speaker's `Talk{Node, With}`, given where missing, saved; the `talkSystem` runs under
   `clock.Simulate`. For a scene, `ui.Text`s: `Window()` (one for every speaker, `Under(TalkingEf)`:
-  `SpeakerText`, `LineText`, a button per `ChoiceText(i)`, `MaxChoices` 6) and `Stance(chooser,
-  player)` — Friend/Neutral/Enemy, what the pinned entity makes of the player's chosen unit
-  (`selection.Plugin` is the `Chooser`). Depends on `world`, `ui`, `players/owner`.
+  `SpeakerText`, `LineText`, a button per `ChoiceText(i)`, `MaxChoices` 6); what a game shows of its
+  own components is `ui.Of`. Depends on `world`, `ui`, `players/owner`.
 - **`players/owner`** — whose a unit is, a leaf importing only `entity/tag` and `control`: `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
@@ -1474,8 +1479,8 @@ element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never 
 Elements: `Panel`, `Label` (in the theme's font: `render.Font`, Go Regular through x/image's
 opentype, glyphs drawn on demand into a sheet, Polish letters and all; `render.DrawText`),
 `Image`, `Window`, `LabelOf`/`ButtonOf`/`WindowOf` (their words read off a `ui.Text` every frame,
-`Text(of, pinned)`, for the entity a pinned element is shown for; a Text saying nothing leaves the
-element out — no room, no hit), `Button(label,
+`Text(of, pinned)`, for the entity a pinned element is shown for — `ui.Of[T]` reads a component of
+it; a Text saying nothing leaves the element out — no room, no hit), `Button(label,
 cmds...)` (the scene's own `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue` — a
 button gives commands the way a key does, no callbacks into the game), `Blank` (a gap, a divider
 with a `Fill`), `Layer(renderer)` (a screen renderer as an element, the telemetry); any element
@@ -1513,7 +1518,11 @@ element to the entities carrying a tag of any family (the one hovered). A conver
 dialog plugin's (`examples/dialog-demo`): the miller and the smith, lines of their own in
 `dialogs/*.yaml`, a host's rule of a `vision.Sighting` gives `dialog.Begin{}` while it is neither
 talking nor just done, another takes `TalkingEf` off once nobody is in sight; `Window()` above the
-host, `Stance` under the hovered one. Every demo shows its world
+host. What the answers change is the demo's own `Regard` (`regard.go`: how much a host likes each it
+talked with), its changes (`warm`, `offend`…) and conditions (`friend`, `enemy`) defined by name;
+under the hovered host `ui.LabelOf(ui.Of(func(r *Regard) …))` says Friend, Neutral or Enemy towards
+the selected traveller. `ui.Of[T](fn)` is a `ui.Text` read off the component `T` of the pinned
+entity (the scene binds it to its ECS as it begins). Every demo shows its world
 through a ui scene made in its `defineScenes`: `picture()` (atlases, `WithRenderer`, the composer,
 handed back, kept nowhere) and the screen — the feed through a camera made beside it, the
 player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Layer`s. The scenes-demo's menu and the players' list of shortcuts stay

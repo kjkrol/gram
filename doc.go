@@ -126,7 +126,7 @@
 //	          plugins/selection   — a Select command into a Selected tag; Hovered; the roles' abilities; FollowKey (→ world, rule, cameras, …)
 //	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
 //	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	          plugins/dialog      — conversations as data: nodes from YAML, Talk, Memory, Window, Stance (→ world, ui, players/owner, …)
+//	          plugins/dialog      — conversations as data: nodes from YAML, Talk, the game's Changes and Conditions, Window (→ world, ui, players/owner, …)
 //	Layer 8   plugins/driving     — units driven by hand: Ahead, Back, Turn, Toward, Tank and Compass keys (→ world, selection, board, …)
 //	Layer 9   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, driving, world, …)
 //	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
