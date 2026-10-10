@@ -6,7 +6,14 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+1. **The island from a file** — board-topography, and the board demo laying the same island on
+   the simple map, spawn a `map.yaml` as the other demos do (`board.Plugin.Lay`, `board.Spawn`),
+   their units with the stops they walk between in the file (the TODOs of the starting goals in
+   both demos); then `examples/island`, the island worked out in code, goes. To settle as it
+   starts: one map for both demos or one each, how the file carries what the generator works out
+   — the heights with the rivers' beds carved, the rivers fading into the sea, the bridges (see
+   "Bridges standing on the board") — and where the island's kinds, colours and styles go.
+2. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
 
