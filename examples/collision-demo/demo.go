@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 	"math/rand/v2"
 	"slices"
 	"time"
@@ -34,28 +33,14 @@ const (
 	hitDuration = 50 * time.Millisecond
 )
 
-// rng is where every random choice in this demo comes from; a benchmark pins its seed.
-var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
-
-// RectSize, FillPercent and the EntityCount they imply are what the demo runs with;
-// a benchmark sets them to tick this same Stage at another scale.
-var (
-	RectSize    uint32 = 5
-	FillPercent        = 20.0
-	EntityCount        = countFor(RectSize, FillPercent)
-)
-
-// countFor is how many entities of side rect fill percent of the screen.
-func countFor(rect uint32, percent float64) int {
-	return int(math.Floor(percent / 100.0 * float64(ScreenWidth*ScreenHeight) / float64(rect*rect)))
-}
-
 const (
+	RectSize    = 5
+	EntityCount = ScreenWidth * ScreenHeight / 5 / (RectSize * RectSize) // a fifth of the screen
+
 	entityColors = 7
 	entityShapes = 4
 )
 
-// body is the row every entity kind spawns from: its starting position and velocity.
 type body struct {
 	pos world.Position
 	vel world.Velocity
@@ -73,8 +58,6 @@ type arena struct {
 	collisionStats collision.ContactStats
 }
 
-// NewDemo is the collision demo, defined on the arena s: its window and its one Stage, a section at
-// a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram collision demo",
@@ -83,8 +66,16 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(CollisionStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-				Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: RectSize, MaxSize: RectSize},
+				Space: world.SpaceCfg{
+					Width:  ScreenWidth,
+					Height: ScreenHeight,
+					Edges:  aabbworld.Torus,
+				},
+				Entities: world.EntitiesCfg{
+					MaxCount: EntityCount,
+					MinSize:  RectSize,
+					MaxSize:  RectSize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -101,7 +92,9 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras).WithSaves(saveBasePath) // TODO: WithSaves co to robi? czy to jest dostawca sposobu zapisu? jesli tak, to chyba nie jest to czesc pluginu player ?!
+	s.players = players.NewPlugin(s.world, s.cameras).
+		WithSaves(saveBasePath)
+	// TODO: WithSaves co to robi? czy to jest dostawca sposobu zapisu? jesli tak, to chyba nie jest to czesc pluginu player ?!
 }
 
 func (s *arena) definePlayer() error {
@@ -157,10 +150,12 @@ func (s *arena) defineKinds() {
 func (s *arena) spawnUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 	motion := newRandomVelocity(200, 50, 10)
-	bodyKindOf := func(c, sh int) kind.Of[body] { return kind.Named[body](s.world.Kinds(), bodyKind(c, sh)) }
+	bodyKindOf := func(c, sh int) kind.Of[body] {
+		return kind.Named[body](s.world.Kinds(), bodyKind(c, sh))
+	}
 	entries := make([]kind.Entry, EntityCount)
 	for i := range entries {
-		entries[i] = bodyKindOf(rng.IntN(entityColors), rng.IntN(entityShapes)).Entry(
+		entries[i] = bodyKindOf(rand.IntN(entityColors), rand.IntN(entityShapes)).Entry(
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)

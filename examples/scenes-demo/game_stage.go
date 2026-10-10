@@ -30,17 +30,22 @@ type gameplayArena struct {
 	players *players.Plugin
 	player  *players.Player
 	cameras *cameras.Plugin
-	// TODO: uchwyt do sceny w arenie?!
-	scene        *ui.Scene
-	SaveBasePath string
 }
 
-func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
-	g := &gameplayArena{SaveBasePath: saveBasePath}
-	return g, stage.New(GameplayStage).
+func NewGameplayStage() game.Stage {
+	g := &gameplayArena{}
+	return stage.New(GameplayStage).
 		World(world.Config{
-			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-			Entities: world.EntitiesCfg{MaxCount: EntityCount, MinSize: EntitySize, MaxSize: EntitySize},
+			Space: world.SpaceCfg{
+				Width:  ScreenWidth,
+				Height: ScreenHeight,
+				Edges:  aabbworld.Torus,
+			},
+			Entities: world.EntitiesCfg{
+				MaxCount: EntityCount,
+				MinSize:  EntitySize,
+				MaxSize:  EntitySize,
+			},
 		}).
 		Plugins(g.makePlugins).
 		Players(g.definePlayer).
@@ -51,17 +56,10 @@ func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
 		Update(g.update)
 }
 
-func (g *gameplayArena) basePath() string {
-	if g.SaveBasePath != "" {
-		return g.SaveBasePath
-	}
-	return saveBasePath
-}
-
 func (g *gameplayArena) makePlugins(w *world.Plugin) {
 	g.world = w
 	g.cameras = cameras.NewPlugin(g.world)
-	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(g.basePath())
+	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(saveBasePath)
 }
 
 func (g *gameplayArena) definePlayer() error {
@@ -80,23 +78,24 @@ func (g *gameplayArena) defineKinds() {
 
 func (g *gameplayArena) defineScenes() []game.Scene {
 	m := &gameplayScene{arena: g}
-	g.scene = ui.NewScene(WorldScene, m.screen()).
+	return []game.Scene{ui.NewScene(WorldScene, m.screen()).
 		Input(g.players.Handle).
 		Issue(g.players.IssueAs(g.player)).
-		Keys(control.Give(control.KeyPress{Key: control.KeyP}, "Panel", ui.Toggle{Name: PanelElement}))
-	return []game.Scene{g.scene}
+		Keys(control.Give(control.KeyPress{Key: control.KeyP}, "Panel",
+			ui.Toggle{Name: PanelElement})),
+	}
 }
 
 // TODO: ten kod to copy-paste
 func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(g.basePath())
+	saves, err := p.List(saveBasePath)
 	if err != nil {
 		return false, err
 	}
 	if !slices.Contains(saves, "") {
 		return false, nil
 	}
-	if err := p.Load(g.basePath(), ""); err != nil {
+	if err := p.Load(saveBasePath, ""); err != nil {
 		return false, err
 	}
 	return true, nil

@@ -52,9 +52,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	})
 	occupancy := &cell.SingleOccupancy{}
 	brd := board.NewPlugin(tw.grid, occupancy, w)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
+	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
-		brd.Res.Logic.Board.Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
+		brd.Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
 	tw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel))
@@ -141,7 +141,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	return tw
 }
 
-func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c := tw.grid.CellIndex(x, y); return c }
+func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c := tw.grid.At(x, y); return c }
 
 // blueState is the blue unit's cell, its order if any, and its route.
 func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {

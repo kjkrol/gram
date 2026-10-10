@@ -38,15 +38,6 @@ const (
 	rageFor = 3 * time.Second
 )
 
-// rng is where every random choice in this demo comes from; the test pins its seed.
-var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
-
-// walker is the row every kind spawns from: where it starts and how it goes.
-type walker struct {
-	at  geom.Vec
-	vel world.Velocity
-}
-
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -64,8 +55,16 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(AppearanceStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-				Entities: world.EntitiesCfg{MaxCount: Walkers + Ghosts + Leaders, MinSize: Size, MaxSize: Size},
+				Space: world.SpaceCfg{
+					Width:  ScreenWidth,
+					Height: ScreenHeight,
+					Edges:  aabbworld.Torus,
+				},
+				Entities: world.EntitiesCfg{
+					MaxCount: Walkers + Ghosts + Leaders,
+					MinSize:  Size,
+					MaxSize:  Size,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -100,13 +99,29 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MoodyRole,
 		//TODO: trzeba poprawic mechanizm rules, skladnia wydaje mi sie niezbyt przystepna
-		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.world.Effects().Named(RageEf), rule.Keep(s.world.Effects().Named(AngryEf)))))
+		rule.Then[world.Moving](
+			"rage spreads",
+			rule.All,
+			rule.During(
+				s.world.Effects().Named(RageEf),
+				rule.Keep(s.world.Effects().Named(AngryEf)),
+			),
+		))
+}
+
+type walker struct {
+	at  geom.Vec
+	vel world.Velocity
 }
 
 func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	spec := kind.Spec{
-		comp.Load(func(w walker) world.Position { return world.Position{AABB: boxAt(w.at)} }),
+		comp.Load(func(w walker) world.Position {
+			return world.Position{
+				AABB: plane.NewAABB(geom.NewVec(w.at.X-Size/2, w.at.Y-Size/2), Size, Size),
+			}
+		}),
 		comp.Load(func(w walker) world.Velocity { return w.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
@@ -122,8 +137,10 @@ func (s *arena) defineCommands() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
-		s.world.Commands().Named(RageCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
+			s.world.Commands().Named(RageCmd)),
+	)
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -131,22 +148,24 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
-// boxAt is the box of side Size round at.
-func boxAt(at geom.Vec) plane.AABB {
-	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
-}
-
-// TODO: waker to powinien byc argument spawenra i chyba roostera; on powinien byc uzywany wylacznie tutaj
 func (s *arena) spawnUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
-	ways := [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1), geom.NewVec(0, -1)}
+	ways := [4]geom.Vec{
+		geom.NewVec(1, 0),
+		geom.NewVec(-1, 0),
+		geom.NewVec(0, 1),
+		geom.NewVec(0, -1),
+	}
 	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
 	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
 	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
 	entries := make([]kind.Entry, total)
 	for i := range entries {
-		w := walker{at: placement.Place(i, total).Center(), vel: world.Velocity{Dir: ways[rng.IntN(4)], Value: 40 + 40*rng.Float64()}}
+		w := walker{
+			at:  placement.Place(i, total).Center(),
+			vel: world.Velocity{Dir: ways[rand.IntN(4)], Value: 40 + 40*rand.Float64()},
+		}
 		switch {
 		case i < Leaders:
 			entries[i] = leaderKind.Entry(w)

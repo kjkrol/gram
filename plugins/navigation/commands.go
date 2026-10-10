@@ -94,7 +94,7 @@ func (p *Plugin) Queues() []control.CommandQueue {
 // under the cursor at every move, so the selected units turn to look where the cursor goes, and
 // nothing on its release; and Shift+P into Routes.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	grid := p.boardPlugin.Res.Logic.Board.Grid
+	grid := p.boardPlugin.Board().Grid
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
 			if dragged(c) {

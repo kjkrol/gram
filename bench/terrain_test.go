@@ -42,7 +42,7 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	if !scattered {
 		for y := range uint32(terrainSide / 2) {
 			for x := range uint32(terrainSide / 2) {
-				c := grid.CellIndex(x+terrainSide/4, y+terrainSide/4)
+				c := grid.At(x+terrainSide/4, y+terrainSide/4)
 				out = append(out, c)
 			}
 		}
@@ -50,7 +50,7 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	}
 	rng := rand.New(rand.NewPCG(7, 11))
 	for _, i := range rng.Perm(terrainSide * terrainSide)[:terrainSide*terrainSide/4] {
-		c := grid.CellIndex(uint32(i%terrainSide), uint32(i/terrainSide))
+		c := grid.At(uint32(i%terrainSide), uint32(i/terrainSide))
 		out = append(out, c)
 	}
 	return out
@@ -78,7 +78,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	if err := ctx.Use(v); err != nil {
 		b.Fatal(err)
 	}
-	terrain := brd.Res.Logic.Board
+	terrain := brd.Board()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	rough := [2]cell.Kind{
 		{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6},

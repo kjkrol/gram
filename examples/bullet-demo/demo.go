@@ -50,9 +50,6 @@ const (
 	blastKills  = CellSize       // and takes whoever stands within this
 )
 
-// unitRow is the row every unit spawns from: where it starts and, a wanderer, where it walks to.
-type unitRow struct{ start, to cell.ID }
-
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -65,7 +62,6 @@ type arena struct {
 	cameras   *cameras.Plugin
 	player    *players.Player
 	wild      *players.Player
-	brd       *board.Board
 }
 
 func NewDemo(s *arena) game.Game {
@@ -97,13 +93,21 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.brd = s.board.Res.Logic.Board
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.bullet = bullet.NewPlugin(s.world, s.selection).WithGround(s.board.Heights)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.bullet)
+	s.players = players.NewPlugin(
+		s.world,
+		s.cameras,
+		s.board,
+		s.selection,
+		s.nav,
+		s.driving,
+		s.bullet,
+	)
 }
 
 func (s *arena) definePlayers() error {
@@ -137,30 +141,68 @@ func (s *arena) defineEffects() {
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
 	s.world.Effects().Define(BangEf, effect.Spec{effect.Lasts(time.Second / TPS)})
-	s.world.Effects().Define(FuseEf, effect.Spec{effect.Lasts(fuseLength), effect.Then(s.world.Effects().Named(BangEf))})
+	s.world.Effects().Define(FuseEf, effect.Spec{
+		effect.Lasts(fuseLength),
+		effect.Then(s.world.Effects().Named(BangEf)),
+	})
 }
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole)
 	s.world.Roles().Define(RoundRole,
-		rule.Then[collision.Meeting]("shot", rule.Other(s.world.Roles().Named(MortalRole)),
-			rule.ForOther(rule.OneOf(rule.Under(s.world.Effects().Named(WoundedEf), rule.Order(world.Despawn{})), rule.Apply(s.world.Effects().Named(WoundedEf))))))
+		rule.Then[collision.Meeting](
+			"shot",
+			rule.Other(s.world.Roles().Named(MortalRole)),
+			rule.ForOther(
+				rule.OneOf(
+					rule.Under(s.world.Effects().Named(WoundedEf), rule.Order(world.Despawn{})),
+					rule.Apply(s.world.Effects().Named(WoundedEf)),
+				),
+			),
+		))
 	s.world.Roles().Define(GrenadeRole,
 		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.world.Effects().Named(FuseEf))),
-		rule.Then[bullet.Blast]("blast", rule.Other(s.world.Roles().Named(MortalRole)), rule.ForOther(rule.OneOf(
-			rule.If(func(b bullet.Blast) bool { return b.Distance < blastKills }, rule.Order(world.Despawn{})),
-			rule.Apply(s.world.Effects().Named(WoundedEf)),
-		))),
-		rule.Then[bullet.Resting]("bang", rule.Self(s.world.Effects().Named(BangEf).Mark()), rule.Order(bullet.Burst{Radius: blastRadius})))
+		rule.Then[bullet.Blast](
+			"blast",
+			rule.Other(s.world.Roles().Named(MortalRole)),
+			rule.ForOther(rule.OneOf(
+				rule.If(
+					func(b bullet.Blast) bool { return b.Distance < blastKills },
+					rule.Order(world.Despawn{}),
+				),
+				rule.Apply(s.world.Effects().Named(WoundedEf)),
+			),
+			),
+		),
+		rule.Then[bullet.Resting](
+			"bang",
+			rule.Self(s.world.Effects().Named(BangEf).Mark()),
+			rule.Order(bullet.Burst{Radius: blastRadius}),
+		))
 }
 
 func (s *arena) bindKeys() error {
-	drive := driving.Tank{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
-	return s.player.Bind(append(drive.Bindings(),
-		control.Give(control.KeyPress{Key: control.KeyF}, "Fire a round the way the soldier faces", bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)}),
+	drive := driving.Tank{
+		Ahead: control.KeyW,
+		Back:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
+	return s.player.Bind(append(
+		drive.Bindings(),
+		control.Give(
+			control.KeyPress{Key: control.KeyF},
+			"Fire a round the way the soldier faces",
+			bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)},
+		),
 		control.Command(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {
-				return bullet.Shoot{Ammo: s.bullet.Shots().Named(GrenadeKind), At: c.World(c.Cursor), Targeted: true}, true
+				return bullet.Shoot{
+					Ammo:     s.bullet.Shots().Named(GrenadeKind),
+					At:       c.World(c.Cursor),
+					Targeted: true,
+				}, true
 			}),
 	)...)
 }
@@ -170,23 +212,46 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-// TODO: unitRow powinno byc uzyte tylko tu i w spawn, a jego definicja powinna stac nad tymi metodami
+type unitRow struct{ start, to cell.ID }
+
 func (s *arena) defineKinds() {
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize, Height: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.15,
+	}
 	// The ammo: a round flies ten cells a second over ten cells, spent as it lands; a grenade is
 	// thrown in an arc and lies where it comes down.
-	s.bullet.Shots().Define(RoundKind, bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize}, rule.Plays(s.world.Roles().Named(RoundRole)))
-	s.bullet.Shots().Define(GrenadeKind, bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true}, rule.Plays(s.world.Roles().Named(GrenadeRole)))
+	s.bullet.Shots().Define(RoundKind,
+		bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize},
+		rule.Plays(s.world.Roles().Named(RoundRole)))
+	s.bullet.Shots().Define(GrenadeKind,
+		bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true},
+		rule.Plays(s.world.Roles().Named(GrenadeRole)))
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(SoldierKind, unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
-	units.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, mortal,
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
+	units.Define(
+		WandererKind,
+		unit.Mover{Domain: cell.Land},
+		profile,
+		mortal,
+		comp.Load(func(u unitRow) navigation.MoveOrder {
+			return navigation.Patrol(time.Second, u.to, u.start)
+		}),
+	)
 }
 
 func (s *arena) spawnCells() {
-	at := s.cellAt
+	at := s.board.Board().At
 	var cells []cell.Entry
 	for x := uint32(1); x < GridWidth-1; x++ {
 		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: at(x, roadRow)})
@@ -208,16 +273,18 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	at := s.cellAt
+	at := s.board.Board().At
 	s.world.Seed(
-		soldierKind.Entry(unitRow{start: at(3, roadRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		wandererKind.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).Told(players.Give{To: s.wild.ID}),
-		wandererKind.Entry(unitRow{start: at(9, 12), to: at(14, 12)}).Told(players.Give{To: s.wild.ID}),
-		wandererKind.Entry(unitRow{start: at(9, 4), to: at(12, 4)}).Told(players.Give{To: s.wild.ID}),
+		soldierKind.Entry(unitRow{start: at(3, roadRow)}).
+			Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		wandererKind.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).
+			Told(players.Give{To: s.wild.ID}),
+		wandererKind.Entry(unitRow{start: at(9, 12), to: at(14, 12)}).
+			Told(players.Give{To: s.wild.ID}),
+		wandererKind.Entry(unitRow{start: at(9, 4), to: at(12, 4)}).
+			Told(players.Give{To: s.wild.ID}),
 	)
 }
-
-func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.bullet.RunPlan(ctx, d)

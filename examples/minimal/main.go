@@ -51,10 +51,20 @@ type arena struct {
 }
 
 func newGame(a *arena) game.Game {
-	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
+	return game.New(
+		game.Props{
+			Title:        "gram minimal",
+			ScreenWidth:  screenWidth,
+			ScreenHeight: screenHeight,
+			TargetTPS:    60,
+		},
 		stage.New(ArenaStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
+				Space: world.SpaceCfg{
+					Width:  screenWidth,
+					Height: screenHeight,
+					Edges:  aabbworld.Torus,
+				},
 				Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 			}).
 			Plugins(a.makePlugins).
@@ -62,7 +72,8 @@ func newGame(a *arena) game.Game {
 			Kinds(a.defineKinds).
 			Spawn(a.spawnUnits).
 			Scenes(a.defineScenes).
-			Update(a.update))
+			Update(a.update),
+	)
 }
 
 func (a *arena) makePlugins(w *world.Plugin) {
@@ -129,7 +140,9 @@ func (m *mainScene) screen() *ui.Element {
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),
-		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(a.stats.Reporter(&m.tps.Ticks))),
+		ui.Layer(
+			render.NewTelemetryRenderer(&m.tps.Ticks, count).With(a.stats.Reporter(&m.tps.Ticks)),
+		),
 	)
 }
 

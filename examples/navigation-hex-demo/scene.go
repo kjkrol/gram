@@ -5,8 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
@@ -37,7 +35,7 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(hexSprite)
+	boardAtlas := s.board.NewAtlas(2 * HexSize)
 	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
 	boardAtlas.Add(WallCell, render.Hexagon(wallColor))
 	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
@@ -48,29 +46,16 @@ func (m *mainScene) picture() render.Picture {
 
 	s.selection.WithRenderer(nil)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return render.NewComposer(
+		s.board.Renderer(),
+		s.world.Renderer(),
+		s.selection.Renderer(),
+		s.nav.Renderer(),
+	)
 }
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
-}
-
-const (
-	hexSprite = 2 * HexSize
-
-	wallCol     = 10
-	shortcutRow = 6
-
-	roadLeft, roadRight uint32 = 2, GridWidth - 3
-	roadTop, roadBottom uint32 = 0, GridHeight - 1
-)
-
-// TODO: DLACZEGO ta funkcja jest TUTAJ? !!!!!!!!!!!!!!!
-func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road := kinds.Named(RoadCell).Kind()
-	for q := roadLeft + 1; q < roadRight; q++ {
-		c := brd.CellIndex(q, shortcutRow)
-		brd.Set(c, road)
-	}
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(s.players.Through(s.player))
 }

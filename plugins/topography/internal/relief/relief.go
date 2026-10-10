@@ -352,7 +352,7 @@ func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
 		cx, okX := foldAxis(int64(v.x)+d[0], int64(r.sq.Cols), r.sq.WrapX)
 		cy, okY := foldAxis(int64(v.y)+d[1], int64(r.sq.Rows), r.sq.WrapY)
 		if okX && okY {
-			fn(r.grid.CellIndex(uint32(cx), uint32(cy)), 3-k)
+			fn(r.grid.At(uint32(cx), uint32(cy)), 3-k)
 		}
 	}
 }

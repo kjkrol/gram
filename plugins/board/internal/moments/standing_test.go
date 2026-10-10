@@ -43,7 +43,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	for _, f := range installed {
 		f(ctx)
 	}
-	start := grid.CellIndex(1, 1)
+	start := grid.At(1, 1)
 	kind.Define[boardtest.Mover](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(m boardtest.Mover) world.Position {
 			return world.Position{AABB: boardtest.CellBox(grid, m.Here, boardtest.UnitSize)}
@@ -119,7 +119,7 @@ func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.Board) {
 	return func(brd *board.Board) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
-			c := grid.CellIndex(3, y)
+			c := grid.At(3, y)
 			brd.Set(c, pit)
 		}
 	}
@@ -127,7 +127,7 @@ func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.Board) {
 
 func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start := grid.CellIndex(1, 7)
+	start := grid.At(1, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("hole"), Cost: 1}),
 		[]boardtest.Mover{{Here: start, Heading: east}}, footing(grid))
 	orders := carried(t, bw.World, &heards{})
@@ -142,7 +142,7 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 		centre := world.Position{AABB: toPlane(units[0])}.Center()
 		over, _ := grid.CellAt(centre)
 		told := only(t, orders.told())
-		overHole := bw.Board.Res.Logic.Board.Kind(over).Name.String() == "hole"
+		overHole := bw.Board.Board().Kind(over).Name.String() == "hole"
 		switch {
 		case overHole && !told["fell"]:
 			t.Fatalf("tick %d: centre over the hole at %v, but the unit did not fall", tick, over)
@@ -162,7 +162,7 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 
 func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start := grid.CellIndex(3, 7)
+	start := grid.At(3, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}),
 		[]boardtest.Mover{{Here: start, Domain: cell.Water}}, footing(grid), onKind("water"))
 	orders := carried(t, bw.World, &heards{})
@@ -174,8 +174,8 @@ func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 
 func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	a := grid.CellIndex(1, 7)
-	b := grid.CellIndex(4, 7)
+	a := grid.At(1, 7)
+	b := grid.At(4, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize,
 		func(brd *board.Board) { brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}) },
 		[]boardtest.Mover{{Here: a}, {Here: b}}, footing(grid), onKind("grass"))
@@ -200,7 +200,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	})
 	orders := carried(t, w, &heards{})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("hole"), Cost: 1})
+	brd.Board().SetAll(cell.Kind{Name: cell.Named("hole"), Cost: 1})
 	var hosts *boardtest.InstallCtx
 	ecs := installWorldAndBoard(t, w, brd, grid, func(ctx *boardtest.InstallCtx) {
 		hosts = ctx
@@ -244,8 +244,8 @@ func toPlane(b geom.AABB) plane.AABB {
 
 func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
-	start := grid.CellIndex(1, 7)
-	right := grid.CellIndex(2, 7)
+	start := grid.At(1, 7)
+	right := grid.At(2, 7)
 	straddles := rule.Then[unit.Standing]("straddles", rule.All, rule.If(func(st unit.Standing) bool {
 		var under []cell.ID
 		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })

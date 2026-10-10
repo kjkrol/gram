@@ -51,7 +51,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	})
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	p.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
@@ -144,7 +144,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	})
 	grid := grid.DefaultGrids{}.Hex(6, 6, 16)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	tiles := render.NewAtlas()
 	tiles.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
 	tiles.Close()
@@ -153,7 +153,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
-	c := grid.CellIndex(2, 2)
+	c := grid.At(2, 2)
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)
 	vw, vh := cam.Viewport()

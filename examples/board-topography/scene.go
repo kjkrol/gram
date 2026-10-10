@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -18,14 +19,22 @@ type mainScene struct {
 	tps   *game.TPS
 }
 
-// The scene's colours: the player's walkers and giants, the rival's, the hawk.
 var (
 	playerColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}
 	rivalColor  = color.RGBA{R: 70, G: 110, B: 230, A: 255}
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 )
 
-// picture dresses the units, the hawk and the island and hands the world's picture.
+var (
+	snowyColors = map[string]color.RGBA{
+		island.EarthCell:  {R: 232, G: 236, B: 235, A: 255},
+		island.SandCell:   {R: 238, G: 236, B: 225, A: 255},
+		island.RockCell:   {R: 205, G: 208, B: 212, A: 255},
+		island.ForestCell: {R: 150, G: 185, B: 165, A: 255},
+	}
+	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
+)
+
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
@@ -41,7 +50,16 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	s.board.WithRenderer(nil)
+	boardAtlas := s.board.NewAtlas(CellSize)
+	for name, c := range island.Colors {
+		boardAtlas.Add(name, render.Solid(c))
+	}
+	for name, c := range snowyColors {
+		boardAtlas.Add(snowyCell(name), render.Solid(c))
+	}
+	boardAtlas.Add(IceCell, render.Solid(iceColor))
+	boardAtlas.Close()
+	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = true
 	s.nav.WithRenderer(nil)
 	s.vision.WithRenderer(nil)
@@ -53,13 +71,17 @@ func (m *mainScene) picture() render.Picture {
 		s.nav.Renderer(), s.atmosphere.Precipitation())
 }
 
-// screen is the island through a camera of its own, the player's view, the telemetry and the clock over it.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers( // from the bottom up: each covers those before it
-		ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
-		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter(), s.atmosphere.Reporter())),
+		ui.Image(render.NewFeed(
+			s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}),
+			m.picture())).Input(s.players.Through(s.player)),
+		ui.Layer(
+			render.NewTelemetryRenderer(&m.tps.Ticks, count).
+				With(s.world.Clock().Reporter(), s.atmosphere.Reporter()),
+		),
 		ui.Layer(s.world.Clock().HUD()),
 	)
 }

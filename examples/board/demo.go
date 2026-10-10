@@ -62,7 +62,8 @@ type arena struct {
 	player     *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	stops      []cell.ID // where the units start, as the layout says // TODO: ten sposob definiowania startowych celow jest bardzo hacky
+	// TODO: ten sposob definiowania startowych celow jest bardzo hacky
+	stops []cell.ID // where the units start, as the layout says
 }
 
 func NewDemo(s *arena) game.Game {
@@ -74,8 +75,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(BoardStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -92,12 +97,16 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).
-		WithViews(render.Show(s.selection.IsSelected)) // TODO: render tutaj? to dziwne. nie wiem co to robi, ale na oko, to powinno byc w scene
+		WithViews(render.Show(s.selection.IsSelected))
+		// TODO: render tutaj? to dziwne. nie wiem co to robi, ale na oko, to powinno byc w scene
 	s.atmosphere = atmosphere.NewPlugin(
 		s.world,
 		atmosphere.Config{
@@ -105,9 +114,11 @@ func (s *arena) makePlugins(w *world.Plugin) {
 			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
 		},
 	)
-	s.atmosphere.WithBoard(s.board) // TODO: raczej plansza z atmosfera, a nie atmosfera z planszą...
+	// TODO: raczej plansza z atmosfera, a nie atmosfera z planszą...
+	s.atmosphere.WithBoard(s.board)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.vision).WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
+		s.atmosphere, s.vision).WithSaves(saveBasePath)
 }
 
 func (s *arena) definePlayer() error {
@@ -124,7 +135,11 @@ func (s *arena) defineEffects() { s.atmosphere.WithWeathering(s.board, s.defineC
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+		rule.Then[unit.Standing](
+			"drown",
+			rule.All,
+			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
+		))
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
@@ -147,22 +162,40 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-// unit is the row the unit kind spawns from: where it starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	order := comp.Load(
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+	)
+	units.Define(
+		UnitKind,
+		unit.Mover{Domain: cell.Land},
+		steering.Steering{
+			MaxSpeed: UnitSpeed,
+			Accel:    UnitSpeed * 2,
+			Brake:    UnitSpeed * 4,
+			V0:       UnitSpeed / 2,
+			TurnRate: 0.15,
+		},
 		order,
-		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true}), comp.Const(world.Eye{Angle: 2 * sightHalf}), comp.Const(vision.SightOutline{}),
+		comp.Const(
+			vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true},
+		),
+		comp.Const(world.Eye{Angle: 2 * sightHalf}),
+		comp.Const(vision.SightOutline{}),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	)
 }
 
 func (s *arena) spawnCells() {
-	layout, _, stops := island.Layout(s.board.Res.Logic.Board)
+	layout, _, stops := island.Layout(s.board.Board())
 	s.stops = stops
 	s.board.Seed(layout)
 }
@@ -171,7 +204,10 @@ func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	entries := make([]kind.Entry, 0, len(s.stops))
 	for i, from := range s.stops {
-		entries = append(entries, unitKind.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+		to := s.stops[(i+len(s.stops)/2)%len(s.stops)]
+		walker := unitKind.Entry(unitRow{start: from, target: to})
+		walker = walker.Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true})
+		entries = append(entries, walker)
 	}
 	s.world.Seed(entries...)
 }

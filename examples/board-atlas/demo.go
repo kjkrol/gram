@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -60,8 +59,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(BoardAtlasStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{MaxCount: 2 * UnitCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: 2 * UnitCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -78,7 +81,8 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -90,11 +94,10 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
-	// TODO: przypisywanie koloru, to nie ten etap! wyglad okreslamy pozniej!
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}})
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}})
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}})
-	kinds.Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6, Color: color.RGBA{R: 40, G: 100, B: 50, A: 255}})
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6})
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
@@ -105,26 +108,40 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	// TODO: co ja mam za formatowanie kodu ustawione, ze linie sa tak dlugie ?!
-	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
-		order)
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	order := comp.Load(
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+	)
+	units.Define(
+		UnitKind,
+		unit.Mover{Domain: cell.Land},
+		steering.Steering{
+			MaxSpeed: UnitSpeed,
+			Accel:    UnitSpeed * 2,
+			Brake:    UnitSpeed * 4,
+			V0:       UnitSpeed / 2,
+			TurnRate: 0.15,
+		},
+		order,
+	)
 }
 
 // corners are where the units start, each bound for the opposite one.
 var corners = [][2]int{{1, 1}, {22, 1}, {22, 14}, {1, 14}}
 
-// at is the cell at column x, row y.
 func (s *arena) at(x, y int) cell.ID {
-	c := s.board.Res.Logic.Board.CellIndex(uint32(x), uint32(y))
+	c := s.board.Board().At(uint32(x), uint32(y))
 	return c
 }
 
 // TODO: mysle, ze najwyzsza pora skonczyc z tym prceduralnym definiowaniem planszy. Proponuje opis trzymac w pliku (trzeba wymyslic format) i zaczytywac go tutaj.
 func (s *arena) spawnCells() {
-	brd, at := s.board.Res.Logic.Board, s.at
+	brd, at := s.board.Board(), s.at
 	layout := board.Layout{Default: GrassCell}
 	for y := 5; y < 11; y++ {
 		for x := 9; x < 15; x++ {
@@ -187,11 +204,14 @@ func (s *arena) spawnUnits() {
 	var entries []kind.Entry
 	for k, c := range corners {
 		o := corners[(k+2)%4]
-		entries = append(entries, unitKind.Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}))
+		walker := unitKind.Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])})
+		walker = walker.Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true})
+		entries = append(entries, walker)
 	}
 	s.world.Seed(entries...)
 }
 
+// TODO zoastawiam notatek, ze to jest jakis zart, moze nie bedzie potrzebne po wprowadeniu parsera to wczytywaniu map
 func sign(v int) int {
 	if v < 0 {
 		return -1

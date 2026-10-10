@@ -83,7 +83,8 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
 	}
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 60, G: 160, B: 60, A: 255}}
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
@@ -91,11 +92,11 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	brd.SetAll(grass)
 	u := under{Board: brd, mark: mark, cells: map[cell.ID]bool{}}
 	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {2, 3}, {3, 3}, {4, 3}, {4, 4}, {5, 5}} {
-		c := g.CellIndex(at[0], at[1])
+		c := g.At(at[0], at[1])
 		u.cells[c] = true
 	}
 	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(1), 32, render.Solid(grass.Color))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(green))
 	atlas.Add(render.SpriteID(2), 32, render.Solid(snow))
 	atlas.Close()
 	d := draw.NewBands(u)
@@ -129,11 +130,11 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	if c := at(2*32+16, 2*32+16); !near(c, snow) {
 		t.Errorf("the middle of a covered cell is %v, want the cover's %v", c, snow)
 	}
-	if c := at(6*32+16, 1*32+16); !near(c, grass.Color) {
-		t.Errorf("the middle of a bare cell is %v, want its kind's %v", c, grass.Color)
+	if c := at(6*32+16, 1*32+16); !near(c, green) {
+		t.Errorf("the middle of a bare cell is %v, want its kind's %v", c, green)
 	}
-	if c := at(2*32+2, 2*32+2); !near(c, grass.Color) {
-		t.Errorf("the outer corner of the covered block is %v, want the kind's %v: the line cuts the corner", c, grass.Color)
+	if c := at(2*32+2, 2*32+2); !near(c, green) {
+		t.Errorf("the outer corner of the covered block is %v, want the kind's %v: the line cuts the corner", c, green)
 	}
 	if c := at(3*32, 2*32+16); !near(c, snow) {
 		t.Errorf("the edge between two covered cells is %v, want the cover's %v unbroken", c, snow)

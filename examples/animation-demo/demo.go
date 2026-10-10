@@ -57,8 +57,6 @@ type arena struct {
 	player    *players.Player
 }
 
-// NewDemo is the animation demo, defined on the arena s: its window and its one Stage, a section at
-// a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram animation demo",
@@ -80,16 +78,17 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -104,9 +103,19 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.08}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.08,
+	}
 	round := comp.Load(func(u unitRow) navigation.MoveOrder {
 		return navigation.Patrol(time.Second, u.round[0], u.round[1], u.round[2], u.round[3])
 	})
@@ -123,12 +132,12 @@ func (s *arena) spawnCells() {
 }
 
 func (s *arena) spawnUnits() {
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	bugKind := kind.Named[unitRow](s.world.Kinds(), BugKind)
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	corners := [4]cell.ID{
-		brd.CellIndex(4, 4), brd.CellIndex(GridWidth-5, 4),
-		brd.CellIndex(GridWidth-5, GridHeight-5), brd.CellIndex(4, GridHeight-5),
+		brd.At(4, 4), brd.At(GridWidth-5, 4),
+		brd.At(GridWidth-5, GridHeight-5), brd.At(4, GridHeight-5),
 	}
 	for i := range corners {
 		var round [4]cell.ID

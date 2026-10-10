@@ -5,8 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
@@ -50,26 +48,16 @@ func (m *mainScene) picture() render.Picture {
 
 	s.selection.WithRenderer(nil)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return render.NewComposer(
+		s.board.Renderer(),
+		s.world.Renderer(),
+		s.selection.Renderer(),
+		s.nav.Renderer(),
+	)
 }
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
-}
-
-const (
-	wallCol     = 12
-	shortcutRow = 8
-
-	roadLeft, roadRight uint32 = 2, GridWidth - 3
-	roadTop, roadBottom uint32 = 1, 13
-)
-
-func buildShortcut(brd *board.Board, kinds cell.Kinds) {
-	road := kinds.Named(RoadCell).Kind()
-	for x := roadLeft + 1; x < roadRight; x++ {
-		c := brd.CellIndex(x, shortcutRow)
-		brd.Set(c, road)
-	}
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(s.players.Through(s.player))
 }

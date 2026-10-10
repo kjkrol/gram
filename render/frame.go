@@ -511,6 +511,25 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 	f.add(tier, depth, nil, fan, len(pts))
 }
 
+// SpriteFan fills the polygon pts, which every point of sees whole from pts[0], with the part of
+// sprite id under it when the sprite is laid over the screen box x0, y0, x1, y1, as opaque as
+// opacity says, 0 to 1.
+func (f *Frame) SpriteFan(tier Tier, depth float32, atlas AtlasSource, id SpriteID, pts [][2]float32,
+	box [4]float32, opacity float32) {
+	if len(pts) < 3 || box[2] == box[0] || box[3] == box[1] {
+		return
+	}
+	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
+	o := min(max(opacity, 0), 1)
+	col := [4]float32{o, o, o, o}
+	for _, p := range pts {
+		u := min(max((p[0]-box[0])/(box[2]-box[0]), 0), 1)
+		v := min(max((p[1]-box[1])/(box[3]-box[1]), 0), 1)
+		f.verts = append(f.verts, vertex(p[0], p[1], sx0+u*(sx1-sx0), sy0+v*(sy1-sy0), col))
+	}
+	f.add(tier, depth, atlas, fan, len(pts))
+}
+
 // Fog has the last plain Sprite, Tile or SpritePart added turn to the colour of the Fog uniform
 // as much as amount says at each corner, 0 to 1 — the air far off hiding what lies in it; nothing
 // where all of it is 0.

@@ -57,7 +57,7 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 		Entities: world.EntitiesCfg{MaxCount: max(len(units), 1), MinSize: 1, MaxSize: cellSize},
 	})
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
-	nw.board = brd.Res.Logic.Board
+	nw.board = brd.Board()
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
 	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)

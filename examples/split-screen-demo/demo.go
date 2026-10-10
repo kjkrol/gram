@@ -63,8 +63,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(SplitScreenStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: BlockSize, MaxSize: BlockSize},
+				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  BlockSize,
+					MaxSize:  BlockSize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayers).
@@ -82,7 +86,8 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -99,35 +104,59 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) bindKeys() error {
-	red := driving.Compass{Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
-	if err := s.redPlayer.Bind(append(red.Bindings(), s.selection.FollowKey(control.KeyC))...); err != nil {
+	red := driving.Compass{
+		Up:    control.KeyW,
+		Down:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
+	redKeys := append(red.Bindings(), s.selection.FollowKey(control.KeyC))
+	if err := s.redPlayer.Bind(redKeys...); err != nil {
 		return err
 	}
 	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
-	if err := s.redPlayer.Bind(append(players.GameBindings(), s.world.DefaultBindings()...)...); err != nil {
+	gameKeys := append(players.GameBindings(), s.world.DefaultBindings()...)
+	if err := s.redPlayer.Bind(gameKeys...); err != nil {
 		return err
 	}
-	blue := driving.Compass{Up: control.KeyArrowUp, Down: control.KeyArrowDown, Left: control.KeyArrowLeft, Right: control.KeyArrowRight, In: camera.Outside}
+	blue := driving.Compass{
+		Up:    control.KeyArrowUp,
+		Down:  control.KeyArrowDown,
+		Left:  control.KeyArrowLeft,
+		Right: control.KeyArrowRight,
+		In:    camera.Outside,
+	}
 	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
-// block is the row a block spawns from: where it starts.
+// TODO: definicja z pliku !
 type block struct{ start cell.ID }
 
-// TODO: definicja z pliku !
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
-	profile := steering.Steering{MaxSpeed: BlockSpeed, Accel: BlockSpeed * 3, Brake: BlockSpeed * 6, TurnRate: 0.3}
+	brd := s.board.Board()
+	units := board.NewUnits[block](
+		s.board,
+		board.Shape{Size: BlockSize},
+		func(b block) geom.Vec { return brd.CellCenter(b.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: BlockSpeed,
+		Accel:    BlockSpeed * 3,
+		Brake:    BlockSpeed * 6,
+		TurnRate: 0.3,
+	}
 	// each block is its player's: it takes that player's hand alone
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
 func (s *arena) spawnCells() {
-	cellAt := s.board.Res.Logic.Board.CellIndex
+	cellAt := s.board.Board().At
 	var cells []cell.Entry
-	wall := func(x, y uint32) { cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)}) }
+	wall := func(x, y uint32) {
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)})
+	}
 	for x := uint32(0); x < GridWidth; x++ {
 		wall(x, 0)
 		wall(x, GridHeight-1)
@@ -155,10 +184,14 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	s.world.Seed(
-		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Named(RedBlock).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
-		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Named(BlueBlock).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
+		redKind.Entry(block{start: brd.At(3, 3)}).
+			Named(RedBlock).
+			Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
+		blueKind.Entry(block{start: brd.At(GridWidth-4, GridHeight-4)}).
+			Named(BlueBlock).
+			Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
 	)
 }
 

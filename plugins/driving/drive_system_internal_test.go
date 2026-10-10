@@ -56,7 +56,7 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	r := &driveRig{t: t, ecs: goke.New(), grid: grid.DefaultGrids{}.Square(10, 1, 10), occupancy: &cell.SingleOccupancy{}}
 	brd := board.NewBoard(r.grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	brd.Set(r.grid.CellIndex(6, 0), cell.Kind{Cost: 1, Allows: cell.Water})
+	brd.Set(r.grid.At(6, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 	r.kept = &cellKept{occupancy: r.occupancy}
 	sys := &driveSystem{board: brd, occupancy: r.occupancy, keeping: r.kept, units: &units{}}
 
@@ -76,7 +76,7 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 		f.Create(1)
 		for f.Next() {
 			r.walker = f.Cursor.IDs[0]
-			start := r.grid.CellIndex(2, 0)
+			start := r.grid.At(2, 0)
 			at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 			b := &base.Slice(&f.Cursor)[0]
 			b.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(23, 3), 4, 4)}
@@ -154,7 +154,7 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 		t.Errorf("no key held asks %v, want braking", st.WantSpeed)
 	}
 	stranger := uid.UID64(99)
-	next := r.grid.CellIndex(5, 0)
+	next := r.grid.At(5, 0)
 	r.occupancy.Enter(next, stranger, cell.Land)
 	r.place(47)
 	r.drive(steering.Driven{Ahead: 1})
@@ -167,8 +167,8 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	r := newDriveRig(t)
 	r.place(35)
 	r.drive(steering.Driven{Ahead: 1})
-	cell3 := r.grid.CellIndex(3, 0)
-	cell2 := r.grid.CellIndex(2, 0)
+	cell3 := r.grid.At(3, 0)
+	cell2 := r.grid.At(2, 0)
 	r.with(func(c *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, entered bool) {
 		if c.Cell != cell3 || !entered {
 			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)

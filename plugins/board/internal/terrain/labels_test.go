@@ -81,7 +81,7 @@ func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
 	})
 	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	prepare(w, brd)
 	if err := brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				brd.CellKinds().Define("door", land(), trapdoor)
 				brd.CellKinds().Define("plate", land(), plate)
 				brd.CellKinds().Define("both", land(), trapdoor, plate)
-				brd.Res.Logic.Board.Set(e, snow)
+				brd.Board().Set(e, snow)
 				brd.Seed(board.Layout{Cells: []cell.Entry{
 					{Kind: "door", Cell: a, Group: "west"},
 					{Kind: "plate", Cell: b, Name: "plate", Group: "west"},
@@ -161,10 +161,10 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 					t.Errorf("cell %d's entity is %d, the one holding its Plot %d", at, id, st.id)
 				}
 			}
-			if k := brd.Res.Logic.Board.Kind(e); k != snow {
+			if k := brd.Board().Kind(e); k != snow {
 				t.Errorf("labelled cell %d is %q, want the snow the seed gave it", e, k.Name)
 			}
-			if k := brd.Res.Logic.Board.Kind(a); k.Name.String() != "door" {
+			if k := brd.Board().Kind(a); k.Name.String() != "door" {
 				t.Errorf("labelled cell %d is %q, want the door the Layout laid", a, k.Name)
 			}
 		})

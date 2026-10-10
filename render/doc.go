@@ -49,7 +49,8 @@
 // [Source]s — the board's, the world's, sight's, the selection's, the routes' renderers. Each
 // source hands its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: a sprite
 // ([Frame.Sprite], or [Frame.SpriteRect] over a world box, split at a wrap seam), a line with soft
-// sides ([Frame.Line]), a fan ([Frame.Fan]) or a quad fading towards chosen sides ([Frame.Soft]).
+// sides ([Frame.Line]), a fan in a colour ([Frame.Fan]) or cut out of a sprite ([Frame.SpriteFan])
+// or a quad fading towards chosen sides ([Frame.Soft]).
 // A sprite is drawn in a [Shade], a [Light] — red, green, blue — at each corner, and
 // [Frame.Fog] has the sprite just added turn to the Fog's colour as much as each corner says.
 // Tiers are drawn in

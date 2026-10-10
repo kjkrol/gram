@@ -71,7 +71,7 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 func (p *Plugin) Name() string { return "gram.navigation" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	brd := p.boardPlugin.Res.Logic.Board
+	brd := p.boardPlugin.Board()
 	p.board = brd
 
 	w, h := brd.CellBounds()

@@ -79,9 +79,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	})
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithCollision(c)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
-		lay(brd.Res.Logic.Board, fw.at)
+		lay(brd.Board(), fw.at)
 	}
 	sel := selection.NewPlugin(w)
 	drv := driving.NewPlugin(w, sel).WithGround(brd)
@@ -171,7 +171,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	return fw
 }
 
-func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.CellIndex(x, y); return c }
+func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c }
 
 // each calls fn with every unit.
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {

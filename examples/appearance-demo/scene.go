@@ -15,8 +15,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the walkers calm and angry with their light noses, the ghost's pale and
-// its eyes, the crown's gold, the backdrop.
 var (
 	calmColor       = color.RGBA{R: 70, G: 130, B: 220, A: 255}
 	angryColor      = color.RGBA{R: 220, G: 60, B: 50, A: 255}
@@ -27,19 +25,18 @@ var (
 	backgroundColor = color.RGBA{R: 40, G: 44, B: 52, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	s.world.WithRenderer(s.looks())
 	return render.NewComposer(s.world.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view, on its backdrop.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(s.players.Through(s.player)),
 	)
 }
 
@@ -55,7 +52,7 @@ func (s *arena) looks() *world.Atlas {
 
 	atlas := s.world.NewAtlas()
 	atlas.Add(walkerKind, Size, nosed(calmColor)).
-		Facing(4, func(angleDeg float64) render.SpriteDrawer { return nosedAt(angleDeg, calmColor) }).
+		Facing(4, func(angle float64) render.SpriteDrawer { return nosedAt(angle, calmColor) }).
 		Under(angry, render.Solid(angryColor))
 	atlas.Add(leaderKind, Size, crowned(calmColor)).
 		Under(angry, crowned(angryColor)).

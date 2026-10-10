@@ -49,11 +49,6 @@ var emberFS embed.FS
 // emberMaterial joins the composer's one shader as the package is set up, before it compiles.
 var emberMaterial = render.RegisterMaterials(render.Files(emberFS, "ember.wgsl"), nil, "Ember")[0]
 
-type unitRow struct {
-	start cell.ID
-	round [4]cell.ID
-}
-
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -93,10 +88,13 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -131,12 +129,25 @@ func (s *arena) defineCells() {
 	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-// TODO: definicja unitRow tutaj
+type unitRow struct {
+	start cell.ID
+	round [4]cell.ID
+}
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.1}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.1,
+	}
 	round := comp.Load(func(u unitRow) navigation.MoveOrder {
 		return navigation.Patrol(2*time.Second, u.round[0], u.round[1], u.round[2], u.round[3])
 	})
@@ -144,7 +155,13 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	drive := driving.Tank{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
+	drive := driving.Tank{
+		Ahead: control.KeyW,
+		Back:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
 	return s.player.Bind(append(drive.Bindings(),
 		control.Give(control.KeyPress{Key: control.KeyF}, "Douse the selected embers for a while",
 			s.world.Commands().Named(DouseCmd)))...)
@@ -161,12 +178,12 @@ func (s *arena) spawnCells() {
 
 // TODO: definicja mapy i roplanowania jednostek w pliku
 func (s *arena) spawnUnits() {
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	corners := [4]cell.ID{
-		brd.CellIndex(4, 4), brd.CellIndex(GridWidth-5, 4),
-		brd.CellIndex(GridWidth-5, GridHeight-5), brd.CellIndex(4, GridHeight-5),
+		brd.At(4, 4), brd.At(GridWidth-5, 4),
+		brd.At(GridWidth-5, GridHeight-5), brd.At(4, GridHeight-5),
 	}
 	for i := range corners {
 		var round [4]cell.ID

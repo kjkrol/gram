@@ -26,8 +26,8 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 		walker = units.Named("walker")
 		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10})
 		hawk = units.Named("hawk")
-		onHill := grid.CellIndex(2, 1)
-		onGrass := grid.CellIndex(0, 3)
+		onHill := grid.At(2, 1)
+		onGrass := grid.At(0, 3)
 		return []kind.Entry{walker.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onHill}), walker.Entry(topotest.Recruit{Start: onGrass})}
 	})
 	qw.ECS.Tick(time.Second / 60)
@@ -40,7 +40,7 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	for _, z := range zs[walker.ID()] {
 		alts[z.Altitude] = true
 	}
-	onHill := qw.Grid.CellIndex(2, 1)
+	onHill := qw.Grid.At(2, 1)
 	hillGround := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
 	if hillGround <= 0 || !alts[hillGround] || !alts[0] {
 		t.Errorf("walkers stand at %v, want one at the hill's ground %v and one at 0 on the grass", alts, hillGround)
@@ -60,11 +60,11 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
 		hawk := units.Named("hawk")
-		onGrass := grid.CellIndex(0, 3)
+		onGrass := grid.At(0, 3)
 		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onGrass})}
 	})
-	onHill := qw.Grid.CellIndex(2, 1)
-	onGrass := qw.Grid.CellIndex(0, 3)
+	onHill := qw.Grid.At(2, 1)
+	onGrass := qw.Grid.At(0, 3)
 	put := func(c cell.ID) func(*world.Base) {
 		return func(b *world.Base) {
 			at := qw.Grid.CellCenter(c)
@@ -129,12 +129,12 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 		hawk = units.Named("hawk")
 		units.Define("low", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 1}, steering.Steering{MaxSpeed: 10})
 		low = units.Named("low")
-		onHill := grid.CellIndex(2, 1)
-		onGrass := grid.CellIndex(0, 3)
+		onHill := grid.At(2, 1)
+		onGrass := grid.At(0, 3)
 		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onGrass}), low.Entry(topotest.Recruit{Start: onHill})}
 	})
 	qw.ECS.Tick(time.Second / 60)
-	onHill := qw.Grid.CellIndex(2, 1)
+	onHill := qw.Grid.At(2, 1)
 	hill := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
 	if hill <= 1 || hill+40 <= 41 {
 		t.Fatalf("the hill stands %v high: too low to test the ceiling on", hill)

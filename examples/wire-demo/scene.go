@@ -58,10 +58,16 @@ func (m *mainScene) picture() render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return render.NewComposer(
+		s.board.Renderer(),
+		s.world.Renderer(),
+		s.selection.Renderer(),
+		s.nav.Renderer(),
+	)
 }
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(s.players.Through(s.player))
 }

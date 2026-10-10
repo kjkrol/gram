@@ -77,7 +77,7 @@ func newField(t *testing.T, walkers ...walker) *field {
 		Entities: world.EntitiesCfg{MaxCount: len(walkers), MinSize: 22, MaxSize: 22},
 	})
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
 	drv := driving.NewPlugin(f.w, sel).WithGround(brd)
 	if err := f.w.Carry(drv); err != nil { // as the engine does with Use

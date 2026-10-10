@@ -40,5 +40,6 @@ func (m *mainScene) picture() render.Picture {
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(s.players.Through(s.player))
 }

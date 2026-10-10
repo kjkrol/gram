@@ -69,9 +69,9 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	stage.boardPlugin.Res.Logic.Board.Set(here, wall)
+	stage.boardPlugin.Board().Set(here, wall)
 	way := cell.Way{Kind: cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land}, Width: 5, Links: 1 << 3}
-	stage.boardPlugin.Res.Logic.Board.SetWay(here, way)
+	stage.boardPlugin.Board().SetWay(here, way)
 	id, _ := stage.boardPlugin.CellEntity(here)
 
 	if err := eng.Persistence().Save(basePath, ""); err != nil {
@@ -84,10 +84,10 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	if got := game2.boardPlugin.Res.Logic.Board.Kind(here); got != way.Over(wall) {
+	if got := game2.boardPlugin.Board().Kind(here); got != way.Over(wall) {
 		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, way.Over(wall))
 	}
-	if got := game2.boardPlugin.Res.Logic.Board.Way(here); got != way {
+	if got := game2.boardPlugin.Board().Way(here); got != way {
 		t.Errorf("Way(cell) after Load = %+v, want %+v", got, way)
 	}
 	if got, _ := game2.boardPlugin.CellEntity(here); got != id {

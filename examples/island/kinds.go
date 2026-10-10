@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/painter"
 )
 
-// Colors is how each kind of the island looks: the sea, the grounds, the running water, the roads
-// and the forest.
+// Colors is how each kind of the island looks, for a scene's board atlas: the sea, the grounds,
+// the running water, the roads and the forest.
 var Colors = map[string]color.RGBA{
 	WaterCell:  {R: 40, G: 90, B: 170, A: 255},
 	EarthCell:  {R: 110, G: 150, B: 75, A: 255},
@@ -24,29 +24,56 @@ var Colors = map[string]color.RGBA{
 	ForestCell: {R: 30, G: 90, B: 45, A: 255},
 }
 
-// Kinds are the island's kinds, in their Colors, for a board's dictionary: the sea; the grounds
+// Kinds are the island's kinds, for a board's dictionary: the sea; the grounds
 // — sand slow going, rock rough, a climb on top of either on a map in relief; running water laid
 // across the ground — a brook stepped over, a stream waded through, a river crossed only at a ford;
 // roads and the bridges carrying them over the water; and the forest, which nothing plants yet.
 // Only a world with heights takes what stands on a cell: forest is how tall the forest stands, in
 // world units, 0 on a flat map.
 func Kinds(forest float64) []cell.Kind {
-	trees := cell.Kind{Name: cell.Named(ForestCell), Cost: 7.5, Allows: cell.Land | cell.Air, Veil: 0.6, Height: forest}.Costing(cell.Air, 1)
+	trees := cell.Kind{
+		Name:   cell.Named(ForestCell),
+		Cost:   7.5,
+		Allows: cell.Land | cell.Air,
+		Veil:   0.6,
+		Height: forest,
+	}.Costing(cell.Air, 1)
 	kinds := []cell.Kind{
 		{Name: cell.Named(WaterCell), Cost: 1, Allows: cell.Water | cell.Air},
-		cell.Kind{Name: cell.Named(EarthCell), Cost: 2.5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(SandCell), Cost: 4, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(RockCell), Cost: 3.25, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1),
-		cell.Kind{Name: cell.Named(BrookCell), Cost: 3.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
-		cell.Kind{Name: cell.Named(StreamCell), Cost: 5, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(EarthCell),
+			Cost:   2.5,
+			Allows: cell.Land | cell.Air,
+		}.Costing(cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(SandCell),
+			Cost:   4,
+			Allows: cell.Land | cell.Air,
+		}.Costing(cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(RockCell),
+			Cost:   3.25,
+			Allows: cell.Land | cell.Air,
+		}.Costing(cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(BrookCell),
+			Cost:   3.25,
+			Allows: cell.Land | cell.Water | cell.Air,
+		}.Costing(cell.Water|cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(StreamCell),
+			Cost:   5,
+			Allows: cell.Land | cell.Water | cell.Air,
+		}.Costing(cell.Water|cell.Air, 1),
 		{Name: cell.Named(RiverCell), Cost: 1, Allows: cell.Water | cell.Air},
-		cell.Kind{Name: cell.Named(FordCell), Cost: 6.25, Allows: cell.Land | cell.Water | cell.Air}.Costing(cell.Water|cell.Air, 1),
+		cell.Kind{
+			Name:   cell.Named(FordCell),
+			Cost:   6.25,
+			Allows: cell.Land | cell.Water | cell.Air,
+		}.Costing(cell.Water|cell.Air, 1),
 		{Name: cell.Named(RoadCell), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
 		{Name: cell.Named(BridgeCell), Cost: 1, Allows: cell.Land | cell.Air, Graded: true},
 		trees,
-	}
-	for i := range kinds {
-		kinds[i].Color = Colors[kinds[i].Name.String()]
 	}
 	return kinds
 }

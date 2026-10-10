@@ -77,7 +77,7 @@ type World struct {
 func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...rule.Rule) *World {
 	t.Helper()
 	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []rule.Rule {
-		terrain(brd.Res.Logic.Board)
+		terrain(brd.Board())
 		return rules
 	}, units)
 }
@@ -261,7 +261,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
-	cellAt := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	for i := range units {
 		if units[i].Here == 0 {
 			units[i].Here = cellAt(1, 7)

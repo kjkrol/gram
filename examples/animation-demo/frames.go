@@ -45,7 +45,6 @@ func sheetFrames(sheet image.Image, frameW, frameH int) func(frame int) render.S
 	}
 }
 
-// The bug's colours.
 var (
 	bodyColor = color.RGBA{R: 120, G: 85, B: 50, A: 255}
 	headColor = color.RGBA{R: 200, G: 170, B: 90, A: 255}

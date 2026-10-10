@@ -6,30 +6,20 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **Tidying the demos** — a row type (`unitRow`, `walker`, `wardRow`, `block`) defined just above
-   the `defineKinds` and `spawnUnits` using it; constants used once inlined where used; colours in
-   `scene.go`, never in `demo.go`; what the move into `scene.go` dragged along that is no scene's
-   (navigation-hex's `buildShortcut`, the board's constants in navigation-vision(-hex)) back where
-   it is used; scenes-demo built menu first (`NewMenuStage(GameplayStage)`), without the scene held
-   in the arena (there and in dialog-demo) nor `saveBasePath` (only the removed tests set them);
-   lines of at most 100 characters (a CLAUDE.md rule), `weathers` in board-topography laid out
-   field under field; `Board.At(x, y)` for `CellIndex` and `board.Plugin.Board()` for
-   `Res.Logic.Board`, the demos' `cellAt`/`at` wrappers gone; a cell kind's colour off `cell.Kind`
-   onto the board's atlas.
-2. **Saves on the Stage** — `stage.New(…).Saves(basePath)`: the save loaded as the Stage is
+1. **Saves on the Stage** — `stage.New(…).Saves(basePath)`: the save loaded as the Stage is
    entered and the path F5 writes to, from one place; `players.WithSaves` and the six copies of
    `restore` gone.
-3. **Looks out of `makePlugins`** — what is drawing is the scene's: `vision.WithViews` given as the
+2. **Looks out of `makePlugins`** — what is drawing is the scene's: `vision.WithViews` given as the
    renderer is made; `ShowCones()`/`HideCones()` for `Hide(bool)`; the board lit by the atmosphere
    through an interface of the board's (`board.LitBy`) for `atmosphere.WithBoard`; the weathering
    a part of the atmosphere's config rather than a call in the Effects section.
-4. **A map in a file** — the board and the units from a file, as dialogs are: cells drawn in ASCII
+3. **A map in a file** — the board and the units from a file, as dialogs are: cells drawn in ASCII
    under a legend of kinds, ways, cells named and grouped, heights, units with their kind, owner,
    start and goal or round; a section of the board's own (`section.Define`, `stage.With`), its
    cells before the kinds of units and its layout and units in Spawn — a plugin's section runs only
    within Init today, so Spawn must take sections too. The demos' layouts, starting stops and
    constants of the board go.
-5. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+4. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
 

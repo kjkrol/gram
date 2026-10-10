@@ -37,7 +37,7 @@ make demo-navigation-vision                                        # board + nav
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
 make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G): the bullet plugin, wounds and fuses as effects
-make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
+make demo-board                                                    # the island on the simple map: a flat board drawn from the island's colours, bands for the ways, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
@@ -313,8 +313,11 @@ it is drawn for picking, its footprint for outlines) and `look.Look` (a cell, ha
 `look.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
 and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `Climb`, `Least`,
 `Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
-`cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from the
-board's own atlas of the kinds), the ways and crossings as plain bands (`internal/draw.Bands`), a step at its kind's
+sprite from the game's atlas (a kind is what it is, never how it looks: `cell.Kind.Color`,
+`cell.Kinds.Draw` and the board's own atlas went on 2026-10-10, the user's word; `WithRenderer`
+takes the game's `board.Plugin.NewAtlas` and panics on nil), the ways and crossings as bands cut out
+of their kinds' sprites (`internal/draw.Bands`, `render.Frame.SpriteFan`: the part of the sprite
+the band covers, laid over the tile as a cell of the kind shows it), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
 Config{Cell, TileW, TileH, HeightUnit, Headroom, Shaping, Climbing})`, made right after
 the world and the board, hands its cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`
@@ -762,10 +765,11 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
-  following the world's `Edges`. The root keeps the `Plugin`, the `Board` (the terrain's façade:
-  `Kind`, `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Crossing`, `SetCrossing`, `Along`,
-  `CellVersion`, `Changes`, `Version`, `Touch`, `Shape`), the `Layout`, the `Map` contract and
-  `NewUnits`; the ground the others meet is its field's (`Plugin.Cover`, `WithCollision`). Public
+  following the world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`; the
+  terrain's façade, its grid's `At(x, y)` among it: `Kind`, `Bare`, `Set`, `SetAll`, `Way`,
+  `SetWay`, `Crossing`, `SetCrossing`, `Along`, `CellVersion`, `Changes`, `Version`, `Touch`,
+  `Shape`), the `Layout`, the `Map` contract and `NewUnits`; the ground the others meet is its
+  field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
   the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the moment `cell.Now`, the Layout's entries
@@ -1625,6 +1629,18 @@ The examples above are from the demos, but the rule is the engine's too: no comm
 the code does. The engine's code needs only short descriptions of its API — an exported type,
 function or method: one sentence, what it is, never how it does it; its unexported code gets no
 comment unless it carries a non-obvious why.
+
+**Lines stay within 100 columns**, a tab counted as 4 (the user's word, 2026-10-10, over lines of
+150 and more in the demos). Break a call between its arguments or a chain between its links, where
+it reads: never right after an accessor (`s.world.Effects().` ↵ `Define(…)`), never by pushing a
+trailing comment past a closing parenthesis — such a comment goes above the line. A struct literal
+of many fields is written a field a line. **One value a line** (the user's word, 2026-10-10): a
+colour, a vector, a short literal stays whole on its own line (`grassColor = color.RGBA{R: 96, G:
+150, B: 70, A: 255}`, the next colour on the next line), never two assigned at once (`a, b = x,
+y`) — that is what pushes a line past 100 and gets a four-field colour broken over nine lines.
+`golines -m 100 -t 4 --no-reformat-tags` does most of it; check what it made — it breaks short
+literals field by field and calls `append(` argument by argument rather than splitting the
+statement. The examples hold to it; the library's older code does not yet.
 
 **Examples are not tested** (the user's word, 2026-10-10: there is no sense in testing an
 example): what a demo shows is tested in the library's package that does it; no new `_test.go`

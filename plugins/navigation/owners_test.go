@@ -22,9 +22,9 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	start := grid.CellIndex(0, 0)
-	oldTarget := grid.CellIndex(3, 0)
-	newTarget := grid.CellIndex(8, 0)
+	start := grid.At(0, 0)
+	oldTarget := grid.At(3, 0)
+	newTarget := grid.At(8, 0)
 
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)

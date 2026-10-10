@@ -10,13 +10,10 @@ const (
 	TPS          = 60
 )
 
-// TODO: to jest napisane zupelnie z czapy: najpierw stage menu, potem gra
-
 func NewDemo() game.Game {
-	_, gameplay := NewGameplayStage("")
 	return game.New(game.Props{
 		Title:       "gram Stage/Scene demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
 		TargetTPS: TPS,
-	}, NewMenuStage(gameplay.Name()), gameplay)
+	}, NewMenuStage(GameplayStage), NewGameplayStage())
 }

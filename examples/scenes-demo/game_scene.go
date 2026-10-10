@@ -32,7 +32,8 @@ func (m *gameplayScene) screen() *ui.Element {
 	g := m.arena
 	return ui.Layers( // from the bottom up: each covers those before it
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(g.players.Through(g.player)),
+		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(g.players.Through(g.player)),
 		ui.BottomLeft(ui.Label("P: panel, F5: save, K: keys")).Margin(8),
 		ui.Center(ui.Window("PANEL",
 			ui.Label("the world keeps ticking behind me"),

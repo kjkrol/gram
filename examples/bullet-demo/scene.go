@@ -14,7 +14,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the units, the shots, the wounds' pale and the burst's spark, the ground.
 var (
 	soldierColor  = color.RGBA{R: 90, G: 140, B: 230, A: 255}
 	barrelColor   = color.RGBA{R: 230, G: 240, B: 255, A: 255}
@@ -30,7 +29,6 @@ var (
 	lowWallColor  = color.RGBA{R: 150, G: 150, B: 160, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
@@ -75,11 +73,16 @@ func (m *mainScene) picture() render.Picture {
 	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
+	return render.NewComposer(
+		s.board.Renderer(),
+		s.world.Renderer(),
+		s.selection.Renderer(),
+		s.nav.Renderer(),
+	)
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
+	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(s.players.Through(s.player))
 }

@@ -61,8 +61,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(BoardNavigationStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -78,12 +82,16 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).
+		WithSaves(saveBasePath)
 }
 
 func (s *arena) definePlayer() error {
@@ -93,16 +101,28 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+		rule.Then[unit.Standing](
+			"fall in",
+			rule.All,
+			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
+		))
 }
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
 	main.keys = players.SceneKeys{
-		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
-			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
-			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
-		}},
+		{
+			Key:   control.KeyR,
+			Label: "Build a road through the wall",
+			Do: func(game.Runtime, game.Composition) {
+				brd, road := s.board.Board(), s.board.CellKinds().Named(RoadCell).Kind()
+				for x := uint32(3); x < GridWidth-3; x++ {
+					brd.Set(brd.At(x, 8), road)
+				}
+				log.Print("built a road through the wall — " +
+					"in-flight units re-path onto it as soon as they deviate")
+			},
+		},
 	}
 	s.players.OwnKeys(main.keys)
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
@@ -113,7 +133,8 @@ func (s *arena) defineCells() {
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(HoleCell, cell.Kind{Cost: 1}) // admits nobody and is not solid: whoever stands on it falls
+	// admits nobody and is not solid: whoever stands on it falls
+	kinds.Define(HoleCell, cell.Kind{Cost: 1})
 }
 
 func (s *arena) restore(p game.Persistence) (bool, error) {
@@ -134,11 +155,23 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.15,
+	}
 	own := []comp.Comp{
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
+		comp.Load(
+			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	}
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
@@ -147,19 +180,21 @@ func (s *arena) defineKinds() {
 
 // TODO: definicja planszy i rozklad jednostek z pliku !
 func (s *arena) spawnCells() {
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
 	// hole on each unit's straight line, so the planner has to go round.
 	var cells []cell.Entry
 	for y := uint32(2); y < GridHeight; y++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, y)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.At(12, y)})
 	}
-	cells = append(cells, cell.Entry{Kind: HoleCell, Cell: brd.CellIndex(6, 4)}, cell.Entry{Kind: HoleCell, Cell: brd.CellIndex(17, 12)})
-	for x := roadLeft; x <= roadRight; x++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(x, roadTop)})
+	cells = append(cells, cell.Entry{Kind: HoleCell, Cell: brd.At(6, 4)})
+	cells = append(cells, cell.Entry{Kind: HoleCell, Cell: brd.At(17, 12)})
+	for x := uint32(2); x <= GridWidth-3; x++ {
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(x, 1)})
 	}
-	for y := roadTop + 1; y <= roadBottom; y++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, y)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, y)})
+	for y := uint32(2); y <= 13; y++ {
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(2, y)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(GridWidth-3, y)})
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
@@ -167,11 +202,12 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		redKind.Entry(unitRow{start: brd.CellIndex(2, 4), target: brd.CellIndex(GridWidth-3, 4)}).Told(player...),
-		blueKind.Entry(unitRow{start: brd.CellIndex(2, 12), target: brd.CellIndex(GridWidth-3, 12)}).Told(player...),
+		redKind.Entry(unitRow{start: brd.At(2, 4), target: brd.At(GridWidth-3, 4)}).Told(player...),
+		blueKind.Entry(unitRow{start: brd.At(2, 12), target: brd.At(GridWidth-3, 12)}).
+			Told(player...),
 	)
 }
 

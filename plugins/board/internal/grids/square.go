@@ -165,7 +165,7 @@ func (g *Square) Coords(c cell.ID) (uint32, uint32, bool) {
 	return x, y, x < g.Width && y < g.Height
 }
 
-func (g *Square) CellIndex(col, row uint32) cell.ID {
+func (g *Square) At(col, row uint32) cell.ID {
 	x, okX := foldAxis(int64(col), int64(g.Width), g.WrapX)
 	y, okY := foldAxis(int64(row), int64(g.Height), g.WrapY)
 	if !okX || !okY {
@@ -212,8 +212,8 @@ func (g *Square) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	if dx == 0 || dy == 0 {
 		return 0, 0, false
 	}
-	c1 = g.CellIndex(uint32(wrapModI64(int64(ax)+dx, int64(g.Width))), ay)
-	c2 = g.CellIndex(ax, uint32(wrapModI64(int64(ay)+dy, int64(g.Height))))
+	c1 = g.At(uint32(wrapModI64(int64(ax)+dx, int64(g.Width))), ay)
+	c2 = g.At(ax, uint32(wrapModI64(int64(ay)+dy, int64(g.Height))))
 	return c1, c2, true
 }
 

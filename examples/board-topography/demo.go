@@ -84,10 +84,14 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(BoardTopographyStage).
 			World(world.Config{
-				Scale:    scale,
-				Space:    world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-				Heights:  true,
+				Scale: scale,
+				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
+				Heights: true,
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayers).
@@ -102,21 +106,26 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Perspective: true,
-		Shaping:     topography.Shaping{Step: scale.Units(5 * island.Metres), MaxStep: scale.Units(20 * island.Metres)}}))
+		Shaping: topography.Shaping{
+			Step:    scale.Units(5 * island.Metres),
+			MaxStep: scale.Units(20 * island.Metres),
+		}}))
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision).
+		WithSpacing(navigation.BodySpacing)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
 		WithViews(render.Show(s.selection.IsSelected)) // TODO: renderer tutaj?!
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
@@ -144,7 +153,8 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	})
 	s.topography.WithAtmosphere(s.atmosphere)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
+		s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
 }
 
 func (s *arena) definePlayers() error {
@@ -159,7 +169,8 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.atmosphere.WithWeathering(s.board, s.defineClimate()) // TODO: dlaczego to jest tutaj?! to nie jest efekt
+	// TODO: dlaczego to jest tutaj?! to nie jest efekt
+	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	night := s.atmosphere.Calendar().Config().Day / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
@@ -170,21 +181,36 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+		rule.Then[unit.Standing](
+			"drown",
+			rule.All,
+			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
+		))
 	bloodMoon := s.world.Effects().Named(BloodMoonEf)
 	s.world.Roles().Define(LunarRole,
-		rule.Then[sky.Moonrise]("a blood moon rises", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon))))
+		rule.Then[sky.Moonrise](
+			"a blood moon rises",
+			rule.All,
+			rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon)),
+		))
 	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
 }
 
 func (s *arena) defineCommands() {
-	s.world.Commands().Define(BleedCmd, rule.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere))
+	bleed := rule.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere)
+	s.world.Commands().Define(BleedCmd, bleed)
 }
 
 func (s *arena) bindKeys() error {
 	return s.player.Bind(
-		control.Give(control.KeyPress{Key: control.KeyM}, "Blood moon, on or off", s.world.Commands().Named(BleedCmd)),
-		cameras.MouseLookKey(control.KeyO), // first person looks round with the mouse only once asked
+		control.Give(
+			control.KeyPress{Key: control.KeyM},
+			"Blood moon, on or off",
+			s.world.Commands().Named(BleedCmd),
+		),
+		cameras.MouseLookKey(
+			control.KeyO,
+		), // first person looks round with the mouse only once asked
 	)
 }
 
@@ -212,12 +238,25 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: scale.Units(20)}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize, Height: scale.Units(20)},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	order := comp.Load(
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+	)
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 960, Ahead: true})
 	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
-	walker := steering.Steering{MaxSpeed: UnitSpeed, Sprint: Sprint, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	walker := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Sprint:   Sprint,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.15,
+	}
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
@@ -250,7 +289,7 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) spawnGround() {
-	layout, heights, stops := island.Layout(s.board.Res.Logic.Board)
+	layout, heights, stops := island.Layout(s.board.Board())
 	s.stops = stops
 	s.board.Seed(layout)
 	metres := scale.Units(island.Metres)
@@ -265,15 +304,20 @@ func (s *arena) spawnUnits() {
 	entries := make([]kind.Entry, 0, len(s.stops)+1)
 	// TODO: posob w jaki inicjujemy poczatkowy ruch jest tak brzydki, ze az przykro na to patrzec
 	for i, from := range s.stops {
-		walkers, whose := unitKind, []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+		walkers := unitKind
+		whose := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 {
-			walkers, whose = rivalKind, []any{players.Give{To: s.rival.ID}, selection.Allow{}}
+			walkers = rivalKind
+			whose = []any{players.Give{To: s.rival.ID}, selection.Allow{}}
 		}
-		entries = append(entries, walkers.Entry(unitRow{start: from, target: s.stops[(i+len(s.stops)/2)%len(s.stops)]}).Told(whose...))
+		to := s.stops[(i+len(s.stops)/2)%len(s.stops)]
+		entries = append(entries, walkers.Entry(unitRow{start: from, target: to}).Told(whose...))
 	}
-	entries = append(entries, hawkKind.Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	for _, c := range island.Plateau(s.board.Res.Logic.Board)[:PlateauUnits] {
-		entries = append(entries, plateauKind.Entry(unitRow{start: c, target: c}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+	hawk := hawkKind.Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]})
+	entries = append(entries, hawk.Told(players.Give{To: s.player.ID}, selection.Allow{}))
+	for _, c := range island.Plateau(s.board.Board())[:PlateauUnits] {
+		plateau := plateauKind.Entry(unitRow{start: c, target: c})
+		entries = append(entries, plateau.Told(players.Give{To: s.player.ID}, selection.Allow{}))
 	}
 	s.world.Seed(entries...)
 }

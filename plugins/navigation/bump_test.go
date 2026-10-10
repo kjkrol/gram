@@ -72,9 +72,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	occupancy := &cell.SingleOccupancy{}
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(rw.grid, occupancy, w)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}) // field
+	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}) // field
 	for x := uint32(0); x < width; x++ {
-		brd.Res.Logic.Board.Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
+		brd.Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
 	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
@@ -189,7 +189,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	return rw
 }
 
-func (rw *roadWorld) at(x, y uint32) cell.ID { c := rw.grid.CellIndex(x, y); return c }
+func (rw *roadWorld) at(x, y uint32) cell.ID { c := rw.grid.At(x, y); return c }
 
 // state is one unit's cell and order, if it still has one.
 func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {

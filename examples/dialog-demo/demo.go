@@ -59,20 +59,24 @@ type arena struct {
 	cameras   *cameras.Plugin
 	players   *players.Plugin
 	player    *players.Player
-	scene     *ui.Scene
 }
 
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
-		Title:       "gram dialog demo",
-		Description: "Right click: walk up to a host and answer it. Point at a host with the traveller selected to see what it makes of him.",
+		Title: "gram dialog demo",
+		Description: "Right click: walk up to a host and answer it. " +
+			"Point at a host with the traveller selected to see what it makes of him.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	},
 		stage.New(DialogStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: UnitSize, MaxSize: UnitSize},
+				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  UnitSize,
+					MaxSize:  UnitSize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -92,11 +96,21 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world)
 	s.dialog = dialog.NewPlugin(s.world, dialog.Config{})
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.vision, s.dialog)
+	s.players = players.NewPlugin(
+		s.world,
+		s.cameras,
+		s.board,
+		s.selection,
+		s.nav,
+		s.driving,
+		s.vision,
+		s.dialog,
+	)
 }
 
 func (s *arena) definePlayer() error {
@@ -113,8 +127,14 @@ func (s *arena) defineRoles() {
 	roles.Define(TravellerRole)
 	traveller := roles.Named(TravellerRole)
 	roles.Define(HostRole,
-		rule.Then[vision.Sighting]("talk", rule.Other(traveller),
-			rule.If(rule.Not(vision.Sighting.Nobody), rule.Unless(talking, rule.Unless(talked, rule.Order(dialog.Begin{}))))),
+		rule.Then[vision.Sighting](
+			"talk",
+			rule.Other(traveller),
+			rule.If(
+				rule.Not(vision.Sighting.Nobody),
+				rule.Unless(talking, rule.Unless(talked, rule.Order(dialog.Begin{}))),
+			),
+		),
 		rule.Then[vision.Sighting]("part", rule.Other(traveller),
 			rule.If(vision.Sighting.Nobody, rule.Dispel(talking))),
 	)
@@ -151,12 +171,26 @@ type unitRow struct {
 }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: UnitSize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	walks := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 3, Brake: UnitSpeed * 6, TurnRate: 0.3}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: UnitSize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	walks := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 3,
+		Brake:    UnitSpeed * 6,
+		TurnRate: 0.3,
+	}
 	roles := s.world.Roles()
 
-	units.Define(TravellerKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(TravellerRole)))
+	units.Define(
+		TravellerKind,
+		unit.Mover{Domain: cell.Land},
+		walks,
+		rule.Plays(roles.Named(TravellerRole)),
+	)
 	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
@@ -168,10 +202,9 @@ func (s *arena) defineKinds() {
 
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
-	s.scene = ui.NewScene(MainScene, m.screen()).
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).
 		Input(s.players.Handle).
-		Issue(s.players.IssueAs(s.player))
-	return []game.Scene{s.scene}
+		Issue(s.players.IssueAs(s.player))}
 }
 
 func (s *arena) spawnCells() {
@@ -181,11 +214,12 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	traveller := kind.Named[unitRow](s.world.Kinds(), TravellerKind)
 	host := kind.Named[unitRow](s.world.Kinds(), HostKind)
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	s.world.Seed(
-		traveller.Entry(unitRow{start: brd.CellIndex(3, 7)}).Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		host.Entry(unitRow{start: brd.CellIndex(16, 4), talks: MillerGreetNode}),
-		host.Entry(unitRow{start: brd.CellIndex(16, 10), talks: SmithGreetNode}),
+		traveller.Entry(unitRow{start: brd.At(3, 7)}).
+			Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
+		host.Entry(unitRow{start: brd.At(16, 4), talks: MillerGreetNode}),
+		host.Entry(unitRow{start: brd.At(16, 10), talks: SmithGreetNode}),
 	)
 }
 

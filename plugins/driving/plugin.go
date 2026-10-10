@@ -86,7 +86,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	shared := &units{}
 	drive := &driveSystem{keeping: p.keeping, units: shared}
 	if p.board != nil {
-		drive.board, drive.occupancy = p.board.Res.Logic.Board, p.board.Occupancy()
+		drive.board, drive.occupancy = p.board.Board(), p.board.Occupancy()
 	}
 	p.module = &module{
 		hand:  &handSystem{hands: &p.hands, selected: p.selected, units: shared},

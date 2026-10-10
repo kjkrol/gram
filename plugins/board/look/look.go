@@ -15,7 +15,7 @@ type Look interface {
 
 // Dressing is what a Map lays over the board's tiles beyond their sprites: the light on them and
 // whatever lies on them, given its turn by the board's renderer and its Look. The simple map's
-// lays the ways as plain bands; a topography's the light on the relief, water, blends and more.
+// lays the ways as bands; a topography's the light on the relief, water, blends and more.
 type Dressing interface {
 	// Begin readies the dressing for a frame through cam, before any tile.
 	Begin(f *render.Frame, cam camera.Camera)

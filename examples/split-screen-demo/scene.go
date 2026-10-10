@@ -23,8 +23,14 @@ type mainScene struct{ arena *arena }
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	picture := m.picture()
-	red := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}), picture)
-	blue := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}), picture)
+	red := render.NewFeed(
+		s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}),
+		picture,
+	)
+	blue := render.NewFeed(
+		s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}),
+		picture,
+	)
 	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
 	return ui.Layers(
 		ui.Columns(
@@ -32,7 +38,9 @@ func (m *mainScene) screen() *ui.Element {
 			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
 			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
 		),
-		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).Fraction(MinimapShare, 0).Margin(10),
+		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).
+			Fraction(MinimapShare, 0).
+			Margin(10),
 	)
 }
 

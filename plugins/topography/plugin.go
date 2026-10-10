@@ -111,7 +111,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
-	brd := boardPlugin.Res.Logic.Board
+	brd := boardPlugin.Board()
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
 		climbing: cfg.Climbing}
 	p.Self = world.NewSelf(worldPlugin, p)
@@ -207,7 +207,7 @@ func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
 // topAt is the top of the cell under at as it is drawn: the ground there and its kind's Height.
 func (p *Plugin) topAt(at geom.Vec) float64 {
 	top := p.relief.GroundAt(at)
-	brd := p.boardPlugin.Res.Logic.Board
+	brd := p.boardPlugin.Board()
 	if c, ok := brd.CellAt(at); ok {
 		top += brd.Kind(c).Height
 	}
@@ -291,7 +291,7 @@ func (p *Plugin) Heights() ground.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
 func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) {
-	return p.relief.Top(c, p.boardPlugin.Res.Logic.Board.Kind(c).Height)
+	return p.relief.Top(c, p.boardPlugin.Board().Kind(c).Height)
 }
 
 // Climb is how many times as long the step from one cell to its neighbour takes whoever moves in

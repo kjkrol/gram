@@ -74,7 +74,7 @@ type Ground struct {
 // New is the ground of b's hex board in the relief r over w drawn on the GPU, the cells standing as
 // m says, under sky.
 func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sky) *Ground {
-	brd := b.Res.Logic.Board
+	brd := b.Board()
 	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
 		own: map[string][]float32{}, uv: map[string]any{}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
@@ -139,7 +139,7 @@ func (h *Ground) refresh() bool {
 	if atlas == nil {
 		return false
 	}
-	brd := h.board.Res.Logic.Board
+	brd := h.board.Board()
 	at := [2]uint64{brd.Changes() + 1, h.relief.Version() + 1}
 	if h.still != nil && at == h.at {
 		return true

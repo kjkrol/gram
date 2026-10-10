@@ -49,7 +49,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -58,7 +58,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	want := grid.CellIndex(2, 2)
+	want := grid.At(2, 2)
 
 	events := &control.InputEvents{}
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
@@ -112,7 +112,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -150,7 +150,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 	shaken := &control.InputEvents{MousePos: geom.NewVec(27, 26)}
 	shaken.AddClickEvent(27, 26, control.MouseButtonRight, control.ActionRelease)
-	want := grid.CellIndex(2, 2)
+	want := grid.At(2, 2)
 	if _, moves := handle(shaken); len(moves) != 1 || moves[0].Cell != want {
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
 	}

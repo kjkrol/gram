@@ -35,7 +35,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
 	cam.SetViewport(128, 64)

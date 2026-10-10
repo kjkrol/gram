@@ -43,9 +43,6 @@ var wardFS embed.FS
 // wardMaterial joins the composer's one shader as the package is set up, before it compiles.
 var wardMaterial = render.RegisterMaterials(render.Files(wardFS, "ward.wgsl"), nil, "Ward")[0]
 
-// wardRow is the row the ward spawns from: where it stands.
-type wardRow struct{ at geom.Vec }
-
 type arena struct {
 	world   *world.Plugin
 	board   *board.Plugin
@@ -106,20 +103,24 @@ func (s *arena) defineCells() {
 	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-// TODO: definicja wardRow tutaj
+type wardRow struct{ at geom.Vec }
 
 func (s *arena) defineKinds() {
 	kind.Define[wardRow](s.world.Kinds(), WardKind, kind.Spec{
 		comp.Load(func(w wardRow) world.Position {
-			return world.Position{AABB: plane.NewAABB(geom.NewVec(w.at.X-WardPx/2, w.at.Y-WardPx/2), WardPx, WardPx)}
+			return world.Position{
+				AABB: plane.NewAABB(geom.NewVec(w.at.X-WardPx/2, w.at.Y-WardPx/2), WardPx, WardPx),
+			}
 		}),
 		comp.Const(world.Velocity{}),
 	})
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyC}, "Calm the ward for a while",
-		s.world.Commands().Named(CalmCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyC}, "Calm the ward for a while",
+			s.world.Commands().Named(CalmCmd)),
+	)
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -133,7 +134,9 @@ func (s *arena) spawnCells() {
 
 func (s *arena) spawnUnits() {
 	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
-	s.world.Seed(wardKind.Entry(wardRow{at: geom.NewVec(ScreenWidth/2, ScreenHeight/2)}).Named(WardName))
+	s.world.Seed(
+		wardKind.Entry(wardRow{at: geom.NewVec(ScreenWidth/2, ScreenHeight/2)}).Named(WardName),
+	)
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

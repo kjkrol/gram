@@ -30,7 +30,7 @@ type meadow struct {
 func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize)
-	m := &meadow{at: func(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }}
+	m := &meadow{at: func(x, y uint32) cell.ID { c := g.At(x, y); return c }}
 	m.lever, m.plate = m.at(0, 5), m.at(5, 5)
 	m.west, m.east = []cell.ID{m.at(1, 1), m.at(1, 2)}, []cell.ID{m.at(4, 1), m.at(4, 2)}
 	var units []boardtest.Mover
@@ -38,7 +38,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		units = append(units, boardtest.Mover{Here: c})
 	}
 	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
-		brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		m.open = w.Effects().Named("open")
 		w.Roles().Define("plate",
@@ -82,7 +82,7 @@ func (m *meadow) give(t *testing.T, cmd any) {
 
 // under are the cells of cs under the effect open.
 func (m *meadow) under(cs ...cell.ID) int {
-	brd, n := m.Board.Res.Logic.Board, 0
+	brd, n := m.Board.Board(), 0
 	for _, c := range cs {
 		if brd.States(c).Has(m.open.Mark()) {
 			n++
@@ -163,7 +163,7 @@ func TestTrigger_GivesTheCommandsOfItsSource(t *testing.T) {
 
 // plateCell is the plate's cell of a meadow, known before one is made.
 func (*meadow) plateCell() cell.ID {
-	return grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize).CellIndex(5, 5)
+	return grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize).At(5, 5)
 }
 
 // A name a command says that nobody bears, and a name two bear, stop the game at its first step.
@@ -187,10 +187,10 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			g := grid.DefaultGrids{}.Square(3, 3, boardtest.CellSize)
 			for i := range tc.cells {
-				tc.cells[i].Cell = g.CellIndex(uint32(i), 0)
+				tc.cells[i].Cell = g.At(uint32(i), 0)
 			}
 			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
-				brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+				brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 				brd.Seed(board.Layout{Cells: tc.cells})
 				if err := brd.Populate(); err != nil {
 					t.Fatal(err)

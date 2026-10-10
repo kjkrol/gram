@@ -37,8 +37,13 @@ func TestIslandLayout_IsGroundInASeaWithTheStopsOnIt(t *testing.T) {
 			t.Errorf("stop %v is %q, want earth or sand", s, k)
 		}
 	}
-	if island := len(layout.Cells); island < GridWidth*GridHeight/3 || island > GridWidth*GridHeight*2/3 {
-		t.Errorf("the island covers %d of %d cells, want a third to two thirds", island, GridWidth*GridHeight)
+	if island := len(layout.Cells); island < GridWidth*GridHeight/3 ||
+		island > GridWidth*GridHeight*2/3 {
+		t.Errorf(
+			"the island covers %d of %d cells, want a third to two thirds",
+			island,
+			GridWidth*GridHeight,
+		)
 	}
 }
 
@@ -62,7 +67,7 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 		for x := 1; x < GridWidth; x++ {
 			all, any := true, false
 			for _, c := range [][2]int{{x - 1, y - 1}, {x, y - 1}, {x - 1, y}, {x, y}} {
-				id := grid.CellIndex(uint32(c[0]), uint32(c[1]))
+				id := grid.At(uint32(c[0]), uint32(c[1]))
 				all, any = all && land[id], any || land[id]
 			}
 			h := heights(geom.NewVec(float64(x*CellSize), float64(y*CellSize)))
@@ -70,12 +75,20 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 			case !all && h != 0:
 				t.Fatalf("corner (%d, %d) by the sea stands at %v, want 0", x, y, h)
 			case all && h < landHeight && !wet[[2]int{x, y}]:
-				t.Fatalf("corner (%d, %d) inland stands at %v, want %v or more", x, y, h, landHeight)
+				t.Fatalf(
+					"corner (%d, %d) inland stands at %v, want %v or more",
+					x,
+					y,
+					h,
+					landHeight,
+				)
 			}
 			if any && !all {
 				// the next corner inland, a cell away from this one on the shore
 				for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-					if heights(geom.NewVec(float64((x+d[0])*CellSize), float64((y+d[1])*CellSize))) >= landHeight+30 {
+					if heights(
+						geom.NewVec(float64((x+d[0])*CellSize), float64((y+d[1])*CellSize)),
+					) >= landHeight+30 {
 						cliffs++
 						break
 					}
@@ -90,8 +103,8 @@ func TestIslandLayout_TheLandStandsAboveTheSeaAndCliffsRiseFromIt(t *testing.T) 
 
 // The heights make the relief: a range whose peaks stand far over the lowland, a plateau flat on
 // top, and gentle ground in places.
-// The plateau's flat top holds a group: twenty cells or more, each level at the plateau's height and
-// none of them water, nearest its middle first.
+// The plateau's flat top holds a group: twenty cells or more, each level at the plateau's height
+// and none of them water, nearest its middle first.
 func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	layout, heights, _ := Layout(grid)
@@ -108,7 +121,13 @@ func TestPlateau_IsLevelHighGroundForAGroup(t *testing.T) {
 		x, y, _ := grid.Coords(c)
 		centre := geom.NewVec((float64(x)+0.5)*CellSize, (float64(y)+0.5)*CellSize)
 		if h := heights(centre); math.Abs(h-landHeight-plateauHeight) > 1 {
-			t.Errorf("cell (%d, %d) stands at %.1f, want the plateau's %v", x, y, h, landHeight+plateauHeight)
+			t.Errorf(
+				"cell (%d, %d) stands at %.1f, want the plateau's %v",
+				x,
+				y,
+				h,
+				landHeight+plateauHeight,
+			)
 		}
 		kind := kinds[c]
 		if kind == "" {
@@ -147,7 +166,11 @@ func TestIslandLayout_RisesToARangeOfPeaksAndAPlateau(t *testing.T) {
 		t.Errorf("%d cells level on the plateau, want 20 or more", plateau)
 	}
 	if gentle < len(layout.Cells)/20 {
-		t.Errorf("%d of %d cells are gentle ground, want a twentieth or more", gentle, len(layout.Cells))
+		t.Errorf(
+			"%d of %d cells are gentle ground, want a twentieth or more",
+			gentle,
+			len(layout.Cells),
+		)
 	}
 }
 
@@ -169,11 +192,23 @@ func TestIslandLayout_PutsEachSoilWhereItBelongs(t *testing.T) {
 		switch e.Kind {
 		case RockCell:
 			if steep < rockSlope && top < rockHeight && top >= landHeight+lowlandRoll {
-				t.Errorf("rock at (%d, %d) on ground neither steep (%.2f) nor high (%.0f)", x, y, steep, top)
+				t.Errorf(
+					"rock at (%d, %d) on ground neither steep (%.2f) nor high (%.0f)",
+					x,
+					y,
+					steep,
+					top,
+				)
 			}
 		case SandCell:
 			if top >= landHeight+2*lowlandRoll || steep >= rockSlope {
-				t.Errorf("sand at (%d, %d) %.0f high, %.2f steep: want it low and gentle", x, y, top, steep)
+				t.Errorf(
+					"sand at (%d, %d) %.0f high, %.2f steep: want it low and gentle",
+					x,
+					y,
+					top,
+					steep,
+				)
 			}
 		}
 	}
@@ -203,7 +238,7 @@ func TestIslandLayout_EveryStopIsReachableOnFoot(t *testing.T) {
 			if nx < 0 || nx >= GridWidth || ny < 0 || ny >= GridHeight {
 				continue
 			}
-			if n := grid.CellIndex(uint32(nx), uint32(ny)); walk[n] && !seen[n] {
+			if n := grid.At(uint32(nx), uint32(ny)); walk[n] && !seen[n] {
 				seen[n] = true
 				queue = append(queue, n)
 			}
@@ -250,9 +285,20 @@ func TestIslandLayout_RunningWaterIsBrooksStreamsAndRivers(t *testing.T) {
 	if count[BrookCell] < 30 || count[StreamCell] < 10 || count[RiverCell]+count[FordCell] < 5 {
 		t.Fatalf("running water %v, want brooks, streams and a river", count)
 	}
-	brook, stream, river := width[BrookCell]/float32(count[BrookCell]), width[StreamCell]/float32(count[StreamCell]), width[RiverCell]/float32(count[RiverCell])
+	brook, stream, river := width[BrookCell]/float32(
+		count[BrookCell],
+	), width[StreamCell]/float32(
+		count[StreamCell],
+	), width[RiverCell]/float32(
+		count[RiverCell],
+	)
 	if brook >= stream || stream >= river {
-		t.Errorf("brooks run %v wide, streams %v, rivers %v; want each wider than the last", brook, stream, river)
+		t.Errorf(
+			"brooks run %v wide, streams %v, rivers %v; want each wider than the last",
+			brook,
+			stream,
+			river,
+		)
 	}
 }
 
@@ -271,7 +317,14 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 			continue
 		}
 		if !land[w.Cell] || w.Fade != 0 || w.Mix < 0 || w.Mix > 1 {
-			t.Errorf("a %s at %v: ashore %v, faded %v, mixed %v; want ashore, unfaded, mixed 0 to 1", w.Kind, w.Cell, land[w.Cell], w.Fade, w.Mix)
+			t.Errorf(
+				"a %s at %v: ashore %v, faded %v, mixed %v; want ashore, unfaded, mixed 0 to 1",
+				w.Kind,
+				w.Cell,
+				land[w.Cell],
+				w.Fade,
+				w.Mix,
+			)
 		}
 		if w.Mix == 0 {
 			heads++
@@ -280,13 +333,22 @@ func TestIslandLayout_RiversTurnIntoTheSeaAtTheirMouths(t *testing.T) {
 			if n, ok := grid.Toward(w.Cell, i); ok && w.Links&(1<<i) != 0 && !land[n] {
 				mouths++
 				if w.Mix != 1 {
-					t.Errorf("a %s reaching the sea at %v mixed %v, want all the sea's look", w.Kind, w.Cell, w.Mix)
+					t.Errorf(
+						"a %s reaching the sea at %v mixed %v, want all the sea's look",
+						w.Kind,
+						w.Cell,
+						w.Mix,
+					)
 				}
 			}
 		}
 	}
 	if mouths < 5 || heads < 5 {
-		t.Errorf("%d mouths, %d heads; want the courses rising inland and reaching the sea", mouths, heads)
+		t.Errorf(
+			"%d mouths, %d heads; want the courses rising inland and reaching the sea",
+			mouths,
+			heads,
+		)
 	}
 }
 
@@ -333,7 +395,11 @@ func TestIslandLayout_RoadsLinkTheStopsAndBridgeTheWater(t *testing.T) {
 		}
 	}
 	if rock*4 > len(road) {
-		t.Errorf("%d of %d cells of road on rock, want the roads round it where they can", rock, len(road))
+		t.Errorf(
+			"%d of %d cells of road on rock, want the roads round it where they can",
+			rock,
+			len(road),
+		)
 	}
 	// every stop on the one network: walk the links from the first
 	seen := map[cell.ID]bool{stops[0]: true}

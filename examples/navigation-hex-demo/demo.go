@@ -41,7 +41,9 @@ const (
 )
 
 var (
-	ScreenWidth  = int(math.Ceil(HexSize*(math.Sqrt(3)*(GridWidth-1)+math.Sqrt(3)/2*(GridHeight-1)) + 2*HexSize))
+	ScreenWidth = int(
+		math.Ceil(HexSize*(math.Sqrt(3)*(GridWidth-1)+math.Sqrt(3)/2*(GridHeight-1)) + 2*HexSize),
+	)
 	ScreenHeight = int(math.Ceil(HexSize * (1.5*(GridHeight-1) + 2)))
 )
 
@@ -65,8 +67,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(BoardNavigationHexStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -84,9 +90,11 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).
+		WithSaves(saveBasePath)
 }
 
 func (s *arena) definePlayer() error {
@@ -97,10 +105,18 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
 	main.keys = players.SceneKeys{
-		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
-			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
-			log.Print("built a road through the wall — in-flight units re-path onto it as soon as they deviate")
-		}},
+		{
+			Key:   control.KeyR,
+			Label: "Build a road through the wall",
+			Do: func(game.Runtime, game.Composition) {
+				brd, road := s.board.Board(), s.board.CellKinds().Named(RoadCell).Kind()
+				for q := uint32(3); q < GridWidth-3; q++ {
+					brd.Set(brd.At(q, 6), road)
+				}
+				log.Print("built a road through the wall — " +
+					"in-flight units re-path onto it as soon as they deviate")
+			},
+		},
 	}
 	s.players.OwnKeys(main.keys)
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
@@ -132,11 +148,23 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		Brake:    UnitSpeed * 4,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.15,
+	}
 	own := []comp.Comp{
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} }),
+		comp.Load(
+			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		),
 	}
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
@@ -144,18 +172,19 @@ func (s *arena) defineKinds() {
 
 // TODO: tak z pliku...
 func (s *arena) spawnCells() {
-	brd := s.board.Res.Logic.Board
-	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
-	// r = 0 and down both flanks (which slant with the rows, as every hex column does).
+	brd := s.board.Board()
+	// A wall down the q = 10 column from r = 1 to the bottom, and a road round it: along r = 0 and
+	// down both flanks (which slant with the rows, as every hex column does).
 	var cells []cell.Entry
 	for r := uint32(1); r < GridHeight; r++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.CellIndex(wallCol, r)})
+		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.At(10, r)})
 	}
-	for q := roadLeft; q <= roadRight; q++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(q, roadTop)})
+	for q := uint32(2); q <= GridWidth-3; q++ {
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(q, 0)})
 	}
-	for r := roadTop + 1; r <= roadBottom; r++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadLeft, r)}, cell.Entry{Kind: RoadCell, Cell: brd.CellIndex(roadRight, r)})
+	for r := uint32(1); r < GridHeight; r++ {
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(2, r)})
+		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(GridWidth-3, r)})
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
@@ -164,11 +193,12 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
-		redKind.Entry(unitRow{start: brd.CellIndex(3, 3), target: brd.CellIndex(GridWidth-4, 3)}).Told(player...),
-		blueKind.Entry(unitRow{start: brd.CellIndex(3, 9), target: brd.CellIndex(GridWidth-4, 9)}).Told(player...),
+		redKind.Entry(unitRow{start: brd.At(3, 3), target: brd.At(GridWidth-4, 3)}).Told(player...),
+		blueKind.Entry(unitRow{start: brd.At(3, 9), target: brd.At(GridWidth-4, 9)}).
+			Told(player...),
 	)
 }
 

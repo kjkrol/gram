@@ -11,8 +11,8 @@ import (
 // Map is what a board is drawn and priced by beyond what its cells say: a look.Map — how the cells
 // lie on the screen, what lies over them beyond their sprites, how high they stand — and what a
 // step costs beyond its kind's cost (Climb, Least, Slope). The board's own map is the simple map: a
-// flat world seen from above, every kind in its Color or drawn sprite, ways and crossings as plain
-// bands, a step at its kind's cost times the distance. plugins/topography is the other: a map in
+// flat world seen from above, every kind in its sprite, ways and crossings as bands cut out of
+// their kinds' sprites, a step at its kind's cost times the distance. plugins/topography is the other: a map in
 // relief, lit and shaded, seen from above or isometrically.
 type Map interface {
 	look.Map
@@ -26,7 +26,7 @@ type Map interface {
 	Slope(p, dir geom.Vec, d cell.Domain) float64
 }
 
-// simpleMap is the board's own Map: flat, from above, plain bands for the ways.
+// simpleMap is the board's own Map: flat, from above, bands for the ways.
 type simpleMap struct {
 	look     look.Look
 	dressing *draw.Bands

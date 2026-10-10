@@ -36,7 +36,7 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	b.WithRenderer(litSheet{})
 	even := func() render.Light {
 		l, ok := b.Map().Dressing().(look.EvenLit).EvenLight()

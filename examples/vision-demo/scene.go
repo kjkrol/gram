@@ -20,7 +20,7 @@ type mainScene struct {
 var (
 	preyColor       = color.RGBA{R: 120, G: 190, B: 255, A: 255}
 	hunterColor     = color.RGBA{R: 225, G: 70, B: 70, A: 255}
-	backgroundColor = color.RGBA{R: backdropGrey, G: backdropGrey, B: backdropGrey + 6, A: 255}
+	backgroundColor = color.RGBA{R: 40, G: 40, B: 46, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {
@@ -43,12 +43,17 @@ func (m *mainScene) screen() *ui.Element {
 	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player)),
-		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks))),
+		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(s.players.Through(s.player)),
+		ui.Layer(
+			render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks)),
+		),
 	)
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
-		s.world.Commands().Named(FleeCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
+			s.world.Commands().Named(FleeCmd)),
+	)
 }

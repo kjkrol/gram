@@ -51,7 +51,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	ground := topo.Relief()
 	ground.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
@@ -93,7 +93,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
@@ -149,13 +149,13 @@ func Benchmark_Board_Shores(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	sea := cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water}
 	brd.SetAll(sea)
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
-			if c := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
+			if c := grid.At(x, y); x%8 < 4 && y%8 < 4 {
 				brd.Set(c, land)
 			}
 		}
@@ -168,7 +168,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	src := p.Renderer().(render.Source)
 	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
-	far := grid.CellIndex(6, 6)
+	far := grid.At(6, 6)
 	shallows := sea
 	shallows.Cost = 2
 	for _, sc := range []struct {
@@ -297,7 +297,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
 	}
-	return ctx, p.Res.Logic.Board, p.Renderer().(render.Source)
+	return ctx, p.Board(), p.Renderer().(render.Source)
 }
 
 // Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
@@ -317,8 +317,8 @@ func Benchmark_Board_Island(b *testing.B) {
 			cam.SetViewport(1920, 1080)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 		}
-		far := brd.CellIndex(48, 32)
-		rock := brd.CellIndex(48, 30)
+		far := brd.At(48, 32)
+		rock := brd.At(48, 30)
 		view := v.view
 		if v.far {
 			view += ",far"

@@ -38,27 +38,7 @@ const (
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
-
-	// the strips of trapdoors run from top to bottom of the meadow, two cells wide; the plates and
-	// the scouts are on the row under them
-	stripTop, stripBottom uint32 = 2, 13
-	plateRow                     = GridHeight - 2
-
-	// heldAfter is how long a plate stays pressed once nobody stands on it.
-	heldAfter = time.Second
 )
-
-// rows are where the wanderers walk to and fro, each across both strips.
-var rows = []uint32{3, 6, 9, 12}
-
-// groups are a plate each and the trapdoors it opens: the plate's column and the first of its
-// strip's.
-var groups = []struct {
-	name        string
-	plate, left uint32
-}{{"west", 3, 7}, {"east", GridWidth - 4, 15}}
-
-type unitRow struct{ start, to cell.ID }
 
 type arena struct {
 	world     *world.Plugin
@@ -70,7 +50,6 @@ type arena struct {
 	players   *players.Plugin
 	cameras   *cameras.Plugin
 	player    *players.Player
-	brd       *board.Board
 }
 
 func NewDemo(s *arena) game.Game {
@@ -82,8 +61,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(PressurePlateStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -100,11 +83,13 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
-	s.brd = s.board.Res.Logic.Board
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -124,20 +109,37 @@ func (s *arena) defineCells() {
 
 func (s *arena) defineEffects() {
 	kinds := s.board.CellKinds()
-	s.world.Effects().Define(OpenEf, effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
+	s.world.Effects().Define(OpenEf, effect.Spec{
+		effect.Lasts(time.Second),
+		effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() }),
+	})
 }
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(PlateRole,
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
 	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+		rule.Then[unit.Standing](
+			"fall in",
+			rule.All,
+			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
+		))
 }
+
+// groups are a plate each and the trapdoors it opens: the plate's column and the first of its
+// strip's.
+var groups = []struct {
+	name        string
+	plate, left uint32
+}{{"west", 3, 7}, {"east", GridWidth - 4, 15}}
 
 func (s *arena) defineCommands() {
 	for _, g := range groups {
 		s.world.Commands().Define(openCmd(g.name),
-			rule.Cast(s.world.Effects().Named(OpenEf)).On(entity.Group("trapdoors "+g.name)).By(entity.Named("plate "+g.name)))
+			rule.Cast(s.world.Effects().Named(OpenEf)).
+				On(entity.Group("trapdoors "+g.name)).
+				By(entity.Named("plate "+g.name)),
+		)
 	}
 }
 
@@ -146,30 +148,47 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-// TODO: definicja unitRow TUTAJ!
+type unitRow struct{ start, to cell.ID }
 
 func (s *arena) defineKinds() {
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
-	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: UnitSpeed,
+		Accel:    UnitSpeed * 2,
+		V0:       UnitSpeed / 2,
+		TurnRate: 0.15,
+	}
 	land := unit.Mover{Domain: cell.Land}
 	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
 	// a wanderer walks to the other end of its row and back, a second's rest at each end
-	units.Define(WandererKind, land, profile,
-		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }),
-		rule.Plays(s.world.Roles().Named(MortalRole)))
+	units.Define(
+		WandererKind,
+		land,
+		profile,
+		comp.Load(func(u unitRow) navigation.MoveOrder {
+			return navigation.Patrol(time.Second, u.to, u.start)
+		}),
+		rule.Plays(s.world.Roles().Named(MortalRole)),
+	)
 }
-
-// TODO uzyc wprost brd.CellIndex, moze zmienic nazwe CellIndex na CellAt wlasnie ?
-func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
 // TODO; z pliku
 func (s *arena) spawnCells() {
+	brd := s.board.Board()
 	var cells []cell.Entry
 	for _, g := range groups {
-		cells = append(cells, cell.Entry{Kind: PlateCell, Cell: s.cellAt(g.plate, plateRow), Name: "plate " + g.name})
-		for y := stripTop; y <= stripBottom; y++ {
+		plate := brd.At(g.plate, GridHeight-2)
+		cells = append(cells, cell.Entry{Kind: PlateCell, Cell: plate, Name: "plate " + g.name})
+		group := "trapdoors " + g.name
+		for y := uint32(2); y <= 13; y++ {
 			for x := g.left; x <= g.left+1; x++ {
-				cells = append(cells, cell.Entry{Kind: BoardsCell, Cell: s.cellAt(x, y), Group: "trapdoors " + g.name})
+				door := cell.Entry{Kind: BoardsCell, Cell: brd.At(x, y), Group: group}
+				cells = append(cells, door)
 			}
 		}
 	}
@@ -178,13 +197,19 @@ func (s *arena) spawnCells() {
 
 // TODO: z pliku
 func (s *arena) spawnUnits() {
+	brd := s.board.Board()
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	for i := range uint32(3) {
-		s.world.Seed(scoutKind.Entry(unitRow{start: s.cellAt(GridWidth/2-2+2*i, plateRow)}).Told(players.Give{To: s.player.ID}, selection.Allow{}))
+		s.world.Seed(
+			scoutKind.Entry(unitRow{start: brd.At(GridWidth/2-2+2*i, GridHeight-2)}).
+				Told(players.Give{To: s.player.ID}, selection.Allow{}),
+		)
 	}
-	for _, row := range rows {
-		s.world.Seed(wandererKind.Entry(unitRow{start: s.cellAt(2, row), to: s.cellAt(GridWidth-3, row)}))
+	for _, row := range []uint32{3, 6, 9, 12} {
+		s.world.Seed(
+			wandererKind.Entry(unitRow{start: brd.At(2, row), to: brd.At(GridWidth-3, row)}),
+		)
 	}
 }
 

@@ -213,7 +213,7 @@ func (w *Weathering) roll() float32 {
 // pick is a cell of the board thrown at random, on any grid.
 func (w *Weathering) pick() cell.ID {
 	if w.cells == nil {
-		brd := w.board.Res.Logic.Board
+		brd := w.board.Board()
 		w.cells = make([]cell.ID, 0, brd.CellCount())
 		brd.EachCell(func(c cell.ID) { w.cells = append(w.cells, c) })
 	}
@@ -222,7 +222,7 @@ func (w *Weathering) pick() cell.ID {
 
 // scatter casts fx on about share of the board's cells picked at random, those may takes.
 func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, may func(c cell.ID) bool) {
-	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
+	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
 			w.effects.Cast(cb, id, fx)
@@ -232,7 +232,7 @@ func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, m
 
 // clear takes fx off about share of the board's cells picked at random, those may lets go.
 func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) bool) {
-	for range int(share*float32(w.board.Res.Logic.Board.CellCount()) + w.roll()) {
+	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && fx.On(id) && may(c) {
 			w.effects.Dispel(id, fx)
@@ -243,7 +243,7 @@ func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) 
 // winter lays what a winter begun lies under: snow in drifts over most of the board, ice along
 // its shores.
 func (w *Weathering) winter(cb *goke.CmdBuf) {
-	w.board.Res.Logic.Board.EachCell(func(c cell.ID) {
+	w.board.Board().EachCell(func(c cell.ID) {
 		id, ok := w.board.CellEntity(c)
 		if !ok {
 			return
@@ -260,7 +260,7 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 // takesSnow reports whether snow may lie on c at all: a kind that has a snowy one.
 func (w *Weathering) takesSnow(c cell.ID) bool {
 	w.ready()
-	_, ok := w.snowy[w.board.Res.Logic.Board.Kind(c).Name]
+	_, ok := w.snowy[w.board.Board().Kind(c).Name]
 	return ok
 }
 
@@ -277,7 +277,7 @@ func (w *Weathering) snowLies(c cell.ID) bool {
 // neighbours under snow — and the later it lay in the drifts' pattern, the likelier, so the
 // patches shrink whole and what lay first lies longest.
 func (w *Weathering) snowEdge(c cell.ID) bool {
-	neighbours := w.board.Res.Logic.Board.Neighbors(c)
+	neighbours := w.board.Board().Neighbors(c)
 	under := 0
 	for _, n := range neighbours {
 		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
@@ -290,7 +290,7 @@ func (w *Weathering) snowEdge(c cell.ID) bool {
 
 // nextTo reports whether a neighbour of c lies under snow.
 func (w *Weathering) nextTo(c cell.ID) bool {
-	for _, n := range w.board.Res.Logic.Board.Neighbors(c) {
+	for _, n := range w.board.Board().Neighbors(c) {
 		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
 			return true
 		}
@@ -301,7 +301,7 @@ func (w *Weathering) nextTo(c cell.ID) bool {
 // drift is the drifts' pattern at c, 0 to 1, smooth over driftSize cells: where it is low, snow
 // lies first and longest.
 func (w *Weathering) drift(c cell.ID) float32 {
-	x, y, _ := w.board.Res.Logic.Board.Coords(c)
+	x, y, _ := w.board.Board().Coords(c)
 	fx, fy := float64(x)/driftSize, float64(y)/driftSize
 	ix, iy := math.Floor(fx), math.Floor(fy)
 	u, v := smooth(fx-ix), smooth(fy-iy)
@@ -323,7 +323,7 @@ func cellHash(x, y int) float64 {
 // freezes reports whether c is water that may freeze now: next to land or to ice already, so the
 // ice grows from the shore out.
 func (w *Weathering) freezes(c cell.ID) bool {
-	brd := w.board.Res.Logic.Board
+	brd := w.board.Board()
 	if brd.Kind(c).Name != w.water {
 		return false
 	}
@@ -341,7 +341,7 @@ func (w *Weathering) blow(cb *goke.CmdBuf, wind float32) {
 	if len(w.swaying) == 0 || wind > swayBelow && wind < swayAbove {
 		return
 	}
-	brd := w.board.Res.Logic.Board
+	brd := w.board.Board()
 	brd.EachCell(func(c cell.ID) {
 		if !w.swaying[brd.Kind(c).Name] {
 			return

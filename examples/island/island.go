@@ -22,10 +22,11 @@ import (
 // alone; the ground is earth, sand or rock as they and the coast say — see soil. It gives the
 // board's Layout, the heights for a topography to seed, and the stops.
 func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
-	cellAt := func(x, y int) cell.ID { return grid.CellIndex(uint32(x), uint32(y)) }
+	cellAt := func(x, y int) cell.ID { return grid.At(uint32(x), uint32(y)) }
 	onBoard := func(x, y int) bool { return x >= 0 && x < GridWidth && y >= 0 && y < GridHeight }
 	cx, cy := float64(GridWidth)/2, float64(GridHeight)/2
-	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy) goes
+	// edge is how far the coast lies from the middle, as a share of the ellipse, the way (dx, dy)
+	// goes
 	edge := func(dx, dy float64) float64 {
 		a := math.Atan2(dy, dx)
 		return 1 + 0.12*math.Sin(3*a+1) + 0.08*math.Sin(5*a+2) + 0.05*math.Sin(7*a)
@@ -106,9 +107,9 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 		}
 		x, y := p.X/cw, p.Y/ch
 		in, high := coast(x, y)
-		// the lowland rises gently from the sea; a cliff stands its full height a few cells back
-		// from it, and sinks inland more slowly than the lowland rises, so the land behind it drains
-		// over it
+		// the lowland rises gently from the sea; a cliff stands its full height a few cells
+		// back from it, and sinks inland more slowly than the lowland rises, so the land behind
+		// it drains over it
 		plain := coastRise * min(max(in-1, 0), coastPlain)
 		cliff := high * rise(in, 0.6) * (1 - rise(in-cliffBack, cliffFall))
 		h := landHeight + plain + cliff + rise(in-1.5, coastWidth)*relief(x-cx, y-cy)
@@ -166,7 +167,8 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 						continue
 					}
 					at := cellAt(sx+ox, sy+oy)
-					if s := soils[at]; (s == EarthCell || s == SandCell) && rivers.Courses[at] == water.Dry {
+					soil := soils[at]
+					if (soil == EarthCell || soil == SandCell) && rivers.Courses[at] == water.Dry {
 						sx, sy = sx+ox, sy+oy
 						break search
 					}
@@ -193,7 +195,8 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 			// slantwise only between two cells a road may take, and never past water: a road
 			// crosses it square, over a bridge
 			l, r := cellAt(int(ax), int(by)), cellAt(int(bx), int(ay))
-			if !passable(l) || !passable(r) || rivers.Courses[l] != water.Dry || rivers.Courses[r] != water.Dry {
+			if !passable(l) || !passable(r) || rivers.Courses[l] != water.Dry ||
+				rivers.Courses[r] != water.Dry {
 				return math.Inf(1)
 			}
 			step = math.Sqrt2
@@ -217,11 +220,21 @@ func Layout(grid grid.Grid) (board.Layout, func(geom.Vec) float64, []cell.ID) {
 	}
 	roadWays, bridges := roads.Across(streams, BridgeCell)
 	ways = append(ways, roadWays...)
-	return board.Layout{Default: WaterCell, Cells: cells, Ways: ways, Crossings: bridges}, heights, stops
+	return board.Layout{
+		Default:   WaterCell,
+		Cells:     cells,
+		Ways:      ways,
+		Crossings: bridges,
+	}, heights, stops
 }
 
 // courses are the kinds of the ways running water lays across the ground.
-var courses = map[water.Course]string{water.Brook: BrookCell, water.Stream: StreamCell, water.River: RiverCell, water.Ford: FordCell}
+var courses = map[water.Course]string{
+	water.Brook:  BrookCell,
+	water.Stream: StreamCell,
+	water.River:  RiverCell,
+	water.Ford:   FordCell,
+}
 
 // soil is the ground of a cell whose corners stand at hs, w wide, in cells from the coast, at
 // (x, y): rock where it is steep or high, sand on the lowland by the sea and in dunes, earth
@@ -293,7 +306,10 @@ func Plateau(grid grid.Grid) []cell.ID {
 				continue
 			}
 			if x >= 0 && x < GridWidth && y >= 0 && y < GridHeight {
-				top = append(top, at{grid.CellIndex(uint32(x), uint32(y)), math.Hypot(dx-plateauX, dy-plateauY)})
+				top = append(
+					top,
+					at{grid.At(uint32(x), uint32(y)), math.Hypot(dx-plateauX, dy-plateauY)},
+				)
 			}
 		}
 	}

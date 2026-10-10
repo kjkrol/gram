@@ -42,8 +42,8 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		w := topotest.NewWorld(0)
 		b, grid := topotest.LevelBoard(w)
 		p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: perspective})
-		wall := grid.CellIndex(2, 1)
-		b.Res.Logic.Board.Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
+		wall := grid.At(2, 1)
+		b.Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
 		cam := topotest.Camera(w, p)
 		picker, ok := cam.(camera.Picker)
 		if !ok {

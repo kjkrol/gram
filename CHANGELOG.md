@@ -148,6 +148,13 @@ argument's full path, which moved.
   begins and ends. `examples/effect-demo` keeps grass, road and water what they are: snow and ice
   are effects turning their knobs, drawn as covers.
 - `render.Frame.SpriteBlendPart` blends a part of a sprite over a part of a tile.
+- A kind of cell is what it is, never how it looks: `cell.Kind.Color`, `cell.Kinds.Draw` and the
+  board's own atlas are gone. `board.Plugin.WithRenderer` takes the game's atlas
+  (`Plugin.NewAtlas`) and panics on nil; the simple map lays the ways and crossings as bands cut
+  out of their kinds' sprites (`render.Frame.SpriteFan`: a polygon filled with the part of a
+  sprite under it), so a way shows its kind's look as a cell of the kind does.
+- `Board.At(x, y)` is the cell at grid coordinates (it was `CellIndex`); `board.Plugin.Board()` is
+  the board (it was `Res.Logic.Board`).
 
 **Drawing**
 - `effect.Effect.Look(sprite)` is the atlas slot drawn under the effect in place of a sprite,

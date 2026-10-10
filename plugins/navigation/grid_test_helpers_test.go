@@ -8,7 +8,7 @@ import (
 )
 
 func cellAtXY(g grid.Grid, x, y uint32) cell.ID {
-	c := g.CellIndex(x, y)
+	c := g.At(x, y)
 	return c
 }
 

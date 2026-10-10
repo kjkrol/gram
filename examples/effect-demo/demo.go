@@ -43,11 +43,6 @@ const (
 	Frost = cell.Domain(1 << 3)
 )
 
-type unitRow struct {
-	start, target cell.ID
-	ordered       bool
-}
-
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -69,8 +64,12 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(EffectStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
+				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+				Entities: world.EntitiesCfg{
+					MaxCount: MaxEntCount,
+					MinSize:  EntitySize,
+					MaxSize:  EntitySize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -88,10 +87,13 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
+	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
+		WithCollision(s.collision).
+		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
+	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
+		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
@@ -107,8 +109,10 @@ func (s *arena) defineCommands() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
-		s.world.Commands().Named(FreezeCmd)))
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
+			s.world.Commands().Named(FreezeCmd)),
+	)
 }
 
 func (s *arena) defineCells() {
@@ -172,19 +176,51 @@ func (s *arena) defineRoles() {
 	)
 }
 
-// TODO: definicja unitRow tutaj
+type unitRow struct {
+	start, target cell.ID
+	ordered       bool
+}
 
 func (s *arena) defineKinds() {
-	brd := s.board.Res.Logic.Board
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
+	brd := s.board.Board()
+	units := board.NewUnits[unitRow](
+		s.board,
+		board.Shape{Size: EntitySize},
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+	)
 	profile := func(brake float64) steering.Steering {
-		return steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: brake, V0: UnitSpeed / 2, TurnRate: 0.15}
+		return steering.Steering{
+			MaxSpeed: UnitSpeed,
+			Accel:    UnitSpeed * 2,
+			Brake:    brake,
+			V0:       UnitSpeed / 2,
+			TurnRate: 0.15,
+		}
 	}
-	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	order := comp.Load(
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+	)
 	roles := s.world.Roles()
-	units.Define(WitchKind, unit.Mover{Domain: cell.Land | cell.Water | Frost}, profile(UnitSpeed*4), order, rule.Plays(roles.Named(WitchRole), roles.Named(MortalRole)))
-	units.Define(WalkerKind, unit.Mover{Domain: cell.Land}, profile(UnitSpeed*4), rule.Plays(roles.Named(MortalRole)))
-	units.Define(BoatKind, unit.Mover{Domain: cell.Water}, profile(UnitSpeed/4), order, rule.Plays(roles.Named(MortalRole)))
+	units.Define(
+		WitchKind,
+		unit.Mover{Domain: cell.Land | cell.Water | Frost},
+		profile(UnitSpeed*4),
+		order,
+		rule.Plays(roles.Named(WitchRole), roles.Named(MortalRole)),
+	)
+	units.Define(
+		WalkerKind,
+		unit.Mover{Domain: cell.Land},
+		profile(UnitSpeed*4),
+		rule.Plays(roles.Named(MortalRole)),
+	)
+	units.Define(
+		BoatKind,
+		unit.Mover{Domain: cell.Water},
+		profile(UnitSpeed/4),
+		order,
+		rule.Plays(roles.Named(MortalRole)),
+	)
 }
 
 func (s *arena) defineScenes() []game.Scene {
@@ -200,13 +236,13 @@ const (
 
 // TODO: mechanizm wczytywania planszy i jednostek z pliku
 func (s *arena) spawnCells() {
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	water := s.board.CellKinds().Named(WaterCell)
 	lake := s.world.Roles().Named(LakeRole)
 	var cells []cell.Entry
 	for y := lakeTop; y <= lakeBottom; y++ {
 		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, water.Entry(brd.CellIndex(x, y)).Plays(lake))
+			cells = append(cells, water.Entry(brd.At(x, y)).Plays(lake))
 		}
 	}
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
@@ -215,12 +251,14 @@ func (s *arena) spawnUnits() {
 	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
 	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
 	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
-	brd := s.board.Res.Logic.Board
+	brd := s.board.Board()
 	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
-		witchKind.Entry(unitRow{start: brd.CellIndex(2, 8), target: brd.CellIndex(GridWidth-3, 8)}).Told(player...),
-		walkerKind.Entry(unitRow{start: brd.CellIndex(2, 10)}).Told(player...),
-		boatKind.Entry(unitRow{start: brd.CellIndex(lakeRight, 8), target: brd.CellIndex(lakeLeft, 8)}).Told(player...),
+		witchKind.Entry(unitRow{start: brd.At(2, 8), target: brd.At(GridWidth-3, 8)}).
+			Told(player...),
+		walkerKind.Entry(unitRow{start: brd.At(2, 10)}).Told(player...),
+		boatKind.Entry(unitRow{start: brd.At(lakeRight, 8), target: brd.At(lakeLeft, 8)}).
+			Told(player...),
 	)
 }
 

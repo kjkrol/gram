@@ -3,7 +3,6 @@ package board
 import (
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -89,7 +88,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.simple = newSimpleMap(brd)
 	p.mapping = p.simple
 	brd.mapping = p.mapping
-	if ws, ok := p.Res.Logic.Board.Grid.(interface{ SetWrap(x, y bool) }); ok {
+	if ws, ok := p.Board().Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
@@ -112,7 +111,7 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities, the occupancy's upkeep and the rules.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Res.Logic.Board.cells.System(&p.worldPlugin.Roster().Cell),
+		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
 		template:  &p.worldPlugin.Roster().Cell,
 		release:   occupancy.ReleaseSystem(p.occupancy),
 		standing:  p.rules.StandingSystem(),
@@ -135,14 +134,14 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
-// given nil, from the board's own atlas of the kinds' Colors and drawn sprites.
+// WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas, the
+// game's look of every kind (NewAtlas); a board has no look of its own, and nil panics.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if atlas == nil {
-		atlas = p.defaultAtlas()
+		panic("board: WithRenderer needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
 	}
 	p.atlas = atlas
-	p.renderer = look.NewRenderer(p.Res.Logic.Board, atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
+	p.renderer = look.NewRenderer(p.Board(), atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
 	if ba, ok := atlas.(*Atlas); ok {
 		p.renderer.Shade(ba.shaded)
 	}
@@ -172,28 +171,6 @@ func (p *Plugin) WithWorkers(n int) *Plugin {
 // it.
 func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
 
-// defaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
-// (cell.Kinds.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
-// created.
-func (p *Plugin) defaultAtlas() render.AtlasSource {
-	w, h := p.Res.Logic.Board.CellBounds()
-	size := int(math.Ceil(max(w, h)))
-	atlas := render.NewAtlas()
-	for _, k := range p.kinds.All() {
-		if draw, ok := p.kinds.Drawer(k.Name); ok {
-			atlas.Add(k.SpriteID, size, draw)
-			continue
-		}
-		c := k.Color
-		if c.A == 0 {
-			c.R, c.G, c.B, c.A = 128, 128, 128, 255
-		}
-		atlas.Add(k.SpriteID, size, render.Solid(c))
-	}
-	atlas.Close()
-	return atlas
-}
-
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
 func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
@@ -216,7 +193,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 // Call before Use.
 func (p *Plugin) WithMap(m Map) *Plugin {
 	p.mapping = m
-	p.Res.Logic.Board.mapping = m
+	p.Board().mapping = m
 	return p
 }
 
@@ -233,7 +210,7 @@ func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
 // CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
 // long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
 // the board or before Setup.
-func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
+func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().CellEntity(c) }
 
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
@@ -255,6 +232,9 @@ func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 	e.Shows()
 	return id
 }
+
+// Board is the board: its terrain, read and written.
+func (p *Plugin) Board() *Board { return p.Res.Logic.Board }
 
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
@@ -318,7 +298,7 @@ func (p *Plugin) Populate() error {
 		crossings[i] = cell.Crossing{Way: cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
 	}
 
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	if p.seeded.Default != "" {
 		brd.SetAll(def)
 	}
@@ -344,7 +324,7 @@ func (p *Plugin) Populate() error {
 // cast gives every cell the roles it plays, as the Layout lays it: its kind's — the entry's, or
 // the Default's where the entry keeps it — and the entry's own on top.
 func (p *Plugin) cast() {
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	def := p.kinds.Plays(p.seeded.Default)
 	if def != 0 {
 		brd.Grid.EachCell(func(c cell.ID) { brd.cells.Cast(c, def) })
@@ -370,11 +350,11 @@ func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
 
 // Cover is what stands on the board and holds sight back — walls, forests — walked along a ray;
 // it is a ground.Readied too.
-func (p *Plugin) Cover() ground.Cover { return p.Res.Logic.Board.field }
+func (p *Plugin) Cover() ground.Cover { return p.Board().field }
 
 // WithCollision makes the board's Solid cells the solid ground c pushes colliders out of, and the
 // ground a kind does not take (Overhang) what c never pushes one over; call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
-	c.WithField(p.Res.Logic.Board.field)
+	c.WithField(p.Board().field)
 	return p
 }

@@ -38,7 +38,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	t.Helper()
 	cw := &cellWorld{}
 	grid := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
-	cw.target = grid.CellIndex(2, 2)
+	cw.target = grid.At(2, 2)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
@@ -47,7 +47,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	cw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	cw.grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
 	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
-	cw.brd.Res.Logic.Board.SetAll(cw.grass)
+	cw.brd.Board().SetAll(cw.grass)
 	snow := cw.snow
 	cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})
 	cw.frost = cw.fx.Named("frost")
@@ -90,7 +90,7 @@ func (cw *cellWorld) castFrost() uid.UID64 {
 	return id
 }
 
-func (cw *cellWorld) board() *board.Board { return cw.brd.Res.Logic.Board }
+func (cw *cellWorld) board() *board.Board { return cw.brd.Board() }
 
 func (cw *cellWorld) kind() cell.Kind { return cw.board().Kind(cw.target) }
 
@@ -188,7 +188,7 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 	cw := newCellWorld(t, false)
 	brd := cw.board()
-	far := brd.CellIndex(0, 0)
+	far := brd.At(0, 0)
 	v, other := brd.CellVersion(cw.target), brd.CellVersion(far)
 	step := func(what string, change func()) {
 		t.Helper()

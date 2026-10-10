@@ -31,14 +31,6 @@ const (
 
 	PreyCount = 10
 	RectSize  = 16
-
-	// TODO: ponizsze stale powinny byc od razu uzyte, a nie widniec na tej liscie !
-	sightRadius      = 200
-	sightHalf        = math.Pi / 5
-	roamSpeed        = 90
-	hunterSpeed      = roamSpeed * 0.9
-	hunterLooksEvery = time.Second
-	backdropGrey     = 40
 )
 
 type body struct {
@@ -66,8 +58,16 @@ func NewDemo(s *arena) game.Game {
 	},
 		stage.New(VisionStage).
 			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight, Edges: aabbworld.Torus},
-				Entities: world.EntitiesCfg{MaxCount: PreyCount + 1, MinSize: RectSize, MaxSize: RectSize},
+				Space: world.SpaceCfg{
+					Width:  ScreenWidth,
+					Height: ScreenHeight,
+					Edges:  aabbworld.Torus,
+				},
+				Entities: world.EntitiesCfg{
+					MaxCount: PreyCount + 1,
+					MinSize:  RectSize,
+					MaxSize:  RectSize,
+				},
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -84,7 +84,8 @@ func NewDemo(s *arena) game.Game {
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.vision = vision.NewPlugin(s.world)
-	s.vision.Hide(false) // TODO: powinnt byc raczej  funkcje: ConeHide i ConeShow, chyba ze mnie przekonasz, ze tak jest lepiej
+	// TODO: powinnt byc raczej  funkcje: ConeHide i ConeShow, chyba ze mnie przekonasz, ze tak jest lepiej
+	s.vision.Hide(false)
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.vision)
@@ -97,29 +98,58 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(FleeingEf, effect.Spec{})
-	s.world.Effects().Define(LookedEf, effect.Spec{effect.Lasts(hunterLooksEvery)})
+	s.world.Effects().Define(LookedEf, effect.Spec{effect.Lasts(time.Second)})
 }
 
 func (s *arena) defineRoles() {
 	s.world.Roles().Define(PreyRole)
 	quarter := steering.Turn{Angle: math.Pi / 2}
 	s.world.Roles().Define(PredatorRole,
-		rule.Then[vision.Sighting]("chase", rule.Other(s.world.Roles().Named(PreyRole)), rule.Order(steering.Toward{})),
+		rule.Then[vision.Sighting](
+			"chase",
+			rule.Other(s.world.Roles().Named(PreyRole)),
+			rule.Order(steering.Toward{}),
+		),
 		// seeing none, it turns a quarter aside, either way, once every while it has looked // TODO: jesli cos wymaga wyjasnienia to znaczy, ze nasza forma zpisu jest do dupy
-		rule.Then[vision.Sighting]("search", rule.Other(s.world.Roles().Named(PreyRole)),
-			rule.If(vision.Sighting.Nobody, rule.Unless(s.world.Effects().Named(LookedEf), rule.Steps(
-				rule.Apply(s.world.Effects().Named(LookedEf)),
-				rule.OneOf(rule.Chance(0.5, rule.Order(quarter)), rule.Order(steering.Turn{Angle: -quarter.Angle})))))),
-		rule.Then[collision.Meeting]("caught", rule.Other(s.world.Roles().Named(PreyRole)), rule.ForOther(rule.Order(world.Despawn{}))))
+		rule.Then[vision.Sighting](
+			"search",
+			rule.Other(s.world.Roles().Named(PreyRole)),
+			rule.If(
+				vision.Sighting.Nobody,
+				rule.Unless(s.world.Effects().Named(LookedEf), rule.Steps(
+					rule.Apply(s.world.Effects().Named(LookedEf)),
+					rule.OneOf(
+						rule.Chance(0.5, rule.Order(quarter)),
+						rule.Order(steering.Turn{Angle: -quarter.Angle}),
+					),
+				),
+				),
+			),
+		),
+		rule.Then[collision.Meeting](
+			"caught",
+			rule.Other(s.world.Roles().Named(PreyRole)),
+			rule.ForOther(rule.Order(world.Despawn{})),
+		))
 	s.world.Roles().Define(SkittishRole,
-		rule.Then[vision.Sighting]("flee the hunter", rule.Other(s.world.Roles().Named(PredatorRole)),
-			rule.During(s.world.Effects().Named(FleeingEf), rule.Order(steering.Away{}))),
-		rule.Then[vision.Sighting]("give way", rule.All,
-			rule.During(s.world.Effects().Named(FleeingEf), rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))))
+		rule.Then[vision.Sighting](
+			"flee the hunter",
+			rule.Other(s.world.Roles().Named(PredatorRole)),
+			rule.During(s.world.Effects().Named(FleeingEf), rule.Order(steering.Away{})),
+		),
+		rule.Then[vision.Sighting](
+			"give way",
+			rule.All,
+			rule.During(
+				s.world.Effects().Named(FleeingEf),
+				rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})),
+			),
+		))
 }
 
 func (s *arena) defineCommands() {
-	s.world.Commands().Define(FleeCmd, rule.Toggle(s.world.Effects().Named(FleeingEf)).On(entity.World))
+	flee := rule.Toggle(s.world.Effects().Named(FleeingEf)).On(entity.World)
+	s.world.Commands().Define(FleeCmd, flee)
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
@@ -145,9 +175,9 @@ func sees() kind.Spec {
 		comp.Load(func(b body) world.Position { return b.pos }),
 		comp.Load(func(b body) world.Velocity { return b.vel }),
 		comp.Load(func(b body) vision.Sight {
-			return vision.Sight{Facing: b.vel.Dir, Radius: sightRadius, Ahead: true}
+			return vision.Sight{Facing: b.vel.Dir, Radius: 200, Ahead: true}
 		}),
-		comp.Const(world.Eye{Angle: 2 * sightHalf}),
+		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
 		comp.Const(vision.SightOutline{}),
 		comp.Const(collision.Collider{}),
 	}
@@ -169,9 +199,9 @@ func (s *arena) spawnUnits() {
 	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
 	entries := make([]kind.Entry, 0, total)
 	for i := range PreyCount {
-		entries = append(entries, preyKind.Entry(roam(i, roamSpeed)))
+		entries = append(entries, preyKind.Entry(roam(i, 90)))
 	}
-	entries = append(entries, hunterKind.Entry(roam(PreyCount, hunterSpeed)))
+	entries = append(entries, hunterKind.Entry(roam(PreyCount, 81)))
 	s.world.Seed(entries...)
 	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
 }

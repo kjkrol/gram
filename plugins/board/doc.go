@@ -113,12 +113,11 @@
 // # Drawing
 //
 // The board's own Map is the simple map: a flat world seen from above (look.FlatLook), every kind
-// in its Color or drawn sprite, the ways and the crossings as plain bands in their kinds' colours,
-// a step at its kind's cost times the distance. [Plugin.WithMap] puts another in — a topography's,
-// a map in relief — and [Plugin.Map] is the one in use. How a kind looks is its Color, or a sprite
-// drawn for it (cell.Kinds.Draw), or whatever the game's own atlas has at its SpriteID:
-// [Plugin.WithRenderer] builds the look.Renderer over that atlas — given nil, the board's own atlas
-// of the kinds, a cell's size each — and [Plugin.WithWorkers] says how many goroutines may share a
+// in its sprite, the ways and the crossings as bands cut out of their kinds' sprites, a step at
+// its kind's cost times the distance. [Plugin.WithMap] puts another in — a topography's, a map in
+// relief — and [Plugin.Map] is the one in use. How a kind looks is the game's alone, in a scene:
+// whatever its atlas ([Plugin.NewAtlas]) has at the kind's SpriteID. [Plugin.WithRenderer] builds
+// the look.Renderer over that atlas, and [Plugin.WithWorkers] says how many goroutines may share a
 // frame's tiles. How the renderer composes the tiles is plugins/board/look's.
 //
 // # Covers
