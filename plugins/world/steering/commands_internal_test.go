@@ -53,7 +53,7 @@ func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geo
 }
 
 // put gives cmd on id's behalf, as a rule's Order does.
-func put(s *System, id uid.UID64, cmd any) {
+func put(s *System, id uid.UID64, cmd control.Command) {
 	for _, q := range s.Queues() {
 		if q.Accepts() == reflect.TypeOf(cmd) {
 			q.PutFrom(id, cmd)
@@ -67,12 +67,12 @@ func near(a, b geom.Vec) bool { return math.Abs(a.X-b.X) < 1e-9 && math.Abs(a.Y-
 // Away heads the entity from the other, Toward at it, Turn a quarter off the way it went.
 func TestCommands_HeadTheEntity(t *testing.T) {
 	for name, tc := range map[string]struct {
-		give func(steered, other uid.UID64) any
+		give func(steered, other uid.UID64) control.Command
 		want geom.Vec
 	}{
-		"away":   {func(_, o uid.UID64) any { return Away{From: o} }, geom.NewVec(-1, 0)},
-		"toward": {func(_, o uid.UID64) any { return Toward{To: o} }, geom.NewVec(1, 0)},
-		"turn":   {func(uid.UID64, uid.UID64) any { return Turn{Angle: math.Pi / 2} }, geom.NewVec(0, 1)},
+		"away":   {func(_, o uid.UID64) control.Command { return Away{From: o} }, geom.NewVec(-1, 0)},
+		"toward": {func(_, o uid.UID64) control.Command { return Toward{To: o} }, geom.NewVec(1, 0)},
+		"turn":   {func(uid.UID64, uid.UID64) control.Command { return Turn{Angle: math.Pi / 2} }, geom.NewVec(0, 1)},
 	} {
 		got := commanded(t, func(s *System, steered, other uid.UID64) { put(s, steered, tc.give(steered, other)) })
 		if !near(got, tc.want) {

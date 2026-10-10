@@ -16,6 +16,8 @@ import (
 // left is the command the tests' Leaving rule gives.
 type left struct{}
 
+func (left) Command() {}
+
 // lefts is where the left commands land, for the world to carry.
 type lefts struct{ control.Queue[left] }
 

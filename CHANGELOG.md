@@ -29,6 +29,13 @@ argument's full path, which moved.
   Stage binds only the plans it defines.
 
 **Commands**
+- A command is a `control.Command`: a type with the method `Command()`, confirmed where it is
+  defined (`var _ control.Command = MoveTo{}`). Every command of the library is one, and whatever
+  takes commands takes a `control.Command`, not `any`: `control.Queue`, `Issued`, `Carrier.Put`,
+  `Give`, `players.Plugin.Issue`, `kind.Entry.Told`, `rule.Order`, `ui.Button`, `ui.Scene.Issue`.
+  The binding built from a `Context` is `control.Build[C]` (it was `control.Command[C]`), its
+  command's type `Binding.Type()` (it was `Binding.Command()`); `control.Routed`,
+  `Contextual`, `rule.Router.Route` and `ui.About` hand back a `control.Command`.
 - The register of a Stage's commands about effects is `world.Plugin.Commands()` (it was
   `Castings`), the type `rule.Command` (it was `rule.Casting`); the world's carrier is
   `world.Plugin.Carrier()` (it was `Commands()`).

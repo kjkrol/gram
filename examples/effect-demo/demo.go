@@ -252,7 +252,7 @@ func (s *arena) spawnUnits() {
 	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
 	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
 	brd := s.board.Board()
-	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
 	s.world.Seed(
 		witchKind.Entry(unitRow{start: brd.At(2, 8), target: brd.At(GridWidth-3, 8)}).
 			Told(player...),

@@ -70,6 +70,8 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 // heard is the command the tests' rules give: which rule.
 type heard struct{ Rule string }
 
+func (heard) Command() {}
+
 // heards is where the heard commands land, for the world to carry.
 type heards struct{ control.Queue[heard] }
 

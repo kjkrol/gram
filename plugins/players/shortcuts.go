@@ -133,7 +133,7 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			h := s.p.handlerOf(b.Command())
+			h := s.p.handlerOf(b.Type())
 			if h == plugin.CommandHandler(s.p) {
 				game = append(game, line) // the players' own, but the game's as a player sees it
 				continue

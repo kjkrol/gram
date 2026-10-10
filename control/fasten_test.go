@@ -7,10 +7,14 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
+type forward struct{}
+
+func (forward) Command() {}
+
 // A binding holds however the camera is fastened unless In says which, and two bindings overlap
 // where they hold in one How both.
 func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
-	b := control.Command(control.KeyHeld{Key: control.KeyW}, "w", func(control.Context) (int, bool) { return 1, true })
+	b := control.Build(control.KeyHeld{Key: control.KeyW}, "w", func(control.Context) (forward, bool) { return forward{}, true })
 	if !b.Holds(camera.Loose) || !b.Holds(camera.Inside) {
 		t.Error("a binding given no hows does not hold in every one")
 	}
@@ -21,7 +25,7 @@ func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
 	if loose.Overlaps(riding) || !b.Overlaps(riding) || !riding.Overlaps(riding) || !b.In(camera.Loose, camera.Inside).Overlaps(riding) {
 		t.Error("overlaps wrong: bindings in two hows apart overlap, or ones sharing a How do not")
 	}
-	if cmd, ok := riding.Build(control.Context{}); !ok || cmd != 1 {
+	if cmd, ok := riding.Build(control.Context{}); !ok || cmd != (forward{}) {
 		t.Errorf("In lost the binding's command: built %v, %v", cmd, ok)
 	}
 }

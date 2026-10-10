@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/render"
@@ -73,6 +74,6 @@ func (o owning) Init(si *goke.SysInit) {
 func (owning) Update(*goke.CmdBuf, time.Duration) {}
 
 // IssueAs is Issue for pl: how a scene's buttons and keys give their commands (ui.Scene.Issue).
-func (p *Plugin) IssueAs(pl *Player) func(cmd any) error {
-	return func(cmd any) error { return p.Issue(pl, cmd) }
+func (p *Plugin) IssueAs(pl *Player) func(cmd control.Command) error {
+	return func(cmd control.Command) error { return p.Issue(pl, cmd) }
 }

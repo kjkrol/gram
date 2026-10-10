@@ -59,7 +59,7 @@ type issuer struct {
 	self   bool
 }
 
-func issuedBy[C any](i control.Issued[C]) issuer {
+func issuedBy[C control.Command](i control.Issued[C]) issuer {
 	return issuer{player: i.Player, entity: i.Entity, self: i.ByEntity}
 }
 

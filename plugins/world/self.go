@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
@@ -73,7 +74,7 @@ func (s *Self) Changed() bool { return s.w.module.selves.changed(s.id) }
 func (*Self) Target() {}
 
 // Route is c for the plugin's entity, found by its name: the world carries it out.
-func (s *Self) Route(c rule.Command) any {
+func (s *Self) Route(c rule.Command) control.Command {
 	c.Whom = entity.Named(s.name)
 	return c
 }

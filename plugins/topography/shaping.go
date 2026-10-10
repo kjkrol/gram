@@ -19,6 +19,16 @@ type Lower struct{ At geom.Vec }
 // Level brings the ground between From and To to the height at From.
 type Level struct{ From, To geom.Vec }
 
+func (Raise) Command() {}
+func (Lower) Command() {}
+func (Level) Command() {}
+
+var (
+	_ control.Command = Raise{}
+	_ control.Command = Lower{}
+	_ control.Command = Level{}
+)
+
 // Shaping is how Raise, Lower and Level move the ground: Step per Raise or Lower, and at most
 // MaxStep between two corners along a cell's edge (two neighbouring cells on a hex grid), the
 // ground round about following as in Transport Tycoon. MaxStep zero lets any slope stand.

@@ -112,7 +112,7 @@ func (g *skyStage) Stack() game.Scenes {
 }
 
 // give gives cmds as nobody and ticks them through.
-func (g *skyStage) give(t *testing.T, cmds ...any) {
+func (g *skyStage) give(t *testing.T, cmds ...control.Command) {
 	t.Helper()
 	for _, cmd := range cmds {
 		if !g.world.Carrier().Put(control.Nobody, cmd) {
@@ -212,7 +212,7 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
-	var cmds []any
+	var cmds []control.Command
 	for _, e := range g.states {
 		cmds = append(cmds, rule.Cast(e).On(g.sky), rule.Cast(e).On(entity.Named("scout")))
 	}

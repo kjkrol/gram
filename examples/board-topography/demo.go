@@ -305,10 +305,10 @@ func (s *arena) spawnUnits() {
 	// TODO: posob w jaki inicjujemy poczatkowy ruch jest tak brzydki, ze az przykro na to patrzec
 	for i, from := range s.stops {
 		walkers := unitKind
-		whose := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+		whose := []control.Command{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 {
 			walkers = rivalKind
-			whose = []any{players.Give{To: s.rival.ID}, selection.Allow{}}
+			whose = []control.Command{players.Give{To: s.rival.ID}, selection.Allow{}}
 		}
 		to := s.stops[(i+len(s.stops)/2)%len(s.stops)]
 		entries = append(entries, walkers.Entry(unitRow{start: from, target: to}).Told(whose...))

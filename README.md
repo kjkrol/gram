@@ -396,8 +396,10 @@ ready-made reactions — it gives moments and their conditions (`unit.Standing.F
 crowd is its own rules, StarCraft II's, over the moment `navigation.Touch`, which a game adds to
 with its roles or replaces with `WithCrowd`. Behaviour is always written this way: a plugin perceives and carries
 out, rules and plans say what to do when. What a player *wants* is a
-command too: the plugin that defines the type (`navigation.MoveTo`, `selection.Select`) is a
-`plugin.CommandHandler` that keeps its `control.Queue` and drains it in its own pass; the
+command too, a `control.Command` — a type with the method `Command()`, confirmed where it is
+defined by `var _ control.Command = MoveTo{}`: the plugin that defines the type
+(`navigation.MoveTo`, `selection.Select`) is a `plugin.CommandHandler` that keeps its
+`control.Queue` and drains it in its own pass; the
 `players` plugin is built over the command handlers and carries what a player's bindings, an AI
 or a network issue, the world what the entities give themselves.
 

@@ -41,6 +41,8 @@ type heard struct {
 	Other bool
 }
 
+func (heard) Command() {}
+
 // heards is where the heard commands land, for a world to carry.
 type heards struct{ control.Queue[heard] }
 

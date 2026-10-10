@@ -66,6 +66,24 @@ type Tilt struct {
 	Angle  float32
 }
 
+func (View) Command()     {}
+func (LookFrom) Command() {}
+func (LookAt) Command()   {}
+func (Look) Command()     {}
+func (Ride) Command()     {}
+func (Turn) Command()     {}
+func (Tilt) Command()     {}
+
+var (
+	_ control.Command = View{}
+	_ control.Command = LookFrom{}
+	_ control.Command = LookAt{}
+	_ control.Command = Look{}
+	_ control.Command = Ride{}
+	_ control.Command = Turn{}
+	_ control.Command = Tilt{}
+)
+
 // TurnStep is how far Q and E turn the view a tick they are held: two degrees; TiltStep how far
 // R and F tilt it: one.
 const (
@@ -140,19 +158,19 @@ func cameraBindings(perspective bool) []control.Binding {
 	}
 	ride := func(c control.Context) (Ride, bool) { return Ride{Camera: c.Camera}, true }
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: control.KeyTab}, views, func(c control.Context) (View, bool) {
+		control.Build(control.KeyPress{Key: control.KeyTab}, views, func(c control.Context) (View, bool) {
 			return View{Camera: c.Camera}, true
 		}).In(camera.Outside),
-		control.Command(control.KeyPress{Key: control.KeyTab}, "Leave the unit", func(c control.Context) (View, bool) {
+		control.Build(control.KeyPress{Key: control.KeyTab}, "Leave the unit", func(c control.Context) (View, bool) {
 			return View{Camera: c.Camera}, true
 		}).In(camera.Inside),
-		control.Command(control.KeyHeld{Key: control.KeyQ}, "Turn the world anticlockwise", turn(-TurnStep)).In(camera.Outside),
-		control.Command(control.KeyHeld{Key: control.KeyE}, "Turn the world clockwise", turn(TurnStep)).In(camera.Outside),
-		control.Command(control.KeyHeld{Key: control.KeyR}, "Raise the head: look further off", tilt(-TiltStep)).In(camera.Outside),
-		control.Command(control.KeyHeld{Key: control.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Outside),
-		control.Command(control.KeyPress{Key: control.KeyV}, closer, ride).In(camera.Centred, camera.Behind),
-		control.Command(control.KeyPress{Key: control.KeyV}, "Leave the unit: over it again", ride).In(camera.Inside),
-		control.Command(control.CursorMove{}, "Look round, where the camera looks by mouse: across turns, up and down the head", func(c control.Context) (Look, bool) {
+		control.Build(control.KeyHeld{Key: control.KeyQ}, "Turn the world anticlockwise", turn(-TurnStep)).In(camera.Outside),
+		control.Build(control.KeyHeld{Key: control.KeyE}, "Turn the world clockwise", turn(TurnStep)).In(camera.Outside),
+		control.Build(control.KeyHeld{Key: control.KeyR}, "Raise the head: look further off", tilt(-TiltStep)).In(camera.Outside),
+		control.Build(control.KeyHeld{Key: control.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Outside),
+		control.Build(control.KeyPress{Key: control.KeyV}, closer, ride).In(camera.Centred, camera.Behind),
+		control.Build(control.KeyPress{Key: control.KeyV}, "Leave the unit: over it again", ride).In(camera.Inside),
+		control.Build(control.CursorMove{}, "Look round, where the camera looks by mouse: across turns, up and down the head", func(c control.Context) (Look, bool) {
 			return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, camera.MouseLooks(c.Camera)
 		}).In(camera.Inside),
 	}

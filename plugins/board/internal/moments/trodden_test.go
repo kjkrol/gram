@@ -13,6 +13,10 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
+type noop struct{}
+
+func (noop) Command() {}
+
 // The standing pass marks the cells units stand on only while a rule of a cell.Now is hooked, the
 // one reader of Trodden; with none, or with rules of a Standing alone, it marks nothing.
 func TestTrodden_MarkedOnlyWhileACellNowRuleIsHooked(t *testing.T) {
@@ -26,8 +30,8 @@ func TestTrodden_MarkedOnlyWhileACellNowRuleIsHooked(t *testing.T) {
 		want  []bool
 	}{
 		"no rules":             {},
-		"rules of a Standing":  {rules: []rule.Rule{rule.Then[unit.Standing]("never", rule.All, rule.If(never, rule.Order(struct{}{})))}},
-		"a rule of a cell.Now": {rules: []rule.Rule{rule.Then[cell.Now]("stood", rule.All, rule.If(cell.Now.Stood, rule.Order(struct{}{})))}, want: []bool{false, true, false}},
+		"rules of a Standing":  {rules: []rule.Rule{rule.Then[unit.Standing]("never", rule.All, rule.If(never, rule.Order(noop{})))}},
+		"a rule of a cell.Now": {rules: []rule.Rule{rule.Then[cell.Now]("stood", rule.All, rule.If(cell.Now.Stood, rule.Order(noop{})))}, want: []bool{false, true, false}},
 	} {
 		r := New(g, cells, nil, flat)
 		for _, b := range c.rules {

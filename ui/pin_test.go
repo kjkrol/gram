@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
@@ -114,13 +115,13 @@ func TestPin_AnEntityWithNoPlaceHasItsElementWhereItsParentLaysIt(t *testing.T) 
 }
 
 func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
-	var issued []any
+	var issued []control.Command
 	greeting := effect.Effect{}
 	lift := rule.Lift(greeting).On(It)
 	answer := Button("hello", lift).Named("answer")
 	window := Window("host", answer).On(nobody)
 	s := built(NewScene("main", Layers(Image(&shifted{}), window)).
-		Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
 	window.pin.stand(window, []spot{{id: 7, placed: true, x: 300, y: 300}}, views(s.root), screen)
 	window.pin.each(window, window.parent, func(*instance) {})
 	b := answer.Box()
@@ -135,8 +136,8 @@ func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 }
 
 func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
-	var issued []any
-	s := built(NewScene("main", Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	var issued []control.Command
+	s := built(NewScene("main", Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

@@ -64,7 +64,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	if pale != sky.DefaultMoon().Color {
 		t.Fatalf("the night is lit %v, want the moon's own %v", pale, sky.DefaultMoon().Color)
 	}
-	give := func(cmd any) {
+	give := func(cmd control.Command) {
 		t.Helper()
 		if !n.w.Carrier().Put(control.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)

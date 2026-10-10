@@ -41,7 +41,12 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 
 // order and note are two command types; general is the made-up plugin defining order.
 type order struct{ Cell int }
+
+func (order) Command() {}
+
 type note struct{ Text string }
+
+func (note) Command() {}
 
 type general struct{ orders control.Queue[order] }
 
@@ -127,12 +132,12 @@ func orderOf(n int) func(control.Context) (order, bool) {
 
 func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: control.KeyA}, "one", orderOf(1)))
-	err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "two", orderOf(2)))
+	r.bind(control.Build(control.KeyPress{Key: control.KeyA}, "one", orderOf(1)))
+	err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "two", orderOf(2)))
 	if err == nil {
 		t.Fatal("two bindings on KeyPress A were accepted")
 	}
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
 		t.Errorf("Shift+A beside A: %v, want accepted as a different rule", err)
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
@@ -198,7 +203,7 @@ func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 
 func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
+	r.bind(control.Build(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
 	ctx := &installCtx{ecs: goke.New()}
 	if err := r.p.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -218,9 +223,9 @@ func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	r := newRig(t)
 	r.bind(
-		control.Command(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
-		control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
-		control.Command(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
+		control.Build(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
+		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
+		control.Build(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
 			return order{int(c.Cursor.X)}, true
 		}),
 	)
@@ -245,9 +250,9 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
+	r.bind(control.Build(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
 		return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
-	}), control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
+	}), control.Build(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
 		return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
 	}))
 
@@ -411,10 +416,10 @@ func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	cam := &riding{Camera: r.cam}
 	r.look(cam)
 	r.bind(
-		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
-		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
+		control.Build(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
+		control.Build(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
 	)
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
 		t.Error("a binding on A in every How beside ones in each was accepted")
 	}
 	press := func() []control.Issued[order] {
@@ -442,7 +447,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	players.CaptureWith(r.p, func(on bool) { caught = append(caught, on) })
 	cam := &riding{Camera: r.cam}
 	r.look(cam)
-	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
+	r.bind(control.Build(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))
 	move := func(x, y int) []control.Issued[order] {

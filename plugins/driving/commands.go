@@ -31,6 +31,18 @@ type Toward struct {
 	Way    geom.Vec
 }
 
+func (Ahead) Command()  {}
+func (Back) Command()   {}
+func (Turn) Command()   {}
+func (Toward) Command() {}
+
+var (
+	_ control.Command = Ahead{}
+	_ control.Command = Back{}
+	_ control.Command = Turn{}
+	_ control.Command = Toward{}
+)
+
 // Queues are where the hand's commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.hands.aheads, &p.hands.backs, &p.hands.turns, &p.hands.towards}

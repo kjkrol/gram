@@ -73,8 +73,8 @@ func TestCones_DefaultBindingIsShiftC(t *testing.T) {
 	if len(b) != 1 {
 		t.Fatalf("%d bindings, want one", len(b))
 	}
-	if _, ok := b[0].Build(control.Context{}); !ok || b[0].Command() != reflect.TypeFor[vision.Cones]() {
-		t.Errorf("the binding issues %v, want Cones", b[0].Command())
+	if _, ok := b[0].Build(control.Context{}); !ok || b[0].Type() != reflect.TypeFor[vision.Cones]() {
+		t.Errorf("the binding issues %v, want Cones", b[0].Type())
 	}
 	if k, ok := b[0].Trigger.(control.KeyPress); !ok || !k.Mods.Shift || k.Key.String() != "C" {
 		t.Errorf("the binding is on %v, want Shift+C", b[0].Trigger)

@@ -31,6 +31,8 @@ type rig struct {
 // winterNow is the command the rig's rule gives in a winter, as the world's weather says.
 type winterNow struct{}
 
+func (winterNow) Command() {}
+
 // heards is where the winterNow commands land, for the world to carry.
 type heards struct{ control.Queue[winterNow] }
 

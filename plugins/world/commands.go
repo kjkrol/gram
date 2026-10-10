@@ -30,6 +30,20 @@ type Faster struct{}
 // Slower lowers the tempo of the simulation a notch, no further than the slowest. [ by default.
 type Slower struct{}
 
+func (Despawn) Command() {}
+func (Spawn) Command()   {}
+func (Pause) Command()   {}
+func (Faster) Command()  {}
+func (Slower) Command()  {}
+
+var (
+	_ control.Command = Despawn{}
+	_ control.Command = Spawn{}
+	_ control.Command = Pause{}
+	_ control.Command = Faster{}
+	_ control.Command = Slower{}
+)
+
 // Queues are the clock's, Spawn's, Despawn's, the commands' about effects (rule.Command,
 // rule.Triggered) and the steering's (steering.Away, Toward, Turn) — for the players plugin, which
 // carries the world's commands itself.
@@ -42,8 +56,8 @@ func (p *Plugin) Queues() []control.CommandQueue {
 // DefaultBindings are the clock's keys: Space pauses, ] goes faster, [ slower.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: control.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
+		control.Build(control.KeyPress{Key: control.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
 	}
 }

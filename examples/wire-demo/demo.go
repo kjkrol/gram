@@ -292,7 +292,7 @@ func (s *arena) spawnUnits() {
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
 	for i := range uint32(3) {
 		s.world.Seed(scoutKind.Entry(unitRow{start: brd.At(3+2*i, 14)}).Told(player...))
 	}

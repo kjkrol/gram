@@ -62,8 +62,24 @@ type effectCommand struct {
 	camera  camera.Camera
 }
 
+func (Select) Command()        {}
+func (Marquee) Command()       {}
+func (Hover) Command()         {}
+func (Allow) Command()         {}
+func (Forbid) Command()        {}
+func (effectCommand) Command() {}
+
+var (
+	_ control.Command = Select{}
+	_ control.Command = Marquee{}
+	_ control.Command = Hover{}
+	_ control.Command = Allow{}
+	_ control.Command = Forbid{}
+	_ control.Command = effectCommand{}
+)
+
 // In is the command as given with the cursor where c has it: whom Pointed means.
-func (c effectCommand) In(ctx control.Context) any {
+func (c effectCommand) In(ctx control.Context) control.Command {
 	c.aimed, c.at, c.camera = true, ctx.World(ctx.Cursor), ctx.Camera
 	c.screen = control.ScreenRect(ctx.Cursor, ctx.Cursor)
 	return c
@@ -77,7 +93,7 @@ type target struct {
 
 func (target) Target() {}
 
-func (t target) Route(c rule.Command) any {
+func (t target) Route(c rule.Command) control.Command {
 	return effectCommand{cmd: c, only: t.only, pointed: t.pointed}
 }
 
@@ -121,13 +137,13 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		}
 	}
 	return []control.Binding{
-		control.Command(control.Drag{Button: control.MouseButtonLeft}, "Select", box(false)),
-		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
-		control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
+		control.Build(control.Drag{Button: control.MouseButtonLeft}, "Select", box(false)),
+		control.Build(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
+		control.Build(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
 		p.FollowKey(control.KeyC),
-		control.Command(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
+		control.Build(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
 			return Hover{At: c.World(c.Cursor), Screen: control.ScreenRect(c.Cursor, c.Cursor), Camera: c.Camera}, true
 		}),
 	}
@@ -136,7 +152,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 // FollowKey is key fastening the camera the player looks through over the one unit it has chosen
 // (Chosen) — kept in the middle of the screen as it goes — or letting it go: a cameras.Follow.
 func (p *Plugin) FollowKey(key control.Key) control.Binding {
-	return control.Command(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
+	return control.Build(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
 		id, ok := p.Chosen(c.Player)
 		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
 	})

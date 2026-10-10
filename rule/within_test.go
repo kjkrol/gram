@@ -66,8 +66,12 @@ func (d dawn) Who() uid.UID64 { return d.world }
 // noted is a command a rule's entity gives itself: whom the rule fired for.
 type noted struct{}
 
+func (noted) Command() {}
+
 // toward is a command aimed at a glance's other: which pair a rule fired for.
 type toward struct{ Of uid.UID64 }
+
+func (toward) Command() {}
 
 func (c *toward) Aim(who uid.UID64) { c.Of = who }
 

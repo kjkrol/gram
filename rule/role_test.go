@@ -40,6 +40,8 @@ type heard struct {
 	At   uid.UID64
 }
 
+func (heard) Command() {}
+
 func (c *heard) Aim(who uid.UID64) { c.At = who }
 
 // body is what every entity here carries; fuel is what some carry besides.

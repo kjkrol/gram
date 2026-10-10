@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -134,7 +135,7 @@ func (s *arena) spawnCells() {
 func (s *arena) spawnUnits() {
 	brd := s.board.Board()
 	bugKind := kind.Named[unitRow](s.world.Kinds(), BugKind)
-	player := []any{players.Give{To: s.player.ID}, selection.Allow{}}
+	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
 	corners := [4]cell.ID{
 		brd.At(4, 4), brd.At(GridWidth-5, 4),
 		brd.At(GridWidth-5, GridHeight-5), brd.At(4, GridHeight-5),

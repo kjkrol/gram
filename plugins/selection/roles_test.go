@@ -1,9 +1,10 @@
 package selection_test
 
 import (
-	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -134,7 +135,7 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 }
 
 // issue gives cmd as me and ticks it through.
-func (s *squad) issue(cmd any) {
+func (s *squad) issue(cmd control.Command) {
 	s.t.Helper()
 	if err := s.players.Issue(s.me, cmd); err != nil {
 		s.t.Fatal(err)

@@ -196,7 +196,7 @@ func (s *arena) bindKeys() error {
 			"Fire a round the way the soldier faces",
 			bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)},
 		),
-		control.Command(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
+		control.Build(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {
 				return bullet.Shoot{
 					Ammo:     s.bullet.Shots().Named(GrenadeKind),

@@ -1,9 +1,10 @@
 package plan_test
 
 import (
-	"github.com/kjkrol/gram/internal/steps"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/internal/steps"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/rule"
@@ -259,9 +260,12 @@ func TestPlan_OneNameIsOnePlanAWorld(t *testing.T) {
 	walking.mind(mine)
 }
 
+type fly struct{ High bool }
+
+func (fly) Command() {}
+
 // A command no plugin handles is a mistake of the game's, and panics.
 func TestOrder_ACommandNobodyHandlesPanics(t *testing.T) {
-	type fly struct{ High bool }
 	r := newRig(t, write("fly", func(a *plan.Actor) rule.Step { return a.OneOf(a.Order(fly{})) }))
 	defer func() {
 		if recover() == nil {

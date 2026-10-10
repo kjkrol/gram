@@ -15,7 +15,7 @@ import (
 func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
 	keys := bw.Board.DefaultBindings()
-	if len(keys) != 1 || keys[0].Command() != reflect.TypeFor[board.Grid]() || keys[0].Trigger != control.Trigger(control.KeyPress{Key: control.KeyB}) {
+	if len(keys) != 1 || keys[0].Type() != reflect.TypeFor[board.Grid]() || keys[0].Trigger != control.Trigger(control.KeyPress{Key: control.KeyB}) {
 		t.Fatalf("the board's default keys are %+v, want B for Grid alone", keys)
 	}
 	if err := bw.World.Carry(bw.Board); err != nil { // as the engine does for every plugin used

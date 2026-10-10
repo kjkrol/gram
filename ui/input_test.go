@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"github.com/kjkrol/gram/render"
 	"testing"
+
+	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
@@ -11,6 +12,8 @@ import (
 
 // order is a command a test's button gives.
 type order struct{ what string }
+
+func (order) Command() {}
 
 // player notes the area it was shown over, what it was shown, and the clicks that reached it.
 type player struct {
@@ -58,8 +61,8 @@ func TestInput_AClickOnTheWorldReachesThePlayerAndOneOnAPanelDoesNot(t *testing.
 }
 
 func TestInput_AButtonGivesItsCommandThroughIssue(t *testing.T) {
-	var issued []any
-	s := built(NewScene("main", Center(Button("go", order{"go"})).Size(100, 40)).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	var issued []control.Command
+	s := built(NewScene("main", Center(Button("go", order{"go"})).Size(100, 40)).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 1 || issued[0] != (order{"go"}) {
 		t.Fatalf("issued %v, want the button's order", issued)
@@ -77,12 +80,12 @@ func TestInput_AButtonOfTheScenesOwnShowsAndHidesByName(t *testing.T) {
 
 func TestInput_AModalWindowHoldsTheClicksAndTheWheelOutsideIt(t *testing.T) {
 	red := &player{}
-	var issued []any
+	var issued []control.Command
 	s := built(NewScene("main", Layers(
 		Image(&sized{}).Input(red),
 		TopLeft(Button("under", order{"under"})).Size(100, 40),
 		Center(Window("decide", Button("yes", order{"yes"}))).Size(300, 200).Named("decision").Modal(),
-	)).Input(red.handle).Issue(func(cmd any) error { issued = append(issued, cmd); return nil }))
+	)).Input(red.handle).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
 
 	outside := click(geom.NewVec(20, 20))
 	outside.ScrollDelta = 1

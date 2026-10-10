@@ -45,6 +45,8 @@ func (d dawn) Who() uid.UID64 { return d.world }
 // noted is a command a rule's entity gives itself.
 type noted struct{}
 
+func (noted) Command() {}
+
 func noteOf[P any](name string, filter rule.Filter) rule.Rule {
 	return rule.Then[P](name, filter, rule.Order(noted{}))
 }

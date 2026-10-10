@@ -71,7 +71,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 }
 
 // give gives cmd as nobody and ticks it through.
-func (m *meadow) give(t *testing.T, cmd any) {
+func (m *meadow) give(t *testing.T, cmd control.Command) {
 	t.Helper()
 	if !m.World.World.Carrier().Put(control.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)

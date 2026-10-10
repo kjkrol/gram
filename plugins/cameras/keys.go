@@ -41,7 +41,7 @@ func (k Keys) Bindings() []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, label string, dx, dy float32) {
 		if key != control.KeyUnknown {
-			out = append(out, control.Command(control.KeyHeld{Key: key}, label, scroll(dx, dy)).In(camera.Outside))
+			out = append(out, control.Build(control.KeyHeld{Key: key}, label, scroll(dx, dy)).In(camera.Outside))
 		}
 	}
 	held(k.Up, "Scroll up", 0, -1)
@@ -49,7 +49,7 @@ func (k Keys) Bindings() []control.Binding {
 	held(k.Left, "Scroll left", -1, 0)
 	held(k.Right, "Scroll right", 1, 0)
 	if k.Wheel {
-		out = append(out, control.Command(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
+		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
 				return Zoom{Camera: c.Camera, Factor: ZoomStep, At: c.World(c.Cursor)}, true
 			}
@@ -57,12 +57,12 @@ func (k Keys) Bindings() []control.Binding {
 		}))
 	}
 	if k.Drag {
-		out = append(out, control.Command(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
+		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
 			return Pan{Camera: c.Camera, Dx: float32(-c.Delta.X), Dy: float32(-c.Delta.Y)}, true
 		}).In(camera.Outside))
 	}
 	if k.Edge {
-		out = append(out, control.Command(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
+		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
 			side := c.Edges()
 			switch {

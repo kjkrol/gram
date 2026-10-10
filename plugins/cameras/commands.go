@@ -41,6 +41,20 @@ type LookAt struct {
 // mouse — the cursor captured — or not (camera.MouseLooker; camera.Config.MouseLook at the start).
 type MouseLook struct{ Camera camera.Camera }
 
+func (Pan) Command()       {}
+func (Zoom) Command()      {}
+func (Follow) Command()    {}
+func (LookAt) Command()    {}
+func (MouseLook) Command() {}
+
+var (
+	_ control.Command = Pan{}
+	_ control.Command = Zoom{}
+	_ control.Command = Follow{}
+	_ control.Command = LookAt{}
+	_ control.Command = MouseLook{}
+)
+
 // Queues are where Pan, Zoom, Follow, LookAt and MouseLook land.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.looks}
@@ -49,7 +63,7 @@ func (p *Plugin) Queues() []control.CommandQueue {
 // MouseLookKey is key switching looking round with the mouse, in first person, for the camera the
 // player looks through.
 func MouseLookKey(key control.Key) control.Binding {
-	return control.Command(control.KeyPress{Key: key}, "Look round with the mouse in first person, or not", func(c control.Context) (MouseLook, bool) {
+	return control.Build(control.KeyPress{Key: key}, "Look round with the mouse in first person, or not", func(c control.Context) (MouseLook, bool) {
 		return MouseLook{Camera: c.Camera}, true
 	})
 }

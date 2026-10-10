@@ -22,7 +22,7 @@ type Scene struct {
 	root    *Element
 	input   func(*control.InputEvents, game.Runtime, game.Composition)
 	keys    []control.Binding
-	issue   func(cmd any) error
+	issue   func(cmd control.Command) error
 	passed  control.InputEvents // what of this tick's input goes on to input
 	shown   []string            // the names of the elements shown, as saved
 	loaded  bool                // shown came from a save: laid on the elements once they are made

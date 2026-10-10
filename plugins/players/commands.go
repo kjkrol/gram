@@ -19,6 +19,18 @@ type ShowShortcuts struct{}
 // that said where.
 type Save struct{}
 
+func (Give) Command()          {}
+func (Quit) Command()          {}
+func (ShowShortcuts) Command() {}
+func (Save) Command()          {}
+
+var (
+	_ control.Command = Give{}
+	_ control.Command = Quit{}
+	_ control.Command = ShowShortcuts{}
+	_ control.Command = Save{}
+)
+
 // Queues are where the players' own commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.gives, &p.quits, &p.listings, &p.saves}
@@ -29,7 +41,7 @@ func (p *Plugin) Queues() []control.CommandQueue {
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := GameBindings()
 	if p.savePath != "" {
-		keys = append(keys, control.Command(control.KeyPress{Key: control.KeyF5}, "Save the game", func(control.Context) (Save, bool) { return Save{}, true }))
+		keys = append(keys, control.Build(control.KeyPress{Key: control.KeyF5}, "Save the game", func(control.Context) (Save, bool) { return Save{}, true }))
 	}
 	return keys
 }
@@ -38,7 +50,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 // game that binds its own keys in place of the Defaults binds these beside them.
 func GameBindings() []control.Binding {
 	return []control.Binding{
-		control.Command(control.KeyPress{Key: control.KeyK}, "Shortcuts; Esc closes them", func(control.Context) (ShowShortcuts, bool) { return ShowShortcuts{}, true }),
-		control.Command(control.KeyPress{Key: control.KeyEscape, Mods: control.Mods{Shift: true}}, "Quit", func(control.Context) (Quit, bool) { return Quit{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyK}, "Shortcuts; Esc closes them", func(control.Context) (ShowShortcuts, bool) { return ShowShortcuts{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyEscape, Mods: control.Mods{Shift: true}}, "Quit", func(control.Context) (Quit, bool) { return Quit{}, true }),
 	}
 }

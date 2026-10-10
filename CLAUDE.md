@@ -182,6 +182,16 @@ initializer gathers them (`PluginScenes`) and a Stage defined in sections has th
 hidden — the players' list of shortcuts (`players.Shortcuts`, made in `NewPlugin`) is one, so K
 works in every game without the game adding a scene. A game's own keys that are no command
 (a debug toggle) go to `players.Plugin.OwnKeys(SceneKeys)`.
+**A command is a `control.Command`** (since 2026-10-10, the user's word: one standard way of
+making commands, confirmed by an assertion): a type is one by its method `Command()`, a mark never
+called, written beside the type, and every command type is confirmed where it is defined —
+`var ( _ control.Command = MoveTo{}; … )` in the plugin's `commands.go`, beside its traits'
+`_ plugin.Aimed = …`. Whatever takes commands takes a `control.Command`, never `any`: `Queue[C]`,
+`Issued[C]`, `Carrier.Put`, `control.Give`, `control.Build[C]` (the binding built from a `Context`;
+it was `control.Command[C]`; `Binding.Type()` the command's type), `players.Issue`,
+`kind.Entry.Told`, `rule.Order`, `ui.Button`, `ui.Scene.Issue`. A command is still carried by its
+type to its handler's queue; its traits stay optional, asked for by assertion where they matter
+(`control.Routed`, `control.Contextual`, `plugin.Aimed`, `ui.About`, which is a command too).
 **Commands** ask: what somebody wants done about an effect is one
 `rule.Command` written as a sentence (`rule/command.go`, since 2026-10-05, in place of wires,
 `world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Cast(e)` puts it on,
@@ -1226,7 +1236,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
   `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, `CursorOver` (once a tick
   while the cursor lies over the player's picture, issued with `KeyHeld`'s) with exact `Mods`,
-  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
+  `Build[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
   `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never

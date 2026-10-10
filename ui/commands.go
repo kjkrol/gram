@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
@@ -18,11 +19,14 @@ func (it) Target() {}
 // About is a command of a plugin's own that is for the entity the element giving it is pinned
 // to, as a rule.Command for It is: About is the command for that entity — dialog.Choose, the
 // answer to whoever the window stands above.
-type About interface{ About(of uid.UID64) any }
+type About interface {
+	control.Command
+	About(of uid.UID64) control.Command
+}
 
 // about is cmd for the entity id where it is for It or an About: false where it is and no entity
 // is pinned.
-func about(cmd any, id uid.UID64, pinned bool) (any, bool) {
+func about(cmd control.Command, id uid.UID64, pinned bool) (control.Command, bool) {
 	if a, ok := cmd.(About); ok {
 		if !pinned {
 			return nil, false
@@ -52,8 +56,18 @@ type Hide struct{ Name string }
 // Toggle shows the scene's elements called Name where any is hidden, else hides them.
 type Toggle struct{ Name string }
 
+func (Show) Command()   {}
+func (Hide) Command()   {}
+func (Toggle) Command() {}
+
+var (
+	_ control.Command = Show{}
+	_ control.Command = Hide{}
+	_ control.Command = Toggle{}
+)
+
 // carry carries out cmd when it is one of the scene's own, reporting whether it was.
-func (s *Scene) carry(cmd any) bool {
+func (s *Scene) carry(cmd control.Command) bool {
 	switch c := cmd.(type) {
 	case Show:
 		s.Show(c.Name)

@@ -46,14 +46,14 @@ func (k Tank) Bindings() []control.Binding {
 		}
 	}
 	// the held key's context has the modifiers as they are
-	held(k.Ahead, control.Command(control.KeyHeld{Key: k.Ahead}, "Walk on; with Shift, sprint", func(c control.Context) (Ahead, bool) {
+	held(k.Ahead, control.Build(control.KeyHeld{Key: k.Ahead}, "Walk on; with Shift, sprint", func(c control.Context) (Ahead, bool) {
 		return Ahead{Camera: c.Camera, Sprint: c.Mods.Shift}, true
 	}))
-	held(k.Back, control.Command(control.KeyHeld{Key: k.Back}, "Brake, then back away", func(c control.Context) (Back, bool) {
+	held(k.Back, control.Build(control.KeyHeld{Key: k.Back}, "Brake, then back away", func(c control.Context) (Back, bool) {
 		return Back{Camera: c.Camera}, true
 	}))
-	held(k.Left, control.Command(control.KeyHeld{Key: k.Left}, "Turn left", turn(-1)))
-	held(k.Right, control.Command(control.KeyHeld{Key: k.Right}, "Turn right", turn(1)))
+	held(k.Left, control.Build(control.KeyHeld{Key: k.Left}, "Turn left", turn(-1)))
+	held(k.Right, control.Build(control.KeyHeld{Key: k.Right}, "Turn right", turn(1)))
 	return out
 }
 
@@ -62,7 +62,7 @@ func (k Compass) Bindings() []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, label string, dx, dy float64) {
 		if key != control.KeyUnknown {
-			out = append(out, control.Command(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
+			out = append(out, control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
 				return Toward{Camera: c.Camera, Way: geom.NewVec(dx, dy)}, true
 			}).In(k.In))
 		}

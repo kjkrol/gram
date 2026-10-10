@@ -7,6 +7,10 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// Command is what a player, an entity or a button asks for: carried by its type to the one
+// handler whose queue takes it. A type is a command by its method Command, a mark never called.
+type Command interface{ Command() }
+
 // PlayerID names a player of the game; Nobody is a command nobody in particular gave.
 type PlayerID uint8
 
@@ -15,7 +19,7 @@ const Nobody PlayerID = 0
 
 // Issued is one command as its owner reads it: who gave it — a player, or with ByEntity an
 // entity for itself, its tree — and what it says.
-type Issued[C any] struct {
+type Issued[C Command] struct {
 	Player   PlayerID
 	Entity   uid.UID64
 	ByEntity bool
@@ -24,21 +28,21 @@ type Issued[C any] struct {
 
 // Queue holds the commands of one type until the plugin that owns it drains them in its own pass;
 // the owner keeps it as a field and lists it in its plugin.CommandHandler's Queues.
-type Queue[C any] struct{ items []Issued[C] }
+type Queue[C Command] struct{ items []Issued[C] }
 
 // CommandQueue is a Queue with its command type erased, as a carrier sorts commands into them.
 type CommandQueue interface {
 	Accepts() reflect.Type
-	Put(player PlayerID, cmd any)
-	PutFrom(entity uid.UID64, cmd any)
+	Put(player PlayerID, cmd Command)
+	PutFrom(entity uid.UID64, cmd Command)
 	Empty() bool
 }
 
-var _ CommandQueue = (*Queue[struct{}])(nil)
+var _ CommandQueue = (*Queue[Command])(nil)
 
-func (q *Queue[C]) Accepts() reflect.Type             { return reflect.TypeFor[C]() }
-func (q *Queue[C]) Put(player PlayerID, cmd any)      { q.Add(player, cmd.(C)) }
-func (q *Queue[C]) PutFrom(entity uid.UID64, cmd any) { q.AddFrom(entity, cmd.(C)) }
+func (q *Queue[C]) Accepts() reflect.Type                 { return reflect.TypeFor[C]() }
+func (q *Queue[C]) Put(player PlayerID, cmd Command)      { q.Add(player, cmd.(C)) }
+func (q *Queue[C]) PutFrom(entity uid.UID64, cmd Command) { q.AddFrom(entity, cmd.(C)) }
 
 // Add puts cmd in as given by player.
 func (q *Queue[C]) Add(player PlayerID, cmd C) {
@@ -81,7 +85,7 @@ func (c *Carrier) Carry(queues ...CommandQueue) error {
 }
 
 // Put takes cmd, given by player, to the queue of its type; false when none takes it.
-func (c *Carrier) Put(player PlayerID, cmd any) bool {
+func (c *Carrier) Put(player PlayerID, cmd Command) bool {
 	cmd = Unwrap(cmd)
 	q, ok := c.queue(cmd)
 	if ok {
@@ -92,7 +96,7 @@ func (c *Carrier) Put(player PlayerID, cmd any) bool {
 
 // PutFrom takes cmd, given by entity for itself, to the queue of its type; false when none takes
 // it.
-func (c *Carrier) PutFrom(entity uid.UID64, cmd any) bool {
+func (c *Carrier) PutFrom(entity uid.UID64, cmd Command) bool {
 	cmd = Unwrap(cmd)
 	q, ok := c.queue(cmd)
 	if ok {
@@ -125,10 +129,10 @@ func (c *Carrier) Empty() bool {
 
 // Routed is a command written one way and carried as another: Routed is the command its handler
 // takes — a rule.Command, by whom it is for.
-type Routed interface{ Routed() any }
+type Routed interface{ Routed() Command }
 
 // Unwrap is cmd as its handler takes it: itself, or what a Routed command says.
-func Unwrap(cmd any) any {
+func Unwrap(cmd Command) Command {
 	for {
 		r, ok := cmd.(Routed)
 		if !ok {
@@ -143,7 +147,7 @@ func Unwrap(cmd any) any {
 }
 
 // queue is the queue of cmd's type.
-func (c *Carrier) queue(cmd any) (CommandQueue, bool) {
+func (c *Carrier) queue(cmd Command) (CommandQueue, bool) {
 	if c == nil {
 		return nil, false
 	}

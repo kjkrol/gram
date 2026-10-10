@@ -18,7 +18,7 @@ func (s *Scene) Keys(bindings ...control.Binding) *Scene {
 
 // Issue is how the scene gives a command that is not its own — a button's, a key's: the players'
 // Issue for the player at the keyboard, as a rule.
-func (s *Scene) Issue(fn func(cmd any) error) *Scene {
+func (s *Scene) Issue(fn func(cmd control.Command) error) *Scene {
 	s.issue = fn
 	return s
 }
@@ -135,7 +135,7 @@ func (s *Scene) press(events *control.InputEvents) {
 }
 
 // giveAbout gives cmd for the entity the button is pinned to, where it is for It.
-func (s *Scene) giveAbout(cmd any, id uid.UID64, pinned bool) {
+func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
 	cmd, ok := about(cmd, id, pinned)
 	if !ok {
 		log.Printf("ui: scene %q: a command for ui.It (or an About) given outside an element pinned to an entity", s.name)
@@ -145,7 +145,7 @@ func (s *Scene) giveAbout(cmd any, id uid.UID64, pinned bool) {
 }
 
 // give carries out cmd if it is the scene's own, else issues it.
-func (s *Scene) give(cmd any) {
+func (s *Scene) give(cmd control.Command) {
 	if s.carry(cmd) {
 		return
 	}

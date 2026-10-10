@@ -19,14 +19,14 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 	t.Helper()
 	r := newRig(t)
 	left, right := r.local, r.p.Local("right")
-	if err := left.Bind(control.Command(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
-		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
+	if err := left.Bind(control.Build(control.KeyHeld{Key: control.KeyW}, "Up", orderOf(1)),
+		control.Build(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 100 + int(c.Cursor.X)}, true
 		})); err != nil {
 		t.Fatal(err)
 	}
-	if err := right.Bind(control.Command(control.KeyHeld{Key: control.KeyArrowUp}, "Up", orderOf(2)),
-		control.Command(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
+	if err := right.Bind(control.Build(control.KeyHeld{Key: control.KeyArrowUp}, "Up", orderOf(2)),
+		control.Build(control.ButtonPress{Button: control.MouseButtonLeft}, "Here", func(c control.Context) (order, bool) {
 			return order{Cell: 200 + int(c.Cursor.X)}, true
 		})); err != nil {
 		t.Fatal(err)
@@ -90,8 +90,8 @@ func TestSplitScreen_TheMouseReachesThePlayerUnderItInItsOwnPixels(t *testing.T)
 func TestCursorOver_FiresEveryTickForThePlayerWhosePictureTheCursorLiesOver(t *testing.T) {
 	r := newRig(t)
 	right := r.p.Local("right")
-	r.bind(control.Command(control.CursorOver{}, "Over", func(c control.Context) (order, bool) { return order{int(c.Cursor.X)}, true }))
-	if err := right.Bind(control.Command(control.CursorOver{}, "Over", orderOf(-1))); err != nil {
+	r.bind(control.Build(control.CursorOver{}, "Over", func(c control.Context) (order, bool) { return order{int(c.Cursor.X)}, true }))
+	if err := right.Bind(control.Build(control.CursorOver{}, "Over", orderOf(-1))); err != nil {
 		t.Fatal(err)
 	}
 	ecs := r.start()

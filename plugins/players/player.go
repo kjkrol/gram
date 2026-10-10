@@ -44,8 +44,8 @@ func (p *Player) Bind(bindings ...control.Binding) error {
 		return err
 	}
 	for _, b := range bindings {
-		if b.Command() == nil {
-			return fmt.Errorf("players: %q is not a Binding built with control.Command", b.Label)
+		if b.Type() == nil {
+			return fmt.Errorf("players: %q is not a Binding made with control.Build or Give", b.Label)
 		}
 		for _, have := range p.bindings {
 			if have.Trigger == b.Trigger && have.Overlaps(b) {

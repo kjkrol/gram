@@ -28,7 +28,7 @@ type Choose struct {
 }
 
 // About is the answer for the conversation of the entity the window is pinned to.
-func (c Choose) About(of uid.UID64) any {
+func (c Choose) About(of uid.UID64) control.Command {
 	c.Speaker = of
 	return c
 }
@@ -41,6 +41,16 @@ type Feel struct {
 	with   uid.UID64
 	aimed  bool
 }
+
+func (Begin) Command()  {}
+func (Choose) Command() {}
+func (Feel) Command()   {}
+
+var (
+	_ control.Command = Begin{}
+	_ control.Command = Choose{}
+	_ control.Command = Feel{}
+)
 
 // Aim tells the command whom the change is towards.
 func (f *Feel) Aim(who uid.UID64) { f.with, f.aimed = who, true }

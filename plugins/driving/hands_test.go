@@ -151,7 +151,7 @@ func newField(t *testing.T, walkers ...walker) *field {
 }
 
 // give gives cmd as player by.
-func (f *field) give(by control.PlayerID, cmd any) {
+func (f *field) give(by control.PlayerID, cmd control.Command) {
 	if !f.w.Carrier().Put(by, cmd) {
 		f.t.Fatalf("the world carries no %T", cmd)
 	}

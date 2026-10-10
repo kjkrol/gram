@@ -127,7 +127,7 @@ func (p *Plugin) Defaults() []control.Binding {
 
 // Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
 // type. Bindings, an AI or a network all come in here.
-func (p *Plugin) Issue(player *Player, cmd any) error {
+func (p *Plugin) Issue(player *Player, cmd control.Command) error {
 	id := control.Nobody
 	if player != nil {
 		id = player.ID

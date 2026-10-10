@@ -6,9 +6,12 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **Saves on the Stage** — `stage.New(…).Saves(basePath)`: the save loaded as the Stage is
-   entered and the path F5 writes to, from one place; `players.WithSaves` and the six copies of
-   `restore` gone.
+1. **Saving and loading, the engine's commands** — not the Stage's nor the players':
+   `game.Save{Slot}` and `game.Load{Stage, Slot}` (perhaps `game.Enter`, `game.Quit`), commands like any other
+   (`control.Command`) bound to keys or ui buttons, loading from another Stage too — a menu's
+   "Continue". `Restore` leaves the Stage's chain, `players.WithSaves` and the six copies of
+   `restore` go. Open: the engine as their handler through queues (a carrier of the Stage's, not
+   the world's), or otherwise.
 2. **Looks out of `makePlugins`** — what is drawing is the scene's: `vision.WithViews` given as the
    renderer is made; `ShowCones()`/`HideCones()` for `Hide(bool)`; the board lit by the atmosphere
    through an interface of the board's (`board.LitBy`) for `atmosphere.WithBoard`; the weathering

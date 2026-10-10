@@ -29,6 +29,14 @@ func (s *Shoot) Aim(who uid.UID64) { s.target, s.aimed = who, true }
 // every entity within Radius of its centre is told a Blast, and the shot is gone.
 type Burst struct{ Radius float64 }
 
+func (Shoot) Command() {}
+func (Burst) Command() {}
+
+var (
+	_ control.Command = Shoot{}
+	_ control.Command = Burst{}
+)
+
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are where Shoot and Burst land — for the players plugin and the entities' own.

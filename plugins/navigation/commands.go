@@ -72,6 +72,28 @@ func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 // A look at the world, like the camera's turn: at once, in the pause too, not saved.
 type Routes struct{}
 
+func (MoveTo) Command()    {}
+func (LookAt) Command()    {}
+func (StepAside) Command() {}
+func (Detour) Command()    {}
+func (Pass) Command()      {}
+func (Hold) Command()      {}
+func (Settle) Command()    {}
+func (Stop) Command()      {}
+func (Routes) Command()    {}
+
+var (
+	_ control.Command = MoveTo{}
+	_ control.Command = LookAt{}
+	_ control.Command = StepAside{}
+	_ control.Command = Detour{}
+	_ control.Command = Pass{}
+	_ control.Command = Hold{}
+	_ control.Command = Settle{}
+	_ control.Command = Stop{}
+	_ control.Command = Routes{}
+)
+
 // clickSlop is how far, in pixels, the cursor may move between a button going down and coming up
 // for the release to be a click and not a drag.
 const clickSlop = 4
@@ -107,9 +129,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	}
 	turn := func(c control.Context) (LookAt, bool) { return LookAt{At: c.World(c.Cursor)}, dragged(c) }
 	return []control.Binding{
-		control.Command(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
-		control.Command(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
-		control.Command(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
-		control.Command(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
+		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
+		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
+		control.Build(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
+		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
 	}
 }

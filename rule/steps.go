@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
@@ -62,7 +63,7 @@ func Playing(role *Part, step Step) Step { return steps.NewPlaying(uint8(role.ta
 
 // Order gives the command cmd for the entity each time it fires, and does well at once; one that
 // is Aimed is told the moment's Subject, and fails while the moment names nobody.
-func Order[C any](cmd C) Step { return steps.NewOrder(cmd) }
+func Order[C control.Command](cmd C) Step { return steps.NewOrder(cmd) }
 
 // ForOther runs step on each of the others the moment met, or on its Subject, in place of the
 // entity.

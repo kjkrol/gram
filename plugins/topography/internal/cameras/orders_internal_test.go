@@ -31,6 +31,20 @@ type (
 	}
 )
 
+func (Look) Command() {}
+
+func (Tilt) Command() {}
+
+func (LookAt) Command() {}
+
+func (View) Command() {}
+
+func (LookFrom) Command() {}
+
+func (Ride) Command() {}
+
+func (Turn) Command() {}
+
 // queued is Orders over the tests' queues, as the topography's are over its own; a nil queue gives
 // nothing.
 type queued struct {
@@ -45,7 +59,7 @@ type queued struct {
 
 var _ Orders = queued{}
 
-func drain[C any](q *control.Queue[C], fn func(control.Issued[C])) {
+func drain[C control.Command](q *control.Queue[C], fn func(control.Issued[C])) {
 	if q != nil {
 		q.Drain(fn)
 	}

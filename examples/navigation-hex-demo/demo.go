@@ -194,7 +194,7 @@ func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
 	brd := s.board.Board()
-	player := []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
+	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 	s.world.Seed(
 		redKind.Entry(unitRow{start: brd.At(3, 3), target: brd.At(GridWidth-4, 3)}).Told(player...),
 		blueKind.Entry(unitRow{start: brd.At(3, 9), target: brd.At(GridWidth-4, 9)}).

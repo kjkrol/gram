@@ -85,7 +85,7 @@ func (g *guardStage) Stack() game.Scenes {
 }
 
 // give gives cmd as nobody and ticks it through.
-func (g *guardStage) give(t *testing.T, cmd any) {
+func (g *guardStage) give(t *testing.T, cmd control.Command) {
 	t.Helper()
 	if !g.world.Carrier().Put(control.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
