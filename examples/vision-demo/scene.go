@@ -33,6 +33,7 @@ func (m *mainScene) picture() render.Picture {
 	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
 	atlas.Close()
 	s.world.WithRenderer(atlas)
+	s.vision.ShowCones()
 	s.vision.WithRenderer(atlas)
 
 	return render.NewComposer(s.vision.Renderer(), s.world.Renderer())

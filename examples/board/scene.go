@@ -33,6 +33,7 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
+	s.board.WithAtmosphere(s.atmosphere)
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 
 	worldAtlas := render.NewAtlas()
@@ -53,6 +54,7 @@ func (m *mainScene) picture() render.Picture {
 	s.board.Res.Render.ShowGridLines = false
 
 	s.nav.WithRenderer(nil)
+	s.vision.WithViews(render.Show(s.selection.IsSelected))
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 

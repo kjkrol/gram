@@ -110,21 +110,20 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
 		WithCollision(s.collision).
 		WithLog(log.Default())
-	s.topography = island.Style(topography.NewPlugin(s.world, s.board, topography.Config{
+	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Perspective: true,
 		Shaping: topography.Shaping{
 			Step:    scale.Units(5 * island.Metres),
 			MaxStep: scale.Units(20 * island.Metres),
-		}}))
+		}})
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision).
 		WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
-		WithViews(render.Show(s.selection.IsSelected)) // TODO: renderer tutaj?!
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
@@ -148,7 +147,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 			Moon:       true,
 		},
 	})
-	s.topography.WithAtmosphere(s.atmosphere)
+	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
 		s.atmosphere, s.topography, s.vision)
@@ -166,8 +165,6 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	// TODO: dlaczego to jest tutaj?! to nie jest efekt
-	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	night := s.atmosphere.Calendar().Config().Day / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {

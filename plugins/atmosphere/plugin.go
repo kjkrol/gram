@@ -84,9 +84,9 @@ func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 // falls, how far one sees.
 func (p *Plugin) Air() air.Weather { return p.climate.Air() }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it in Init,
-// once the kinds cfg names are in brd's dictionary — where the effects are defined, for it defines
-// three. A Config the board cannot take panics.
+// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it as the
+// plugin is made (it defines three effects of its own). The kinds cfg names are looked up as the
+// weather first touches the board; one the board's dictionary lacks panics then.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {

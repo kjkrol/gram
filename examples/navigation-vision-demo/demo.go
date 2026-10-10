@@ -26,7 +26,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -91,8 +90,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
-		WithViews(render.Show(s.selection.IsSelected)) // TODO: renderer tutaj?!
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(
 		s.world,

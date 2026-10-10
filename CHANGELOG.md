@@ -28,6 +28,15 @@ argument's full path, which moved.
   and are each Stage's now (its world's). Two Stages may use one name for different things, and a
   Stage binds only the plans it defines.
 
+**Looks are the scene's**
+- A flat board is lit by the atmosphere through the board: `board.Plugin.WithAtmosphere(a)`, a
+  `board.Atmosphere` (`Sun`, `Air`, the shape of `topography.Atmosphere`), in place of
+  `atmosphere.Plugin.WithBoard`; the demos call it, `topography.WithAtmosphere`, the painter's
+  styles and `vision.WithViews` in their scenes, as the renderers are made.
+- `vision.Plugin.ShowCones`, `HideCones` and `ConesShown` in place of `Hide(bool)` and `Hidden`.
+- `atmosphere.Plugin.WithWeathering` is called as the atmosphere is made, its effects defined in
+  the Plugins section, not in Effects.
+
 **Saving and loading, the engine's commands**
 - Saving and loading are the engine's: `game.Save{Slot}` saves the active Stage,
   `game.Load{Stage, Slot}` enters a Stage from its save — from any Stage, a menu's Continue —

@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/plugins/topography/painter"
 )
 
 // weathers is the weather the island goes through, weather.Default's written out to play with: a
@@ -82,10 +81,8 @@ func (s *arena) defineWinterCells() {
 	for _, name := range snowable {
 		k, _ := kinds.Get(name)
 		kinds.Define(snowyCell(name), k)
-		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
 	}
 	kinds.Define(IceCell, cell.Kind{Cost: 5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
-	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 }
 
 func (s *arena) defineClimate() weathering.Config {

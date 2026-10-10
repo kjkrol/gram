@@ -60,7 +60,7 @@ func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
 }
 
 // IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition —
-// vision.NewPlugin(w).WithViews(render.Show(sel.IsSelected)).
+// vision.Plugin.WithViews(render.Show(sel.IsSelected)).
 func (p *Plugin) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(p.tags.Selected) }
 
 // =================================================================

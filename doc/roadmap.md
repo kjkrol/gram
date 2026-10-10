@@ -6,17 +6,13 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **Looks out of `makePlugins`** — what is drawing is the scene's: `vision.WithViews` given as the
-   renderer is made; `ShowCones()`/`HideCones()` for `Hide(bool)`; the board lit by the atmosphere
-   through an interface of the board's (`board.LitBy`) for `atmosphere.WithBoard`; the weathering
-   a part of the atmosphere's config rather than a call in the Effects section.
-2. **A map in a file** — the board and the units from a file, as dialogs are: cells drawn in ASCII
+1. **A map in a file** — the board and the units from a file, as dialogs are: cells drawn in ASCII
    under a legend of kinds, ways, cells named and grouped, heights, units with their kind, owner,
    start and goal or round; a section of the board's own (`section.Define`, `stage.With`), its
    cells before the kinds of units and its layout and units in Spawn — a plugin's section runs only
    within Init today, so Spawn must take sections too. The demos' layouts, starting stops and
    constants of the board go.
-3. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+2. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
 

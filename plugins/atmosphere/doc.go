@@ -18,15 +18,16 @@
 // atmosphere's to give ([Plugin.Sun], [Plugin.Air]; the world knows nothing of them): a board in
 // relief takes them through topography.Plugin.WithAtmosphere and shades its terrain by the sun,
 // lays the clouds' shadows and hazes the far off, all on the GPU; a flat board and the world's
-// sprites take the sun's light on level ground through [Plugin.WithBoard] — tinted by the hour,
-// night dark, dawn warm, what sways leaning with the wind — and the clouds' shadows from
+// sprites take the sun's light on level ground through board.Plugin.WithAtmosphere — tinted by the
+// hour, night dark, dawn warm, what sways leaning with the wind — and the clouds' shadows from
 // [Plugin.Clouds], drawn on the GPU over the ground under every pixel, their noise worked out every
 // few pixels (plugins/atmosphere/overcast). The sun's maths and shaders are
 // plugins/atmosphere/sky's, the weather's plugins/atmosphere/air's; plugins/atmosphere/backdrop is
 // the sky behind the world, a render.Direct drawn on the GPU, and plugins/atmosphere/precipitation
 // what falls. The root keeps no shaders of its own: it composes these.
 //
-// [Plugin.WithWeathering] lays the weather on a board (plugins/atmosphere/weathering): snow
+// [Plugin.WithWeathering], as the plugin is made, lays the weather on a board
+// (plugins/atmosphere/weathering): snow
 // lying, ice on the water, what sways swaying, as effects on the cells, in a pass of its own once
 // a second of game time. The atmosphere is an entity of its own (world.Self): its Plays has it
 // play roles, whose rules are told the weather (climate.Weathering) once a step, about that

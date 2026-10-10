@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -37,6 +38,12 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
+	island.Style(s.topography)
+	for _, name := range snowable {
+		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
+	}
+	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
+	s.topography.WithAtmosphere(s.atmosphere)
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
 	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
@@ -62,6 +69,7 @@ func (m *mainScene) picture() render.Picture {
 	s.board.WithRenderer(boardAtlas)
 	s.board.Res.Render.ShowGridLines = true
 	s.nav.WithRenderer(nil)
+	s.vision.WithViews(render.Show(s.selection.IsSelected)) // TODO: to jest rule a tu s.board.Res.Render.ShowGridLines = true jest flaga
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
@@ -74,7 +82,7 @@ func (m *mainScene) picture() render.Picture {
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Image(render.NewFeed(
 			s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}),
 			m.picture())).Input(s.players.Through(s.player)),

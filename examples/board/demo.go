@@ -28,7 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/ui"
 )
@@ -81,7 +80,6 @@ func NewDemo(s *arena) game.Game {
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
-			Effects(s.defineEffects).
 			Rules(s.defineRules).
 			Kinds(s.defineCells, s.defineKinds).
 			Spawn(s.spawnCells, s.spawnUnits).
@@ -100,18 +98,14 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).
-		WithViews(render.Show(s.selection.IsSelected))
-		// TODO: render tutaj? to dziwne. nie wiem co to robi, ale na oko, to powinno byc w scene
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
 	s.atmosphere = atmosphere.NewPlugin(
 		s.world,
 		atmosphere.Config{
 			Calendar: calendar.Config{Season: calendar.Autumn},
 			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
 		},
-	)
-	// TODO: raczej plansza z atmosfera, a nie atmosfera z planszą...
-	s.atmosphere.WithBoard(s.board)
+	).WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
 		s.atmosphere, s.vision)
@@ -126,8 +120,6 @@ func (s *arena) defineCells() {
 	island.Define(s.board.CellKinds(), 0)
 	s.defineWinterCells()
 }
-
-func (s *arena) defineEffects() { s.atmosphere.WithWeathering(s.board, s.defineClimate()) }
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole,

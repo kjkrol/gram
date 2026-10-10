@@ -69,7 +69,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan carries out the commands, then hands the scan to the simulation; call it after world's
 // RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.cones.Drain(func(control.Issued[Cones]) { p.Hide(!p.hidden) })
+	p.cones.Drain(func(control.Issued[Cones]) { p.setHidden(!p.hidden) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -100,7 +100,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // WithViews has the views drawn as rules say, every frame: render.Show picks the observers
 // whose views are drawn — the selected ones, say (render.Show(selected.In)); with none, every
-// one is. An option of the plugin's making, like navigation's WithCrowd: call before Use.
+// one is. Drawing is the scene's: call it as the renderer is made (WithRenderer).
 func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))
@@ -112,16 +112,21 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 // vision-specific
 // =================================================================
 
-// Hide hides every view drawn, or shows them again — what the Cones command toggles.
-func (p *Plugin) Hide(hidden bool) {
+// ShowCones shows every view drawn — the cones and the shadows — as the Cones command does.
+func (p *Plugin) ShowCones() { p.setHidden(false) }
+
+// HideCones hides every view drawn, as they start; the scan goes on.
+func (p *Plugin) HideCones() { p.setHidden(true) }
+
+// ConesShown reports whether the views drawn are shown.
+func (p *Plugin) ConesShown() bool { return !p.hidden }
+
+func (p *Plugin) setHidden(hidden bool) {
 	p.hidden = hidden
 	if p.renderer != nil {
 		p.renderer.Hide(hidden)
 	}
 }
-
-// Hidden reports whether the views drawn are hidden.
-func (p *Plugin) Hidden() bool { return p.hidden }
 
 // WithStyle sets how cones are drawn, in place of DefaultConeStyle; call before Use.
 func (p *Plugin) WithStyle(style ConeStyle) *Plugin {

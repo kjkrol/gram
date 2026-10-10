@@ -84,8 +84,6 @@ func NewDemo(s *arena) game.Game {
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.vision = vision.NewPlugin(s.world)
-	// TODO: powinnt byc raczej  funkcje: ConeHide i ConeShow, chyba ze mnie przekonasz, ze tak jest lepiej
-	s.vision.Hide(false)
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.vision)

@@ -1,31 +1,38 @@
-package atmosphere
+package board
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-// WithBoard puts a flat board under the sky: its tiles and the world's sprites take the sun's light
-// on level ground, so the day tints the map — night dark, dawn warm — and what sways leans with the
-// wind; brd's Map and the world's Look are wrapped, so call it after any other Map or Look is set
-// and before Use. A board in relief (plugins/topography) lights itself under the atmosphere
-// instead (topography.Plugin.WithAtmosphere), and the clouds' shadows over a flat board are the
-// Clouds source's.
-func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
-	brd.WithMap(&litMap{Map: brd.Map(), sky: p})
-	p.worldPlugin.SetLook(litLook{Look: p.worldPlugin.Look(), sky: p})
+// Atmosphere is what lights a flat board and what stands on it: the sun of the hour and the
+// weather's wind (plugins/atmosphere).
+type Atmosphere interface {
+	Sun() sky.Sun
+	Air() air.Weather
+}
+
+// WithAtmosphere puts the board under a's sky: its tiles and the world's sprites take the sun's
+// light on level ground, so the day tints the map — night dark, dawn warm — and what sways leans
+// with the wind. The board's Map and the world's Look are wrapped, so call it after any other Map
+// or Look is set, before the renderers are made — in a scene. A board in relief
+// (plugins/topography) is lit by the topography instead (topography.Plugin.WithAtmosphere).
+func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
+	p.WithMap(&litMap{Map: p.Map(), sky: a})
+	p.worldPlugin.SetLook(litLook{Look: p.worldPlugin.Look(), sky: a})
 	return p
 }
 
-// litMap is a board.Map whose tiles are lit by the sky and lean in its wind.
+// litMap is a Map whose tiles are lit by the sky and lean in its wind.
 type litMap struct {
-	board.Map
-	sky *Plugin
+	Map
+	sky Atmosphere
 }
 
 func (m *litMap) Look() look.Look { return litCells{Look: m.Map.Look(), sky: m.sky} }
@@ -38,7 +45,7 @@ func (m *litMap) Dressing() look.Dressing {
 // by its top, which moves as far as it stands high.
 type litCells struct {
 	look.Look
-	sky *Plugin
+	sky Atmosphere
 }
 
 func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
@@ -57,7 +64,7 @@ func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 // the sky's uniforms; without a dressing under it, that alone.
 type litDressing struct {
 	look.Dressing
-	sky *Plugin
+	sky Atmosphere
 }
 
 func (d *litDressing) Begin(f *render.Frame, cam camera.Camera) {
@@ -121,7 +128,7 @@ func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0
 // and leaning with the wind as much as they sway.
 type litLook struct {
 	world.Look
-	sky *Plugin
+	sky Atmosphere
 }
 
 // Begin readies the world's Look under it where it draws on the GPU.

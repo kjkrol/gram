@@ -197,7 +197,7 @@
 // plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says.
 // The renderer asks the Look for every entity in white light, swaying as its Appearance says: the
 // world knows no sun and no wind; the Look — a view plugin's, or the atmosphere's over a flat board
-// (atmosphere.Plugin.WithBoard) — lights the entity, leans it and lays its shadow. Picking and
+// (board.Plugin.WithAtmosphere) — lights the entity, leans it and lays its shadow. Picking and
 // outlines ask the same Look. A [DirectLook] draws the sprites itself on the GPU: the renderer, a
 // render.Direct at render.Objects, readies it every frame, hands it the sprites and has it draw
 // them — the world's own flat look as instances (render.Sprites), the topography's as billboards

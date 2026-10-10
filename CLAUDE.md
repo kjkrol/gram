@@ -89,7 +89,8 @@ declared on the world's atlas in a scene's Layers — `world.Plugin.NewAtlas`: `
 draw)`, a look `Under` an effect, `Turning`, `Facing` — the renderer applying them itself;
 `world.Plugin.Draw` and `vision.Plugin.Draw` were hooks and went on 2026-10-06, the user's word:
 "role zaczepiamy do encji", and a look is the atlas's; vision's views are its option,
-`vision.Plugin.WithViews(render.Show(...))`). The tag families join the host's queries as optional
+`vision.Plugin.WithViews(render.Show(...))`, given in the scene). The tag families join the
+host's queries as optional
 components, so a rule costs no query, and rules over one component share its column (`plugin.Own`
 shares the host's own). The moment's type —
 `collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
@@ -528,7 +529,9 @@ kind's snowy twin, what water freezes into, what sways — and `New` defines thr
 ground, a noise's seeds, next to snow) while it snows in the frost, melting lonely and late cells
 first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
 stopping below 10; a winter begun has its drifts and shores laid at once
-(`atmosphere.Plugin.WithWeathering(board, cfg)`). `plugins/atmosphere/air` is the weather as
+(`atmosphere.Plugin.WithWeathering(board, cfg)`, called as the atmosphere is made — its three
+effects defined then, in the Plugins section, which takes any definition; the kinds it names looked
+up as the weather first touches the board). `plugins/atmosphere/air` is the weather as
 drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift` (a `HeapTile` at
 most), `Cover`, `Billow` and the `Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans
 what sways, `Weather.Cloud`/`Shade` are the clouds' noise and shadow on the CPU, the very numbers
@@ -545,10 +548,14 @@ waves steepen with `Wind` (`calmSea`..`stormSea`), water reflects `overcastSky()
 takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (`overcast.Renderer`, tier `Objects+50`, a Direct: a mesh
 over the viewport, the noise at its corners every 8 pixels where the camera's lines of sight meet
 the ground, the shadow per pixel) and its light by the hour through
-`atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `look.EvenLit`:
-the sun on level ground, one light for every tile, so the board is composed once and tinted on the
-GPU) and the world's Look (`litLook`: sprites lit, what sways leaning on the CPU, handing the flat
-look's GPU sprites through). A flat board without an atmosphere is drawn as it is.
+`board.Plugin.WithAtmosphere(atmosphere)` (`plugins/board/lit.go`, since 2026-10-10, the user's
+word: the board with the atmosphere, not the atmosphere with the board; `atmosphere.WithBoard`
+went), reading the sky through `board.Atmosphere{Sun, Air}` — the shape of `topography.Atmosphere`
+— which wraps the board's Map (`litDressing`, `look.EvenLit`: the sun on level ground, one light
+for every tile, so the board is composed once and tinted on the GPU) and the world's Look
+(`litLook`: sprites lit, what sways leaning on the CPU, handing the flat look's GPU sprites
+through); called in a scene, before the renderers, as `topography.WithAtmosphere` is. A flat board
+without an atmosphere is drawn as it is.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
@@ -1338,12 +1345,13 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
   collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
-  `render.Show` rules given at construction pick some (`vision.Plugin.WithViews(render.Show(selected.In))`,
-  an option like navigation's WithCrowd). A
+  `render.Show` rules pick some (`vision.Plugin.WithViews(render.Show(selected.In))`, given in the
+  scene as the renderer is made). A
   `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
-  (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
-  look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
+  (`Plugin.ShowCones`, `HideCones`, `ConesShown`; `Hide(bool)` went on 2026-10-10; the renderer
+  composes nothing while hidden, the scan goes on); a look, not saved. Hand the plugin to
+  `players.NewPlugin` for the key. Depends on `world`.
 - **`bullet`** — shots as entities of the world: the plugin's own register (`Plugin.Shots()`;
   `NewShots(w)` alone in a test) — `Shots.Define(name, Body{Size, Speed,
   Range, Gravity, Lands}, extra...)` registers an ammo, `Named` the `Ammo`, a kind whose entities carry a `Collider` without
@@ -1496,8 +1504,11 @@ and `UseWorld` (Plugins: the Stage's `World`/`Plugins` link), `players.Add`/`Loc
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `World`/`Plugins` take anything (plugins define their
 own as they are made), and a Stage written by hand is in no section: nothing is refused, so every test
-installer works as before. A plugin that needs a game's definitions takes them after it is used
-(`atmosphere.Plugin.WithWeathering` any time before the Stage is set up).
+installer works as before. **How things look is the scene's** (since 2026-10-10, the user's
+word): `picture()` of a demo's `scene.go` sets what is drawing and nothing else does —
+`board.WithAtmosphere`, `topography.WithAtmosphere`, the painter's styles (`island.Style`,
+`topography.Style`), `vision.WithViews`, `vision.ShowCones` — while `makePlugins` configures what a
+plugin does (`vision.WithBoard`, `atmosphere.WithWeathering`).
 
 ### UI: a scene's screen composed of elements (`ui`, since 2026-10-07)
 

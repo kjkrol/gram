@@ -54,6 +54,7 @@ func (m *mainScene) picture() render.Picture {
 
 	s.nav.WithRenderer(nil)
 
+	s.vision.WithViews(render.Show(s.selection.IsSelected))
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
