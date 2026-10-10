@@ -33,9 +33,9 @@ func (s *viewedStage) Init(ctx game.Initializer) error {
 	s.Stack().Composition().Show("view")
 	return nil
 }
-func (s *viewedStage) Restore(game.Persistence) (bool, error) { return false, nil }
-func (s *viewedStage) Spawn() error                           { return nil }
-func (s *viewedStage) Update(goke.RunCtx, time.Duration)      {}
+func (s *viewedStage) Loaded() error                     { return nil }
+func (s *viewedStage) Spawn() error                      { return nil }
+func (s *viewedStage) Update(goke.RunCtx, time.Duration) {}
 func (s *viewedStage) Stack() game.Scenes {
 	if s.stack == nil {
 		s.scene = ui.NewScene("view", ui.Image(render.NewFeed(s.cam, nil)))

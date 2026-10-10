@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -53,7 +52,6 @@ const (
 	Sprint       = 4
 	PlateauUnits = 20
 	MaxEntCount  = 4*island.Stops + PlateauUnits
-	saveBasePath = "board-topography"
 )
 
 var scale = world.Scale{Metres: 100.0 / CellSize}
@@ -100,7 +98,6 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Restore(s.restore).
 			Spawn(s.spawnGround, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
@@ -154,7 +151,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.topography.WithAtmosphere(s.atmosphere)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.topography, s.vision).WithSaves(saveBasePath)
+		s.atmosphere, s.topography, s.vision)
 }
 
 func (s *arena) definePlayers() error {
@@ -217,22 +214,6 @@ func (s *arena) bindKeys() error {
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
-}
-
-// TODO: ta sekcja jest sie pojawia, to zawsze w tym samym ksztalcie, moze powinna byc czescia "silnika" ?
-func (s *arena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	log.Print("loaded saved island")
-	return true, nil
 }
 
 type unitRow struct{ start, target cell.ID }

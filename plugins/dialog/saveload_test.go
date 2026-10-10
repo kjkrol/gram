@@ -16,10 +16,9 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// talkerStage is a world of one entity that speaks and talks at greet; loadFrom, when set, is the
-// save it restores.
+// talkerStage is a world of one entity that speaks and talks at greet.
 type talkerStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world  *world.Plugin
 	dialog *dialog.Plugin
@@ -57,12 +56,7 @@ func (s *talkerStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (s *talkerStage) Restore(p game.Persistence) (bool, error) {
-	if s.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(s.loadFrom, "")
-}
+func (s *talkerStage) Loaded() error { return nil }
 
 func (s *talkerStage) Spawn() error {
 	s.world.Seed(s.talker.Entry(struct{}{}))
@@ -107,18 +101,22 @@ func (g talkerGame) Stages() (map[string]game.Stage, string) {
 
 // An entity's Script and Talk are what they were after the game is saved and loaded.
 func TestDialog_SurvivesASaveAndALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &talkerStage{}
 	eng := engine.NewEngine(talkerGame{saver})
 	if err := eng.Init(); err != nil {
 		t.Fatal(err)
 	}
 	script, talk := saver.carried(t)
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatal(err)
 	}
-	loader := &talkerStage{loadFrom: path}
-	if err := engine.NewEngine(talkerGame{loader}).Init(); err != nil {
+	loader := &talkerStage{load: true}
+	eng2 := engine.NewEngine(talkerGame{loader})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
 		t.Fatal(err)
 	}
 	gotScript, gotTalk := loader.carried(t)

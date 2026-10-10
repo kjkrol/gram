@@ -14,8 +14,7 @@
 //				With(dialog.Conversations(s.defineConversations)). // a plugin's own section
 //				Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
 //				Controls(s.bindKeys).                              // the game's own keys, each a command
-//				Restore(s.restore).                                // a saved game, resumed…
-//				Spawn(s.spawnCells, s.spawnUnits).                 // …or a fresh one: its board, its units
+//				Spawn(s.spawnCells, s.spawnUnits).                 // a fresh game: its board, its units
 //				Scenes(s.defineScenes).                            // the scenes, once the world is there
 //				Update(s.update))                                  // the tick
 //	}
@@ -57,9 +56,9 @@
 //
 // # What the Stage does itself
 //
-// The Stage so defined keeps its name; it starts fresh unless [AfterControls.Restore] says how it
-// resumes, and seeds a fresh game with Spawn's steps. Once the world is there — loaded at the end
-// of Restore, else spawned at the end of Spawn — it makes the stack of the scenes Scenes hands
+// The Stage so defined keeps its name and seeds a fresh game with Spawn's steps; entered from a
+// save (game.Load, the engine's) it spawns nothing. Once the world is there — loaded, else spawned
+// at the end of Spawn — it makes the stack of the scenes Scenes hands
 // back, shows the first — or those [AfterScenes.Shows] names; a loaded game those shown when it
 // was saved — and tracks the stack's Composition for the saves. The scenes are made before the
 // plugins populate the world: nothing in them reads the entities spawned. The engine hands the

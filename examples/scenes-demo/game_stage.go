@@ -1,7 +1,6 @@
 package main
 
 import (
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -21,8 +20,6 @@ import (
 const (
 	EntityCount = 12
 	EntitySize  = 16
-
-	saveBasePath = "scenes-demo"
 )
 
 type gameplayArena struct {
@@ -50,7 +47,6 @@ func NewGameplayStage() game.Stage {
 		Plugins(g.makePlugins).
 		Players(g.definePlayer).
 		Kinds(g.defineKinds).
-		Restore(g.restore).
 		Spawn(g.spawnUnits).
 		Scenes(g.defineScenes).
 		Update(g.update)
@@ -59,7 +55,7 @@ func NewGameplayStage() game.Stage {
 func (g *gameplayArena) makePlugins(w *world.Plugin) {
 	g.world = w
 	g.cameras = cameras.NewPlugin(g.world)
-	g.players = players.NewPlugin(g.world, g.cameras).WithSaves(saveBasePath)
+	g.players = players.NewPlugin(g.world, g.cameras)
 }
 
 func (g *gameplayArena) definePlayer() error {
@@ -81,24 +77,12 @@ func (g *gameplayArena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(WorldScene, m.screen()).
 		Input(g.players.Handle).
 		Issue(g.players.IssueAs(g.player)).
-		Keys(control.Give(control.KeyPress{Key: control.KeyP}, "Panel",
-			ui.Toggle{Name: PanelElement})),
+		Keys(
+			control.Give(control.KeyPress{Key: control.KeyP}, "Panel",
+				ui.Toggle{Name: PanelElement}),
+			control.Give(control.KeyPress{Key: control.KeyM}, "Menu", game.Enter{Stage: MenuStage}),
+		),
 	}
-}
-
-// TODO: ten kod to copy-paste
-func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func (g *gameplayArena) spawnUnits() {

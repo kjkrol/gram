@@ -27,13 +27,12 @@ type SpawnStep interface{ func() | func() error }
 
 // def is a Stage as its sections define it.
 type def struct {
-	name    string
-	steps   []step
-	scenes  func(game.Initializer) ([]game.Scene, error)
-	shows   []string
-	restore func(game.Persistence) (bool, error)
-	spawn   []func() error
-	update  func(goke.RunCtx, time.Duration)
+	name   string
+	steps  []step
+	scenes func(game.Initializer) ([]game.Scene, error)
+	shows  []string
+	spawn  []func() error
+	update func(goke.RunCtx, time.Duration)
 
 	ctx   game.Initializer
 	stack game.Scenes
@@ -145,19 +144,8 @@ func (b built) Init(ctx game.Initializer) error {
 	return nil
 }
 
-// Restore resumes the Stage from a save, as its Restore says, and makes the scenes of the game
-// loaded; false, and the engine spawns a fresh one.
-func (b built) Restore(p game.Persistence) (bool, error) {
-	d := b.d
-	if d.restore == nil {
-		return false, nil
-	}
-	loaded, err := d.restore(p)
-	if err != nil || !loaded {
-		return loaded, err
-	}
-	return true, d.makeScenes()
-}
+// Loaded makes the scenes of a game loaded in place of a fresh one.
+func (b built) Loaded() error { return b.d.makeScenes() }
 
 // Spawn seeds a fresh game — its steps in their order — and makes its scenes.
 func (b built) Spawn() error {

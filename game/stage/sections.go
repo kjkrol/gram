@@ -14,7 +14,7 @@ import (
 // may be left out — and end with Update, which hands back the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterWorld{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterRestore{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}}
+	return Start{AfterWorld{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
@@ -109,19 +109,11 @@ func (s AfterKinds) Controls[F Step](f F) AfterControls {
 	return s.AfterControls
 }
 
-type AfterControls struct{ AfterRestore }
-
-// Restore resumes the Stage from a save, or reports false: a Stage without it starts fresh.
-func (s AfterControls) Restore(f func(game.Persistence) (bool, error)) AfterRestore {
-	s.d.restore = f
-	return s.AfterRestore
-}
-
-type AfterRestore struct{ AfterSpawn }
+type AfterControls struct{ AfterSpawn }
 
 // Spawn seeds a fresh game's world in steps run in their order — its board, its units:
-// Spawn(s.spawnCells, s.spawnUnits). A loaded game skips them.
-func (s AfterRestore) Spawn[F SpawnStep](steps ...F) AfterSpawn {
+// Spawn(s.spawnCells, s.spawnUnits). A game loaded (game.Load) skips them.
+func (s AfterControls) Spawn[F SpawnStep](steps ...F) AfterSpawn {
 	for _, f := range steps {
 		s.d.spawn = append(s.d.spawn, spawnOf(f))
 	}

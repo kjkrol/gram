@@ -21,14 +21,24 @@
 // A [Stage] is one self-contained context the game can be in, with its own plugins and its own
 // goke ECS, both built fresh when the Stage is entered. Init installs plugins through the
 // Initializer, may call UseWorld once and defines the game's roles and rules — package game/stage
-// does both for a game, from a world.Config and the plugins its arena makes; Restore resumes from a save or
-// reports there is none; Spawn seeds the initial state, run only when Restore found nothing;
-// Update advances the simulation one tick by running the plugins' RunPlan in the order the game
-// needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand: package
-// game/stage defines a Stage a section at a time — the world and its plugins, players, effects,
-// rules, commands, kinds, controls, restore, spawn, scenes, update — always in that order, a
+// does both for a game, from a world.Config and the plugins its arena makes; Spawn seeds the
+// initial state of a Stage entered afresh, Loaded is told in its place when it was entered from a
+// save; Update advances the simulation one tick by running the plugins' RunPlan in the order the
+// game needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand:
+// package game/stage defines a Stage a section at a time — the world and its plugins, players,
+// effects, rules, commands, kinds, controls, spawn, scenes, update — always in that order, a
 // plugin's own sections written among them, its scenes made once the world is there, loaded or
 // spawned.
+//
+// # Saving and loading
+//
+// Saving and loading are the engine's, never a Stage's nor a plugin's, asked for by commands the
+// engine carries out — [Save] the active Stage in a slot, [Load] a Stage from its save, from any
+// Stage (a menu's Continue), [Enter] a Stage afresh, [Quit] — given like any command: a key's
+// binding, a ui button, a rule's Order (an autosave), [Runtime].Issue. Every Stage carries them,
+// one without a world too. A save is the Stage's, a file a slot in [Props].Saves; a Stage entered
+// from one is built anew and its world loaded in place of Spawn. [Runtime] Save and Load are the
+// same at hand; Load of a save not there is an error and changes nothing.
 //
 // # Scene, Scenes and Composition
 //

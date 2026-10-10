@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math/rand/v2"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -26,8 +24,6 @@ const (
 	TPS          = 60 * 2
 	ScreenWidth  = 1024
 	ScreenHeight = 1024
-
-	saveBasePath = "collision-demo"
 
 	// hitDuration is how long an entity keeps showing a collision.
 	hitDuration = 50 * time.Millisecond
@@ -82,7 +78,6 @@ func NewDemo(s *arena) game.Game {
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
 			Kinds(s.defineKinds).
-			Restore(s.restore).
 			Spawn(s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
@@ -92,9 +87,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras).
-		WithSaves(saveBasePath)
-	// TODO: WithSaves co to robi? czy to jest dostawca sposobu zapisu? jesli tak, to chyba nie jest to czesc pluginu player ?!
+	s.players = players.NewPlugin(s.world, s.cameras)
 }
 
 func (s *arena) definePlayer() error {
@@ -114,22 +107,6 @@ func (s *arena) defineRules() {
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: s, tps: ctx.TPS()}
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
-}
-
-// TODO: jaka jest roznica miedzy tym a WithSaves ?
-func (s *arena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	log.Print("loaded saved world")
-	return true, nil
 }
 
 func (s *arena) defineKinds() {

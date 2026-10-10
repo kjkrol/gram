@@ -34,7 +34,7 @@ func (m *gameplayScene) screen() *ui.Element {
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(g.players.Through(g.player)),
-		ui.BottomLeft(ui.Label("P: panel, F5: save, K: keys")).Margin(8),
+		ui.BottomLeft(ui.Label("P: panel, M: menu, F5: save, F9: load, K: keys")).Margin(8),
 		ui.Center(ui.Window("PANEL",
 			ui.Label("the world keeps ticking behind me"),
 			ui.Button("Close (or P)", ui.Hide{Name: PanelElement}),

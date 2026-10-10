@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
@@ -16,7 +17,8 @@ type initializer struct {
 	host  *ecsHost
 	world *world.Plugin
 	tps   *game.TPS
-	// handlers are the plugin.CommandHandlers used before the world, for it to carry
+	// handlers are the plugin.CommandHandlers used before the world — the engine's own first —
+	// for it to carry, or for the Stage's own carrier when it has no world
 	handlers []plugin.CommandHandler
 	// hosts take the rules of the moments the plugins used so far catch, in the order of Use
 	hosts []plugin.Host
@@ -130,3 +132,18 @@ func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
 }
 
 func (c *initializer) TPS() *game.TPS { return c.tps }
+
+// carrier is the Stage's carrier of commands: its world's, or one of its own for a Stage without a
+// world, taking the commands of the handlers it used.
+func (c *initializer) carrier() (*control.Carrier, error) {
+	if c.world != nil {
+		return c.world.Carrier(), nil
+	}
+	own := &control.Carrier{}
+	for _, h := range c.handlers {
+		if err := own.Carry(h.Queues()...); err != nil {
+			return nil, err
+		}
+	}
+	return own, nil
+}

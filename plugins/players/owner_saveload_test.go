@@ -18,10 +18,9 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// ownerStage is a world with two players and one unit the second owns; loadFrom, when set, is the
-// save it restores.
+// ownerStage is a world with two players and one unit the second owns.
 type ownerStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world   *world.Plugin
 	players *players.Plugin
@@ -54,12 +53,7 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 	return ctx.Use(s.players)
 }
 
-func (s *ownerStage) Restore(p game.Persistence) (bool, error) {
-	if s.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(s.loadFrom, "")
-}
+func (s *ownerStage) Loaded() error { return nil }
 
 func (s *ownerStage) Spawn() error {
 	s.world.Seed(s.unit.Entry(struct{}{}))
@@ -108,7 +102,7 @@ func (g ownerGame) Stages() (map[string]game.Stage, string) {
 // A unit a player owns is that player's still after the game is saved and loaded: the owners'
 // tags are saved by name.
 func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &ownerStage{}
 	eng := engine.NewEngine(ownerGame{saver})
 	if err := eng.Init(); err != nil {
@@ -117,11 +111,15 @@ func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
 	if got := saver.ownersOfTheUnit(t); !owner.Obeys(got, 2) || owner.Obeys(got, 1) {
 		t.Fatalf("the unit is owned by %b, want the second player alone", got)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatal(err)
 	}
-	loader := &ownerStage{loadFrom: path}
-	if err := engine.NewEngine(ownerGame{loader}).Init(); err != nil {
+	loader := &ownerStage{load: true}
+	eng2 := engine.NewEngine(ownerGame{loader})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
 		t.Fatal(err)
 	}
 	if got := loader.ownersOfTheUnit(t); !owner.Obeys(got, 2) || owner.Obeys(got, 1) {

@@ -23,7 +23,7 @@ import (
 type roleStage struct {
 	roles, moods   []string
 	plays, carries []string
-	loadFrom       string
+	load           bool // entered from the quicksave
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -78,12 +78,7 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *roleStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *roleStage) Loaded() error { return nil }
 
 func (g *roleStage) Spawn() error {
 	g.world.Seed(g.unit.Entry(struct{}{}))
@@ -99,10 +94,15 @@ func (g *roleStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// runRoleStage builds the stage through the engine: Init, Restore or Spawn, Setup.
+// runRoleStage builds the stage through the engine: Init, the quicksave loaded or Spawn, Setup.
 func runRoleStage(t *testing.T, g *roleStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -174,17 +174,17 @@ func TestRoles_PlaysTwiceInOneKindPanics(t *testing.T) {
 }
 
 func TestRoles_SurviveASaveTheWorldNamesThemIn(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 
 	saver := &roleStage{
 		roles: []string{"mortal", "hasty", "lazy"}, plays: []string{"mortal", "hasty"},
 		moods: []string{"calm", "angry"}, carries: []string{"calm"},
 	}
-	if err := runRoleStage(t, saver).Persistence().Save(path, ""); err != nil {
+	if err := runRoleStage(t, saver).Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loader := &roleStage{roles: []string{"lazy", "hasty", "mortal"}, moods: []string{"angry", "calm"}, loadFrom: path}
+	loader := &roleStage{roles: []string{"lazy", "hasty", "mortal"}, moods: []string{"angry", "calm"}, load: true}
 	runRoleStage(t, loader)
 
 	plays, marks := onlyRoles(t, loader)

@@ -12,12 +12,14 @@
 // A Stage is one self-contained context the game can be in — a menu, the gameplay, a map screen —
 // with its own goke ECS, built fresh the moment [game.Runtime.SwitchStage] enters it, so a menu
 // Stage sits idle with no gameplay entities until the player starts. Its lifecycle is Init
-// (install plugins through a [game.Initializer]), Restore (resume from a save, or report there is
-// none), Spawn (seed the initial state, only when Restore found nothing) and Update (one tick).
-// A game defines it a section at a time with package game/stage — stage.New(name).Plugins(…).
-// Players(…).Effects(…).Rules(…).Commands(…).Kinds(…).Controls(…).Restore(…).Spawn(…).
-// Scenes(…).Update(…) — always in that order, which the compiler keeps, each plugin refusing what
-// is defined out of its section; the scenes are made once the world is there, loaded or spawned.
+// (install plugins through a [game.Initializer]), Spawn (seed the initial state) or, entered from a
+// save, Loaded, and Update (one tick). Saving and loading are the engine's, asked for by commands
+// like any other — [game.Save], [game.Load], [game.Enter], [game.Quit] — bound to keys or ui
+// buttons, a Stage loaded from another's: a menu's Continue. A game defines a Stage a section at a
+// time with package game/stage — stage.New(name).World(…).Plugins(…).Players(…).Effects(…).
+// Rules(…).Commands(…).Kinds(…).Controls(…).Spawn(…).Scenes(…).Update(…) — always in that order,
+// which the compiler keeps, each plugin refusing what is defined out of its section; the scenes
+// are made once the world is there, loaded or spawned.
 //
 // Within a Stage, a Scene is one thing it can show: its renderers (Layers, built once on entering
 // the Stage) and its input handling. The Stage's [game.Scenes] is the static registry of its

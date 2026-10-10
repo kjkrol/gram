@@ -21,9 +21,9 @@ type moods struct{}
 // tagStage defines the tags of one family in whatever order it is given and spawns one entity
 // carrying the named ones, so two runs can disagree about which bit means what.
 type tagStage struct {
-	order    []string
-	carries  []string
-	loadFrom string
+	order   []string
+	carries []string
+	load    bool // entered from the quicksave
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -66,12 +66,7 @@ func (g *tagStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *tagStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *tagStage) Loaded() error { return nil }
 
 func (g *tagStage) Spawn() error {
 	g.world.Seed(g.unit.Entry(struct{}{}))
@@ -108,6 +103,11 @@ func onlyMarks(t *testing.T, g *tagStage) tag.Tags[moods] {
 func runTagStage(t *testing.T, g *tagStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -133,15 +133,15 @@ func TestTags_AreNumberedByDefineOrderWithinTheFamily(t *testing.T) {
 }
 
 func TestTags_SurviveAReorderedDefinition(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 
 	saver := &tagStage{order: []string{"calm", "angry"}, carries: []string{"angry"}}
 	eng := runTagStage(t, saver)
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loader := &tagStage{order: []string{"angry", "calm"}, loadFrom: path}
+	loader := &tagStage{order: []string{"angry", "calm"}, load: true}
 	runTagStage(t, loader)
 
 	got := onlyMarks(t, loader)
@@ -152,9 +152,9 @@ func TestTags_SurviveAReorderedDefinition(t *testing.T) {
 }
 
 func TestTags_PanicWhenTheSaveNamesATagThisBuildDropped(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &tagStage{order: []string{"calm", "angry"}, carries: []string{"angry"}}
-	if err := runTagStage(t, saver).Persistence().Save(path, ""); err != nil {
+	if err := runTagStage(t, saver).Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -163,5 +163,5 @@ func TestTags_PanicWhenTheSaveNamesATagThisBuildDropped(t *testing.T) {
 			t.Error("loading a save naming a tag this build lacks returned quietly, want a panic")
 		}
 	}()
-	runTagStage(t, &tagStage{order: []string{"calm"}, loadFrom: path})
+	runTagStage(t, &tagStage{order: []string{"calm"}, load: true})
 }

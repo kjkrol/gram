@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **gram** (formerly gokebiten; module `github.com/kjkrol/gram`) is a public, modular Go game engine library: a
 user-implemented `game.Game` — a named collection of `game.Stage`s, each
-with its own lifecycle (`Init`/`Restore`/`Spawn`/`Update`) and its own
+with its own lifecycle (`Init`/`Spawn` or `Loaded`/`Update`) and its own
 `game.Scene`s (`Stack`/`Composition`, the sole entry point for input) — is
 driven by a `gram.Engine` that wraps
 [goke](https://github.com/kjkrol/goke) (a type-safe, archetype-based ECS)
@@ -164,8 +164,8 @@ anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
 kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
 `rule.NewPart` are for plugins. **What a plugin gives is in its root package** (the user's rule, 2026-10-05):
 `commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `cameras.Pan`,
-`Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `Quit` (Shift+Esc), `ShowShortcuts` (K), `Save` (F5, in a game that said where:
-`players.Plugin.WithSaves(basePath, resources...)`), `atmosphere.Freeze`/`Later`/`Earlier`/
+`Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `ShowShortcuts` (K),
+`atmosphere.Freeze`/`Later`/`Earlier`/
 `ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
 **real types of the root package, never aliases** (aliases were tried and dropped the same day: two
 names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
@@ -175,7 +175,8 @@ for goke and the saves): the plugin keeps the queues and carries the commands ou
 its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
 `Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
 every game and no demo repeats one**: Space is the world's tactical pause (the engine's pause,
-`Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves;
+`Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves and
+F9 loads (the engine's commands, see "Game / persistence");
 `players.GameBindings()` is K and Shift+Esc for a game that binds its own camera keys
 (split-screen). A plugin with scenes of its own is a `game.Scenic` (`Scenes()`): the engine's
 initializer gathers them (`PluginScenes`) and a Stage defined in sections has them in its stack,
@@ -258,7 +259,7 @@ Initial state follows the same optional-interface pattern as
 `plugin.Restorer`/`plugin.PostLoader`: `Stage.Spawn` only declares it through
 each plugin's own typed `Seed` (`world.Plugin.Seed(roster)`,
 `board.Plugin.Seed(layout)`), and the engine then calls `Populate()` on every
-tracked `plugin.Populator` — only when `Restore` loaded nothing. Entity kinds
+tracked `plugin.Populator` — only for a Stage entered afresh, not from a save. Entity kinds
 are defined in `Stage.Init` with the `entity/kind` package:
 `prey := kind.Define[P](world.Kinds(), "prey", kind.Spec{...})` — a `Spec` is
 just the list of a kind's components, each made in `kind/comp`: `comp.Const(v)` (same for all) or
@@ -1265,10 +1266,12 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   Following and driving are not the players' any more (2026-10-07, the user's word): the cameras
   plugin follows, the driving plugin drives; players is the layer from input to commands.
   The Scene hands input to `players.Plugin.Handle(events, runtime, composition)` and nothing
-  else: the bindings turn it into commands, `players.Quit` (Shift+Esc) and `players.ShowShortcuts`
-  (K) — default keys of the players' own, listed under "Game" — are carried out there, having the
-  Runtime at hand, `players.Save` (F5) too, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a debug toggle) are
-  run; `players.RunPlan` runs last and empties the queues. Depends on `world`.
+  else: the bindings turn it into commands, `players.ShowShortcuts` (K) — the players' own, which
+  needs the Runtime — is carried out there, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a
+  debug toggle) are run; the other default keys, `GameBindings` (K, F5 `game.Save`, F9 `game.Load`,
+  Shift+Esc `game.Quit`; `WithSaves`, `players.Save` and `players.Quit` went on 2026-10-10), give
+  the engine's commands, listed under "Game"; `players.RunPlan` runs last and empties the queues.
+  Depends on `world`.
 - **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
   **each is made where a scene shows it** (2026-10-08, the user's word: the kind of camera and its
   window are how a picture is shown), beside the picture in the Scenes section,
@@ -1395,11 +1398,12 @@ string)`) — `game.New(props, stages...)` is that `Game` (since 2026-10-09, the
 mechanical `Demo` type with `Props` and `Stages`), the first stage starting unless
 `Defined.Starting(name)` says; a game wanting more writes its own.
 A `Stage` is what `Game` itself used to be:
-`Init`/`Restore`/`Spawn`/`Update`, each with its **own** `*goke.ECS`, built
+`Init`/`Spawn`/`Update` (`Loaded` in place of `Spawn` when entered from a save), each with its
+**own** `*goke.ECS`, built
 fresh (plus a fresh `world.Plugin` if its chain begins with `World`) the moment `Runtime.SwitchStage`
 enters it — so a menu Stage can sit idle with zero gameplay entities until
 the player actually starts the game, at which point the gameplay Stage's
-`Init`/`Restore`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
+`Init`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
 never a `plugin.Plugin` — it's the thing that *installs* plugins via
 `ctx.Use`, exactly like `Game` did before. Its `Init` gets a `game.Initializer`: `Use`,
 `UseWorld`, `Track`, `TPS`, the embedded `plugin.Installer`, and `Commands`; it has no way to hand a rule
@@ -1425,12 +1429,12 @@ registers it once via `ctx.Track(composition)` in `Init` so visibility/
 order survive `Persistence.Save`/`Load` automatically, the same name-keyed
 way a `Plugin`'s own state does.
 
-`Runtime` (`Paused`/`Pause`/`Resume`/`TogglePause`/`Quit`/`SwitchStage`/
-`Persistence`/`TPS`/`ToggleFullscreen`) is a single, undivided interface — the exact
-same value reaches both a `Stage` (via `Initializer`/at Restore time) and
+`Runtime` (`Paused`/`Pause`/`Resume`/`TogglePause`/`Quit`/`SwitchStage`/`Save`/`Load`/`Issue`/
+`Persistence`/`TPS`/`ToggleFullscreen`/`Props`) is a single, undivided interface — the exact
+same value reaches both a `Stage` (via `Initializer`) and
 every `Scene`'s `HandleEvents`; there is no cut-down "scene-level" subset.
-A menu scene's "Start" button calls `runtime.SwitchStage(gameplayStage.
-Name())` directly, no need to bubble a click up through anything. Anything
+A menu scene's buttons give the engine's commands — `game.Enter{Stage}`, `game.Load{Stage}` —
+through the Runtime directly, no need to bubble a click up through anything. Anything
 that's a *plugin's* capability rather than an engine primitive (camera,
 selection, navigation...) reaches a `Scene` the same way it reaches a
 sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
@@ -1438,7 +1442,7 @@ struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
 `examples/minimal`): `stage.New(name).World(cfg).Plugins(a.makePlugins).Players(f).Effects(f)
-.Rules(f).Commands(f).Kinds(f...).Controls(f).Restore(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)`
+.Rules(f).Commands(f).Kinds(f...).Controls(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)`
 hands back a
 `game.Stage` (the order since 2026-10-08, the user's word: the scenes last, once the world is
 there; `Cells` went into `Kinds` and `Layout` and `Units` into `Spawn` — the board's words left
@@ -1459,10 +1463,9 @@ running `f` with the plugin of type `P` the Stage uses, and every link from `Wor
 takes `With(sections...)` — the section runs where it is written; written after the part it comes
 before, or before the part it comes after, it panics as the chain is built; a Stage using no `P`
 fails `Init`. The dialogs' is the first: `With(dialog.Conversations(s.defineConversations))` after
-the commands, before the kinds. The Stage so built keeps its name, starts fresh
-without `Restore`, and makes its scenes once the world is there — at the end of `Restore` when it
-loaded a save, else at the end of `Spawn` (no method of `game.Stage` of its own: the engine is
-unchanged): the stack, the first scene shown or those `Shows` names (a loaded game those shown
+the commands, before the kinds. The Stage so built keeps its name and makes its scenes once the
+world is there — in `Loaded` when the engine entered it from a save (the `Restore` link went on
+2026-10-10: loading is the engine's), else at the end of `Spawn`: the stack, the first scene shown or those `Shows` names (a loaded game those shown
 when saved), the Composition and the ui scenes tracked — a value tracked after a Load gets its
 saved state as it is tracked. The scenes are made before `Populate`: nothing in them reads the
 entities spawned. The order is what builds on what: players before the kinds, effects before the
@@ -1572,9 +1575,9 @@ player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Laye
 scenes of screen layers: their keys switch the Stage and quit through `game.Runtime`.
 
 See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
-gameplay entities, "Start" switching (lazily building the ECS) into a
-gameplay `Stage`, and a togglable modal `Scene` over the still-ticking
-world plus a non-focusable HUD overlay.
+world, a ui scene of the engine's commands — "New game" entering (lazily building the ECS) the
+gameplay `Stage`, "Continue" entering it from its save, "Quit" — M in the game back to the menu,
+and a togglable modal panel over the still-ticking world.
 
 ### Game / persistence
 
@@ -1593,6 +1596,21 @@ automatically. Saved resources are matched by name (a `Plugin`'s `Name()`,
 or the Go type name for anything tracked without one) rather than by
 position, so a save survives plugins being added/removed/reordered
 between game versions — see `internal/engine/persist.go`.
+
+**Saving and loading are the engine's** (since 2026-10-10, the user's word: loading must be
+possible from another Stage — a menu — and saving belongs to neither the Stage nor a plugin):
+commands like any other, `game.Save{Slot}` (the active Stage), `game.Load{Stage, Slot}` (enter a
+Stage, "" the active, from its save; checked first — a save not there is an error and nothing
+changes), `game.Enter{Stage}` (afresh, `SwitchStage`), `game.Quit{}`, bound to keys (the players'
+`GameBindings`) or ui buttons (a scene without `Issue` gives them through `Runtime.Issue`, as
+nobody: scenes-demo's menu). The engine is their handler: its queues (`internal/engine/commands.go`)
+are in every Stage's carrier — the world's, or the initializer's own for a Stage without a world —
+and it carries them out after the input, before the ticks, so a rule's `Order` saves too.
+`Runtime.Save`/`Load`/`Issue` are the same at hand. A save is a Stage's: `filepath.Join(
+Props.Saves, stage)` as the base path of `persist.go`, a file a slot. `enterStage` loads it in place
+of `Restore`'s old place — after Init, before Setup — and calls `Stage.Loaded()` in place of
+`Spawn`; `Engine.Load` before `Init` has `Init` enter from the save (the tests' way: `Props.Saves`
+a temp dir or `t.Chdir`, `eng.Save("")`, a second engine `Load("", "")`, `Init`).
 
 ### Testing conventions
 

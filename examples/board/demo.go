@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -46,8 +45,6 @@ const (
 	sightRadius  = 220
 	sightHalf    = math.Pi / 5
 	MaxEntCount  = 4 * island.Stops
-
-	saveBasePath = "board"
 )
 
 type arena struct {
@@ -87,7 +84,6 @@ func NewDemo(s *arena) game.Game {
 			Effects(s.defineEffects).
 			Rules(s.defineRules).
 			Kinds(s.defineCells, s.defineKinds).
-			Restore(s.restore).
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
@@ -118,7 +114,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.atmosphere.WithBoard(s.board)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.vision).WithSaves(saveBasePath)
+		s.atmosphere, s.vision)
 }
 
 func (s *arena) definePlayer() error {
@@ -145,21 +141,6 @@ func (s *arena) defineRules() {
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
-}
-
-func (s *arena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	log.Print("loaded the saved island")
-	return true, nil
 }
 
 type unitRow struct{ start, target cell.ID }

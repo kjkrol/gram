@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -38,7 +37,6 @@ const (
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
-	saveBasePath = "board-navigation-demo"
 )
 
 type arena struct {
@@ -72,7 +70,6 @@ func NewDemo(s *arena) game.Game {
 			Players(s.definePlayer).
 			Rules(s.defineRules).
 			Kinds(s.defineCells, s.defineKinds).
-			Restore(s.restore).
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
@@ -90,8 +87,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).
-		WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
 
 func (s *arena) definePlayer() error {
@@ -135,21 +131,6 @@ func (s *arena) defineCells() {
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	// admits nobody and is not solid: whoever stands on it falls
 	kinds.Define(HoleCell, cell.Kind{Cost: 1})
-}
-
-func (s *arena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	log.Print("loaded saved board")
-	return true, nil
 }
 
 type unitRow struct{ start, target cell.ID }

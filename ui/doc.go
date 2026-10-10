@@ -48,7 +48,8 @@
 //
 // A click goes to the topmost element it hits. A [Button] gives its command: one of the scene's own
 // — [Show], [Hide], [Toggle] an element by name — or any other through [Scene.Issue], the way a key
-// gives it (players.Plugin.IssueAs). A picture with an [Input] ([Element.Input]: players.Plugin.Through
+// gives it (players.Plugin.IssueAs); a scene without one gives it as nobody through the Runtime
+// (game.Runtime.Issue): a menu's buttons, the engine's game.Enter, game.Load, game.Quit. A picture with an [Input] ([Element.Input]: players.Plugin.Through
 // for a player) lets the click through to [Scene.Input], the players' bindings, and is told, before
 // each pass of input of the active scene, where it lies and what it shows, so the mouse over it is
 // that player's and its commands go through the picture's camera; any other element keeps the

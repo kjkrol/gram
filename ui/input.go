@@ -17,7 +17,8 @@ func (s *Scene) Keys(bindings ...control.Binding) *Scene {
 }
 
 // Issue is how the scene gives a command that is not its own — a button's, a key's: the players'
-// Issue for the player at the keyboard, as a rule.
+// Issue for the player at the keyboard, as a rule. Without one the scene gives it as nobody
+// through the Runtime (game.Runtime.Issue): a menu's buttons, the engine's commands.
 func (s *Scene) Issue(fn func(cmd control.Command) error) *Scene {
 	s.issue = fn
 	return s
@@ -28,6 +29,7 @@ func (s *Scene) Issue(fn func(cmd control.Command) error) *Scene {
 // modal window keeps every click and the wheel outside it. The scene's keys are run; what is left
 // goes to Input.
 func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	s.runtime = runtime
 	s.passed = *events
 	s.passed.ClickQueue = s.passed.ClickQueue[:0:0]
 	if s.root != nil {
@@ -144,16 +146,20 @@ func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
 	s.give(cmd)
 }
 
-// give carries out cmd if it is the scene's own, else issues it.
+// give carries out cmd if it is the scene's own, else issues it: through Issue, else the Runtime.
 func (s *Scene) give(cmd control.Command) {
 	if s.carry(cmd) {
 		return
 	}
-	if s.issue == nil {
-		log.Printf("ui: scene %q has no Issue for %T", s.name, cmd)
+	issue := s.issue
+	if issue == nil && s.runtime != nil {
+		issue = s.runtime.Issue
+	}
+	if issue == nil {
+		log.Printf("ui: scene %q has nobody to give %T to", s.name, cmd)
 		return
 	}
-	if err := s.issue(cmd); err != nil {
+	if err := issue(cmd); err != nil {
 		log.Printf("ui: scene %q: %v", s.name, err)
 	}
 }

@@ -73,7 +73,6 @@ func NewDemo(s *arena) game.Game {
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Kinds(s.defineCells, s.defineKinds).
-			// TODO: dlaczego tu brak restore ?
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))

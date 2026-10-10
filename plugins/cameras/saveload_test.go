@@ -12,12 +12,12 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// savedStage is a world and its cameras, loaded from loadFrom when set.
+// savedStage is a world and its cameras.
 type savedStage struct {
-	cams     *cameras.Plugin
-	cam      camera.Camera
-	loadFrom string
-	stack    game.Scenes
+	cams  *cameras.Plugin
+	cam   camera.Camera
+	load  bool // entered from the quicksave
+	stack game.Scenes
 }
 
 func (g *savedStage) Name() string { return "stage" }
@@ -29,15 +29,7 @@ func (g *savedStage) Init(ctx game.Initializer) error {
 	g.cam = g.cams.New(cameras.TopDown(), camera.Config{})
 	return ctx.Use(g.cams)
 }
-func (g *savedStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	if err := p.Load(g.loadFrom, ""); err != nil {
-		return false, err
-	}
-	return true, nil
-}
+func (g *savedStage) Loaded() error                     { return nil }
 func (g *savedStage) Spawn() error                      { return nil }
 func (g *savedStage) Update(goke.RunCtx, time.Duration) {}
 func (g *savedStage) Stack() game.Scenes {
@@ -57,7 +49,7 @@ func (g oneStage) Stages() (map[string]game.Stage, string) {
 
 // A game saved and loaded through the engine shows what its main camera showed.
 func TestPlugin_SaveLoad_CameraRoundTrip(t *testing.T) {
-	basePath := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 
 	g := &savedStage{}
 	eng := engine.NewEngine(oneStage{stage: g})
@@ -69,12 +61,16 @@ func TestPlugin_SaveLoad_CameraRoundTrip(t *testing.T) {
 	b := cam.Bounds()
 	cam.ZoomIn(2, float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2)
 	wantBounds, wantZoom := cam.Bounds(), cam.Zoom()
-	if err := eng.Persistence().Save(basePath, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	g2 := &savedStage{loadFrom: basePath}
-	if err := engine.NewEngine(oneStage{stage: g2}).Init(); err != nil {
+	g2 := &savedStage{load: true}
+	eng2 := engine.NewEngine(oneStage{stage: g2})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if got := g2.cam.Bounds(); got != wantBounds {

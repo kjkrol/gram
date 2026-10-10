@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -36,8 +35,6 @@ const (
 	EntitySize  = 22
 	UnitSpeed   = HexSize * 3
 	MaxEntCount = 16
-
-	saveBasePath = "board-navigation-hex-demo"
 )
 
 var (
@@ -77,7 +74,6 @@ func NewDemo(s *arena) game.Game {
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Kinds(s.defineCells, s.defineKinds).
-			Restore(s.restore).
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
@@ -93,8 +89,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving).
-		WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
 
 func (s *arena) definePlayer() error {
@@ -127,22 +122,6 @@ func (s *arena) defineCells() {
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
-}
-
-// TODO: ponownie widac, ze to jest copy-paste i powinno byc dostarczone
-func (s *arena) restore(p game.Persistence) (bool, error) {
-	saves, err := p.List(saveBasePath)
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(saves, "") {
-		return false, nil
-	}
-	if err := p.Load(saveBasePath, ""); err != nil {
-		return false, err
-	}
-	log.Print("loaded saved board")
-	return true, nil
 }
 
 type unitRow struct{ start, target cell.ID }

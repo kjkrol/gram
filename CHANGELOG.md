@@ -28,6 +28,20 @@ argument's full path, which moved.
   and are each Stage's now (its world's). Two Stages may use one name for different things, and a
   Stage binds only the plans it defines.
 
+**Saving and loading, the engine's commands**
+- Saving and loading are the engine's: `game.Save{Slot}` saves the active Stage,
+  `game.Load{Stage, Slot}` enters a Stage from its save — from any Stage, a menu's Continue —
+  `game.Enter{Stage}` enters one afresh and `game.Quit{}` ends the game. Commands like any other,
+  bound to keys or ui buttons; every Stage carries them, one without a world too, and the engine
+  carries them out after the input. `Runtime.Save`, `Load` and `Issue` (a command given as nobody,
+  how a ui scene without `Issue` gives its buttons') are the same at hand. A Stage's saves lie in
+  `Props.Saves`, a file a slot.
+- `game.Stage` has `Loaded()` in place of `Restore(Persistence)`: called instead of Spawn when the
+  engine entered the Stage from a save. The `Restore` link of `game/stage` is gone.
+- The players' default keys are K, F5 (`game.Save`), F9 (`game.Load`) and Shift+Esc
+  (`game.Quit`) in every game; `players.Plugin.WithSaves`, `players.Save` and `players.Quit` are
+  gone. The demos no longer load at start: F9, or scenes-demo's menu.
+
 **Commands**
 - A command is a `control.Command`: a type with the method `Command()`, confirmed where it is
   defined (`var _ control.Command = MoveTo{}`). Every command of the library is one, and whatever

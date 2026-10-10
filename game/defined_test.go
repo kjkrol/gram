@@ -11,12 +11,12 @@ import (
 // named is a Stage of a test that is only its name.
 type named string
 
-func (n named) Name() string                         { return string(n) }
-func (named) Init(game.Initializer) error            { return nil }
-func (named) Restore(game.Persistence) (bool, error) { return false, nil }
-func (named) Spawn() error                           { return nil }
-func (named) Update(goke.RunCtx, time.Duration)      {}
-func (named) Stack() game.Scenes                     { return nil }
+func (n named) Name() string                    { return string(n) }
+func (named) Init(game.Initializer) error       { return nil }
+func (named) Loaded() error                     { return nil }
+func (named) Spawn() error                      { return nil }
+func (named) Update(goke.RunCtx, time.Duration) {}
+func (named) Stack() game.Scenes                { return nil }
 
 func TestNew_StartsWithTheFirstStageUnlessToldOtherwise(t *testing.T) {
 	g := game.New(game.Props{Title: "t"}, named("menu"), named("play"))

@@ -86,13 +86,14 @@
 // # Scene keys and the shortcuts
 //
 // A scene showing the world hands its input to [Plugin.Handle] and nothing else: the bindings
-// turn it into commands, and the two of the players' own that need the engine are carried out
-// there — [Quit] (Shift+Esc), [ShowShortcuts] (K) and, in a game that said where it saves
-// ([Plugin.WithSaves]), [Save] (F5): default keys, the same in every game. Keys
+// turn it into commands, and the players' own that needs the Runtime is carried out there —
+// [ShowShortcuts] (K). The other default keys are the engine's commands: F5 game.Save, F9
+// game.Load (the quicksave), Shift+Esc game.Quit — the same in every game. Keys
 // that are no command to a plugin — a debug toggle — are the game's own: [SceneKeys] lists them
 // with labels and what they do, given to [Plugin.OwnKeys], and Handle runs them. [Shortcuts] is
 // the players' own scene listing every key of the game — the local players' bindings, grouped by
-// the plugin whose command each issues, and under "Game" the game's own keys, Quit and the list's
+// the plugin whose command each issues, and under "Game" the game's own keys, the engine's and the
+// list's
 // — over the dimmed screen, the game held in the engine's pause while it is up; every Stage that
 // uses the players has it in its stack ([Plugin.Scenes], game.Scenic), and Esc or K closes it.
 // [Written] is a rule as such a list writes it.
@@ -106,7 +107,7 @@
 //
 // # Commands
 //
-// The players' own commands are in commands.go: [Give] makes an entity a player's, [Quit] ends the
-// game, [ShowShortcuts] opens the list of keys and [Save] writes the game.
-// [GameBindings] are the keys of the last three's first two, for a game that binds its own keys.
+// The players' own commands are in commands.go: [Give] makes an entity a player's and
+// [ShowShortcuts] opens the list of keys. [GameBindings] are K, F5, F9 and Shift+Esc, for a game
+// that binds its own keys.
 package players

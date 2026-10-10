@@ -263,7 +263,8 @@ func (m *mainScene) picture() render.Picture {
 ## Demos
 
 [`examples/collision-demo`](examples/collision-demo) is the same idea at scale: thousands of
-colliding boxes at a fixed 120 TPS, with save and load on F5.
+colliding boxes at a fixed 120 TPS, saved on F5 and loaded on F9 — the engine's commands, as in
+every game.
 
 <table>
   <thead>
@@ -337,13 +338,15 @@ stage.New(MeadowStage).
 	With(dialog.Conversations(s.defineConversations)). // a plugin's own section, in its place
 	Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
 	Controls(s.bindKeys).                              // the game's own keys, each a command
-	Restore(s.restore).                                // a saved game, resumed…
-	Spawn(s.spawnCells, s.spawnUnits).                 // …or a fresh one: its board, its units
+	Spawn(s.spawnCells, s.spawnUnits).                 // a fresh game: its board, its units
 	Scenes(s.defineScenes).                            // the scenes, their pictures and cameras
 	Update(s.update)                                   // the tick; hands back the game.Stage
 ```
 
-The game never touches the engine's Initializer: the Stage makes the world from its config and
+Saving and loading are the engine's, not a Stage's nor a plugin's: commands like any other —
+`game.Save{Slot}`, `game.Load{Stage, Slot}`, `game.Enter{Stage}`, `game.Quit{}` — bound to keys
+(F5 saves, F9 loads, Shift+Esc quits in every game) or to ui buttons, a Stage entered from its save
+from any other: a menu's Continue. The game never touches the engine's Initializer: the Stage makes the world from its config and
 uses the plugins the arena makes over it, in their order. A plugin may bring a section of its own
 (`plugin/section`), written with `With` where it belongs — the dialogs' conversations after the
 commands their answers give and before the kinds whose scripts name them; written elsewhere, the

@@ -13,4 +13,7 @@ type Props struct {
 	// every world camera draws to all of it — more of a large world, a small one scaled up to cover
 	// it. Off, the screen stays ScreenWidth x ScreenHeight and a larger window scales it whole.
 	Resizable bool
+	// Saves is the directory the game keeps its saves in, a file a Stage and slot; empty, the one
+	// the game runs in.
+	Saves string
 }

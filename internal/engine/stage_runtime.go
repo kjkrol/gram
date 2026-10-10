@@ -5,37 +5,49 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-// stageRuntime is one active Stage: its ecsHost, its world.Plugin if it installed one, and every
-// Scene's layers, built once at entry and keyed by Scene.Name().
+// stageRuntime is one active Stage: its ecsHost, its world.Plugin if it installed one, the
+// carrier of its commands, and every Scene's layers, built once at entry and keyed by
+// Scene.Name().
 type stageRuntime struct {
 	host        *ecsHost
 	stage       game.Stage
 	world       *world.Plugin
+	carrier     *control.Carrier
 	sceneLayers map[string][]render.Layer
 }
 
-// enterStage builds a Stage from scratch: a fresh ECS, Init, Restore or Spawn, renderers, Setup.
-func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
+// enterStage builds a Stage from scratch: a fresh ECS, Init, the save slot loaded — Loaded — or
+// Spawn, renderers, Setup.
+func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
 	host := newECSHost()
 
-	ctx := &initializer{host: host, tps: e.tps}
+	ctx := &initializer{host: host, tps: e.tps, handlers: []plugin.CommandHandler{&e.commands}}
 	if err := stage.Init(ctx); err != nil {
 		return nil, err
 	}
 	if err := ctx.deliver(); err != nil {
 		return nil, err
 	}
-
-	restored, err := stage.Restore(&persistence{host: host})
+	carrier, err := ctx.carrier()
 	if err != nil {
 		return nil, err
 	}
-	if !restored {
+
+	if load != nil {
+		if err := (&persistence{host: host}).Load(e.savePath(stage.Name()), *load); err != nil {
+			return nil, err
+		}
+		if err := stage.Loaded(); err != nil {
+			return nil, err
+		}
+	} else {
 		if err := stage.Spawn(); err != nil {
 			return nil, err
 		}
@@ -70,7 +82,7 @@ func (e *Engine) enterStage(stage game.Stage) (*stageRuntime, error) {
 
 	host.flushPendingSetup()
 
-	return &stageRuntime{host: host, stage: stage, world: ctx.world, sceneLayers: sceneLayers}, nil
+	return &stageRuntime{host: host, stage: stage, world: ctx.world, carrier: carrier, sceneLayers: sceneLayers}, nil
 }
 
 // checkLayers refuses a layer that is no Renderer: a scene's layers are drawn on the screen, the

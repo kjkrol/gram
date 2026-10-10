@@ -18,8 +18,8 @@ import (
 
 // fieldStage is a wall column on a board, saved or loaded.
 type fieldStage struct {
-	loadFrom string
-	grid     grid.Grid
+	load bool // entered from the quicksave
+	grid grid.Grid
 
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -47,12 +47,7 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *fieldStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *fieldStage) Loaded() error { return nil }
 
 func (g *fieldStage) Spawn() error {
 	var cells []cell.Entry
@@ -87,7 +82,7 @@ func (g *fieldStage) solidCells() int {
 }
 
 func TestField_ALoadedBoardIsSolidWhereItWasSavedWithNoEntityForIt(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 
 	fresh := &fieldStage{grid: grid}
@@ -98,12 +93,15 @@ func TestField_ALoadedBoardIsSolidWhereItWasSavedWithNoEntityForIt(t *testing.T)
 	if got := fresh.solidCells(); got != 14 {
 		t.Fatalf("fresh board is solid in %d cells, want the 14 of the wall", got)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loaded := &fieldStage{grid: grid, loadFrom: path}
+	loaded := &fieldStage{grid: grid, load: true}
 	eng2 := engine.NewEngine(boardtest.OneStageGame{Stage: loaded, GameProps: game.Props{}})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}

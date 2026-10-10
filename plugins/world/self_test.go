@@ -28,7 +28,7 @@ type dial struct{ Level int }
 // skyStage is a world with a plugin's own entity carrying a dial, a storm that turns the dial up,
 // ten plain states and one scout, lit while the sky is under the storm.
 type skyStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world  *world.Plugin
 	sky    *world.Self
@@ -90,12 +90,7 @@ func (g *skyStage) SetupSystems() []goke.System {
 	}}}
 }
 
-func (g *skyStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *skyStage) Loaded() error { return nil }
 
 func (g *skyStage) Spawn() error {
 	g.world.Seed(g.scout.Entry(struct{}{}).Named("scout"))
@@ -148,6 +143,11 @@ func (g *skyStage) theScout(t *testing.T) uid.UID64 {
 func runSky(t *testing.T, g *skyStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -235,15 +235,15 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 // A loaded game brings the plugins' entities, found again by their names: none is made twice, and
 // the knob and the effect on it are as they were saved.
 func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &skyStage{}
 	eng := runSky(t, saver)
 	saver.give(t, rule.Cast(saver.storm).On(saver.sky))
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	g := &skyStage{loadFrom: path}
+	g := &skyStage{load: true}
 	runSky(t, g)
 	sky := g.sky.Entity()
 	if got := g.dialsOf(); len(got) != 1 || got[sky] != 5 {

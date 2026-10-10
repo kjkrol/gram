@@ -40,8 +40,11 @@ type Engine struct {
 	counted     time.Time
 	spent       spent
 
-	// pendingSwitch names the Stage to enter at the top of the next Update.
+	// pendingSwitch names the Stage to enter at the top of the next Update, pendingLoad the save
+	// slot it is entered from; nil, afresh.
 	pendingSwitch     string
+	pendingLoad       *string
+	commands          commands
 	transitionOverlay render.SolidBackground
 
 	quit bool
@@ -120,19 +123,23 @@ func (e *Engine) SwitchStage(name string) error {
 	if _, ok := stages[name]; !ok {
 		return fmt.Errorf("gram: unknown stage %q", name)
 	}
-	e.pendingSwitch = name
+	e.pendingSwitch, e.pendingLoad = name, nil
 	return nil
 }
 
-// Init enters the initial Stage and makes the engine's step the only clock, loop not yet started.
+// Init enters the initial Stage — or the one Load asked for, from its save — and makes the
+// engine's step the only clock, loop not yet started.
 func (e *Engine) Init() error {
 	stages, initial := e.game.Stages()
+	if e.pendingSwitch != "" {
+		initial, e.pendingSwitch = e.pendingSwitch, ""
+	}
 	stage, ok := stages[initial]
 	if !ok {
 		return fmt.Errorf("gram: initial stage %q not found among registered Stages", initial)
 	}
 
-	current, err := e.enterStage(stage)
+	current, err := e.enterStage(stage, e.takeLoad())
 	if err != nil {
 		return err
 	}
@@ -244,7 +251,7 @@ func (e *Engine) Update() error {
 		if !ok {
 			return fmt.Errorf("gram: unknown stage %q", name)
 		}
-		current, err := e.enterStage(stage)
+		current, err := e.enterStage(stage, e.takeLoad())
 		if err != nil {
 			return err
 		}
@@ -259,6 +266,7 @@ func (e *Engine) Update() error {
 	}
 	e.controller.Update(nil, 0)
 	e.inputs.ResetTransient()
+	e.carry()
 
 	if e.current.host.ecs.Paused() {
 		return nil
@@ -280,6 +288,14 @@ func (e *Engine) Update() error {
 	}
 
 	return nil
+}
+
+// takeLoad is the save slot the Stage about to be entered is loaded from, nil for afresh; asked
+// once.
+func (e *Engine) takeLoad() *string {
+	slot := e.pendingLoad
+	e.pendingLoad = nil
+	return slot
 }
 
 // maxStepsAFrame is how many ticks one frame catches up on at most; past it the engine is behind.

@@ -3,7 +3,6 @@ package players
 import (
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"time"
 
@@ -31,15 +30,11 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	handlers    []plugin.CommandHandler
 	players     []*Player
-	quits       control.Queue[Quit]
 	listings    control.Queue[ShowShortcuts]
-	saves       control.Queue[Save]
 	shortcuts   *Shortcuts  // the scene listing the keys
 	owned       *goke.Query // whose every entity is: what Through's Shows reads
 	ownedBase   goke.Comp[world.Base]
 	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
-	savePath    string // where Save writes; none, no saving
-	saveWith    []any  // the game's own resources saved beside the plugins'
 	gives       control.Queue[Give]
 	pass        uint64 // the passes of input handled: a player's picture is wired anew for each
 	module      *module
@@ -154,34 +149,15 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 // what a scene hands over
 // =================================================================
 
-// Handle takes a scene's input for the tick: the players' bindings turn it into commands, Quit
-// and ShowShortcuts — which need the engine — are carried out at once, and the game's own keys
+// Handle takes a scene's input for the tick: the players' bindings turn it into commands,
+// ShowShortcuts — which needs the Runtime — is carried out at once, and the game's own keys
 // (OwnKeys) are run. A scene showing the world calls it from its
 // HandleEvents, and nothing else.
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
-	p.quits.Drain(func(control.Issued[Quit]) { runtime.Quit() })
 	p.listings.Drain(func(control.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
-	p.saves.Drain(func(control.Issued[Save]) {
-		if p.savePath == "" {
-			return
-		}
-		if err := runtime.Persistence().Save(p.savePath, "", p.saveWith...); err != nil {
-			log.Printf("players: save: %v", err)
-			return
-		}
-		log.Printf("players: saved %q", p.savePath)
-	})
 	p.shortcuts.keys.Handle(events, runtime, composition)
 	p.pass++
-}
-
-// WithSaves says where the game is saved — basePath, with the game's own resources beside the
-// plugins' — which gives the players the Save command its key, F5. Loading is the Stage's
-// (Restore). Call it as the plugin is made.
-func (p *Plugin) WithSaves(basePath string, resources ...any) *Plugin {
-	p.savePath, p.saveWith = basePath, resources
-	return p
 }
 
 // =================================================================

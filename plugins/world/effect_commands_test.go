@@ -23,7 +23,7 @@ import (
 // guardStage is three units in a row — a captain in the guards, a guard, a passer-by — and an
 // effect to cast on them by what they are called.
 type guardStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world *world.Plugin
 	ecs   *goke.ECS
@@ -59,12 +59,7 @@ func (g *guardStage) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { g.query = si.NewQueryBuilder(&g.base).Build() }}}
 }
 
-func (g *guardStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *guardStage) Loaded() error { return nil }
 
 func (g *guardStage) Spawn() error {
 	g.world.Seed(
@@ -152,11 +147,11 @@ func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 
 // What the units are called is saved with them: a loaded game's captain is still the one found.
 func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
-	if err := runGuards(t, &guardStage{}).Persistence().Save(path, ""); err != nil {
+	t.Chdir(t.TempDir())
+	if err := runGuards(t, &guardStage{}).Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	g := &guardStage{loadFrom: path}
+	g := &guardStage{load: true}
 	runGuards(t, g)
 	g.give(t, rule.Cast(g.alert).On(entity.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
@@ -189,10 +184,15 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	}
 }
 
-// runGuards builds the stage through the engine: Init, Restore or Spawn, Setup.
+// runGuards builds the stage through the engine: Init, the quicksave loaded or Spawn, Setup.
 func runGuards(t *testing.T, g *guardStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}

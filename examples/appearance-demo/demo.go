@@ -73,7 +73,6 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineKinds).
 			Controls(s.bindKeys).
-			// TODO: dlaczego tu brak restore?
 			Spawn(s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))

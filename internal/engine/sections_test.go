@@ -3,7 +3,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -89,28 +88,42 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	}
 }
 
-// Shows names the scenes shown in place of the first; Restore reporting true spawns nothing and
-// still makes the scenes.
-func TestStage_ShowsAndRestore(t *testing.T) {
-	s := &sectioned{}
-	st := stage.New("meadow").
-		World(testWorldConfig()).Plugins(s.makeWorld).
-		Restore(func(game.Persistence) (bool, error) { return true, nil }).
-		Spawn(func() { s.note("ground") }, func() { s.note("units") }).
-		Scenes(func() []game.Scene {
-			s.note("scenes")
-			return []game.Scene{&scene{name: "main"}, &scene{name: "help"}, &scene{name: "hud"}}
-		}).
-		Shows("main", "hud").
-		Update(s.update)
-	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+// Shows names the scenes shown in place of the first; a Stage entered from a save spawns nothing
+// and still makes the scenes.
+func TestStage_ShowsAndALoadedStage(t *testing.T) {
+	props := game.Props{Saves: t.TempDir()}
+	define := func(s *sectioned) game.Stage {
+		return stage.New("meadow").
+			World(testWorldConfig()).Plugins(s.makeWorld).
+			Spawn(func() { s.note("ground") }, func() { s.note("units") }).
+			Scenes(func() []game.Scene {
+				s.note("scenes")
+				return []game.Scene{&scene{name: "main"}, &scene{name: "help"}, &scene{name: "hud"}}
+			}).
+			Shows("main", "hud").
+			Update(s.update)
+	}
+	fresh := define(&sectioned{})
+	eng := NewEngine(oneStageGame{stage: fresh, props: props})
+	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if got := st.Stack().Composition().Order(); !slices.Equal(got, []string{"main", "hud"}) {
+	if got := fresh.Stack().Composition().Order(); !slices.Equal(got, []string{"main", "hud"}) {
 		t.Errorf("shown %v, want main and hud", got)
 	}
+	if err := eng.Save(""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	s := &sectioned{}
+	eng = NewEngine(oneStageGame{stage: define(s), props: props})
+	if err := eng.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init from the save: %v", err)
+	}
 	if !slices.Equal(s.ran, []string{"plugins", "scenes"}) {
-		t.Errorf("ran %v: a restored Stage spawns nothing and makes its scenes", s.ran)
+		t.Errorf("ran %v: a loaded Stage spawns nothing and makes its scenes", s.ran)
 	}
 }
 
@@ -127,28 +140,31 @@ func (k *kept) Restore()         { k.restored = true }
 // A loaded game's scenes, made once it is loaded, are as they were saved: the scenes shown and a
 // scene's own state.
 func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
-	basePath := filepath.Join(t.TempDir(), "meadow")
-	define := func(s *sectioned, k *kept, restore func(game.Persistence) (bool, error)) game.Stage {
+	props := game.Props{Saves: t.TempDir()}
+	define := func(s *sectioned, k *kept) game.Stage {
 		return stage.New("meadow").
 			World(testWorldConfig()).Plugins(s.makeWorld).
-			Restore(restore).
 			Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}, k, &scene{name: "hud"}} }).
 			Update(s.update)
 	}
 	fresh := &kept{scene: scene{name: "help"}}
-	eng := NewEngine(oneStageGame{stage: define(&sectioned{}, fresh, func(game.Persistence) (bool, error) { return false, nil })})
+	eng := NewEngine(oneStageGame{stage: define(&sectioned{}, fresh), props: props})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	eng.current.stage.Stack().Composition().Show("hud")
 	fresh.note = "seen"
-	if err := eng.Persistence().Save(basePath, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
 	loaded := &kept{scene: scene{name: "help"}}
-	st := define(&sectioned{}, loaded, func(p game.Persistence) (bool, error) { return true, p.Load(basePath, "") })
-	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+	st := define(&sectioned{}, loaded)
+	eng = NewEngine(oneStageGame{stage: st, props: props})
+	if err := eng.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng.Init(); err != nil {
 		t.Fatalf("Init of the loaded game: %v", err)
 	}
 	if got := st.Stack().Composition().Order(); !slices.Equal(got, []string{"main", "hud"}) {

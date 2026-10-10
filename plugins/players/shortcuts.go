@@ -134,8 +134,8 @@ func (s *Shortcuts) groups() []group {
 			}
 			seen[line] = true
 			h := s.p.handlerOf(b.Type())
-			if h == plugin.CommandHandler(s.p) {
-				game = append(game, line) // the players' own, but the game's as a player sees it
+			if h == plugin.CommandHandler(s.p) || h == nil {
+				game = append(game, line) // the players' own and the engine's: the game's
 				continue
 			}
 			byHandler[h] = append(byHandler[h], line)
@@ -146,9 +146,6 @@ func (s *Shortcuts) groups() []group {
 		if lines := byHandler[h]; len(lines) > 0 {
 			out = append(out, group{name: handlerName(h), lines: lines})
 		}
-	}
-	if lines := byHandler[nil]; len(lines) > 0 {
-		out = append(out, group{name: "Other", lines: lines})
 	}
 	g := group{name: "Game", lines: game}
 	for _, k := range s.keys {

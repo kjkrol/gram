@@ -54,7 +54,7 @@ func (p effectProbe) SetupSystems() []goke.System {
 	}}}
 }
 
-func (g *effectStage) Restore(game.Persistence) (bool, error)  { return false, nil }
+func (g *effectStage) Loaded() error                           { return nil }
 func (g *effectStage) Spawn() error                            { g.world.Seed(g.unit.Entry(struct{}{})); return nil }
 func (g *effectStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
 func (g *effectStage) Stack() game.Scenes {
