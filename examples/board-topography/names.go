@@ -4,7 +4,18 @@ package main
 // mistyped does not compile.
 const (
 	// kinds of cells
-	IceCell = "ice"
+	WaterCell  = "water"
+	EarthCell  = "earth"
+	SandCell   = "sand"
+	RockCell   = "rock"
+	ForestCell = "forest"
+	BrookCell  = "brook"
+	StreamCell = "stream"
+	RiverCell  = "river"
+	FordCell   = "ford"
+	RoadCell   = "road"
+	BridgeCell = "bridge"
+	IceCell    = "ice"
 
 	// effects
 	BloodMoonEf = "blood moon"
@@ -21,6 +32,11 @@ const (
 	RivalKind   = "rival"
 	HawkKind    = "hawk"
 	PlateauKind = "plateau"
+
+	// sides
+	PlayerSide  = "player"
+	RivalSide   = "rival"
+	ReserveSide = "reserve"
 
 	// the stage and its scenes
 	BoardTopographyStage = "board-topography"

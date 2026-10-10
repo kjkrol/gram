@@ -170,7 +170,7 @@ type levelRelief struct {
 
 type levelWays struct {
 	Roads     map[string]yaml.Node `yaml:"roads"`
-	Rivers    map[string]yaml.Node `yaml:"rivers"`
+	Rivers    []yaml.Node          `yaml:"rivers"`
 	Crossings map[string]string    `yaml:"crossings"`
 }
 
@@ -328,10 +328,9 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 func (l *leveler) ways(w *levelWays, layout *Layout) error {
 	brd := l.p.Board()
 	roads, rivers := network.New(brd), network.New(brd)
-	widths := map[string][2]float64{} // a river kind's at its head and at its mouth
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
 		n := w.Roads[name]
-		width, _, paths, err := l.way(&n, name, false)
+		width, paths, err := l.road(&n, name)
 		if err != nil {
 			return err
 		}
@@ -347,33 +346,23 @@ func (l *leveler) ways(w *levelWays, layout *Layout) error {
 			}
 		}
 	}
-	for _, name := range slices.Sorted(maps.Keys(w.Rivers)) {
-		n := w.Rivers[name]
-		head, mouth, paths, err := l.way(&n, name, true)
+	var runs [][]cell.ID
+	for i := range w.Rivers {
+		cells, nodes, err := l.river(&w.Rivers[i])
 		if err != nil {
 			return err
 		}
-		widths[name] = [2]float64{head, mouth}
-		for _, path := range paths {
-			for i, c := range path {
-				if _, ok := rivers.Node(c); !ok {
-					rivers.Set(c, network.Node{Kind: name})
-				}
-				if i > 0 {
-					rivers.Flow(path[i-1], c)
-				}
+		for k, node := range nodes {
+			if _, ok := rivers.Node(cells[k]); !ok {
+				rivers.Set(cells[k], node)
 			}
 		}
+		runs = append(runs, cells)
 	}
-	along := map[cell.ID]float64{}
-	for _, c := range rivers.Cells() {
-		along[c] = rivers.Along(c)
-	}
-	for c, a := range along {
-		node, _ := rivers.Node(c)
-		wd := widths[node.Kind]
-		node.Width = wd[0] + (wd[1]-wd[0])*a
-		rivers.Set(c, node)
+	for _, cells := range runs { // every river laid first, so a tributary flows into its cells
+		for k := 1; k < len(cells); k++ {
+			rivers.Flow(cells[k-1], cells[k])
+		}
 	}
 	for _, road := range slices.Sorted(maps.Keys(w.Crossings)) {
 		over := w.Crossings[road]
@@ -402,63 +391,139 @@ func (l *leveler) ways(w *levelWays, layout *Layout) error {
 	return nil
 }
 
-func (l *leveler) way(n *yaml.Node, name string, river bool) (
-	head, mouth float64, paths [][]cell.ID, err error,
-) {
-	if _, ok := l.p.kinds.Get(name); !ok {
-		return 0, 0, nil, l.errorf(n, "%q is no kind of cell", name)
+func (l *leveler) road(n *yaml.Node, name string) (width float64, paths [][]cell.ID, err error) {
+	if err := l.cellKind(n, name); err != nil {
+		return 0, nil, err
 	}
 	keys, err := l.keys(n, "width", "paths")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
 	wn, pn := keys["width"], keys["paths"]
 	if wn == nil || pn == nil {
-		return 0, 0, nil, l.errorf(n, "the %s needs a width and paths", name)
+		return 0, nil, l.errorf(n, "the %s needs a width and paths", name)
 	}
-	switch {
-	case wn.Kind == yaml.ScalarNode:
-		err = wn.Decode(&head)
-		mouth = head
-	case river && wn.Kind == yaml.SequenceNode && len(wn.Content) == 2:
-		if err = wn.Content[0].Decode(&head); err == nil {
-			err = wn.Content[1].Decode(&mouth)
-		}
-	default:
-		err = fmt.Errorf("want a number")
-		if river {
-			err = fmt.Errorf("want a number or two, at the head and at the mouth")
-		}
-	}
-	if err != nil {
-		return 0, 0, nil, l.errorf(wn, "width: %v", err)
+	if wn.Decode(&width) != nil {
+		return 0, nil, l.errorf(wn, "width: want a number")
 	}
 	if pn.Kind != yaml.SequenceNode {
-		return 0, 0, nil, l.errorf(pn, "paths: want a list of paths")
+		return 0, nil, l.errorf(pn, "paths: want a list of paths")
 	}
 	for _, path := range pn.Content {
-		if path.Kind != yaml.SequenceNode || len(path.Content) < 2 {
-			return 0, 0, nil, l.errorf(path, "a path is two points or more")
-		}
-		var cells []cell.ID
-		for i, pt := range path.Content {
-			c, err := l.cell(pt)
-			if err != nil {
-				return 0, 0, nil, err
-			}
-			if i == 0 {
-				cells = append(cells, c)
-				continue
-			}
-			step, ok := l.route(cells[len(cells)-1], c)
-			if !ok {
-				return 0, 0, nil, l.errorf(pt, "no way gets to this point from the one before")
-			}
-			cells = append(cells, step[1:]...)
+		cells, _, err := l.points(path, func(pt *yaml.Node) (*yaml.Node, error) { return pt, nil })
+		if err != nil {
+			return 0, nil, err
 		}
 		paths = append(paths, cells)
 	}
-	return head, mouth, paths, nil
+	return width, paths, nil
+}
+
+// river is the cells n runs down and its nodes, all but the last cell's: where its water goes, the
+// sea or another river. A point turns it into the kind it names from there on and widens it
+// towards the width it gives, cell by cell; it begins with both.
+func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, err error) {
+	type mark struct {
+		at    int // the point's cell on the path
+		kind  string
+		width float64
+		wide  bool
+	}
+	var marks []mark
+	point := func(pt *yaml.Node) (*yaml.Node, error) {
+		if pt.Kind != yaml.MappingNode {
+			return pt, nil
+		}
+		keys, err := l.keys(pt, "at", "kind", "width")
+		if err != nil {
+			return nil, err
+		}
+		if keys["at"] == nil {
+			return nil, l.errorf(pt, "a point of a river needs its at: [x, y]")
+		}
+		var m mark
+		if k := keys["kind"]; k != nil {
+			if err := l.cellKind(k, k.Value); err != nil {
+				return nil, err
+			}
+			m.kind = k.Value
+		}
+		if w := keys["width"]; w != nil {
+			if w.Decode(&m.width) != nil {
+				return nil, l.errorf(w, "width: want a number")
+			}
+			m.wide = true
+		}
+		m.at = -1 // its cell, once the path has come to it
+		marks = append(marks, m)
+		return keys["at"], nil
+	}
+	cells, at, err := l.points(n, point)
+	if err != nil {
+		return nil, nil, err
+	}
+	k := 0
+	for i, pt := range n.Content {
+		if pt.Kind == yaml.MappingNode {
+			marks[k].at = at[i]
+			k++
+		}
+	}
+	if len(marks) == 0 || marks[0].at != 0 || marks[0].kind == "" || !marks[0].wide {
+		return nil, nil, l.errorf(n, "a river begins with its kind and width: "+
+			"{at: [x, y], kind: river, width: 6}")
+	}
+	kind := ""
+	for i := range cells[:len(cells)-1] {
+		var from, to *mark
+		for m := range marks {
+			if marks[m].at <= i && marks[m].kind != "" {
+				kind = marks[m].kind
+			}
+			if marks[m].wide && marks[m].at <= i {
+				from = &marks[m]
+			}
+			if marks[m].wide && marks[m].at > i && to == nil {
+				to = &marks[m]
+			}
+		}
+		width := from.width
+		if to != nil {
+			width += (to.width - from.width) * float64(i-from.at) / float64(to.at-from.at)
+		}
+		nodes = append(nodes, network.Node{Kind: kind, Width: width})
+	}
+	return cells, nodes, nil
+}
+
+// points are the cells from point to point of n, each point's cell's place among them besides;
+// point reads a point down to its [x, y].
+func (l *leveler) points(n *yaml.Node, point func(*yaml.Node) (*yaml.Node, error)) (
+	cells []cell.ID, at []int, err error,
+) {
+	if n.Kind != yaml.SequenceNode || len(n.Content) < 2 {
+		return nil, nil, l.errorf(n, "a path is two points or more")
+	}
+	for i, pt := range n.Content {
+		xy, err := point(pt)
+		if err != nil {
+			return nil, nil, err
+		}
+		c, err := l.cell(xy)
+		if err != nil {
+			return nil, nil, err
+		}
+		if i > 0 {
+			step, ok := l.route(cells[len(cells)-1], c)
+			if !ok || len(step) < 2 {
+				return nil, nil, l.errorf(pt, "no way gets to this point from the one before")
+			}
+			cells = append(cells, step[1:len(step)-1]...)
+		}
+		cells = append(cells, c)
+		at = append(at, len(cells)-1)
+	}
+	return cells, at, nil
 }
 
 // route keeps to the straight line between the two cells among the grid's equally short ways.

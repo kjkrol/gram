@@ -3,7 +3,6 @@ package main
 import (
 	"time"
 
-	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
@@ -69,12 +68,10 @@ var weathers = []weather.State{
 	},
 }
 
-// highSnow is how high the ground is, in metres, that snow lies on first: 60 of the island's
-// heights.
-const highSnow = 60 * island.Metres
+const highSnow = 480 // metres: the ground snow lies on first
 
 // snowable are the kinds snow may lie on, each with a snowy twin.
-var snowable = []string{island.EarthCell, island.SandCell, island.RockCell, island.ForestCell}
+var snowable = []string{EarthCell, SandCell, RockCell, ForestCell}
 
 func (s *arena) defineWinterCells() {
 	kinds := s.board.CellKinds()
@@ -94,7 +91,7 @@ func (s *arena) defineClimate() weathering.Config {
 	return weathering.Config{
 		Snowy: snowy,
 		Ice:   IceCell,
-		Sway:  []string{island.ForestCell, snowyCell(island.ForestCell)},
+		Sway:  []string{ForestCell, snowyCell(ForestCell)},
 		High:  func(c cell.ID) bool { return ground.Altitude(c) >= scale.Units(highSnow) },
 	}
 }

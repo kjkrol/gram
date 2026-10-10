@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -57,29 +58,31 @@ type arena struct {
 	bluePlayer *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram split screen demo",
 		Description: "Red: WSAD, blue: arrows.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(SplitScreenStage).
-			World(world.Config{
-				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  BlockSize,
-					MaxSize:  BlockSize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayers).
-			Kinds(s.defineCells, s.defineKinds).
-			Controls(s.bindKeys).
-			Spawn(s.spawn).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(SplitScreenStage).
+		World(world.Config{
+			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  BlockSize,
+				MaxSize:  BlockSize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayers).
+		Kinds(a.defineCells, a.defineKinds).
+		Controls(a.bindKeys).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -64,28 +65,30 @@ type arena struct {
 	wild      *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram bullet demo",
 		Description: "A soldier shoots.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(BulletStage).
-			World(world.Config{
-				Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: 4, MaxSize: EntitySize},
-				Heights:  true,
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayers).
-			Effects(s.defineEffects).
-			Rules(s.defineRules).
-			Kinds(s.defineCells, s.defineKinds).
-			Controls(s.bindKeys).
-			Spawn(s.spawn).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(BulletStage).
+		World(world.Config{
+			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+			Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: 4, MaxSize: EntitySize},
+			Heights:  true,
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayers).
+		Effects(a.defineEffects).
+		Rules(a.defineRules).
+		Kinds(a.defineCells, a.defineKinds).
+		Controls(a.bindKeys).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

@@ -1,16 +1,16 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/atmosphere"
@@ -41,18 +41,22 @@ import (
 
 const (
 	TPS          = 60
-	CellSize     = island.CellSize
-	WorldWidth   = island.GridWidth * CellSize
-	WorldHeight  = island.GridHeight * CellSize
+	GridWidth    = 96
+	GridHeight   = 64
+	CellSize     = 32
+	WorldWidth   = GridWidth * CellSize
+	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
 	EntitySize   = 3
 	spritePx     = 22
 	UnitSpeed    = CellSize * 3 / 4
 	Sprint       = 4
-	PlateauUnits = 20
-	MaxEntCount  = 4*island.Stops + PlateauUnits
+	MaxEntCount  = 44
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 var scale = world.Scale{Metres: 100.0 / CellSize}
 
@@ -70,42 +74,43 @@ type arena struct {
 	rival      *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	stops      []cell.ID
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram board topography",
 		Description: "The island in relief.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(BoardTopographyStage).
-			World(world.Config{
-				Scale: scale,
-				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  EntitySize,
-					MaxSize:  EntitySize,
-				},
-				Heights: true,
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayers).
-			Effects(s.defineEffects).
-			Rules(s.defineRules).
-			Commands(s.defineCommands).
-			Kinds(s.defineCells, s.defineKinds).
-			Controls(s.bindKeys).
-			Spawn(s.spawnGround, s.spawnUnits).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(BoardTopographyStage).
+		World(world.Config{
+			Scale: scale,
+			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  EntitySize,
+				MaxSize:  EntitySize,
+			},
+			Heights: true,
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayers).
+		Effects(a.defineEffects).
+		Rules(a.defineRules).
+		Commands(a.defineCommands).
+		Kinds(a.defineCells, a.defineKinds).
+		Controls(a.bindKeys).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
-	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
 		WithCollision(s.collision).
@@ -115,8 +120,8 @@ func (s *arena) makePlugins(w *world.Plugin) {
 		HeightUnit:  1,
 		Perspective: true,
 		Shaping: topography.Shaping{
-			Step:    scale.Units(5 * island.Metres),
-			MaxStep: scale.Units(20 * island.Metres),
+			Step:    scale.Units(40),
+			MaxStep: scale.Units(160),
 		}})
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
@@ -160,12 +165,30 @@ func (s *arena) definePlayers() error {
 }
 
 func (s *arena) defineCells() {
-	island.Define(s.board.CellKinds(), scale.Units(20))
+	kinds := s.board.CellKinds()
+	ground := cell.Land | cell.Air
+	wet := cell.Water | cell.Air
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(EarthCell, cell.Kind{Cost: 2.5, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(SandCell, cell.Kind{Cost: 4, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(RockCell, cell.Kind{Cost: 3.25, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(FordCell, cell.Kind{Cost: 6.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(ForestCell, cell.Kind{
+		Cost:   7.5,
+		Allows: ground,
+		Veil:   0.6,
+		Height: scale.Units(20),
+	}.Costing(cell.Air, 1))
 	s.defineWinterCells()
 }
 
 func (s *arena) defineEffects() {
-	night := s.atmosphere.Calendar().Config().Day / 2
+	night := s.atmosphere.Calendar().Config().DayRealTime / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
@@ -213,17 +236,20 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, target cell.ID }
+type unitRow struct {
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize, Height: scale.Units(20)},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
 	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 960, Ahead: true})
 	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
@@ -266,38 +292,17 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) spawnGround() {
-	layout, heights, stops := island.Layout(s.board.Board())
-	s.stops = stops
-	s.board.Seed(layout)
-	metres := scale.Units(island.Metres)
-	s.topography.Seed(func(p geom.Vec) float64 { return heights(p) * metres })
-}
-
-func (s *arena) spawnUnits() {
-	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
-	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
-	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
-	entries := make([]kind.Entry, 0, len(s.stops)+1)
-	// TODO: posob w jaki inicjujemy poczatkowy ruch jest tak brzydki, ze az przykro na to patrzec
-	for i, from := range s.stops {
-		walkers := unitKind
-		whose := []control.Command{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
-		if i%2 == 0 {
-			walkers = rivalKind
-			whose = []control.Command{players.Give{To: s.rival.ID}, selection.Allow{}}
-		}
-		to := s.stops[(i+len(s.stops)/2)%len(s.stops)]
-		entries = append(entries, walkers.Entry(unitRow{start: from, target: to}).Told(whose...))
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	hawk := hawkKind.Entry(unitRow{start: s.stops[0], target: s.stops[len(s.stops)/2]})
-	entries = append(entries, hawk.Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	for _, c := range island.Plateau(s.board.Board())[:PlateauUnits] {
-		plateau := plateauKind.Entry(unitRow{start: c, target: c})
-		entries = append(entries, plateau.Told(players.Give{To: s.player.ID}, selection.Allow{}))
-	}
-	s.world.Seed(entries...)
+	s.topography.Seed(level.Heights())
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide:  {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+		RivalSide:   {players.Give{To: s.rival.ID}, selection.Allow{}},
+		ReserveSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

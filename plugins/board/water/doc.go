@@ -1,6 +1,8 @@
 // Package water works out the running water of a relief: where the rain on it gathers and runs
 // to the sea, the brooks, streams and rivers it makes, the channels they cut and the fords across
-// them. It is a way to make a board's layout, as ground.MeanOfCells is, not a plugin: a game
+// them. No demo drains its relief any more — the island lies in its maps — and the package stays
+// for a game working its rivers out of its heights, and for water that changes as the game goes.
+// It is a way to make a board's layout, as ground.MeanOfCells is, not a plugin: a game
 // drains its heights once, lays its courses as a network (plugins/board/network) of its own kinds
 // — [Network.Net]: a node on every cell [Network.Courses] names, [Network.Width] wide, each
 // flowing down to where its water goes — and seeds the board with the [Network.Carved] heights.

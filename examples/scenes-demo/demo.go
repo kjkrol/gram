@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/game"
 )
 
@@ -10,10 +11,11 @@ const (
 	TPS          = 60
 )
 
-func NewDemo() game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram Stage/Scene demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight,
 		TargetTPS: TPS,
-	}, NewMenuStage(GameplayStage), NewGameplayStage())
+	}
+	gram.Run(game.New(props, NewMenuStage(GameplayStage), NewGameplayStage()))
 }

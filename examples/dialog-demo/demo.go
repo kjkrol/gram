@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -63,32 +64,34 @@ type arena struct {
 	player    *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title: "gram dialog demo",
 		Description: "Right click: walk up to a host and answer it. " +
 			"Point at a host with the traveller selected to see what it makes of him.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(DialogStage).
-			World(world.Config{
-				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  UnitSize,
-					MaxSize:  UnitSize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Effects(s.defineEffects).
-			Rules(s.defineRoles).
-			With(dialog.Conversations(s.defineConversations)).
-			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawn).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(DialogStage).
+		World(world.Config{
+			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  UnitSize,
+				MaxSize:  UnitSize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Effects(a.defineEffects).
+		Rules(a.defineRoles).
+		With(dialog.Conversations(a.defineConversations)).
+		Kinds(a.defineCells, a.defineKinds).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

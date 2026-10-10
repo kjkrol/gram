@@ -28,8 +28,6 @@ const (
 	boxCount                  = 300
 )
 
-func main() { gram.Run(newGame(&arena{})) }
-
 type box struct {
 	pos world.Position
 	vel world.Velocity
@@ -50,30 +48,30 @@ type arena struct {
 	stats     collision.ContactStats
 }
 
-func newGame(a *arena) game.Game {
-	return game.New(
-		game.Props{
-			Title:        "gram minimal",
-			ScreenWidth:  screenWidth,
-			ScreenHeight: screenHeight,
-			TargetTPS:    60,
-		},
-		stage.New(ArenaStage).
-			World(world.Config{
-				Space: world.SpaceCfg{
-					Width:  screenWidth,
-					Height: screenHeight,
-					Edges:  aabbworld.Torus,
-				},
-				Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
-			}).
-			Plugins(a.makePlugins).
-			Players(a.definePlayer).
-			Kinds(a.defineKinds).
-			Spawn(a.spawnUnits).
-			Scenes(a.defineScenes).
-			Update(a.update),
-	)
+func main() {
+	props := game.Props{
+		Title:        "gram minimal",
+		ScreenWidth:  screenWidth,
+		ScreenHeight: screenHeight,
+		TargetTPS:    60,
+	}
+	a := &arena{}
+	mainStage := stage.New(ArenaStage).
+		World(world.Config{
+			Space: world.SpaceCfg{
+				Width:  screenWidth,
+				Height: screenHeight,
+				Edges:  aabbworld.Torus,
+			},
+			Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (a *arena) makePlugins(w *world.Plugin) {

@@ -6,13 +6,11 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **The island from a file** — board-topography, and the board demo laying the same island on
-   the simple map, spawn a `map.yaml` as the other demos do (`board.Plugin.Lay`, `board.Spawn`),
-   their units with the stops they walk between in the file (the TODOs of the starting goals in
-   both demos); then `examples/island`, the island worked out in code, goes. To settle as it
-   starts: one map for both demos or one each, how the file carries what the generator works out
-   — the heights with the rivers' beds carved, the rivers fading into the sea, the bridges (see
-   "Bridges standing on the board") — and where the island's kinds, colours and styles go.
+1. **Fords and bridges standing on the board** — the islands' fords (a river's point of the kind
+   ford) and bridges (`crossings`) become entities standing on the river's cells with a
+   `cell.Floor`: the Floor carrying what its domains pay (`Cost`) and spared the slope (`Graded`),
+   a bridge's at a deck's `Height`; drawn lying on the ground or the deck in relief, not standing
+   up as billboards do. The two maps edited to them, `cell.Crossing` gone if nothing else needs it.
 2. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
@@ -98,9 +96,6 @@ What is left to do. Take an item out when it lands.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
-- **Bridges standing on the board** — the islands' bridges are `cell.Crossing`s of their roads; an
-  entity standing on the river's cells with a `cell.Floor` at a deck's `Height` in their place, as
-  the trapdoors are, the crossing gone from the board.
 
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.

@@ -30,7 +30,7 @@ type recruit struct {
 }
 
 // newLevelBoard is a board over g in a world of heights when heights, metres a unit, with the kinds
-// a level names: grass, water, wall, road, bridge and river, a role lake and a kind of unit.
+// a level names: grass, water, wall, road, bridge, brook and river, a role lake and a kind of unit.
 func newLevelBoard(t *testing.T, g grid.Grid, heights bool, metres float64) *Plugin {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -47,6 +47,7 @@ func newLevelBoard(t *testing.T, g grid.Grid, heights bool, metres float64) *Plu
 	kinds.Define("road", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("bridge", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("river", cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define("brook", cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
 	w.Roles().Define("lake")
 	kind.Define[recruit](w.Kinds(), "scout", kind.Spec{
 		comp.Const(world.Position{}),
@@ -163,7 +164,8 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 }
 
 // Roads and rivers run along their paths, point to point; a branch begins on another path, a
-// river widens from its head to its mouth, and a road over a river is the crossing named.
+// river widens from its head to its mouth and flows out into its last point, no part of it, and a
+// road over a river is the crossing named.
 func TestLay_WaysRunAlongTheirPaths(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -172,7 +174,7 @@ ways:
   roads:
     road: {width: 4, paths: [[[0, 2], [5, 2]], [[1, 2], [1, 5]]]}
   rivers:
-    river: {width: [2, 6], paths: [[[3, 0], [3, 5]]]}
+    - [{at: [3, 0], kind: river, width: 2}, {at: [3, 4], width: 6}, [3, 5]]
   crossings: {road: bridge}
 `); err != nil {
 		t.Fatal(err)
@@ -192,12 +194,50 @@ ways:
 	if l := brd.Way(g.At(1, 2)).Links; l&south == 0 || l&east == 0 {
 		t.Errorf("where the branch leaves the road: links %08b, want south and east", l)
 	}
-	head, mouth := brd.Way(g.At(3, 0)).Width, brd.Way(g.At(3, 5)).Width
+	head, mouth := brd.Way(g.At(3, 0)).Width, brd.Way(g.At(3, 4)).Width
 	if head != 2 || mouth != 6 {
 		t.Errorf("the river is %v wide at its head and %v at its mouth, want 2 and 6", head, mouth)
 	}
+	out, _ := grid.Link(g, g.At(3, 4), g.At(3, 5))
+	if l := brd.Way(g.At(3, 4)).Links; l&out == 0 || brd.Way(g.At(3, 5)).Runs() {
+		t.Errorf("the mouth: links %08b, want it flowing out south into what is no part of it", l)
+	}
 	if w := brd.Way(g.At(0, 0)); w.Runs() {
 		t.Errorf("a way runs off every path: %+v", w)
+	}
+}
+
+// A river changes its kind from a point that names another and its width from point to point,
+// cell by cell, keeping the last it was given; a tributary flows into the river's cell its last
+// point names.
+func TestLay_ARiverTurnsAtItsPoints(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, 10)
+	p := newLevelBoard(t, g, false, 0)
+	if _, err := lay(t, p, `
+ways:
+  rivers:
+    - [{at: [0, 4], kind: brook, width: 1}, {at: [2, 4], kind: river, width: 3}, [5, 4]]
+    - [{at: [3, 0], kind: brook, width: 1}, [3, 4]]
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	brd := p.Board()
+	for x, want := range []struct {
+		kind  string
+		width float32
+	}{{"brook", 1}, {"brook", 2}, {"river", 3}, {"river", 3}, {"river", 3}} {
+		w := brd.Way(g.At(uint32(x), 4))
+		if w.Kind.Name.String() != want.kind || w.Width != want.width {
+			t.Errorf("(%d, 4): a %s %v wide, want a %s %v wide", x, w.Kind.Name, w.Width, want.kind,
+				want.width)
+		}
+	}
+	north, _ := grid.Link(g, g.At(3, 4), g.At(3, 3))
+	if l := brd.Way(g.At(3, 4)).Links; l&north == 0 {
+		t.Errorf("where the tributary flows in: links %08b, want north among them", l)
 	}
 }
 
@@ -293,8 +333,16 @@ func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 		},
 		"a road over a river crossings say nothing of": {
 			"ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [3, 0]]]}}\n" +
-				"  rivers: {river: {width: 2, paths: [[[1, 0], [1, 1]]]}}\n",
+				"  rivers: [[{at: [1, 0], kind: river, width: 2}, [1, 1]]]\n",
 			`the road meets a river at [1, 0]`,
+		},
+		"a river not beginning with its kind and width": {
+			"ways:\n  rivers:\n    - [[0, 0], {at: [3, 0], kind: river, width: 2}]\n",
+			`level.yaml:3: a river begins with its kind and width`,
+		},
+		"a river of a kind of cell nobody defined": {
+			"ways:\n  rivers:\n    - [{at: [0, 0], kind: lava, width: 2}, [3, 0]]\n",
+			`level.yaml:3: "lava" is no kind of cell`,
 		},
 		"a key the file has not": {
 			"bord: {}\n",

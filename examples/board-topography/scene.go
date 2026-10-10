@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -26,19 +25,41 @@ var (
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 )
 
+var cellColors = map[string]color.RGBA{
+	WaterCell:  {R: 40, G: 90, B: 170, A: 255},
+	EarthCell:  {R: 110, G: 150, B: 75, A: 255},
+	SandCell:   {R: 215, G: 195, B: 140, A: 255},
+	RockCell:   {R: 130, G: 125, B: 120, A: 255},
+	BrookCell:  {R: 90, G: 145, B: 205, A: 255},
+	StreamCell: {R: 90, G: 145, B: 205, A: 255},
+	RiverCell:  {R: 90, G: 145, B: 205, A: 255},
+	FordCell:   {R: 90, G: 145, B: 205, A: 255},
+	RoadCell:   {R: 165, G: 135, B: 95, A: 255},
+	BridgeCell: {R: 115, G: 85, B: 55, A: 255},
+	ForestCell: {R: 30, G: 90, B: 45, A: 255},
+}
+
 var (
 	snowyColors = map[string]color.RGBA{
-		island.EarthCell:  {R: 232, G: 236, B: 235, A: 255},
-		island.SandCell:   {R: 238, G: 236, B: 225, A: 255},
-		island.RockCell:   {R: 205, G: 208, B: 212, A: 255},
-		island.ForestCell: {R: 150, G: 185, B: 165, A: 255},
+		EarthCell:  {R: 232, G: 236, B: 235, A: 255},
+		SandCell:   {R: 238, G: 236, B: 225, A: 255},
+		RockCell:   {R: 205, G: 208, B: 212, A: 255},
+		ForestCell: {R: 150, G: 185, B: 165, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
-	island.Style(s.topography)
+	s.topography.
+		Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
+		Style(EarthCell, painter.Style{Spread: 0.3}).
+		Style(SandCell, painter.Style{Spread: 0.35}).
+		Style(RockCell, painter.Style{Spread: 0.25}).
+		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
+		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
+		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
+		Style(FordCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
 	for _, name := range snowable {
 		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
 	}
@@ -58,7 +79,7 @@ func (m *mainScene) picture() render.Picture {
 	s.world.WithRenderer(worldAtlas)
 
 	boardAtlas := s.board.NewAtlas(CellSize)
-	for name, c := range island.Colors {
+	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
 	for name, c := range snowyColors {

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -46,36 +47,38 @@ type arena struct {
 	player    *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram appearance demo",
 		Description: "R: everyone angry for a while.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(AppearanceStage).
-			World(world.Config{
-				Space: world.SpaceCfg{
-					Width:  ScreenWidth,
-					Height: ScreenHeight,
-					Edges:  aabbworld.Torus,
-				},
-				Entities: world.EntitiesCfg{
-					MaxCount: Walkers + Ghosts + Leaders,
-					MinSize:  Size,
-					MaxSize:  Size,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Effects(s.defineEffects).
-			Rules(s.defineRules).
-			Commands(s.defineCommands).
-			Kinds(s.defineKinds).
-			Controls(s.bindKeys).
-			Spawn(s.spawnUnits).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(AppearanceStage).
+		World(world.Config{
+			Space: world.SpaceCfg{
+				Width:  ScreenWidth,
+				Height: ScreenHeight,
+				Edges:  aabbworld.Torus,
+			},
+			Entities: world.EntitiesCfg{
+				MaxCount: Walkers + Ghosts + Leaders,
+				MinSize:  Size,
+				MaxSize:  Size,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Effects(a.defineEffects).
+		Rules(a.defineRules).
+		Commands(a.defineCommands).
+		Kinds(a.defineKinds).
+		Controls(a.bindKeys).
+		Spawn(a.spawnUnits).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

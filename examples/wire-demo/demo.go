@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -57,32 +58,34 @@ type arena struct {
 	player    *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram wire demo",
 		Description: "Wires: a lever, a plate and a switch.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(WireStage).
-			World(world.Config{
-				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  EntitySize,
-					MaxSize:  CellSize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Effects(s.defineEffects).
-			Rules(s.defineRoles).
-			Commands(s.defineCommands).
-			Kinds(s.defineCells, s.defineKinds).
-			Controls(s.bindKeys).
-			Spawn(s.spawn).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(WireStage).
+		World(world.Config{
+			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  EntitySize,
+				MaxSize:  CellSize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Effects(a.defineEffects).
+		Rules(a.defineRoles).
+		Commands(a.defineCommands).
+		Kinds(a.defineCells, a.defineKinds).
+		Controls(a.bindKeys).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

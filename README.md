@@ -128,8 +128,6 @@ const (
 	boxCount                  = 300
 )
 
-func main() { gram.Run(newGame(&arena{})) }
-
 // box is the row every entity spawns from: where it starts and how it moves.
 type box struct {
 	pos world.Position
@@ -153,22 +151,24 @@ type arena struct {
 	stats     collision.ContactStats
 }
 
-// newGame is the game defined on the arena a: its window and its one Stage, defined a section at
-// a time in the order a Stage is always defined in; a section this game has no use for — effects,
-// rules, controls — is left out.
-func newGame(a *arena) game.Game {
-	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
-		stage.New(ArenaStage).
-			World(world.Config{
-				Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
-				Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
-			}).
-			Plugins(a.makePlugins).
-			Players(a.definePlayer).
-			Kinds(a.defineKinds).
-			Spawn(a.spawnUnits).
-			Scenes(a.defineScenes).
-			Update(a.update))
+// main runs the game: its window and its one Stage, defined a section at a time in the order a
+// Stage is always defined in; a section this game has no use for — effects, rules, controls — is
+// left out.
+func main() {
+	props := game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60}
+	a := &arena{}
+	mainStage := stage.New(ArenaStage).
+		World(world.Config{
+			Space:    world.SpaceCfg{Width: screenWidth, Height: screenHeight, Edges: aabbworld.Torus},
+			Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 // makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —

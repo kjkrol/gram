@@ -1,13 +1,12 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // snowable are the kinds snow may lie on, each with a snowy twin.
-var snowable = []string{island.EarthCell, island.SandCell, island.RockCell, island.ForestCell}
+var snowable = []string{EarthCell, SandCell, RockCell, ForestCell}
 
 // defineWinterCells defines the winter's kinds: each ground's snowy twin, and ice.
 func (s *arena) defineWinterCells() {
@@ -29,6 +28,6 @@ func (s *arena) defineClimate() weathering.Config {
 	return weathering.Config{
 		Snowy: snowy,
 		Ice:   IceCell,
-		Sway:  []string{island.ForestCell, snowyCell(island.ForestCell)},
+		Sway:  []string{ForestCell, snowyCell(ForestCell)},
 	}
 }

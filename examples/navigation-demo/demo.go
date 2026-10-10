@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -54,28 +55,30 @@ type arena struct {
 	player    *players.Player
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram navigation demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(BoardNavigationStage).
-			World(world.Config{
-				Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  EntitySize,
-					MaxSize:  EntitySize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Rules(s.defineRules).
-			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawn).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(BoardNavigationStage).
+		World(world.Config{
+			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  EntitySize,
+				MaxSize:  EntitySize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Rules(a.defineRules).
+		Kinds(a.defineCells, a.defineKinds).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

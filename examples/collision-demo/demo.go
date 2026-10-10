@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
@@ -54,33 +55,35 @@ type arena struct {
 	collisionStats collision.ContactStats
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram collision demo",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(CollisionStage).
-			World(world.Config{
-				Space: world.SpaceCfg{
-					Width:  ScreenWidth,
-					Height: ScreenHeight,
-					Edges:  aabbworld.Torus,
-				},
-				Entities: world.EntitiesCfg{
-					MaxCount: EntityCount,
-					MinSize:  RectSize,
-					MaxSize:  RectSize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Effects(s.defineEffects).
-			Rules(s.defineRules).
-			Kinds(s.defineKinds).
-			Spawn(s.spawnUnits).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(CollisionStage).
+		World(world.Config{
+			Space: world.SpaceCfg{
+				Width:  ScreenWidth,
+				Height: ScreenHeight,
+				Edges:  aabbworld.Torus,
+			},
+			Entities: world.EntitiesCfg{
+				MaxCount: EntityCount,
+				MinSize:  RectSize,
+				MaxSize:  RectSize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Effects(a.defineEffects).
+		Rules(a.defineRules).
+		Kinds(a.defineKinds).
+		Spawn(a.spawnUnits).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {

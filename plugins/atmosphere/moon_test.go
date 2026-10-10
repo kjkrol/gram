@@ -88,7 +88,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	var risen, full effect.Effect
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
-	n := newNight(t, calendar.Config{Day: day}, func(n *night) {
+	n := newNight(t, calendar.Config{DayRealTime: day}, func(n *night) {
 		n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
 		risen = n.w.Effects().Named("risen")
 		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})

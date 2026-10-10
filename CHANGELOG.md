@@ -31,13 +31,17 @@ argument's full path, which moved.
 **A level in a file, what stands on the board an entity**
 - A game's map in a YAML file: `board.Plugin.Lay(fsys, path)` seeds the board in the Spawn
   section — drawn a character a cell under a legend of kinds (roles, names, groups), the relief in
-  metres (`cells` or `corners`, `Level.Heights` for `topography.Seed`), roads and rivers along
-  paths of points with their crossings — and hands back a `board.Level`; `board.Spawn[Row](level,
+  metres (`cells` or `corners`, `Level.Heights` for `topography.Seed`), roads along paths of
+  points with their crossings, every river a path down to where its water goes whose points turn
+  its kind and width — and hands back a `board.Level`; `board.Spawn[Row](level,
   board.Sides)` seeds the world with its entities whose kinds have rows of `Row` — what stands on
   the board and the units, each a kind, a side (the commands the game gives it), a name, a group
   and the row's fields tagged `yaml`, a `cell.ID` written `[x, y]`. An error says the file and the
-  line; an entity no Spawn took fails Populate. Every demo but the islands spawns its `map.yaml`
-  so; their spawning code, layout helpers and board constants are gone.
+  line; an entity no Spawn took fails Populate. Every demo spawns its `map.yaml` so; their
+  spawning code, layout helpers and board constants are gone.
+- The island is two maps, the board demo's and board-topography's, its relief in centimetres and
+  its kinds, colours and styles each demo's own: `examples/island`, the island worked out in
+  code, is gone. `plugins/board/water` stays, for a game working its rivers out of its heights.
 - `board.NewEntities[Row](brd, shape, at)`: kinds of entities standing still on a cell —
   `cell.On`, a box at the cell's middle. Their knobs `cell.Floor{Allows, Height}` and
   `cell.Wall{Keeps, Height}` count in the cell's kind (`cell.Built` on the cell's entity,
@@ -49,6 +53,10 @@ argument's full path, which moved.
   `collision.Meeting` (`rule.Then[collision.Meeting]("press", rule.All, rule.Trigger())`).
 - `relief.MeanOfCells` is the board's: `ground.MeanOfCells`. `kind.EntryOf(name, row)` and
   `world.Roles.Lookup` are new.
+
+**The calendar's day**
+- `calendar.Config.Day` is `DayRealTime`, `DefaultDay` `DefaultDayRealTime`: how much real time a
+  day takes at tempo 1, counted in game time.
 
 **Looks are the scene's**
 - A flat board is lit by the atmosphere through the board: `board.Plugin.WithAtmosphere(a)`, a

@@ -4,13 +4,27 @@ package main
 // mistyped does not compile.
 const (
 	// kinds of cells
-	IceCell = "ice"
+	WaterCell  = "water"
+	EarthCell  = "earth"
+	SandCell   = "sand"
+	RockCell   = "rock"
+	ForestCell = "forest"
+	BrookCell  = "brook"
+	StreamCell = "stream"
+	RiverCell  = "river"
+	FordCell   = "ford"
+	RoadCell   = "road"
+	BridgeCell = "bridge"
+	IceCell    = "ice"
 
 	// roles
 	MortalRole = "mortal"
 
 	// kinds of units
 	UnitKind = "unit"
+
+	// sides
+	PlayerSide = "player"
 
 	// the stage and its scenes
 	BoardStage = "board"

@@ -1,15 +1,15 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/examples/island"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/atmosphere"
@@ -34,17 +34,20 @@ import (
 
 const (
 	TPS          = 60
-	CellSize     = island.CellSize
-	WorldWidth   = island.GridWidth * CellSize
-	WorldHeight  = island.GridHeight * CellSize
+	GridWidth    = 96
+	GridHeight   = 64
+	CellSize     = 32
+	WorldWidth   = GridWidth * CellSize
+	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 3
-	sightRadius  = 220
-	sightHalf    = math.Pi / 5
-	MaxEntCount  = 4 * island.Stops
+	MaxEntCount  = 24
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world      *world.Plugin
@@ -58,39 +61,39 @@ type arena struct {
 	player     *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	// TODO: ten sposob definiowania startowych celow jest bardzo hacky
-	stops []cell.ID // where the units start, as the layout says
 }
 
-func NewDemo(s *arena) game.Game {
-	return game.New(game.Props{
+func main() {
+	props := game.Props{
 		Title:       "gram board",
 		Description: "The island on the simple map.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
-	},
-		stage.New(BoardStage).
-			World(world.Config{
-				Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
-				Entities: world.EntitiesCfg{
-					MaxCount: MaxEntCount,
-					MinSize:  EntitySize,
-					MaxSize:  EntitySize,
-				},
-			}).
-			Plugins(s.makePlugins).
-			Players(s.definePlayer).
-			Rules(s.defineRules).
-			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawnCells, s.spawnUnits).
-			Scenes(s.defineScenes).
-			Update(s.update))
+	}
+	a := &arena{}
+	mainStage := stage.New(BoardStage).
+		World(world.Config{
+			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
+			Entities: world.EntitiesCfg{
+				MaxCount: MaxEntCount,
+				MinSize:  EntitySize,
+				MaxSize:  EntitySize,
+			},
+		}).
+		Plugins(a.makePlugins).
+		Players(a.definePlayer).
+		Rules(a.defineRules).
+		Kinds(a.defineCells, a.defineKinds).
+		Spawn(a.spawn).
+		Scenes(a.defineScenes).
+		Update(a.update)
+	gram.Run(game.New(props, mainStage))
 }
 
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
-	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
+	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
 		WithCollision(s.collision).
 		WithLog(log.Default())
@@ -102,7 +105,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.atmosphere = atmosphere.NewPlugin(
 		s.world,
 		atmosphere.Config{
-			Calendar: calendar.Config{Season: calendar.Autumn},
+			Calendar: calendar.Config{Start: 8 * time.Hour, Season: calendar.Summer},
 			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
 		},
 	).WithWeathering(s.board, s.defineClimate())
@@ -117,7 +120,20 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineCells() {
-	island.Define(s.board.CellKinds(), 0)
+	kinds := s.board.CellKinds()
+	ground := cell.Land | cell.Air
+	wet := cell.Water | cell.Air
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(EarthCell, cell.Kind{Cost: 2.5, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(SandCell, cell.Kind{Cost: 4, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(RockCell, cell.Kind{Cost: 3.25, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(FordCell, cell.Kind{Cost: 6.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(ForestCell, cell.Kind{Cost: 7.5, Allows: ground, Veil: 0.6}.Costing(cell.Air, 1))
 	s.defineWinterCells()
 }
 
@@ -135,17 +151,20 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, target cell.ID }
+type unitRow struct {
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
 	units.Define(
 		UnitKind,
@@ -159,30 +178,22 @@ func (s *arena) defineKinds() {
 		},
 		order,
 		comp.Const(
-			vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true},
+			vision.Sight{Facing: geom.NewVec(1, 0), Radius: 220, Ahead: true},
 		),
-		comp.Const(world.Eye{Angle: 2 * sightHalf}),
+		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
 		comp.Const(vision.SightOutline{}),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	)
 }
 
-func (s *arena) spawnCells() {
-	layout, _, stops := island.Layout(s.board.Board())
-	s.stops = stops
-	s.board.Seed(layout)
-}
-
-func (s *arena) spawnUnits() {
-	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	entries := make([]kind.Entry, 0, len(s.stops))
-	for i, from := range s.stops {
-		to := s.stops[(i+len(s.stops)/2)%len(s.stops)]
-		walker := unitKind.Entry(unitRow{start: from, target: to})
-		walker = walker.Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true})
-		entries = append(entries, walker)
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	s.world.Seed(entries...)
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

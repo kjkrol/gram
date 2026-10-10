@@ -95,7 +95,8 @@
 //	    0 0 0 0 0 0
 //	ways:                              # paths of points [x, y], a branch beginning on another
 //	  roads: {road: {width: 12, paths: [[[0, 0], [5, 0]], [[3, 0], [3, 1]]]}}
-//	  rivers: {river: {width: [4, 10], paths: [[[1, 0], [1, 1]]]}}  # head to mouth
+//	  rivers:                          # each a path down to where its water goes, no part of it
+//	    - [{at: [1, 0], kind: brook, width: 3}, [1, 1]]  # a point may turn its kind and width
 //	  crossings: {road: bridge}        # what a road is over a river
 //	units:
 //	  - {kind: scout, side: player, name: ann, start: [0, 1]}

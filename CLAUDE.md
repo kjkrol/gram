@@ -115,7 +115,7 @@ is the handle wherever a thing is built on, and a game keeps its names as consta
 `names.go`; **every name carries a suffix saying what it is**, the user's convention: `Ef` an
 effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell — one literal
 used as two things is two constants, `PlateCell` and `PlateRole`; a name worked out is a function
-named alike, `pullCmd(lever)`, `snowyCell(kind)`; `examples/island` exports its cells' names; **a name a package already gives is used from there, never
+named alike, `pullCmd(lever)`, `snowyCell(kind)`; **a name a package already gives is used from there, never
 written again in a game's dictionary** — the weathers are `weather.Clear`, `Fair`, `Cloudy`, `Rain`,
 `Storm`), its
 Stage's struct holding plugins alone. The registers are the world's, so each
@@ -445,7 +445,8 @@ stretched by its height and pushed off by how far above the ground it stands; th
 look draws it as it is.
 The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
 (`clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
-every `Config.Day` of game time from the moment a fresh game begins at (`Start`, the hour on the
+every `Config.DayRealTime` of game time (the real time of a day at tempo 1) from the moment a
+fresh game begins at (`Start`, the hour on the
 clock as a `time.Duration`, in the middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
 its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
 `Written`), `Daily`/`Yearly`/`Seasonal` give a schedule entry its period and offset.
@@ -912,15 +913,23 @@ trapdoor and pressure plate demos the same).
   group}`), the `cells` drawn a character a cell, spaces left out (a hex row is an r, indented),
   `entities` standing on it, listed one by one like any entity — a trapdoor a line, never placed
   by a legend's character (the user's word, 2026-10-10: entities are treated as entities); `relief` — `cells` or `corners` (a square grid), numbers in metres
-  through `world.Scale`, `Level.Heights()` for `topography.Seed`; `ways` — `roads` and `rivers` by
-  kind, `width` (a river's `[head, mouth]`), `paths` of points `[x, y]` routed point to point close
-  to the straight line (`network.Route`), a branch beginning on another path, a river flowing in
-  the order given, `crossings` (`{road: bridge}`) for a road over a river; `units`. An entry is
+  through `world.Scale`, `Level.Heights()` for `topography.Seed`; `ways` — `roads` by kind, `width`,
+  `paths` of points `[x, y]` routed point to point close to the straight line (`network.Route`), a
+  branch beginning on another path; `rivers` a list of paths (the user's word: a river is a list of
+  paths, a tree), each flowing down in the order given to its last point, where its water goes —
+  the sea, another river's cell — and no part of it (the link the painter softens the mouth by), a
+  point `{at, kind, width}` turning its kind from there on and its width cell by cell towards the
+  next point's — the head must give both; every river's cells are laid before the flows; `crossings` (`{road: bridge}`) for a road over a river.
+  How a river softens into the sea is the renderer's (the painter's `into`, `Mix` by `Along`),
+  never the file's; `units`. An entry is
   flat: `kind`, `side` (`board.Sides`: the commands a game gives a side), `name`, `group` its own,
   every other key a field of the row tagged so (`world.Kinds().Lookup` gives the kind's row type,
   `kind.EntryOf` builds the entry; a `cell.ID` written `[x, y]` however deep it lies, a nested
   struct read as YAML reads it), a row tagging an entry's own key refused. Every error says the
-  file and the line. Kinds stay in Go; every demo but the islands lays its map in one `spawn`.
+  file and the line. Kinds stay in Go; every demo lays its map in one `spawn` — the island too, both demos of it
+  (board, board-topography) a map of their own, its relief in centimetres, its kinds, colours and
+  styles each demo's own (since 2026-10-10, the user's word; `examples/island`, the island worked
+  out in code, went, its rivers `plugins/board/water` keeps for a game working them out).
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
   were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
@@ -1519,10 +1528,10 @@ entities spawned. The order is what builds on what: players before the kinds, ef
 rules, roles before the commands for their players (`selection.Selected(role)`) and the kinds
 playing them, everything before the keys, the world before the scenes that show it; what is
 drawn — atlases, an effect's looks, a board's covers, the cameras — is the scene's. A demo groups its plugins in an **arena** (the user's
-word, 2026-10-06), the collector every section builds on: `NewDemo(a *arena) game.Game` is the
-game defined on the arena it is handed — `game.New(props, stage.New(name).World(cfg).Plugins(
-a.makePlugins)…)`, one constructor (the user's word, 2026-10-09); `main` runs `NewDemo(&arena{})`
-and a test keeps the arena it hands over. The arena holds plugins and players alone (no embedded
+word, 2026-10-06), the collector every section builds on. A demo's `main` is in its `demo.go`
+— no `main.go`, no `NewDemo` (the user's word, 2026-10-10) — and defines the game where it runs
+it: `props := game.Props{…}`, `a := &arena{}`, `mainStage := stage.New(name).World(cfg).Plugins(
+a.makePlugins)…Update(a.update)`, `gram.Run(game.New(props, mainStage))`. The arena holds plugins and players alone (no embedded
 Stage); the sections are its methods (`makePlugins`, `definePlayer`, `defineEffects`,
 `defineRules`, `defineCommands`, a plugin's section's own like
 `defineConversations(d *dialog.Plugin)`, `defineCells`, `defineKinds`, `bindKeys`, `spawn`,
@@ -1545,8 +1554,8 @@ an error where the call returns one, a panic elsewhere, each through
 own as they are made), and a Stage written by hand is in no section: nothing is refused, so every test
 installer works as before. **How things look is the scene's** (since 2026-10-10, the user's
 word): `picture()` of a demo's `scene.go` sets what is drawing and nothing else does —
-`board.WithAtmosphere`, `topography.WithAtmosphere`, the painter's styles (`island.Style`,
-`topography.Style`), `vision.WithViews`, `vision.ShowCones` — while `makePlugins` configures what a
+`board.WithAtmosphere`, `topography.WithAtmosphere`, the painter's styles
+(`topography.Style`), `vision.WithViews`, `vision.ShowCones` — while `makePlugins` configures what a
 plugin does (`vision.WithBoard`, `atmosphere.WithWeathering`).
 
 ### UI: a scene's screen composed of elements (`ui`, since 2026-10-07)

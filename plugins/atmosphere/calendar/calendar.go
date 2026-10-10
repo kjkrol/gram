@@ -105,24 +105,25 @@ var (
 	firstOfSpring = 78 // 20 March
 )
 
-// Config is the calendar: how long a Day is in game time, the time of day a fresh game begins at
-// on the clock's face (Start: 23*time.Hour + 30*time.Minute is half past eleven at night; midnight
-// is 24*time.Hour), the Year, and the Season a fresh game begins in the middle of. Zero fields are
-// DefaultDay, 8 in the morning, a GameYear and spring.
+// Config is the calendar: how much real time a day takes at tempo 1 (DayRealTime, counted in
+// game time, so a faster tempo hurries it and the pause stops it), the time of day a fresh game
+// begins at on the clock's face (Start: 23*time.Hour + 30*time.Minute is half past eleven at
+// night; midnight is 24*time.Hour), the Year, and the Season a fresh game begins in the middle
+// of. Zero fields are DefaultDayRealTime, 8 in the morning, a GameYear and spring.
 type Config struct {
-	Day    time.Duration
-	Start  time.Duration
-	Year   Year
-	Season Season
+	DayRealTime time.Duration
+	Start       time.Duration
+	Year        Year
+	Season      Season
 }
 
-// DefaultDay is how long a day is unless the Config says otherwise: 16 minutes of game time, a day
+// DefaultDayRealTime is how long a day takes unless the Config says otherwise: 16 minutes, a day
 // going by slowly enough to watch the light turn.
-const DefaultDay = 16 * time.Minute
+const DefaultDayRealTime = 16 * time.Minute
 
 func (c Config) withDefaults() Config {
-	if c.Day <= 0 {
-		c.Day = DefaultDay
+	if c.DayRealTime <= 0 {
+		c.DayRealTime = DefaultDayRealTime
 	}
 	if c.Start == 0 {
 		c.Start = 8 * time.Hour
@@ -144,9 +145,9 @@ func (c Config) midst(season Season) int32 {
 }
 
 // Calendar turns the tactical clock's game time into a date and a time of day: the clock at a
-// fixed scale, a day every Config.Day of game time from the moment a fresh game begins at. It
-// keeps nothing of its own — a loaded game's clock brings its date back — and never jumps: the
-// day is hurried by the clock's tempo.
+// fixed scale, a day every Config.DayRealTime of game time from the moment a fresh game begins
+// at. It keeps nothing of its own — a loaded game's clock brings its date back — and never
+// jumps: the day is hurried by the clock's tempo.
 type Calendar struct {
 	cfg   Config
 	clock *clock.Clock
@@ -165,7 +166,8 @@ func (c *Calendar) Now() Moment { return c.At(c.clock.Time()) }
 
 // At is the moment the clock stands at when it reads t.
 func (c *Calendar) At(t time.Duration) Moment {
-	days := float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins() + t.Seconds()/c.cfg.Day.Seconds()
+	gone := t.Seconds() / c.cfg.DayRealTime.Seconds()
+	days := float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins() + gone
 	whole := math.Floor(days)
 	year := int64(c.cfg.Year.Days())
 	return Moment{Date: int32(((int64(whole) % year) + year) % year), Time: float32(days - whole), Year: c.cfg.Year}
@@ -176,14 +178,15 @@ func (c *Calendar) At(t time.Duration) Moment {
 func (c *Calendar) Daily(hour float32) (period, offset time.Duration) {
 	first := float64(hour) - c.cfg.begins()
 	first -= math.Floor(first)
-	return c.cfg.Day, time.Duration(first * float64(c.cfg.Day)).Round(time.Millisecond)
+	day := c.cfg.DayRealTime
+	return day, time.Duration(first * float64(day)).Round(time.Millisecond)
 }
 
 // Yearly is the period and the offset of every year at ofYear (0 to 1 of the year, 0 the first of
 // spring), for clock.Every: every winter is Yearly(0.75).
 func (c *Calendar) Yearly(ofYear float32) (period, offset time.Duration) {
 	days := float64(c.cfg.Year.Days())
-	year := time.Duration(days * float64(c.cfg.Day))
+	year := time.Duration(days * float64(c.cfg.DayRealTime))
 	begun := (float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins()) / days
 	first := float64(ofYear) - begun
 	first -= math.Floor(first)
