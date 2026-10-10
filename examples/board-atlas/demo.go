@@ -106,11 +106,6 @@ func (s *arena) defineCells() {
 	kinds.Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6})
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
-}
-
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
@@ -148,6 +143,11 @@ func (s *arena) spawn() error {
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 	})
+}
+
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

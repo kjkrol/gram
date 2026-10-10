@@ -172,11 +172,6 @@ func (s *arena) bindKeys() error {
 			s.world.Commands().Named(DouseCmd)))...)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
-}
-
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -185,6 +180,11 @@ func (s *arena) spawn() error {
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

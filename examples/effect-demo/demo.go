@@ -109,24 +109,6 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineCommands() {
-	s.world.Commands().Define(FreezeCmd,
-		rule.Cast(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
-}
-
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
-		control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
-			s.world.Commands().Named(FreezeCmd)),
-	)
-}
-
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
-}
-
 func (s *arena) defineEffects() {
 	effects := s.world.Effects()
 	effects.Define(FrostEf, effect.Spec{
@@ -182,6 +164,17 @@ func (s *arena) defineRoles() {
 	)
 }
 
+func (s *arena) defineCommands() {
+	s.world.Commands().Define(FreezeCmd,
+		rule.Cast(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+}
+
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+}
+
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
@@ -229,9 +222,11 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) bindKeys() error {
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
+			s.world.Commands().Named(FreezeCmd)),
+	)
 }
 
 func (s *arena) spawn() error {
@@ -242,6 +237,11 @@ func (s *arena) spawn() error {
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

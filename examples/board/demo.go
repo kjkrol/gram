@@ -119,6 +119,15 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
+func (s *arena) defineRules() {
+	s.world.Roles().Define(MortalRole,
+		rule.Then[unit.Standing](
+			"drown",
+			rule.All,
+			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
+		))
+}
+
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	ground := cell.Land | cell.Air
@@ -135,20 +144,6 @@ func (s *arena) defineCells() {
 	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
 	kinds.Define(ForestCell, cell.Kind{Cost: 7.5, Allows: ground, Veil: 0.6}.Costing(cell.Air, 1))
 	s.defineWinterCells()
-}
-
-func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing](
-			"drown",
-			rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-		))
-}
-
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 type unitRow struct {
@@ -194,6 +189,11 @@ func (s *arena) spawn() error {
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 	})
+}
+
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

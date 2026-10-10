@@ -108,12 +108,6 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
-}
-
 func (s *arena) defineEffects() {
 	fx := s.world.Effects()
 	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
@@ -152,27 +146,10 @@ func (s *arena) defineCommands() {
 	cmds.Define(HastenCmd, rule.Cast(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }
 
-func (s *arena) bindKeys() error {
-	for _, l := range levers {
-		pull := control.Give(control.KeyPress{Key: l.key},
-			"Pull the "+l.name+" lever: its trapdoors open",
-			s.world.Commands().Named(pullCmd(l.name)))
-		if err := s.player.Bind(pull); err != nil {
-			return err
-		}
-	}
-	return s.player.Bind(
-		control.Give(
-			control.KeyPress{Key: control.KeyJ},
-			"Hasten the selected scouts",
-			s.world.Commands().Named(HastenCmd),
-		),
-	)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
 }
 
 type unitRow struct {
@@ -217,6 +194,24 @@ func (s *arena) defineKinds() {
 	standing.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
 }
 
+func (s *arena) bindKeys() error {
+	for _, l := range levers {
+		pull := control.Give(control.KeyPress{Key: l.key},
+			"Pull the "+l.name+" lever: its trapdoors open",
+			s.world.Commands().Named(pullCmd(l.name)))
+		if err := s.player.Bind(pull); err != nil {
+			return err
+		}
+	}
+	return s.player.Bind(
+		control.Give(
+			control.KeyPress{Key: control.KeyJ},
+			"Hasten the selected scouts",
+			s.world.Commands().Named(HastenCmd),
+		),
+	)
+}
+
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -229,6 +224,11 @@ func (s *arena) spawn() error {
 		board.Spawn[standingRow](level, nil),
 		board.Spawn[unitRow](level, sides),
 	)
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

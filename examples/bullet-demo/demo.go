@@ -129,15 +129,6 @@ func (s *arena) definePlayers() error {
 	)...)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
-	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Height: 30})
-	kinds.Define(LowWallCell, cell.Kind{Cost: 1, Solid: true, Height: 10})
-}
-
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(WoundedEf, effect.Spec{
 		effect.Lasts(woundLasts),
@@ -184,35 +175,13 @@ func (s *arena) defineRules() {
 		))
 }
 
-func (s *arena) bindKeys() error {
-	drive := driving.Tank{
-		Ahead: control.KeyW,
-		Back:  control.KeyS,
-		Left:  control.KeyA,
-		Right: control.KeyD,
-		In:    camera.Outside,
-	}
-	return s.player.Bind(append(
-		drive.Bindings(),
-		control.Give(
-			control.KeyPress{Key: control.KeyF},
-			"Fire a round the way the soldier faces",
-			bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)},
-		),
-		control.Build(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
-			func(c control.Context) (bullet.Shoot, bool) {
-				return bullet.Shoot{
-					Ammo:     s.bullet.Shots().Named(GrenadeKind),
-					At:       c.World(c.Cursor),
-					Targeted: true,
-				}, true
-			}),
-	)...)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Height: 30})
+	kinds.Define(LowWallCell, cell.Kind{Cost: 1, Solid: true, Height: 10})
 }
 
 type unitRow struct {
@@ -256,6 +225,32 @@ func (s *arena) defineKinds() {
 	)
 }
 
+func (s *arena) bindKeys() error {
+	drive := driving.Tank{
+		Ahead: control.KeyW,
+		Back:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
+	return s.player.Bind(append(
+		drive.Bindings(),
+		control.Give(
+			control.KeyPress{Key: control.KeyF},
+			"Fire a round the way the soldier faces",
+			bullet.Shoot{Ammo: s.bullet.Shots().Named(RoundKind)},
+		),
+		control.Build(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
+			func(c control.Context) (bullet.Shoot, bool) {
+				return bullet.Shoot{
+					Ammo:     s.bullet.Shots().Named(GrenadeKind),
+					At:       c.World(c.Cursor),
+					Targeted: true,
+				}, true
+			}),
+	)...)
+}
+
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -265,6 +260,11 @@ func (s *arena) spawn() error {
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 		WildSide:   {players.Give{To: s.wild.ID}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

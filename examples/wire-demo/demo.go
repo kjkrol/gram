@@ -108,13 +108,6 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(PitCell, cell.Kind{Cost: 1})
-	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
-}
-
 func (s *arena) defineEffects() {
 	fx := s.world.Effects()
 	fx.Define(OpenEf, effect.Spec{
@@ -176,34 +169,11 @@ func (s *arena) defineCommands() {
 	)
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
-		control.Give(
-			control.KeyPress{Key: control.Key1},
-			"Pull the west lever: its trapdoors open for a while",
-			s.world.Commands().Named(OpenWestCmd),
-		),
-		control.Give(
-			control.KeyPress{Key: control.KeyG},
-			"Flip the gate's switch: open, or shut",
-			s.world.Commands().Named(FlipTheGateCmd),
-		),
-		control.Give(
-			control.KeyPress{Key: control.KeyJ},
-			"Hasten the selected scouts",
-			s.world.Commands().Named(HastenCmd),
-		),
-		control.Give(
-			control.KeyPress{Key: control.KeyU},
-			"Pull the lever beside the selected scouts",
-			s.world.Commands().Named(ReachCmd),
-		),
-	)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(PitCell, cell.Kind{Cost: 1})
+	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
 }
 
 type unitRow struct {
@@ -267,6 +237,31 @@ func (s *arena) defineKinds() {
 	small.Define(LeverKind, rule.Plays(s.world.Roles().Named(LeverRole)))
 }
 
+func (s *arena) bindKeys() error {
+	return s.player.Bind(
+		control.Give(
+			control.KeyPress{Key: control.Key1},
+			"Pull the west lever: its trapdoors open for a while",
+			s.world.Commands().Named(OpenWestCmd),
+		),
+		control.Give(
+			control.KeyPress{Key: control.KeyG},
+			"Flip the gate's switch: open, or shut",
+			s.world.Commands().Named(FlipTheGateCmd),
+		),
+		control.Give(
+			control.KeyPress{Key: control.KeyJ},
+			"Hasten the selected scouts",
+			s.world.Commands().Named(HastenCmd),
+		),
+		control.Give(
+			control.KeyPress{Key: control.KeyU},
+			"Pull the lever beside the selected scouts",
+			s.world.Commands().Named(ReachCmd),
+		),
+	)
+}
+
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -279,6 +274,11 @@ func (s *arena) spawn() error {
 		board.Spawn[standingRow](level, nil),
 		board.Spawn[unitRow](level, sides),
 	)
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

@@ -111,6 +111,10 @@ func (s *arena) defineRules() {
 		))
 }
 
+func (s *arena) defineCommands() {
+	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
+}
+
 type walker struct {
 	at  geom.Vec
 	vel world.Velocity
@@ -134,20 +138,11 @@ func (s *arena) defineKinds() {
 	kind.Define[walker](kinds, LeaderKind, spec)
 }
 
-func (s *arena) defineCommands() {
-	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
-}
-
 func (s *arena) bindKeys() error {
 	return s.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
 			s.world.Commands().Named(RageCmd)),
 	)
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) spawnUnits() {
@@ -178,6 +173,11 @@ func (s *arena) spawnUnits() {
 		}
 	}
 	s.world.Seed(entries...)
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

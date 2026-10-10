@@ -164,29 +164,6 @@ func (s *arena) definePlayers() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	ground := cell.Land | cell.Air
-	wet := cell.Water | cell.Air
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
-	kinds.Define(EarthCell, cell.Kind{Cost: 2.5, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(SandCell, cell.Kind{Cost: 4, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(RockCell, cell.Kind{Cost: 3.25, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
-	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
-	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
-	kinds.Define(FordCell, cell.Kind{Cost: 6.25, Allows: cell.Land | wet}.Costing(wet, 1))
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
-	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
-	kinds.Define(ForestCell, cell.Kind{
-		Cost:   7.5,
-		Allows: ground,
-		Veil:   0.6,
-		Height: scale.Units(20),
-	}.Costing(cell.Air, 1))
-	s.defineWinterCells()
-}
-
 func (s *arena) defineEffects() {
 	night := s.atmosphere.Calendar().Config().DayRealTime / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
@@ -218,22 +195,27 @@ func (s *arena) defineCommands() {
 	s.world.Commands().Define(BleedCmd, bleed)
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
-		control.Give(
-			control.KeyPress{Key: control.KeyM},
-			"Blood moon, on or off",
-			s.world.Commands().Named(BleedCmd),
-		),
-		cameras.MouseLookKey(
-			control.KeyO,
-		), // first person looks round with the mouse only once asked
-	)
-}
-
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	ground := cell.Land | cell.Air
+	wet := cell.Water | cell.Air
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(EarthCell, cell.Kind{Cost: 2.5, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(SandCell, cell.Kind{Cost: 4, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(RockCell, cell.Kind{Cost: 3.25, Allows: ground}.Costing(cell.Air, 1))
+	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
+	kinds.Define(FordCell, cell.Kind{Cost: 6.25, Allows: cell.Land | wet}.Costing(wet, 1))
+	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(ForestCell, cell.Kind{
+		Cost:   7.5,
+		Allows: ground,
+		Veil:   0.6,
+		Height: scale.Units(20),
+	}.Costing(cell.Air, 1))
+	s.defineWinterCells()
 }
 
 type unitRow struct {
@@ -292,6 +274,19 @@ func (s *arena) defineKinds() {
 	)
 }
 
+func (s *arena) bindKeys() error {
+	return s.player.Bind(
+		control.Give(
+			control.KeyPress{Key: control.KeyM},
+			"Blood moon, on or off",
+			s.world.Commands().Named(BleedCmd),
+		),
+		cameras.MouseLookKey(
+			control.KeyO,
+		), // first person looks round with the mouse only once asked
+	)
+}
+
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -303,6 +298,11 @@ func (s *arena) spawn() error {
 		RivalSide:   {players.Give{To: s.rival.ID}, selection.Allow{}},
 		ReserveSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	})
+}
+
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

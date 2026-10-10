@@ -95,11 +95,6 @@ func (a *arena) defineKinds() {
 	})
 }
 
-func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: a, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(ViewScene, m.screen()).Input(a.players.Handle)}
-}
-
 func (a *arena) spawnUnits() {
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
@@ -111,6 +106,11 @@ func (a *arena) spawnUnits() {
 		entries[i] = boxKind.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
+}
+
+func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	m := &mainScene{arena: a, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(ViewScene, m.screen()).Input(a.players.Handle)}
 }
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {

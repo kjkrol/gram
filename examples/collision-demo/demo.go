@@ -107,11 +107,6 @@ func (s *arena) defineRules() {
 		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.world.Effects().Named(HitEf))))
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
-}
-
 func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	for ci := range entityColors {
@@ -139,6 +134,11 @@ func (s *arena) spawnUnits() {
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
 	s.world.Seed(entries...)
+}
+
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	m := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

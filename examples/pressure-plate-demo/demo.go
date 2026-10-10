@@ -106,12 +106,6 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(PitCell, cell.Kind{Cost: 1})
-}
-
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(OpenEf, effect.Spec{
 		effect.Lasts(time.Second),
@@ -140,9 +134,10 @@ func (s *arena) defineCommands() {
 	}
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (s *arena) defineCells() {
+	kinds := s.board.CellKinds()
+	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(PitCell, cell.Kind{Cost: 1})
 }
 
 type unitRow struct {
@@ -200,6 +195,11 @@ func (s *arena) spawn() error {
 		board.Spawn[standingRow](level, nil),
 		board.Spawn[unitRow](level, sides),
 	)
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

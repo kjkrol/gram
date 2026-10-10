@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -49,12 +48,5 @@ func (m *mainScene) screen() *ui.Element {
 		ui.Layer(
 			render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks)),
 		),
-	)
-}
-
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
-		control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
-			s.world.Commands().Named(FleeCmd)),
 	)
 }

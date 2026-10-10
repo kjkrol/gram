@@ -72,6 +72,16 @@ func (g *gameplayArena) defineKinds() {
 	})
 }
 
+func (g *gameplayArena) spawnUnits() {
+	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
+	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
+	entries := make([]kind.Entry, EntityCount)
+	for i := range entries {
+		entries[i] = moverKind.Entry(placement.Place(i, EntityCount))
+	}
+	g.world.Seed(entries...)
+}
+
 func (g *gameplayArena) defineScenes() []game.Scene {
 	m := &gameplayScene{arena: g}
 	return []game.Scene{ui.NewScene(WorldScene, m.screen()).
@@ -83,16 +93,6 @@ func (g *gameplayArena) defineScenes() []game.Scene {
 			control.Give(control.KeyPress{Key: control.KeyM}, "Menu", game.Enter{Stage: MenuStage}),
 		),
 	}
-}
-
-func (g *gameplayArena) spawnUnits() {
-	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
-	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, EntitySize)
-	entries := make([]kind.Entry, EntityCount)
-	for i := range entries {
-		entries[i] = moverKind.Entry(placement.Place(i, EntityCount))
-	}
-	g.world.Seed(entries...)
 }
 
 func (g *gameplayArena) update(ctx goke.RunCtx, d time.Duration) {

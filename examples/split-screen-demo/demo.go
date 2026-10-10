@@ -109,6 +109,28 @@ func (s *arena) defineCells() {
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
+type block struct {
+	Start cell.ID `yaml:"start"`
+}
+
+func (s *arena) defineKinds() {
+	brd := s.board.Board()
+	units := board.NewUnits[block](
+		s.board,
+		board.Shape{Size: BlockSize},
+		func(b block) geom.Vec { return brd.CellCenter(b.Start) },
+	)
+	profile := steering.Steering{
+		MaxSpeed: BlockSpeed,
+		Accel:    BlockSpeed * 3,
+		Brake:    BlockSpeed * 6,
+		TurnRate: 0.3,
+	}
+	// each block is its player's: it takes that player's hand alone
+	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
+	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
+}
+
 func (s *arena) bindKeys() error {
 	red := driving.Compass{
 		Up:    control.KeyW,
@@ -136,28 +158,6 @@ func (s *arena) bindKeys() error {
 	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
-type block struct {
-	Start cell.ID `yaml:"start"`
-}
-
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
-	units := board.NewUnits[block](
-		s.board,
-		board.Shape{Size: BlockSize},
-		func(b block) geom.Vec { return brd.CellCenter(b.Start) },
-	)
-	profile := steering.Steering{
-		MaxSpeed: BlockSpeed,
-		Accel:    BlockSpeed * 3,
-		Brake:    BlockSpeed * 6,
-		TurnRate: 0.3,
-	}
-	// each block is its player's: it takes that player's hand alone
-	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
-	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
-}
-
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
@@ -167,6 +167,11 @@ func (s *arena) spawn() error {
 		RedSide:  {players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}},
 		BlueSide: {players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
@@ -179,9 +184,4 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }

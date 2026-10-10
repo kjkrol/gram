@@ -131,17 +131,17 @@ func (s *arena) bindKeys() error {
 	)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
-}
-
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[wardRow](level, nil)
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

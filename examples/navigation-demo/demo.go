@@ -110,26 +110,6 @@ func (s *arena) defineRules() {
 		))
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	main.keys = players.SceneKeys{
-		{
-			Key:   control.KeyR,
-			Label: "Build a road through the wall",
-			Do: func(game.Runtime, game.Composition) {
-				brd, road := s.board.Board(), s.board.CellKinds().Named(RoadCell).Kind()
-				for x := uint32(3); x < GridWidth-3; x++ {
-					brd.Set(brd.At(x, 8), road)
-				}
-				log.Print("built a road through the wall — " +
-					"in-flight units re-path onto it as soon as they deviate")
-			},
-		},
-	}
-	s.players.OwnKeys(main.keys)
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
-}
-
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
@@ -176,6 +156,26 @@ func (s *arena) spawn() error {
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	main.keys = players.SceneKeys{
+		{
+			Key:   control.KeyR,
+			Label: "Build a road through the wall",
+			Do: func(game.Runtime, game.Composition) {
+				brd, road := s.board.Board(), s.board.CellKinds().Named(RoadCell).Kind()
+				for x := uint32(3); x < GridWidth-3; x++ {
+					brd.Set(brd.At(x, 8), road)
+				}
+				log.Print("built a road through the wall — " +
+					"in-flight units re-path onto it as soon as they deviate")
+			},
+		},
+	}
+	s.players.OwnKeys(main.keys)
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

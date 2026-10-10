@@ -126,11 +126,6 @@ func (s *arena) defineCells() {
 	kinds.Define(HillCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
-}
-
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
@@ -181,6 +176,11 @@ func (s *arena) spawn() error {
 		PlayerSide:  {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 		ReserveSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	})
+}
+
+func (s *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: s}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

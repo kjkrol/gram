@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -153,11 +154,6 @@ func (s *arena) defineCommands() {
 	s.world.Commands().Define(FleeCmd, flee)
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
-}
-
 func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	kind.Define[body](kinds, PreyKind, append(sees(),
@@ -171,17 +167,11 @@ func (s *arena) defineKinds() {
 	))
 }
 
-func sees() kind.Spec {
-	return kind.Spec{
-		comp.Load(func(b body) world.Position { return b.pos }),
-		comp.Load(func(b body) world.Velocity { return b.vel }),
-		comp.Load(func(b body) vision.Sight {
-			return vision.Sight{Facing: b.vel.Dir, Radius: 200, Ahead: true}
-		}),
-		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
-		comp.Const(vision.SightOutline{}),
-		comp.Const(collision.Collider{}),
-	}
+func (s *arena) bindKeys() error {
+	return s.player.Bind(
+		control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
+			s.world.Commands().Named(FleeCmd)),
+	)
 }
 
 func (s *arena) spawnUnits() {
@@ -205,6 +195,24 @@ func (s *arena) spawnUnits() {
 	entries = append(entries, hunterKind.Entry(roam(PreyCount, 81)))
 	s.world.Seed(entries...)
 	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
+}
+
+func sees() kind.Spec {
+	return kind.Spec{
+		comp.Load(func(b body) world.Position { return b.pos }),
+		comp.Load(func(b body) world.Velocity { return b.vel }),
+		comp.Load(func(b body) vision.Sight {
+			return vision.Sight{Facing: b.vel.Dir, Radius: 200, Ahead: true}
+		}),
+		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
+		comp.Const(vision.SightOutline{}),
+		comp.Const(collision.Collider{}),
+	}
+}
+
+func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	m := &mainScene{arena: s, tps: ctx.TPS()}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
