@@ -58,25 +58,12 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		tick = s.r.tick.Of(cb, d)
 		tick.Around = s.r.around
 	}
-	tread := !s.r.now.Empty()
-	if tread {
-		if n := s.r.grid.CellCount(); len(s.r.trodden) != n {
-			s.r.trodden = make([]bool, n)
-		} else {
-			clear(s.r.trodden)
-		}
-	}
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.ids, s.bases, s.ats, s.movers = cursor.IDs, s.base.Slice(cursor), s.at.Slice(cursor), s.mover.Slice(cursor)
 		marks := s.marks.Slice(cursor)
 		for i := range marks {
 			marks[i] = marks[i].Without(unit.Entered)
-		}
-		if tread {
-			for i := range s.ids {
-				s.tread(i)
-			}
 		}
 		if paces := s.pace.Slice(cursor); paces != nil && s.movers != nil {
 			for i := range paces {
@@ -90,15 +77,6 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		}
 		if hosted {
 			s.r.standing.Run(tick, cursor, s.about)
-		}
-	}
-}
-
-// tread marks the cell under the i-th unit's centre as stood on this step.
-func (s *standingSystem) tread(i int) {
-	if c, ok := s.r.grid.CellAt(s.bases[i].Pos.Center()); ok {
-		if o, ok := s.r.cells.Ordinal(c); ok && o < len(s.r.trodden) {
-			s.r.trodden[o] = true
 		}
 	}
 }

@@ -6,6 +6,9 @@ const (
 
 	GrassCell = "grass"
 
+	// sides
+	PlayerSide = "player"
+
 	// the stage and its scenes
 	AnimationStage = "animation-demo"
 	MainScene      = "main"

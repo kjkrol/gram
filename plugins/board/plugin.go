@@ -50,6 +50,7 @@ type Plugin struct {
 	atlas     render.AtlasSource // the renderer's
 	kinds     *terrain.Kinds
 	seeded    *Layout
+	level     *Level // the level laid last, whose entities Spawn takes
 	mapping   Map
 	simple    *simpleMap // the board's own map, which lays the covers
 	covers    map[tag.Tag[effect.States]]render.SpriteID
@@ -112,6 +113,7 @@ func (p *Plugin) Name() string { return "gram.board" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
+		built:     p.Board().cells.BuiltSystem(p.worldPlugin.HasHeights(), p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
 		release:   occupancy.ReleaseSystem(p.occupancy),
 		standing:  p.rules.StandingSystem(),
@@ -248,8 +250,15 @@ func (p *Plugin) Seed(layout Layout) {
 }
 
 // Populate applies the seeded Layout — kinds, the cells' tags, roles, names and groups, ways and crossings —
-// changing nothing and erroring on an unknown kind name.
+// changing nothing and erroring on an unknown kind name, or on an entity of the level laid that
+// no Spawn took.
 func (p *Plugin) Populate() error {
+	if level := p.level; level != nil {
+		p.level = nil
+		if err := level.unspawned(); err != nil {
+			return err
+		}
+	}
 	if p.seeded == nil {
 		return nil
 	}

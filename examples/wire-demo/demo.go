@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"errors"
 	"log"
 	"time"
 
@@ -8,7 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -38,8 +39,11 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16
+	MaxEntCount  = 64
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
@@ -66,7 +70,7 @@ func NewDemo(s *arena) game.Game {
 				Entities: world.EntitiesCfg{
 					MaxCount: MaxEntCount,
 					MinSize:  EntitySize,
-					MaxSize:  EntitySize,
+					MaxSize:  CellSize,
 				},
 			}).
 			Plugins(s.makePlugins).
@@ -76,7 +80,7 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -102,33 +106,19 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineCells() {
-	kinds, roles := s.board.CellKinds(), s.world.Roles()
+	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define(PitCell, cell.Kind{Cost: 1})
-	kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(PlateRole))
-	kinds.Define(LeverCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(LeverRole))
 	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
-	kinds.Define(GateCell, cell.Kind{Cost: 1, Solid: true})
-	kinds.Define(GatewayCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 func (s *arena) defineEffects() {
-	kinds := s.board.CellKinds()
 	fx := s.world.Effects()
-	fx.Define(
-		OpenEf,
-		effect.Spec{
-			effect.Lasts(2 * time.Second),
-			effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() }),
-		},
-	)
-	fx.Define(
-		AjarEf,
-		effect.Spec{
-			effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(GatewayCell).Kind() }),
-		},
-	)
+	fx.Define(OpenEf, effect.Spec{
+		effect.Lasts(2 * time.Second),
+		effect.Alter(func(f *cell.Floor) { f.Allows = 0 }),
+	})
+	fx.Define(AjarEf, effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })})
 	fx.Define(HasteEf, effect.Spec{
 		effect.Lasts(3 * time.Second),
 		effect.Alter(
@@ -140,7 +130,7 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineRoles() {
 	s.world.Roles().Define(PlateRole,
-		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
+		rule.Then[collision.Meeting]("press", rule.All, rule.Trigger()))
 	s.world.Roles().Define(LeverRole)
 	s.world.Roles().Define(HastyRole)
 	s.world.Roles().Define(HandyRole,
@@ -213,14 +203,21 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, to cell.ID }
+type unitRow struct {
+	Start cell.ID `yaml:"start"`
+	To    cell.ID `yaml:"to"`
+}
+
+type standingRow struct {
+	At cell.ID `yaml:"at"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -253,57 +250,32 @@ func (s *arena) defineKinds() {
 		profile,
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.to, u.start)
+			return navigation.Patrol(time.Second, u.To, u.Start)
 		}),
 	)
+	at := func(r standingRow) cell.ID { return r.At }
+	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
+	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
+	cellWide.Define(GateKind, comp.Const(cell.Wall{Keeps: cell.Land}))
+	small := board.NewEntities(s.board, board.Shape{Size: EntitySize}, at)
+	small.Define(PlateKind,
+		comp.Const(collision.Collider{}),
+		rule.Plays(s.world.Roles().Named(PlateRole)))
+	small.Define(LeverKind, rule.Plays(s.world.Roles().Named(LeverRole)))
 }
 
-// TODO: z pliku...
-func (s *arena) spawnCells() {
-	brd := s.board.Board()
-	var cells []cell.Entry
-	strips := []struct {
-		group string
-		left  uint32
-	}{{"west trapdoors", 7}, {"east trapdoors", 15}}
-	for _, strip := range strips {
-		for y := uint32(1); y <= 11; y++ {
-			for x := strip.left; x <= strip.left+1; x++ {
-				door := cell.Entry{Kind: BoardsCell, Cell: brd.At(x, y), Group: strip.group}
-				cells = append(cells, door)
-			}
-		}
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	for x := range uint32(GridWidth) {
-		if x == 11 || x == 12 {
-			cells = append(cells, cell.Entry{Kind: GateCell, Cell: brd.At(x, 13), Group: "gate"})
-		} else {
-			cells = append(cells, cell.Entry{Kind: FenceCell, Cell: brd.At(x, 13)})
-		}
+	sides := board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	}
-	cells = append(cells, cell.Entry{Kind: PlateCell, Cell: brd.At(GridWidth-4, 14), Name: "plate"})
-	cells = append(cells, cell.Entry{Kind: LeverCell, Cell: brd.At(1, 14), Name: "west lever"})
-	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
-}
-
-// TODO: z pliku
-func (s *arena) spawnUnits() {
-	brd := s.board.Board()
-	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
-	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
-	for i := range uint32(3) {
-		s.world.Seed(scoutKind.Entry(unitRow{start: brd.At(3+2*i, 14)}).Told(player...))
-	}
-	for i := range uint32(2) {
-		s.world.Seed(porterKind.Entry(unitRow{start: brd.At(4+2*i, 15)}).Told(player...))
-	}
-	for _, row := range []uint32{2, 5, 8, 11} {
-		s.world.Seed(
-			wandererKind.Entry(unitRow{start: brd.At(2, row), to: brd.At(GridWidth-3, row)}),
-		)
-	}
+	return errors.Join(
+		board.Spawn[standingRow](level, nil),
+		board.Spawn[unitRow](level, sides),
+	)
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

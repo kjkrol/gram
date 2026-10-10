@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"math"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -42,6 +42,9 @@ const (
 
 	Frost = cell.Domain(1 << 3)
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
@@ -78,7 +81,7 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -177,8 +180,8 @@ func (s *arena) defineRoles() {
 }
 
 type unitRow struct {
-	start, target cell.ID
-	ordered       bool
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
 }
 
 func (s *arena) defineKinds() {
@@ -186,7 +189,7 @@ func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := func(brake float64) steering.Steering {
 		return steering.Steering{
@@ -198,7 +201,7 @@ func (s *arena) defineKinds() {
 		}
 	}
 	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
 	roles := s.world.Roles()
 	units.Define(
@@ -228,38 +231,14 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-// The lake: where the water lies, and where the boat sails.
-const (
-	lakeLeft, lakeRight uint32 = 8, 15
-	lakeTop, lakeBottom uint32 = 4, 11
-)
-
-// TODO: mechanizm wczytywania planszy i jednostek z pliku
-func (s *arena) spawnCells() {
-	brd := s.board.Board()
-	water := s.board.CellKinds().Named(WaterCell)
-	lake := s.world.Roles().Named(LakeRole)
-	var cells []cell.Entry
-	for y := lakeTop; y <= lakeBottom; y++ {
-		for x := lakeLeft; x <= lakeRight; x++ {
-			cells = append(cells, water.Entry(brd.At(x, y)).Plays(lake))
-		}
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
-}
-func (s *arena) spawnUnits() {
-	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
-	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
-	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
-	brd := s.board.Board()
-	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
-	s.world.Seed(
-		witchKind.Entry(unitRow{start: brd.At(2, 8), target: brd.At(GridWidth-3, 8)}).
-			Told(player...),
-		walkerKind.Entry(unitRow{start: brd.At(2, 10)}).Told(player...),
-		boatKind.Entry(unitRow{start: brd.At(lakeRight, 8), target: brd.At(lakeLeft, 8)}).
-			Told(player...),
-	)
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

@@ -21,20 +21,29 @@
 // (entity.Named, Group); and the roles it plays, whose rules it obeys, beyond its kind's
 // (Kinds.Define) — Entry.Plays, this one cell's own:
 //
-//	cell.Entry{Kind: "plate", Cell: c, Name: "plate"}
-//	cell.Entry{Kind: "boards", Cell: d, Group: "east trapdoors"}
+//	cell.Entry{Kind: "well", Cell: c, Name: "well"}
+//	cell.Entry{Kind: "fence", Cell: d, Group: "east fence"}
 //	water.Entry(c).Plays(lakeRole) // built on the kind's handle (Kinds.Named, Of.Entry)
+//
+// # What stands on a cell
+//
+// An entity standing on the board — a lever, a trapdoor, a gate, a plate — carries [On], the cell
+// it stands on for good (board.NewEntities makes such kinds). Its knobs [Floor] and [Wall] build
+// over the cell: a Floor carries the domains it Allows whatever the ground takes (a trapdoor over
+// a pit, a bridge over a river, at its Height in a world with heights), a Wall keeps the domains
+// it Keeps off (a gate shut). The board gathers them on the cell's entity as [Built], every step,
+// and [Built.Over] is the kind as whoever crosses the cell meets it with them: the planner, a
+// fall (unit.Standing.Fallen) and collision see them as they see the ground. An effect opens one —
+// a Floor's Allows or a Wall's Keeps altered to 0:
+//
+//	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
 //
 // # Now
 //
 // [Now] is the cell at a step as a rule gets it: the board runs the rules of it for every cell,
 // obeyed by the roles the cell plays (rule.Part.Obeys) or filtered by effects' markers
 // (rule.Self); it is plugin.Placed, so a rule's Here acts on the cell and Around on the rings
-// round it. Now.Trodden says the centre of a
-// unit lies on the cell this step, and [Now.Stood] is that for a rule's If — a plate setting its
-// command off while someone stands on it:
-//
-//	rule.If(cell.Now.Stood, rule.Trigger())
+// round it, on what stands on them too: fire spreading from cell to cell.
 //
 // # Occupancy
 //

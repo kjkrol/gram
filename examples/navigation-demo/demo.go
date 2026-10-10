@@ -1,13 +1,13 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -38,6 +38,9 @@ const (
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
@@ -70,7 +73,7 @@ func NewDemo(s *arena) game.Game {
 			Players(s.definePlayer).
 			Rules(s.defineRules).
 			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -133,14 +136,17 @@ func (s *arena) defineCells() {
 	kinds.Define(HoleCell, cell.Kind{Cost: 1})
 }
 
-type unitRow struct{ start, target cell.ID }
+type unitRow struct {
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -151,7 +157,7 @@ func (s *arena) defineKinds() {
 	}
 	own := []comp.Comp{
 		comp.Load(
-			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 		),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	}
@@ -159,37 +165,14 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
-// TODO: definicja planszy i rozklad jednostek z pliku !
-func (s *arena) spawnCells() {
-	brd := s.board.Board()
-	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a
-	// hole on each unit's straight line, so the planner has to go round.
-	var cells []cell.Entry
-	for y := uint32(2); y < GridHeight; y++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: brd.At(12, y)})
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	cells = append(cells, cell.Entry{Kind: HoleCell, Cell: brd.At(6, 4)})
-	cells = append(cells, cell.Entry{Kind: HoleCell, Cell: brd.At(17, 12)})
-	for x := uint32(2); x <= GridWidth-3; x++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(x, 1)})
-	}
-	for y := uint32(2); y <= 13; y++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(2, y)})
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: brd.At(GridWidth-3, y)})
-	}
-	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
-}
-
-func (s *arena) spawnUnits() {
-	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
-	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
-	brd := s.board.Board()
-	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
-	s.world.Seed(
-		redKind.Entry(unitRow{start: brd.At(2, 4), target: brd.At(GridWidth-3, 4)}).Told(player...),
-		blueKind.Entry(unitRow{start: brd.At(2, 12), target: brd.At(GridWidth-3, 12)}).
-			Told(player...),
-	)
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

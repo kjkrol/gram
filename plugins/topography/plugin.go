@@ -216,7 +216,7 @@ func (p *Plugin) topAt(at geom.Vec) float64 {
 
 // Relief is the ground's heights as a game reads and sets them: the height at any point and how far
 // apart it is sampled (ground.Heights), a cell's level, and all of them at once from a function
-// (relief.MeanOfCells builds one from a height per cell). Raise, Lower and Level shape it.
+// (ground.MeanOfCells builds one from a height per cell). Raise, Lower and Level shape it.
 type Relief interface {
 	ground.Heights
 	Altitude(c cell.ID) float64

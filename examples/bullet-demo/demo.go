@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"slices"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -41,14 +41,14 @@ const (
 	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 64 // the units and the shots in the air; cell entities do not count
 
-	wallColumn uint32 = 7 // the high wall north of the road, the low one south of it
-	roadRow    uint32 = 8
-
 	fuseLength  = 2 * time.Second
 	woundLasts  = 5 * time.Second
 	blastRadius = 2.5 * CellSize // a burst wounds within it
 	blastKills  = CellSize       // and takes whoever stands within this
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
@@ -83,7 +83,7 @@ func NewDemo(s *arena) game.Game {
 			Rules(s.defineRules).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -212,14 +212,17 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, to cell.ID }
+type unitRow struct {
+	Start cell.ID `yaml:"start"`
+	To    cell.ID `yaml:"to"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize, Height: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -245,45 +248,20 @@ func (s *arena) defineKinds() {
 		profile,
 		mortal,
 		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.to, u.start)
+			return navigation.Patrol(time.Second, u.To, u.Start)
 		}),
 	)
 }
 
-func (s *arena) spawnCells() {
-	at := s.board.Board().At
-	var cells []cell.Entry
-	for x := uint32(1); x < GridWidth-1; x++ {
-		cells = append(cells, cell.Entry{Kind: RoadCell, Cell: at(x, roadRow)})
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	for y := uint32(12); y <= 14; y++ {
-		for x := uint32(2); x <= 4; x++ {
-			cells = append(cells, cell.Entry{Kind: WaterCell, Cell: at(x, y)})
-		}
-	}
-	for y := uint32(2); y <= 6; y++ {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: at(wallColumn, y)})
-	}
-	for y := uint32(10); y <= 14; y++ {
-		cells = append(cells, cell.Entry{Kind: LowWallCell, Cell: at(wallColumn, y)})
-	}
-	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
-}
-
-func (s *arena) spawnUnits() {
-	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	at := s.board.Board().At
-	s.world.Seed(
-		soldierKind.Entry(unitRow{start: at(3, roadRow)}).
-			Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		wandererKind.Entry(unitRow{start: at(8, roadRow), to: at(13, roadRow)}).
-			Told(players.Give{To: s.wild.ID}),
-		wandererKind.Entry(unitRow{start: at(9, 12), to: at(14, 12)}).
-			Told(players.Give{To: s.wild.ID}),
-		wandererKind.Entry(unitRow{start: at(9, 4), to: at(12, 4)}).
-			Told(players.Give{To: s.wild.ID}),
-	)
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+		WildSide:   {players.Give{To: s.wild.ID}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

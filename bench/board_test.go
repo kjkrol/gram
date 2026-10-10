@@ -15,10 +15,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -53,8 +53,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	}
 	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	ground := topo.Relief()
-	ground.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
+	relief := topo.Relief()
+	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -67,7 +67,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	for b.Loop() {
 		for i := range 64 {
 			d := float64(i) * size / 4
-			sum += ground.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
+			sum += relief.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
 	_ = sum
@@ -95,7 +95,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	}
 	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
+	topo.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}

@@ -38,6 +38,7 @@ type Heights struct {
 // concurrent use.
 type Relief struct {
 	grid   grid.Grid
+	board  *board.Board // the grid when it is a board's, whose Floors carry units over the ground
 	sq     grid.Shape
 	square bool
 	cols   int // corners along x on a square grid
@@ -57,6 +58,7 @@ type Relief struct {
 func New(g grid.Grid) *Relief {
 	r := &Relief{grid: g}
 	if b, ok := g.(*board.Board); ok {
+		r.board = b
 		r.sq, r.square = b.Shape()
 		r.touched = b.Touch
 	} else {
@@ -236,6 +238,26 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
+
+// DeckAt is where a Floor over the cell under p carries whoever moves in d (none: Land): its
+// Height over the cell's level; false where no Floor carries it or the relief lies under no board.
+func (r *Relief) DeckAt(p geom.Vec, d cell.Domain) (float64, bool) {
+	if r.board == nil {
+		return 0, false
+	}
+	if d == 0 {
+		d = cell.Land
+	}
+	c, ok := r.grid.CellAt(p)
+	if !ok {
+		return 0, false
+	}
+	f := r.board.Built(c).Floor
+	if f.Allows&d == 0 {
+		return 0, false
+	}
+	return r.Altitude(c) + f.Height, true
+}
 
 // SetHeights raises the ground to heights: sampled at every corner on a square grid, at every
 // cell's centre on any other.

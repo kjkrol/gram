@@ -70,7 +70,11 @@ func (k Of[P]) Name() string { return k.name }
 // SpriteID is the atlas slot this kind's entities are drawn from.
 func (k Of[P]) SpriteID() render.SpriteID { return k.sprite }
 
-// Entry is one entity to spawn: its kind and its row — built only by Of.Entry.
+// EntryOf is one entity of the kind defined as name, described by row: for whoever knows the
+// row's type only as the program runs (board.Plugin.Lay); the world refuses a row of another type.
+func EntryOf(name string, row any) Entry { return Entry{kind: name, row: row} }
+
+// Entry is one entity to spawn: its kind and its row — built by Of.Entry or EntryOf.
 type Entry struct {
 	kind        string
 	row         any

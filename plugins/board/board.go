@@ -53,12 +53,17 @@ func (b *Board) Ordinal(c cell.ID) (int, bool) { return b.cells.Ordinal(c) }
 func (b *Board) CellEntity(c cell.ID) (uid.UID64, bool) { return b.cells.Entity(c) }
 
 // Kind is c's terrain kind as whoever crosses it meets it: its ground's, with a Way running across
-// it deciding who may and what it costs (Way.Over), and a Crossing over that letting whoever it
-// admits over too (Crossing.Over); off the board, the zero kind admitting nobody.
+// it deciding who may and what it costs (Way.Over), a Crossing over that letting whoever it
+// admits over too (Crossing.Over) and what the entities standing on it build (Built.Over); off
+// the board, the zero kind admitting nobody.
 func (b *Board) Kind(c cell.ID) cell.Kind { return b.cells.Kind(c) }
 
-// Bare is c's kind bare of what runs across it: the ground a step beside the way crosses; off the
-// board, the zero kind.
+// Built is what the entities standing on c build over it — their Floors and Walls — as of the
+// board's last step; none off the board.
+func (b *Board) Built(c cell.ID) cell.Built { return b.cells.Built(c) }
+
+// Bare is c's kind bare of what runs across it: the ground a step beside the way crosses, what
+// the entities standing on it build over it included (Built.Over); off the board, the zero kind.
 func (b *Board) Bare(c cell.ID) cell.Kind { return b.cells.Bare(c) }
 
 // Set assigns c's terrain kind, taking effect immediately.

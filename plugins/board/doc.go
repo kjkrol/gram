@@ -10,9 +10,11 @@
 // bands — is in plugins/board/internal, which nothing outside the board imports.
 //
 //   - board: the [Plugin]; the [Board], a grid and its terrain, the one place to read and write
-//     it; the [Layout] it is seeded from; its [Map]; [NewUnits] for a game's kinds of units.
+//     it; the [Layout] it is seeded from, a level file laid ([Plugin.Lay]); its [Map]; [NewUnits]
+//     for a game's kinds of units, [NewEntities] for those standing on the board.
 //   - cell: what is said of one cell — its id and kind, the domains it admits, its ground, way and
-//     crossing, the moment of it (cell.Now), its occupancy.
+//     crossing, what stands on it (On, Floor, Wall, Built), the moment of it (cell.Now), its
+//     occupancy.
 //   - unit: an entity on the board — the cell it is At, how it moves (Mover), where it stands at a
 //     step (Standing).
 //   - grid: the topology — a Grid, DefaultGrids, the Link from a cell to its neighbour, a Shape.
@@ -46,17 +48,77 @@
 // Every step the board runs the rules of its moments, which the roles obey: of a unit.Standing for every entity on the board — the cell under it,
 // its kind and the game's tags of its place, its box and domain; Standing.Fallen where the domain
 // may not be, a unit pushed into the sea — and of a cell.Now for every cell: its entity, which
-// cell, its kind now, and whether the centre of an entity carrying unit.At lies on it this step
-// (Now.Trodden; Now.Stood for a rule's If: a plate pressed). Both are plugin.Placed, data alone:
-// the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a rule's
-// Here acts on the cells under the entity (a cell itself), its Around on the rings of neighbours
-// round them too — a witch's frost, fire spreading over the ground. A unit's Standing tells the effects on the cell
-// under it (Standing.States, unit.Over). A cell plays the roles of its kind (cell.Kinds.Define) and its Layout entry's own (cell.Entry.Plays), and obeys their rules (rule.Part.Obeys: a
-// plate, a lever), and a command finds a cell by its name or its group (entity.Named, entity.Group):
-// a plate stood on Triggers, and the command its name sets off opens the group of trapdoors. In the same
+// cell, its kind now. Both are plugin.Placed, data alone: the board tells a rule, in its Tick,
+// which cells lie round (plugin.Tick.Around), and a rule's Here acts on the cells under the entity
+// (a cell itself) and the entities standing on them, its Around on the rings of neighbours round
+// them too — a witch's frost, fire spreading over the ground, a lever beside a unit pulled; the
+// units there are no part of it. A unit's Standing tells the effects on the cell under it
+// (Standing.States, unit.Over). A cell plays the roles of its kind (cell.Kinds.Define) and its
+// Layout entry's own (cell.Entry.Plays), and obeys their rules (rule.Part.Obeys), and a command
+// finds a cell by its name or its group (entity.Named, entity.Group). In the same
 // pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the
 // slope of the ground under it — which the world's velocity pass goes by from the next step;
 // WithLog has a line written for each unit fallen where its domain may not be.
+//
+// # Entities standing on the board
+//
+// A lever, a trapdoor, a gate, a plate is no terrain but an entity standing still on a cell:
+// [NewEntities] binds a game's rows of them to the board and [Entities.Define] makes a kind, each
+// standing in a box at its cell's middle, carrying cell.On and whatever the game gives besides —
+// a cell.Floor (a trapdoor over a pit), a cell.Wall (a gate), the roles it plays (a lever), a
+// collision.Collider without Physics (a plate, pressed in a collision.Meeting). The board gathers
+// their Floors and Walls on the cells' entities every step (cell.Built), and [Board.Kind] and
+// [Board.Bare] are the cells with them: a trapdoor shut carries a walker over the pit, opened it
+// lets it fall (unit.Standing.Fallen); a gate shut is planned round and pushed out of, in a world
+// with heights up to its Height. A Floor's Height is a deck over the cell's level the topography
+// stands whoever it carries on; a flat world refuses a Height. [Board.Built] reads what is built.
+//
+// # Level
+//
+// A game's map is a YAML file (map.yaml beside the demos' code): kinds stay in the game's code,
+// the file names them.
+//
+//	board:
+//	  default: grass                   # the kind of every cell the drawing leaves to it
+//	  legend:                          # a character a kind, or a kind with roles, a name, a group
+//	    ".": grass
+//	    "_": pit
+//	    "~": {kind: water, plays: [lake], group: lake}
+//	  cells: |                         # a character a cell, row by row; spaces left out
+//	    ..__..
+//	    ~~..~~
+//	  entities:                        # what stands on the terrain
+//	    - {kind: trapdoor, group: west trapdoors, at: [2, 0]}
+//	relief:                            # metres through the world's Scale, a number a cell
+//	  cells: |                         # (corners: one a corner, on a square grid)
+//	    0 0 2.5 2.5 0 0
+//	    0 0 0 0 0 0
+//	ways:                              # paths of points [x, y], a branch beginning on another
+//	  roads: {road: {width: 12, paths: [[[0, 0], [5, 0]], [[3, 0], [3, 1]]]}}
+//	  rivers: {river: {width: [4, 10], paths: [[[1, 0], [1, 1]]]}}  # head to mouth
+//	  crossings: {road: bridge}        # what a road is over a river
+//	units:
+//	  - {kind: scout, side: player, name: ann, start: [0, 1]}
+//
+// On a hex grid a row of the drawing is an r and x is q: indented a character a row, it draws the
+// board as it is. In the Spawn section [Plugin.Lay] seeds the board out of the file and hands back
+// a [Level]: its relief for a topography's Seed ([Level.Heights]) and its entities, which
+// [Spawn] seeds the world with a type of row at a time — every entity whose kind has rows of that
+// type, its kind, side, name and group its own keys, every other one a field of the row tagged
+// yaml, a cell.ID written [x, y] however deep it lies:
+//
+//	type unitRow struct {
+//		Start cell.ID `yaml:"start"`
+//	}
+//
+//	level, err := s.board.Lay(mapFile, "map.yaml")
+//	…
+//	s.topography.Seed(level.Heights())
+//	return board.Spawn[unitRow](level, board.Sides{PlayerSide: {players.Give{To: s.player.ID}}})
+//
+// A side is the commands the game gives its entities as they are made ([Sides]). An error says
+// the file and the line: a level the board cannot lay seeds nothing, and an entity no Spawn took
+// fails the board's Populate.
 //
 // # Commands
 //

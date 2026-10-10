@@ -26,6 +26,9 @@ const (
 	WalkerKind = "walker"
 	BoatKind   = "boat"
 
+	// sides
+	PlayerSide = "player"
+
 	// the stage and its scenes
 	EffectStage = "effect-demo"
 	MainScene   = "main"

@@ -15,6 +15,10 @@ const (
 	RedBlock  = "red block"
 	BlueBlock = "blue block"
 
+	// sides
+	RedSide  = "red"
+	BlueSide = "blue"
+
 	// the stage and its scenes
 	SplitScreenStage = "split-screen-demo"
 	MainScene        = "main"

@@ -27,8 +27,13 @@ func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
+	trapdoorKind := kind.Named[standingRow](s.world.Kinds(), TrapdoorKind)
+	plateKind := kind.Named[standingRow](s.world.Kinds(), PlateKind)
 
 	worldAtlas := render.NewAtlas()
+	worldAtlas.Add(trapdoorKind, CellSize, render.Solid(boardsColor)).
+		Under(s.world.Effects().Named(OpenEf), render.Solid(pitColor))
+	worldAtlas.Add(plateKind, EntitySize, render.Solid(plateColor))
 	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
@@ -36,8 +41,6 @@ func (m *mainScene) picture() render.Picture {
 
 	boardAtlas := s.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
-	boardAtlas.Add(PlateCell, render.Solid(plateColor))
 	boardAtlas.Add(PitCell, render.Solid(pitColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)

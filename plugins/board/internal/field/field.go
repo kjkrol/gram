@@ -232,7 +232,7 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	x1, y1 := int64(math.Ceil(box.BottomRight.X/size)), int64(math.Ceil(box.BottomRight.Y/size))
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			if c, ok := f.square.Fold(x, y); ok && !takes(f.cells.KindOf(c), layers) {
+			if c, ok := f.square.Fold(x, y); ok && !f.takes(c, layers) {
 				area += overlap(box, geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size))
 			}
 		}
@@ -244,7 +244,7 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	var area float64
 	f.grid.CellsUnder(box, func(c cell.ID) {
-		if takes(f.cells.KindOf(c), layers) {
+		if f.takes(c, layers) {
 			return
 		}
 		f.boxes = f.grid.CellBoxes(c, f.boxes[:0])
@@ -255,10 +255,16 @@ func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	return area
 }
 
-// takes reports whether cells of k take an entity on layers: they allow one of them — any, for
-// one on every plane (no layers).
-func takes(k *cell.Kind, layers world.Layers) bool {
-	return k == nil || k.Allows&cell.Domain(layers) != 0 || layers == 0 && k.Allows != 0
+// takes reports whether c takes an entity on layers: its ground or a Floor over it allows one of
+// them — any, for one on every plane (no layers) — and no Wall keeps it off.
+func (f *Field) takes(c cell.ID, layers world.Layers) bool {
+	k := f.cells.KindOf(c)
+	if k == nil {
+		return true
+	}
+	b := f.cells.Built(c)
+	allows := (k.Allows | b.Floor.Allows) &^ b.Wall.Keeps
+	return allows&cell.Domain(layers) != 0 || layers == 0 && allows != 0
 }
 
 // overlap is the area a and b share.
@@ -290,20 +296,26 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 }
 
 // stops reports whether c stops an entity on layers spanning band: its kind is solid for the
-// layers and, where the world has heights, its band meets the entity's.
+// layers, or a Wall over it keeps one of them off, and, where the world has heights, its band
+// meets the entity's.
 func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool {
 	k := f.cells.KindOf(c)
-	return solidFor(k, layers) && f.solidBand(c, k).Meets(band)
+	if solidFor(k, layers) && f.solidBand(c, k.Height).Meets(band) {
+		return true
+	}
+	w := f.cells.Built(c).Wall
+	keeps := world.Layers(w.Keeps)
+	return keeps != 0 && keeps.Meets(layers) && f.solidBand(c, w.Height).Meets(band)
 }
 
-// solidBand is the heights a solid cell of kind k stands in: from below up to Height over its
-// level, so nothing passes under a wall on a slope; Everywhere in a flat world, or for a kind
-// without a Height, which stands at every height as it does on the flat.
-func (f *Field) solidBand(c cell.ID, k *cell.Kind) collision.Band {
-	if !f.heights || k.Height <= 0 {
+// solidBand is the heights a wall height high stands in on c: from below up to height over its
+// level, so nothing passes under a wall on a slope; Everywhere in a flat world, or for a wall of
+// no height, which stands at every height as it does on the flat.
+func (f *Field) solidBand(c cell.ID, height float64) collision.Band {
+	if !f.heights || height <= 0 {
 		return collision.Everywhere
 	}
-	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + k.Height}
+	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + height}
 }
 
 // solidFor reports whether cells of k stop an entity on layers: Solid, keeping out a layer it is on.

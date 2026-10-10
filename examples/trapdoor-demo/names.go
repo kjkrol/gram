@@ -4,9 +4,8 @@ package main
 // mistyped does not compile.
 const (
 	// kinds of cells
-	GrassCell  = "grass"
-	BoardsCell = "boards"
-	PitCell    = "pit"
+	GrassCell = "grass"
+	PitCell   = "pit"
 
 	// effects
 	OpenEf  = "open"
@@ -21,6 +20,10 @@ const (
 	// kinds of units
 	ScoutKind    = "scout"
 	WandererKind = "wanderer"
+	TrapdoorKind = "trapdoor"
+
+	// sides
+	PlayerSide = "player"
 
 	// the stage and its scenes
 	TrapdoorStage = "trapdoor-demo"

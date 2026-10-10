@@ -10,6 +10,9 @@ const (
 
 	DouseCmd = "douse the embers"
 
+	// sides
+	PlayerSide = "player"
+
 	// the stage and its scenes
 	EmberStage = "ember-demo"
 	MainScene  = "main"

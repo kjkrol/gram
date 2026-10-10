@@ -34,6 +34,7 @@ type entitySystem struct {
 	spawnGround goke.Comp[cell.Ground]
 	spawnWay    goke.Comp[cell.Way]
 	spawnCross  goke.Comp[cell.Crossing]
+	spawnBuilt  goke.Comp[cell.Built]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
 	spawnRoles  goke.Comp[tag.Tags[rule.Roles]]
 	spawnLabel  goke.Comp[entity.Label]
@@ -45,6 +46,7 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	st.grounds = si.NewQueryBuilder(&st.ground).Build()
 	st.ways = si.NewQueryBuilder(&st.way).Build()
 	st.crossings = si.NewQueryBuilder(&st.crossing).Build()
+	st.builts = si.NewQueryBuilder(&st.plot, &st.built).Build()
 	st.stated = si.NewQueryBuilder(&st.plot).Optional(&st.states).Build()
 	s.active = si.NewQueryBuilder(&s.activeComp, &s.activePlot).Optional(&s.activeMarks).Build()
 
@@ -88,7 +90,15 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		}
 	}
 	// the effects' markers and the roles, for good
-	columns := []goke.Addable{&s.spawnPlot, &s.spawnGround, &s.spawnWay, &s.spawnCross, &s.spawnMarks, &s.spawnRoles}
+	columns := []goke.Addable{
+		&s.spawnPlot,
+		&s.spawnGround,
+		&s.spawnWay,
+		&s.spawnCross,
+		&s.spawnBuilt,
+		&s.spawnMarks,
+		&s.spawnRoles,
+	}
 	for _, c := range s.templated() {
 		sp := c.Spawner()
 		s.extra = append(s.extra, sp)
@@ -138,9 +148,14 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 
 // own are the components the board gives every cell itself, which a template may not.
 var own = map[reflect.Type]bool{
-	reflect.TypeFor[cell.Plot](): true, reflect.TypeFor[cell.Ground](): true, reflect.TypeFor[cell.Way](): true,
-	reflect.TypeFor[cell.Crossing](): true, reflect.TypeFor[tag.Tags[effect.States]](): true,
-	reflect.TypeFor[tag.Tags[rule.Roles]](): true, reflect.TypeFor[entity.Label](): true,
+	reflect.TypeFor[cell.Plot]():               true,
+	reflect.TypeFor[cell.Ground]():             true,
+	reflect.TypeFor[cell.Way]():                true,
+	reflect.TypeFor[cell.Crossing]():           true,
+	reflect.TypeFor[cell.Built]():              true,
+	reflect.TypeFor[tag.Tags[effect.States]](): true,
+	reflect.TypeFor[tag.Tags[rule.Roles]]():    true,
+	reflect.TypeFor[entity.Label]():            true,
 }
 
 // templated is the template's Spec, refusing what the board gives a cell itself and a Load of

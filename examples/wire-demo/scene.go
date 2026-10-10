@@ -34,10 +34,20 @@ func (m *mainScene) picture() render.Picture {
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
+	standing := func(name string) kind.Of[standingRow] {
+		return kind.Named[standingRow](s.world.Kinds(), name)
+	}
+	fx := s.world.Effects()
 
 	worldAtlas := render.NewAtlas()
+	worldAtlas.Add(standing(TrapdoorKind), CellSize, render.Solid(boardsColor)).
+		Under(fx.Named(OpenEf), render.Solid(pitColor))
+	worldAtlas.Add(standing(GateKind), CellSize, render.Solid(gateColor)).
+		Under(fx.Named(AjarEf), render.Solid(gatewayColor))
+	worldAtlas.Add(standing(PlateKind), EntitySize, render.Solid(plateColor))
+	worldAtlas.Add(standing(LeverKind), EntitySize, render.Solid(leverColor))
 	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
-		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor))
+		Under(fx.Named(HasteEf), render.Solid(hasteColor))
 	worldAtlas.Add(porterKind, EntitySize, render.Solid(porterColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
@@ -45,13 +55,8 @@ func (m *mainScene) picture() render.Picture {
 
 	boardAtlas := s.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(BoardsCell, render.Solid(boardsColor))
 	boardAtlas.Add(PitCell, render.Solid(pitColor))
-	boardAtlas.Add(PlateCell, render.Solid(plateColor))
-	boardAtlas.Add(LeverCell, render.Solid(leverColor))
 	boardAtlas.Add(FenceCell, render.Solid(fenceColor))
-	boardAtlas.Add(GateCell, render.Solid(gateColor))
-	boardAtlas.Add(GatewayCell, render.Solid(gatewayColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 

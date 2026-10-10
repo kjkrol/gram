@@ -15,10 +15,11 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, in the simulation, the cells — what effects changed — the occupancy's upkeep and
-// the rules of where units stand and of the cells.
+// module runs, in the simulation, the cells — what effects changed, what is built over them — the
+// occupancy's upkeep and the rules of where units stand and of the cells.
 type module struct {
 	cells     goke.System
+	built     goke.System
 	release   goke.System
 	standing  goke.System
 	cellRules goke.System
@@ -26,6 +27,7 @@ type module struct {
 	template  *kind.Template // the world's roster's for cells, whose components the saves carry
 
 	cellsRunnable     goke.Runnable
+	builtRunnable     goke.Runnable
 	releaseRunnable   goke.Runnable
 	standingRunnable  goke.Runnable
 	cellRulesRunnable goke.Runnable
@@ -37,6 +39,7 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
+	m.builtRunnable = ecs.RegSys(m.built)
 	m.releaseRunnable = ecs.RegSys(m.release)
 	m.standingRunnable = ecs.RegSys(m.standing)
 	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
@@ -46,6 +49,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.cellsRunnable, step)
+		ctx.Run(m.builtRunnable, step)
 		ctx.Run(m.releaseRunnable, step)
 		ctx.Run(m.standingRunnable, step)
 		ctx.Run(m.cellRulesRunnable, step)
@@ -67,8 +71,19 @@ func (m *module) LoadComps() []goke.CompToken {
 		}
 	}
 	return append(templated,
-		goke.LoadComp[unit.At](), goke.LoadComp[unit.Mover](), goke.LoadComp[tag.Tags[unit.States]](),
-		goke.LoadComp[cell.Plot](), goke.LoadComp[cell.Ground](), goke.LoadComp[cell.Way](), goke.LoadComp[cell.Crossing](),
-		goke.LoadComp[effect.Active](), goke.LoadComp[tag.Tags[effect.States]](), goke.LoadComp[tag.Tags[rule.Roles]](),
+		goke.LoadComp[unit.At](),
+		goke.LoadComp[unit.Mover](),
+		goke.LoadComp[tag.Tags[unit.States]](),
+		goke.LoadComp[cell.Plot](),
+		goke.LoadComp[cell.Ground](),
+		goke.LoadComp[cell.Way](),
+		goke.LoadComp[cell.Crossing](),
+		goke.LoadComp[cell.Built](),
+		goke.LoadComp[cell.On](),
+		goke.LoadComp[cell.Floor](),
+		goke.LoadComp[cell.Wall](),
+		goke.LoadComp[effect.Active](),
+		goke.LoadComp[tag.Tags[effect.States]](),
+		goke.LoadComp[tag.Tags[rule.Roles]](),
 	)
 }

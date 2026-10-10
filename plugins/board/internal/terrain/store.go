@@ -18,11 +18,13 @@ type store struct {
 	grounds   *goke.Query
 	ways      *goke.Query
 	crossings *goke.Query
+	builts    *goke.Query
 	stated    *goke.Query
 	plot      goke.Comp[cell.Plot]
 	ground    goke.Comp[cell.Ground]
 	way       goke.Comp[cell.Way]
 	crossing  goke.Comp[cell.Crossing]
+	built     goke.Comp[cell.Built]
 	states    goke.OptComp[tag.Tags[effect.States]]
 }
 
@@ -42,6 +44,15 @@ func (s *store) wayOf(i int) *cell.Way {
 func (s *store) crossingOf(i int) *cell.Crossing {
 	s.seek(s.crossings, i)
 	return s.crossing.At(s.crossings.Cursor())
+}
+
+// builtOf is the i-th cell's Built, in place; nil for a cell a save of an older build brought
+// back without one.
+func (s *store) builtOf(i int) *cell.Built {
+	if !s.builts.SeekH(s.ids[i]) && !s.builts.Seek(s.ids[i]) {
+		return nil
+	}
+	return s.built.At(s.builts.Cursor())
 }
 
 // statesOf are the markers of the effects on the i-th cell.

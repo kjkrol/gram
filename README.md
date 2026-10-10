@@ -301,9 +301,9 @@ every game.
 | [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
 | [`dialog-demo`](examples/dialog-demo) | Conversations read from YAML: the traveller walked up to the miller or the smith is greeted in a window above the host, each with lines of its own; the answers lead on and change the game's own model — the host's `Regard` of the traveller — so pointed at with the traveller selected, a host says Friend, Neutral or Enemy under it (`ui.Of`), and greets the traveller again accordingly | `make demo-dialog` |
 | [`bullet-demo`](examples/bullet-demo) | A soldier on WSAD shoots: F fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
-| [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of cells that is its strip, the haste one for the selected | `make demo-trapdoor` |
-| [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a cell with a name, which stood on sets off the command that names it | `make demo-pressure-plate` |
-| [`wire-demo`](examples/wire-demo) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of cells, the lever and the plate cells with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
+| [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of trapdoors that is its strip, each an entity whose Floor carries walkers over a pit, the haste one for the selected | `make demo-trapdoor` |
+| [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a sensor with a name standing on the board, which met sets off the command that names it | `make demo-pressure-plate` |
+| [`wire-demo`](examples/wire-demo) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of entities standing on the board — a Floor over a pit, a Wall —, the lever and the plate entities with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
 | [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives — one `ui` screen: two feeds in `Columns`, a line between, the minimap anchored over them | `make demo-split-screen` |
 | [`vision-demo`](examples/vision-demo) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
 
@@ -338,7 +338,7 @@ stage.New(MeadowStage).
 	With(dialog.Conversations(s.defineConversations)). // a plugin's own section, in its place
 	Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
 	Controls(s.bindKeys).                              // the game's own keys, each a command
-	Spawn(s.spawnCells, s.spawnUnits).                 // a fresh game: its board, its units
+	Spawn(s.spawn).                                    // a fresh game, out of its map
 	Scenes(s.defineScenes).                            // the scenes, their pictures and cameras
 	Update(s.update)                                   // the tick; hands back the game.Stage
 ```
@@ -432,15 +432,14 @@ const (
 	MortalRole, HastyRole, PlateRole  = "mortal", "hasty", "plate"
 	OpenWestCmd, OpenEastCmd          = "open west", "open east"
 	HastenCmd                         = "hasten"
-	ScoutKind                         = "scout"
-	PlateCell, BoardsCell             = "plate", "boards"
+	ScoutKind, TrapdoorKind, PlateKind = "scout", "trapdoor", "plate"
 )
 
 fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
 
 // Effects
 fx.Define(OpenEf, effect.Spec{effect.Lasts(2 * time.Second),
-	effect.Alter(func(g *cell.Ground) { g.Kind = pit })})
+	effect.Alter(func(f *cell.Floor) { f.Allows = 0 })}) // a trapdoor opened carries nobody
 fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 	effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 2 })})
 
@@ -448,34 +447,45 @@ fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All,
 	rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
 roles.Define(HastyRole)
-roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All,
-	rule.If(cell.Now.Stood, rule.Trigger())))
-kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land},
-	roles.Named(PlateRole)) // every cell laid as a plate plays it
+roles.Define(PlateRole, rule.Then[collision.Meeting]("press", rule.All, rule.Trigger()))
 
 // Commands
 cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")))
 cmds.Define(OpenEastCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).By(entity.Named("plate")))
 cmds.Define(HastenCmd, rule.Cast(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))))
 
-// Kinds
+// Kinds: the trapdoors and the plates stand on the board, over a pit and on the grass
 units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
+standing.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
+standing.Define(PlateKind, comp.Const(collision.Collider{}), rule.Plays(roles.Named(PlateRole)))
 
 // Controls
 s.player.Bind(
 	control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", cmds.Named(OpenWestCmd)),
 	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", cmds.Named(HastenCmd)))
 
-// Units: a unit is told whose it is and that it may be selected, as it is made
-s.world.Seed(units.Named(ScoutKind).Entry(row).Told(players.Give{To: s.player.ID}, selection.Allow{}))
-
-// Layout: the cells are called what the commands call them
-cell.Entry{Kind: BoardsCell, Cell: c, Group: "west trapdoors"}
-cell.Entry{Kind: PlateCell, Cell: p, Name: "plate"}
+// Spawn: the map; a row's tags are the file's keys, a side the commands its entities give
+// themselves as they are made
+type unitRow struct {
+	Start cell.ID `yaml:"start"`
+}
+level, _ := s.board.Lay(mapFile, "map.yaml")
+board.Spawn[standingRow](level, nil)
+board.Spawn[unitRow](level, board.Sides{
+	PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}}})
 ```
 
-1 opens every cell in the group "west trapdoors" for two seconds under whoever stands there; the
-plate, stood on, sets off the command that names it; J hastens the selected scouts. A hundred
+```yaml
+board:
+  entities:            # called what the commands call them
+    - {kind: trapdoor, group: west trapdoors, at: [7, 2]}
+    - {kind: plate, name: plate, at: [20, 14]}
+units:
+  - {kind: scout, side: player, start: [3, 14]}
+```
+
+1 opens every trapdoor in the group "west trapdoors" for two seconds under whoever stands there;
+the plate, met, sets off the command that names it; J hastens the selected scouts. A hundred
 levers are a hundred commands and these rules, and an AI gives them as a key does
 (`players.Issue`). A rule of the world as a whole, a `clock.Moment`'s, takes no filter and obeys
 no role. [`examples/wire-demo`](examples/wire-demo) is the whole program; the story is in
@@ -490,9 +500,14 @@ A unit over a board is defined through `board.NewUnits[Row](brd, size, at)`:
 `at` reads off a row and `Mover` and `Layers` from the one domain, then runs the world's roster —
 what the plugins in the game bring by default (a `Collider`, a `Physics`, a `Velocity`) and what
 they require (`At`, `Mover`, `Steering`), a Spec missing one panicking by plugin and reason.
-`Spawn` puts entries on the world's roster with `Seed`; the engine spawns them only when
-`Restore` loaded nothing; mid-game the command `world.Spawn{Entry}` adds an entity of a kind the
-same way, and components come and go through effects and the plugins' facts. Kinds
+What stands still on the board — a lever, a trapdoor, a gate — is a kind of `board.NewEntities`,
+on the cell its row names; its `cell.Floor` or `cell.Wall` counts in the cell's kind. `Spawn`
+puts entries on the world's roster with `Seed`, or lays the game's map out of a file
+(`board.Plugin.Lay`: the board drawn a character a cell, a legend of kinds, the relief in
+metres, roads and rivers along paths, what stands on the board and the units, each a kind and
+the fields of its row tagged `yaml`, which `board.Spawn[Row]` seeds a type of row at a time);
+the engine spawns them only for a Stage entered afresh, not from a save;
+mid-game the command `world.Spawn{Entry}` adds an entity of a kind the same way, and components come and go through effects and the plugins' facts. Kinds
 tell save files every component type their entities carry, so a game's own tags and state
 survive a save without being registered anywhere else.
 
@@ -525,14 +540,14 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`game/stage`](game/stage/doc.go) | A Stage defined a section at a time, in one order the compiler keeps: `New(name).Plugins(…).Players(…)…Update(…)`; [`plugin/section`](plugin/section/section.go) names the parts, for a plugin refusing what is defined out of its place |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
-| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`; rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
-| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, the moment `Now` (`Stood`); `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
+| [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`, `NewEntities` (what stands on it), a level laid out of a file (`Lay`); rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
+| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, what stands on it (`On`, `Floor`, `Wall`, `Built`), the moment `Now`; `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
 | [`plugins/board/grid`](plugins/board/grid/doc.go) | The topology: `Grid` (neighbours, `Toward`, cells under a box), `DefaultGrids` (square, hex), `Link`, `Shape` |
 | [`plugins/board/look`](plugins/board/look/doc.go) | How a board is drawn: `Look`, `Dressing`, `Tile`, `FlatLook`, `Nothing`; the `Renderer` — composed every frame, in parallel, or once for a flat map, the grid over it |
 | [`plugins/board/ground`](plugins/board/ground/doc.go) | What the board's ground is to the others: `Heights`, `Cover`, `Readied` |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
-| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V takes a camera that follows a unit behind it and inside it, first person — with the cameras turned and tilted. The commands (`View`, `Turn`, `Ride`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `MeanOfCells`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
+| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V takes a camera that follows a unit behind it and inside it, first person — with the cameras turned and tilted. The commands (`View`, `Turn`, `Ride`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; the crowd — rules over the moment `Touch` and the commands `StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; its own crowd rules, as in StarCraft II: an ally standing makes way and stays aside, a group gathers round its point, strangers are gone round, nobody is stepped into water, off a cliff or into a wall |
 | [`plugins/bullet`](plugins/bullet/doc.go) | Shots fired and flown: `Shoot` (by a player from its selected units, by an entity, aimed), `Shots`/`Ammo`/`Body`, the `Flight`, a `Landing`, a `Resting` and a `Burst` into `Blast`s |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`; default bindings; `Selected(roles...)` and `Pointed()`, whom a command is for; `Hovered`, the entity under the cursor; highlight renderer |

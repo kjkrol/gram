@@ -16,6 +16,10 @@ const (
 	YellowKind = "yellow"
 	HawkKind   = "hawk"
 
+	// sides
+	PlayerSide  = "player"
+	ReserveSide = "reserve"
+
 	// the stage and its scenes
 	BoardNavigationVisionHexStage = "board-navigation-vision-hex-demo"
 	MainScene                     = "main"

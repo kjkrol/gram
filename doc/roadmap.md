@@ -6,13 +6,7 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **A map in a file** — the board and the units from a file, as dialogs are: cells drawn in ASCII
-   under a legend of kinds, ways, cells named and grouped, heights, units with their kind, owner,
-   start and goal or round; a section of the board's own (`section.Define`, `stage.With`), its
-   cells before the kinds of units and its layout and units in Spawn — a plugin's section runs only
-   within Init today, so Spawn must take sections too. The demos' layouts, starting stops and
-   constants of the board go.
-2. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+1. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
 
@@ -97,6 +91,9 @@ What is left to do. Take an item out when it lands.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
+- **Bridges standing on the board** — the islands' bridges are `cell.Crossing`s of their roads; an
+  entity standing on the river's cells with a `cell.Floor` at a deck's `Height` in their place, as
+  the trapdoors are, the crossing gone from the board.
 
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.

@@ -53,6 +53,43 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	}
 }
 
+// A Floor carries whoever moves in its domains at its Height over the cell's level and leaves the
+// others at the ground; whatever stands on the board stands on the ground under its centre.
+func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
+	var walker, hawk, bridge kind.Of[topotest.Recruit]
+	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
+		walks := steering.Steering{MaxSpeed: 10}
+		units.Define("walker", unit.Mover{Domain: cell.Land}, walks)
+		walker = units.Named("walker")
+		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, walks)
+		hawk = units.Named("hawk")
+		shape := board.Shape{Size: 20, Height: 1}
+		standing := board.NewEntities(qw.Board, shape, func(r topotest.Recruit) cell.ID {
+			return r.Start
+		})
+		standing.Define("bridge", comp.Const(cell.Floor{Allows: cell.Land, Height: 30}))
+		bridge = standing.Named("bridge")
+		onHill := topotest.Recruit{Start: qw.Grid.At(2, 1)}
+		return []kind.Entry{bridge.Entry(onHill), walker.Entry(onHill), hawk.Entry(onHill)}
+	}
+	qw := topotest.NewQuasiWorldWith(t, false, define)
+	qw.ECS.Tick(time.Second / 60)
+
+	onHill := qw.Grid.At(2, 1)
+	ground := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
+	deck := qw.Topo.Relief().Altitude(onHill) + 30
+	zs := qw.Zs()
+	if got := zs[walker.ID()]; len(got) != 1 || got[0].Altitude != deck {
+		t.Errorf("the walker on the bridge: %v, want it at the deck %v", got, deck)
+	}
+	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != ground+40 {
+		t.Errorf("the hawk over the bridge: %v, want it 40 over the ground, %v", got, ground+40)
+	}
+	if got := zs[bridge.ID()]; len(got) != 1 || got[0].Altitude != ground || got[0].Height != 1 {
+		t.Errorf("the bridge: %v, want it 1 tall on the ground at %v", got, ground)
+	}
+}
+
 // A flyer flown by hand holds its height over sea level as the ground rises and falls under it,
 // climbs along the way it is steered as far as it went, keeps its Clearance over the ground and
 // stays under its Ceiling; let go, it keeps its height over the ground again.

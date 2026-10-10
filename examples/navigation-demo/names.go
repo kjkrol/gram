@@ -16,6 +16,9 @@ const (
 	RedKind  = "red"
 	BlueKind = "blue"
 
+	// sides
+	PlayerSide = "player"
+
 	// the stage and its scenes
 	BoardNavigationStage = "board-navigation-demo"
 	MainScene            = "main"

@@ -24,6 +24,8 @@ type Cells struct {
 	stamps   []uint64 // by ordinal: the count of changes when each cell last changed
 	changes  uint64   // how many cells have changed, one at a time
 	everyone uint64   // the count when every cell last changed at once
+	built    int      // how many cells something is built over, so that a board of none seeks none
+	standing *builtSystem
 }
 
 // New is the terrain of g's cells, every one of the zero kind until it is set.
@@ -62,8 +64,8 @@ func (t *Cells) Entity(c cell.ID) (uid.UID64, bool) {
 	return t.store.ids[i], true
 }
 
-// Kind is c's kind as whoever crosses it meets it: the ground's under its Way and its Crossing;
-// off the board, the zero kind.
+// Kind is c's kind as whoever crosses it meets it: the ground's under its Way, its Crossing and
+// what is built over it; off the board, the zero kind.
 func (t *Cells) Kind(c cell.ID) cell.Kind {
 	if t.store == nil {
 		return t.seed.Crossings[c].Over(t.seed.Ways[c].Over(t.seed.Kind(c)))
@@ -72,15 +74,46 @@ func (t *Cells) Kind(c cell.ID) cell.Kind {
 	if !ok {
 		return cell.Kind{}
 	}
-	return t.store.crossingOf(i).Over(t.store.wayOf(i).Over(t.store.groundOf(i).Kind))
+	k := t.store.crossingOf(i).Over(t.store.wayOf(i).Over(t.store.groundOf(i).Kind))
+	if t.built > 0 {
+		if b := t.store.builtOf(i); b != nil {
+			k = b.Over(k)
+		}
+	}
+	return k
 }
 
-// Bare is c's ground kind, bare of what runs across it; off the board, the zero kind.
-func (t *Cells) Bare(c cell.ID) cell.Kind {
-	if k := t.KindOf(c); k != nil {
-		return *k
+// Standing calls each with every entity standing on c (cell.On); none before the cells are made.
+func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
+	if t.standing != nil {
+		t.standing.standing(c, each)
 	}
-	return cell.Kind{}
+}
+
+// Built is what the entities standing on c build over it; none off the board or before the cells
+// are made.
+func (t *Cells) Built(c cell.ID) cell.Built {
+	if t.built == 0 || t.store == nil {
+		return cell.Built{}
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return cell.Built{}
+	}
+	if b := t.store.builtOf(i); b != nil {
+		return *b
+	}
+	return cell.Built{}
+}
+
+// Bare is c's ground kind, bare of what runs across it, with what is built over it; off the
+// board, the zero kind.
+func (t *Cells) Bare(c cell.ID) cell.Kind {
+	k := t.KindOf(c)
+	if k == nil {
+		return cell.Kind{}
+	}
+	return t.Built(c).Over(*k)
 }
 
 // KindOf is c's ground kind without the copy, nil off the board; good until the cells change.

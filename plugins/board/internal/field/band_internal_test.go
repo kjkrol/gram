@@ -77,10 +77,10 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	if got := solid(f, collision.Band{Bottom: 40, Top: 50}); len(got) != 2 {
 		t.Errorf("a wall of no height under a flyer: %d solid cells, want the two of the wall", len(got))
 	}
-	if f.solidBand(cellAt(3), &cell.Kind{Solid: true, Height: 0}) != collision.Everywhere {
+	if f.solidBand(cellAt(3), 0) != collision.Everywhere {
 		t.Error("a wall of no height stands at every height")
 	}
-	if got := f.solidBand(cellAt(3), &cell.Kind{Solid: true, Height: 10}); got.Bottom != math.Inf(-1) || got.Top != 10 {
+	if got := f.solidBand(cellAt(3), 10); got.Bottom != math.Inf(-1) || got.Top != 10 {
 		t.Errorf("a wall of 10 on the flat spans %v, want from below up to 10", got)
 	}
 }

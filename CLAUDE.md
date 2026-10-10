@@ -40,7 +40,7 @@ make demo-bullet                                                   # a soldier o
 make demo-board                                                    # the island on the simple map: a flat board drawn from the island's colours, bands for the ways, a flat day
 make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
-make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
+make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
 make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
@@ -687,8 +687,9 @@ a rule (`doc/rule.md`, "A game: states as effects"). A **player acts** the same 
 giving a command (see "Plugin system", Commands): `rule.Cast(e).On(sel.Selected(role))` on its own
 selected units playing a role, `.On(sel.Pointed())` on whoever the cursor points at,
 `.On(entity.World)` for a state of the whole game, which rules and plans read with `During`,
-`.On(entity.Group(name))` for the cells or units called so (the wire demo: a lever, a plate and a
-switch each a command for a group of cells; the trapdoor and pressure plate demos the same).
+`.On(entity.Group(name))` for the cells or entities called so (the wire demo: a lever, a plate and
+a switch each a command for a group of trapdoors or a gate, entities standing on the board; the
+trapdoor and pressure plate demos the same).
 
 ### Built-in plugins (`plugins/`)
 
@@ -786,11 +787,12 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   following the world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`; the
   terrain's façade, its grid's `At(x, y)` among it: `Kind`, `Bare`, `Set`, `SetAll`, `Way`,
   `SetWay`, `Crossing`, `SetCrossing`, `Along`, `CellVersion`, `Changes`, `Version`, `Touch`,
-  `Shape`), the `Layout`, the `Map` contract and `NewUnits`; the ground the others meet is its
+  `Shape`, `Built`), the `Layout`, the `Map` contract, `NewUnits` and `NewEntities`, and `Lay` —
+  a level out of a file (`level.go`); the ground the others meet is its
   field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
-  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the moment `cell.Now`, the Layout's entries
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, what stands on a cell (`cell.On`, `Floor`, `Wall`, `Built`), the moment `cell.Now`, the Layout's entries
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
@@ -798,7 +800,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `grid.Link`, `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
   `Parallel`, `ParallelLook`, `Tile`, `FlatLook`, `Nothing`, `Map` (the drawing part of
   `board.Map`), `Renderer`/`NewRenderer` (reading the board as a `look.Board`), `RenderState`,
-  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Cover`, `Readied`. The machinery is in
+  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Cover`, `Readied`, `MeanOfCells`. The machinery is in
   **`board/internal`**, importable only inside the board: `internal/terrain` (the cells' state —
   seed or entities, `Cells`, the entity system, the counts of changes, the kinds' dictionary),
   `internal/moments` (`Rules`: the hosts of `unit.Standing` and `cell.Now`, their passes, `Around`;
@@ -856,13 +858,14 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   The board is flat: the ground's heights are the topography's relief (`internal/relief.Relief`; a game gets `topography.Relief`: `At`, `Step`, `Altitude`, `SetHeights`) — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
-  (`relief.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
+  (`ground.MeanOfCells`, the board's: one height a cell), `Lift`, `Flatten` — living on the topography's own entity as
   `Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
   the relief takes, so the ECS keeps them in its own memory — written when the relief's version
   changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
   (`topography.Raise`, `Lower`, `Level`, `Shaping`). The relief is the world's `Ground`; the relief's
   `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
-  `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
+  `Lift` — a `cell.Floor`'s deck where one carries its domain there (`Relief.DeckAt`: its `Height`
+  over the cell's level), an entity standing on the board (`cell.On`) on the ground; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
   world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
   at a height at the first sight (`cell.Kinds.Define`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
@@ -875,18 +878,54 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   unit with a `unit.Mover` its `steering.Pace{Share}` — 1/`CostFor` its domain of the cell under
   its centre, and the Map's slope the way it goes unless the kind is `Graded` — which the world's
   velocity pass multiplies its speed by from the next step. Then, while there is a rule of it, every cell as a `cell.Now`
-  (its entity, which cell, its kind now, `Trodden`: a unit's centre lies on it this step —
-  `cell.Now.Stood` for a rule's `If`, a plate pressed). Both moments are data alone and `plugin.Placed`: the
+  (its entity, which cell, its kind now; `Trodden`/`Stood` went on 2026-10-10: a plate is an
+  entity, pressed in a `collision.Meeting`). Both moments are data alone and `plugin.Placed`: the
   board's `internal/moments.Rules` put their `around` into the `plugin.Tick.Around`, and
-  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own),
-  `rule.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
-  reentrant) — the effect demo's
-  witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
+  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own)
+  and the entities standing on them (`terrain.Cells.Standing`: the world's space asked at the
+  cell's middle, those carrying `cell.On` of that cell — never the units), `rule.Around(rings,
+  step)` on the rings of neighbours too, each cell once (a scratch of passes, not reentrant) — the
+  effect demo's witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a
+  `cell.Now`, the wire demo's scout pulls the lever beside it.
+  **What stands on the board is an entity, not terrain** (2026-10-10, the user's word: a lever, a
+  trapdoor, a gate, a plate "po prostu stoją sobie na terenie"): `board.NewEntities[Row](brd,
+  board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
+  box of `Size` at the cell's middle, `world.Velocity{}`, `cell.On{Cell}` and with heights a
+  `world.Z{Height}`; the game gives the rest (a plate's `collision.Collider{}` without `Physics`, a
+  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height}` (carries the domains over
+  whatever the ground takes: a trapdoor over a pit — a pit kind admitting nobody — later the
+  island's bridges) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are gathered every step
+  by the board's `builtSystem` (`internal/terrain/built.go`, after the cells' system) on the cell's
+  entity as `cell.Built` (every cell carries one, saved; written in place where it changed, the
+  cell touched), domains joined, the highest Height; `Built.Over` adds the Floor's domains and
+  takes the Wall's off (`Solid` where it keeps any) in `Board.Kind` and `Board.Bare`, so the
+  planner, the driving, `Standing.Fallen` and collision's field (`takes` the Floor, `stops` at a
+  Wall in its band) see them unchanged; `Cells.built` counts the cells something is built over, so
+  a board of none seeks no fifth column. An effect opens one (`Alter` a `Floor`'s `Allows` or a
+  `Wall`'s `Keeps` to 0); a flat world refuses a `Height` the first step. `Board.Built(c)` reads it.
+  **A map is a file** (`map.yaml` beside a demo's code, `//go:embed map.yaml`; the user's format,
+  2026-10-10): `board.Plugin.Lay(fsys, path)` in the Spawn section seeds the board and hands back a
+  `board.Level` holding the entities; `board.Spawn[R](level, board.Sides)` seeds the world with
+  those whose kind's rows are `R`, a type of row at a time — the binding seen in the game's spawn
+  (the user's word: `R`'s fields tagged `yaml` are the file's keys, an untagged one is none); one
+  no Spawn took fails the board's Populate with its line. The file: `board` — `default`, a `legend` (a character a kind, or `{kind, plays, name,
+  group}`), the `cells` drawn a character a cell, spaces left out (a hex row is an r, indented),
+  `entities` standing on it, listed one by one like any entity — a trapdoor a line, never placed
+  by a legend's character (the user's word, 2026-10-10: entities are treated as entities); `relief` — `cells` or `corners` (a square grid), numbers in metres
+  through `world.Scale`, `Level.Heights()` for `topography.Seed`; `ways` — `roads` and `rivers` by
+  kind, `width` (a river's `[head, mouth]`), `paths` of points `[x, y]` routed point to point close
+  to the straight line (`network.Route`), a branch beginning on another path, a river flowing in
+  the order given, `crossings` (`{road: bridge}`) for a road over a river; `units`. An entry is
+  flat: `kind`, `side` (`board.Sides`: the commands a game gives a side), `name`, `group` its own,
+  every other key a field of the row tagged so (`world.Kinds().Lookup` gives the kind's row type,
+  `kind.EntryOf` builds the entry; a `cell.ID` written `[x, y]` however deep it lies, a nested
+  struct read as YAML reads it), a row tagging an entry's own key refused. Every error says the
+  file and the line. Kinds stay in Go; every demo but the islands lays its map in one `spawn`.
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
   were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
   and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
-  for a name walks few), both for good: the wire demo's plate, lever, trapdoors and gate. The unit's own cell component is `unit.At{Cell}` (was
+  for a name walks few), both for good. The unit's own cell component is `unit.At{Cell}` (was
   `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
   blocking cells. What the board does to its terrain over time is effects on the cells' entities
@@ -1459,7 +1498,7 @@ the core). Each link returns a type holding the links after it and none before (
 left out, and `Update` alone must come. A section takes a function of whatever shape it needs
 (`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
 `[]game.Scene`); `Kinds` and `Spawn` take several, run in their order —
-`Kinds(s.defineCells, s.defineKinds)`, `Spawn(s.spawnCells, s.spawnUnits)` (board-topography's
+`Kinds(s.defineCells, s.defineKinds)`, `Spawn(s.spawn)` (board-topography's
 `spawnGround`: the board and its heights). `World(cfg)` makes the world from `cfg`, anew each time
 the Stage is entered; `Plugins(func(w *world.Plugin))` after it has the arena make the plugins over
 it and uses them in the order made (the world's `Made()`); `Plugins(func(made *plugin.Made))` the
@@ -1486,8 +1525,8 @@ a.makePlugins)…)`, one constructor (the user's word, 2026-10-09); `main` runs 
 and a test keeps the arena it hands over. The arena holds plugins and players alone (no embedded
 Stage); the sections are its methods (`makePlugins`, `definePlayer`, `defineEffects`,
 `defineRules`, `defineCommands`, a plugin's section's own like
-`defineConversations(d *dialog.Plugin)`, `defineCells`, `defineKinds`, `bindKeys`, `spawnCells`,
-`spawnUnits`, `defineScenes`, `update`). **A demo's scene is apart**, in `scene.go`: a
+`defineConversations(d *dialog.Plugin)`, `defineCells`, `defineKinds`, `bindKeys`, `spawn`,
+`defineScenes`, `update`). **A demo's scene is apart**, in `scene.go`: a
 `mainScene{arena: a, …}` builds it out of the arena's plugins — its colours, `picture()` (the
 atlases, `WithRenderer`, the composer) and `screen()` (the ui tree) — and the arena's
 `defineScenes` only makes it (`ui.NewScene(MainScene, m.screen())…`). A game's `Props.Title` is
@@ -1499,7 +1538,7 @@ engine's `initializer` is the `Writer`), and what is defined in another is refus
 and `UseWorld` (Plugins: the Stage's `World`/`Plugins` link), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
 `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules),
 `world.Commands().Define` (Commands), `cell.Kinds.Define` and `kind.Define` (Kinds), `Player.Bind`
-(Players or Controls), `board.Seed`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
+(Players or Controls), `board.Seed`, `board.Lay`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
 `Load`, `Define`, `Changes`/`Conditions().Define` (its `ConversationsPart`) — by
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `World`/`Plugins` take anything (plugins define their

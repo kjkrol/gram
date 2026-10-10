@@ -43,6 +43,9 @@ var wardFS embed.FS
 // wardMaterial joins the composer's one shader as the package is set up, before it compiles.
 var wardMaterial = render.RegisterMaterials(render.Files(wardFS, "ward.wgsl"), nil, "Ward")[0]
 
+//go:embed map.yaml
+var mapFile embed.FS
+
 type arena struct {
 	world   *world.Plugin
 	board   *board.Plugin
@@ -69,7 +72,7 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -103,13 +106,15 @@ func (s *arena) defineCells() {
 	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-type wardRow struct{ at geom.Vec }
+type wardRow struct {
+	At geom.Vec `yaml:"at"`
+}
 
 func (s *arena) defineKinds() {
 	kind.Define[wardRow](s.world.Kinds(), WardKind, kind.Spec{
 		comp.Load(func(w wardRow) world.Position {
 			return world.Position{
-				AABB: plane.NewAABB(geom.NewVec(w.at.X-WardPx/2, w.at.Y-WardPx/2), WardPx, WardPx),
+				AABB: plane.NewAABB(geom.NewVec(w.At.X-WardPx/2, w.At.Y-WardPx/2), WardPx, WardPx),
 			}
 		}),
 		comp.Const(world.Velocity{}),
@@ -128,15 +133,12 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
-func (s *arena) spawnCells() {
-	s.board.Seed(board.Layout{Default: GrassCell})
-}
-
-func (s *arena) spawnUnits() {
-	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
-	s.world.Seed(
-		wardKind.Entry(wardRow{at: geom.NewVec(ScreenWidth/2, ScreenHeight/2)}).Named(WardName),
-	)
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
+	}
+	return board.Spawn[wardRow](level, nil)
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

@@ -14,7 +14,7 @@
 //				With(dialog.Conversations(s.defineConversations)). // a plugin's own section
 //				Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
 //				Controls(s.bindKeys).                              // the game's own keys, each a command
-//				Spawn(s.spawnCells, s.spawnUnits).                 // a fresh game: its board, its units
+//				Spawn(s.spawn).                                    // a fresh game, out of its map
 //				Scenes(s.defineScenes).                            // the scenes, once the world is there
 //				Update(s.update))                                  // the tick
 //	}

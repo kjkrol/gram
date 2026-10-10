@@ -14,10 +14,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 )
@@ -27,7 +27,7 @@ var Hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell
 
 // RaiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
 func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
-	r.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
+	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
 			if c == h {
 				return 12
@@ -72,6 +72,20 @@ type QuasiWorld struct {
 // NewQuasiWorld is a QuasiWorld with the units define makes; collide adds the collision plugin.
 func NewQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[Recruit], grid grid.Grid) []kind.Entry) *QuasiWorld {
 	t.Helper()
+	withWorld := func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry {
+		return define(units, qw.Grid)
+	}
+	return NewQuasiWorldWith(t, collide, withWorld)
+}
+
+// NewQuasiWorldWith is NewQuasiWorld with the world handed to define, its board's own kinds to
+// define besides — entities standing on the board.
+func NewQuasiWorldWith(
+	t *testing.T,
+	collide bool,
+	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
+) *QuasiWorld {
+	t.Helper()
 	qw := &QuasiWorld{Grid: grid.DefaultGrids{}.Square(4, 4, 32)}
 	qw.World = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
@@ -89,7 +103,7 @@ func NewQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[Re
 	qw.Board.Board().Set(hillCell, Hill)
 	RaiseHills(qw.Topo.Relief(), qw.Grid, hillCell)
 	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })
-	entries := define(units, qw.Grid)
+	entries := define(qw, units)
 
 	ctx := NewInstallCtx()
 	if err := qw.World.Install(ctx); err != nil {

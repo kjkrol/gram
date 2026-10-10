@@ -7,7 +7,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -47,6 +46,9 @@ const (
 	MaxEntCount  = 4
 )
 
+//go:embed map.yaml
+var mapFile embed.FS
+
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -84,7 +86,7 @@ func NewDemo(s *arena) game.Game {
 			Rules(s.defineRoles).
 			With(dialog.Conversations(s.defineConversations)).
 			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -166,8 +168,8 @@ func (s *arena) defineCells() {
 }
 
 type unitRow struct {
-	start cell.ID
-	talks string
+	Start cell.ID `yaml:"start"`
+	Talks string  `yaml:"talks"`
 }
 
 func (s *arena) defineKinds() {
@@ -175,7 +177,7 @@ func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: UnitSize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	walks := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -195,7 +197,7 @@ func (s *arena) defineKinds() {
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
 		// where its conversations begin: each host's lines its own
-		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.talks) }),
+		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.Talks) }),
 		comp.Const(Regard{}), // what it makes of whom it talked with: this game's model
 	)
 }
@@ -207,20 +209,14 @@ func (s *arena) defineScenes() []game.Scene {
 		Issue(s.players.IssueAs(s.player))}
 }
 
-func (s *arena) spawnCells() {
-	s.board.Seed(board.Layout{Default: MeadowCell})
-}
-
-func (s *arena) spawnUnits() {
-	traveller := kind.Named[unitRow](s.world.Kinds(), TravellerKind)
-	host := kind.Named[unitRow](s.world.Kinds(), HostKind)
-	brd := s.board.Board()
-	s.world.Seed(
-		traveller.Entry(unitRow{start: brd.At(3, 7)}).
-			Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true}),
-		host.Entry(unitRow{start: brd.At(16, 4), talks: MillerGreetNode}),
-		host.Entry(unitRow{start: brd.At(16, 10), talks: SmithGreetNode}),
-	)
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
+	}
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

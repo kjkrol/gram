@@ -26,6 +26,10 @@ const (
 	RoundKind    = "round"
 	GrenadeKind  = "grenade"
 
+	// sides
+	PlayerSide = "player"
+	WildSide   = "wild"
+
 	// the stage and its scenes
 	BulletStage = "bullet-demo"
 	MainScene   = "main"

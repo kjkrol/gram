@@ -28,6 +28,28 @@ argument's full path, which moved.
   and are each Stage's now (its world's). Two Stages may use one name for different things, and a
   Stage binds only the plans it defines.
 
+**A level in a file, what stands on the board an entity**
+- A game's map in a YAML file: `board.Plugin.Lay(fsys, path)` seeds the board in the Spawn
+  section — drawn a character a cell under a legend of kinds (roles, names, groups), the relief in
+  metres (`cells` or `corners`, `Level.Heights` for `topography.Seed`), roads and rivers along
+  paths of points with their crossings — and hands back a `board.Level`; `board.Spawn[Row](level,
+  board.Sides)` seeds the world with its entities whose kinds have rows of `Row` — what stands on
+  the board and the units, each a kind, a side (the commands the game gives it), a name, a group
+  and the row's fields tagged `yaml`, a `cell.ID` written `[x, y]`. An error says the file and the
+  line; an entity no Spawn took fails Populate. Every demo but the islands spawns its `map.yaml`
+  so; their spawning code, layout helpers and board constants are gone.
+- `board.NewEntities[Row](brd, shape, at)`: kinds of entities standing still on a cell —
+  `cell.On`, a box at the cell's middle. Their knobs `cell.Floor{Allows, Height}` and
+  `cell.Wall{Keeps, Height}` count in the cell's kind (`cell.Built` on the cell's entity,
+  `Board.Built`, `Built.Over` in `Board.Kind` and `Board.Bare`): a trapdoor carries walkers over a
+  pit until an effect opens it, a gate is planned round and pushed out of; a Floor's Height is a
+  deck the topography stands whoever it carries on.
+- `rule.Here` and `rule.Around` act on the entities standing on the cells too, never on the units.
+- `cell.Now.Trodden` and `Stood` are gone: a plate is a sensor standing on the board, pressed in a
+  `collision.Meeting` (`rule.Then[collision.Meeting]("press", rule.All, rule.Trigger())`).
+- `relief.MeanOfCells` is the board's: `ground.MeanOfCells`. `kind.EntryOf(name, row)` and
+  `world.Roles.Lookup` are new.
+
 **Looks are the scene's**
 - A flat board is lit by the atmosphere through the board: `board.Plugin.WithAtmosphere(a)`, a
   `board.Atmosphere` (`Sun`, `Air`, the shape of `topography.Atmosphere`), in place of

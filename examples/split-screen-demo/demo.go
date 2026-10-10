@@ -1,13 +1,13 @@
 package main
 
 import (
+	"embed"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -40,6 +40,9 @@ const (
 
 	MinimapShare = 0.2
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world      *world.Plugin
@@ -74,7 +77,7 @@ func NewDemo(s *arena) game.Game {
 			Players(s.definePlayers).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -130,15 +133,16 @@ func (s *arena) bindKeys() error {
 	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
-// TODO: definicja z pliku !
-type block struct{ start cell.ID }
+type block struct {
+	Start cell.ID `yaml:"start"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[block](
 		s.board,
 		board.Shape{Size: BlockSize},
-		func(b block) geom.Vec { return brd.CellCenter(b.start) },
+		func(b block) geom.Vec { return brd.CellCenter(b.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: BlockSpeed,
@@ -151,48 +155,15 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }
 
-func (s *arena) spawnCells() {
-	cellAt := s.board.Board().At
-	var cells []cell.Entry
-	wall := func(x, y uint32) {
-		cells = append(cells, cell.Entry{Kind: WallCell, Cell: cellAt(x, y)})
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	for x := uint32(0); x < GridWidth; x++ {
-		wall(x, 0)
-		wall(x, GridHeight-1)
-	}
-	for y := uint32(1); y < GridHeight-1; y++ {
-		wall(0, y)
-		wall(GridWidth-1, y)
-	}
-	for y := uint32(6); y < 24; y++ {
-		wall(20, y)
-	}
-	for x := uint32(8); x < 16; x++ {
-		wall(x, 10)
-		wall(x+16, 20)
-	}
-	for _, p := range [][2]uint32{{6, 20}, {10, 24}, {30, 6}, {34, 12}, {26, 26}, {14, 4}} {
-		wall(p[0], p[1])
-		wall(p[0]+1, p[1])
-		wall(p[0], p[1]+1)
-		wall(p[0]+1, p[1]+1)
-	}
-	s.board.Seed(board.Layout{Default: FloorCell, Cells: cells})
-}
-
-func (s *arena) spawnUnits() {
-	redKind := kind.Named[block](s.world.Kinds(), RedKind)
-	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
-	brd := s.board.Board()
-	s.world.Seed(
-		redKind.Entry(block{start: brd.At(3, 3)}).
-			Named(RedBlock).
-			Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
-		blueKind.Entry(block{start: brd.At(GridWidth-4, GridHeight-4)}).
-			Named(BlueBlock).
-			Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
-	)
+	return board.Spawn[block](level, board.Sides{
+		RedSide:  {players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}},
+		BlueSide: {players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

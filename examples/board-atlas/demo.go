@@ -1,11 +1,11 @@
 package main
 
 import (
+	"embed"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -38,6 +38,9 @@ const (
 	UnitCount    = 4
 )
 
+//go:embed map.yaml
+var mapFile embed.FS
+
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -69,7 +72,7 @@ func NewDemo(s *arena) game.Game {
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Kinds(s.defineCells, s.defineKinds).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -105,17 +108,20 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, target cell.ID }
+type unitRow struct {
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} },
+		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
 	units.Define(
 		UnitKind,
@@ -131,103 +137,14 @@ func (s *arena) defineKinds() {
 	)
 }
 
-// corners are where the units start, each bound for the opposite one.
-var corners = [][2]int{{1, 1}, {22, 1}, {22, 14}, {1, 14}}
-
-func (s *arena) at(x, y int) cell.ID {
-	c := s.board.Board().At(uint32(x), uint32(y))
-	return c
-}
-
-// TODO: mysle, ze najwyzsza pora skonczyc z tym prceduralnym definiowaniem planszy. Proponuje opis trzymac w pliku (trzeba wymyslic format) i zaczytywac go tutaj.
-func (s *arena) spawnCells() {
-	brd, at := s.board.Board(), s.at
-	layout := board.Layout{Default: GrassCell}
-	for y := 5; y < 11; y++ {
-		for x := 9; x < 15; x++ {
-			layout.Cells = append(layout.Cells, cell.Entry{Kind: WaterCell, Cell: at(x, y)})
-		}
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	for y := 1; y < 6; y++ {
-		for x := 16; x < 22; x++ {
-			layout.Cells = append(layout.Cells, cell.Entry{Kind: WoodCell, Cell: at(x, y)})
-		}
-	}
-	// the road: a ring round the pond, and spurs out to the corners
-	ring := []cell.ID{}
-	for x := 7; x <= 16; x++ {
-		ring = append(ring, at(x, 3))
-	}
-	for y := 4; y <= 12; y++ {
-		ring = append(ring, at(16, y))
-	}
-	for x := 15; x >= 7; x-- {
-		ring = append(ring, at(x, 12))
-	}
-	for y := 11; y >= 4; y-- {
-		ring = append(ring, at(7, y))
-	}
-	road := s.board.CellKinds().Named(RoadCell).Kind()
-	link := func(a, b cell.ID) {
-		if bit, ok := grid.Link(brd, a, b); ok {
-			w := layoutWay(&layout, a, road)
-			w.Links |= bit
-		}
-		if bit, ok := grid.Link(brd, b, a); ok {
-			w := layoutWay(&layout, b, road)
-			w.Links |= bit
-		}
-	}
-	for i := range ring {
-		link(ring[i], ring[(i+1)%len(ring)])
-	}
-	near := [][2]int{{7, 3}, {16, 3}, {16, 12}, {7, 12}}
-	for k, c := range corners {
-		x, y := c[0], c[1]
-		for x != near[k][0] || y != near[k][1] {
-			nx, ny := x, y
-			if x != near[k][0] {
-				nx += sign(near[k][0] - x)
-			} else {
-				ny += sign(near[k][1] - y)
-			}
-			link(at(x, y), at(nx, ny))
-			x, y = nx, ny
-		}
-	}
-	s.board.Seed(layout)
-}
-
-// TODO: to powinna byc sekcja w pliku mapy, patrz powyzsze TODO
-func (s *arena) spawnUnits() {
-	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	var entries []kind.Entry
-	for k, c := range corners {
-		o := corners[(k+2)%4]
-		walker := unitKind.Entry(unitRow{start: s.at(c[0], c[1]), target: s.at(o[0], o[1])})
-		walker = walker.Told(players.Give{To: s.player.ID}, selection.Allow{Selected: true})
-		entries = append(entries, walker)
-	}
-	s.world.Seed(entries...)
-}
-
-// TODO zoastawiam notatek, ze to jest jakis zart, moze nie bedzie potrzebne po wprowadeniu parsera to wczytywaniu map
-func sign(v int) int {
-	if v < 0 {
-		return -1
-	}
-	return 1
-}
-
-// TODO: alez to jest hacky!
-func layoutWay(layout *board.Layout, c cell.ID, kind cell.Kind) *cell.WayEntry {
-	for i := range layout.Ways {
-		if layout.Ways[i].Cell == c {
-			return &layout.Ways[i]
-		}
-	}
-	layout.Ways = append(layout.Ways, cell.WayEntry{Kind: kind.Name.String(), Cell: c, Width: 14})
-	return &layout.Ways[len(layout.Ways)-1]
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

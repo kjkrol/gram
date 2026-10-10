@@ -14,7 +14,7 @@
 //
 // What a game constructs and drives the plugin with is this package: [NewPlugin], [Config], the
 // options, [Plugin.Relief], the commands. What a game and the other plugins both name is in two
-// small packages: relief (Climbing, DefaultClimbing, MeanOfCells) and painter (Style). The rest
+// small packages: relief (Climbing, DefaultClimbing) and painter (Style). The rest
 // is the plugin's own, in plugins/topography/internal, which nothing outside it imports; the
 // plugin registers its systems, gathers the commands' queues ([Plugin.Queues]) and keys
 // ([Plugin.DefaultBindings]) and hands it its sky:
@@ -32,7 +32,8 @@
 // # Relief
 //
 // The ground's heights are the plugin's [Relief] ([Plugin.Relief]); [Plugin.Seed] raises it
-// to a function when a game starts fresh (relief.MeanOfCells builds one from a height per cell).
+// to a function when a game starts fresh (the board's ground.MeanOfCells builds one from a
+// height per cell, its level file another: board.Level.Heights).
 // Every step the topography puts every unit at the ground under it plus its Mover's Lift, so a unit
 // never declares where it stands in height and a hawk declares only how high it flies. A kind's
 // Height is what stands on the cell: [Plugin.Top] is the cell's top as drawn, the ground and the

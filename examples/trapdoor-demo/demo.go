@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"errors"
 	"log"
 	"time"
 
@@ -8,7 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -38,8 +39,11 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16
+	MaxEntCount  = 64
 )
+
+//go:embed map.yaml
+var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
@@ -66,7 +70,7 @@ func NewDemo(s *arena) game.Game {
 				Entities: world.EntitiesCfg{
 					MaxCount: MaxEntCount,
 					MinSize:  EntitySize,
-					MaxSize:  EntitySize,
+					MaxSize:  CellSize,
 				},
 			}).
 			Plugins(s.makePlugins).
@@ -76,7 +80,7 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -104,17 +108,12 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
-	kinds.Define(PitCell, cell.Kind{Cost: 1})                       // holds nobody
+	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
 }
 
 func (s *arena) defineEffects() {
-	kinds := s.board.CellKinds()
 	fx := s.world.Effects()
-	fx.Define(
-		OpenEf,
-		effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })},
-	)
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
 	fx.Define(HasteEf, effect.Spec{
 		effect.Lasts(2 * time.Second),
 		effect.Alter(
@@ -135,8 +134,7 @@ func (s *arena) defineRules() {
 var levers = []struct {
 	name string
 	key  control.Key
-	left uint32
-}{{"west", control.Key1, 7}, {"east", control.Key2, 15}}
+}{{"west", control.Key1}, {"east", control.Key2}}
 
 func (s *arena) defineCommands() {
 	cmds := s.world.Commands()
@@ -174,14 +172,21 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-type unitRow struct{ start, to cell.ID }
+type unitRow struct {
+	Start cell.ID `yaml:"start"`
+	To    cell.ID `yaml:"to"`
+}
+
+type standingRow struct {
+	At cell.ID `yaml:"at"`
+}
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -197,42 +202,30 @@ func (s *arena) defineKinds() {
 		land,
 		profile,
 		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.to, u.start)
+			return navigation.Patrol(time.Second, u.To, u.Start)
 		}),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	)
+	standing := board.NewEntities(
+		s.board,
+		board.Shape{Size: CellSize},
+		func(r standingRow) cell.ID { return r.At },
+	)
+	standing.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
 }
 
-func (s *arena) spawnCells() {
-	brd := s.board.Board()
-	var cells []cell.Entry
-	for _, l := range levers {
-		group := "trapdoors " + l.name
-		for y := uint32(2); y <= 13; y++ {
-			for x := l.left; x <= l.left+1; x++ {
-				door := cell.Entry{Kind: BoardsCell, Cell: brd.At(x, y), Group: group}
-				cells = append(cells, door)
-			}
-		}
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
-}
-
-func (s *arena) spawnUnits() {
-	brd := s.board.Board()
-	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	for i := range uint32(3) {
-		s.world.Seed(
-			scoutKind.Entry(unitRow{start: brd.At(3+2*i, GridHeight-2)}).
-				Told(players.Give{To: s.player.ID}, selection.Allow{}),
-		)
+	sides := board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
 	}
-	for _, row := range []uint32{3, 6, 9, 12} {
-		s.world.Seed(
-			wandererKind.Entry(unitRow{start: brd.At(2, row), to: brd.At(GridWidth-3, row)}),
-		)
-	}
+	return errors.Join(
+		board.Spawn[standingRow](level, nil),
+		board.Spawn[unitRow](level, sides),
+	)
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

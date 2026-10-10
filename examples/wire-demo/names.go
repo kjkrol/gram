@@ -4,14 +4,9 @@ package main
 // mistyped does not compile.
 const (
 	// kinds of cells
-	GrassCell   = "grass"
-	BoardsCell  = "boards"
-	PitCell     = "pit"
-	PlateCell   = "plate"
-	LeverCell   = "lever"
-	FenceCell   = "fence"
-	GateCell    = "gate"
-	GatewayCell = "gateway"
+	GrassCell = "grass"
+	PitCell   = "pit"
+	FenceCell = "fence"
 
 	// effects
 	OpenEf  = "open"
@@ -37,6 +32,13 @@ const (
 	ScoutKind    = "scout"
 	PorterKind   = "porter"
 	WandererKind = "wanderer"
+	TrapdoorKind = "trapdoor"
+	GateKind     = "gate"
+	PlateKind    = "plate"
+	LeverKind    = "lever"
+
+	// sides
+	PlayerSide = "player"
 
 	// the stage and its scenes
 	WireStage = "wire-demo"

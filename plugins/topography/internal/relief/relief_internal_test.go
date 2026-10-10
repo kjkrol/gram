@@ -10,14 +10,14 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	public "github.com/kjkrol/gram/plugins/topography/relief"
+	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
 var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
 
 // raiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
 func raiseHills(r *Relief, grid grid.Grid, hills ...cell.ID) {
-	r.SetHeights(public.MeanOfCells(grid, func(c cell.ID) float64 {
+	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
 			if h == c {
 				return 12

@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -49,6 +48,9 @@ var emberFS embed.FS
 // emberMaterial joins the composer's one shader as the package is set up, before it compiles.
 var emberMaterial = render.RegisterMaterials(render.Files(emberFS, "ember.wgsl"), nil, "Ember")[0]
 
+//go:embed map.yaml
+var mapFile embed.FS
+
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -79,7 +81,7 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineCells, s.defineKinds).
 			Controls(s.bindKeys).
-			Spawn(s.spawnCells, s.spawnUnits).
+			Spawn(s.spawn).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
@@ -130,8 +132,8 @@ func (s *arena) defineCells() {
 }
 
 type unitRow struct {
-	start cell.ID
-	round [4]cell.ID
+	Start cell.ID    `yaml:"start"`
+	Round [4]cell.ID `yaml:"round"`
 }
 
 func (s *arena) defineKinds() {
@@ -139,7 +141,7 @@ func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.start) },
+		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
@@ -149,7 +151,7 @@ func (s *arena) defineKinds() {
 		TurnRate: 0.1,
 	}
 	round := comp.Load(func(u unitRow) navigation.MoveOrder {
-		return navigation.Patrol(2*time.Second, u.round[0], u.round[1], u.round[2], u.round[3])
+		return navigation.Patrol(2*time.Second, u.Round[0], u.Round[1], u.Round[2], u.Round[3])
 	})
 	units.Define(EmberKind, unit.Mover{Domain: cell.Land}, profile, round)
 }
@@ -172,26 +174,14 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
-func (s *arena) spawnCells() {
-	s.board.Seed(board.Layout{Default: GrassCell})
-}
-
-// TODO: definicja mapy i roplanowania jednostek w pliku
-func (s *arena) spawnUnits() {
-	brd := s.board.Board()
-	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
-	player := []control.Command{players.Give{To: s.player.ID}, selection.Allow{}}
-	corners := [4]cell.ID{
-		brd.At(4, 4), brd.At(GridWidth-5, 4),
-		brd.At(GridWidth-5, GridHeight-5), brd.At(4, GridHeight-5),
+func (s *arena) spawn() error {
+	level, err := s.board.Lay(mapFile, "map.yaml")
+	if err != nil {
+		return err
 	}
-	for i := range corners {
-		var round [4]cell.ID
-		for j := range round {
-			round[j] = corners[(i+1+j)%4]
-		}
-		s.world.Seed(emberKind.Entry(unitRow{start: corners[i], round: round}).Told(player...))
-	}
+	return board.Spawn[unitRow](level, board.Sides{
+		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+	})
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {

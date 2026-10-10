@@ -1,4 +1,4 @@
-package relief
+package ground
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
@@ -6,8 +6,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
-// MeanOfCells is a height function for SetHeights built from one height per cell: a point inside
-// a cell is at its height, a point where cells meet at the mean of theirs.
+// MeanOfCells is the ground's heights built from one height per cell, for a topography's Seed: a
+// point inside a cell is at its height, a point where cells meet at the mean of theirs.
 func MeanOfCells(grid grid.Grid, height func(c cell.ID) float64) func(p geom.Vec) float64 {
 	const eps = 1e-6
 	return func(p geom.Vec) float64 {
