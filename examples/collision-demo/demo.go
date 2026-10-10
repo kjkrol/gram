@@ -50,10 +50,6 @@ func countFor(rect uint32, percent float64) int {
 	return int(math.Floor(percent / 100.0 * float64(ScreenWidth*ScreenHeight) / float64(rect*rect)))
 }
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 const (
 	entityColors = 7
 	entityShapes = 4
@@ -69,14 +65,12 @@ type body struct {
 func bodyKind(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
 type arena struct {
-	world     *world.Plugin
-	collision *collision.Plugin
-
+	world          *world.Plugin
+	collision      *collision.Plugin
+	players        *players.Plugin
+	cameras        *cameras.Plugin
+	player         *players.Player
 	collisionStats collision.ContactStats
-
-	players *players.Plugin
-	cameras *cameras.Plugin
-	player  *players.Player // the one at the keyboard
 }
 
 // NewDemo is the collision demo, defined on the arena s: its window and its one Stage, a section at
@@ -103,13 +97,11 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras).WithSaves(saveBasePath)
+	s.players = players.NewPlugin(s.world, s.cameras).WithSaves(saveBasePath) // TODO: WithSaves co to robi? czy to jest dostawca sposobu zapisu? jesli tak, to chyba nie jest to czesc pluginu player ?!
 }
 
 func (s *arena) definePlayer() error {
@@ -131,6 +123,7 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 
+// TODO: jaka jest roznica miedzy tym a WithSaves ?
 func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {

@@ -28,17 +28,13 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates: every row
-// shifts right by half a hex, so the world is as wide as the last row reaches and the triangles
-// either side hold no cells.
 const (
-	TPS        = 60
-	GridWidth  = 20
-	GridHeight = 12
-	HexSize    = 24 // circumradius
-	EntitySize = 22
-	UnitSpeed  = HexSize * 3
-	// MaxEntCount is the units; the walls are cells, not entities.
+	TPS         = 60
+	GridWidth   = 20
+	GridHeight  = 12
+	HexSize     = 24 // circumradius
+	EntitySize  = 22
+	UnitSpeed   = HexSize * 3
 	MaxEntCount = 16
 
 	saveBasePath = "board-navigation-hex-demo"
@@ -49,11 +45,6 @@ var (
 	ScreenHeight = int(math.Ceil(HexSize * (1.5*(GridHeight-1) + 2)))
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// arena wires the hex board, navigation and selection; its plugins are its own fields.
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -63,11 +54,9 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the units are its
+	player    *players.Player
 }
 
-// NewDemo is the navigation demo on a hex board, defined on the arena s: its window and its one
-// Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram navigation hex demo",
@@ -88,8 +77,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
@@ -109,7 +96,6 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
 			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
@@ -127,6 +113,7 @@ func (s *arena) defineCells() {
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
+// TODO: ponownie widac, ze to jest copy-paste i powinno byc dostarczone
 func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
@@ -142,7 +129,6 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-// unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
@@ -156,7 +142,7 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
-// cellAt is the cell at column x, row y.
+// TODO: tak z pliku...
 func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column from r = 1 to the bottom, and a road round it: along
@@ -174,6 +160,7 @@ func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
+// TODO: tak z pliku...
 func (s *arena) spawnUnits() {
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)

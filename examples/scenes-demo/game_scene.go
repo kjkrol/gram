@@ -11,17 +11,13 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// gameplayScene is the gameplay's one scene, built out of its arena's plugins once the world is
-// there.
 type gameplayScene struct{ arena *gameplayArena }
 
-// The scene's colours: the movers and the backdrop.
 var (
 	moverColor      = color.RGBA{R: 90, G: 200, B: 110, A: 255}
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 40, A: 255}
 )
 
-// picture dresses the movers and hands the world's picture.
 func (m *gameplayScene) picture() render.Picture {
 	g := m.arena
 	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
@@ -32,9 +28,6 @@ func (m *gameplayScene) picture() render.Picture {
 	return render.NewComposer(g.world.Renderer())
 }
 
-// screen is the world through a camera of its own on a backdrop, the player's view, the keys at the
-// bottom, and the panel: a modal window over it all, hidden until P — while it is shown, the world
-// keeps ticking behind it and takes no click.
 func (m *gameplayScene) screen() *ui.Element {
 	g := m.arena
 	return ui.Layers( // from the bottom up: each covers those before it

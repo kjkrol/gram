@@ -14,7 +14,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the units, the haste's glow, the meadow and its works.
 var (
 	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
 	hasteColor    = color.RGBA{R: 170, G: 220, B: 255, A: 255}
@@ -30,7 +29,6 @@ var (
 	gatewayColor  = color.RGBA{R: 150, G: 130, B: 95, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
@@ -39,7 +37,7 @@ func (m *mainScene) picture() render.Picture {
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
-		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor)) // the scout aglow with haste
+		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor))
 	worldAtlas.Add(porterKind, EntitySize, render.Solid(porterColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
@@ -63,7 +61,6 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))

@@ -1599,11 +1599,36 @@ library is; its code example is `examples/minimal`, so change that program first
 README in step. All benchmarks live in `bench/` (package `bench_test`), built on a headless
 `game.Initializer` there; `BENCHMARKS.md` records the results and the method (this machine drifts
 ~10% between runs — compare a baseline copy and the working tree alternately). `CHANGELOG.md` gets
-an entry per tag. The headless installer in `bench/headless_test.go` is the fifth copy of the same
-helper (the others are in the demo's and plugins' tests) — a candidate for one exported test helper.
+an entry per tag. The headless installer in `bench/headless_test.go` is one more copy of the same
+helper the plugins' tests keep — a candidate for one exported test helper.
 
 Comments in code are short: one or two sentences saying what a thing is and what it is for. No
 essays, no restating the signature, no background — that belongs in `doc/*.md` or a `doc.go`.
+
+**A comment says only what the code cannot** (the user's word, 2026-10-10, after deleting most of
+the comments I had written into the demos). Write the code first, then add a comment only where a
+reader would get something wrong or miss it without one. Never:
+- a comment repeating the name, the signature or the next line — `// makePlugins makes the Stage's
+  plugins…`, `// NewDemo is the dialog demo…`, `// The scene's colours: …`, `// picture dresses
+  the meadow…`, a field's `// the one at the keyboard`, `// from the bottom up: each covers those
+  before it`;
+- section banners (`// === Stage ===`) or a demo's package prose (`// Command dialog-demo is …`):
+  what a demo is and how it is played is its `Props.Description`;
+- a constant made to carry a comment for a value used once (`hostSight`, `sightHalf`): the literal
+  stays where it is used;
+- a doc comment on an example's unexported function, type or field by habit.
+
+A comment stays where it carries what the code does not: a direction or a unit (`// looking west,
+the way the traveller comes`), a non-obvious why, a fact a reader would otherwise get wrong.
+
+The examples above are from the demos, but the rule is the engine's too: no comment narrates what
+the code does. The engine's code needs only short descriptions of its API — an exported type,
+function or method: one sentence, what it is, never how it does it; its unexported code gets no
+comment unless it carries a non-obvious why.
+
+**Examples are not tested** (the user's word, 2026-10-10: there is no sense in testing an
+example): what a demo shows is tested in the library's package that does it; no new `_test.go`
+goes into `examples/`.
 
 Commit messages use the conventional prefixes (`feat`, `fix`, `docs`, `refactor`, `perf`, `test`,
 `chore`) and carry no `Co-Authored-By` trailer.

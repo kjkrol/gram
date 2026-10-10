@@ -1,10 +1,3 @@
-// Command bullet-demo is a soldier on WSAD who shoots: F fires a round the way the soldier
-// faces — four across, ten cells a second, flying over the low wall and into the high one — and
-// whoever stands on its path is wounded, pale and slow for a while, gone if wounded again. G
-// throws a grenade where the cursor is, in an arc over the high wall: it lies with its fuse
-// burning, a spark on it, and bursts, wounding everyone within two cells and a half and taking
-// whoever stands within one. The wanderers walk their rounds on the far side. Everything the
-// shots do is rules and effects; the plugin only flies them.
 package main
 
 import (
@@ -57,10 +50,6 @@ const (
 	blastKills  = CellSize       // and takes whoever stands within this
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 // unitRow is the row every unit spawns from: where it starts and, a wanderer, where it walks to.
 type unitRow struct{ start, to cell.ID }
 
@@ -74,13 +63,11 @@ type arena struct {
 	bullet    *bullet.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the soldier is its
-	wild      *players.Player // whose the wanderers are
+	player    *players.Player
+	wild      *players.Player
 	brd       *board.Board
 }
 
-// NewDemo is the bullet demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram bullet demo",
@@ -105,8 +92,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -124,7 +109,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.wild = s.players.Add("wild")
-	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the soldier, not the camera
+	view := cameras.Keys{Wheel: true, Drag: true, Edge: true}
 	return s.player.Bind(slices.Concat(
 		s.players.DefaultBindings(),
 		s.world.DefaultBindings(),
@@ -147,7 +132,7 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.world.Effects().Define(WoundedEf, effect.Spec{ // how the wounded look is the scene's: Under in its pictures
+	s.world.Effects().Define(WoundedEf, effect.Spec{
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
@@ -185,6 +170,7 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
+// TODO: unitRow powinno byc uzyte tylko tu i w spawn, a jego definicja powinna stac nad tymi metodami
 func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}

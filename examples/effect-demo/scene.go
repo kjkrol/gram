@@ -14,8 +14,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the units, each with its look under frozen, and the ground with what
-// covers it.
 var (
 	witchColor        = color.RGBA{R: 200, G: 230, B: 255, A: 255}
 	witchFrozenColor  = color.RGBA{R: 240, G: 248, B: 255, A: 255}
@@ -29,7 +27,6 @@ var (
 	iceColor          = color.RGBA{R: 170, G: 215, B: 240, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 
@@ -41,11 +38,11 @@ func (m *mainScene) picture() render.Picture {
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
-		Under(frozen, render.Diamond(witchFrozenColor)) // the witch gone white
+		Under(frozen, render.Diamond(witchFrozenColor))
 	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).
-		Under(frozen, render.Solid(walkerFrozenColor)) // the walker rimed
+		Under(frozen, render.Solid(walkerFrozenColor))
 	worldAtlas.Add(boatKind, EntitySize, render.Solid(boatColor)).
-		Under(frozen, func(dst *render.Canvas, size int) { // the boat in a rim of ice
+		Under(frozen, func(dst *render.Canvas, size int) {
 			render.Solid(boatColor)(dst, size)
 			render.Border(boatRimColor)(dst, size)
 		})
@@ -54,9 +51,9 @@ func (m *mainScene) picture() render.Picture {
 
 	boardAtlas := s.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor)).
-		Under(effects.Named(FrostEf), render.Solid(snowColor)) // snow over the land
+		Under(effects.Named(FrostEf), render.Solid(snowColor))
 	boardAtlas.Add(WaterCell, render.Solid(waterColor)).
-		Under(effects.Named(IcedEf), render.Solid(iceColor)) // ice over the lake
+		Under(effects.Named(IcedEf), render.Solid(iceColor))
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
@@ -66,7 +63,6 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))

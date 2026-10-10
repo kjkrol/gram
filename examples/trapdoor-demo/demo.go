@@ -1,11 +1,3 @@
-// Command trapdoor-demo is two levers and two strips of trapdoors across a meadow: wanderers
-// nobody owns walk to and fro over both, and the player pulls a lever — 1 the west one, 2 the east
-// — and its trapdoors open for a while: every unfortunate standing on one falls in, the player's
-// own scouts too. The scouts are clicked about as anywhere; J hastens the selected ones for a
-// while, to get off a strip in time. A lever is a command: open the group of cells that is its
-// strip, for a while (rule.Cast, entity.Group); the haste a command for the selected
-// (selection.Selected). All of it is defined here, in the game; the rules are a role's, played by
-// the kinds.
 package main
 
 import (
@@ -46,34 +38,24 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16 // the units; cell entities do not count
+	MaxEntCount  = 16
 
-	// the strips of trapdoors run from top to bottom of the meadow, two cells wide
+	// TODO: ops planszy tutaj?! serio? musi istniec przez caly przebieg gry tutaj? jprdle
 	stripTop, stripBottom uint32 = 2, 13
-
-	// leverHeld is how long the trapdoors stay open once their lever is pulled.
-	leverHeld = 2 * time.Second
-	// hasteHeld is how long the scouts go twice as fast.
-	hasteHeld = 3 * time.Second
 )
 
-// rows are where the wanderers walk to and fro, each across both strips.
+// TODO: cala ta sekcja az do ---- powinna byc przeniesiona tam gdzie jest uzywna!!!
 var rows = []uint32{3, 6, 9, 12}
 
-// levers are the two levers: the key that pulls each and the first column of its strip.
 var levers = []struct {
 	name string
 	key  control.Key
 	left uint32
 }{{"west", control.Key1, 7}, {"east", control.Key2, 15}}
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// unit is the row every kind spawns from: where it starts and, for a wanderer, the other end of
-// its walk.
 type unitRow struct{ start, to cell.ID }
+
+// ----
 
 type arena struct {
 	world     *world.Plugin
@@ -84,12 +66,10 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the scouts are its
+	player    *players.Player
 	brd       *board.Board
 }
 
-// NewDemo is the trapdoor demo, defined on the arena s: its window and its one Stage, a section at
-// a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram trapdoor demo",
@@ -114,8 +94,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -142,11 +120,11 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
+	kinds := s.board.CellKinds()
 	fx := s.world.Effects()
 	fx.Define(OpenEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
-	fx.Define(HasteEf, effect.Spec{ // how a hastened one looks is the scene's: Under in its pictures
-		effect.Lasts(hasteHeld),
+	fx.Define(HasteEf, effect.Spec{
+		effect.Lasts(2 * time.Second),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 	})
 }
@@ -159,7 +137,7 @@ func (s *arena) defineRules() {
 func (s *arena) defineCommands() {
 	cmds := s.world.Commands()
 	for _, l := range levers {
-		cmds.Define(pullCmd(l.name), rule.Cast(s.world.Effects().Named(OpenEf)).On(entity.Group("trapdoors "+l.name)).For(leverHeld))
+		cmds.Define(pullCmd(l.name), rule.Cast(s.world.Effects().Named(OpenEf)).On(entity.Group("trapdoors "+l.name)).For(3*time.Second))
 	}
 	cmds.Define(HastenCmd, rule.Cast(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }

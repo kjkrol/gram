@@ -1,10 +1,3 @@
-// Command dialog-demo is conversations written as data: walk the traveller (right click) up to a
-// host, who looks west, the way the traveller comes, sees it near and talks in a window above it.
-// The miller and the smith each say lines of their own, read from dialogs/*.yaml; the answers lead
-// on through the conversation and move what the host makes of the traveller, which it remembers:
-// point at a host with the traveller selected and it says so under it — Friend, Neutral or Enemy —
-// and meets the traveller again accordingly. Walk away mid-word and the conversation is over. One
-// window serves both hosts.
 package main
 
 import (
@@ -52,18 +45,8 @@ const (
 	UnitSize     = 20
 	UnitSpeed    = CellSize * 3
 	MaxEntCount  = 4
-
-	// hostSight is how far the host sees the traveller come: two cells and a half, in a cone as
-	// wide as vision allows (vision.MaxHalfAngleMilli).
-	hostSight = CellSize * 2.5
-	hostCone  = math.Pi / 3
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// arena is a meadow with the traveller the player walks and two hosts standing in it.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -79,8 +62,6 @@ type arena struct {
 	scene     *ui.Scene
 }
 
-// NewDemo is the dialog demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram dialog demo",
@@ -104,8 +85,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
@@ -125,11 +104,8 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(s.players.Defaults()...)
 }
 
-// defineEffects are the conversations' handles, the dialog plugin's own.
 func (s *arena) defineEffects() { s.dialog.DefineEffects() }
 
-// defineRoles: the host, seeing the traveller near, not talking and not just done talking, begins
-// a conversation with it; seeing nobody, it ends the one it holds.
 func (s *arena) defineRoles() {
 	effects := s.world.Effects()
 	talking, talked := effects.Named(dialog.TalkingEf), effects.Named(dialog.TalkedEf)
@@ -144,8 +120,6 @@ func (s *arena) defineRoles() {
 	)
 }
 
-// defineConversations says what the hosts' answers change in this game — their Regard — and when
-// they are offered, then loads the conversations naming them, a file each: what they say is data.
 func (s *arena) defineConversations(d *dialog.Plugin) error {
 	like := func(by int8) dialog.Change {
 		return dialog.Alter(func(r *Regard, listener uid.UID64) { r.Like(listener, by) })
@@ -171,8 +145,6 @@ func (s *arena) defineCells() {
 	s.board.CellKinds().Define(MeadowCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-// unitRow is the row a unit spawns from: the cell it starts on and, for a host, the node its
-// conversations begin at.
 type unitRow struct {
 	start cell.ID
 	talks string
@@ -183,10 +155,11 @@ func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: UnitSize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	walks := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 3, Brake: UnitSpeed * 6, TurnRate: 0.3}
 	roles := s.world.Roles()
+
 	units.Define(TravellerKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(TravellerRole)))
 	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(HostRole)),
-		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: hostSight}),
-		comp.Const(world.Eye{Angle: hostCone}), // looking west, the way the traveller comes
+		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
+		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
 		// where its conversations begin: each host's lines its own
 		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.talks) }),
 		comp.Const(Regard{}), // what it makes of whom it talked with: this game's model

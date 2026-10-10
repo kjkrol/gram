@@ -1,6 +1,3 @@
-// Command split-screen-demo is two players at one keyboard: red drives its block with WSAD, blue
-// with the arrows, each through a camera of its own in its half of the screen, and a minimap at
-// the bottom shows the whole arena through a camera nobody drives.
 package main
 
 import (
@@ -39,20 +36,11 @@ const (
 	ScreenHeight = 720
 	BlockSize    = 24
 	BlockSpeed   = CellSize * 5
-	MaxEntCount  = 8 // the two blocks; the walls are cells, not entities
+	MaxEntCount  = 8
 
-	// MinimapShare is the share of the screen's width the minimap takes, whatever the window's size;
-	// its height keeps the arena's proportions.
 	MinimapShare = 0.2
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// arena is the arena, its two blocks and the players driving them: each block is its player's and
-// selected from the start (kind.Entry.Told), followed by the camera of its player's half
-// (camera.Config.Follow), driven by the player's own keys (driving.Compass).
 type arena struct {
 	world      *world.Plugin
 	collision  *collision.Plugin
@@ -66,8 +54,6 @@ type arena struct {
 	bluePlayer *players.Player
 }
 
-// NewDemo is the split-screen demo, defined on the arena s: its window and its one Stage, a section
-// at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram split screen demo",
@@ -89,8 +75,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -114,8 +98,6 @@ func (s *arena) defineCells() {
 	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
 }
 
-// bindKeys gives each player its own keys to drive its block the way they say — WSAD the red,
-// the arrows the blue — and to follow it or let its camera go: C the red, Enter the blue.
 func (s *arena) bindKeys() error {
 	red := driving.Compass{Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Outside}
 	if err := s.redPlayer.Bind(append(red.Bindings(), s.selection.FollowKey(control.KeyC))...); err != nil {
@@ -132,6 +114,7 @@ func (s *arena) bindKeys() error {
 // block is the row a block spawns from: where it starts.
 type block struct{ start cell.ID }
 
+// TODO: definicja z pliku !
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[block](s.board, board.Shape{Size: BlockSize}, func(b block) geom.Vec { return brd.CellCenter(b.start) })
@@ -173,8 +156,6 @@ func (s *arena) spawnUnits() {
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)
 	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
 	brd := s.board.Res.Logic.Board
-	// each block its player's and selected — the player's hand is on it — called by the name its
-	// player's camera follows
 	s.world.Seed(
 		redKind.Entry(block{start: brd.CellIndex(3, 3)}).Named(RedBlock).Told(players.Give{To: s.redPlayer.ID}, selection.Allow{Selected: true}),
 		blueKind.Entry(block{start: brd.CellIndex(GridWidth-4, GridHeight-4)}).Named(BlueBlock).Told(players.Give{To: s.bluePlayer.ID}, selection.Allow{Selected: true}),
@@ -193,7 +174,6 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
-// defineScenes is the one scene: the two players' halves and the minimap over them.
 func (s *arena) defineScenes() []game.Scene {
 	m := &mainScene{arena: s}
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}

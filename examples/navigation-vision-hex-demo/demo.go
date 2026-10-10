@@ -1,6 +1,3 @@
-// Command navigation-vision-hex-demo puts sight on units navigating a hex board: their cones stop
-// at the wall and fade in the forest, read from the hex cells themselves; a hawk flies over
-// both and sees through the forest. Shift+C shows the cones, Shift+P the routes.
 package main
 
 import (
@@ -34,31 +31,22 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// The board is a parallelogram of pointy-top hexes in axial (q, r) coordinates — see
-// navigation-hex-demo.
 const (
-	TPS        = 60
-	GridWidth  = 20
-	GridHeight = 12
-	HexSize    = 24
-	EntitySize = 22
-	UnitSpeed  = HexSize * 3
-	// MaxEntCount is the units; the wall and the forests are cells, not entities.
+	TPS         = 60
+	GridWidth   = 20
+	GridHeight  = 12
+	HexSize     = 24
+	EntitySize  = 22
+	UnitSpeed   = HexSize * 3
 	MaxEntCount = 32
 
-	hexSprite   = 2 * HexSize
-	sightRadius = 200
-	sightHalf   = math.Pi / 5
+	hexSprite = 2 * HexSize
 )
 
 var (
 	ScreenWidth  = int(math.Ceil(HexSize*(math.Sqrt(3)*(GridWidth-1)+math.Sqrt(3)/2*(GridHeight-1)) + 2*HexSize))
 	ScreenHeight = int(math.Ceil(HexSize * (1.5*(GridHeight-1) + 2)))
 )
-
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
 
 type arena struct {
 	world      *world.Plugin
@@ -70,12 +58,10 @@ type arena struct {
 	selection  *selection.Plugin
 	players    *players.Plugin
 	cameras    *cameras.Plugin
-	player     *players.Player // the one at this keyboard: the units are its
+	player     *players.Player
 	vision     *vision.Plugin
 }
 
-// NewDemo is the hex board + navigation + vision demo, defined on the arena s: its window and its
-// one Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram navigation vision hex demo",
@@ -87,7 +73,7 @@ func NewDemo(s *arena) game.Game {
 			World(world.Config{
 				Space:    world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
 				Entities: world.EntitiesCfg{MaxCount: MaxEntCount, MinSize: EntitySize, MaxSize: EntitySize},
-				Heights:  true, // heights: the hawk looks over the wall, the forest and the hill
+				Heights:  true,
 			}).
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
@@ -97,19 +83,17 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize}) // the hills in relief, seen from above
+	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{Cell: HexSize})
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithLog(log.Default()).
-		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
+		WithViews(render.Show(s.selection.IsSelected)) // TODO: renderer tu jest nie na miejscu
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.topography, s.vision)
 }
@@ -133,9 +117,9 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
-// unit is the row every unit kind spawns from: where it starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
+// TODO: kolory to jest wyglad, to jest w definicji sceny !!!
 var unitColors = []color.RGBA{
 	{R: 220, G: 90, B: 90, A: 255},
 	{R: 90, G: 140, B: 220, A: 255},
@@ -144,7 +128,6 @@ var unitColors = []color.RGBA{
 
 var hawkColor = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 
-// The ground's colours, one a kind.
 var (
 	grassColor  = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 	wallColor   = color.RGBA{R: 40, G: 40, B: 40, A: 255}
@@ -158,8 +141,8 @@ func (s *arena) defineKinds() {
 	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize, Height: 2}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
-	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: sightRadius, Ahead: true})
-	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * sightHalf}) }
+	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200, Ahead: true})
+	eye := func(height float64) comp.Comp { return comp.Const(world.Eye{Height: height, Angle: 2 * math.Pi / 5}) }
 	scout := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15}
 	for _, name := range scouts {
 		units.Define(name, unit.Mover{Domain: cell.Land}, scout, order, sight, eye(1.5))
@@ -171,7 +154,7 @@ func (s *arena) defineKinds() {
 		sight, eye(1))
 }
 
-// cellAt is the cell at column x, row y.
+// TODO: to powinno byc z pliku, naturalnie tu format jest troche inny, bo uwzgleniamy "z"
 func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down the q = wallCol column with a gap at r = gapRow, a forest either side of the
@@ -218,6 +201,7 @@ func (s *arena) spawnCells() {
 	s.topography.Seed(heights)
 }
 
+// TODO: metoda brd.CellIndex ma za dluga nazwe, zaproponuj cos innego
 func (s *arena) spawnUnits() {
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)

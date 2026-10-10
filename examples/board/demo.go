@@ -1,11 +1,3 @@
-// Command board is the island on the simple map: a flat world whose board draws itself — every
-// kind in its colour from the board's own atlas, the streams, rivers, roads and bridges as plain
-// bands — and prices a step by its kind alone. Units walk from stop to stop over the roads, slower
-// off them, with sight cones (Shift+C shows them) and routes (Shift+P); a day goes by over the flat map (plugins/atmosphere): the tiles and
-// the units tinted by the hour, dark at night and warm at dawn, the clouds' shadows drifting over
-// the whole screen, rain and snow falling, snow lying and the shores freezing in winter. Space
-// pauses the game, ] and [ set its tempo, P freezes the light, Shift+W changes the weather; WASD,
-// the wheel, a middle drag or the cursor at an edge move the camera; K lists every key.
 package main
 
 import (
@@ -58,10 +50,6 @@ const (
 	saveBasePath = "board"
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
@@ -71,14 +59,12 @@ type arena struct {
 	selection  *selection.Plugin
 	players    *players.Plugin
 	cameras    *cameras.Plugin
-	player     *players.Player // the one at this keyboard: the units are its
+	player     *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	stops      []cell.ID // where the units start, as the layout says
+	stops      []cell.ID // where the units start, as the layout says // TODO: ten sposob definiowania startowych celow jest bardzo hacky
 }
 
-// NewDemo is the board demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram board",
@@ -102,24 +88,26 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
-	// the simple map: the board's own flat look, the kinds in their colours, the ways as plain bands
-	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
+	grid := grid.DefaultGrids{}.Square(island.GridWidth, island.GridHeight, CellSize)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).
-		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
-	// A temperate island whose weather is thrown anew every run.
-	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{Calendar: calendar.Config{Season: calendar.Autumn}, Climate: climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())}})
+		WithViews(render.Show(s.selection.IsSelected)) // TODO: render tutaj? to dziwne. nie wiem co to robi, ale na oko, to powinno byc w scene
+	s.atmosphere = atmosphere.NewPlugin(
+		s.world,
+		atmosphere.Config{
+			Calendar: calendar.Config{Season: calendar.Autumn},
+			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
+		},
+	)
+	s.atmosphere.WithBoard(s.board) // TODO: raczej plansza z atmosfera, a nie atmosfera z planszą...
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving, s.atmosphere, s.vision).WithSaves(saveBasePath)
-	s.atmosphere.WithBoard(s.board) // a flat board: its tiles and the units lit by the hour, leaning in the wind
 }
 
 func (s *arena) definePlayer() error {

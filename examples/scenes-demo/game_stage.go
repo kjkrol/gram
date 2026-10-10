@@ -25,23 +25,16 @@ const (
 	saveBasePath = "scenes-demo"
 )
 
-// =========================== Stage ===========================
-
-// gameplayArena collects the gameplay Stage's plugins — the real game, its own fresh ECS, built
-// only once entered from the menu — and every section of the Stage builds on it.
 type gameplayArena struct {
 	world   *world.Plugin
 	players *players.Plugin
-	player  *players.Player // the one at the keyboard
+	player  *players.Player
 	cameras *cameras.Plugin
-	scene   *ui.Scene // the one scene: the world, the hud, the panel over them
-
-	// SaveBasePath overrides where saves are read/written; tests set this to a temp path.
+	// TODO: uchwyt do sceny w arenie?!
+	scene        *ui.Scene
 	SaveBasePath string
 }
 
-// NewGameplayStage makes the gameplay arena and defines the Stage on it, a section at a time;
-// saveBasePath overrides where its saves are read and written, empty for the demo's own.
 func NewGameplayStage(saveBasePath string) (*gameplayArena, game.Stage) {
 	g := &gameplayArena{SaveBasePath: saveBasePath}
 	return g, stage.New(GameplayStage).
@@ -65,8 +58,6 @@ func (g *gameplayArena) basePath() string {
 	return saveBasePath
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (g *gameplayArena) makePlugins(w *world.Plugin) {
 	g.world = w
 	g.cameras = cameras.NewPlugin(g.world)
@@ -87,8 +78,6 @@ func (g *gameplayArena) defineKinds() {
 	})
 }
 
-// defineScenes is the one scene: P opens and closes the panel, the rest of the keys are the
-// player's.
 func (g *gameplayArena) defineScenes() []game.Scene {
 	m := &gameplayScene{arena: g}
 	g.scene = ui.NewScene(WorldScene, m.screen()).
@@ -98,6 +87,7 @@ func (g *gameplayArena) defineScenes() []game.Scene {
 	return []game.Scene{g.scene}
 }
 
+// TODO: ten kod to copy-paste
 func (g *gameplayArena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(g.basePath())
 	if err != nil {

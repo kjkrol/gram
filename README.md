@@ -306,8 +306,8 @@ colliding boxes at a fixed 120 TPS, with save and load on F5.
 | [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives — one `ui` screen: two feeds in `Columns`, a line between, the minimap anchored over them | `make demo-split-screen` |
 | [`vision-demo`](examples/vision-demo) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
 
-Every demo opens a window, so `go test` cannot exercise it; each ships its own tests of the
-logic underneath.
+Every demo opens a window, so `go test` cannot exercise it; what a demo shows is tested in the
+library's package that does it.
 
 <a id="model"></a>
 # Model

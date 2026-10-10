@@ -12,26 +12,18 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// =========================== Stage ===========================
-
-// Menu is the splash/menu — no entities, no gameplay plugins: a Stage of one scene.
 type Menu struct {
-	game.Stage // defined in sections: NewMenuStage
+	game.Stage
 }
 
-// NewMenuStage builds the Menu that switches to the Stage named gameplayName on start.
 func NewMenuStage(gameplayName string) *Menu {
 	return &Menu{Stage: stage.New(MenuStage).
 		Scenes(func() []game.Scene { return []game.Scene{&menuScene{gameplayName: gameplayName}} }).
 		Update(func(goke.RunCtx, time.Duration) {})}
 }
 
-// =========================== Scene ===========================
-
-// menuColor is the menu's backdrop.
 var menuColor = color.RGBA{R: 20, G: 20, B: 30, A: 255}
 
-// menuScene shows the splash text, enters the gameplay Stage on Enter and quits on Escape.
 type menuScene struct{ gameplayName string }
 
 var _ game.Scene = (*menuScene)(nil)

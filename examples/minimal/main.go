@@ -1,6 +1,3 @@
-// Command minimal is the smallest gram game that does something: one Stage with a world of
-// bouncing boxes, a collision plugin counting their contacts, and one Scene showing them.
-// It is the README's example, kept here so it compiles and runs.
 package main
 
 import (
@@ -33,20 +30,17 @@ const (
 
 func main() { gram.Run(newGame(&arena{})) }
 
-// box is the row every entity spawns from: where it starts and how it moves.
 type box struct {
 	pos world.Position
 	vel world.Velocity
 }
 
-// The names this game defines its things by: the one kind of unit, the Stage and its scene.
 const (
 	BoxKind    = "box"
 	ArenaStage = "arena"
 	ViewScene  = "view"
 )
 
-// arena is what the one Stage keeps: a torus of bouncing boxes.
 type arena struct {
 	world     *world.Plugin
 	collision *collision.Plugin
@@ -56,9 +50,6 @@ type arena struct {
 	stats     collision.ContactStats
 }
 
-// newGame is the game defined on the arena a: its window and its one Stage, defined a section at
-// a time in the order a Stage is always defined in; a section this game has no use for — effects,
-// rules, controls — is left out.
 func newGame(a *arena) game.Game {
 	return game.New(game.Props{Title: "gram minimal", ScreenWidth: screenWidth, ScreenHeight: screenHeight, TargetTPS: 60},
 		stage.New(ArenaStage).
@@ -74,8 +65,6 @@ func newGame(a *arena) game.Game {
 			Update(a.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
@@ -83,8 +72,6 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.players = players.NewPlugin(a.world, a.cameras)
 }
 
-// definePlayer is whoever sits at the keyboard, with the keys the plugins give: Space pauses,
-// K lists them all, Shift+Esc quits, the wheel and W, A, S, D move the camera.
 func (a *arena) definePlayer() error {
 	a.player = a.players.Local("player")
 	return a.player.Bind(a.players.Defaults()...)
@@ -99,7 +86,6 @@ func (a *arena) defineKinds() {
 	})
 }
 
-// defineScenes is the one scene, made once the world is there.
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: a, tps: ctx.TPS()}
 	return []game.Scene{ui.NewScene(ViewScene, m.screen()).Input(a.players.Handle)}
@@ -126,20 +112,16 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 }
 
-// mainScene is the one scene, built out of the arena's plugins: the boxes through a camera from
-// above on a dark backdrop, the player's view, a telemetry line over them.
 type mainScene struct {
 	arena *arena
 	tps   *game.TPS
 }
 
-// The scene's colours: the boxes and the backdrop.
 var (
 	boxColor        = color.RGBA{R: 90, G: 200, B: 110, A: 255}
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-// screen lays the scene out, from the bottom up: each covers those before it.
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	count := func() int { return a.world.Res.Telemetry.Count }
@@ -151,7 +133,6 @@ func (m *mainScene) screen() *ui.Element {
 	)
 }
 
-// picture dresses the boxes and hands the world's picture.
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
 	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)

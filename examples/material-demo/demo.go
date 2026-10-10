@@ -1,9 +1,3 @@
-// The material demo: instead of a sprite, an entity drawn by a material of the game's own WGSL.
-// The ward is an ordinary entity of the world, placed on the board; its look is the Ward material
-// (render.RegisterMaterials joins it to the composer's one shader; the world's atlas declares it:
-// Add(wardKind, …, wardMaterial)), worked out per pixel in the entity's box on the composer's
-// Clock. Its state changes its look the usual way — C casts calm on it, and under the calm effect
-// the ward is a plain ashen sprite until the calm wears off.
 package main
 
 import (
@@ -41,8 +35,6 @@ const (
 
 	// WardPx is the ward's box side: how far its glow reaches.
 	WardPx = 9 * CellSize
-	// calmFor is how long C keeps the ward calm — a plain sprite in the material's place.
-	calmFor = 2 * time.Second
 )
 
 //go:embed ward.wgsl
@@ -50,10 +42,6 @@ var wardFS embed.FS
 
 // wardMaterial joins the composer's one shader as the package is set up, before it compiles.
 var wardMaterial = render.RegisterMaterials(render.Files(wardFS, "ward.wgsl"), nil, "Ward")[0]
-
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
 
 // wardRow is the row the ward spawns from: where it stands.
 type wardRow struct{ at geom.Vec }
@@ -66,8 +54,6 @@ type arena struct {
 	player  *players.Player
 }
 
-// NewDemo is the material demo, defined on the arena s: its window and its one Stage, a section at
-// a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram material demo",
@@ -91,8 +77,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -109,7 +93,7 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(CalmEf, effect.Spec{
 		effect.Described("Calmed: the ward's glow put out for a while."),
-		effect.Lasts(calmFor),
+		effect.Lasts(2 * time.Second),
 	})
 }
 
@@ -121,6 +105,8 @@ func (s *arena) defineCommands() {
 func (s *arena) defineCells() {
 	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
+
+// TODO: definicja wardRow tutaj
 
 func (s *arena) defineKinds() {
 	kind.Define[wardRow](s.world.Kinds(), WardKind, kind.Spec{

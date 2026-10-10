@@ -1,10 +1,3 @@
-// Command appearance-demo shows a game declaring how its entities are drawn in one place — the
-// world's atlas in the scene's pictures: every walker is drawn by the twin of the way it goes
-// (Facing), the leader turned smoothly with his crown on (Turning), the ghost as a ghost
-// whatever happens, and the angry under the angry effect's own look (Under). They bounce off
-// one another, so they turn, and the looks follow. R makes everyone angry for a while: an
-// effect on the world, kept on each entity by a rule — anger has no direction, so an angry
-// walker is a plain red square.
 package main
 
 import (
@@ -48,10 +41,6 @@ const (
 // rng is where every random choice in this demo comes from; the test pins its seed.
 var rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 // walker is the row every kind spawns from: where it starts and how it goes.
 type walker struct {
 	at  geom.Vec
@@ -63,12 +52,9 @@ type arena struct {
 	collision *collision.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-
-	player *players.Player
+	player    *players.Player
 }
 
-// NewDemo is the appearance demo, defined on the arena s: its window and its one Stage, a section
-// at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram appearance demo",
@@ -88,13 +74,12 @@ func NewDemo(s *arena) game.Game {
 			Commands(s.defineCommands).
 			Kinds(s.defineKinds).
 			Controls(s.bindKeys).
+			// TODO: dlaczego tu brak restore?
 			Spawn(s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
@@ -109,11 +94,12 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{}) // its marker is its look: Under in the scene's pictures
+	s.world.Effects().Define(AngryEf, effect.Spec{})
 }
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MoodyRole,
+		//TODO: trzeba poprawic mechanizm rules, skladnia wydaje mi sie niezbyt przystepna
 		rule.Then[world.Moving]("rage spreads", rule.All, rule.During(s.world.Effects().Named(RageEf), rule.Keep(s.world.Effects().Named(AngryEf)))))
 }
 
@@ -150,6 +136,7 @@ func boxAt(at geom.Vec) plane.AABB {
 	return plane.NewAABB(geom.NewVec(at.X-Size/2, at.Y-Size/2), Size, Size)
 }
 
+// TODO: waker to powinien byc argument spawenra i chyba roostera; on powinien byc uzywany wylacznie tutaj
 func (s *arena) spawnUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)

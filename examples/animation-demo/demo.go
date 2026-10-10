@@ -1,7 +1,3 @@
-// The animation demo: a sprite drawn frame after frame. The bug's gait is declared on the
-// world's atlas like every look — Animated(frames, period, draw) beside Under and Turning — and
-// the frames go by the tactical clock: Space is a freeze-frame, ] hurries the step. The frames
-// here are drawn placeholders; a game's own sheet drops in through sheetFrames (frames.go).
 package main
 
 import (
@@ -44,10 +40,6 @@ const (
 	gaitPeriod = 160 * time.Millisecond
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 type unitRow struct {
 	start cell.ID
 	round [4]cell.ID
@@ -82,6 +74,7 @@ func NewDemo(s *arena) game.Game {
 			Plugins(s.makePlugins).
 			Players(s.definePlayer).
 			Kinds(s.defineCells, s.defineKinds).
+			// TODO: dlaczego tu brak restore ?
 			Spawn(s.spawnCells, s.spawnUnits).
 			Scenes(s.defineScenes).
 			Update(s.update))

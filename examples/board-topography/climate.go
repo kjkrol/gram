@@ -18,6 +18,7 @@ import (
 // between the two numbers as it comes, what falls (0 to 1), how much warmer than the hour and the
 // season it is, how long it lasts, what may follow it and how likely, and in which seasons it
 // comes (none: alike in every season).
+// TODO: powtarzam: co to jest za chore , nieczytelne formatowanie ?!
 var weathers = []weather.State{
 	{Name: weather.Clear, Wind: [2]float32{4, 14}, Warmth: 1,
 		Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second}, Next: map[string]float32{weather.Fair: 1}},
@@ -47,8 +48,6 @@ var (
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
-// defineWinterCells defines the winter's kinds — each ground's snowy twin in its colour, and ice —
-// and gives them their looks in relief.
 func (s *arena) defineWinterCells() {
 	kinds := s.board.CellKinds()
 	for name, col := range snowyColors {
@@ -61,8 +60,6 @@ func (s *arena) defineWinterCells() {
 	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 }
 
-// defineClimate is what the weather does to the island, all by the kinds' names: the winter's
-// kinds themselves are defined in the Kinds section, later.
 func (s *arena) defineClimate() weathering.Config {
 	snowy := map[string]string{}
 	for name := range snowyColors {

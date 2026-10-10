@@ -1,9 +1,3 @@
-// Command board-atlas is a small flat board drawn from the game's own atlas: a meadow with a pond,
-// a road and a wood, each kind a sprite the game draws — striped grass, a cobbled
-// road, tree tops — rather than a plain colour, and a way of the road's kind laid as a band. Units
-// walk from corner to corner over the road, Shift+P shows their routes; the same board could be drawn from the board's own
-// atlas of the kinds' colours by giving WithRenderer nil. WASD, the wheel, a middle drag or the
-// cursor at an edge move the camera; Space pauses, ] and [ set the tempo; K lists every key.
 package main
 
 import (
@@ -45,10 +39,6 @@ const (
 	UnitCount    = 4
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -58,11 +48,9 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the units are its
+	player    *players.Player
 }
 
-// NewDemo is the board atlas demo, defined on the arena s: its window and its one Stage, a section
-// at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram board atlas",
@@ -83,8 +71,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -103,8 +89,8 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineCells() {
-	// the kinds carry colours too, for a board drawn without an atlas of the game's
 	kinds := s.board.CellKinds()
+	// TODO: przypisywanie koloru, to nie ten etap! wyglad okreslamy pozniej!
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land, Color: color.RGBA{R: 96, G: 150, B: 70, A: 255}})
 	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water, Color: color.RGBA{R: 50, G: 100, B: 180, A: 255}})
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land, Color: color.RGBA{R: 160, G: 140, B: 110, A: 255}})
@@ -122,6 +108,7 @@ func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	order := comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.target} })
+	// TODO: co ja mam za formatowanie kodu ustawione, ze linie sa tak dlugie ?!
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, Brake: UnitSpeed * 4, V0: UnitSpeed / 2, TurnRate: 0.15},
 		order)
 }
@@ -135,6 +122,7 @@ func (s *arena) at(x, y int) cell.ID {
 	return c
 }
 
+// TODO: mysle, ze najwyzsza pora skonczyc z tym prceduralnym definiowaniem planszy. Proponuje opis trzymac w pliku (trzeba wymyslic format) i zaczytywac go tutaj.
 func (s *arena) spawnCells() {
 	brd, at := s.board.Res.Logic.Board, s.at
 	layout := board.Layout{Default: GrassCell}
@@ -193,6 +181,7 @@ func (s *arena) spawnCells() {
 	s.board.Seed(layout)
 }
 
+// TODO: to powinna byc sekcja w pliku mapy, patrz powyzsze TODO
 func (s *arena) spawnUnits() {
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
 	var entries []kind.Entry
@@ -210,7 +199,7 @@ func sign(v int) int {
 	return 1
 }
 
-// layoutWay is the way of kind across c in layout, added if none runs there yet.
+// TODO: alez to jest hacky!
 func layoutWay(layout *board.Layout, c cell.ID, kind cell.Kind) *cell.WayEntry {
 	for i := range layout.Ways {
 		if layout.Ways[i].Cell == c {

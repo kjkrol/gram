@@ -1,10 +1,3 @@
-// Command pressure-plate-demo is two pressure plates and two strips of trapdoors across a meadow:
-// wanderers nobody owns walk to and fro over both strips, and the player walks a scout onto a
-// plate — while someone stands on it, and a second after, its trapdoors are open and every
-// unfortunate on one falls in. A plate is a cell with a name, playing the role plate: stood on, it
-// Triggers, and the command that names it opens the group of cells that is its strip (rule.Cast,
-// entity.Named, entity.Group). All of it is defined here, in the game; the rules are roles',
-// played by the plate's kind of cell and by the units' kinds.
 package main
 
 import (
@@ -44,7 +37,7 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16 // the units; cell entities do not count
+	MaxEntCount  = 16
 
 	// the strips of trapdoors run from top to bottom of the meadow, two cells wide; the plates and
 	// the scouts are on the row under them
@@ -65,12 +58,6 @@ var groups = []struct {
 	plate, left uint32
 }{{"west", 3, 7}, {"east", GridWidth - 4, 15}}
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// unit is the row every kind spawns from: where it starts and, for a wanderer, the other end of
-// its walk.
 type unitRow struct{ start, to cell.ID }
 
 type arena struct {
@@ -82,12 +69,10 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the scouts are its
+	player    *players.Player
 	brd       *board.Board
 }
 
-// NewDemo is the pressure plate demo, defined on the arena s: its window and its one Stage, a
-// section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram pressure plate demo",
@@ -111,8 +96,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -134,13 +117,13 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land}, s.world.Roles().Named(PlateRole))
-	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
+	kinds.Define(PitCell, cell.Kind{Cost: 1})
 }
 
 func (s *arena) defineEffects() {
-	kinds := s.board.CellKinds() // the kinds are defined later: the alter resolves the pit as it runs
+	kinds := s.board.CellKinds()
 	s.world.Effects().Define(OpenEf, effect.Spec{effect.Lasts(heldAfter), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
 }
 
@@ -163,6 +146,8 @@ func (s *arena) defineScenes() []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
+// TODO: definicja unitRow TUTAJ!
+
 func (s *arena) defineKinds() {
 	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
@@ -174,8 +159,10 @@ func (s *arena) defineKinds() {
 		rule.Plays(s.world.Roles().Named(MortalRole)))
 }
 
+// TODO uzyc wprost brd.CellIndex, moze zmienic nazwe CellIndex na CellAt wlasnie ?
 func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
 
+// TODO; z pliku
 func (s *arena) spawnCells() {
 	var cells []cell.Entry
 	for _, g := range groups {
@@ -189,6 +176,7 @@ func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
+// TODO: z pliku
 func (s *arena) spawnUnits() {
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)

@@ -58,10 +58,6 @@ const (
 
 var scale = world.Scale{Metres: 100.0 / CellSize}
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
@@ -79,8 +75,6 @@ type arena struct {
 	stops      []cell.ID
 }
 
-// NewDemo is the island demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram board topography",
@@ -124,7 +118,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision).WithSpacing(navigation.BodySpacing)
 	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50)).
-		WithViews(render.Show(s.selection.IsSelected)) // only the selected ones' cones
+		WithViews(render.Show(s.selection.IsSelected)) // TODO: renderer tutaj?!
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
@@ -165,7 +159,7 @@ func (s *arena) defineCells() {
 }
 
 func (s *arena) defineEffects() {
-	s.atmosphere.WithWeathering(s.board, s.defineClimate())
+	s.atmosphere.WithWeathering(s.board, s.defineClimate()) // TODO: dlaczego to jest tutaj?! to nie jest efekt
 	night := s.atmosphere.Calendar().Config().Day / 2
 	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
@@ -199,6 +193,7 @@ func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 
+// TODO: ta sekcja jest sie pojawia, to zawsze w tym samym ksztalcie, moze powinna byc czescia "silnika" ?
 func (s *arena) restore(p game.Persistence) (bool, error) {
 	saves, err := p.List(saveBasePath)
 	if err != nil {
@@ -268,6 +263,7 @@ func (s *arena) spawnUnits() {
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
 	entries := make([]kind.Entry, 0, len(s.stops)+1)
+	// TODO: posob w jaki inicjujemy poczatkowy ruch jest tak brzydki, ze az przykro na to patrzec
 	for i, from := range s.stops {
 		walkers, whose := unitKind, []any{players.Give{To: s.player.ID}, selection.Allow{Selected: true}}
 		if i%2 == 0 {

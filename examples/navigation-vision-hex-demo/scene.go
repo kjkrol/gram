@@ -12,7 +12,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := func(i int) kind.Of[unitRow] { return kind.Named[unitRow](s.world.Kinds(), scouts[i]) }
@@ -43,12 +42,12 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.topography.Renderer(), s.board.Renderer(), s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
 }
 
+// TODO: ta stale sa zupelnie nie na swoim miejscu
 const (
 	wallCol = 10
 	gapRow  = 6

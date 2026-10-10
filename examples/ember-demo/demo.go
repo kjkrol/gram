@@ -1,9 +1,3 @@
-// The ember demo: procedural animation out of an entity's own state. Each ember's look is one
-// material (ember.wgsl) — no frames: the renderer feeds it how fast the entity moves (red) and
-// which way it heads (custom.w), so a standing ember breathes on the clock and a driven one
-// streams a tail against its heading, wilder the faster it runs. Click an ember and drive it
-// with WSAD; D douses the selected ones — under the doused effect an ember is a plain sooty
-// sprite until it rekindles.
 package main
 
 import (
@@ -47,9 +41,6 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 28
 	UnitSpeed    = CellSize * 3
-
-	// dousedFor is how long D keeps an ember out.
-	dousedFor = 3 * time.Second
 )
 
 //go:embed ember.wgsl
@@ -57,10 +48,6 @@ var emberFS embed.FS
 
 // emberMaterial joins the composer's one shader as the package is set up, before it compiles.
 var emberMaterial = render.RegisterMaterials(render.Files(emberFS, "ember.wgsl"), nil, "Ember")[0]
-
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
 
 type unitRow struct {
 	start cell.ID
@@ -79,8 +66,6 @@ type arena struct {
 	player    *players.Player
 }
 
-// NewDemo is the ember demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram ember demo",
@@ -104,8 +89,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
@@ -120,7 +103,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 
 func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
-	view := cameras.Keys{Wheel: true, Drag: true, Edge: true} // W, S, A and D drive the selected ember, not the camera
+	view := cameras.Keys{Wheel: true, Drag: true, Edge: true}
 	return s.player.Bind(slices.Concat(
 		s.players.DefaultBindings(),
 		s.world.DefaultBindings(),
@@ -135,7 +118,7 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(DousedEf, effect.Spec{
 		effect.Described("Doused: the flame put out — soot until it rekindles."),
-		effect.Lasts(dousedFor),
+		effect.Lasts(3 * time.Second),
 	})
 }
 
@@ -147,6 +130,8 @@ func (s *arena) defineCommands() {
 func (s *arena) defineCells() {
 	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
+
+// TODO: definicja unitRow tutaj
 
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
@@ -174,6 +159,7 @@ func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell})
 }
 
+// TODO: definicja mapy i roplanowania jednostek w pliku
 func (s *arena) spawnUnits() {
 	brd := s.board.Res.Logic.Board
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)

@@ -14,13 +14,11 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the meadow and a doused ember's soot.
 var (
 	grassColor = color.RGBA{R: 55, G: 80, B: 55, A: 255}
 	sootColor  = color.RGBA{R: 70, G: 65, B: 60, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	emberKind := kind.Named[unitRow](s.world.Kinds(), EmberKind)
@@ -43,7 +41,6 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))

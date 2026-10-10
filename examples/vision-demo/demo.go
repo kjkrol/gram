@@ -1,6 +1,3 @@
-// Command vision-demo shows ten entities keeping out of each other's way by sight,
-// and one red hunter that lives off the ones who fail at it. Press A to switch the
-// avoidance off and watch the entity count fall; Shift+C shows the cones of sight.
 package main
 
 import (
@@ -35,21 +32,15 @@ const (
 	PreyCount = 10
 	RectSize  = 16
 
-	sightRadius = 200
-	sightHalf   = math.Pi / 5
-	roamSpeed   = 90
-	// The hunter is the slower one: it only ever catches what steers badly.
-	hunterSpeed = roamSpeed * 0.9
-	// hunterLooksEvery is how long a hunter seeing nobody runs on before it looks aside again.
+	// TODO: ponizsze stale powinny byc od razu uzyte, a nie widniec na tej liscie !
+	sightRadius      = 200
+	sightHalf        = math.Pi / 5
+	roamSpeed        = 90
+	hunterSpeed      = roamSpeed * 0.9
 	hunterLooksEvery = time.Second
 	backdropGrey     = 40
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// body is the row both kinds spawn from: where an entity starts and where it heads.
 type body struct {
 	pos world.Position
 	vel world.Velocity
@@ -59,17 +50,13 @@ type arena struct {
 	world     *world.Plugin
 	vision    *vision.Plugin
 	collision *collision.Plugin
+	players   *players.Plugin
+	cameras   *cameras.Plugin
+	player    *players.Player
 
-	// the roles: the prey steer clear of the hunter and of each other, the hunter goes after them
 	hits collision.ContactStats
-
-	players *players.Plugin
-	cameras *cameras.Plugin
-	player  *players.Player
 }
 
-// NewDemo is the vision demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram vision demo",
@@ -94,12 +81,10 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.vision = vision.NewPlugin(s.world)
-	s.vision.Hide(false) // the cones are what this demo shows: drawn from the start, Shift+C hides them
+	s.vision.Hide(false) // TODO: powinnt byc raczej  funkcje: ConeHide i ConeShow, chyba ze mnie przekonasz, ze tak jest lepiej
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.vision)
@@ -120,7 +105,7 @@ func (s *arena) defineRoles() {
 	quarter := steering.Turn{Angle: math.Pi / 2}
 	s.world.Roles().Define(PredatorRole,
 		rule.Then[vision.Sighting]("chase", rule.Other(s.world.Roles().Named(PreyRole)), rule.Order(steering.Toward{})),
-		// seeing none, it turns a quarter aside, either way, once every while it has looked
+		// seeing none, it turns a quarter aside, either way, once every while it has looked // TODO: jesli cos wymaga wyjasnienia to znaczy, ze nasza forma zpisu jest do dupy
 		rule.Then[vision.Sighting]("search", rule.Other(s.world.Roles().Named(PreyRole)),
 			rule.If(vision.Sighting.Nobody, rule.Unless(s.world.Effects().Named(LookedEf), rule.Steps(
 				rule.Apply(s.world.Effects().Named(LookedEf)),
@@ -155,7 +140,6 @@ func (s *arena) defineKinds() {
 	))
 }
 
-// sees is what every kind here shares: a place, a heading, a cone looking that way, a collider.
 func sees() kind.Spec {
 	return kind.Spec{
 		comp.Load(func(b body) world.Position { return b.pos }),

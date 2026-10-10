@@ -37,16 +37,10 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 22
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16 // the units; the walls are cells, not entities
-
+	MaxEntCount  = 16
 	saveBasePath = "board-navigation-demo"
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// arena wires the board/navigation/selection demo; its plugins are its own fields.
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
@@ -56,11 +50,9 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the units are its
+	player    *players.Player
 }
 
-// NewDemo is the board/navigation/selection demo, defined on the arena s: its window and its one
-// Stage, a section at a time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram navigation demo",
@@ -82,8 +74,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
@@ -108,7 +98,6 @@ func (s *arena) defineRules() {
 
 func (s *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: s}
-	// the scene's own keys, labelled for the shortcuts list: K opens it, Esc closes it
 	main.keys = players.SceneKeys{
 		{Key: control.KeyR, Label: "Build a road through the wall", Do: func(game.Runtime, game.Composition) {
 			buildShortcut(s.board.Res.Logic.Board, s.board.CellKinds())
@@ -142,7 +131,6 @@ func (s *arena) restore(p game.Persistence) (bool, error) {
 	return true, nil
 }
 
-// unit is the row the "red"/"blue" kinds spawn from: where the unit starts and where it heads.
 type unitRow struct{ start, target cell.ID }
 
 func (s *arena) defineKinds() {
@@ -157,7 +145,7 @@ func (s *arena) defineKinds() {
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
 }
 
-// cellAt is the cell at column x, row y.
+// TODO: definicja planszy i rozklad jednostek z pliku !
 func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	// A wall down column 12 from row 2, a road round it along row 1 and down both flanks, and a

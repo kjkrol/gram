@@ -18,7 +18,6 @@ type mainScene struct {
 	keys  players.SceneKeys
 }
 
-// The scene's colours: the two bands and the ground.
 var (
 	redColor   = color.RGBA{R: 220, G: 90, B: 90, A: 255}
 	blueColor  = color.RGBA{R: 90, G: 140, B: 220, A: 255}
@@ -28,7 +27,6 @@ var (
 	holeColor  = color.RGBA{R: 10, G: 10, B: 30, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
@@ -55,7 +53,6 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
@@ -69,7 +66,6 @@ const (
 	roadTop, roadBottom uint32 = 1, 13
 )
 
-// buildShortcut lays a road along shortcutRow from flank to flank, through the wall.
 func buildShortcut(brd *board.Board, kinds cell.Kinds) {
 	road := kinds.Named(RoadCell).Kind()
 	for x := roadLeft + 1; x < roadRight; x++ {

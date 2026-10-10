@@ -18,18 +18,15 @@ var (
 	dividerColor = color.RGBA{R: 240, G: 240, B: 240, A: 255}
 )
 
-// mainScene is the demo's one scene, built out of the arena's plugins once the world is there.
 type mainScene struct{ arena *arena }
 
-// screen is each player's half through a camera following its block, a line between, and the
-// minimap at the bottom over them — the arena whole, following nobody, so it shows both.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	picture := m.picture()
 	red := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}), picture)
 	blue := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}), picture)
 	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Columns(
 			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
 			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
@@ -39,8 +36,6 @@ func (m *mainScene) screen() *ui.Element {
 	)
 }
 
-// picture dresses the arena — its blocks and its cells — and hands its one picture, which the
-// players' halves and the minimap all show.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	redKind := kind.Named[block](s.world.Kinds(), RedKind)

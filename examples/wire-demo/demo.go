@@ -1,14 +1,3 @@
-// Command wire-demo is three commands on one meadow, each a sentence saying what it does, whom
-// it is for and who sets it off (rule.Cast, Toggle; entity.Named, entity.Group). "Open the west
-// trapdoors" is the west lever's: 1 gives it, and so does a scout pulling the lever beside it (U).
-// "Open the east trapdoors" is the pressure plate's in the yard, given while someone stands on it;
-// the trapdoors stay open two seconds after. "Flip the gate" is the player's alone: G opens it and
-// it stays open until G again. Two strips of trapdoors cross the meadow, each a group of cells, and
-// a fence shuts the yard off from it, its gate a group too. A plate stood on and a lever pulled
-// only Trigger: which command that sets off, the command says with By. Wanderers nobody owns walk
-// to and fro over both strips; the player's scouts and porters start in the yard. Everyone plays
-// mortal and falls in where nothing holds them; the scouts play hasty too, and J hastens the
-// selected ones (selection.Selected), never the porters. All of it is defined here, in the game.
 package main
 
 import (
@@ -49,8 +38,9 @@ const (
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
 	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 16 // the units; cell entities and wires do not count
+	MaxEntCount  = 16
 
+	// TODO: te stale tutaj to nieporozumienie, uzyj ich po prostu
 	// the strips of trapdoors run down the meadow, two cells wide from their left column
 	stripTop, stripBottom uint32 = 1, 11
 	westLeft, eastLeft    uint32 = 7, 15
@@ -72,12 +62,6 @@ const (
 // rows are where the wanderers walk to and fro, each across both strips.
 var rows = []uint32{2, 5, 8, 11}
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
-// unitRow is the row every kind spawns from: where it starts and, for a wanderer, the other end of
-// its walk.
 type unitRow struct{ start, to cell.ID }
 
 type arena struct {
@@ -89,12 +73,9 @@ type arena struct {
 	selection *selection.Plugin
 	players   *players.Plugin
 	cameras   *cameras.Plugin
-	player    *players.Player // the one at this keyboard: the scouts and the porters are its
-	brd       *board.Board
+	player    *players.Player
 }
 
-// NewDemo is the wire demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram wire demo",
@@ -119,14 +100,11 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision).WithLog(log.Default())
-	s.brd = s.board.Res.Logic.Board
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).WithCollision(s.collision)
@@ -142,21 +120,21 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineCells() {
 	kinds, roles := s.board.CellKinds(), s.world.Roles()
 	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land}) // a trapdoor shut
-	kinds.Define(PitCell, cell.Kind{Cost: 1})                       // holds nobody
+	kinds.Define(BoardsCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define(PitCell, cell.Kind{Cost: 1})
 	kinds.Define(PlateCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(PlateRole))
 	kinds.Define(LeverCell, cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(LeverRole))
 	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
-	kinds.Define(GateCell, cell.Kind{Cost: 1, Solid: true})          // the gate shut
-	kinds.Define(GatewayCell, cell.Kind{Cost: 1, Allows: cell.Land}) // the gate open
+	kinds.Define(GateCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(GatewayCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 func (s *arena) defineEffects() {
-	kinds := s.board.CellKinds() // the kinds are defined later: the alters resolve them as they run
+	kinds := s.board.CellKinds()
 	fx := s.world.Effects()
 	fx.Define(OpenEf, effect.Spec{effect.Lasts(pulse), effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(PitCell).Kind() })})
 	fx.Define(AjarEf, effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind = kinds.Named(GatewayCell).Kind() })})
-	fx.Define(HasteEf, effect.Spec{ // how a hastened one looks is the scene's: Under in its pictures
+	fx.Define(HasteEf, effect.Spec{
 		effect.Lasts(hasteHeld),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 }),
 	})
@@ -166,7 +144,7 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRoles() {
 	s.world.Roles().Define(PlateRole,
 		rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-	s.world.Roles().Define(LeverRole) // does nothing of its own: a handy unit beside it pulls it
+	s.world.Roles().Define(LeverRole)
 	s.world.Roles().Define(HastyRole)
 	s.world.Roles().Define(HandyRole,
 		rule.Then[unit.Standing]("pull the lever beside", rule.All,
@@ -199,7 +177,8 @@ func (s *arena) defineScenes() []game.Scene {
 }
 
 func (s *arena) defineKinds() {
-	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return s.brd.CellCenter(u.start) })
+	brd := s.board.Res.Logic.Board
+	units := board.NewUnits[unitRow](s.board, board.Shape{Size: EntitySize}, func(u unitRow) geom.Vec { return brd.CellCenter(u.start) })
 	profile := steering.Steering{MaxSpeed: UnitSpeed, Accel: UnitSpeed * 2, V0: UnitSpeed / 2, TurnRate: 0.15}
 	laden := steering.Steering{MaxSpeed: UnitSpeed * 3 / 4, Accel: UnitSpeed, V0: UnitSpeed / 4, TurnRate: 0.1}
 	land := unit.Mover{Domain: cell.Land}
@@ -210,8 +189,14 @@ func (s *arena) defineKinds() {
 		comp.Load(func(u unitRow) navigation.MoveOrder { return navigation.Patrol(time.Second, u.to, u.start) }))
 }
 
-func (s *arena) cellAt(x, y uint32) cell.ID { c := s.brd.CellIndex(x, y); return c }
+// TODO: przestan uzywac ten durnej funkcji, skoro board juz daje to samo !
+func (s *arena) cellAt(x, y uint32) cell.ID {
+	brd := s.board.Res.Logic.Board
+	c := brd.CellIndex(x, y)
+	return c
+}
 
+// TODO: z pliku...
 func (s *arena) spawnCells() {
 	var cells []cell.Entry
 	strips := []struct {
@@ -237,6 +222,7 @@ func (s *arena) spawnCells() {
 	s.board.Seed(board.Layout{Default: GrassCell, Cells: cells})
 }
 
+// TODO: z pliku
 func (s *arena) spawnUnits() {
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
 	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)

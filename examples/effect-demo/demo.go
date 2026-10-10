@@ -43,10 +43,6 @@ const (
 	Frost = cell.Domain(1 << 3)
 )
 
-// =========================== Game ===========================
-
-// =========================== Stage ===========================
-
 type unitRow struct {
 	start, target cell.ID
 	ordered       bool
@@ -64,8 +60,6 @@ type arena struct {
 	player    *players.Player
 }
 
-// NewDemo is the effect demo, defined on the arena s: its window and its one Stage, a section at a
-// time.
 func NewDemo(s *arena) game.Game {
 	return game.New(game.Props{
 		Title:       "gram effect demo",
@@ -90,8 +84,6 @@ func NewDemo(s *arena) game.Game {
 			Update(s.update))
 }
 
-// makePlugins makes the Stage's plugins over its world w — anew each time the Stage is entered —
-// each telling the world of itself as it is made: the Stage uses them in that order.
 func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world)
@@ -162,7 +154,7 @@ func (s *arena) defineRoles() {
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
 
 	roles := s.world.Roles()
-	roles.Define(LakeRole) // the lake's cells play it, in the Layout: where the witch's winter is ice
+	roles.Define(LakeRole)
 	roles.Define(WitchRole,
 		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
 			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
@@ -179,6 +171,8 @@ func (s *arena) defineRoles() {
 			rule.If(rule.Not(unit.Standing.Fallen), rule.If(unit.Over(iced), rule.Keep(slip)))),
 	)
 }
+
+// TODO: definicja unitRow tutaj
 
 func (s *arena) defineKinds() {
 	brd := s.board.Res.Logic.Board
@@ -204,6 +198,7 @@ const (
 	lakeTop, lakeBottom uint32 = 4, 11
 )
 
+// TODO: mechanizm wczytywania planszy i jednostek z pliku
 func (s *arena) spawnCells() {
 	brd := s.board.Res.Logic.Board
 	water := s.board.CellKinds().Named(WaterCell)

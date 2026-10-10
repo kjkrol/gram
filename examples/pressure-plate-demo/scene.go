@@ -14,7 +14,6 @@ type mainScene struct {
 	arena *arena
 }
 
-// The scene's colours: the units and the meadow with its plates and trapdoors.
 var (
 	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
 	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
@@ -24,7 +23,6 @@ var (
 	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
 )
 
-// picture dresses the world and hands its picture.
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
@@ -50,7 +48,6 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.selection.Renderer(), s.nav.Renderer())
 }
 
-// screen is the world through a camera of its own, the player's view.
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).Input(s.players.Through(s.player))
