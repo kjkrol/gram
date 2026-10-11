@@ -130,7 +130,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision).
 		WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(scale.Units(50))
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(CellSize)
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
