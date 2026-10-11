@@ -54,7 +54,7 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 }
 
 // A Floor carries whoever moves in its domains at its Height over the cell's level and leaves the
-// others at the ground; whatever stands on the board stands on the ground under its centre.
+// others at the ground; the bridge itself stands on its deck.
 func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	var walker, hawk, bridge kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
@@ -85,10 +85,63 @@ func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != ground+40 {
 		t.Errorf("the hawk over the bridge: %v, want it 40 over the ground, %v", got, ground+40)
 	}
-	if got := zs[bridge.ID()]; len(got) != 1 || got[0].Altitude != ground || got[0].Height != 1 {
-		t.Errorf("the bridge: %v, want it 1 tall on the ground at %v", got, ground)
+	if got := zs[bridge.ID()]; len(got) != 1 || got[0].Altitude != deck || got[0].Height != 1 {
+		t.Errorf("the bridge: %v, want it 1 tall on its deck at %v", got, deck)
 	}
 }
+
+// A deck with an axis is come onto along it, as a bridge from its end: from the side a walker
+// stays under it, coming along it near the deck it goes up onto it, and once there it stays on it
+// whichever way it turns; one walking under it along it stays under.
+func TestAltitude_ADeckIsComeOntoAlongItsAxis(t *testing.T) {
+	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
+		walks := steering.Steering{MaxSpeed: 10}
+		units.Define("walker", unit.Mover{Domain: cell.Land}, walks, comp.Const(steering.Driven{}))
+		standing := board.NewEntities(qw.Board, board.Shape{Size: 20, Height: 1},
+			func(r topotest.Recruit) cell.ID { return r.Start })
+		standing.Define("bridge", comp.Const(cell.Floor{Allows: cell.Land, Height: 10,
+			Along: linkW | linkE}))
+		under := topotest.Recruit{Start: qw.Grid.At(1, 2)}
+		return []kind.Entry{
+			standing.Named("bridge").Entry(under),
+			units.Named("walker").Entry(under),
+		}
+	}
+	qw := topotest.NewQuasiWorldWith(t, false, define)
+	deck := qw.Topo.Relief().Altitude(qw.Grid.At(1, 2)) + 10
+	step := func(dir geom.Vec, alt float64) float64 {
+		flown(qw, func(b *world.Base, z *world.Z, _ *unit.Mover, _ *steering.Driven,
+			st *steering.Course) {
+			b.Vel.Dir, st.Want, z.Altitude = dir, dir, alt
+		})
+		qw.ECS.Tick(time.Second / 60)
+		var got float64
+		flown(qw, func(_ *world.Base, z *world.Z, _ *unit.Mover, _ *steering.Driven,
+			_ *steering.Course) {
+			got = z.Altitude
+		})
+		return got
+	}
+	north, east := geom.NewVec(0, -1), geom.NewVec(1, 0)
+	if got := step(north, deck-1); got == deck {
+		t.Errorf("come from the side near the deck's height it stands on the deck, want under it")
+	}
+	if got := step(east, deck-1); got != deck {
+		t.Errorf("come along the axis near the deck: at %v, want on the deck at %v", got, deck)
+	}
+	if got := step(north, deck); got != deck {
+		t.Errorf("turned on the deck: at %v, want still on it at %v", got, deck)
+	}
+	if got := step(east, 0); got == deck {
+		t.Errorf("walking under the deck along it, it went up onto the deck")
+	}
+}
+
+// The ways out of a square cell, as cell.Links numbers them.
+const (
+	linkW cell.Links = 1 << 2
+	linkE cell.Links = 1 << 3
+)
 
 // A flyer flown by hand holds its height over sea level as the ground rises and falls under it,
 // climbs along the way it is steered as far as it went, keeps its Clearance over the ground and

@@ -222,6 +222,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer.clock = p.module.clock.Shown
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded)
+		p.renderer.lie(wa.lain())
 	}
 }
 

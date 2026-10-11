@@ -2,7 +2,6 @@ package painter
 
 import (
 	"image"
-	"slices"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/look"
@@ -98,7 +97,7 @@ func (l *Painter) Wet() ([]bool, uint64) {
 		if !ok {
 			continue
 		}
-		own[i] = l.base(c).shine > 0 || wets(l.bakes[i].ways) || wets(l.bakes[i].crossings)
+		own[i] = l.base(c).shine > 0 || wets(l.bakes[i].ways)
 	}
 	l.wet = make([]bool, n)
 	for i := range n {
@@ -203,7 +202,7 @@ func (l *Painter) cellTile(c cell.ID) *tile {
 }
 
 // paintAll paints the whole board anew on s: every cell's base where s is based, every cell's
-// grounds, then every way over them, then every crossing over those.
+// grounds, then every way over them.
 func (l *Painter) paintAll(s *groundSheet) {
 	cells := s.img.SubImage(image.Rect(0, s.top, int(l.sq.Cols)*s.px, s.top+int(l.sq.Rows)*s.px))
 	cells.Clear()
@@ -222,9 +221,6 @@ func (l *Painter) paintAll(s *groundSheet) {
 		l.lay(s, i, nil, l.bakes[i].ways)
 		l.markWays(s, i)
 	}
-	for i := range n {
-		l.lay(s, i, nil, l.bakes[i].crossings)
-	}
 	render.Paint(cells, &l.canvas)
 	if s.water != nil {
 		s.water.Clear()
@@ -236,17 +232,14 @@ func (l *Painter) paintAll(s *groundSheet) {
 		for i := range n {
 			l.layWater(s, i, nil, l.bakes[i].ways)
 		}
-		for i := range n {
-			l.layWater(s, i, nil, l.bakes[i].crossings)
-		}
 		for q := range s.wcanvas {
 			render.Paint(s.water.SubImage(s.waterLayer(q)), &s.wcanvas[q])
 		}
 	}
 }
 
-// paintCell paints cell i anew on s: its base where s is based, its grounds and the ways and
-// crossings of it and its neighbours reaching over it.
+// paintCell paints cell i anew on s: its base where s is based, its grounds and the ways of it and
+// its neighbours reaching over it.
 func (l *Painter) paintCell(s *groundSheet, i int) {
 	cols := int(l.sq.Cols)
 	part := s.img.SubImage(s.cell(uint32(i%cols), uint32(i/cols)))
@@ -264,14 +257,12 @@ func (l *Painter) paintCell(s *groundSheet, i int) {
 			s.dressed[i] = true
 		}
 	})
-	l.around8(i, func(j int) { l.lay(s, j, nil, l.bakes[j].crossings) })
 	render.Paint(part, &l.canvas)
 	if s.water != nil {
 		l.resetWater(s)
 		l.layWaterBase(s, i)
 		l.layWater(s, i, b.blends, nil)
 		l.around8(i, func(j int) { l.layWater(s, j, nil, l.bakes[j].ways) })
-		l.around8(i, func(j int) { l.layWater(s, j, nil, l.bakes[j].crossings) })
 		for q := range s.wcanvas {
 			part := s.water.SubImage(s.waterCell(q, i%cols, i/cols))
 			part.Clear()
@@ -314,9 +305,9 @@ func (l *Painter) lay(s *groundSheet, i int, blends []BlendPiece, ways []WayPiec
 	}
 }
 
-// markWays marks dressed on s every cell cell i's ways and crossings reach over.
+// markWays marks dressed on s every cell cell i's ways reach over.
 func (l *Painter) markWays(s *groundSheet, i int) {
-	if len(l.bakes[i].ways) == 0 && len(l.bakes[i].crossings) == 0 {
+	if len(l.bakes[i].ways) == 0 {
 		return
 	}
 	l.around8(i, func(j int) {
@@ -326,8 +317,7 @@ func (l *Painter) markWays(s *groundSheet, i int) {
 	})
 }
 
-// waysOver reports whether a piece of cell i's ways or crossings lies over cell j, i itself or a
-// neighbour.
+// waysOver reports whether a piece of cell i's ways lies over cell j, i itself or a neighbour.
 func (l *Painter) waysOver(i, j int) bool {
 	cols := int(l.sq.Cols)
 	// j's box as i's pieces are placed, from i's top-left; a step round a wrap folded back
@@ -335,7 +325,7 @@ func (l *Painter) waysOver(i, j int) bool {
 	dx, dy = unwrap(dx, cols), unwrap(dy, int(l.sq.Rows))
 	w, h := float32(l.cellW), float32(l.cellH)
 	bx0, by0 := float32(dx)*w, float32(dy)*h
-	for _, p := range slices.Concat(l.bakes[i].ways, l.bakes[i].crossings) {
+	for _, p := range l.bakes[i].ways {
 		px0, py0, px1, py1 := p.World[0][0], p.World[0][1], p.World[0][0], p.World[0][1]
 		for _, q := range p.World[1:] {
 			px0, py0, px1, py1 = min(px0, q[0]), min(py0, q[1]), max(px1, q[0]), max(py1, q[1])

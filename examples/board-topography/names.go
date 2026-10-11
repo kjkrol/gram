@@ -12,9 +12,7 @@ const (
 	BrookCell  = "brook"
 	StreamCell = "stream"
 	RiverCell  = "river"
-	FordCell   = "ford"
 	RoadCell   = "road"
-	BridgeCell = "bridge"
 	IceCell    = "ice"
 
 	// effects
@@ -32,6 +30,10 @@ const (
 	RivalKind   = "rival"
 	HawkKind    = "hawk"
 	PlateauKind = "plateau"
+
+	// kinds of what stands on the board
+	BridgeKind = "bridge"
+	FordKind   = "ford"
 
 	// sides
 	PlayerSide  = "player"

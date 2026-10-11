@@ -88,7 +88,7 @@ func (l *Painter) layWaterBase(s *groundSheet, i int) {
 }
 
 // layWater adds to s's water canvases what of cell i covers the water or runs over it: its blends
-// covering it, the pieces of its ways and crossings running with water or covering it, and the
+// covering it, the pieces of its ways running with water or covering it, and the
 // glint where a way turns into water — each where it lies, faded as it fades, as the tiles lay it.
 func (l *Painter) layWater(s *groundSheet, i int, blends []BlendPiece, ways []WayPiece) {
 	dark := render.Even(0)

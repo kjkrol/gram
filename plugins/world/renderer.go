@@ -30,6 +30,7 @@ type renderer struct {
 	atlas       render.AtlasSource
 	look        func() Look
 	shaded      map[render.SpriteID]render.MaterialID // the sprites worked out per pixel (the Atlas's)
+	lying       map[render.SpriteID]bool              // the sprites laid flat (the Atlas's)
 	views       func(camera.Camera) *view.View
 	view        *view.View // the one being drawn
 	// clock is the game time the frame's animations go by; nil, the composer's own
@@ -45,6 +46,9 @@ func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View,
 
 // shade is the per-pixel looks the world's Atlas declared, by sprite; nil for none.
 func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID) { s.shaded = shaded }
+
+// lie is the sprites the world's Atlas declared lying; nil for none.
+func (s *renderer) lie(lying map[render.SpriteID]bool) { s.lying = lying }
 
 func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
@@ -73,6 +77,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if d, ok := look.(DirectLook); ok {
 		d.Begin(cam)
 	}
+	lies, _ := look.(LyingLook)
 	s.view = s.views(cam)
 	s.each(func(i int, z *Z) {
 		box := s.bases[i].Pos.AABB
@@ -86,6 +91,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		for _, l := range s.layers[i] {
 			if m, ok := s.shaded[l.SpriteID]; ok {
 				s.material(f, cam, &s.bases[i], m)
+				continue
+			}
+			if lies != nil && s.lying[l.SpriteID] {
+				lies.Lie(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 				continue
 			}
 			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})

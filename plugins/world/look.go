@@ -34,5 +34,17 @@ type DirectLook interface {
 	DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms)
 }
 
+// LyingLook is a Look that lays some sprites flat on the ground, under what stands — a view in
+// relief stands the rest up: the renderer hands it the sprites the Atlas declared Lying
+// (Slot.Lying) through Lie, at the entity's Altitude, the rest through Sprite.
+type LyingLook interface {
+	Look
+	Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
+		a render.Appearance, light render.Light)
+}
+
 // The world's own look, before any view sets another, is the flat one.
-var _ DirectLook = (*ilook.Flat)(nil)
+var (
+	_ DirectLook = (*ilook.Flat)(nil)
+	_ LyingLook  = (*ilook.Flat)(nil)
+)

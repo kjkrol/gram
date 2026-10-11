@@ -1,0 +1,56 @@
+# Madeira: 64 x 32 km in 192 x 96 cells of 333 m, the island whole.
+area:
+  centre: [-16.96, 32.745] # longitude, latitude
+  cells: [192, 96]
+  cell: 333 # metres
+  units: 32
+ground:
+  rock: {slope: 0.7, above: 1600}
+  sand: {within: 1, below: 20, share: 0.3}
+  forest: {from: 300, to: 1400, share: 0.45}
+rivers:
+  brook: 6 # km² drained
+  stream: 15
+  river: 40
+  depth: [2, 4, 6] # metres
+  rain: 1000
+  width: 1.4
+  meander: 15
+  ford: {every: 8, slope: 0.1}
+roads:
+  width: 7
+  climb: 6
+  turn: 1
+  grade: 3000
+  rock: 4
+  reuse: 0.3
+  bridge: 4
+  bank: 4
+  span: 8
+  high: 200
+  deep: 200
+  places:
+    Funchal: [-16.9086, 32.6496]
+    Câmara de Lobos: [-16.977, 32.65]
+    Ribeira Brava: [-17.0636, 32.6739]
+    Ponta do Sol: [-17.1, 32.681]
+    Calheta: [-17.1736, 32.7225]
+    Prazeres: [-17.205, 32.756]
+    Porto Moniz: [-17.169, 32.867]
+    Seixal: [-17.102, 32.824]
+    São Vicente: [-17.043, 32.799]
+    Ponta Delgada: [-16.99, 32.825]
+    Santana: [-16.881, 32.806]
+    Faial: [-16.857, 32.783]
+    Machico: [-16.767, 32.718]
+    Santa Cruz: [-16.792, 32.688]
+    Caniço: [-16.848, 32.652]
+    Encumeada: [-17.019, 32.755]
+    Poiso: [-16.888, 32.712]
+  routes:
+    - [Funchal, Câmara de Lobos, Ribeira Brava, Ponta do Sol, Calheta]
+    - [Calheta, Prazeres, Porto Moniz]
+    - [Porto Moniz, Seixal, São Vicente, Ponta Delgada, Santana, Faial]
+    - [Faial, Machico, Santa Cruz, Caniço, Funchal]
+    - [Ribeira Brava, Encumeada, São Vicente]
+    - [Funchal, Poiso, Faial]

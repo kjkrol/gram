@@ -239,9 +239,12 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
-// DeckAt is where a Floor over the cell under p carries whoever moves in d (none: Land): its
-// Height over the cell's level; false where no Floor carries it or the relief lies under no board.
-func (r *Relief) DeckAt(p geom.Vec, d cell.Domain) (float64, bool) {
+// DeckAt is where a Floor over the cell under p carries whoever moves in d (none: Land), headed
+// dir and standing at alt over its ground or deck: its Height over the cell's level. One on the
+// deck stays on it; onto a deck with an axis (Floor.Along) only along it and nearer the deck than
+// the ground, as onto a bridge from its end; false where no Floor carries it, whoever stays under
+// the deck, or the relief lies under no board.
+func (r *Relief) DeckAt(p geom.Vec, d cell.Domain, dir geom.Vec, alt float64) (float64, bool) {
 	if r.board == nil {
 		return 0, false
 	}
@@ -256,7 +259,38 @@ func (r *Relief) DeckAt(p geom.Vec, d cell.Domain) (float64, bool) {
 	if f.Allows&d == 0 {
 		return 0, false
 	}
-	return r.Altitude(c) + f.Height, true
+	deck := r.Altitude(c) + f.Height
+	if cw, _ := r.grid.CellBounds(); f.Along == 0 || math.Abs(alt-deck) <= deckSlack*cw {
+		return deck, true
+	}
+	if math.Abs(alt-deck) > math.Abs(alt-r.GroundAt(p)) || !r.along(c, f.Along, dir) {
+		return 0, false
+	}
+	return deck, true
+}
+
+// deckSlack is how near its deck, in cells, one standing on it is.
+const deckSlack = 1e-3
+
+// along reports whether dir runs within 45° of one of the ways out of c.
+func (r *Relief) along(c cell.ID, ways cell.Links, dir geom.Vec) bool {
+	n := math.Hypot(dir.X, dir.Y)
+	if n == 0 {
+		return false
+	}
+	from := r.grid.CellCenter(c)
+	for i := range 8 {
+		nb, ok := r.grid.Toward(c, i)
+		if !ok || ways&(1<<i) == 0 {
+			continue
+		}
+		to := r.grid.CellCenter(nb)
+		v := geom.NewVec(to.X-from.X, to.Y-from.Y)
+		if (v.X*dir.X+v.Y*dir.Y)/(math.Hypot(v.X, v.Y)*n) >= math.Sqrt2/2-1e-9 {
+			return true
+		}
+	}
+	return false
 }
 
 // SetHeights raises the ground to heights: sampled at every corner on a square grid, at every

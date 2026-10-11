@@ -37,8 +37,9 @@ make demo-navigation-vision                                        # board + nav
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
 make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G): the bullet plugin, wounds and fuses as effects
-make demo-board                                                    # the island on the simple map: a flat board drawn from the island's colours, bands for the ways, a flat day
-make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
+make demo-board                                                    # Madeira on the simple map: a flat board in the island's colours, bands for the ways, bridges and fords lying on it, a flat day
+make demo-board-topography                                         # Madeira in relief, its true heights: light, water, roads as Transport Tycoon lays them, bridges over the valleys, isometric or from above (Tab), the weather
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
@@ -327,7 +328,7 @@ and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `C
 `Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
 sprite from the game's atlas (a kind is what it is, never how it looks: `cell.Kind.Color`,
 `cell.Kinds.Draw` and the board's own atlas went on 2026-10-10, the user's word; `WithRenderer`
-takes the game's `board.Plugin.NewAtlas` and panics on nil), the ways and crossings as bands cut out
+takes the game's `board.Plugin.NewAtlas` and panics on nil), the ways as bands cut out
 of their kinds' sprites (`internal/draw.Bands`, `render.Frame.SpriteFan`: the part of the sprite
 the band covers, laid over the tile as a cell of the kind shows it), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
@@ -498,7 +499,7 @@ within `shoreReach` cells of the shore (`water.Shore`, per corner of a square gr
 and breaking into foam; it reflects the sky by Fresnel against the way to the eye — per pixel in
 a perspective, `camera.Projection.Toward()` otherwise — so it pales towards the horizon. The
 skirt round the world carries the sea on to the horizon. An effect altering `Ground` can make a
-cell shiny. The islands with heights give their water 0.9.
+cell shiny. Madeira in relief gives its water 0.9.
 The climate is `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
 `SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
 `Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
@@ -730,10 +731,13 @@ trapdoor and pressure plate demos the same).
   height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
   `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
-  them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
+  them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres, Figures}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
   `Scale.Units`); with it the ground sinks under an eye's level (`Scale.Drop`, curve and
   refraction) in the perspective and in sight, and the air hazes far off (`Weather.Visibility`).
+  `Figures` is how many times bigger than life a game draws its figures (the user's word,
+  2026-10-10: how symbolic a unit is) and `Scale.Figure(m)` their boxes, heights and eyes; speeds
+  and sight stay real, through `Units` (board-topography: a cell 333 m, figures 50 times life).
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
@@ -766,7 +770,11 @@ trapdoor and pressure plate demos the same).
   standing — degrees, 0 east, against the clock with the screen's y down, `render.Arrow`'s
   convention; a square box whose content fits the inscribed circle; a turned sprite's Under-looks
   turn with it), `.Facing(n, draw)` its directional twins (slots from the world's kinds; a look
-  under an effect keeps its own way). `WithRenderer` applies them itself, after the effects' swaps:
+  under an effect keeps its own way), `.Lying()` a sprite laid flat (a bridge's deck, a ford; its
+  Under-looks, frames and twins too): a `world.LyingLook` lays it at the entity's `Altitude` — the
+  billboards' look a flat quad over the box on the ground wherever it stands higher, under what
+  stands (`shaders/lying.wgsl`, `sight.wgsl` shared), the flat look under the rest — where a
+  view in relief stands the rest up. `WithRenderer` applies them itself, after the effects' swaps:
   swaps, facing, turning (shown by `examples/appearance-demo` and the frozen
   kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
@@ -787,13 +795,13 @@ trapdoor and pressure plate demos the same).
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
   following the world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`; the
   terrain's façade, its grid's `At(x, y)` among it: `Kind`, `Bare`, `Set`, `SetAll`, `Way`,
-  `SetWay`, `Crossing`, `SetCrossing`, `Along`, `CellVersion`, `Changes`, `Version`, `Touch`,
+  `SetWay`, `Along`, `CellVersion`, `Changes`, `Version`, `Touch`,
   `Shape`, `Built`), the `Layout`, the `Map` contract, `NewUnits` and `NewEntities`, and `Lay` —
   a level out of a file (`level.go`); the ground the others meet is its
   field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
-  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, what stands on a cell (`cell.On`, `Floor`, `Wall`, `Built`), the moment `cell.Now`, the Layout's entries
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Links`, what stands on a cell (`cell.On`, `Floor`, `Wall`, `Built`), the moment `cell.Now`, the Layout's entries
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
@@ -814,14 +822,14 @@ trapdoor and pressure plate demos the same).
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving rule board
-  registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road, a
-  bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
+  registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road;
+  `Way.Over` carries it, a bridge's `cell.Floor.Graded` too) is spared the slope in both; `Board.Along(from,
   to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
   that ground, the kind under the way; slopes
   cost too, through the board's Map — `relief.Climbing{Up, Down, Ease, Steep, Free}`
   (`topography.Config.Climbing`, `relief.DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
-  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving rule along the
+  old island: road and bridge 1, the rest 2.5 times what it was) slows the Moving rule along the
   heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
   takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
   relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
@@ -829,8 +837,8 @@ trapdoor and pressure plate demos the same).
   carried with the current, white where it is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
-  down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`, over
-  rivers as `cell.Crossing`s by `Across`), laid as a `cell.Way` — a
+  down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`; `cell.Crossing`
+  and `Network.Across` went on 2026-10-10: a bridge is an entity), laid as a `cell.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
@@ -851,7 +859,7 @@ trapdoor and pressure plate demos the same).
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`; `units.Named(name)` is the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
   cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
-  `Crossing`, made at Setup by the entity system of `internal/terrain` out of the seed (a
+  `Built`, made at Setup by the entity system of `internal/terrain` out of the seed (a
   `cell.TerrainMap`, the Layout's tags included) or found after a load; `terrain.Cells` reads and
   writes them, or the seed before Setup and on a board no ECS runs. `Version` and `CellVersion`
   count every change: writes through the board, effects on cell entities (`effect.Changed` on
@@ -893,9 +901,14 @@ trapdoor and pressure plate demos the same).
   board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
   box of `Size` at the cell's middle, `world.Velocity{}`, `cell.On{Cell}` and with heights a
   `world.Z{Height}`; the game gives the rest (a plate's `collision.Collider{}` without `Physics`, a
-  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height}` (carries the domains over
-  whatever the ground takes: a trapdoor over a pit — a pit kind admitting nobody — later the
-  island's bridges) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are gathered every step
+  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Cost, Graded, Along}` (carries
+  the domains over whatever the ground takes: a trapdoor over a pit — a pit kind admitting nobody
+  — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`, come onto only `Along`
+  its axis: `relief.DeckAt` keeps a unit on the deck it stands on, takes it up onto one coming
+  along it near the deck from its end, and keeps whoever comes from the side, a road under the
+  bridge running across, under it — the user's word, 2026-10-11, TTD's bridge head; `Board.Bare`
+  leaves a Graded Floor out as it leaves a way; a `world.Velocity` among a kind's extra takes the
+  still one's place, its `Dir` the way the bridge runs, which its look `Facing`s) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are gathered every step
   by the board's `builtSystem` (`internal/terrain/built.go`, after the cells' system) on the cell's
   entity as `cell.Built` (every cell carries one, saved; written in place where it changed, the
   cell touched), domains joined, the highest Height; `Built.Over` adds the Floor's domains and
@@ -919,17 +932,37 @@ trapdoor and pressure plate demos the same).
   paths, a tree), each flowing down in the order given to its last point, where its water goes —
   the sea, another river's cell — and no part of it (the link the painter softens the mouth by), a
   point `{at, kind, width}` turning its kind from there on and its width cell by cell towards the
-  next point's — the head must give both; every river's cells are laid before the flows; `crossings` (`{road: bridge}`) for a road over a river.
+  next point's — the head must give both; every river's cells are laid before the flows. A road
+  never runs over a river: a point `{onto: [x, y]}` at either end of its path leads it onto the
+  bridge or the ford standing there, linked towards that cell without lying on it. With a relief
+  every cell of a `Graded` road lies as Transport Tycoon lays it (the user's word, 2026-10-10):
+  `ground.RoadFits` — level, an even ramp of `ground.RoadSlope` (10°) at most it runs straight up,
+  or a level diagonal it runs along with a third corner beside it; a bend, a fork, an end level;
+  on a hex grid `ground.RoadJoins`, one level — refused with the path's line, and the
+  topography's shaping (`relief.KeepRoads`) takes back whole what would break a road.
   How a river softens into the sea is the renderer's (the painter's `into`, `Mix` by `Along`),
   never the file's; `units`. An entry is
   flat: `kind`, `side` (`board.Sides`: the commands a game gives a side), `name`, `group` its own,
   every other key a field of the row tagged so (`world.Kinds().Lookup` gives the kind's row type,
   `kind.EntryOf` builds the entry; a `cell.ID` written `[x, y]` however deep it lies, a nested
   struct read as YAML reads it), a row tagging an entry's own key refused. Every error says the
-  file and the line. Kinds stay in Go; every demo lays its map in one `spawn` — the island too, both demos of it
-  (board, board-topography) a map of their own, its relief in centimetres, its kinds, colours and
-  styles each demo's own (since 2026-10-10, the user's word; `examples/island`, the island worked
-  out in code, went, its rivers `plugins/board/water` keeps for a game working them out).
+  file and the line. Kinds stay in Go; every demo lays its map in one `spawn`. Madeira's maps — both
+  demos (board, board-topography), 192 x 96 cells of 333 m, a map of their own each — are made by
+  **`cmd/gramap`** (the user's word, 2026-10-10: a tool making maps of anywhere at any scale)
+  out of a recipe (`cmd/gramap/madeira.yaml`): heights from the Terrain Tiles on AWS (terrarium
+  PNGs, cached under the user's cache; SRTM, EU-DEM, GMTED2010, ETOPO1 — the README credits them),
+  a corner on land only where all four cells round it are, the ground (rock by slope or height,
+  sand on the low coast, forest between heights, earth), rivers by `water.Drain` + `Carved`
+  written as paths, roads routed with the road's height in the search (bends and diagonals keep
+  it, straight sides climb 10° at most; bands of 20 m; what grading would move priced by `grade`,
+  a leg past `deep` m of cut or fill left out and named — the user's word, 2026-10-11: no tunnels,
+  fewer roads), each leg's planned corner heights honoured by the next (`planned`, joined at one
+  height or kept apart), a road crossing itself refused but under its own bridge, bridges
+  straight along a side over water or down a valley (`span` cells, `high` m), both ends at one
+  deck — over a road running square across too, `underpass` 5 m over it — fords where a river
+  is shallow, with `-flat` a bridge one cell of water; the grading (`grade`) joins the corners each
+  cell's road holds level into classes (union-find) and only lets ramps apart; the map is laid on a
+  board (`check`) before it is written and the old file's `units:` kept.
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
   were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
@@ -1277,7 +1310,7 @@ trapdoor and pressure plate demos the same).
   Both families every unit carries, all off (roster defaults; attached where missing), so a kind
   names no tag and serves several players; told at spawn, a unit is nobody's and unselectable
   through its first step. A side of its own (the wild, a rival) is `players.Add` owning
-  its units; the island's blue walkers are such a rival's.
+  its units; board-topography's blue walkers are such a rival's.
 - **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
   `players.NewPlugin(world, s.cameras, s.selection, s.nav, s.driving, ...)` has the world carry each one's `Queues()`
   (the `control.Queue[C]` it drains in its own pass; the world's `control.Carrier` is a stage's

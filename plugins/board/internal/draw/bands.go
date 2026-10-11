@@ -21,14 +21,13 @@ type Ways interface {
 	Toward(c cell.ID, i int) (cell.ID, bool)
 	CellCenter(c cell.ID) geom.Vec
 	Way(c cell.ID) cell.Way
-	Crossing(c cell.ID) cell.Crossing
 	// States are the markers of the effects on a cell, Shape the grid's: what the covers read.
 	States(c cell.ID) tag.Tags[effect.States]
 	Shape() (grid.Shape, bool)
 }
 
 // Bands is the simple map's Dressing: it lays what lies on the cells under an effect (Cover), then
-// the ways and the crossings over the tiles as bands cut out of their kinds' sprites, from the
+// the ways over the tiles as bands cut out of their kinds' sprites, from the
 // cell's middle out to the edge towards each neighbour the way runs on to, as wide as the way,
 // faded as far as it has faded. The tiles are drawn as they are; a sky over the board
 // (plugins/atmosphere) lights them.
@@ -59,9 +58,6 @@ func (d *Bands) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, 
 	d.covered(f, cam, t, depth)
 	if w := d.board.Way(t.ID); w.Runs() {
 		d.bands(f, cam, t, w, depth)
-	}
-	if x := d.board.Crossing(t.ID); x.Runs() {
-		d.bands(f, cam, t, x.Way, depth+1e-3)
 	}
 }
 

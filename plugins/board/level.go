@@ -74,10 +74,10 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 			return nil, err
 		}
 	}
-	if err := l.ways(&file.Ways, &layout); err != nil {
+	if level.heights, err = l.relief(&file.Relief); err != nil {
 		return nil, err
 	}
-	if level.heights, err = l.relief(&file.Relief); err != nil {
+	if err := l.ways(&file.Ways, &layout, level.heights); err != nil {
 		return nil, err
 	}
 	var standing []yaml.Node
@@ -169,9 +169,8 @@ type levelRelief struct {
 }
 
 type levelWays struct {
-	Roads     map[string]yaml.Node `yaml:"roads"`
-	Rivers    []yaml.Node          `yaml:"rivers"`
-	Crossings map[string]string    `yaml:"crossings"`
+	Roads  map[string]yaml.Node `yaml:"roads"`
+	Rivers []yaml.Node          `yaml:"rivers"`
 }
 
 func (w *levelWays) given() bool { return len(w.Roads) > 0 || len(w.Rivers) > 0 }
@@ -325,9 +324,10 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 	return out, nil
 }
 
-func (l *leveler) ways(w *levelWays, layout *Layout) error {
+func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float64) error {
 	brd := l.p.Board()
 	roads, rivers := network.New(brd), network.New(brd)
+	laidBy := map[cell.ID]*yaml.Node{} // the path laying each cell of a road
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
 		n := w.Roads[name]
 		width, paths, err := l.road(&n, name)
@@ -336,12 +336,13 @@ func (l *leveler) ways(w *levelWays, layout *Layout) error {
 		}
 		node := network.Node{Kind: name, Width: width}
 		for _, path := range paths {
-			for i, c := range path {
-				if _, ok := roads.Node(c); !ok {
+			for i, c := range path.cells {
+				if _, ok := roads.Node(c); !ok && !path.onto(i) {
 					roads.Set(c, node)
+					laidBy[c] = path.node
 				}
 				if i > 0 {
-					roads.Link(path[i-1], c)
+					roads.Link(path.cells[i-1], c)
 				}
 			}
 		}
@@ -364,34 +365,74 @@ func (l *leveler) ways(w *levelWays, layout *Layout) error {
 			rivers.Flow(cells[k-1], cells[k])
 		}
 	}
-	for _, road := range slices.Sorted(maps.Keys(w.Crossings)) {
-		over := w.Crossings[road]
-		if _, ok := w.Roads[road]; !ok {
-			return fmt.Errorf("board: %s: crossings: no road is laid of %q", l.path, road)
-		}
-		if _, ok := l.p.kinds.Get(over); !ok {
-			return fmt.Errorf("board: %s: crossings: %q is no kind of cell", l.path, over)
-		}
-	}
 	for _, way := range roads.Ways() {
-		if _, both := rivers.Node(way.Cell); !both {
-			layout.Ways = append(layout.Ways, way)
-			continue
-		}
-		over, ok := w.Crossings[way.Kind]
-		if !ok {
+		if _, both := rivers.Node(way.Cell); both {
 			x, y, _ := brd.Coords(way.Cell)
-			return fmt.Errorf("board: %s: the %s meets a river at [%d, %d], and crossings say "+
-				"nothing of it", l.path, way.Kind, x, y)
+			return l.errorf(laidBy[way.Cell], "the %s runs over a river at [%d, %d]: lead it onto "+
+				"the bridge or the ford there, {onto: [%d, %d]}", way.Kind, x, y, x, y)
 		}
-		way.Kind = over
-		layout.Crossings = append(layout.Crossings, way)
+		layout.Ways = append(layout.Ways, way)
+	}
+	if heights != nil {
+		if err := l.graded(roads, laidBy, heights); err != nil {
+			return err
+		}
 	}
 	layout.Ways = append(layout.Ways, rivers.Ways()...)
 	return nil
 }
 
-func (l *leveler) road(n *yaml.Node, name string) (width float64, paths [][]cell.ID, err error) {
+// graded refuses a cell of a graded road — a road, not a river — lying where Transport Tycoon
+// would not lay it (ground.RoadFits), or joining two level cells at different levels.
+func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
+	heights func(geom.Vec) float64) error {
+	brd := l.p.Board()
+	run := l.shape.Cell
+	for _, c := range roads.Cells() {
+		node, _ := roads.Node(c)
+		if kind, _ := l.p.kinds.Get(node.Kind); !kind.Graded {
+			continue
+		}
+		x, y, _ := brd.Coords(c)
+		links := roads.Links(c)
+		if l.shape.Hex {
+			for i := range 8 {
+				nb, ok := brd.Toward(c, i)
+				if !ok || links&(1<<i) == 0 {
+					continue
+				}
+				if !ground.RoadJoins(heights(brd.CellCenter(c)), heights(brd.CellCenter(nb))) {
+					return l.errorf(laidBy[c], "the %s at [%d, %d] joins cells at different levels",
+						node.Kind, x, y)
+				}
+			}
+			continue
+		}
+		var corners [4]float64
+		for k, d := range [4][2]float64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+			p := geom.NewVec((float64(x)+d[0])*run, (float64(y)+d[1])*run)
+			corners[k] = heights(p)
+		}
+		if !ground.RoadFits(corners, links, run) {
+			return l.errorf(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, an "+
+				"even ramp it runs straight up, or a level diagonal it runs along", node.Kind, x, y)
+		}
+	}
+	return nil
+}
+
+// roadPath is a road's path: its cells, the node writing it, and whether it leads onto its first
+// or its last cell — a bridge, a ford — without running over it.
+type roadPath struct {
+	cells []cell.ID
+	node  *yaml.Node
+	first bool
+	last  bool
+}
+
+func (r roadPath) onto(i int) bool { return i == 0 && r.first || i == len(r.cells)-1 && r.last }
+
+func (l *leveler) road(n *yaml.Node, name string) (width float64, paths []roadPath, err error) {
 	if err := l.cellKind(n, name); err != nil {
 		return 0, nil, err
 	}
@@ -410,11 +451,30 @@ func (l *leveler) road(n *yaml.Node, name string) (width float64, paths [][]cell
 		return 0, nil, l.errorf(pn, "paths: want a list of paths")
 	}
 	for _, path := range pn.Content {
-		cells, _, err := l.points(path, func(pt *yaml.Node) (*yaml.Node, error) { return pt, nil })
-		if err != nil {
+		r := roadPath{node: path}
+		k := 0
+		point := func(pt *yaml.Node) (*yaml.Node, error) {
+			defer func() { k++ }()
+			if pt.Kind != yaml.MappingNode {
+				return pt, nil
+			}
+			if k != 0 && k != len(path.Content)-1 {
+				return nil, l.errorf(pt, "a road leads onto a bridge or a ford at its ends alone")
+			}
+			keys, err := l.keys(pt, "onto")
+			if err != nil {
+				return nil, err
+			}
+			if keys["onto"] == nil {
+				return nil, l.errorf(pt, "want {onto: [x, y]}")
+			}
+			r.first, r.last = r.first || k == 0, r.last || k != 0
+			return keys["onto"], nil
+		}
+		if r.cells, _, err = l.points(path, point); err != nil {
 			return 0, nil, err
 		}
-		paths = append(paths, cells)
+		paths = append(paths, r)
 	}
 	return width, paths, nil
 }

@@ -295,8 +295,8 @@ every game.
 | [`navigation-hex-demo`](examples/navigation-hex-demo) | The same on a hex board: hex cells and route arrows at 60°, a wall of solid hex cells | `make demo-navigation-hex` |
 | [`navigation-vision-demo`](examples/navigation-vision-demo) | Navigated units with sight cones that stop at walls and fade in forests, and a hawk that flies over both and sees through the forest | `make demo-navigation-vision` |
 | [`navigation-vision-hex-demo`](examples/navigation-vision-hex-demo) | The same sight cones and hawk on a hex board | `make demo-navigation-vision-hex` |
-| [`board`](examples/board) | The island on the simple map: a flat world whose board is drawn in the island's colours, the streams, rivers, roads and bridges as bands; units walk from stop to stop over the roads with sight cones, a day goes by over the flat map — tiles and units tinted by the hour, clouds' shadows over the screen, rain and snow, snow lying and shores freezing in winter | `make demo-board` |
-| [`board-topography`](examples/board-topography) | The same island in relief through the topography: a range of peaks and a plateau lit by the sun, sea cliffs, streams and rivers whose water runs and falls, roads over bridges, slower up the slopes and routed round them, the ground shaped under the cursor; seen isometrically, from above or in perspective, Tab goes round; units billboards, the hawk 40 up looking over what a walker's cone climbs and stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
+| [`board`](examples/board) | Madeira on the simple map, out of `cmd/gramap`: a flat world of 192 x 96 cells drawn in the island's colours, the brooks, streams, rivers and roads as bands, a bridge a cell long and the fords standing on the board; units walk from town to town over the roads with sight cones, a day goes by over the flat map — tiles and units tinted by the hour, clouds' shadows over the screen, rain and snow, snow lying and shores freezing in winter | `make demo-board` |
+| [`board-topography`](examples/board-topography) | Madeira in relief, out of `cmd/gramap` and its true heights, a cell 333 m: peaks of 1800 m and the plateau of Paul da Serra lit by the sun, cliffs and ravines, rivers whose water runs and falls, roads laid as Transport Tycoon lays them, bridges lying over the rivers and down the valleys, slower up the slopes and routed round them, the ground shaped under the cursor (never under a road); seen isometrically, from above or in perspective, Tab goes round; units are figures 50 times bigger than life (`world.Scale.Figures`), the hawk 300 m up looking over what a walker's cone stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
 | [`board-atlas`](examples/board-atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
 | [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
 | [`dialog-demo`](examples/dialog-demo) | Conversations read from YAML: the traveller walked up to the miller or the smith is greeted in a window above the host, each with lines of its own; the answers lead on and change the game's own model — the host's `Regard` of the traveller — so pointed at with the traveller selected, a host says Friend, Neutral or Enemy under it (`ui.Of`), and greets the traveller again accordingly | `make demo-dialog` |
@@ -511,6 +511,31 @@ mid-game the command `world.Spawn{Entry}` adds an entity of a kind the same way,
 tell save files every component type their entities carry, so a game's own tags and state
 survive a save without being registered anywhere else.
 
+## Maps of the Earth
+
+`cmd/gramap` makes such a map of any stretch of the Earth at any scale — an island, a country, a
+continent — out of a recipe (`cmd/gramap/madeira.yaml` is Madeira's):
+
+```bash
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board-topography/map.yaml
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/map.yaml -flat
+```
+
+The recipe says where (the middle of the area, longitude and latitude), how many cells and how
+many metres a cell spans, what the ground is by its slope and height (rock, sand on the low coast,
+forest between two heights), how much drained land makes a brook, a stream and a river, and the
+roads, chains of named places. The heights come from the
+[Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/) (Mapzen's Tilezen terrarium,
+no key needed), fetched once into the user's cache. The map is a square grid's: the corners'
+heights in metres, the cells' kinds, the rivers carved into the ground as paths from their
+sources, the roads routed place to place where Transport Tycoon would lay them — level, or an
+even ramp of 10° at most run straight up, or a level diagonal; bends, forks and ends level — the
+ground graded under them, a bridge over the water or down a valley, its two ends at its deck, a
+ford where a river is shallow; a bridge may run over a road crossing it square. With `-flat` the
+map has no heights and a bridge is the one cell of water it crosses. A leg that would cut or fill
+the ground deeper than the recipe lets it is left out and named. The `units:` of the file made
+before stay as they were, and the map is laid on a board before it is written.
+
 <a id="architecture"></a>
 # Architecture
 
@@ -541,11 +566,11 @@ What is left to do is in [`doc/roadmap.md`](doc/roadmap.md).
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space; `Collider`, `Physics`, `Meeting`, `Struck`; `Field`, the solid ground it asks of a board; the answer's arithmetic in `plugins/collision/internal/response` |
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones (knobs) into `Sighted`; `Sighting` rules; `SightOutline` drawn |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain kinds and occupancy over the world: the `Board` (the terrain, read and written), its `Layout` and `Map`, `NewUnits`, `NewEntities` (what stands on it), a level laid out of a file (`Lay`); rules of `unit.Standing` and of `cell.Now`; its machinery in `plugins/board/internal`, nothing else imports it |
-| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, `Crossing`, what stands on it (`On`, `Floor`, `Wall`, `Built`), the moment `Now`; `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
+| [`plugins/board/cell`](plugins/board/cell/doc.go) | A cell as a place: `ID`, `Kind` and the `Kinds` a board holds, `Domain` (`Land`, `Water`, `Air`), `Ground`, `Way`, what stands on it (`On`, `Floor`, `Wall`, `Built`), the moment `Now`; `TerrainMap`, the Layout's `Entry` (the roles a cell plays, its name and its group), `Occupancy` (the board lets go of the gone every step) |
 | [`plugins/board/unit`](plugins/board/unit/doc.go) | An entity on the board: the cell it is `At`, how it moves (`Mover`), where it stands at a step (`Standing`, `Fallen`) |
 | [`plugins/board/grid`](plugins/board/grid/doc.go) | The topology: `Grid` (neighbours, `Toward`, cells under a box), `DefaultGrids` (square, hex), `Link`, `Shape` |
 | [`plugins/board/look`](plugins/board/look/doc.go) | How a board is drawn: `Look`, `Dressing`, `Tile`, `FlatLook`, `Nothing`; the `Renderer` — composed every frame, in parallel, or once for a flat map, the grid over it |
-| [`plugins/board/ground`](plugins/board/ground/doc.go) | What the board's ground is to the others: `Heights`, `Cover`, `Readied` |
+| [`plugins/board/ground`](plugins/board/ground/doc.go) | What the board's ground is to the others: `Heights`, `Cover`, `Readied`; where a road may lie, as Transport Tycoon lays it (`RoadFits`, `RoadJoins`, `RoadSlope`) |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: the calendar (`atmosphere/calendar` — days, seasons, the moon, the periods of the clock's rules), the light of the day (`atmosphere/sky` — the sun and the moon of the hour, the sky's colours, a frozen light: P, Shift+] and Shift+[), the celestial sphere (`atmosphere/celestial` — the sun's path, the moon's orbit and phase, the real stars turning round the pole), the climate (`atmosphere/climate` — zones from the equator to the pole, the weather going from one kind to the next: wind, clouds whose shadows drift over the ground, rain, snow; Shift+W changes it), what falls (`atmosphere/precipitation`), what the weather does to the board (`atmosphere/weathering` — snow lying, ice, what sways), the sky behind the world (`atmosphere/backdrop`) and the clouds' shadows over a flat world (`atmosphere/overcast`) |
 | [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the slopes' cost, the light and the shadows, the water and the ways on them, the sea to the horizon; the views — from above, isometric and in perspective, Tab goes round, V takes a camera that follows a unit behind it and inside it, first person — with the cameras turned and tilted. The commands (`View`, `Turn`, `Ride`, `Raise`…) and `Relief` are its own; `relief` and `painter` are the vocabulary a game and the plugins share (`Climbing`, `Style`); the parts — relief, painter, water, terrain, hexes, billboards, cameras — are in `plugins/topography/internal` |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing when terrain changes; right-click commands, and a unit's own (`MoveTo`, `Arrived`); route drawing; the crowd — rules over the moment `Touch` and the commands `StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; its own crowd rules, as in StarCraft II: an ally standing makes way and stays aside, a group gathers round its point, strangers are gone round, nobody is stepped into water, off a cliff or into a wall |
@@ -610,6 +635,9 @@ line of sight are `aabbworld`'s; gram is where they meet an ECS and a screen.
   Warren 1991), from the CDS, catalogue V/50 (`plugins/atmosphere/celestial/stars_gen.go`).
 - The moon's face: NASA's Scientific Visualization Studio, CGI Moon Kit (Lunar Reconnaissance
   Orbiter LROC data) (`plugins/atmosphere/celestial/moon.png`).
+- The heights of Madeira's maps and of every map `cmd/gramap` makes: the Terrain Tiles on AWS,
+  Mapzen's Tilezen terrarium — SRTM, EU-DEM (Copernicus), GMTED2010, ETOPO1 and others; see their
+  [attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
 
 # License
 

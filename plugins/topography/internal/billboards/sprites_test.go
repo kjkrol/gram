@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -40,10 +41,19 @@ func (*magenta) White() (u, v float32)                           { return 4, 4 }
 // green.
 func purple(px []byte) bool { return px[0] > 60 && px[2] > 60 && px[1] < px[0]/4 }
 
-// Drawn on the GPU in the isometric view, a billboard standing behind a hill is hidden by it, one
-// standing on the hill's slope shows, and its shadow darkens the ground beside it.
-func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
-	needGPU(t)
+// aHill is a world of level ground with a hill 90 high in its middle, seen isometrically: a point
+// on the hill's slope and one on the level ground behind it under one point of the screen, and a
+// drawing of the ground with what lay tells the look into the screen's pixels.
+type aHill struct {
+	relief        topography.Relief
+	look          world.DirectLook
+	cam           camera.Camera
+	slope, behind geom.Vec
+	draw          func(lay func(f *render.Frame)) []byte
+}
+
+func newHill(t *testing.T) aHill {
+	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
@@ -82,16 +92,14 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	if len(seen) == 0 {
 		t.Fatal("no point of the screen sees the hill with level ground behind it")
 	}
-	slope, behind := seen[len(seen)/2][0], seen[len(seen)/2][1]
 	screen := render.NewImage(int(vw), int(vh))
 	depth := render.NewDepth()
 	pix := make([]byte, 4*int(vw)*int(vh))
-	atlas := &magenta{}
 	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
 	look := w.Look().(world.DirectLook)
-	// draw lays the ground and, where at is not nil, a sprite 6 wide standing there, and reads the
-	// screen: how many pixels are the sprite's, purple
-	draw := func(at *geom.Vec) (seen int) {
+	h := aHill{relief: p.Relief(), look: look, cam: cam}
+	h.slope, h.behind = seen[len(seen)/2][0], seen[len(seen)/2][1]
+	h.draw = func(lay func(f *render.Frame)) []byte {
 		screen.Clear()
 		screen.ClearDepth(depth)
 		target := render.Target{Screen: screen, Depth: depth}
@@ -99,27 +107,46 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.Begin(cam)
-		if at != nil {
-			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Altitude: p.Relief().At(*at), Height: 6}, atlas, render.Appearance{}, render.Light{1, 1, 1})
+		if lay != nil {
+			lay(&f)
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)
-		for i := 0; i < len(pix); i += 4 {
-			if purple(pix[i:]) {
-				seen++
-			}
-		}
-		return seen
+		return pix
 	}
-	if n := draw(&behind); n != 0 {
+	return h
+}
+
+// purples counts the pixels of the magenta sprite.
+func purples(pix []byte) (n int) {
+	for i := 0; i < len(pix); i += 4 {
+		if purple(pix[i:]) {
+			n++
+		}
+	}
+	return n
+}
+
+// Drawn on the GPU in the isometric view, a billboard standing behind a hill is hidden by it, one
+// standing on the hill's slope shows, and its shadow darkens the ground beside it.
+func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
+	needGPU(t)
+	h := newHill(t)
+	atlas := &magenta{}
+	// stand lays a sprite 6 wide standing at
+	stand := func(at geom.Vec) func(f *render.Frame) {
+		return func(f *render.Frame) {
+			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
+			z := world.Z{Altitude: h.relief.At(at), Height: 6}
+			h.look.Sprite(f, h.cam, box, z, atlas, render.Appearance{}, render.Light{1, 1, 1})
+		}
+	}
+	if n := purples(h.draw(stand(h.behind))); n != 0 {
 		t.Errorf("a sprite behind the hill shows %d pixels, want it hidden", n)
 	}
-	bare := append([]byte(nil), pix[:0]...)
-	draw(nil)
-	bare = append(bare, pix...)
-	n := draw(&slope)
-	if n == 0 {
+	bare := append([]byte(nil), h.draw(nil)...)
+	pix := h.draw(stand(h.slope))
+	if purples(pix) == 0 {
 		t.Fatal("a sprite on the hill's slope does not show")
 	}
 	darker := 0
@@ -130,6 +157,43 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	}
 	if darker == 0 {
 		t.Error("the sprite on the slope casts no shadow on the ground")
+	}
+}
+
+// A sprite lying flat shows on the level ground before the hill and is hidden behind it; lying
+// where the ground stands higher than its Altitude, it lies on the ground.
+func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
+	needGPU(t)
+	h := newHill(t)
+	atlas := &magenta{}
+	lie := func(at geom.Vec, alt float64) func(f *render.Frame) {
+		return func(f *render.Frame) {
+			box := plane.NewAABB(geom.NewVec(at.X-8, at.Y-8), 16, 16)
+			lies := h.look.(world.LyingLook)
+			lies.Lie(f, h.cam, box, world.Z{Altitude: alt}, atlas, render.Appearance{},
+				render.Light{1, 1, 1})
+		}
+	}
+	if n := purples(h.draw(lie(h.behind, 0))); n != 0 {
+		t.Errorf("a deck lying behind the hill shows %d pixels, want it hidden", n)
+	}
+	before := geom.NewVec(h.behind.X, 256-h.behind.Y)
+	if n := purples(h.draw(lie(before, 0))); n == 0 {
+		t.Error("a deck lying on the level ground before the hill does not show")
+	}
+	if n := purples(h.draw(lie(h.slope, 0))); n == 0 {
+		t.Error("a deck lying under the slope does not show on it")
+	}
+	corners := billboards.Lain(h.look)
+	if len(corners) != 4 {
+		t.Fatalf("took %d corners lying, want the deck's 4", len(corners))
+	}
+	for _, k := range corners {
+		g := h.relief.At(geom.NewVec(float64(k[0]), float64(k[1])))
+		if float64(k[2]) < g-0.01 || k[2] <= 0 {
+			t.Errorf("a corner of the deck under the slope lies at %v over ground at %.1f, "+
+				"want on it", k, g)
+		}
 	}
 }
 

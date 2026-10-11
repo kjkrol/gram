@@ -150,6 +150,11 @@ func gather(sites []site) []site {
 			o := &out[n-1].built
 			o.Floor.Allows |= s.built.Floor.Allows
 			o.Floor.Height = max(o.Floor.Height, s.built.Floor.Height)
+			o.Floor.Graded = o.Floor.Graded || s.built.Floor.Graded
+			o.Floor.Along |= s.built.Floor.Along
+			if c := s.built.Floor.Cost; c > 0 && (o.Floor.Cost == 0 || c < o.Floor.Cost) {
+				o.Floor.Cost = c
+			}
 			if s.built.Wall.Keeps != 0 {
 				o.Wall.Height = tallest(o.Wall, s.built.Wall)
 				o.Wall.Keeps |= s.built.Wall.Keeps

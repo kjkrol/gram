@@ -61,7 +61,10 @@
 // (1 − [Refraction])·d²/(2·[EarthRadius]), under an eye's level, so level ground past
 // [Scale.Horizon] is out of sight. A game gives heights, sizes and reaches in metres through
 // [Scale.Units]; sight (plugins/vision) and the topography's perspective read the rest, and the
-// atmosphere works out of it how far the air lets one see (plugins/atmosphere/air).
+// atmosphere works out of it how far the air lets one see (plugins/atmosphere/air). Figures is
+// how many times bigger than life a game draws its figures — a man on a map of a whole island is
+// a speck, a token is not — and [Scale.Figure] their sizes, boxes, heights and eyes; how fast they
+// go and how far they see stay real, through Units.
 //
 // # Kinds, Seed and Populate
 //
@@ -189,8 +192,11 @@
 // (render.Look; the renderer fills the material's inputs with the entity's state: its box and
 // heading in Custom, how fast it moves in Red) — its look Under an effect (either way again),
 // Turning for a sprite turned the way its entity is headed (Appearance.Angle from Vel.Dir, 0 east
-// against the clock, render.Arrow's convention), Facing for its directional twins. [Plugin.WithRenderer] builds the entity renderer over the atlas and applies what it
-// declared itself — the effects' swaps, the facing, the turning, every frame — leaving the
+// against the clock, render.Arrow's convention), Facing for its directional twins, Lying for a
+// sprite laid flat under what stands (a bridge's deck, a ford: a [LyingLook] lays it at the
+// entity's Altitude where a view in relief stands the rest up). [Plugin.WithRenderer] builds the
+// entity renderer over the atlas and applies what it declared itself — the effects' swaps, the
+// facing, the turning, every frame — leaving the
 // Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]
 // with its box and its [Z] — where it stands and how tall — from above its box, unless a view

@@ -41,24 +41,26 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 96
-	GridHeight   = 64
+	GridWidth    = 192
+	GridHeight   = 96
 	CellSize     = 32
 	WorldWidth   = GridWidth * CellSize
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	EntitySize   = 3
 	spritePx     = 22
-	UnitSpeed    = CellSize * 3 / 4
 	Sprint       = 4
-	MaxEntCount  = 44
+	MaxEntCount  = 160
 )
 
 //go:embed map.yaml
 var mapFile embed.FS
 
-var scale = world.Scale{Metres: 100.0 / CellSize}
+// A cell is 333 m of Madeira; the figures on it are drawn 50 times bigger than life.
+var scale = world.Scale{Metres: 333.0 / CellSize, Figures: 50}
+
+// unitSpeed is a demo's pace, three quarters of a cell a second: a man walks 1.4 m/s.
+var unitSpeed = scale.Units(250)
 
 type arena struct {
 	world      *world.Plugin
@@ -79,7 +81,7 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title:       "gram board topography",
-		Description: "The island in relief.",
+		Description: "Madeira in relief.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -90,8 +92,8 @@ func main() {
 			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  2,
+				MaxSize:  CellSize,
 			},
 			Heights: true,
 		}).
@@ -206,9 +208,7 @@ func (s *arena) defineCells() {
 	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
 	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
 	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
-	kinds.Define(FordCell, cell.Kind{Cost: 6.25, Allows: cell.Land | wet}.Costing(wet, 1))
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
-	kinds.Define(BridgeCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
 	kinds.Define(ForestCell, cell.Kind{
 		Cost:   7.5,
 		Allows: ground,
@@ -223,24 +223,45 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
+type crossingRow struct {
+	At     cell.ID `yaml:"at"`
+	Height float64 `yaml:"height"` // metres over the cell's level
+	Way    [2]int  `yaml:"way"`
+}
+
+// along is the way a crossing runs, both ends.
+func (r crossingRow) along() cell.Links {
+	var out cell.Links
+	for i, step := range [4][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}} {
+		if step == r.Way || step == [2]int{-r.Way[0], -r.Way[1]} {
+			out |= 1 << i
+		}
+	}
+	return out
+}
+
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
-		board.Shape{Size: EntitySize, Height: scale.Units(20)},
+		board.Shape{Size: scale.Figure(0.6), Height: scale.Figure(1.8)},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	order := comp.Load(
 		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
-	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 960, Ahead: true})
+	sight := comp.Const(vision.Sight{
+		Facing: geom.NewVec(1, 0),
+		Radius: scale.Units(10000),
+		Ahead:  true,
+	})
 	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
 	walker := steering.Steering{
-		MaxSpeed: UnitSpeed,
+		MaxSpeed: unitSpeed,
 		Sprint:   Sprint,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
+		Accel:    unitSpeed * 2,
+		Brake:    unitSpeed * 4,
+		V0:       unitSpeed / 2,
 		TurnRate: 0.15,
 	}
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
@@ -263,15 +284,31 @@ func (s *arena) defineKinds() {
 			Ceiling:   scale.Units(air.CloudBase - 100),
 		},
 		steering.Steering{
-			MaxSpeed: UnitSpeed * 1.5,
+			MaxSpeed: unitSpeed * 1.5,
 			Sprint:   Sprint,
-			Accel:    UnitSpeed * 2,
-			Brake:    UnitSpeed * 4,
-			V0:       UnitSpeed / 2,
+			Accel:    unitSpeed * 2,
+			Brake:    unitSpeed * 4,
+			V0:       unitSpeed / 2,
 			TurnRate: 0.1},
 		order,
 		sight, eye,
 	)
+	crossings := board.NewEntities(s.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
+		func(r crossingRow) cell.ID { return r.At })
+	way := comp.Load(func(r crossingRow) world.Velocity {
+		return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
+	})
+	crossings.Define(BridgeKind, way, comp.Load(func(r crossingRow) cell.Floor {
+		return cell.Floor{
+			Allows: cell.Land,
+			Height: scale.Units(r.Height),
+			Cost:   1,
+			Graded: true,
+			Along:  r.along(),
+		}
+	}))
+	crossings.Define(FordKind, way,
+		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
 func (s *arena) bindKeys() error {
@@ -293,6 +330,9 @@ func (s *arena) spawn() error {
 		return err
 	}
 	s.topography.Seed(level.Heights())
+	if err := board.Spawn[crossingRow](level, nil); err != nil {
+		return err
+	}
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide:  {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
 		RivalSide:   {players.Give{To: s.rival.ID}, selection.Allow{}},

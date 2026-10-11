@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind/comp"
@@ -172,4 +174,61 @@ func TestBuilt_AFlatWorldRefusesAHeight(t *testing.T) {
 		}
 	}()
 	newStrip(t, grass, effect.Spec{}, comp.Const(cell.Wall{Keeps: cell.Land, Height: 3}))
+}
+
+// A Floor's domains pay its Cost on it and are spared the slope where it is Graded: a ford waded
+// slowly over a river, a bridge as quick as a road.
+func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
+	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
+	ford := newStrip(t, river, effect.Spec{},
+		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
+	k := ford.Board.Board().Kind(ford.middle)
+	if !k.Admits(cell.Land) || k.CostFor(cell.Land) != 6.25 || k.CostFor(cell.Water) != 1 {
+		t.Errorf("a ford: Land at %v, Water at %v, want 6.25 and the river's 1",
+			k.CostFor(cell.Land), k.CostFor(cell.Water))
+	}
+	if k.Graded {
+		t.Error("a ford is no graded way")
+	}
+	bridge := newStrip(t, river, effect.Spec{},
+		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
+	if k := bridge.Board.Board().Kind(bridge.middle); !k.Graded || k.CostFor(cell.Land) != 1 {
+		t.Errorf("a bridge: graded %v at %v, want graded at 1", k.Graded, k.CostFor(cell.Land))
+	}
+}
+
+// A thing standing on the board heads the way the Velocity it is given says, in place of the still
+// one: the way a bridge runs.
+func TestEntities_AVelocityGivenTakesTheStillOnesPlace(t *testing.T) {
+	south := geom.NewVec(0, 1)
+	s := newStrip(t, grass, effect.Spec{}, comp.Const(world.Velocity{Dir: south}))
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	s.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+	}})
+	var dirs []geom.Vec
+	for q.All(); q.Next(); {
+		for _, b := range base.Slice(q.Cursor()) {
+			dirs = append(dirs, b.Vel.Dir)
+		}
+	}
+	if len(dirs) != 1 || dirs[0] != south {
+		t.Errorf("the thing heads %v, want %v", dirs, south)
+	}
+}
+
+// A bridge runs across its cell as a way does: a step cutting the corner beside it crosses the
+// water under it (Bare); a trapdoor is the ground, cut across as any.
+func TestBare_LeavesABridgeOutAndATrapdoorIn(t *testing.T) {
+	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
+	bridge := newStrip(t, river, effect.Spec{},
+		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
+	if bridge.Board.Board().Bare(bridge.middle).Admits(cell.Land) {
+		t.Error("the ground beside a bridge takes a walker")
+	}
+	trapdoor := newStrip(t, pit, effect.Spec{}, comp.Const(cell.Floor{Allows: cell.Land}))
+	if !trapdoor.Board.Board().Bare(trapdoor.middle).Admits(cell.Land) {
+		t.Error("a shut trapdoor is no ground to cut across")
+	}
 }

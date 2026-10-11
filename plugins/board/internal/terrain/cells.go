@@ -64,17 +64,17 @@ func (t *Cells) Entity(c cell.ID) (uid.UID64, bool) {
 	return t.store.ids[i], true
 }
 
-// Kind is c's kind as whoever crosses it meets it: the ground's under its Way, its Crossing and
-// what is built over it; off the board, the zero kind.
+// Kind is c's kind as whoever crosses it meets it: the ground's under its Way and what is built
+// over it; off the board, the zero kind.
 func (t *Cells) Kind(c cell.ID) cell.Kind {
 	if t.store == nil {
-		return t.seed.Crossings[c].Over(t.seed.Ways[c].Over(t.seed.Kind(c)))
+		return t.seed.Ways[c].Over(t.seed.Kind(c))
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Kind{}
 	}
-	k := t.store.crossingOf(i).Over(t.store.wayOf(i).Over(t.store.groundOf(i).Kind))
+	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
 	if t.built > 0 {
 		if b := t.store.builtOf(i); b != nil {
 			k = b.Over(k)
@@ -106,14 +106,18 @@ func (t *Cells) Built(c cell.ID) cell.Built {
 	return cell.Built{}
 }
 
-// Bare is c's ground kind, bare of what runs across it, with what is built over it; off the
-// board, the zero kind.
+// Bare is c's ground kind, bare of what runs across it — a way, a bridge — with what else is built
+// over it; off the board, the zero kind.
 func (t *Cells) Bare(c cell.ID) cell.Kind {
 	k := t.KindOf(c)
 	if k == nil {
 		return cell.Kind{}
 	}
-	return t.Built(c).Over(*k)
+	b := t.Built(c)
+	if b.Floor.Graded {
+		b.Floor = cell.Floor{} // a bridge runs across as a way does, the ground beside it bare
+	}
+	return b.Over(*k)
 }
 
 // KindOf is c's ground kind without the copy, nil off the board; good until the cells change.
@@ -189,39 +193,6 @@ func (t *Cells) SetWay(c cell.ID, w cell.Way) {
 	}
 	if p := t.store.wayOf(i); *p != w {
 		*p = w
-		t.touch(c)
-		t.version++
-	}
-}
-
-// Crossing is what crosses c over its Way; the zero Crossing off the board or where nothing does.
-func (t *Cells) Crossing(c cell.ID) cell.Crossing {
-	if t.store == nil {
-		return t.seed.Crossings[c]
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return cell.Crossing{}
-	}
-	return *t.store.crossingOf(i)
-}
-
-// SetCrossing lays x across c over its Way, the zero Crossing taking what crossed there away.
-func (t *Cells) SetCrossing(c cell.ID, x cell.Crossing) {
-	if t.store == nil {
-		before := t.seed.Version()
-		if t.seed.SetCrossing(c, x); t.seed.Version() != before {
-			t.touch(c)
-			t.version++
-		}
-		return
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return
-	}
-	if p := t.store.crossingOf(i); *p != x {
-		*p = x
 		t.touch(c)
 		t.version++
 	}

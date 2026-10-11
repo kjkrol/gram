@@ -164,7 +164,6 @@ type cellTop struct {
 	under  bool
 	sprite render.SpriteID
 	way    lane   // what runs across the cell
-	cross  lane   // and what crosses over that
 	ver    uint64 // one more than the cell's version when read; 0 not read yet
 	seen   uint64 // the board's count of changes when last found as it was
 }
@@ -209,7 +208,7 @@ func (l *Painter) FaceLight(t *look.Tile, dx, dy int) render.Light {
 // of the ground sheet — which would hide its outline.
 func (l *Painter) Covers(t *look.Tile) bool {
 	b := l.bakeOf(l.tileOf(t))
-	return len(b.blends) > 0 || len(b.ways) > 0 || len(b.crossings) > 0
+	return len(b.blends) > 0 || len(b.ways) > 0
 }
 
 // Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it: its water,
@@ -254,7 +253,7 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 	r := l.relief.Corners(c)
 	t.alt, t.sprite, t.ver = float32(r.Level()), kind.SpriteID, v
 	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
-	t.way, t.cross = l.laneOf(l.board.Way(c)), l.laneOf(l.board.Crossing(c).Way)
+	t.way = l.laneOf(l.board.Way(c))
 	if l.square {
 		t.ground = [4]float32(r)
 	} else {

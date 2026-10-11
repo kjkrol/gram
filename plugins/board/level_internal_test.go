@@ -44,7 +44,7 @@ func newLevelBoard(t *testing.T, g grid.Grid, heights bool, metres float64) *Plu
 	kinds.Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("wall", cell.Kind{Cost: 1, Solid: true})
-	kinds.Define("road", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("road", cell.Kind{Cost: 1, Allows: cell.Land, Graded: true})
 	kinds.Define("bridge", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("river", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("brook", cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
@@ -165,17 +165,18 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 
 // Roads and rivers run along their paths, point to point; a branch begins on another path, a
 // river widens from its head to its mouth and flows out into its last point, no part of it, and a
-// road over a river is the crossing named.
+// road leads onto the bridge over a river without running over it.
 func TestLay_WaysRunAlongTheirPaths(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, false, 0)
 	if _, err := lay(t, p, `
 ways:
   roads:
-    road: {width: 4, paths: [[[0, 2], [5, 2]], [[1, 2], [1, 5]]]}
+    road:
+      width: 4
+      paths: [[[0, 2], {onto: [3, 2]}], [{onto: [3, 2]}, [5, 2]], [[1, 2], [1, 5]]]
   rivers:
     - [{at: [3, 0], kind: river, width: 2}, {at: [3, 4], width: 6}, [3, 5]]
-  crossings: {road: bridge}
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -183,11 +184,13 @@ ways:
 		t.Fatal(err)
 	}
 	brd := p.Board()
-	if x := brd.Crossing(g.At(3, 2)); x.Kind.Name.String() != "bridge" {
-		t.Errorf("where the road meets the river: a crossing of %q, want a bridge", x.Kind.Name)
-	}
 	if w := brd.Way(g.At(3, 2)); w.Kind.Name.String() != "river" {
 		t.Errorf("under the bridge: a way of %q, want the river", w.Kind.Name)
+	}
+	toBridge, _ := grid.Link(g, g.At(2, 2), g.At(3, 2))
+	fromBridge, _ := grid.Link(g, g.At(4, 2), g.At(3, 2))
+	if brd.Way(g.At(2, 2)).Links&toBridge == 0 || brd.Way(g.At(4, 2)).Links&fromBridge == 0 {
+		t.Error("the road does not lead onto the bridge from either side")
 	}
 	south, _ := grid.Link(g, g.At(1, 2), g.At(1, 3))
 	east, _ := grid.Link(g, g.At(1, 2), g.At(2, 2))
@@ -331,10 +334,14 @@ func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 			"relief:\n  cells: |\n    0 0 0 0\n    0 0 0 0\n",
 			`a relief in a flat world`,
 		},
-		"a road over a river crossings say nothing of": {
+		"a road over a river": {
 			"ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [3, 0]]]}}\n" +
 				"  rivers: [[{at: [1, 0], kind: river, width: 2}, [1, 1]]]\n",
-			`the road meets a river at [1, 0]`,
+			`level.yaml:2: the road runs over a river at [1, 0]: lead it onto`,
+		},
+		"a road onto a bridge in its middle": {
+			"ways:\n  roads: {road: {width: 4, paths: [[[0, 0], {onto: [1, 0]}, [3, 0]]]}}\n",
+			`level.yaml:2: a road leads onto a bridge or a ford at its ends alone`,
 		},
 		"a river not beginning with its kind and width": {
 			"ways:\n  rivers:\n    - [[0, 0], {at: [3, 0], kind: river, width: 2}]\n",
@@ -397,5 +404,30 @@ func TestSpawn_AnEntityNobodySpawnsFailsPopulate(t *testing.T) {
 	want := `level.yaml:4: nobody spawns the rows of "scout": board.Spawn[recruit]`
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got %v, want %s", err, want)
+	}
+}
+
+// A road on a map in relief lies as Transport Tycoon lays it: level at its ends, an even ramp
+// between, no steeper than RoadSlope; anything else is refused with the line of its path.
+func TestLay_ARoadLiesAsTransportTycoonLaysIt(t *testing.T) {
+	road := "ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [3, 0]]]}}\n"
+	for name, c := range map[string]struct{ corners, want string }{
+		"level ends, a ramp between": {"0 0 1 1.5 1.5\n    0 0 1 1.5 1.5", ""},
+		"a ramp too steep":           {"0 0 3 3 3\n    0 0 3 3 3", "road at [1, 0] lies on ground"},
+		"tilted across the road":     {"0 0 0 0 0\n    2 2 2 2 2", "road at [0, 0] lies on ground"},
+	} {
+		p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), true, 0)
+		file := "relief:\n  corners: |\n    " + c.corners + "\n    0 0 0 0 0\n" + road
+		_, err := lay(t, p, file)
+		if c.want == "" && err != nil || c.want != "" && (err == nil ||
+			!strings.Contains(err.Error(), "level.yaml:7: the "+c.want)) {
+			t.Errorf("%s: %v, want %q", name, err, c.want)
+		}
+	}
+	hex := newLevelBoard(t, grid.DefaultGrids{}.Hex(3, 1, 10), true, 0)
+	hexRoad := "ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [2, 0]]]}}\n"
+	_, err := lay(t, hex, "relief:\n  cells: |\n    0 0 5\n"+hexRoad)
+	if err == nil || !strings.Contains(err.Error(), "joins cells at different levels") {
+		t.Errorf("a road over a step between hexes: %v, want it refused", err)
 	}
 }

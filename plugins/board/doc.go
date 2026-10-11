@@ -27,9 +27,9 @@
 // [Plugin], built over a grid.Grid, a cell.Occupancy and the world plugin, seeds its terrain from
 // a [Layout] when the Stage starts fresh: a default kind for every cell, per-cell overrides with
 // the roles a cell plays and what it is called (cell.Entry.Roles,
-// cell.Entry.Name and Group), the ways and the crossings. The grid wraps per axis following the world's
+// cell.Entry.Name and Group), and the ways. The grid wraps per axis following the world's
 // edges. Once the ECS is set up every cell is an entity for good — cell.Plot, cell.Ground,
-// cell.Way, cell.Crossing, its roles, an entity.Label where it is called something, and whatever the
+// cell.Way, cell.Built, its roles, an entity.Label where it is called something, and whatever the
 // world's roster gives every cell (Roster().Cell: a game's own component, a Load reading the
 // cell's cell.ID) — saved with the game, so an effect on it is an effect on the terrain.
 //
@@ -45,20 +45,21 @@
 //
 // # Rules
 //
-// Every step the board runs the rules of its moments, which the roles obey: of a unit.Standing for every entity on the board — the cell under it,
-// its kind and the game's tags of its place, its box and domain; Standing.Fallen where the domain
-// may not be, a unit pushed into the sea — and of a cell.Now for every cell: its entity, which
-// cell, its kind now. Both are plugin.Placed, data alone: the board tells a rule, in its Tick,
-// which cells lie round (plugin.Tick.Around), and a rule's Here acts on the cells under the entity
-// (a cell itself) and the entities standing on them, its Around on the rings of neighbours round
-// them too — a witch's frost, fire spreading over the ground, a lever beside a unit pulled; the
-// units there are no part of it. A unit's Standing tells the effects on the cell under it
-// (Standing.States, unit.Over). A cell plays the roles of its kind (cell.Kinds.Define) and its
-// Layout entry's own (cell.Entry.Plays), and obeys their rules (rule.Part.Obeys), and a command
-// finds a cell by its name or its group (entity.Named, entity.Group). In the same
-// pass the board writes every unit carrying a unit.Mover its steering.Pace — the cost and the
-// slope of the ground under it — which the world's velocity pass goes by from the next step;
-// WithLog has a line written for each unit fallen where its domain may not be.
+// Every step the board runs the rules of its moments, which the roles obey: of a unit.Standing for
+// every entity on the board — the cell under it, its kind and the game's tags of its place, its box
+// and domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
+// cell.Now for every cell: its entity, which cell, its kind now. Both are plugin.Placed, data
+// alone: the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a
+// rule's Here acts on the cells under the entity (a cell itself) and the entities standing on them,
+// its Around on the rings of neighbours round them too — a witch's frost, fire spreading over the
+// ground, a lever beside a unit pulled; the units there are no part of it. A unit's Standing tells
+// the effects on the cell under it (Standing.States, unit.Over). A cell plays the roles of its kind
+// (cell.Kinds.Define) and its Layout entry's own (cell.Entry.Plays), and obeys their rules
+// (rule.Part.Obeys), and a command finds a cell by its name or its group (entity.Named,
+// entity.Group). In the same pass the board writes every unit carrying a unit.Mover its
+// steering.Pace — the cost and the slope of the ground under it — which the world's velocity pass
+// goes by from the next step; WithLog has a line written for each unit fallen where its domain may
+// not be.
 //
 // # Entities standing on the board
 //
@@ -71,7 +72,12 @@
 // [Board.Bare] are the cells with them: a trapdoor shut carries a walker over the pit, opened it
 // lets it fall (unit.Standing.Fallen); a gate shut is planned round and pushed out of, in a world
 // with heights up to its Height. A Floor's Height is a deck over the cell's level the topography
-// stands whoever it carries on; a flat world refuses a Height. [Board.Built] reads what is built.
+// stands whoever it carries on — a bridge's, come onto along its axis (cell.Floor.Along), a road
+// under it running across; a flat world refuses a Height. A ford is a Floor at the ground's level
+// at a Cost of its own; a bridge's Floor is Graded, and [Board.Bare] leaves it out as it leaves a
+// way: a step cutting the corner beside a bridge crosses the water under it. [Board.Built] reads
+// what is built. NewEntities gives each a still world.Velocity, or the one a kind gives: its Dir
+// the way a bridge runs, which its look Faces.
 //
 // # Level
 //
@@ -97,7 +103,6 @@
 //	  roads: {road: {width: 12, paths: [[[0, 0], [5, 0]], [[3, 0], [3, 1]]]}}
 //	  rivers:                          # each a path down to where its water goes, no part of it
 //	    - [{at: [1, 0], kind: brook, width: 3}, [1, 1]]  # a point may turn its kind and width
-//	  crossings: {road: bridge}        # what a road is over a river
 //	units:
 //	  - {kind: scout, side: player, name: ann, start: [0, 1]}
 //
@@ -121,6 +126,14 @@
 // the file and the line: a level the board cannot lay seeds nothing, and an entity no Spawn took
 // fails the board's Populate.
 //
+// A road never runs over a river: it leads onto the bridge or the ford standing there, a point
+// {onto: [x, y]} at either end of its path, linked towards that cell without lying on it. With a
+// relief, every cell of a Graded road lies as Transport Tycoon lays it (ground.RoadFits): level,
+// an even ramp of ground.RoadSlope at most it runs straight up, or a level diagonal it runs along
+// with a third corner beside it — a bend, a fork, an end level; on a hex grid only between cells
+// of one level (ground.RoadJoins). A level breaking it is refused with the path's line.
+// cmd/gramap makes such levels of the Earth.
+//
 // # Commands
 //
 // [Grid] shows the board's grid, or hides it — a look, not saved — on B by default: hand the
@@ -129,18 +142,18 @@
 // # Ways
 //
 // A cell.Way is what runs across a cell over its ground — a brook, a river, a road: a band Width
-// wide from the cell's middle out towards each neighbour its cell.Links name, a bit for each of
-// the grid's directions (grid.Link finds the bit for a neighbour, Grid.Toward the neighbour for a
-// bit); a cell.Crossing — a bridge — runs over it. Every cell entity carries both, the zero ones
-// where nothing runs, so an effect may alter them — a stream freezing over. The way decides who
-// may cross the cell and what it costs there, the crossing lets whoever it admits over too, the
-// ground keeps the rest: whether it is solid, what it veils ([Board.Kind]). [Board.Way],
-// [Board.SetWay], [Board.Crossing] and [Board.SetCrossing] read and write them, [Layout.Ways] and
-// [Layout.Crossings] seed them; [Board.Along] tells a step along a way from one over the ground
-// beside it, and [Board.Bare] is that ground, which is how a route follows a road round its bend
-// instead of cutting the corner. [Board.CellVersion] counts the changes to each cell alone — its
-// kind, its way, its heights, an effect on it — and [Board.Changes] to them all, so whoever keeps
-// something worked out of a cell knows when it is stale.
+// wide from the cell's middle out towards each neighbour its cell.Links name, a bit for each of the
+// grid's directions (grid.Link finds the bit for a neighbour, Grid.Toward the neighbour for a bit);
+// a bridge or a ford over it is an entity standing on the board. Every cell entity carries a way,
+// the zero one where nothing runs, so an effect may alter it — a stream freezing over. The way
+// decides who may cross the cell and what it costs there, what stands on it lets whoever it carries
+// over too, the ground keeps the rest: whether it is solid, what it veils ([Board.Kind]).
+// [Board.Way] and [Board.SetWay] read and write them, [Layout.Ways] seeds them; [Board.Along] tells
+// a step along a way from one over the ground beside it, and [Board.Bare] is that ground, which is
+// how a route follows a road round its bend instead of cutting the corner. [Board.CellVersion]
+// counts the changes to each cell alone — its kind, its way, its heights, an effect on it — and
+// [Board.Changes] to them all, so whoever keeps something worked out of a cell knows when it is
+// stale.
 //
 // # Heights and slopes
 //
@@ -158,11 +171,11 @@
 // The board is the ground: ground.Heights is the height of the ground at a point, the Map's — a
 // topography's relief — and nil on a flat map ([Plugin.Heights]); ground.Cover is what stands on
 // the board and holds sight back ([Plugin.Cover], a ground.Readied too); and the Solid cells are
-// the solid ground collision pushes colliders out of — in a world with heights each standing
-// from below up to its kind's Height over its level, a collision.Band the entity's own must meet,
-// one of no Height at every height — the cells a kind does not take the ground it never pushes
-// one over (a collision.Field, [Plugin.WithCollision]). The board's field, inside it, is both. Sight takes them with vision.Plugin.WithBoard. The world knows none of it: it
-// knows its entities.
+// the solid ground collision pushes colliders out of — in a world with heights each standing from
+// below up to its kind's Height over its level, a collision.Band the entity's own must meet, one of
+// no Height at every height — the cells a kind does not take the ground it never pushes one over (a
+// collision.Field, [Plugin.WithCollision]). The board's field, inside it, is both. Sight takes them
+// with vision.Plugin.WithBoard. The world knows none of it: it knows its entities.
 //
 // A cell.Occupancy tracks who holds each cell and in which domains, gating and recording every
 // step navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart

@@ -35,7 +35,8 @@ var (
 type Shaping struct{ Step, MaxStep float64 }
 
 // shaper carries out the shaping commands — Raise, Lower, Level — on the relief as its system runs,
-// moving the ground as its Shaping says; its queues take them.
+// moving the ground as its Shaping says, never so a road lies where Transport Tycoon would not lay
+// it; its queues take them.
 type shaper struct {
 	relief *irelief.Relief
 	cfg    Shaping
@@ -61,7 +62,13 @@ func (shapingSystem) Init(*goke.SysInit) {}
 
 func (y shapingSystem) Update(*goke.CmdBuf, time.Duration) {
 	s, r := y.s, y.s.relief
-	s.raise.Drain(func(i control.Issued[Raise]) { r.Lift(i.Command.At, s.cfg.Step, s.cfg.MaxStep) })
-	s.lower.Drain(func(i control.Issued[Lower]) { r.Lift(i.Command.At, -s.cfg.Step, s.cfg.MaxStep) })
-	s.level.Drain(func(i control.Issued[Level]) { r.Flatten(i.Command.From, i.Command.To, s.cfg.MaxStep) })
+	s.raise.Drain(func(i control.Issued[Raise]) {
+		r.KeepRoads(func() { r.Lift(i.Command.At, s.cfg.Step, s.cfg.MaxStep) })
+	})
+	s.lower.Drain(func(i control.Issued[Lower]) {
+		r.KeepRoads(func() { r.Lift(i.Command.At, -s.cfg.Step, s.cfg.MaxStep) })
+	})
+	s.level.Drain(func(i control.Issued[Level]) {
+		r.KeepRoads(func() { r.Flatten(i.Command.From, i.Command.To, s.cfg.MaxStep) })
+	})
 }

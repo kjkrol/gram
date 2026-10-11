@@ -2,6 +2,7 @@ package main
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
@@ -33,11 +34,15 @@ var cellColors = map[string]color.RGBA{
 	BrookCell:  {R: 90, G: 145, B: 205, A: 255},
 	StreamCell: {R: 90, G: 145, B: 205, A: 255},
 	RiverCell:  {R: 90, G: 145, B: 205, A: 255},
-	FordCell:   {R: 90, G: 145, B: 205, A: 255},
 	RoadCell:   {R: 165, G: 135, B: 95, A: 255},
-	BridgeCell: {R: 115, G: 85, B: 55, A: 255},
 	ForestCell: {R: 30, G: 90, B: 45, A: 255},
 }
+
+var (
+	deckColor  = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor  = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	stoneColor = color.RGBA{R: 150, G: 145, B: 135, A: 255}
+)
 
 var (
 	snowyColors = map[string]color.RGBA{
@@ -58,8 +63,7 @@ func (m *mainScene) picture() render.Picture {
 		Style(RockCell, painter.Style{Spread: 0.25}).
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
-		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
-		Style(FordCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
+		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
 	for _, name := range snowable {
 		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
 	}
@@ -69,12 +73,16 @@ func (m *mainScene) picture() render.Picture {
 	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
 	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
 	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
+	bridgeKind := kind.Named[crossingRow](s.world.Kinds(), BridgeKind)
+	fordKind := kind.Named[crossingRow](s.world.Kinds(), FordKind)
 
-	worldAtlas := render.NewAtlas()
+	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(unitKind, spritePx, render.Solid(playerColor))
 	worldAtlas.Add(plateauKind, spritePx, render.Solid(playerColor))
 	worldAtlas.Add(rivalKind, spritePx, render.Solid(rivalColor))
 	worldAtlas.Add(hawkKind, spritePx, render.Diamond(hawkColor))
+	worldAtlas.Add(bridgeKind, CellSize, deck(0)).Facing(8, deck).Lying()
+	worldAtlas.Add(fordKind, CellSize, stones(0)).Facing(8, stones).Lying()
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -113,4 +121,39 @@ func (m *mainScene) screen() *ui.Element {
 		),
 		ui.Layer(s.world.Clock().HUD()),
 	)
+}
+
+// deck is a bridge's deck running the way angle says, degrees against the clock from the east,
+// from edge to edge of the cell — corner to corner slantwise — its rails along it.
+func deck(angle float64) render.SpriteDrawer {
+	return func(dst *render.Canvas, size int) {
+		x0, y0, x1, y1 := across(angle, size)
+		w := float32(size)
+		dst.StrokeLine(x0, y0, x1, y1, w*0.5, deckColor)
+		sin, cos := math.Sincos(angle * math.Pi / 180)
+		ox, oy := float32(sin)*w*0.25, float32(cos)*w*0.25
+		dst.StrokeLine(x0+ox, y0+oy, x1+ox, y1+oy, w*0.06, railColor)
+		dst.StrokeLine(x0-ox, y0-oy, x1-ox, y1-oy, w*0.06, railColor)
+	}
+}
+
+// stones are a ford's stepping stones the way angle says.
+func stones(angle float64) render.SpriteDrawer {
+	return func(dst *render.Canvas, size int) {
+		x0, y0, x1, y1 := across(angle, size)
+		for i := range 4 {
+			t := (float32(i) + 0.5) / 4
+			dst.FillCircle(x0+(x1-x0)*t, y0+(y1-y0)*t, float32(size)*0.09, stoneColor)
+		}
+	}
+}
+
+// across is the line through the middle of a sprite size wide the way angle says, edge to edge.
+func across(angle float64, size int) (x0, y0, x1, y1 float32) {
+	sin, cos := math.Sincos(angle * math.Pi / 180)
+	half := float64(size) / 2
+	reach := half / max(math.Abs(cos), math.Abs(sin))
+	dx, dy := float32(cos*reach), float32(-sin*reach)
+	m := float32(half)
+	return m - dx, m - dy, m + dx, m + dy
 }

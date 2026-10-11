@@ -12,9 +12,7 @@ const (
 	BrookCell  = "brook"
 	StreamCell = "stream"
 	RiverCell  = "river"
-	FordCell   = "ford"
 	RoadCell   = "road"
-	BridgeCell = "bridge"
 	IceCell    = "ice"
 
 	// roles
@@ -22,6 +20,10 @@ const (
 
 	// kinds of units
 	UnitKind = "unit"
+
+	// kinds of what stands on the board
+	BridgeKind = "bridge"
+	FordKind   = "ford"
 
 	// sides
 	PlayerSide = "player"

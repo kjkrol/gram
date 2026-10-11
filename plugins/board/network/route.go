@@ -56,20 +56,6 @@ func (n *Network) Path(cells []cell.ID, node Node) {
 	}
 }
 
-// Across is the network laid on a board over o — a road over a river: a Way of its own on every
-// cell o does not run through, and a Crossing of kind, over o's way, on every cell it does.
-func (n *Network) Across(o *Network, kind string) (ways, crossings []cell.WayEntry) {
-	for _, w := range n.Ways() {
-		if _, both := o.nodes[w.Cell]; both {
-			w.Kind = kind
-			crossings = append(crossings, w)
-		} else {
-			ways = append(ways, w)
-		}
-	}
-	return ways, crossings
-}
-
 // step is a cell on Route's frontier and what reaching it has cost.
 type step struct {
 	cell cell.ID

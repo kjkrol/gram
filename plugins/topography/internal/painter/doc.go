@@ -16,11 +16,11 @@
 //
 // # Water
 //
-// A kind with a Shine glints (water.Glint, the SeaGlint material): the shader ripples its
-// surface with small waves and throws the sun back towards the eye, and within a few cells of a
-// shore — the nearest cell that does not shine, worked out per corner of a square grid as the
-// terrain changes (water.Shores) — the waves face it, roll in and break into foam. Water of a kind with a
-// Flow runs instead (water.Stream, the RunningWater material): down the slope of its cell, read off its
+// A kind with a Shine glints (water.Glint, the SeaGlint material): the shader ripples its surface
+// with small waves and throws the sun back towards the eye, and within a few cells of a shore — the
+// nearest cell that does not shine, worked out per corner of a square grid as the terrain changes
+// (water.Shores) — the waves face it, roll in and break into foam. Water of a kind with a Flow runs
+// instead (water.Stream, the RunningWater material): down the slope of its cell, read off its
 // corners, as fast as the Flow by the square root of the slope, averaged at each corner over the
 // running cells meeting there, carried as a flow map — ripples and flecks of foam flowing on
 // without a seam — and white where it runs fast: a rapid, a waterfall. The clouds' shadows lie over
@@ -46,10 +46,9 @@
 // down its band; a way whose kind's Style names a kind to MixWith takes on that kind's look as far
 // as its Mix, the other sprite glazed over its own and blended along the band (render.Frame.Glaze)
 // — a river turning into the sea's colour towards its mouth; a way's Fade has it show the less the
-// further it has faded, down to nothing where it ends, its water running on level ground the way
-// it fades: a river running out into the sea. A cell.Crossing — a bridge — is cut into bands as a
-// way is, on a tier over the ways, each band meeting whichever of its neighbour's way and crossing
-// runs back to it: a road meets its bridge, not the river under it. A way running out into water no
+// further it has faded, down to nothing where it ends, its water running on level ground the way it
+// fades: a river running out into the sea. A road leading onto a bridge runs to the edge of the
+// bridge's cell, a band towards a neighbour no way runs back from. A way running out into water no
 // way runs across runs on to its middle under it: the water lies over a way as it lies over the
 // grounds round a coast, so a way shows only where the land does and a river's end follows the
 // coast. Ways lie on a tier just over the tiles; a band running slantwise reaches into the cells

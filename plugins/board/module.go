@@ -77,7 +77,6 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[cell.Plot](),
 		goke.LoadComp[cell.Ground](),
 		goke.LoadComp[cell.Way](),
-		goke.LoadComp[cell.Crossing](),
 		goke.LoadComp[cell.Built](),
 		goke.LoadComp[cell.On](),
 		goke.LoadComp[cell.Floor](),

@@ -8,18 +8,18 @@
 // [Land], [Water] and [Air], a game adding bits of its own), what a step costs, whether it is
 // solid, how much it veils sight, how it looks; a board's [Kinds] holds those a game created,
 // by [Name]. [Ground] is the cell's kind on its entity, beside its [Plot] — an effect altering it
-// alters the board — and a [Way] (a road, a river) runs across it under any [Crossing] (a bridge).
+// alters the board — and a [Way] (a road, a river) runs across it.
 // [Terrain] is what a cell answers about its kind: a board is one.
 //
 // # Terrain in maps and the Layout's entries
 //
-// A [TerrainMap] is terrain in plain maps — kinds, ways, crossings, tags, roles and labels by cell:
-// a board's seed until the ECS makes every cell an entity out of it, and a [Terrain] of its own
-// where no board is wanted. The board's Layout names kinds by name: an [Entry] per cell, a
-// [WayEntry] per way or crossing. An Entry also gives its cell, for good, what it is called — a Name of its own, a
-// Group it shares — which its entity carries as an entity.Label and commands find it by
-// (entity.Named, Group); and the roles it plays, whose rules it obeys, beyond its kind's
-// (Kinds.Define) — Entry.Plays, this one cell's own:
+// A [TerrainMap] is terrain in plain maps — kinds, ways, tags, roles and labels by cell: a board's
+// seed until the ECS makes every cell an entity out of it, and a [Terrain] of its own where no
+// board is wanted. The board's Layout names kinds by name: an [Entry] per cell, a [WayEntry] per
+// way. An Entry also gives its cell, for good, what it is called — a Name of its own, a Group it
+// shares — which its entity carries as an entity.Label and commands find it by (entity.Named,
+// Group); and the roles it plays, whose rules it obeys, beyond its kind's (Kinds.Define) —
+// Entry.Plays, this one cell's own:
 //
 //	cell.Entry{Kind: "well", Cell: c, Name: "well"}
 //	cell.Entry{Kind: "fence", Cell: d, Group: "east fence"}
@@ -30,11 +30,12 @@
 // An entity standing on the board — a lever, a trapdoor, a gate, a plate — carries [On], the cell
 // it stands on for good (board.NewEntities makes such kinds). Its knobs [Floor] and [Wall] build
 // over the cell: a Floor carries the domains it Allows whatever the ground takes (a trapdoor over
-// a pit, a bridge over a river, at its Height in a world with heights), a Wall keeps the domains
-// it Keeps off (a gate shut). The board gathers them on the cell's entity as [Built], every step,
-// and [Built.Over] is the kind as whoever crosses the cell meets it with them: the planner, a
-// fall (unit.Standing.Fallen) and collision see them as they see the ground. An effect opens one —
-// a Floor's Allows or a Wall's Keeps altered to 0:
+// a pit, a ford waded at its Cost, a bridge over a river, Graded and at its Height in a world with
+// heights, come onto Along its axis alone — whoever comes from the side, a road under it, stays
+// under the deck), a Wall keeps the domains it Keeps off (a gate shut). The board gathers them on
+// the cell's entity as [Built], every step, and [Built.Over] is the kind as whoever crosses the
+// cell meets it with them: the planner, a fall (unit.Standing.Fallen) and collision see them as
+// they see the ground. An effect opens one — a Floor's Allows or a Wall's Keeps altered to 0:
 //
 //	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
 //

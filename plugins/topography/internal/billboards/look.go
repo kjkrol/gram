@@ -23,7 +23,10 @@ type Sky interface {
 // projection sorting what it draws by depth — not from above.
 func inRelief(cam camera.Camera) bool { return cam.Projection().Sorts() }
 
-var _ world.DirectLook = Look{}
+var (
+	_ world.DirectLook = Look{}
+	_ world.LyingLook  = Look{}
+)
 
 // Look lays the world's entities as the camera looks, on the GPU: billboards standing upright
 // in the views in relief (sprites), hidden by the depth where the ground stands before them, the
@@ -73,6 +76,22 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
 	}
 	a.Sway = 0 // leant here: the flat look takes the sprite as it stands
+	l.flat.Sprite(f, cam, box, z, atlas, a, lit(l.sky.Sun(), light))
+}
+
+// Lie lays the sprite flat at the entity's Altitude in relief, as the flat look lays it from above,
+// lit by the sun on level ground; it neither sways nor casts a shadow.
+func (l Look) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
+	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	if l.gpu.on {
+		l.gpu.lay(cam, box, z, atlas, a.SpriteID, a.Angle, light)
+		return
+	}
+	a.Sway = 0
+	if lies, ok := l.flat.(world.LyingLook); ok {
+		lies.Lie(f, cam, box, z, atlas, a, lit(l.sky.Sun(), light))
+		return
+	}
 	l.flat.Sprite(f, cam, box, z, atlas, a, lit(l.sky.Sun(), light))
 }
 

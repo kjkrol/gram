@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -54,29 +53,17 @@ type WayPiece struct {
 // it has faded, the ends of a band as much as the mean of the two ways there, and where it runs
 // level its water runs on the way it fades: a river running out into the sea. Good until the next
 // call; nothing where no way runs.
-func (t *tile) Way() []WayPiece { return t.lanePieces(false) }
-
-// Crossing is the tile's cell.Crossing cut into pieces as its Way is. Good until the next call;
-// nothing where nothing crosses.
-func (t *tile) Crossing() []WayPiece { return t.lanePieces(true) }
-
-// lanePieces is Way's, or Crossing's where cross.
-func (t *tile) lanePieces(cross bool) []WayPiece {
+func (t *tile) Way() []WayPiece {
 	r := t.r
 	r.ways = r.ways[:0]
-	if top := r.topOf(t.ID); !cross && !top.way.Runs() || cross && !top.cross.Runs() {
+	if !r.topOf(t.ID).way.Runs() {
 		return nil
 	}
 	b := r.bakeOf(t)
 	light, lit, w, h := t.Light(), t.sunlit(), t.X1-t.X0, t.Y1-t.Y0
 	detail := t.wayDetail()
 	pieces := b.ways
-	switch {
-	case cross && t.px() < nearCell:
-		pieces = b.farCrossings
-	case cross:
-		pieces = b.crossings
-	case t.px() < nearCell:
+	if t.px() < nearCell {
 		pieces = b.farWays // a curve in fewer, longer pieces: a cell spans a few pixels
 	}
 	sea := t.Detail() // what a way turns into glints as far as the ground's water
@@ -103,15 +90,12 @@ func (t *tile) wayDetail() float32 {
 	return min(max((t.px()-bakeCell)/(bakeCell/2), 0), 1)
 }
 
-// wayAnew works out the tile's cell.Way into out, or its cell.Crossing where cross, in no light;
-// its curves in fewer pieces unless fine.
-func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
+// wayAnew works out the tile's cell.Way into out, in no light; its curves in fewer pieces unless
+// fine.
+func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	r := t.r
 	top := r.topOf(t.ID)
 	w := top.way
-	if cross {
-		w = top.cross
-	}
 	if !w.Runs() {
 		return out
 	}
@@ -152,7 +136,7 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 		}
 		ex, ey := t.toward(nb, i)
 		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, mix: w.Mix, slant: r.square && i >= 4}
-		if other, ok := r.partner(t.ID, nb); ok {
+		if other, ok := r.partner(nb); ok {
 			o.half, o.wide, o.fade, o.mix = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2, (w.Mix+other.Mix)/2
 		} else if r.topOf(nb).under {
 			// out into water: the way the water leaves, so wider than any way in and always the
@@ -295,13 +279,9 @@ func (t *tile) wayAnew(out []WayPiece, fine, cross bool) []WayPiece {
 	return out
 }
 
-// partner is what runs across nb that c's way or crossing running on to it meets: whichever of its
-// Way and Crossing runs back to c, its Way where neither does; false where nothing runs there.
-func (l *Painter) partner(c, nb cell.ID) (cell.Way, bool) {
+// partner is what runs across nb that a way running on to it meets; false where nothing runs there.
+func (l *Painter) partner(nb cell.ID) (cell.Way, bool) {
 	top := l.topOf(nb)
-	if back, ok := grid.Link(l.board, nb, c); ok && top.way.Links&back == 0 && top.cross.Links&back != 0 {
-		return top.cross.Way, true
-	}
 	return top.way.Way, top.way.Runs()
 }
 
@@ -354,15 +334,11 @@ func (t *tile) toward(n cell.ID, i int) (float32, float32) {
 // neighbour's cell is never covered by its tile.
 const wayTier = render.Ground + 5
 
-// crossingTier puts what crosses over a way over it: a bridge over its river.
-const crossingTier = wayTier + 1
-
 // DrawWay draws what runs across the tile over it, at depth: each piece in its light, the clouds'
 // shadows over it and, where it shines, its water running. A piece reaching across a corner takes
 // the depth of the nearest of the four cells meeting there, so none of them covers it.
 func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 	t.drawLane(f, cam, depth, wayTier, t.Way())
-	t.drawLane(f, cam, depth, crossingTier, t.Crossing())
 }
 
 // drawLane draws pieces of what runs across the tile on tier, at depth.
@@ -446,13 +422,11 @@ func mix4(c [4]float32, u, v float32) float32 {
 // as they are: its blends and its way, near and far, placed as if the tile's top-left corner were
 // at 0, 0, in no light yet.
 type cellBake struct {
-	ver          uint64 // one more than the newest version round the cell when baked; 0 never
-	seen         uint64 // the board's count of changes when last found as it was
-	blends       []BlendPiece
-	ways         []WayPiece
-	farWays      []WayPiece
-	crossings    []WayPiece
-	farCrossings []WayPiece
+	ver     uint64 // one more than the newest version round the cell when baked; 0 never
+	seen    uint64 // the board's count of changes when last found as it was
+	blends  []BlendPiece
+	ways    []WayPiece
+	farWays []WayPiece
 }
 
 // bakeOf is t's bake, worked out anew when a cell round it has changed since.
@@ -474,12 +448,11 @@ func (l *Painter) bakeOf(t *tile) *cellBake {
 	}
 	b.ver = v + 1
 	b.blends = t.blendsAnew(b.blends[:0])
-	b.ways, b.farWays = t.wayAnew(b.ways[:0], true, false), t.wayAnew(b.farWays[:0], false, false)
-	b.crossings, b.farCrossings = t.wayAnew(b.crossings[:0], true, true), t.wayAnew(b.farCrossings[:0], false, true)
+	b.ways, b.farWays = t.wayAnew(b.ways[:0], true), t.wayAnew(b.farWays[:0], false)
 	for k := range b.blends {
 		b.blends[k].World = shift(b.blends[k].World, -t.X0, -t.Y0)
 	}
-	for _, ways := range [4][]WayPiece{b.ways, b.farWays, b.crossings, b.farCrossings} {
+	for _, ways := range [2][]WayPiece{b.ways, b.farWays} {
 		for k := range ways {
 			p := &ways[k]
 			p.World = shift(p.World, -t.X0, -t.Y0)

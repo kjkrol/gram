@@ -187,28 +187,6 @@ func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	}
 }
 
-// A slantwise step beside a bridge crosses the water under it: a walker may not take it, a boat
-// may.
-func TestFindPath_CutsNoCornerOverTheWaterBesideABridge(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-	brd.Set(at(1, 1), cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water})
-	bridge := cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land}
-	brd.SetCrossing(at(1, 1), cell.Crossing{Way: cell.Way{Kind: bridge, Width: 4}})
-	pf := newPathFinder(grid, brd, nil, &cell.MultipleOccupancy{})
-	if _, ok := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Land); ok {
-		t.Error("a walker may cut the corner onto the bridge over the river")
-	}
-	if _, ok := pf.price(at(0, 1), at(1, 1), brd.Kind(at(1, 1)), cell.Land); !ok {
-		t.Error("a walker may not step straight onto the bridge")
-	}
-	if cost, ok := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Water); !ok || math.Abs(cost-math.Sqrt2) > 1e-9 {
-		t.Errorf("a boat's slantwise step onto the river under the bridge costs %v, ok %v; want √2", cost, ok)
-	}
-}
-
 // A Graded road over the ridge costs its own price alone, so the walker takes it straight over;
 // the same road ungraded is priced by the slope and the walker goes round.
 func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {

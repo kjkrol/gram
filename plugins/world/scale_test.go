@@ -27,3 +27,15 @@ func TestScale_TheEarthUnderTheWorld(t *testing.T) {
 		t.Error("without a scale the world is not flat, or its units not its own")
 	}
 }
+
+// A figure is as big as it is in life, or Figures times bigger; how fast it goes stays real.
+func TestScale_FiguresBiggerThanLife(t *testing.T) {
+	life := world.Scale{Metres: 10}
+	if f := life.Figure(2); f != 0.2 {
+		t.Errorf("a man 2 m tall is %v world units, want 0.2 as in life", f)
+	}
+	token := world.Scale{Metres: 10, Figures: 15}
+	if f := token.Figure(2); math.Abs(f-3) > 1e-9 || token.Units(2) != 0.2 {
+		t.Errorf("a man 2 m tall is %v world units and 2 m %v, want 3 and 0.2", f, token.Units(2))
+	}
+}

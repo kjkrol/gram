@@ -2,6 +2,8 @@ package board
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -30,8 +32,9 @@ func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entit
 }
 
 // Define registers one kind of entity standing on the board, its entities carrying extra besides
-// (a cell.Floor, a cell.Wall, the roles they play, a plate's collision.Collider without Physics);
-// one standing off the board panics as it is spawned.
+// (a cell.Floor, a cell.Wall, the roles they play, a plate's collision.Collider without Physics, a
+// world.Velocity in place of the still one, its Dir the way a bridge runs); one standing off the
+// board panics as it is spawned.
 func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	brd := e.brd.Board()
 	size := e.shape.Size
@@ -45,8 +48,12 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 			top := geom.NewVec(m.X-size/2, m.Y-size/2)
 			return world.Position{AABB: plane.NewAABB(top, size, size)}
 		}),
-		comp.Const(world.Velocity{}),
 		comp.Load(func(row P) cell.On { return cell.On{Cell: e.at(row)} }),
+	}
+	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
+		return comp.TypeOf(c) == reflect.TypeFor[world.Velocity]()
+	}) {
+		own = append(own, comp.Const(world.Velocity{}))
 	}
 	if e.brd.worldPlugin.HasHeights() {
 		own = append(own, comp.Const(world.Z{Height: e.shape.Height}))

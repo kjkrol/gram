@@ -31,6 +31,17 @@ func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z 
 	c.Look.Sprite(f, cam, box, z, atlas, a, light)
 }
 
+// lyingCounting is a counting look that lays sprites flat too, keeping those it laid.
+type lyingCounting struct {
+	*counting
+	lain []render.SpriteID
+}
+
+func (c *lyingCounting) Lie(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ Z,
+	_ render.AtlasSource, a render.Appearance, _ render.Light) {
+	c.lain = append(c.lain, a.SpriteID)
+}
+
 // flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
 type flatAtlas struct{}
 
@@ -47,6 +58,14 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 
 // drawShaded is drawThrough with the per-pixel looks the world's Atlas would declare.
 func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
+	look := &counting{Look: ilook.NewFlat(1000, 1000)}
+	drawAs(t, look, func(r *renderer) { r.shade(shaded) }, pick, rules, dir, at...)
+	return look
+}
+
+// drawAs is drawThrough with look, the renderer readied first.
+func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.UID64,
+	v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
 	t.Helper()
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
@@ -54,9 +73,8 @@ func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
-	look := &counting{Look: ilook.NewFlat(1000, 1000)}
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing, func() Look { return look })
-	r.shade(shaded)
+	ready(r)
 
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
@@ -84,8 +102,10 @@ func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	look.frame = &f
-	return look
+	if c, ok := look.(*counting); ok {
+		c.frame = &f
+	}
+	return &f
 }
 
 var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
@@ -209,5 +229,33 @@ func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) 
 		if len(look.sprites) != 1 || look.sprites[0] != want {
 			t.Errorf("at %v drew %v, want frame %v", now, look.sprites, want)
 		}
+	}
+}
+
+// A sprite the Atlas declared Lying goes to a LyingLook's Lie, its look under an effect too; to a
+// Look without one, Sprite as any other.
+func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
+	const deck, wet render.SpriteID = 1, 4
+	a := &Atlas{
+		lying:  map[render.SpriteID]bool{deck: true},
+		unders: map[render.SpriteID][]render.SpriteID{deck: {wet}},
+	}
+	under := render.With(func(ap render.Appearance, b Base) render.Appearance {
+		if b.Pos.AABB.TopLeft.X > 500 {
+			ap.SpriteID = wet
+		}
+		return ap
+	})
+	lies := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000)}}
+	drawAs(t, lies, func(r *renderer) { r.lie(a.lain()) }, nil, []render.Rule{under}, geom.Vec{},
+		quarters[0], quarters[1])
+	if len(lies.lain) != 2 || len(lies.sprites) != 0 {
+		t.Errorf("laid %v and stood %v, want the deck and its wet look laid", lies.lain,
+			lies.sprites)
+	}
+	stands := &counting{Look: ilook.NewFlat(1000, 1000)}
+	drawAs(t, stands, func(r *renderer) { r.lie(a.lain()) }, nil, nil, geom.Vec{}, quarters[0])
+	if len(stands.sprites) != 1 {
+		t.Errorf("a look laying nothing drew %v, want the deck as a sprite", stands.sprites)
 	}
 }

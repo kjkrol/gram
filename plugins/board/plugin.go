@@ -209,7 +209,7 @@ func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mappi
 // Least is the Map's: the smallest Climb for d.
 func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
 
-// CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
+// CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Way] for as
 // long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
 // the board or before Setup.
 func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().CellEntity(c) }
@@ -249,7 +249,7 @@ func (p *Plugin) Seed(layout Layout) {
 	p.seeded = &layout
 }
 
-// Populate applies the seeded Layout — kinds, the cells' tags, roles, names and groups, ways and crossings —
+// Populate applies the seeded Layout — kinds, the cells' roles, names and groups, ways —
 // changing nothing and erroring on an unknown kind name, or on an entity of the level laid that
 // no Spawn took.
 func (p *Plugin) Populate() error {
@@ -298,14 +298,6 @@ func (p *Plugin) Populate() error {
 		}
 		ways[i] = cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
-	crossings := make([]cell.Crossing, len(p.seeded.Crossings))
-	for i, e := range p.seeded.Crossings {
-		kind, err := resolve(e.Kind)
-		if err != nil {
-			return err
-		}
-		crossings[i] = cell.Crossing{Way: cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
-	}
 
 	brd := p.Board()
 	if p.seeded.Default != "" {
@@ -322,9 +314,6 @@ func (p *Plugin) Populate() error {
 	p.cast()
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])
-	}
-	for i, e := range p.seeded.Crossings {
-		brd.SetCrossing(e.Cell, crossings[i])
 	}
 	p.seeded = nil
 	return nil

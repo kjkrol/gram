@@ -6,12 +6,7 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **Fords and bridges standing on the board** — the islands' fords (a river's point of the kind
-   ford) and bridges (`crossings`) become entities standing on the river's cells with a
-   `cell.Floor`: the Floor carrying what its domains pay (`Cost`) and spared the slope (`Graded`),
-   a bridge's at a deck's `Height`; drawn lying on the ground or the deck in relief, not standing
-   up as billboards do. The two maps edited to them, `cell.Crossing` gone if nothing else needs it.
-2. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+1. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
    rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
    a notation to change: variants to compare before deciding.
 
@@ -44,8 +39,11 @@ What is left to do. Take an item out when it lands.
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
   that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
   ground and moves — fire, smoke — is sprites over it, not a cover.
-- **A demo of ways** — roads and a bridge as `cell.Way` and `cell.Crossing` over the ground, a unit
-  taking the road round the mud, in the dress of the effect demo.
+- **A demo of ways** — roads as `cell.Way` and a bridge standing on the board over the ground, a
+  unit taking the road round the mud, in the dress of the effect demo.
+- **Two levels in the planner** — a road under a bridge is one cell to navigation: a route may
+  come in under the deck and go on as if on it. The altitude keeps a unit on its level (on the
+  deck coming along it, else under it); the planner and the driving should too.
 - **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
   moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
   `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
@@ -88,7 +86,7 @@ What is left to do. Take an item out when it lands.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 
-## Landscape and the islands
+## Landscape and Madeira
 
 - **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
@@ -111,8 +109,8 @@ What is left to do. Take an item out when it lands.
 
 ## Housekeeping
 
-- **`BENCHMARKS.md`** — the island's numbers predate the roads, the folded quads and the outline
+- **`BENCHMARKS.md`** — the old island's numbers predate the roads, the folded quads and the outline
   fix: measure again on an idle machine, alternately against a baseline.
 - **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
 - **The next tag, v0.3.0** — once this state has been reviewed; note that saves written before
-  tag families, the cell entities and the crossings (`cell.Crossing`) do not load.
+  tag families, the cell entities and what stands on the board (`cell.Built`) do not load.

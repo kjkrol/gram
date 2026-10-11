@@ -158,3 +158,15 @@ func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z wo
 	a.Sway = 0 // leant here: the Look under takes the sprite as it stands
 	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
+
+// Lie lays the sprite as the world's Look under it does, in the sun's light on level ground.
+func (l litLook) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
+	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	sun := l.sky.Sun().Light(0, 0, 1)
+	lit := render.Light{sun[0] * light[0], sun[1] * light[1], sun[2] * light[2]}
+	if lies, ok := l.Look.(world.LyingLook); ok {
+		lies.Lie(f, cam, box, z, atlas, a, lit)
+		return
+	}
+	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
+}
