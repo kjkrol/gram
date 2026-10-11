@@ -10,4 +10,8 @@
 // an even ramp of [RoadSlope] at most run straight up, or a level diagonal it runs along with a
 // third corner beside it; a bend, a fork or an end level — and [RoadJoins] two hexes' levels, only
 // one.
+//
+// [Surfaces] is where whoever moves over the board stands: the ground, or a deck within a step of
+// its feet, and the underside of a deck over it — a topography's relief, which knows the board's
+// floors.
 package ground

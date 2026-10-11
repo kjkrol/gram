@@ -77,3 +77,10 @@ func (k Compass) Bindings() []control.Binding {
 func turn(way int8) func(control.Context) (Turn, bool) {
 	return func(c control.Context) (Turn, bool) { return Turn{Camera: c.Camera, Way: way}, true }
 }
+
+// JumpKey is key pressed into a Jump of the camera the player looks through.
+func JumpKey(key control.Key) control.Binding {
+	return control.Build(control.KeyPress{Key: key}, "Jump", func(c control.Context) (Jump, bool) {
+		return Jump{Camera: c.Camera}, true
+	})
+}

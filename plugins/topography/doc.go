@@ -34,13 +34,14 @@
 // The ground's heights are the plugin's [Relief] ([Plugin.Relief]); [Plugin.Seed] raises it
 // to a function when a game starts fresh (the board's ground.MeanOfCells builds one from a
 // height per cell, its level file another: board.Level.Heights).
-// Every step the topography puts every unit at the ground under it plus its Mover's Lift, so a unit
-// never declares where it stands in height and a hawk declares only how high it flies. Where a
-// cell.Floor carries its domain it stands on the deck instead, the Floor's Height over the cell's
-// level — onto a deck with an axis (cell.Floor.Along, a bridge) only coming along it, from the
-// deck's end; once on it, it stays whichever way it turns, and whoever comes from the side, a
-// road under the bridge, stays under; an entity standing on the board stands on the ground under
-// its middle, one with a Floor on its deck. A kind's
+// Every step the topography puts every unit at the surface under it plus its Mover's Lift, so a
+// unit never declares where it stands in height and a hawk declares only how high it flies: the
+// ground, or a cell.Floor's deck carrying its domain — the Floor's Height over the cell's level —
+// once its feet are within its step of it (world.Z.Reach), from whichever side it comes; a unit
+// under a deck stays under it ([Relief]'s Surface, the board's ground.Surfaces, which also says
+// where the slab over its head begins). A unit carrying a world.Drift is gravity's to stand and
+// let fall (plugins/gravity). An entity standing on the board stands on the ground under its
+// middle, one with a Floor on its deck. A kind's
 // Height is what stands on the cell: [Plugin.Top] is the cell's top as drawn, the ground and the
 // kind together, which the cameras pick on. The slope multiplies the kind's cost, in the planner
 // ([Plugin.Climb], [Plugin.Least]) and on the move ([Plugin.Slope], through the board's Moving

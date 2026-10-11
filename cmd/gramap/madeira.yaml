@@ -29,6 +29,7 @@ roads:
   span: 8
   high: 200
   deep: 200
+  figure: 90 # metres: a man of 1.8 m as the demos draw him, 50 times bigger than life
   places:
     Funchal: [-16.9086, 32.6496]
     Câmara de Lobos: [-16.977, 32.65]

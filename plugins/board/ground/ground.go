@@ -2,6 +2,7 @@ package ground
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -26,4 +27,11 @@ type Cover interface {
 // Board is one.
 type Readied interface {
 	Ready()
+}
+
+// Surfaces is where whoever moves in d with its feet at feet stands at p: the highest of the
+// ground and a deck carrying d no higher than feet+step (floor), and the underside of a deck over
+// its feet (ceiling, +Inf for none).
+type Surfaces interface {
+	Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64)
 }

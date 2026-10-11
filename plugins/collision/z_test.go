@@ -101,8 +101,9 @@ func TestBand_OfNothingIsEverywhere(t *testing.T) {
 	if got := collision.BandOf(&world.Z{Altitude: 5}); got != collision.Everywhere {
 		t.Errorf("BandOf of no Height = %v, want Everywhere", got)
 	}
-	if got := collision.BandOf(&world.Z{Altitude: 5, Height: 3}); got != (collision.Band{Bottom: 5, Top: 8}) {
-		t.Errorf("BandOf(5, 3) = %v, want [5, 8]", got)
+	want := collision.Band{Bottom: 5, Top: 8, Step: 0.75}
+	if got := collision.BandOf(&world.Z{Altitude: 5, Height: 3}); got != want {
+		t.Errorf("BandOf(5, 3) = %v, want [5, 8] stepping a quarter of its height", got)
 	}
 	if !collision.Everywhere.Meets(collision.Band{Bottom: 40, Top: 50}) {
 		t.Error("Everywhere meets nothing")

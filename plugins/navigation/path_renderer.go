@@ -335,7 +335,7 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
 		if r.finder != nil {
-			if path, ok := r.finder.findPath(id, domain, from, to); ok {
+			if path, ok := r.finder.findPath(id, domain, world.Z{}, from, to); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}

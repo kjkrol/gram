@@ -229,15 +229,12 @@ type crossingRow struct {
 	Way    [2]int  `yaml:"way"`
 }
 
-// along is the way a crossing runs, both ends.
-func (r crossingRow) along() cell.Links {
-	var out cell.Links
-	for i, step := range [4][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}} {
-		if step == r.Way || step == [2]int{-r.Way[0], -r.Way[1]} {
-			out |= 1 << i
-		}
+// railed are the sides of a crossing's cell along its way, where its railings stand.
+func (r crossingRow) railed() cell.Links {
+	if r.Way[1] == 0 {
+		return 1 | 2 // running east and west: north and south
 	}
-	return out
+	return 4 | 8
 }
 
 func (s *arena) defineKinds() {
@@ -298,15 +295,19 @@ func (s *arena) defineKinds() {
 	way := comp.Load(func(r crossingRow) world.Velocity {
 		return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
 	})
-	crossings.Define(BridgeKind, way, comp.Load(func(r crossingRow) cell.Floor {
-		return cell.Floor{
-			Allows: cell.Land,
-			Height: scale.Units(r.Height),
-			Cost:   1,
-			Graded: true,
-			Along:  r.along(),
-		}
-	}))
+	crossings.Define(BridgeKind, way,
+		comp.Load(func(r crossingRow) cell.Floor {
+			return cell.Floor{
+				Allows:    cell.Land,
+				Height:    scale.Units(r.Height),
+				Thickness: scale.Units(2),
+				Cost:      1,
+				Graded:    true,
+			}
+		}),
+		comp.Load(func(r crossingRow) cell.Rail {
+			return cell.Rail{Keeps: cell.Land, Sides: r.railed(), Height: scale.Figure(1)}
+		}))
 	crossings.Define(FordKind, way,
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }

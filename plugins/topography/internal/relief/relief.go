@@ -239,58 +239,34 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
-// DeckAt is where a Floor over the cell under p carries whoever moves in d (none: Land), headed
-// dir and standing at alt over its ground or deck: its Height over the cell's level. One on the
-// deck stays on it; onto a deck with an axis (Floor.Along) only along it and nearer the deck than
-// the ground, as onto a bridge from its end; false where no Floor carries it, whoever stays under
-// the deck, or the relief lies under no board.
-func (r *Relief) DeckAt(p geom.Vec, d cell.Domain, dir geom.Vec, alt float64) (float64, bool) {
+// Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the highest
+// of the ground and a deck over the cell whose Floor carries d, no higher than feet+step — onto a
+// deck within a step from any side, under one out of reach — and the underside of a deck over its
+// feet, +Inf for none; the ground alone where the relief lies under no board.
+func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
+	floor, ceiling = r.GroundAt(p), math.Inf(1)
 	if r.board == nil {
-		return 0, false
+		return floor, ceiling
 	}
 	if d == 0 {
 		d = cell.Land
 	}
 	c, ok := r.grid.CellAt(p)
 	if !ok {
-		return 0, false
+		return floor, ceiling
 	}
 	f := r.board.Built(c).Floor
-	if f.Allows&d == 0 {
-		return 0, false
+	if f.Allows == 0 {
+		return floor, ceiling
 	}
 	deck := r.Altitude(c) + f.Height
-	if cw, _ := r.grid.CellBounds(); f.Along == 0 || math.Abs(alt-deck) <= deckSlack*cw {
-		return deck, true
+	if f.Allows&d != 0 && deck <= feet+step {
+		floor = max(floor, deck)
 	}
-	if math.Abs(alt-deck) > math.Abs(alt-r.GroundAt(p)) || !r.along(c, f.Along, dir) {
-		return 0, false
+	if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
+		ceiling = under
 	}
-	return deck, true
-}
-
-// deckSlack is how near its deck, in cells, one standing on it is.
-const deckSlack = 1e-3
-
-// along reports whether dir runs within 45° of one of the ways out of c.
-func (r *Relief) along(c cell.ID, ways cell.Links, dir geom.Vec) bool {
-	n := math.Hypot(dir.X, dir.Y)
-	if n == 0 {
-		return false
-	}
-	from := r.grid.CellCenter(c)
-	for i := range 8 {
-		nb, ok := r.grid.Toward(c, i)
-		if !ok || ways&(1<<i) == 0 {
-			continue
-		}
-		to := r.grid.CellCenter(nb)
-		v := geom.NewVec(to.X-from.X, to.Y-from.Y)
-		if (v.X*dir.X+v.Y*dir.Y)/(math.Hypot(v.X, v.Y)*n) >= math.Sqrt2/2-1e-9 {
-			return true
-		}
-	}
-	return false
+	return floor, ceiling
 }
 
 // SetHeights raises the ground to heights: sampled at every corner on a square grid, at every

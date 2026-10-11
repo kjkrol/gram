@@ -24,6 +24,7 @@ type builtSystem struct {
 	on    goke.Comp[cell.On]
 	floor goke.OptComp[cell.Floor]
 	wall  goke.OptComp[cell.Wall]
+	rail  goke.OptComp[cell.Rail]
 
 	now, last []site // by cell, one a cell: what is built now and what was the step before
 }
@@ -40,7 +41,9 @@ func (t *Cells) BuiltSystem(heights bool, space func() *aabbworld.Space) goke.Sy
 }
 
 func (s *builtSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.on).Optional(&s.floor).Optional(&s.wall).Build()
+	s.query = si.NewQueryBuilder(&s.on).
+		Optional(&s.floor).Optional(&s.wall).Optional(&s.rail).
+		Build()
 	st := s.cells.store
 	for st.builts.All(); st.builts.Next(); {
 		cur := st.builts.Cursor()
@@ -52,7 +55,7 @@ func (s *builtSystem) Init(si *goke.SysInit) {
 		}
 	}
 	slices.SortFunc(s.last, bySite)
-	s.cells.built = len(s.last)
+	s.cells.built, s.cells.railed = len(s.last), railed(s.last)
 	s.cells.standing = s
 }
 
@@ -61,7 +64,8 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
 		ons, floors, walls := s.on.Slice(cur), s.floor.Slice(cur), s.wall.Slice(cur)
-		if floors == nil && walls == nil {
+		rails := s.rail.Slice(cur)
+		if floors == nil && walls == nil && rails == nil {
 			continue
 		}
 		for i := range ons {
@@ -72,7 +76,10 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 			if walls != nil {
 				b.Wall = walls[i]
 			}
-			if !s.heights && (b.Floor.Height != 0 || b.Wall.Height != 0) {
+			if rails != nil {
+				b.Rail = rails[i]
+			}
+			if !s.heights && (b.Floor.Height != 0 || b.Wall.Height != 0 || b.Rail.Height != 0) {
 				panic(fmt.Sprintf("board: entity %d builds at a Height in a flat world; "+
 					"set world.Config.Heights", cur.IDs[i]))
 			}
@@ -81,6 +88,9 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 			}
 			if b.Wall.Keeps == 0 {
 				b.Wall = cell.Wall{}
+			}
+			if b.Rail.Keeps == 0 || b.Rail.Sides == 0 {
+				b.Rail = cell.Rail{}
 			}
 			if b != (cell.Built{}) {
 				s.now = append(s.now, site{ons[i].Cell, b})
@@ -119,8 +129,19 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 	if changed {
 		s.cells.version++
 	}
-	s.cells.built = len(s.now)
+	s.cells.built, s.cells.railed = len(s.now), railed(s.now)
 	s.now, s.last = s.last, s.now
+}
+
+// railed is how many of sites carry a railing.
+func railed(sites []site) int {
+	n := 0
+	for _, s := range sites {
+		if s.built.Rail.Sides != 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // standing asks the space at the cell's middle, where whatever stands on the cell lies.
@@ -151,7 +172,7 @@ func gather(sites []site) []site {
 			o.Floor.Allows |= s.built.Floor.Allows
 			o.Floor.Height = max(o.Floor.Height, s.built.Floor.Height)
 			o.Floor.Graded = o.Floor.Graded || s.built.Floor.Graded
-			o.Floor.Along |= s.built.Floor.Along
+			o.Floor.Thickness = max(o.Floor.Thickness, s.built.Floor.Thickness)
 			if c := s.built.Floor.Cost; c > 0 && (o.Floor.Cost == 0 || c < o.Floor.Cost) {
 				o.Floor.Cost = c
 			}
@@ -159,6 +180,9 @@ func gather(sites []site) []site {
 				o.Wall.Height = tallest(o.Wall, s.built.Wall)
 				o.Wall.Keeps |= s.built.Wall.Keeps
 			}
+			o.Rail.Keeps |= s.built.Rail.Keeps
+			o.Rail.Sides |= s.built.Rail.Sides
+			o.Rail.Height = max(o.Rail.Height, s.built.Rail.Height)
 			continue
 		}
 		out = append(out, s)

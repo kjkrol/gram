@@ -46,8 +46,10 @@
 // # Rules
 //
 // Every step the board runs the rules of its moments, which the roles obey: of a unit.Standing for
-// every entity on the board — the cell under it, its kind and the game's tags of its place, its box
-// and domain; Standing.Fallen where the domain may not be, a unit pushed into the sea — and of a
+// every entity on the board — the cell under it, its kind on the unit's level (a deck's, or what
+// lies under), its box and domain, whether it is in the air (unit.Airborne, which gravity puts on);
+// Standing.Fallen where the domain may not be, a unit pushed into the sea, never one in the air —
+// and of a
 // cell.Now for every cell: its entity, which cell, its kind now. Both are plugin.Placed, data
 // alone: the board tells a rule, in its Tick, which cells lie round (plugin.Tick.Around), and a
 // rule's Here acts on the cells under the entity (a cell itself) and the entities standing on them,
@@ -59,25 +61,30 @@
 // entity.Group). In the same pass the board writes every unit carrying a unit.Mover its
 // steering.Pace — the cost and the slope of the ground under it — which the world's velocity pass
 // goes by from the next step; WithLog has a line written for each unit fallen where its domain may
-// not be.
+// not be. [Plugin.Surfaces] is where whoever moves over the board stands in a world with heights —
+// the ground, or a deck within its step — and where a slab over its head begins: what gravity
+// stands its bodies on (plugins/gravity).
 //
 // # Entities standing on the board
 //
 // A lever, a trapdoor, a gate, a plate is no terrain but an entity standing still on a cell:
 // [NewEntities] binds a game's rows of them to the board and [Entities.Define] makes a kind, each
-// standing in a box at its cell's middle, carrying cell.On and whatever the game gives besides —
-// a cell.Floor (a trapdoor over a pit), a cell.Wall (a gate), the roles it plays (a lever), a
+// standing in a box at its cell's middle, carrying cell.On and whatever the game gives besides — a
+// cell.Floor (a trapdoor over a pit), a cell.Wall (a gate), the roles it plays (a lever), a
 // collision.Collider without Physics (a plate, pressed in a collision.Meeting). The board gathers
 // their Floors and Walls on the cells' entities every step (cell.Built), and [Board.Kind] and
 // [Board.Bare] are the cells with them: a trapdoor shut carries a walker over the pit, opened it
 // lets it fall (unit.Standing.Fallen); a gate shut is planned round and pushed out of, in a world
-// with heights up to its Height. A Floor's Height is a deck over the cell's level the topography
-// stands whoever it carries on — a bridge's, come onto along its axis (cell.Floor.Along), a road
-// under it running across; a flat world refuses a Height. A ford is a Floor at the ground's level
-// at a Cost of its own; a bridge's Floor is Graded, and [Board.Bare] leaves it out as it leaves a
-// way: a step cutting the corner beside a bridge crosses the water under it. [Board.Built] reads
-// what is built. NewEntities gives each a still world.Velocity, or the one a kind gives: its Dir
-// the way a bridge runs, which its look Faces.
+// with heights up to its Height. A Floor's Height is a deck over the cell's level, and the cell has
+// two levels — the deck and what lies under ([Board.KindAt], [Board.KindFor]: the level of whoever
+// has its feet where they are): a unit steps onto the deck within its step from any side, passes
+// under it where it fits under its slab (Thickness), falls off its edge under gravity; a flat world
+// refuses a Height. A cell.Rail stands railings along the cell's sides (a square grid only), which
+// collision keeps a walker in by and the planner never steps across. A ford is a Floor at the
+// ground's level at a Cost of its own; a bridge's Floor is Graded, and [Board.Bare] leaves it out
+// as it leaves a way: a step cutting the corner beside a bridge crosses the water under it.
+// [Board.Built] reads what is built. NewEntities gives each a still world.Velocity, or the one a
+// kind gives: its Dir the way a bridge runs, which its look Faces.
 //
 // # Level
 //

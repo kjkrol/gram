@@ -31,21 +31,32 @@ type Toward struct {
 	Way    geom.Vec
 }
 
+// Jump has each unit the hand is on leap (gravity.Leap), as high as its gravity.Body says.
+type Jump struct{ Camera camera.Camera }
+
 func (Ahead) Command()  {}
 func (Back) Command()   {}
 func (Turn) Command()   {}
 func (Toward) Command() {}
+func (Jump) Command()   {}
 
 var (
 	_ control.Command = Ahead{}
 	_ control.Command = Back{}
 	_ control.Command = Turn{}
 	_ control.Command = Toward{}
+	_ control.Command = Jump{}
 )
 
 // Queues are where the hand's commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.hands.aheads, &p.hands.backs, &p.hands.turns, &p.hands.towards}
+	return []control.CommandQueue{
+		&p.hands.aheads,
+		&p.hands.backs,
+		&p.hands.turns,
+		&p.hands.towards,
+		&p.hands.jumps,
+	}
 }
 
 // DefaultBindings are DefaultKeys: the keys driving the unit the camera is fastened to.

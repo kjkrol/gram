@@ -38,12 +38,13 @@
 // from, and the aabbworld.Capability bits the space indexes it under, which collision writes.
 // A host hands Base to whatever it hosts instead of anyone binding it twice. No entity moves
 // further in a tick than [StepReach] of its own shorter side ([Position.MaxStep],
-// [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest.
+// [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest. One
+// carrying a [Drift] (gravity's) is moved by it too, under the same cap.
 // [Eye] is where an entity looks from and how wide — its cone of sight (plugins/vision) and a
 // camera riding in it (plugins/topography) read the one Eye. These, with [Z] and [Layers], are
 // the types of package entity under the world's own names (type aliases: one type, so a
 // component is the same wherever it is named and saves do not care); the world's sub-packages
-// read them from entity, everyone else from here.
+// read them from entity, everyone else from here; [Drift] too.
 //
 // # Steering
 //

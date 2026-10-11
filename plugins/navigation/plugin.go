@@ -79,6 +79,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	// routes are planned over the ground alone, blind to the others: the keeping holds what it
 	// holds and answers what a route runs into
 	finder := newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
+	if p.worldPlugin.HasHeights() {
+		finder.WithLevels(boardLevels{p.boardPlugin})
+	}
 	var keep keeping
 	if p.spacing == BodySpacing {
 		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)

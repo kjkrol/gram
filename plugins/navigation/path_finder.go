@@ -1,9 +1,14 @@
 package navigation
 
 import (
+	"slices"
+
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
@@ -23,26 +28,32 @@ func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes,
 
 // findPath is the route from from toward to for entity moving in domain, its first MaxPathLength
 // steps; false if unreachable.
-func (p *pathFinder) findPath(entity uid.UID64, domain cell.Domain, from, to cell.ID) (Path, bool) {
+func (p *pathFinder) findPath(
+	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID,
+) (Path, bool) {
 	var path Path
-	n, ok := p.Find(entity, domain, from, to, path.Steps[:])
+	n, ok := p.Find(entity, domain, bodyOf(z), from, to, path.Steps[:])
 	path.Length = uint16(n)
 	return path, ok
 }
 
 // findPathAround is findPath going round every cell blocked reports.
-func (p *pathFinder) findPathAround(entity uid.UID64, domain cell.Domain, from, to cell.ID, blocked func(cell.ID) bool) (Path, bool) {
+func (p *pathFinder) findPathAround(
+	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, blocked func(cell.ID) bool,
+) (Path, bool) {
 	var path Path
-	n, ok := p.FindAround(entity, domain, from, to, blocked, path.Steps[:])
+	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, blocked, path.Steps[:])
 	path.Length = uint16(n)
 	return path, ok
 }
 
 // nearestFree is the free cell nearest target entity can reach — not one taken says — and the
 // route to it.
-func (p *pathFinder) nearestFree(entity uid.UID64, domain cell.Domain, from, target cell.ID, taken func(cell.ID) bool) (cell.ID, Path, bool) {
+func (p *pathFinder) nearestFree(
+	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, taken func(cell.ID) bool,
+) (cell.ID, Path, bool) {
 	var path Path
-	dest, n, ok := p.NearestFree(entity, domain, from, target, taken, path.Steps[:])
+	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, taken, path.Steps[:])
 	path.Length = uint16(n)
 	return dest, path, ok
 }
@@ -53,4 +64,45 @@ func (p *pathFinder) climb(from, to cell.ID, d cell.Domain) float64 { return p.C
 // price is what the step costs an entity moving in d, to's kind being kind (Finder.Price).
 func (p *pathFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
 	return p.Price(from, to, kind, d)
+}
+
+// steps reports whether m may step from its cell on to c, a neighbour or its own, without falling
+// off a deck or climbing onto one out of reach.
+func (p *pathFinder) steps(m member, c cell.ID) bool {
+	if c == m.cell {
+		return true
+	}
+	if !slices.Contains(p.grid.Neighbors(m.cell), c) {
+		return true
+	}
+	return p.Steps(m.domain, bodyOf(m.z), m.cell, c)
+}
+
+// bodyOf is a unit standing as z says, as the finder plans for it.
+func bodyOf(z world.Z) pathfind.Body {
+	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height}
+}
+
+// boardLevels are a board's raised floors, as the finder plans over them.
+type boardLevels struct{ brd *board.Plugin }
+
+func (l boardLevels) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+	f := l.brd.Board().Built(c).Floor
+	if f.Height <= 0 {
+		return 0, 0, 0, false
+	}
+	_, level := l.brd.Board().Map().Top(c)
+	top = float64(level) + f.Height
+	return top, top - f.Thickness, f.Allows, true
+}
+
+func (l boardLevels) Ground(p geom.Vec) float64 {
+	if h := l.brd.Heights(); h != nil {
+		return h.At(p)
+	}
+	return 0
+}
+
+func (l boardLevels) KindAt(c cell.ID, deck bool) cell.Kind {
+	return l.brd.Board().KindAt(c, deck)
 }

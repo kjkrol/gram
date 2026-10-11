@@ -87,9 +87,15 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	drive := &driveSystem{keeping: p.keeping, units: shared}
 	if p.board != nil {
 		drive.board, drive.occupancy = p.board.Board(), p.board.Occupancy()
+		drive.surfaces = p.board.Surfaces
 	}
 	p.module = &module{
-		hand:  &handSystem{hands: &p.hands, selected: p.selected, units: shared},
+		hand: &handSystem{
+			hands:    &p.hands,
+			selected: p.selected,
+			carrier:  p.worldPlugin.Carrier(),
+			units:    shared,
+		},
 		drive: drive,
 		clock: p.worldPlugin.Clock(),
 	}

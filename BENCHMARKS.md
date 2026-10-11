@@ -125,6 +125,23 @@ replaced, the two trees run alternately six times each.
 The seek is the smaller part of a read; the rest is finding the cell, which a square grid now does
 straight from the point.
 
+## Standing — `Benchmark_Board_Altitude`, `Benchmark_Gravity_Standing`
+
+A tick of a 64×64 board of hills 4 cells a side, a deck over one row, with walkers standing still
+at their heights: the topography's altitude system standing them on the surface under them, or
+gravity standing them as bodies (`gravity.Body`), the board's standing pass and the world's
+around them. Measured on 2026-10-11, the two run alternately; the baseline is the altitude tick
+before decks were stepped onto by height.
+
+| Walkers | altitude, before | altitude | under gravity |
+|--:|---:|---:|---:|
+| 100 | 38.6 µs | 39.2 µs | 41.3 µs |
+| 1000 | 294 µs | 309 µs | 322 µs |
+
+Only a walker on a deck pays for the deck. Gravity's own pass costs what the altitude system's
+did — one surface read a body — and a body standing still skips the rest; what is left is noise
+and the board's own passes, which run alike in both.
+
 ## Terrain — `Benchmark_Board_Terrain`
 
 One tick of world, collision, board and vision over an 80×80 board of 16-unit cells, a quarter of

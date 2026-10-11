@@ -94,10 +94,15 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope)
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope, brd.altitude)
 	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
-		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q", unit.EnteredName))
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
+			unit.EnteredName))
+	}
+	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.AirborneName); t != unit.Airborne {
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
+			unit.AirborneName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
 	return p
@@ -345,6 +350,13 @@ func (p *Plugin) cast() {
 
 // Heights is the board's ground heights: its Map's, nil on a flat map.
 func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
+
+// Surfaces is where whoever moves over the board stands — the ground or a deck — when its Map's
+// heights know; nil on a flat map.
+func (p *Plugin) Surfaces() ground.Surfaces {
+	s, _ := p.mapping.Heights().(ground.Surfaces)
+	return s
+}
 
 // Cover is what stands on the board and holds sight back — walls, forests — walked along a ray;
 // it is a ground.Readied too.

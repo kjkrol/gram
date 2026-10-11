@@ -123,7 +123,7 @@ func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		}
 		path, ok := Path{}, m.from == p.cell
 		if !ok {
-			path, ok = k.finder.findPath(m.id, m.domain, m.from, p.cell)
+			path, ok = k.finder.findPath(m.id, m.domain, m.z, m.from, p.cell)
 		}
 		if ok {
 			issue(m, MoveOrder{Target: p.cell, Spot: p.spot, At: at, Path: path, Leg: m.leg})
@@ -133,7 +133,7 @@ func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 
 // reaches reports whether any route over the ground takes m to c.
 func (k *bodyKeeping) reaches(m member, c cell.ID) bool {
-	_, ok := k.finder.findPath(m.id, m.domain, m.from, c)
+	_, ok := k.finder.findPath(m.id, m.domain, m.z, m.from, c)
 	return ok
 }
 
@@ -187,11 +187,11 @@ func (k *bodyKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, from, o.Target)
+	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target)
 }
 
 // lost waits targetWaitTimeout for the ground to change, then stands round the point on a cell a
@@ -204,7 +204,7 @@ func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 		if c == from {
 			return c, Path{}, false, true
 		}
-		if p, ok := k.finder.findPath(m.id, m.domain, from, c); ok {
+		if p, ok := k.finder.findPath(m.id, m.domain, m.z, from, c); ok {
 			o.Spot = geom.Vec{} // placed round the point in the new cell next tick
 			return c, p, false, true
 		}
@@ -353,7 +353,8 @@ func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
 	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
 	ok := true
 	k.grid.CellsUnder(boxAt(at, h), func(cell cell.ID) {
-		ok = ok && k.terrain.Kind(cell).Admits(m.domain) && k.finder.climb(m.cell, cell, m.domain) <= yieldClimb
+		ok = ok && k.terrain.Kind(cell).Admits(m.domain) &&
+			k.finder.climb(m.cell, cell, m.domain) <= yieldClimb && k.finder.steps(m, cell)
 	})
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
@@ -452,7 +453,8 @@ func (k *bodyKeeping) asides(m member, asker body) [2]geom.Vec {
 // where it stands — and who stands in the way there first, taken when someone does.
 func (k *bodyKeeping) open(m member, p geom.Vec) (ground bool, in uid.UID64, taken bool) {
 	cell, ok := k.grid.CellAt(p)
-	if !ok || !k.fits(m, p, nil) || k.finder.climb(m.cell, cell, m.domain) > yieldClimb {
+	if !ok || !k.fits(m, p, nil) || k.finder.climb(m.cell, cell, m.domain) > yieldClimb ||
+		!k.finder.steps(m, cell) {
 		return false, 0, false
 	}
 	h := half(m)

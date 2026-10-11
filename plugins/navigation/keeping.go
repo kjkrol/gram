@@ -166,10 +166,11 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		var path Path
 		ok := false
 		if n == 0 {
-			path, ok = pf.findPath(m.id, m.domain, m.from, target)
+			path, ok = pf.findPath(m.id, m.domain, m.z, m.from, target)
 		}
 		if !ok {
-			dest, path, ok = pf.nearestFree(m.id, m.domain, m.from, target, func(c cell.ID) bool { return taken[c] })
+			dest, path, ok = pf.nearestFree(m.id, m.domain, m.z, m.from, target,
+				func(c cell.ID) bool { return taken[c] })
 		}
 		if !ok {
 			continue
@@ -195,11 +196,11 @@ func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, from, o.Target)
+	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target)
 }
 
 // held reports whether c is held against m.
@@ -212,7 +213,7 @@ func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, from, o.Target, k.held(m))
 	return dest, path, false, ok
 }
 
@@ -262,7 +263,7 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 		return giveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.from, o.Target, k.held(m))
+		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, k.held(m))
 		if !ok {
 			return giveUp
 		}
@@ -297,7 +298,8 @@ func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 	}
 	var out []scored
 	for _, n := range grid.Neighbors(home) {
-		if n == from || !terrain.Kind(n).Admits(m.domain) || k.finder.climb(home, n, m.domain) > yieldClimb {
+		if n == from || !terrain.Kind(n).Admits(m.domain) ||
+			k.finder.climb(home, n, m.domain) > yieldClimb || !k.finder.steps(m, n) {
 			continue
 		}
 		c := grid.CellCenter(n)
@@ -381,7 +383,7 @@ func (k *cellKeeping) pass(member, *MoveOrder, body) {}
 func (k *cellKeeping) onGoal(self, other body) bool { return other.cell == self.goal }
 
 func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, k.held(m))
 	if !ok {
 		return false
 	}

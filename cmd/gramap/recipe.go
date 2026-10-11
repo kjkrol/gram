@@ -79,9 +79,10 @@ type roadsCfg struct {
 	Rock   float64               `yaml:"rock"`  // times
 	Reuse  float64               `yaml:"reuse"` // times, on a road laid already
 	Bridge float64               `yaml:"bridge"`
-	Span   int                   `yaml:"span"` // cells: the longest bridge, in relief
-	High   float64               `yaml:"high"` // metres: the highest a bridge's deck stands
-	Deep   float64               `yaml:"deep"` // metres: the most a road cuts or fills
+	Span   int                   `yaml:"span"`   // cells: the longest bridge, in relief
+	High   float64               `yaml:"high"`   // metres: the highest a bridge's deck stands
+	Deep   float64               `yaml:"deep"`   // metres: the most a road cuts or fills
+	Figure float64               `yaml:"figure"` // metres: the tallest figure, as drawn
 	Bank   float64               `yaml:"bank"`
 	Places map[string][2]float64 `yaml:"places"` // longitude, latitude
 	Routes [][]string            `yaml:"routes"` // each a chain of places

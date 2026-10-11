@@ -12,6 +12,7 @@ type (
 	Z        = entity.Z
 	Layers   = entity.Layers
 	Eye      = entity.Eye
+	Drift    = entity.Drift
 )
 
 // StepReach is entity.StepReach: how far an entity may travel in one tick, as a share of its own

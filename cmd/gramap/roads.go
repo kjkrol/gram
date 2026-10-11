@@ -80,8 +80,17 @@ type mark struct {
 	deck    float64
 }
 
-// underpass is how far over a road a bridge's deck crossing it stands, in metres.
-const underpass = 5.0
+// underpass is how far over a road a bridge's deck crossing it stands, in metres: the figures the
+// map is made for and a deck's thickness to spare, 5 m where it says none.
+func (r *roads) underpass() float64 {
+	if r.cfg.Figure > 0 {
+		return r.cfg.Figure + deckSpare
+	}
+	return 5
+}
+
+// deckSpare is what a deck takes over the figures passing under it, in metres.
+const deckSpare = 3.0
 
 func newRoads(w *chart) *roads {
 	r := &roads{w: w, cfg: w.r.Roads, net: network.New(w.grid), places: map[string]cell.ID{},
@@ -362,7 +371,7 @@ func (r *roads) overpass(rd road, at []int) bool {
 	out := r.wayOf(rd.cells[under], rd.cells[under+1])
 	axis := r.wayOf(rd.cells[over-1], rd.cells[over])
 	return in == out && across(in, axis) &&
-		rd.at[over] >= max(rd.at[under], rd.at[under+1])+underpass
+		rd.at[over] >= max(rd.at[under], rd.at[under+1])+r.underpass()
 }
 
 // across reports whether the ways a and b run square to each other along the sides.
@@ -380,7 +389,7 @@ func (r *roads) paveable(a, b cell.ID, way int, h float64, laid map[cell.ID]mark
 	}
 	if m := laid[b]; m.bridged {
 		rise := r.w.r.Area.Cell * math.Tan(ground.RoadSlope)
-		if !across(way, m.axis) || h+rise+underpass > m.deck {
+		if !across(way, m.axis) || h+rise+r.underpass() > m.deck {
 			return false
 		}
 	}
@@ -469,7 +478,7 @@ func (r *roads) bridge(b cell.ID, way int, h float64, laid map[cell.ID]mark) flo
 			return math.Inf(1)
 		}
 		for _, k := range w.cornersOf(b) {
-			if r.height(k)+underpass > h {
+			if r.height(k)+r.underpass() > h {
 				return math.Inf(1)
 			}
 		}
@@ -807,7 +816,7 @@ func (r *roads) grade() error {
 			for _, k := range w.cornersOf(c) {
 				switch {
 				case paved:
-					low = max(low, r.height(k)+underpass)
+					low = max(low, r.height(k)+r.underpass())
 				case w.wet(c):
 					low = max(low, w.corners[k]+clearance)
 				}

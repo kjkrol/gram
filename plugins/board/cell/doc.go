@@ -31,8 +31,10 @@
 // it stands on for good (board.NewEntities makes such kinds). Its knobs [Floor] and [Wall] build
 // over the cell: a Floor carries the domains it Allows whatever the ground takes (a trapdoor over
 // a pit, a ford waded at its Cost, a bridge over a river, Graded and at its Height in a world with
-// heights, come onto Along its axis alone — whoever comes from the side, a road under it, stays
-// under the deck), a Wall keeps the domains it Keeps off (a gate shut). The board gathers them on
+// heights — stepped onto from any side within a step, a road under it passing under its slab,
+// Thickness thick), a Wall keeps the domains it Keeps off (a gate shut), a [Rail] stands railings
+// along the sides it names (a bridge's long sides: a barrier for what drives, cleared by a leap
+// over its Height). The board gathers them on
 // the cell's entity as [Built], every step, and [Built.Over] is the kind as whoever crosses the
 // cell meets it with them: the planner, a fall (unit.Standing.Fallen) and collision see them as
 // they see the ground. An effect opens one — a Floor's Allows or a Wall's Keeps altered to 0:

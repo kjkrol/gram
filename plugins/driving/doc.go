@@ -13,7 +13,8 @@
 // itself (rule.Order) is its own hand. The hand is written into the unit's steering.Driven — Ahead,
 // Turn, Sprint and Face, the way of Toward — and the unit marked [Driving]; a tick with no hand
 // on a Driving unit zeroes them, braking it. The fields an eye riding in the unit writes — Look,
-// Flown, Climb (plugins/topography) — are left alone.
+// Flown, Climb (plugins/topography) — are left alone. [Jump] has each unit the hand is on give
+// itself a gravity.Leap; [JumpKey] binds it to a key.
 //
 // # Keys
 //
@@ -30,8 +31,11 @@
 // Every step of the simulation a Driven unit turns — by Turn, or towards Look, before any Face —
 // and walks the way it faces, or brakes and backs away; one that flies, flown by hand, goes along
 // the ground only the run of the way it is steered along (steering.Driven.Slope). Given a board
-// ([Plugin.WithGround]) it never walks onto ground its domain may not stand on, and its cell
-// (unit.At) and its hold on the board's occupancy follow it cell by cell, with unit.Entered. A
+// ([Plugin.WithGround]) it never walks onto ground its domain may not stand on on the level of its
+// feet (a deck's, or what lies under it), and its cell (unit.At) and its hold on the board's
+// occupancy follow it cell by cell, with unit.Entered. A unit under gravity (it carries a
+// world.Drift) is held back by physics alone: by ground higher than its step, the rest left to
+// gravity and collision — it walks off an edge and into the water, the game's rules deciding. A
 // Driving unit is let go once no hand is on it and it stands.
 //
 // # Navigation

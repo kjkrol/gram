@@ -71,7 +71,7 @@ type walker struct {
 // of 1, and reports each one's Pace after, keyed by its box's left edge.
 func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, slope func(p, dir geom.Vec, d cell.Domain) float64, walkers ...walker) map[float64]float64 {
 	t.Helper()
-	return walk(t, New(g, cells, nil, slope), 1, walkers...)
+	return walk(t, New(g, cells, nil, slope, nil), 1, walkers...)
 }
 
 // walk runs r's standing pass steps times over walkers, as paces does.

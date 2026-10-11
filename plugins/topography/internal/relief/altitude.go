@@ -13,8 +13,10 @@ import (
 
 var _ goke.System = (*altitudeSystem)(nil)
 
-// altitudeSystem puts every mover carrying a Z at the ground under its centre — a Floor's deck
-// where one carries it there — plus its Lift, every step, after movement and collisions. A flyer
+// altitudeSystem puts every mover carrying a Z on the surface under its centre (Relief.Surface:
+// a Floor's deck within a step of its feet, else the ground) plus its Lift, every step, after
+// movement and collisions; one carried at a world.Drift falls under gravity, which writes its
+// height itself. A flyer
 // flown by hand holds its height over sea level instead, climbing and diving by the rise of the
 // way it is steered, as far as it went along the ground, its Lift following. Each keeps its
 // Clearance over the ground and, the ground allowing, stays under its Ceiling over sea level.
@@ -40,7 +42,8 @@ type altitudeSystem struct {
 func (r *Relief) AltitudeSystem() goke.System { return &altitudeSystem{relief: r} }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).Build()
+	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
+		Exclude(goke.Exclude[world.Drift]()).Build()
 	s.standing = si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor).Build()
 }
 
@@ -53,11 +56,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		for i := range cursor.IDs {
 			m := &movers[i]
 			at := bases[i].Pos.Center()
-			ground := s.relief.GroundAt(at)
-			stands := zs[i].Altitude - m.Lift
-			if deck, ok := s.relief.DeckAt(at, m.Domain, bases[i].Vel.Dir, stands); ok {
-				ground = max(ground, deck)
-			}
+			ground, _ := s.relief.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
 			alt := ground + m.Lift
 			flown := m.Domain&cell.Air != 0 && drivens != nil && drivens[i].Flown
 			if flown {

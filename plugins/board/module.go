@@ -81,6 +81,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[cell.On](),
 		goke.LoadComp[cell.Floor](),
 		goke.LoadComp[cell.Wall](),
+		goke.LoadComp[cell.Rail](),
 		goke.LoadComp[effect.Active](),
 		goke.LoadComp[tag.Tags[effect.States]](),
 		goke.LoadComp[tag.Tags[rule.Roles]](),

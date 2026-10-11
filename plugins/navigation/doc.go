@@ -88,7 +88,11 @@
 // the corner beside the way, over the ground bare of it (board.Board.Bare), and costs that ground
 // — none where it does not admit the unit, the water beside a bridge: a road is followed round
 // its bend rather than cut across the grass, and a road laid slantwise is taken along its links at
-// its own price. The routes are found by the plugin's own path finder (internal/pathfind); the
+// its own price. In a world with heights a cell under a raised deck (cell.Floor) has two levels,
+// and a route goes by the unit's Z: onto the deck where the ground at the edge it crosses lies
+// within the unit's step of it, along it, and off it only onto a surface within the step — never a
+// fall; under it only for a unit that fits under its slab. A step across a railing (cell.Rail) is
+// never planned. The routes are found by the plugin's own path finder (internal/pathfind); the
 // routes on the GPU are drawn by its own lines (internal/routes): neither is the game's to use.
 //
 // # Commands

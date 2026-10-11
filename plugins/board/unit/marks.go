@@ -13,3 +13,11 @@ const Entered tag.Tag[States] = 0
 
 // EnteredName is the name Entered is defined under, as the saves know it.
 const EnteredName = "unit.entered"
+
+// Airborne is on while a unit is in the air — leapt, fallen off an edge, knocked away — off any
+// ground: put on and off by whoever carries it there (plugins/gravity). A unit in the air has not
+// fallen in where it is over (Standing.Fallen).
+const Airborne tag.Tag[States] = 1
+
+// AirborneName is the name Airborne is defined under, as the saves know it.
+const AirborneName = "unit.airborne"

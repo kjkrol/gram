@@ -53,6 +53,39 @@ argument's full path, which moved.
 - `relief.MeanOfCells` is the board's: `ground.MeanOfCells`. `kind.EntryOf(name, row)` and
   `world.Roles.Lookup` are new.
 
+**Gravity, steps, decks, railings, leaps; the planner on two levels**
+- `plugins/gravity`: bodies fall, stand on what bears them and leap — a character's controller,
+  one plugin in two modes, the world's dimension. `gravity.NewPlugin(world, Config{Pull})`: the
+  `gravity.Pull` a knob on its entity (an effect turns gravity over); a kind carrying
+  `gravity.Body{Leap}` falls, carried at a `world.Drift` the world's move pass adds to its walk.
+  With heights it stands on the ground or a deck within its step (`WithSurfaces(board.Surfaces)`),
+  follows a slope down, falls off an edge, strikes a slab with its head; a flat world bears it on
+  what collision found it touching against the pull (a platformer; the pull turned up, it lands on
+  the ceiling). `Leap{}` and `Away{Speed, Rise}` (aimed, a blast's knock-back) are an entity's own;
+  `Landing{Speed}` is a moment for rules. `unit.Airborne` is on while a body is in the air, and
+  `unit.Standing.Fallen` never is then (`Standing.Airborne`).
+- `driving.Jump{Camera}` and `driving.JumpKey(key)`: a unit the hand is on leaps. The driving
+  walks a unit only onto ground its domain may stand on on the level of its feet; one under
+  gravity only where it may step up to, the rest physics.
+- `world.Z.Step` (`Z.Reach()`: the step, a quarter of the height without one) and
+  `ground.Surfaces` (`board.Plugin.Surfaces`, the topography's relief): the highest of the ground
+  and a deck carrying the domain within the step of the feet, and the underside of a slab over
+  them. `relief.DeckAt` is gone: a unit steps onto a deck from any side, passes under one it fits
+  under. `cell.Floor.Along` is gone; `cell.Floor.Thickness` is a deck's slab, which collision
+  strikes a unit too tall for (`collision.Band.Step`, `Band.Above`). `Board.KindAt(c, deck)` and
+  `Board.KindFor(c, feet, reach)` are a cell's kind on one of its levels.
+- `cell.Rail{Keeps, Sides, Height}`: railings along a cell's sides on a square grid — thin boxes
+  in collision's field, a leap over their top clears them, the planner never crosses one. The
+  demos' bridges have them on their long sides and a slab.
+- The planner goes by the unit's Z in a world with heights: a cell under a deck has two levels,
+  a route goes onto a deck within a step of it and off it only onto a surface within the step,
+  under it only fitting under its slab — never a fall.
+- `cmd/gramap`: a recipe's `roads.figure` (metres, the tallest figure as the game draws it) sets
+  how high a bridge stands over a road under it.
+- `bullet.Blast` has a `Subject`, the shot bursting: an aimed command under `ForOther` is about it.
+- `examples/platformer-demo` (`make demo-platformer`): a hero in a side view under gravity, A and
+  D walk, W jumps, G turns gravity over, a hard landing dazes.
+
 **Madeira, roads as Transport Tycoon lays them, bridges and fords on the board**
 - `cmd/gramap` makes a map of any stretch of the Earth at any scale out of a recipe
   (`cmd/gramap/madeira.yaml`): heights from the Terrain Tiles on AWS, the ground, the rivers, the

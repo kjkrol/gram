@@ -6,7 +6,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -19,10 +21,12 @@ var _ goke.System = (*handSystem)(nil)
 // it — a player's whose camera the command came through is fastened to it, a player's that
 // selected it with that camera fastened to nothing, or its own — marking it Driving; a Driving
 // unit with no hand on it this tick is written a zero hand, to brake. The fields of a Driven an
-// eye writes — Look, Flown, Climb — are left alone.
+// eye writes — Look, Flown, Climb — are left alone. A hand that jumps has the unit give itself a
+// gravity.Leap.
 type handSystem struct {
 	hands    *hands
 	selected tag.Tag[selection.Family]
+	carrier  *control.Carrier
 	*units
 
 	drivenID goke.CompID
@@ -46,6 +50,10 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				owned = owners[i]
 			}
 			h, on := s.on(id, owned, marks != nil && marks[i].Has(s.selected))
+			if on && h.jump {
+				s.carrier.PutFrom(id, gravity.Leap{})
+			}
+			on = on && h.drives()
 			var in steering.Driven
 			if drivens != nil {
 				in = drivens[i]

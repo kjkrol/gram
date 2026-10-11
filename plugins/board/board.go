@@ -57,6 +57,19 @@ func (b *Board) CellEntity(c cell.ID) (uid.UID64, bool) { return b.cells.Entity(
 // a bridge, a ford (Built.Over); off the board, the zero kind admitting nobody.
 func (b *Board) Kind(c cell.ID) cell.Kind { return b.cells.Kind(c) }
 
+// KindAt is c's kind on one of its levels where a raised Floor gives it two — on the deck, what
+// the Floor carries; under it, the ground and its Way — and Kind on a cell of one level.
+func (b *Board) KindAt(c cell.ID, deck bool) cell.Kind { return b.cells.KindAt(c, deck) }
+
+// KindFor is c's kind on the level of whoever has its feet at feet and steps reach high: on a
+// raised Floor's deck once its feet are within reach of it, under it otherwise.
+func (b *Board) KindFor(c cell.ID, feet, reach float64) cell.Kind {
+	return b.cells.KindFor(c, feet, reach, b.altitude)
+}
+
+// Railed reports whether a railing stands on any cell (cell.Rail).
+func (b *Board) Railed() bool { return b.cells.Railed() }
+
 // Built is what the entities standing on c build over it — their Floors and Walls — as of the
 // board's last step; none off the board.
 func (b *Board) Built(c cell.ID) cell.Built { return b.cells.Built(c) }

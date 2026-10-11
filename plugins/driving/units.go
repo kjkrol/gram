@@ -24,6 +24,8 @@ type units struct {
 	marks  goke.OptComp[tag.Tags[selection.Family]]
 	states goke.OptComp[tag.Tags[States]]
 	places goke.OptComp[tag.Tags[unit.States]]
+	z      goke.OptComp[world.Z]
+	drift  goke.OptComp[world.Drift]
 }
 
 func (u *units) build(si *goke.SysInit) {
@@ -33,5 +35,6 @@ func (u *units) build(si *goke.SysInit) {
 	u.query = si.NewQueryBuilder(&u.base, &u.steer).
 		Optional(&u.course).Optional(&u.driven).Optional(&u.at).Optional(&u.mover).
 		Optional(&u.owners).Optional(&u.marks).Optional(&u.states).Optional(&u.places).
+		Optional(&u.z).Optional(&u.drift).
 		Build()
 }

@@ -48,3 +48,7 @@ func (b Blast) Who() uid.UID64 { return b.Self }
 
 // Whom tells each the one reached.
 func (b Blast) Whom(each func(uid.UID64)) { each(b.Other) }
+
+// Subject is the shot bursting, whom an Aimed command given on the moment is about: the one
+// reached thrown away from it (gravity.Away, under ForOther).
+func (b Blast) Subject() (uid.UID64, bool) { return b.Self, true }

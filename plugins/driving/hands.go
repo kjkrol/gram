@@ -8,12 +8,16 @@ import (
 )
 
 // hand is what the commands of one hand add up to in a tick: each way held within -1 and 1, the
-// ways of Toward summed, Sprint while any said so.
+// ways of Toward summed, Sprint while any said so, a jump once however many said so.
 type hand struct {
 	ahead, turn int8
 	way         geom.Vec
 	sprint      bool
+	jump        bool
 }
+
+// drives reports whether the hand walks or turns its units, more than jumping.
+func (h hand) drives() bool { return h.ahead != 0 || h.turn != 0 || h.way != geom.Vec{} }
 
 func clampWay(v int8) int8 { return max(min(v, 1), -1) }
 
@@ -31,6 +35,7 @@ type hands struct {
 	backs   control.Queue[Back]
 	turns   control.Queue[Turn]
 	towards control.Queue[Toward]
+	jumps   control.Queue[Jump]
 
 	players  []held
 	entities map[uid.UID64]hand
@@ -58,6 +63,9 @@ func (h *hands) sum() {
 		h.add(i.Player, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) {
 			x.ahead, x.way = clampWay(x.ahead+1), x.way.Add(i.Command.Way)
 		})
+	})
+	h.jumps.Drain(func(i control.Issued[Jump]) {
+		h.add(i.Player, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.jump = true })
 	})
 }
 

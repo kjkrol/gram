@@ -20,7 +20,7 @@ func TestLog_WritesALineOnceForEachWhoFell(t *testing.T) {
 	cells.Set(at(0), cell.Kind{Name: cell.Named("hole")})
 	cells.Set(at(1), cell.Kind{Name: cell.Named("grass"), Allows: cell.Land})
 	var out bytes.Buffer
-	r := New(grid, cells, nil, nil)
+	r := New(grid, cells, nil, nil, nil)
 	r.Log = log.New(&out, "", 0)
 
 	walk(t, r, 3,

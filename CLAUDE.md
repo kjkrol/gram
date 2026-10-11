@@ -46,6 +46,7 @@ make demo-material                                                 # an entity d
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
 make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
 make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
+make demo-platformer                                               # a hero in a side view under gravity (plugins/gravity, a flat world): A/D walk, W jumps, G turns gravity over, a hard landing dazes
 make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
 make demo-vision                                                  # go mod tidy && run examples/vision-demo
 make demo-minimal                                                 # the README example
@@ -724,10 +725,14 @@ trapdoor and pressure plate demos the same).
   every plane); collision and vision read it, so a hawk on `Air` and a walker on `Land` neither
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
-  `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights the two
-  span (`collision.Band`, `BandOf`) overlap, the ground stops an entity only in a solid cell whose
-  band — from below up to its kind's `Height` over its level — meets the entity's; whatever says no
+  `world.Z{Altitude, Height, Step}` (`Z.Reach()`: how high it steps up without leaping, `Step` or
+  a quarter of its `Height`), written by the board in relief from its ground or by gravity, sight
+  follows geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights
+  the two span (`collision.Band{Bottom, Top, Step}`, `BandOf`) overlap, the ground stops an entity
+  only in a solid cell whose band — from below up to its kind's `Height` over its level — meets the
+  entity's, a deck's slab (`cell.Floor.Thickness` under its top) the part of its band over its step
+  (`Band.Above`: a deck within the step is stepped onto, one it fits under passed under), a
+  railing (`cell.Rail`) its band from the deck or the cell's level up; whatever says no
   height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
   `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
@@ -783,7 +788,9 @@ trapdoor and pressure plate demos the same).
   roles' tags in its kinds (as each role is defined) and loads `entity.Label`. Every `plugin.Tick` a host hands its rules comes from
   `world.Plugin.Tick(cb, d)` (a `plugin.TickSource`): the carrier, `Time` (game time at the step's
   end), `Seed` (`world.Config.Seed`), which `Chance` draws from, and `Roles`, the roles an entity plays (for `Playing`). The space keeps no state of its own between ticks:
-  the move pass (`moveSystem`, private: tests use the world plugin) moves every box under the edge rules (`Space.Move`), then hands
+  the move pass (`moveSystem`, private: tests use the world plugin) moves every box by its
+  `Velocity` and the `world.Drift` it is carried at (gravity's; one step cap for both) under the
+  edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
   `view.View` (a rectangle plus the `view.EntitySet` of entities the space finds in it;
@@ -872,16 +879,23 @@ trapdoor and pressure plate demos the same).
   the relief takes, so the ECS keeps them in its own memory — written when the relief's version
   changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
   (`topography.Raise`, `Lower`, `Level`, `Shaping`). The relief is the world's `Ground`; the relief's
-  `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
-  `Lift` — a `cell.Floor`'s deck where one carries its domain there (`Relief.DeckAt`: its `Height`
-  over the cell's level), an entity standing on the board (`cell.On`) on the ground; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
+  `altitudeSystem` writes every `Z.Altitude` each step from the surface under the entity plus its
+  `Lift` — `Relief.Surface` (the board's `ground.Surfaces`, `board.Plugin.Surfaces()`): the
+  highest of the ground and a `cell.Floor`'s deck carrying its domain within its step of its feet
+  (`Z.Reach`,
+  from any side: up a bridge's ramp, never from the road under it), the ceiling the underside of a
+  deck's slab over its feet — except one carrying a `world.Drift`, which gravity carries; an entity
+  standing on the board (`cell.On`) on the ground; the board asks its Map's `Top` for a cell's
+  level where sight needs a veil's band. In a
   world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
   at a height at the first sight (`cell.Kinds.Define`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
-  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
-  box and the `Mover`'s domain) to the rules of it; `Standing.Fallen()` is a land
-  unit in water or in a hole, and the reaction is the game's (the demos:
+  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind on
+  the unit's level — `Board.KindFor(c, feet, reach)`: the deck's within its step of it, else what
+  lies under — the box, the `Mover`'s domain, `Airborne`) to the rules of it; `Standing.Fallen()`
+  is a land unit in water or in a hole, never one in the air (`unit.Airborne`, the units' marker
+  gravity puts on), and the reaction is the game's (the demos:
   `rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})))`,
   `board.Plugin.WithLog(log.Default())` writing a line for each fall). The same pass writes every
   unit with a `unit.Mover` its `steering.Pace{Share}` — 1/`CostFor` its domain of the cell under
@@ -901,17 +915,25 @@ trapdoor and pressure plate demos the same).
   board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
   box of `Size` at the cell's middle, `world.Velocity{}`, `cell.On{Cell}` and with heights a
   `world.Z{Height}`; the game gives the rest (a plate's `collision.Collider{}` without `Physics`, a
-  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Cost, Graded, Along}` (carries
-  the domains over whatever the ground takes: a trapdoor over a pit — a pit kind admitting nobody
-  — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`, come onto only `Along`
-  its axis: `relief.DeckAt` keeps a unit on the deck it stands on, takes it up onto one coming
-  along it near the deck from its end, and keeps whoever comes from the side, a road under the
-  bridge running across, under it — the user's word, 2026-10-11, TTD's bridge head; `Board.Bare`
-  leaves a Graded Floor out as it leaves a way; a `world.Velocity` among a kind's extra takes the
-  still one's place, its `Dir` the way the bridge runs, which its look `Facing`s) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are gathered every step
+  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Thickness, Cost, Graded}`
+  (carries the domains over whatever the ground takes: a trapdoor over a pit — a pit kind admitting
+  nobody — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`; with `Height` the
+  cell has two levels, the deck and what lies under (`Board.KindAt(c, deck)`, `KindFor`), and
+  where a unit is is its heights' — physics, not an axis (the user's word, 2026-10-11: `Along`
+  went): it steps onto a deck within its step from any side, passes under one it fits under,
+  strikes the slab, `Thickness` thick, of one it does not, falls off its edge under gravity;
+  `Board.Bare` leaves a Graded Floor out as it leaves a way; a `world.Velocity` among a kind's
+  extra takes the still one's place, its `Dir` the way the bridge runs, which its look `Facing`s),
+  `cell.Rail{Keeps, Sides, Height}` (railings along the cell's sides, `cell.Links` bits N 1, S 2,
+  W 4, E 8, a square grid only: thin boxes in collision's field from the deck or the cell's level
+  up `Height`, closed at an end where the next cell's railing runs on — a barrier for what drives,
+  a leap over its top clears it; the planner never steps across one; a flat world refuses a
+  `Height`; `Board.Railed()`) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are
+  gathered every step
   by the board's `builtSystem` (`internal/terrain/built.go`, after the cells' system) on the cell's
   entity as `cell.Built` (every cell carries one, saved; written in place where it changed, the
-  cell touched), domains joined, the highest Height; `Built.Over` adds the Floor's domains and
+  cell touched), domains joined, the highest Height and Thickness, the railings' sides joined;
+  `Built.Over` adds the Floor's domains and
   takes the Wall's off (`Solid` where it keeps any) in `Board.Kind` and `Board.Bare`, so the
   planner, the driving, `Standing.Fallen` and collision's field (`takes` the Floor, `stops` at a
   Wall in its band) see them unchanged; `Cells.built` counts the cells something is built over, so
@@ -959,7 +981,9 @@ trapdoor and pressure plate demos the same).
   fewer roads), each leg's planned corner heights honoured by the next (`planned`, joined at one
   height or kept apart), a road crossing itself refused but under its own bridge, bridges
   straight along a side over water or down a valley (`span` cells, `high` m), both ends at one
-  deck — over a road running square across too, `underpass` 5 m over it — fords where a river
+  deck — over a road running square across too, `underpass` its recipe's `figure` (the tallest
+  figure as the map's game draws it, metres: Madeira's 90, 1.8 m at 50 times life) and 3 m to
+  spare over it, 5 m without one — fords where a river
   is shallow, with `-flat` a bridge one cell of water; the grading (`grade`) joins the corners each
   cell's road holds level into classes (union-find) and only lets ramps apart; the map is laid on a
   board (`check`) before it is written and the old file's `units:` kept.
@@ -1062,7 +1086,13 @@ trapdoor and pressure plate demos the same).
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. The route finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`,
-  `NearestFree` into a caller's buffer of steps; the plugin's `pathFinder` lays them in `Path`s);
+  `NearestFree` into a caller's buffer of steps; the plugin's `pathFinder` lays them in `Path`s),
+  given the unit's `pathfind.Body{Feet, Step, Height}` (its `Z`): in a world with heights
+  (`WithLevels`, `boardLevels` over the board) its nodes are a cell and a level — a deck's, or what
+  lies under it — on two solvers, one over cells alone where no cell has two; a step onto a deck
+  is taken where the ground at the shared edge lies within the step of the deck, off one only onto
+  a surface within the step (never a planned fall), under one only for a unit that fits under its
+  slab, the goal reached on either level; a step across a railing (`cell.Rail`) is refused;
   `price` is what a step costs: the destination's `CostFor` over the step's
   length, times `Map.Climb` unless the kind is `Graded`; a slantwise step not `Along` a way is
   priced by the destination's `Bare` ground (the corner is cut beside the road) and refused where
@@ -1141,7 +1171,9 @@ trapdoor and pressure plate demos the same).
   `Arrived` (its order over, until the next); `MoveOrder.HitUnit` tells a unit struck from the
   ground (entity ids start at 0: never use 0 as "nobody").
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
-  `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
+  `MaxSpeed`), `Velocity`, `Z` (`Step`, `Reach`), `Layers`, `Drift{X, Y, Z}` (the velocity it is
+  carried at beyond its walk — falling, thrown — written by gravity alone, moved by the world's
+  move pass with its `Velocity`), and `Eye{Height, Angle}` for one that looks (where
   from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike; and
   what an entity is called, `Label{Name, Group}` (hashed; `LabelOf`), with whom a command is for,
   `Whom` (`Named`, `Group`, `World`; `label.go`). A
@@ -1393,13 +1425,43 @@ trapdoor and pressure plate demos the same).
   (`Ahead`, `Turn`, `Sprint`, `Face`) with the marker `driving.Driving` (`handSystem`, at once);
   the `driveSystem` (in the simulation; one query both share) turns the
   unit — by `Turn`, or to `Look` (the eye's, a riding camera's) before `Face` — walks, brakes,
-  backs, flies it, never onto ground its domain may not take nor where the `Keeping` says no,
-  its `unit.At` and occupancy hold following it with `unit.Entered`; with no hand it brakes and
-  is let go once it stands or `Keeping.Ordered`. Keys are sets: `driving.Tank{Ahead, Back, Left,
+  backs, flies it, never onto ground its domain may not take on the level of its feet
+  (`Board.KindFor`) nor where the `Keeping` says no — one under gravity (a `world.Drift`) refused
+  only what is higher than its step (the user's word, 2026-10-11: physics, not blocking; into the
+  water and off an edge as it pleases, the rules deciding) — its `unit.At` and occupancy hold
+  following it with `unit.Entered`; with no hand it brakes and is let go once it stands or
+  `Keeping.Ordered`. `Jump{Camera}` has every unit the hand is on give itself a `gravity.Leap`
+  (`driving.JumpKey(key)`; no default key — Space is the pause); a hand that only jumps drives
+  nothing. Keys are sets: `driving.Tank{Ahead, Back, Left,
   Right, In}` and `driving.Compass{Up, Down, Left, Right, In}` (`Bindings()`), `DefaultKeys()` WSAD
   `In(camera.Inside)` and the arrows `In(camera.Behind)`; split-screen binds a `Compass` per player,
-  ember and bullet a `Tank` `In(camera.Outside)`. Depends on `world`, `selection`, `board`,
-  `players/owner`.
+  ember and bullet a `Tank` `In(camera.Outside)`, the platformer a `Compass` of Left and Right.
+  Depends on `world`, `selection`, `board`, `players/owner`, `gravity` (the command's type).
+- **`gravity`** — bodies falling, standing, leaping (since 2026-10-11, the user's word: a
+  character controller as in Zelda BotW, not rigid bodies; one plugin, two modes):
+  `gravity.NewPlugin(world, Config{Pull})`, its own entity carrying the knob `gravity.Pull{X, Y,
+  Z}` (an effect's `Alter` turns it: gravity turned over is an effect; zero, the Earth's as the
+  figures feel it, `Scale.Figure(9.81)`). A kind falls carrying `gravity.Body{Leap}` (how high it
+  leaps); `giveSystem` puts a `world.Drift` on it once a tick where missing, and the topography's
+  altitude system leaves whatever carries one alone. The mode is `world.Config.Heights`, each
+  refusing the other's facts (a pull across a world with heights, `WithSurfaces` in a flat one):
+  with heights the `fallSystem` (`internal/vertical`: `Step`, `Leap`, `Throw`) stands a body
+  every step on the surface under its centre (`WithSurfaces(board.Surfaces)`, read with its feet
+  as they were before the step so a fast fall lands on a deck it came over) within its reach down
+  — a slope never puts it in the air, a deck's edge, a leap, a throw do — flies it under the pull,
+  stops its head at a slab's underside and lands it; a flat world's `planeSystem`
+  (`internal/planar`: `Settle`, `Fall`) has collision's contacts (`Collider.Contacts`, not
+  `Sensed`) take the drift running into them, a body borne by one facing against the pull (n·ĝ
+  under −0.7, and not leaving it) — the pull presses it every step so the touch is found again —
+  braked across the pull while borne, never faster than its step cap; a wall bears nothing, the
+  pull turned up lands everything on the ceiling. `unit.Airborne` (the board's units' marker) is
+  on while in the air; a body without the board's markers is no body. Commands, an entity's own:
+  `Leap{}` (v0 = √(2·g·Leap); none in the air), `Away{Speed, Rise}` (`plugin.Aimed`: thrown off
+  from the moment's subject — a `bullet.Blast`'s shot, its `Subject` — else back from the way it
+  faces), drained in the simulation's step, so none is lost at tempo ½ or in the pause. A
+  `Landing{ID, Speed}` is told the rules hosted (`plugin.Rules`) once as a body lands, its rules'
+  `If` saying how hard is a fall (the platformer's daze). Run it right after collision's RunPlan.
+  Depends on `world`, `board/ground`, `board/unit`, `collision`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
   space each tick fills the entity's `Sighted` (who it can see, nearest first; given by vision
   where missing — `Sight` is a knob vision only reads, `Sight.Ahead` looks the way it moves,
@@ -1457,7 +1519,8 @@ trapdoor and pressure plate demos the same).
   landing cast) and is despawned; one that `Left` is marked `world.Outside` for the world's exit
   pass. A landed shot that `Lands` is a `Resting` every step; `Burst{Radius}`, an entity's own
   (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
-  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
+  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`; its `Subject` the shot, so an
+  aimed command under `ForOther` — `gravity.Away` — is about it) per entity within the radius, then
   despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
   collision's. A shot is dressed as any entity: a state's look by `render.Slot.Under`, the way it
   flies out of the box: the plugin keeps a shot's heading on its `Base.Vel.Dir` (`Value` stays 0 —

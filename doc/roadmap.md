@@ -41,9 +41,15 @@ What is left to do. Take an item out when it lands.
   ground and moves — fire, smoke — is sprites over it, not a cover.
 - **A demo of ways** — roads as `cell.Way` and a bridge standing on the board over the ground, a
   unit taking the road round the mud, in the dress of the effect demo.
-- **Two levels in the planner** — a road under a bridge is one cell to navigation: a route may
-  come in under the deck and go on as if on it. The altitude keeps a unit on its level (on the
-  deck coming along it, else under it); the planner and the driving should too.
+- **Occupancy on two levels** — a cell's hold is one for both levels: under `CellSpacing` a unit
+  on a bridge and one on the road under it hold the same cell.
+- **Shots and decks** — a shot's ground (`bullet.Plugin.WithGround`) is the heights alone: it flies
+  through a deck and falls by its own `Gravity`, which gravity turned over does not touch; both
+  through `ground.Surfaces` and the world's `gravity.Pull`.
+- **Leaps, climbing and swimming planned** — the planner never plans a leap (a railing, a gap),
+  a climb or a swim; a unit under gravity does them only by hand.
+- **Railings drawn, railings on a hex** — `cell.Rail` is collision's and the planner's alone,
+  nothing draws it; a hex grid refuses one.
 - **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
   moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
   `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every

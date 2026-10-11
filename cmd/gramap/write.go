@@ -279,12 +279,14 @@ func writeList(b *bytes.Buffer, lead string, items []string) {
 			tail = "]"
 		}
 		if len(line)+len(it)+len(strings.TrimSpace(tail)) > 100 && len(line) > len(indent) {
-			b.WriteString(strings.TrimRight(line, " ") + "\n")
+			b.WriteString(strings.TrimRight(line, " "))
+			b.WriteString("\n")
 			line = indent
 		}
 		line += it + tail
 	}
-	b.WriteString(line + "\n")
+	b.WriteString(line)
+	b.WriteString("\n")
 }
 
 // number is v in metres to the centimetre, as short as it goes.

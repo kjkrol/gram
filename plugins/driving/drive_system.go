@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -19,13 +20,16 @@ var _ goke.System = (*driveSystem)(nil)
 
 // driveSystem carries out steering.Driven: an entity steered by hand turns — by Turn, or towards
 // Look or Face — and walks the way it faces, sprinting where urged, or brakes to a stop and backs
-// away facing as it does, never towards a cell its domain may not stand on or the keeping keeps it
-// out of; one that flies, flown by hand, goes along the ground only the run of the way it is
-// steered along, the topography climbing it by the rise. Without a hand it brakes. Its cell and
-// its hold on the occupancy follow it cell by cell. A Driving unit is let go once no hand is on it
-// and it stands, or something else steers it along a route of its own (Keeping.Ordered).
+// away facing as it does, never towards a cell its domain may not stand on on its level or the
+// keeping keeps it out of — one under gravity (world.Drift) wherever it may step up to, into the
+// water or off an edge as it pleases; one that flies, flown by hand, goes along the ground only the
+// run of the way it is steered along, the topography climbing it by the rise. Without a hand it
+// brakes. Its cell and its hold on the occupancy follow it cell by cell. A Driving unit is let go
+// once no hand is on it and it stands, or something else steers it along a route of its own
+// (Keeping.Ordered).
 type driveSystem struct {
-	board     *board.Board   // the ground; nil, none
+	board     *board.Board // the ground; nil, none
+	surfaces  func() ground.Surfaces
 	occupancy cell.Occupancy // who holds which cell; nil with no board
 	keeping   Keeping        // who else is in the way; nil, nobody
 	*units
@@ -54,7 +58,9 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		if courses == nil || drivens == nil {
 			continue // nobody drives it
 		}
-		ats, movers, states, places := s.at.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur), s.places.Slice(cur)
+		ats, movers, states, places := s.at.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur),
+			s.places.Slice(cur)
+		zs, falls := s.z.Slice(cur), s.drift.Present(cur)
 		for i, id := range cur.IDs {
 			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
 			domain := unit.DomainAt(movers, i)
@@ -98,22 +104,25 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if domain&cell.Air != 0 {
 				_, level = in.Slope()
 			}
-			var here cell.ID
+			w := walker{id: id, pos: base.Pos, domain: domain, falls: falls}
 			if ats != nil {
-				here = ats[i].Cell
+				w.at = ats[i].Cell
+			}
+			if zs != nil {
+				w.z = &zs[i]
 			}
 			switch {
-			case in.Ahead > 0 && s.open(id, base.Pos, here, domain, heading) && in.Sprint:
+			case in.Ahead > 0 && s.open(w, heading) && in.Sprint:
 				st.RequestSprint()
 				st.WantSpeed *= level
-			case in.Ahead > 0 && s.open(id, base.Pos, here, domain, heading):
+			case in.Ahead > 0 && s.open(w, heading):
 				st.RequestSpeed(st.MaxSpeed * level)
 			case in.Ahead > 0:
 				st.RequestSpeed(0)
 				st.Speed = 0 // stopped on the spot, at the water's edge as when asked to
 			case in.Ahead < 0 && st.Speed > 0:
 				st.RequestSpeed(0) // braking before it backs away
-			case in.Ahead < 0 && s.open(id, base.Pos, here, domain, geom.NewVec(-heading.X, -heading.Y)):
+			case in.Ahead < 0 && s.open(w, geom.NewVec(-heading.X, -heading.Y)):
 				st.RequestBack(backing(st.Steering))
 			case in.Ahead < 0:
 				st.RequestSpeed(0)
@@ -164,17 +173,43 @@ func (s *driveSystem) enter(places []tag.Tags[unit.States], i int, id uid.UID64)
 	}
 }
 
-// open reports whether the ground just ahead of the unit id, standing at pos in cell at, the way
-// heading points, takes it: a cell its domain may stand on, and one the keeping lets it on into.
-func (s *driveSystem) open(id uid.UID64, pos world.Position, at cell.ID, domain cell.Domain, heading geom.Vec) bool {
+// walker is a driven unit as open asks of it: where it stands and in which cell, its domain, its Z
+// (nil, none) and whether it falls under gravity.
+type walker struct {
+	id     uid.UID64
+	pos    world.Position
+	at     cell.ID
+	domain cell.Domain
+	z      *world.Z
+	falls  bool
+}
+
+// open reports whether the ground just ahead of the walker, the way heading points, takes it: a
+// cell its domain may stand on — on the level its feet are at — or, under gravity, any it may step
+// up to; and one the keeping lets it on into.
+func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	if s.board == nil {
 		return true
 	}
-	reach := max(pos.Size.X, pos.Size.Y)/2 + driveMargin
-	centre := pos.Center()
-	ahead, ok := s.board.CellAt(geom.NewVec(centre.X+heading.X*reach, centre.Y+heading.Y*reach))
-	if !ok || !s.board.Kind(ahead).Admits(domain) {
+	reach := max(w.pos.Size.X, w.pos.Size.Y)/2 + driveMargin
+	centre := w.pos.Center()
+	point := geom.NewVec(centre.X+heading.X*reach, centre.Y+heading.Y*reach)
+	ahead, ok := s.board.CellAt(point)
+	switch {
+	case !ok:
+		return false
+	case w.falls && w.z != nil && s.surfaces != nil:
+		if sf := s.surfaces(); sf != nil {
+			floor, _ := sf.Surface(point, w.domain, w.z.Altitude, w.z.Reach())
+			if floor > w.z.Altitude+w.z.Reach() {
+				return false
+			}
+		}
+	case w.falls:
+	case w.z != nil && !s.board.KindFor(ahead, w.z.Altitude, w.z.Reach()).Admits(w.domain):
+		return false
+	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
 		return false
 	}
-	return s.keeping == nil || s.keeping.MayStep(id, pos, at, ahead, domain, heading)
+	return s.keeping == nil || s.keeping.MayStep(w.id, w.pos, w.at, ahead, w.domain, heading)
 }

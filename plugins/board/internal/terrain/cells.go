@@ -25,6 +25,7 @@ type Cells struct {
 	changes  uint64   // how many cells have changed, one at a time
 	everyone uint64   // the count when every cell last changed at once
 	built    int      // how many cells something is built over, so that a board of none seeks none
+	railed   int      // how many of them carry a railing
 	standing *builtSystem
 }
 
@@ -83,12 +84,67 @@ func (t *Cells) Kind(c cell.ID) cell.Kind {
 	return k
 }
 
+// KindAt is c's kind on one of its levels where a raised Floor gives it two: on the deck what the
+// Floor carries, at its Cost (else the ground's), Graded as it is; under it the ground under its
+// Way with what else is built there; on a cell of one level, Kind.
+func (t *Cells) KindAt(c cell.ID, deck bool) cell.Kind {
+	b := t.Built(c)
+	if b.Floor.Height <= 0 {
+		return t.Kind(c)
+	}
+	i, _ := t.Ordinal(c)
+	return level(t.store.wayOf(i).Over(t.store.groundOf(i).Kind), b, deck)
+}
+
+// KindFor is c's kind on the level whoever stands with its feet at feet is on: a raised Floor's
+// deck when its feet are within reach of it, level being c's ground level; otherwise as KindAt
+// under it.
+func (t *Cells) KindFor(c cell.ID, feet, reach float64, ground func(cell.ID) float64) cell.Kind {
+	if t.store == nil {
+		return t.seed.Ways[c].Over(t.seed.Kind(c))
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return cell.Kind{}
+	}
+	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
+	if t.built == 0 {
+		return k
+	}
+	b := t.store.builtOf(i)
+	switch {
+	case b == nil:
+		return k
+	case b.Floor.Height <= 0 || ground == nil:
+		return b.Over(k)
+	}
+	return level(k, *b, feet >= ground(c)+b.Floor.Height-reach)
+}
+
+// level is the kind k under b on the deck of b's Floor or under it.
+func level(k cell.Kind, b cell.Built, deck bool) cell.Kind {
+	floor := b.Floor
+	b.Floor = cell.Floor{}
+	if !deck {
+		return b.Over(k)
+	}
+	on := cell.Kind{Name: k.Name, Cost: k.Cost, SpriteID: k.SpriteID}
+	if floor.Cost > 0 {
+		on.Cost = floor.Cost
+	}
+	on.Allows, on.Graded = floor.Allows, floor.Graded
+	return b.Over(on)
+}
+
 // Standing calls each with every entity standing on c (cell.On); none before the cells are made.
 func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
 	if t.standing != nil {
 		t.standing.standing(c, each)
 	}
 }
+
+// Railed reports whether a railing stands on any cell.
+func (t *Cells) Railed() bool { return t.railed > 0 }
 
 // Built is what the entities standing on c build over it; none off the board or before the cells
 // are made.

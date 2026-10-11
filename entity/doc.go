@@ -1,8 +1,9 @@
 // Package entity is what every entity of a world carries: its [Base] — where it is ([Position]),
 // how it moves ([Velocity]), the kind it was spawned from and what the space may do with it — its
-// planes ([Layers]), in a world with heights its place in height ([Z]), and, for one that looks,
-// where it looks from and how wide ([Eye]). No entity moves further in a tick than [StepReach]
-// of its own shorter side.
+// planes ([Layers]), in a world with heights its place in height ([Z]: how high it stands, how
+// tall it is, how high it steps), and, for one that looks, where it looks from and how wide
+// ([Eye]); one under gravity is carried at a [Drift] beyond its walk. No entity moves further in a
+// tick than [StepReach] of its own shorter side.
 //
 // # Names and groups
 //
