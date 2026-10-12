@@ -23,46 +23,55 @@ import (
 // the whole cell), railings 1 high along it.
 func deckWorld(t *testing.T, width float64) (collision.Field, grid.Grid) {
 	t.Helper()
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 50, Height: 30},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
-		Heights:  true,
-	})
 	g := grid.DefaultGrids{}.Square(5, 3, 10)
-	p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	west, _ := grid.Direction(g, -1, 0)
 	east, _ := grid.Direction(g, 1, 0)
 	floor := cell.Floor{Allows: cell.Land, Height: 10, Thickness: 1}
 	if width > 0 {
 		floor.Links, floor.Width = 1<<west|1<<east, width
 	}
+	grass := cell.Kind{Cost: 1, Allows: cell.Land}
+	return floored(t, g, 50, 30, grass, floor, g.At(1, 1), g.At(2, 1), g.At(3, 1)), g
+}
+
+// floored is a board over g, width x height, of ground in a world with heights, floor built over
+// the cells given, with railings 1 high.
+func floored(t *testing.T, g grid.Grid, width, height uint32, ground cell.Kind, floor cell.Floor,
+	cells ...cell.ID) collision.Field {
+	t.Helper()
+	wd := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: width, Height: height},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
+		Heights:  true,
+	})
+	p := board.NewPlugin(g, &cell.MultipleOccupancy{}, wd)
+	p.Board().SetAll(ground)
 	bridges := board.NewEntities(p, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })
 	bridges.Define("bridge",
 		comp.Const(floor),
 		comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
-	for x := range uint32(3) {
-		w.Seed(bridges.Named("bridge").Entry(g.At(x+1, 1)))
+	for _, c := range cells {
+		wd.Seed(bridges.Named("bridge").Entry(c))
 	}
 	ctx := boardtest.NewInstallCtx()
-	if err := w.Install(ctx); err != nil {
+	if err := wd.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Populate(); err != nil {
+	if err := wd.Populate(); err != nil {
 		t.Fatal(err)
 	}
 	ctx.ECS().Setup(ctx.Systems()...)
 	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
+		wd.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		wd.Clock().Replay(rc, d)
 	})
 	ctx.ECS().Tick(time.Second / 60)
-	return p.Cover().(collision.Field), g
+	return p.Cover().(collision.Field)
 }
 
 // solidAt is what f holds solid over the whole board for a walker spanning band.
@@ -181,4 +190,41 @@ func bitsOf(e collide.Ends) int { return bits.OnesCount8(uint8(e)) }
 
 func side(b geom.AABB) (float64, float64) {
 	return b.BottomRight.X - b.TopLeft.X, b.BottomRight.Y - b.TopLeft.Y
+}
+
+// Over water a band takes a walker and the cell beside it does not: a walker pushed off a bridge's
+// side is over the water, on a slantwise one too, where the band reaches over the corner into the
+// cells flanking it. A deck over the whole cell takes it all.
+func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
+	water := cell.Kind{Cost: 1, Allows: cell.Water}
+	land := world.Layers(cell.Land)
+	floor := cell.Floor{Allows: cell.Land, Height: 10, Thickness: 1, Width: 6}
+	g := grid.DefaultGrids{}.Square(5, 3, 10)
+	west, _ := grid.Direction(g, -1, 0)
+	east, _ := grid.Direction(g, 1, 0)
+	floor.Links = 1<<west | 1<<east
+	straight := floored(t, g, 50, 30, water, floor, g.At(1, 1), g.At(2, 1), g.At(3, 1))
+	whole := floored(t, g, 50, 30, water, cell.Floor{Allows: cell.Land, Height: 10, Thickness: 1},
+		g.At(1, 1), g.At(2, 1), g.At(3, 1))
+	d := grid.DefaultGrids{}.Square(4, 4, 10)
+	nw, _ := grid.Direction(d, -1, -1)
+	se, _ := grid.Direction(d, 1, 1)
+	floor.Links = 1<<nw | 1<<se
+	slantwise := floored(t, d, 40, 40, water, floor, d.At(1, 1), d.At(2, 2))
+	for _, c := range []struct {
+		name  string
+		field collision.Field
+		box   geom.AABB
+		want  float64
+	}{
+		{"on the band", straight, geom.NewAABBAt(geom.NewVec(23, 13), 4, 4), 0},
+		{"pushed off its side", straight, geom.NewAABBAt(geom.NewVec(23, 17), 4, 4), 12},
+		{"a deck over the cell, past it", whole, geom.NewAABBAt(geom.NewVec(23, 17), 4, 4), 4},
+		{"on a slantwise band's corner", slantwise, geom.NewAABBAt(geom.NewVec(18, 18), 4, 4), 0},
+		{"beside a slantwise band", slantwise, geom.NewAABBAt(geom.NewVec(10, 18), 2, 2), 4},
+	} {
+		if got := c.field.Overhang(land, c.box); math.Abs(got-c.want) > 1e-9 {
+			t.Errorf("%s: overhang %v, want %v", c.name, got, c.want)
+		}
+	}
 }

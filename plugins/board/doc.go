@@ -201,13 +201,16 @@
 // collision.Field, [Plugin.WithCollision]). The board's field, inside it, is both. Sight takes them
 // with vision.Plugin.WithBoard. The world knows none of it: it knows its entities.
 //
-// A cell.Occupancy tracks who holds each cell and in which domains, gating and recording every
-// step navigation takes when it keeps units a cell each (navigation.CellSpacing; units kept apart
-// by their boxes leave it unasked): cell.SingleOccupancy lets one entity per domain into a cell (a
-// walker and a hawk share one, two walkers do not), cell.MultipleOccupancy any number — tokens on
-// a square, which carry no Physics, since bodies cannot overlap. A hold is a booking: the cell a
-// unit stands on and the one it steps into. The board lets go of the holds of whoever left the
-// world, every step (cell.Occupancy.Release), so one fallen in blocks no cell. A Solid cell stops
+// A cell.Occupancy tracks who holds each cell, on which of its levels and in which domains, gating
+// and recording every step navigation takes when it keeps units a cell each
+// (navigation.CellSpacing; units kept apart by their boxes leave it unasked):
+// cell.SingleOccupancy lets one entity per domain into a cell on each level (a walker and a hawk
+// share one, two walkers do not, but for one on a bridge's deck and one on the ground under it),
+// cell.MultipleOccupancy any number — tokens on a square, which carry no Physics, since bodies
+// cannot overlap. A hold is a booking: the cell a unit stands on and the one it steps into. The
+// board lets go of the holds of whoever left the world, every step (cell.Occupancy.Release), so
+// one fallen in blocks no cell, and holds the cell a unit stands on under a raised deck on the
+// level its feet are on, as it climbs onto the deck or falls off it. A Solid cell stops
 // only whoever its kind keeps out, so a wall admitting Air lets a flyer over.
 //
 // # Drawing

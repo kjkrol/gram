@@ -24,11 +24,13 @@
 //
 // How units keep out of each other's way is the plugin's [Spacing] ([Plugin.WithSpacing]):
 //
-//   - [CellSpacing] gives a unit a cell to itself in each domain, as the board's Occupancy says. A
-//     Leg holds every cell its step touches until it reaches the next centre, a group sent to one
-//     cell spreads a unit to a cell each, and every unit stands at its cell's centre. A unit routes
-//     over the ground alone, not knowing where the others stand, and learns of them only when a
-//     step is refused, the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
+//   - [CellSpacing] gives a unit a cell to itself in each domain, as the board's Occupancy says —
+//     on each of its levels: one on a bridge's deck and one on the ground under it share a cell,
+//     each holding it on the level its route lies on there (Path.Decks). A Leg holds every cell
+//     its step touches until it reaches the next centre, a group sent to one cell spreads a unit
+//     to a cell each, and every unit stands at its cell's centre. A unit routes over the ground
+//     alone, not knowing where the others stand, and learns of them only when a step is refused,
+//     the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
 //     whatever the rules do, it notes the cell for its routes to go round and plans afresh; a
 //     corner of a slantwise step held is gone round square at once. One that struck someone bodily
 //     (navigation reads its collision.Collider contacts in its own pass) stops, plans again

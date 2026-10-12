@@ -91,8 +91,8 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
 	const mover, other = uid.UID64(1), uid.UID64(2)
-	occupancy.Enter(at(0), mover, cell.Land)
-	occupancy.Enter(at(4), other, cell.Land)
+	occupancy.Enter(at(0), false, mover, cell.Land)
+	occupancy.Enter(at(4), false, other, cell.Land)
 	terrain.Set(at(2), cell.Kind{Cost: 1, Solid: true})
 	taken := func(c cell.ID) bool { return c == at(5) }
 

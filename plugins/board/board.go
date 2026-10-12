@@ -84,6 +84,16 @@ func (b *Board) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok b
 	return b.cells.LevelFor(p, feet, reach, b.altitude)
 }
 
+// onDeck reports whether whoever stands at p, its feet at feet, stepping reach high, stands in c
+// on the raised deck over it, and whether c has one at all.
+func (b *Board) onDeck(c cell.ID, p geom.Vec, feet, reach float64) (deck, raised bool) {
+	if b.Built(c).Floor.Height <= 0 {
+		return false, false
+	}
+	at, deck, ok := b.LevelFor(p, feet, reach)
+	return ok && at == c && deck, true
+}
+
 // DecksOver calls visit with every Floor over p and the cell it is built on: the whole cell's, or
 // a band p lies on, the cell's own or a neighbour's reaching over it.
 func (b *Board) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {

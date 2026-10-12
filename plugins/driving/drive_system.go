@@ -152,8 +152,8 @@ func backing(st *steering.Steering) float64 {
 }
 
 // follow moves the entity's cell, and its hold on the occupancy, to the cell it stands on as z
-// says (nil, on the ground) — a deck's over the ground's (board.Board.CellFor); true when that is
-// another cell. Without a board nothing moves.
+// says (nil, on the ground) — a deck's over the ground's, held on its level (board.Board.LevelFor);
+// true when that is another cell. Without a board nothing moves.
 func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *world.Z,
 	domain cell.Domain) bool {
 	if s.board == nil {
@@ -163,12 +163,12 @@ func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *w
 	if z != nil {
 		feet, reach = z.Altitude, z.Reach()
 	}
-	actual, ok := s.board.CellFor(pos.Center(), feet, reach)
+	actual, deck, ok := s.board.LevelFor(pos.Center(), feet, reach)
 	if !ok || actual == at.Cell {
 		return false
 	}
 	s.occupancy.Leave(at.Cell, id)
-	s.occupancy.Enter(actual, id, domain)
+	s.occupancy.Enter(actual, deck, id, domain)
 	at.Cell = actual
 	return true
 }
@@ -221,5 +221,12 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
 		return false
 	}
-	return s.keeping == nil || s.keeping.MayStep(w.id, w.pos, w.at, ahead, w.domain, heading)
+	if s.keeping == nil {
+		return true
+	}
+	deck := false
+	if w.z != nil {
+		ahead, deck, _ = s.board.LevelFor(point, w.z.Altitude, w.z.Reach())
+	}
+	return s.keeping.MayStep(w.id, w.pos, w.at, ahead, deck, w.domain, heading)
 }

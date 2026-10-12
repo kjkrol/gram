@@ -85,7 +85,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(start, id, cell.Land)
+		occupancy.Enter(start, false, id, cell.Land)
 
 		q = si.NewQueryBuilder(&at, &order).Build()
 	}})
@@ -163,7 +163,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		for _, c := range mt.Leg.cells() {
-			occupancy.Enter(c, id, cell.Land)
+			occupancy.Enter(c, false, id, cell.Land)
 		}
 
 		q = si.NewQueryBuilder(&at, &order).Build()
@@ -216,7 +216,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 50}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(start, id, cell.Land)
+		occupancy.Enter(start, false, id, cell.Land)
 
 		q = si.NewQueryBuilder(&at, &pos).Build()
 	}})
@@ -277,7 +277,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(target, id, cell.Land)
+		occupancy.Enter(target, false, id, cell.Land)
 
 		q = si.NewQueryBuilder(&pos).Build()
 	}})

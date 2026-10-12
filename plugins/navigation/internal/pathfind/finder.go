@@ -27,6 +27,7 @@ type Finder struct {
 	goal      cell.ID             // the cell the route being planned ends on
 	end       Level               // the level of it the route ends on
 	ended     uint8               // the level the last route found ended on
+	decks     uint64              // which steps of the last route found lie on a deck, by bit
 	body      Body                // whoever the route being planned is for
 }
 
@@ -152,6 +153,7 @@ func (p *Finder) Find(
 	if p.slopes != nil {
 		p.least = p.slopes.Least(domain)
 	}
+	p.decks = 0
 	if p.levels == nil {
 		full := p.solver.Solve(from, to, p.transitionsFor(entity, domain))
 		if len(full) < 2 {
@@ -175,10 +177,17 @@ func (p *Finder) Find(
 			break
 		}
 		dst[n] = s.c
+		if s.level == deck && n < 64 {
+			p.decks |= 1 << n
+		}
 		n++
 	}
 	return n, true
 }
+
+// Decks says which steps of the last route found lie on a raised deck: bit k the k-th, of the
+// first 64.
+func (p *Finder) Decks() uint64 { return p.decks }
 
 // On reports whether body, standing in c, stands on c's level end — its deck, the ground under
 // it, or either; every level where c has one.
@@ -200,21 +209,34 @@ func (p *Finder) FindAround(
 }
 
 // Steps reports whether body, standing in from on the level its feet say, may step on to its
-// neighbour to in domain: on a level whose kind admits domain, no further down than a step off a
-// deck's edge, onto a deck no higher than a step, under one only where it fits.
-func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) bool {
+// neighbour to in domain — on a level whose kind admits domain, no further down than a step off a
+// deck's edge, onto a deck no higher than a step, under one only where it fits — and whether onto
+// to's raised deck.
+func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, ok bool) {
 	if p.levels == nil {
-		return !p.fenced(from, to, domain, false) && p.terrain.Kind(to).Admits(domain)
+		return false, !p.fenced(from, to, domain, false) && p.terrain.Kind(to).Admits(domain)
 	}
 	at := node{from, p.levelOf(from, domain, body)}
 	_, _, diagonal := p.grid.DiagonalNeighbors(from, to)
 	for _, level := range p.levelsOf(to, domain) {
 		if p.crosses(at, to, level, domain, diagonal) && p.passes(at, to, level, body) &&
 			p.kindAt(to, level).Admits(domain) {
-			return true
+			return level == deck, true
 		}
 	}
-	return false
+	return false, false
+}
+
+// Level is the level of c body stands on: its Deck, the Ground under it, or Either where c has
+// one level.
+func (p *Finder) Level(domain cell.Domain, body Body, c cell.ID) Level {
+	if len(p.levelsOf(c, domain)) == 1 {
+		return Either
+	}
+	if p.levelOf(c, domain, body) == deck {
+		return Deck
+	}
+	return Ground
 }
 
 // transitionsFor adapts the grid, terrain and occupancy into astar's Transitions for entity, every
@@ -227,7 +249,8 @@ func (p *Finder) transitionsFor(entity uid.UID64, domain cell.Domain) astar.Tran
 				continue
 			}
 			kind := p.terrain.Kind(n)
-			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, entity, domain) || p.blocked != nil && p.blocked(n) {
+			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, false, entity, domain) ||
+				p.blocked != nil && p.blocked(n) {
 				continue
 			}
 			if c1, c2, ok := p.grid.DiagonalNeighbors(from, n); ok && !p.decked(from, n) {
@@ -257,8 +280,7 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 			buf = append(buf, astar.Transition[node]{To: node{p.goal, goal}})
 		}
 		for _, n := range p.grid.Neighbors(from.c) {
-			if n == prev.c || !p.occupancy.CanEnter(n, entity, domain) ||
-				p.blocked != nil && p.blocked(n) {
+			if n == prev.c || p.blocked != nil && p.blocked(n) {
 				continue
 			}
 			c1, c2, diagonal := p.grid.DiagonalNeighbors(from.c, n)
@@ -266,7 +288,8 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 				!p.enterable(c2, entity, domain) ||
 				p.blocked != nil && (p.blocked(c1) || p.blocked(c2)))
 			for _, level := range p.levelsOf(n, domain) {
-				if !p.crosses(from, n, level, domain, diagonal) ||
+				if !p.occupancy.CanEnter(n, level == deck, entity, domain) ||
+					!p.crosses(from, n, level, domain, diagonal) ||
 					cut && !p.along(from, n, level) || !p.passes(from, n, level, p.body) {
 					continue
 				}
@@ -335,6 +358,7 @@ func (p *Finder) levelsOf(c cell.ID, domain cell.Domain) []uint8 {
 var (
 	groundLevel = []uint8{ground}
 	bothLevels  = []uint8{ground, deck}
+	deckFirst   = []uint8{deck, ground}
 )
 
 // levelOf is the level body stands on in c: the deck of a raised floor carrying domain within a
@@ -436,36 +460,52 @@ func (p *Finder) enterable(c cell.ID, entity uid.UID64, domain cell.Domain) bool
 	if p.levels != nil {
 		k = p.levels.KindAt(c, false)
 	}
-	return k.Admits(domain) && p.occupancy.CanEnter(c, entity, domain)
+	return k.Admits(domain) && p.occupancy.CanEnter(c, false, entity, domain)
 }
 
 // maxVisitedCells bounds how many cells NearestFree inspects around its target.
 const maxVisitedCells = 64
 
-// NearestFree returns the free cell nearest target that entity can reach — not one taken says —
-// and the route to it, written into dst as Find writes it.
+// NearestFree returns the free cell nearest target that entity can reach — on a level not taken
+// says, target's on its level end — and the route to it, written into dst as Find writes it.
 func (p *Finder) NearestFree(
 	entity uid.UID64, domain cell.Domain, body Body, from, target cell.ID, end Level,
-	taken func(cell.ID) bool, dst []cell.ID,
+	taken func(c cell.ID, deck bool) bool, dst []cell.ID,
 ) (cell.ID, int, bool) {
 	n := 0
 	passable := func(c cell.ID) bool { return p.terrain.Kind(c).Admits(domain) }
+	own := p.levelOf(from, domain, body)
 	reachableFree := func(c cell.ID) bool {
-		if taken != nil && taken(c) || !p.terrain.Kind(c).Admits(domain) ||
-			!p.occupancy.CanEnter(c, entity, domain) {
+		if !p.terrain.Kind(c).Admits(domain) {
 			return false
 		}
-		if c == from {
-			n = 0
-			return true
+		levels := p.levelsOf(c, domain)
+		if c == from && own == deck && len(levels) > 1 {
+			levels = deckFirst // where it stands before under it
 		}
-		var ok bool
-		level := Either
-		if c == target {
-			level = end
+		for _, l := range levels {
+			on := Either
+			if len(levels) > 1 {
+				on = Ground
+				if l == deck {
+					on = Deck
+				}
+			}
+			if c == target && end != Either && on != Either && on != end ||
+				taken != nil && taken(c, l == deck) ||
+				!p.occupancy.CanEnter(c, l == deck, entity, domain) {
+				continue
+			}
+			if c == from && (on == Either || l == own) {
+				n, p.decks = 0, 0
+				return true
+			}
+			var ok bool
+			if n, ok = p.Find(entity, domain, body, from, c, on, dst); ok {
+				return true
+			}
 		}
-		n, ok = p.Find(entity, domain, body, from, c, level, dst)
-		return ok
+		return false
 	}
 	dest, ok := breadthFirst(target, p.grid.Neighbors, passable, reachableFree, maxVisitedCells)
 	return dest, n, ok

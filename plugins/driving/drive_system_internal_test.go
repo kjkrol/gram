@@ -25,8 +25,9 @@ type cellKept struct {
 	ordered   bool
 }
 
-func (k *cellKept) MayStep(id uid.UID64, _ world.Position, at, ahead cell.ID, domain cell.Domain, _ geom.Vec) bool {
-	return ahead == at || k.occupancy.CanEnter(ahead, id, domain)
+func (k *cellKept) MayStep(id uid.UID64, _ world.Position, at, ahead cell.ID, deck bool,
+	domain cell.Domain, _ geom.Vec) bool {
+	return ahead == at || k.occupancy.CanEnter(ahead, deck, id, domain)
 }
 
 func (k *cellKept) Ordered(uid.UID64) bool { return k.ordered }
@@ -82,7 +83,7 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 			b.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(23, 3), 4, 4)}
 			b.Vel.Dir = geom.NewVec(1, 0)
 			steer.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-			r.occupancy.Enter(start, r.walker, cell.Land)
+			r.occupancy.Enter(start, false, r.walker, cell.Land)
 			if len(mover) > 0 {
 				mov.Slice(&f.Cursor)[0] = mover[0]
 			}
@@ -155,7 +156,7 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 	}
 	stranger := uid.UID64(99)
 	next := r.grid.At(5, 0)
-	r.occupancy.Enter(next, stranger, cell.Land)
+	r.occupancy.Enter(next, false, stranger, cell.Land)
 	r.place(47)
 	r.drive(steering.Driven{Ahead: 1})
 	if st := r.steering(); st.WantSpeed != 0 {
@@ -174,7 +175,8 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)
 		}
 	})
-	if !r.occupancy.CanEnter(cell2, uid.UID64(99), cell.Land) || r.occupancy.CanEnter(cell3, uid.UID64(99), cell.Land) {
+	if !r.occupancy.CanEnter(cell2, false, uid.UID64(99), cell.Land) ||
+		r.occupancy.CanEnter(cell3, false, uid.UID64(99), cell.Land) {
 		t.Error("the occupancy did not follow the walker from cell 2 to cell 3")
 	}
 }

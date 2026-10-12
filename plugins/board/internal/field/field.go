@@ -321,8 +321,10 @@ func ends(freeA, freeB bool) collide.Ends {
 }
 
 // Overhang is how much of box, as area, lies over ground that does not take an entity on layers
-// — cells whose kind allows none of them: water to a walker, a hole — the collision.Field
-// contract: a push never makes it more. Off the board is none of it; the world's edges keep it.
+// — cells whose kind allows none of them: water to a walker, a hole — but where a deck over it
+// takes one: the whole cell under a Floor without a Width, the band of one with — the
+// collision.Field contract: a push never makes it more. Off the board is none of it; the world's
+// edges keep it.
 func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	sq := f.square
 	if sq == nil {
@@ -337,8 +339,10 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	x1, y1 := int64(math.Ceil(box.BottomRight.X/size)), int64(math.Ceil(box.BottomRight.Y/size))
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			if c, ok := f.square.Fold(x, y); ok && !f.takes(c, layers) {
-				area += overlap(box, geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size))
+			if c, ok := f.square.Fold(x, y); ok {
+				at := geom.NewVec(float64(x)*size, float64(y)*size)
+				m := geom.NewVec(at.X+size/2, at.Y+size/2)
+				area += f.bare(c, m, layers, box, geom.NewAABBAt(at, size, size))
 			}
 		}
 	}
@@ -349,27 +353,56 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	var area float64
 	f.grid.CellsUnder(box, func(c cell.ID) {
-		if f.takes(c, layers) {
-			return
-		}
+		m := f.grid.CellCenter(c)
 		f.boxes = f.grid.CellBoxes(c, f.boxes[:0])
 		for _, cb := range f.boxes {
-			area += overlap(box, cb)
+			area += f.bare(c, m, layers, box, cb)
 		}
 	})
 	return area
 }
 
-// takes reports whether c takes an entity on layers: its ground or a Floor over it allows one of
-// them — any, for one on every plane (no layers) — and no Wall keeps it off.
-func (f *Field) takes(c cell.ID, layers world.Layers) bool {
+// bare is how much of box over cb, a box of c's whose middle is at m, lies over ground that does
+// not take an entity on layers: none where c's ground or a Floor over the whole of it takes one,
+// else all of it but the bands carrying one.
+func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AABB) float64 {
+	r, ok := meet(box, cb)
 	k := f.cells.KindOf(c)
-	if k == nil {
-		return true
+	if !ok || k == nil {
+		return 0
 	}
 	b := f.cells.Built(c)
-	allows := (k.Allows | b.Floor.Allows) &^ b.Wall.Keeps
+	allows := k.Allows
+	if b.Floor.Width == 0 {
+		allows |= b.Floor.Allows
+	}
+	if admits(allows&^b.Wall.Keeps, layers) {
+		return 0
+	}
+	area := (r.BottomRight.X - r.TopLeft.X) * (r.BottomRight.Y - r.TopLeft.Y)
+	if !f.cells.Banded() {
+		return area
+	}
+	f.decks = f.cells.Bands(c, f.decks[:0])
+	for _, d := range f.decks {
+		if admits(d.Built.Floor.Allows&^b.Wall.Keeps, layers) {
+			area -= f.cells.BandArea(d.Built.Floor, geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y), r)
+		}
+	}
+	return max(area, 0)
+}
+
+// admits reports whether ground allowing allows takes an entity on layers: one of them, or any
+// for one on every plane (no layers).
+func admits(allows cell.Domain, layers world.Layers) bool {
 	return allows&cell.Domain(layers) != 0 || layers == 0 && allows != 0
+}
+
+// meet is the box a and b share; false for none.
+func meet(a, b geom.AABB) (geom.AABB, bool) {
+	tl := geom.NewVec(max(a.TopLeft.X, b.TopLeft.X), max(a.TopLeft.Y, b.TopLeft.Y))
+	br := geom.NewVec(min(a.BottomRight.X, b.BottomRight.X), min(a.BottomRight.Y, b.BottomRight.Y))
+	return geom.NewAABB(tl, br), br.X > tl.X && br.Y > tl.Y
 }
 
 // overlap is the area a and b share.

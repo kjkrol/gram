@@ -130,10 +130,10 @@ func TestFinder_UnderADeckOnlyWhereItFits(t *testing.T) {
 			steps[:n])
 	}
 	short := Body{Step: 1, Height: 2}
-	if f.Steps(cell.Land, short, at(1, 2), at(0, 2)) {
+	if _, ok := f.Steps(cell.Land, short, at(1, 2), at(0, 2)); ok {
 		t.Error("a step out from under the deck onto the rim through its slab is allowed")
 	}
-	if !f.Steps(cell.Land, short, at(1, 2), at(1, 1)) {
+	if _, ok := f.Steps(cell.Land, short, at(1, 2), at(1, 1)); !ok {
 		t.Error("a step out from under the deck along the valley is refused")
 	}
 }
@@ -147,10 +147,10 @@ func TestFinder_NeverPlansAFallOffADeck(t *testing.T) {
 		t.Errorf("off the deck: %v, want it on to the deck's end first", route)
 	}
 	f := New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).WithLevels(v)
-	if f.Steps(cell.Land, Body{Feet: 10, Step: 1, Height: 2}, at(1, 2), at(1, 1)) {
+	if _, ok := f.Steps(cell.Land, Body{Feet: 10, Step: 1, Height: 2}, at(1, 2), at(1, 1)); ok {
 		t.Error("a step off the deck's side is allowed")
 	}
-	if !f.Steps(cell.Land, Body{Step: 1, Height: 2}, at(1, 1), at(1, 2)) {
+	if _, ok := f.Steps(cell.Land, Body{Step: 1, Height: 2}, at(1, 1), at(1, 2)); !ok {
 		t.Error("a step from the valley's floor under the deck is refused")
 	}
 }
@@ -176,7 +176,7 @@ func TestFinder_GoesRoundARailing(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	terrain := fenced{openTerrain(), g, geom.NewVec(9, 10), geom.NewVec(21, 10)}
 	f := New(g, terrain, nil, &cell.MultipleOccupancy{})
-	if f.Steps(cell.Land, Body{}, g.At(1, 0), g.At(1, 1)) {
+	if _, ok := f.Steps(cell.Land, Body{}, g.At(1, 0), g.At(1, 1)); ok {
 		t.Error("a step across the railing is allowed")
 	}
 	var steps [64]cell.ID
@@ -248,7 +248,7 @@ func TestFinder_WalksADeckSlantwise(t *testing.T) {
 	if !ok || !slices.Equal(steps[:n], want) {
 		t.Errorf("along the deck: %v, %v; want %v", steps[:n], ok, want)
 	}
-	if f.Steps(cell.Land, Body{Feet: 1, Step: 1, Height: 2}, g.At(2, 2), g.At(3, 1)) {
+	if _, ok := f.Steps(cell.Land, Body{Feet: 1, Step: 1, Height: 2}, g.At(2, 2), g.At(3, 1)); ok {
 		t.Error("a step off the deck slantwise across it is allowed")
 	}
 }

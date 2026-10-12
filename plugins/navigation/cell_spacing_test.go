@@ -109,8 +109,8 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {
 		t.Errorf("stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and nothing after", o, ok)
 	}
-	occ.Enter(at(1, 0), uid.UID64(4), cell.Land)
-	occ.Enter(at(1, 2), uid.UID64(5), cell.Land)
+	occ.Enter(at(1, 0), false, uid.UID64(4), cell.Land)
+	occ.Enter(at(1, 2), false, uid.UID64(5), cell.Land)
 	if o, ok := k.stepAside(m, coming); !ok || o.Target != at(0, 0) && o.Target != at(0, 2) {
 		t.Errorf("with the cells across held it stepped aside to %v %v, want slantwise beside the one coming, never ahead of it", o.Target, ok)
 	}

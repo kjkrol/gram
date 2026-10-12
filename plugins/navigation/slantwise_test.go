@@ -3,6 +3,7 @@ package navigation
 import (
 	"cmp"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -61,15 +62,19 @@ func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 }
 
 // bridgeSite is a board 8 x 8 of cells 32 wide in relief, its heights, the cells of it under
-// water, and a bridge running straight from a head on from to a head on to, a deck 10 up.
+// water, and a bridge running straight from a head on from to a head on to, a deck 10 up; its
+// walkers kept a cell each where cells says, and others besides the one bridged places.
 type bridgeSite struct {
 	heights  func(geom.Vec) float64
 	wet      []cell.ID
 	from, to cell.ID
+	cells    bool
+	others   []walkerRow
 }
 
 // bridged is the site, its bridge's deck 12 wide and railed, a walker 3 wide at at ordered to
-// the level of target, kept apart by its body as the island's walkers are.
+// the level of target, kept apart by its body as the island's walkers are, unless the site keeps
+// them a cell each.
 func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level Level,
 	extra ...goke.System) (*goke.ECS, *goke.Query, *goke.Comp[world.Base], *world.Plugin) {
 	t.Helper()
@@ -80,11 +85,16 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		Heights:  true,
 	})
 	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithCollision(c)
+	var occupancy cell.Occupancy = &cell.MultipleOccupancy{}
+	spacing := BodySpacing
+	if site.cells {
+		occupancy, spacing = &cell.SingleOccupancy{}, CellSpacing
+	}
+	brd := board.NewPlugin(g, occupancy, w).WithCollision(c)
 	topo := topography.NewPlugin(w, brd, topography.Config{Cell: 32})
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, sel).WithGround(brd)
-	nav := NewPlugin(brd, w, sel, drive).WithCollision(c).WithSpacing(BodySpacing)
+	nav := NewPlugin(brd, w, sel, drive).WithCollision(c).WithSpacing(spacing)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for _, c := range site.wet {
 		brd.Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
@@ -129,6 +139,9 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 			return MoveOrder{Target: r.Target, Level: r.Level}
 		}))
 	w.Seed(units.Named("walker").Entry(walkerRow{At: at, Target: target, Level: level}))
+	for _, r := range site.others {
+		w.Seed(units.Named("walker").Entry(r))
+	}
 	if err := w.Carry(nav); err != nil {
 		t.Fatal(err)
 	}
@@ -313,6 +326,52 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 			t.Errorf("%s: sent down under the bridge, the walker stands at %v, off its goal",
 				name, at)
 		}
+	}
+}
+
+// Kept a cell each, a walker standing on a bridge's deck and one sent to the ground under it share
+// the cell: each holds its own level of it.
+func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	goal := g.At(3, 3)
+	site := bridgeSite{
+		heights: func(p geom.Vec) float64 {
+			if p.X <= 64 || p.X >= 160 {
+				return 10
+			}
+			return 0
+		},
+		from:   g.At(1, 3),
+		to:     g.At(5, 3),
+		cells:  true,
+		others: []walkerRow{{At: g.CellCenter(g.At(3, 0)), Target: goal, Level: OnGround}},
+	}
+	var z goke.Comp[world.Z]
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	ecs, _, _, _ := bridged(t, site, geom.NewVec(48, 112), goal, OnDeck,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&base, &z).Build()
+		}})
+	for range 60 * 20 {
+		ecs.Tick(time.Second / 60)
+	}
+	var alts []float64
+	for q.All(); q.Next(); {
+		for i, b := range base.Slice(q.Cursor()) {
+			if b.Pos.Size.X != 3 {
+				continue
+			}
+			alt := z.Slice(q.Cursor())[i].Altitude
+			if c, _ := g.CellAt(b.Pos.Center()); c != goal {
+				t.Errorf("a walker stands %.1f up at %v, off the goal", alt, b.Pos.Center())
+			}
+			alts = append(alts, alt)
+		}
+	}
+	slices.Sort(alts)
+	if len(alts) != 2 || math.Abs(alts[0]) > 0.5 || math.Abs(alts[1]-10) > 0.5 {
+		t.Errorf("the walkers stand %v up, want one under the deck and one on it", alts)
 	}
 }
 

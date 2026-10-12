@@ -17,11 +17,13 @@ type handKeeping struct {
 	nav  *navigationSystem // set as navigation is installed
 }
 
-func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, domain cell.Domain, heading geom.Vec) bool {
+func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
+	domain cell.Domain, heading geom.Vec) bool {
 	if k.keep == nil {
 		return true
 	}
-	return k.keep.mayStep(member{id: id, cell: at, from: at, domain: domain, pos: pos}, ahead, heading)
+	m := member{id: id, cell: at, from: at, domain: domain, pos: pos}
+	return k.keep.mayStep(m, ahead, deck, heading)
 }
 
 func (k *handKeeping) Ordered(id uid.UID64) bool { return k.nav != nil && k.nav.ordered(id) }

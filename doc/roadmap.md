@@ -41,16 +41,11 @@ What is left to do. Take an item out when it lands.
   ground and moves — fire, smoke — is sprites over it, not a cover.
 - **A demo of ways** — roads as `cell.Way` and a bridge standing on the board over the ground, a
   unit taking the road round the mud, in the dress of the effect demo.
-- **Occupancy on two levels** — a cell's hold is one for both levels: under `CellSpacing` a unit
-  on a bridge and one on the road under it hold the same cell.
 - **Shots and decks** — a shot's ground (`bullet.Plugin.WithGround`) is the heights alone: it flies
   through a deck and falls by its own `Gravity`, which gravity turned over does not touch; both
   through `ground.Surfaces` and the world's `gravity.Pull`.
 - **Leaps, climbing and swimming planned** — the planner never plans a leap (a railing, a gap),
   a climb or a swim; a unit under gravity does them only by hand.
-- **A deck's Overhang** — collision's `Overhang` counts a cell with a band over it as ground that
-  takes a walker whole, beside the band too; a walker pushed off a bridge's side may come to rest
-  over the water.
 - **Bridges that turn** — a bridge runs straight; a knee (two links not opposite) is refused by
   the board's rules and not made by `cmd/gramap`.
 - **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside

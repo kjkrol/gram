@@ -33,7 +33,7 @@ func (p *pathFinder) findPath(
 ) (Path, bool) {
 	var path Path
 	n, ok := p.Find(entity, domain, bodyOf(z), from, to, pathfind.Level(end), path.Steps[:])
-	path.Length = uint16(n)
+	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
 }
 
@@ -45,20 +45,20 @@ func (p *pathFinder) findPathAround(
 	var path Path
 	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, pathfind.Level(end), blocked,
 		path.Steps[:])
-	path.Length = uint16(n)
+	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
 }
 
-// nearestFree is the free cell nearest target entity can reach — not one taken says — and the
-// route to it.
+// nearestFree is the free cell nearest target entity can reach — on a level not taken says — and
+// the route to it.
 func (p *pathFinder) nearestFree(
 	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, end Level,
-	taken func(cell.ID) bool,
+	taken func(c cell.ID, deck bool) bool,
 ) (cell.ID, Path, bool) {
 	var path Path
 	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, pathfind.Level(end),
 		taken, path.Steps[:])
-	path.Length = uint16(n)
+	path.Length, path.Decks = uint16(n), p.Decks()
 	return dest, path, ok
 }
 
@@ -78,13 +78,24 @@ func (p *pathFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (flo
 // steps reports whether m may step from its cell on to c, a neighbour or its own, without falling
 // off a deck or climbing onto one out of reach.
 func (p *pathFinder) steps(m member, c cell.ID) bool {
+	_, ok := p.stepsOnto(m, c)
+	return ok
+}
+
+// stepsOnto is steps and whether m steps onto c's raised deck; on its own cell, its level.
+func (p *pathFinder) stepsOnto(m member, c cell.ID) (deck, ok bool) {
 	if c == m.cell {
-		return true
+		return p.onDeck(m, c), true
 	}
 	if !slices.Contains(p.grid.Neighbors(m.cell), c) {
-		return true
+		return false, true
 	}
 	return p.Steps(m.domain, bodyOf(m.z), m.cell, c)
+}
+
+// onDeck reports whether m, standing in c, stands on its raised deck.
+func (p *pathFinder) onDeck(m member, c cell.ID) bool {
+	return p.Level(m.domain, bodyOf(m.z), c) == pathfind.Deck
 }
 
 // bodyOf is a unit standing as z says, as the finder plans for it.

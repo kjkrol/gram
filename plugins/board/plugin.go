@@ -133,7 +133,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
 		built:     p.Board().cells.BuiltSystem(p.worldPlugin.HasHeights(), p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
-		release:   occupancy.ReleaseSystem(p.occupancy),
+		release:   occupancy.ReleaseSystem(p.occupancy, p.Board().onDeck),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),

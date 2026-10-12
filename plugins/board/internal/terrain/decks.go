@@ -68,6 +68,64 @@ func (t *Cells) inBand(f cell.Floor, q geom.Vec) bool {
 	return false
 }
 
+// BandArea is how much of r the band f runs as covers, the middle of its cell at m: its pieces out
+// to its links. The round of its middle is left out: it lies within the pieces of a band running
+// through, and on a head's tile, which takes whoever comes onto the bridge.
+func (t *Cells) BandArea(f cell.Floor, m geom.Vec, r geom.AABB) float64 {
+	var area float64
+	for i := range t.grid.Directions() {
+		if !f.Links.Has(i) {
+			continue
+		}
+		s := t.grid.Step(i)
+		l := math.Hypot(s.X, s.Y)
+		area += stripArea(r, m, geom.NewVec(s.X/l, s.Y/l), l/2, f.Width/2)
+	}
+	return area
+}
+
+// stripArea is how much of r lies on the rectangle from o along the unit u as far as long, half
+// wide on either side of it.
+func stripArea(r geom.AABB, o, u geom.Vec, long, half float64) float64 {
+	var in, out [8]geom.Vec
+	in[0] = geom.NewVec(r.TopLeft.X-o.X, r.TopLeft.Y-o.Y)
+	in[1] = geom.NewVec(r.BottomRight.X-o.X, r.TopLeft.Y-o.Y)
+	in[2] = geom.NewVec(r.BottomRight.X-o.X, r.BottomRight.Y-o.Y)
+	in[3] = geom.NewVec(r.TopLeft.X-o.X, r.BottomRight.Y-o.Y)
+	n := 4
+	for _, h := range [4]struct{ x, y, d float64 }{
+		{-u.X, -u.Y, 0},
+		{u.X, u.Y, long},
+		{-u.Y, u.X, half},
+		{u.Y, -u.X, half},
+	} {
+		k := 0
+		for i := range n {
+			p, q := in[i], in[(i+1)%n]
+			dp, dq := p.X*h.x+p.Y*h.y-h.d, q.X*h.x+q.Y*h.y-h.d
+			if dp <= 0 {
+				out[k] = p
+				k++
+			}
+			if dp < 0 && dq > 0 || dp > 0 && dq < 0 {
+				t := dp / (dp - dq)
+				out[k] = geom.NewVec(p.X+(q.X-p.X)*t, p.Y+(q.Y-p.Y)*t)
+				k++
+			}
+		}
+		in, n = out, k
+		if n < 3 {
+			return 0
+		}
+	}
+	var twice float64
+	for i := range n {
+		p, q := in[i], in[(i+1)%n]
+		twice += p.X*q.Y - q.X*p.Y
+	}
+	return math.Abs(twice) / 2
+}
+
 // DecksOver appends to dst the floors over p in c: c's own — the whole cell, or a band p lies on —
 // and those of the neighbours whose bands reach into c over p.
 func (t *Cells) DecksOver(c cell.ID, p geom.Vec, dst []Deck) []Deck {

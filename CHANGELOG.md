@@ -48,6 +48,14 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
   and over its top (`world.UprightLook`), never a billboard taller than it stands: the demos'
   piers.
 - A uniform may be an array of vec4s (`gpu.Uniform.Size` over 16, a multiple of 4).
+- A hold of the board's occupancy is of a cell on one of its levels (`cell.Occupancy.CanEnter(c,
+  deck, …)`, `Enter`, `Holder`; `driving.Keeping.MayStep` takes the level too): kept a cell each,
+  a walker on a bridge's deck and one on the ground under it share the cell. A route says which of
+  its steps lie on a deck (`navigation.Path.Decks`), a step holds each of its ends on its level,
+  and the board holds the cell a unit stands on under a raised deck on the level its feet are on.
+- Over ground that does not take a walker only a deck's band does (`collision.Field.Overhang`,
+  the board's): a walker pushed off a bridge's side is over the water, so a push never puts it
+  there.
 - A wall, a railing, never turns a unit a hand steers (`steering.Driven`): riding in it, walking
   into a bridge's railing no longer swings the view along the bridge.
 - `board.Each[R](level, f)`: a plugin builds its own out of a level's lines.

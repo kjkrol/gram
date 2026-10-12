@@ -1072,10 +1072,14 @@ trapdoor and pressure plate demos the same).
   for a name walks few), both for good. The unit's own cell component is `unit.At{Cell}` (was
   `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
   whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
-  blocking cells. What the board does to its terrain over time is effects on the cells' entities
-  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A state of the ground is an adjective, the
-  kind the noun: an effect turns the kind's knobs in place (`g.Kind.Allows`, `Cost`, `Costing`) and
-  the cell stays the kind it is — a snowed road a road — while what lies on it is a **cover**:
+  blocking cells. A hold is of a cell on one of its levels (`CanEnter(c, deck, …)`, `Enter`,
+  `Holder`; 2026-10-12): a walker on a bridge's deck and one on the ground under it share a cell;
+  the same system holds every unit's cell under a raised deck on the level its feet are on, each
+  step (`Board.onDeck`), as it climbs on or falls off. What the board does to its terrain over
+  time is effects on the cells' entities (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A
+  state of the ground is an adjective, the kind the noun: an effect turns the kind's knobs in
+  place (`g.Kind.Allows`, `Cost`, `Costing`) and the cell stays the kind it is — a snowed road a
+  road — while what lies on it is a **cover**:
   `board.Plugin.Covering(e)` is a slot of the board's atlas (the kinds' numbering,
   `terrain.Kinds.NewSprite`) laid over the cells under `e` by the simple map's dressing
   (`internal/draw/covers.go`: the cells' `States` weighed at each tile's corners, side middles and
@@ -1133,12 +1137,14 @@ trapdoor and pressure plate demos the same).
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
   never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:
   the area over cells whose kind allows none of its layers — any, for no layers — water to a
-  walker, a hole; the user's rule, 2026-09-30): `footing` in `resolve` holds the side whose half
-  push would (it bounces as the ground, `holdA`/`holdB`) and doubles the pen for the other, and
-  `moved` keeps any box the tick's later passes — which the engine asks no handler about — would
-  leave worse, rebuilding the space. That arithmetic is `collision/internal/response`, on numbers
-  alone: `Footing`, `Worse` (over a `Ground`, which a `Field` is), the impulse `Exchange` between
-  two `Side`s (inverse mass, bounce, velocity) and `Normal`; the system hands it its sides.
+  walker, a hole — but a deck's taking one, the whole cell or the band, `BandArea`, so one pushed
+  off a bridge's side is over the water; the user's rule, 2026-09-30): `footing` in `resolve`
+  holds the side whose half push would (it bounces as the ground, `holdA`/`holdB`) and doubles
+  the pen for the other, and `moved` keeps any box the tick's later passes — which the engine
+  asks no handler about — would leave worse, rebuilding the space. That arithmetic is
+  `collision/internal/response`, on numbers alone: `Footing`, `Worse` (over a `Ground`, which a
+  `Field` is), the impulse `Exchange` between two `Side`s (inverse mass, bounce, velocity) and
+  `Normal`; the system hands it its sides.
   Ground turning under a unit is no push: it stays, fallen in. The ground never turns a unit a
   hand steers (`steering.Driven.Steers`; `response.Side.Steered`, `Velocity.Slow`: its speed
   alone; 2026-10-11, the first person on a bridge swung along it walking into the railing); one
@@ -1231,7 +1237,11 @@ trapdoor and pressure plate demos the same).
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
   `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
-  under bodies), no rule of collision's moments. The board seeds the occupancy from `At` + `Mover` at Setup, navigation the cells of the steps in progress. `BodySpacing`: the
+  under bodies), no rule of collision's moments. The board seeds the occupancy from `At` + `Mover`
+  at Setup, navigation the cells of the steps in progress, each on its level: a `Path`'s steps on
+  a deck by bit (`Path.Decks`, the finder's `Decks()` of the route it found last), a `Leg`'s
+  ends (`FromDeck`, `ToDeck`), its corners on the ground; the driving's hand asks `MayStep` of a
+  level too. `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
   round `MoveTo.At`, a box's width apart, far rows first) and goes cell centre to cell centre

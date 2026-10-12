@@ -32,10 +32,10 @@ const asideGoal = 0.5
 // boxes meet as they meet.
 type openOccupancy struct{}
 
-func (openOccupancy) CanEnter(cell.ID, uid.UID64, cell.Domain) bool { return true }
-func (openOccupancy) Enter(cell.ID, uid.UID64, cell.Domain)         {}
-func (openOccupancy) Leave(cell.ID, uid.UID64)                      {}
-func (openOccupancy) Release(func(uid.UID64) bool)                  {}
+func (openOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool { return true }
+func (openOccupancy) Enter(cell.ID, bool, uid.UID64, cell.Domain)         {}
+func (openOccupancy) Leave(cell.ID, uid.UID64)                            {}
+func (openOccupancy) Release(func(uid.UID64) bool)                        {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
 // where the others stand, and goes; striking someone is a Touch, and what it does then is the
@@ -394,7 +394,8 @@ func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
 const yieldLinger = time.Second
 
 // blocked is never called: the open occupancy refuses nobody.
-func (k *bodyKeeping) blocked(member, *MoveOrder, cell.ID, time.Duration) (uid.UID64, bool) {
+func (k *bodyKeeping) blocked(member, *MoveOrder, cell.ID, bool, time.Duration) (uid.UID64,
+	bool) {
 	return 0, false
 }
 
@@ -407,7 +408,7 @@ func (k *bodyKeeping) within(m member) float64 {
 
 // mayStep lets m on unless it all but touches someone just ahead along heading: walked by hand, it
 // stops at whoever it walks into.
-func (k *bodyKeeping) mayStep(m member, _ cell.ID, heading geom.Vec) bool {
+func (k *bodyKeeping) mayStep(m member, _ cell.ID, _ bool, heading geom.Vec) bool {
 	c, h := m.centre(), half(m)
 	feel := gapFor(h) / 4
 	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)

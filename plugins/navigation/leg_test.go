@@ -174,7 +174,8 @@ func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 	if !st.order.Leg.Active || st.order.Leg.From != start || st.order.Leg.To != target {
 		t.Fatalf("Leg after departure = %+v, want active %v→%v", st.order.Leg, start, target)
 	}
-	if lw.occupancy.CanEnter(start, otherEntity, cell.Land) || lw.occupancy.CanEnter(target, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(start, false, otherEntity, cell.Land) ||
+		lw.occupancy.CanEnter(target, false, otherEntity, cell.Land) {
 		t.Fatal("expected both From and To held while the step is in progress")
 	}
 
@@ -186,10 +187,10 @@ func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 	if st.hasOrder {
 		t.Fatal("entity never arrived")
 	}
-	if !lw.occupancy.CanEnter(start, otherEntity, cell.Land) {
+	if !lw.occupancy.CanEnter(start, false, otherEntity, cell.Land) {
 		t.Error("expected From released after arrival")
 	}
-	if lw.occupancy.CanEnter(target, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(target, false, otherEntity, cell.Land) {
 		t.Error("expected To still held after arrival")
 	}
 }
@@ -208,7 +209,8 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	if !st.order.Leg.Diagonal {
 		t.Fatalf("Leg after departure = %+v, want a diagonal step", st.order.Leg)
 	}
-	if lw.occupancy.CanEnter(c1, otherEntity, cell.Land) || lw.occupancy.CanEnter(c2, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(c1, false, otherEntity, cell.Land) ||
+		lw.occupancy.CanEnter(c2, false, otherEntity, cell.Land) {
 		t.Fatal("expected both corner cells held during a diagonal step")
 	}
 
@@ -220,7 +222,8 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	if st.hasOrder {
 		t.Fatal("entity never arrived")
 	}
-	if !lw.occupancy.CanEnter(c1, otherEntity, cell.Land) || !lw.occupancy.CanEnter(c2, otherEntity, cell.Land) {
+	if !lw.occupancy.CanEnter(c1, false, otherEntity, cell.Land) ||
+		!lw.occupancy.CanEnter(c2, false, otherEntity, cell.Land) {
 		t.Error("expected corner cells released after arrival")
 	}
 }
@@ -253,7 +256,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		for _, c := range leg.cells() {
-			occupancy.Enter(c, id, cell.Land)
+			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&at, &order).Build()
 		cmds.Init(si)
@@ -309,7 +312,7 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	)
 
 	for _, c := range leg.cells() {
-		if occupancy.CanEnter(c, otherEntity, cell.Land) {
+		if occupancy.CanEnter(c, false, otherEntity, cell.Land) {
 			t.Errorf("cell %v not held after Setup, want every Leg cell restored", c)
 		}
 	}

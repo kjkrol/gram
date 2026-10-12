@@ -26,10 +26,10 @@
 // pair rules meet entities only.
 //
 // A push apart never puts a collider further over ground that does not take it — water to a
-// walker, a hole ([Field].Overhang): the side it would put there holds where it is and bounces as
-// off the ground, the other goes the whole way; a box the tick's later passes would leave further
-// over such ground is not written back. Ground turning to water under an entity is no push: it
-// stays there, fallen in.
+// walker beside a bridge's deck, a hole ([Field].Overhang): the side it would put there holds
+// where it is and bounces as off the ground, the other goes the whole way; a box the tick's later
+// passes would leave further over such ground is not written back. Ground turning to water under
+// an entity is no push: it stays there, fallen in.
 //
 // # Heights
 //

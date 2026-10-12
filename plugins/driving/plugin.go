@@ -24,8 +24,9 @@ import (
 // navigation's spacing, which navigation hands over as it is made (WithKeeping).
 type Keeping interface {
 	// MayStep reports whether the unit id, standing at pos in its cell at, moving in domain, may
-	// walk on into the cell ahead along heading.
-	MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, domain cell.Domain, heading geom.Vec) bool
+	// walk on into the cell ahead along heading, on the raised deck over it, deck, or its ground.
+	MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool, domain cell.Domain,
+		heading geom.Vec) bool
 	// Ordered reports whether id is steered along a route of its own: with no hand on it, the
 	// driving leaves it be.
 	Ordered(id uid.UID64) bool

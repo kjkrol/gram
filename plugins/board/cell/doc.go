@@ -51,8 +51,10 @@
 //
 // # Occupancy
 //
-// An [Occupancy] tracks who holds each cell and in which domains — the bookings navigation makes
-// when it keeps units a cell each: [SingleOccupancy] lets one entity per domain in, a walker and a
-// hawk sharing one, [MultipleOccupancy] any number. The board lets go of the holds of whoever left
-// the world every step (Occupancy.Release).
+// An [Occupancy] tracks who holds each cell, on which of its levels and in which domains — the
+// bookings navigation makes when it keeps units a cell each: [SingleOccupancy] lets one entity per
+// domain in on each level, a walker and a hawk sharing one, a walker on a bridge's deck and one on
+// the ground under it too, [MultipleOccupancy] any number. The board lets go of the holds of
+// whoever left the world every step (Occupancy.Release), and holds the cell a unit stands on under
+// a raised deck on the level its feet are on.
 package cell
