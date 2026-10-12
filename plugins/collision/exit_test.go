@@ -33,7 +33,11 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	}
 	var rules []rule.Rule
 	if hooked {
-		rules = append(rules, rule.Branch[world.Leaving]{Name: "left", Do: rule.Order(heard{})})
+		rules = append(rules, rule.Branch[world.Leaving]{
+			Name: "left",
+			On:   rule.Self,
+			Do:   rule.Apply(heard{}),
+		})
 	}
 	c := collision.NewPlugin(w)
 	kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{

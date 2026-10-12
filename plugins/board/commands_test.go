@@ -41,7 +41,11 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		m.open = w.Effects().Named("open")
-		w.Roles().Define("plate", rule.Branch[collision.Meeting]{Name: "press", Do: rule.Trigger()})
+		w.Roles().Define("plate", rule.Branch[collision.Meeting]{
+			Name: "press",
+			On:   rule.Self,
+			Do:   rule.Apply(rule.Triggered{}),
+		})
 		plate := w.Roles().Named("plate")
 		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
 		plates.Define("plate", comp.Const(collision.Collider{}), rule.Plays(plate))
@@ -57,8 +61,8 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		if err := brd.Populate(); err != nil {
 			t.Fatal(err)
 		}
-		m.openWest = rule.Cast(m.open).On(entity.Group("west doors")).By(entity.Named("lever"))
-		m.openEast = rule.Cast(m.open).On(entity.Group("east doors")).By(entity.Named("plate"))
+		m.openWest = rule.Put(m.open).On(entity.Group("west doors")).By(entity.Named("lever"))
+		m.openEast = rule.Put(m.open).On(entity.Group("east doors")).By(entity.Named("plate"))
 		m.flip = rule.Toggle(m.open).On(entity.Named("lever", "post")).For(time.Hour)
 		for name, cmd := range map[string]rule.Command{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
 			w.Commands().Define(name, cmd)
@@ -102,7 +106,7 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 		t.Errorf("%d west doors still open once the effect ran out, want none", w)
 	}
 	m.give(t, m.openEast)
-	m.give(t, rule.Lift(m.open).On(entity.Group("east doors")))
+	m.give(t, rule.Take(m.open).On(entity.Group("east doors")))
 	if e := m.under(m.east...); e != 0 {
 		t.Errorf("%d east doors open after a Lift, want none", e)
 	}
@@ -110,7 +114,7 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 
 func TestCast_ForSaysHowLongItLasts(t *testing.T) {
 	m := newMeadow(t)
-	m.give(t, rule.Cast(m.open).On(entity.Named("lever")).For(time.Second))
+	m.give(t, rule.Put(m.open).On(entity.Named("lever")).For(time.Second))
 	for range 8 { // well past the three steps the Spec gives it
 		m.Tick()
 	}
@@ -164,13 +168,17 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 	}{
 		"nobody is called so": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}},
-			cmd:   func(e effect.Effect) rule.Command { return rule.Cast(e).On(entity.Named("levr")) },
-			want:  `"levr"`,
+			cmd: func(e effect.Effect) rule.Command {
+				return rule.Put(e).On(entity.Named("levr"))
+			},
+			want: `"levr"`,
 		},
 		"two bear one name": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}, {Cell: 1, Name: "lever"}},
-			cmd:   func(e effect.Effect) rule.Command { return rule.Cast(e).On(entity.Named("lever")) },
-			want:  "one name",
+			cmd: func(e effect.Effect) rule.Command {
+				return rule.Put(e).On(entity.Named("lever"))
+			},
+			want: "one name",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -6,20 +6,22 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **Patrols as plans** — `navigation.Patrol` and `MoveOrder.Round` (`goOn`, `Pause`, `Stood` in
-   `navigation_system.go`) are a machine of states built into an order; six demos (animation,
-   bullet, ember, trapdoor, wire, pressure-plate, the guard demo's wanderers) give their
-   wanderers a round by `comp.Load`. A patrol is a plan: `Steps(Order(MoveTo{A}).Until[Arrived](),
-   Wait(pause), Order(MoveTo{B}).Until[Arrived](), Wait(pause))`, begun again when done. `Round`
-   out of navigation; what a step aside on patrol carries over, said in the plan.
-2. **`PullEf` in the wire demo** — a quarter-second effect used as a command's impulse ("pull the
+1. **`PullEf` in the wire demo** — a quarter-second effect used as a command's impulse ("pull the
    lever beside"), not a state: a command of the entity's with `Around`, or kept and named as a
    state.
-3. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
+2. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
    component is one; say in each plugin's doc which of its components are meant for plans
    (`Blocked`, `Arrived`, `Flight`) and which are not.
 
 ## Engine
+- **A dictionary of idioms** — `Once` (a thing done at most once a while, an effect the memory),
+  `Either` (a coin), the patrol (`Onward`, `Until[Arrived]`, `Wait`), the asker's "no answer"
+  (`Until` under a `Timeout` in a `OneOf`): named shapes written out of the bricks, in
+  `doc/rule.md` or as functions a game copies, never steps of the engine.
+- **Messages passed on** — a reply to a message passed on goes to the one who passed it on, not
+  to the first asker; passing the answer back is the game's branch (`rule/message_test.go`'s
+  giver). A loop (A asks B, B asks A) ends by `MaxChain` and by a branch of a fact firing once per
+  coming; whether `Hops` should count across types is open.
 - **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
   (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
   rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and

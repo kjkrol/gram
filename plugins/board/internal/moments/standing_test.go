@@ -93,23 +93,24 @@ func carried(t *testing.T, w *world.Plugin, h *heards) *heards {
 }
 
 func footing(g grid.Grid) rule.Rule {
-	return rule.Branch[unit.Standing]{Name: "footing", Do: rule.Steps(
+	return rule.Branch[unit.Standing]{Name: "footing", On: rule.Self, Do: rule.Steps(
 		rule.OneOf(rule.Branch[unit.Standing]{
 			When: unit.Standing.Fallen,
-			Do:   rule.Order(heard{Rule: "fell"}),
-		}, rule.Order(heard{Rule: "stood"})),
+			Do:   rule.Apply(heard{Rule: "fell"}),
+		}, rule.Apply(heard{Rule: "stood"})),
 		rule.Branch[unit.Standing]{When: func(st unit.Standing) bool {
 			under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
 			return st.Cell != under
-		}, Do: rule.Order(heard{Rule: "wrong cell"})},
+		}, Do: rule.Apply(heard{Rule: "wrong cell"})},
 	)}
 }
 
 func onKind(name string) rule.Rule {
 	return rule.Branch[unit.Standing]{
 		Name: "on " + name,
+		On:   rule.Self,
 		When: func(st unit.Standing) bool { return st.Kind.Name.String() == name },
-		Do:   rule.Order(heard{Rule: "on " + name}),
+		Do:   rule.Apply(heard{Rule: "on " + name}),
 	}
 }
 
@@ -205,17 +206,17 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		if err := ctx.Deliver(footing(grid)); err != nil {
 			t.Fatal(err)
 		}
-		met := rule.Branch[collision.Meeting]{Name: "met", Do: rule.Order(heard{})}
+		met := rule.Branch[collision.Meeting]{Name: "met", On: rule.Self, Do: rule.Apply(heard{})}
 		if err := ctx.Deliver(met); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("Between on board: %v, want ErrUnhosted", err)
 		}
 		struck := rule.Branch[collision.Struck]{
 			Name: "struck",
-			When: rule.Carrying[unit.Mover](),
-			Do:   rule.Order(heard{}),
+			On:   rule.Self,
+			Do:   rule.Apply(heard{}),
 		}
 		if err := ctx.Deliver(struck); !errors.Is(err, plugin.ErrUnhosted) {
-			t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
+			t.Errorf("Struck on board: %v, want ErrUnhosted", err)
 		}
 	})
 	ecs.Tick(tickLen)
@@ -247,11 +248,17 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	start := grid.At(1, 7)
 	right := grid.At(2, 7)
-	straddles := rule.Branch[unit.Standing]{Name: "straddles", When: func(st unit.Standing) bool {
+	straddling := func(st unit.Standing) bool {
 		var under []cell.ID
 		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })
 		return len(under) == 2 && slices.Contains(under, start) && slices.Contains(under, right)
-	}, Do: rule.Order(heard{Rule: "straddles"})}
+	}
+	straddles := rule.Branch[unit.Standing]{
+		Name: "straddles",
+		On:   rule.Self,
+		When: straddling,
+		Do:   rule.Apply(heard{Rule: "straddles"}),
+	}
 	bw, _ := boardtest.SquareWorldWith(t, straddles, boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2})
 	orders := carried(t, bw.World, &heards{})
 	bw.Tick()

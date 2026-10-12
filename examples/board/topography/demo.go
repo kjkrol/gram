@@ -193,13 +193,15 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
 		Name: "drown",
+		On:   rule.Self,
 		When: unit.Standing.Fallen,
-		Do:   rule.Order(world.Despawn{}),
+		Do:   rule.Apply(world.Despawn{}),
 	})
 	s.world.Roles().Define(LunarRole, rule.Branch[sky.Moonrise]{
 		Name: "a blood moon rises",
+		On:   rule.Self,
 		When: sky.Moonrise.Full,
-		Do:   rule.Apply(s.world.Effects().Named(BloodMoonEf)),
+		Do:   rule.Put(s.world.Effects().Named(BloodMoonEf)),
 	})
 	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
 }

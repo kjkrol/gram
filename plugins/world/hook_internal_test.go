@@ -10,7 +10,7 @@ import (
 
 func TestHook_RefusesARuleOfAnotherMoment(t *testing.T) {
 	p := testPlugin()
-	other := rule.Branch[struct{}]{Name: "of another moment", Do: rule.Steps()}
+	other := rule.Branch[struct{}]{Name: "of another moment", On: rule.Self, Do: rule.Steps()}
 	if err := p.Hook(other); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}

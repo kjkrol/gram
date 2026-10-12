@@ -9,4 +9,6 @@ const (
 
 	AnimationStage = "animation-demo"
 	MainScene      = "main"
+
+	PatrolPlan = "patrol"
 )

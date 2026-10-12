@@ -106,9 +106,11 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	g := &effectStage{plan: func(fx *effect.Effects) *written {
 		fx.Define("held", effect.Spec{})
 		held = fx.Named("held")
-		return write("hold a while", rule.Steps(
-			rule.Invert(rule.Timeout(300*time.Millisecond, rule.Keep(held))),
-			rule.Wait(time.Hour),
+		return write("hold a while", rule.OneOf(
+			rule.Branch[any]{Name: "hold", On: rule.Self, Do: rule.Hold(held)}.
+				Timeout(300*time.Millisecond).
+				Every(time.Hour),
+			rule.Branch[any]{Name: "rest", On: rule.Self, Do: rule.Idle()},
 		))
 	}}
 	e := run(t, g)
@@ -130,7 +132,15 @@ func TestPlan_OnceKeepsItsMemoryInAnEffect(t *testing.T) {
 		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = fx.Named("tally")
 		return write("tally once a while",
-			rule.OneOf(rule.Once(marked, rule.Apply(tallying)), rule.Idle()))
+			rule.OneOf(
+				rule.Branch[any]{
+					Name: "tally",
+					When: rule.Not(rule.Under(marked)),
+					On:   rule.Self,
+					Do:   rule.Steps(rule.Put(marked), rule.Put(tallying)),
+				},
+				rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
+			))
 	}}
 	e := run(t, g)
 	step(t, e, time.Second)

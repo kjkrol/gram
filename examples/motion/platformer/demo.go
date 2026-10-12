@@ -146,8 +146,9 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(HeroRole, rule.Branch[gravity.Landing]{
 		Name: "daze",
+		On:   rule.Self,
 		When: gravity.HarderThan(hardLanding),
-		Do:   rule.Apply(s.world.Effects().Named(DazedEf)),
+		Do:   rule.Put(s.world.Effects().Named(DazedEf)),
 	})
 }
 

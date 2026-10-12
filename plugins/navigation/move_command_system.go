@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -20,6 +21,7 @@ type moveCommandSystem struct {
 	keep     keeping
 	moves    *control.Queue[MoveTo]
 	looks    *control.Queue[LookAt]
+	onwards  *control.Queue[Onward]
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
@@ -45,6 +47,12 @@ type moveCommandSystem struct {
 	selfZ     goke.OptComp[world.Z]
 	selfSteer goke.OptComp[steering.Steering]
 	selfLast  goke.OptComp[LastOrder]
+	selfRound goke.OptComp[Round]
+
+	named *goke.Query
+	label goke.Comp[entity.Label]
+	plot  goke.OptComp[cell.Plot]
+	at    goke.OptComp[unit.At]
 }
 
 type issuer struct {
@@ -71,12 +79,60 @@ func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 func (s *moveCommandSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
 	s.orderID = si.RegComp[MoveOrder]()
-	s.self = si.NewQueryBuilder(&s.selfCell).Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).Optional(&s.selfSteer).Optional(&s.selfLast).Build()
+	s.self = si.NewQueryBuilder(&s.selfCell).
+		Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).
+		Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfRound).Build()
+	s.named = si.NewQueryBuilder(&s.label).Optional(&s.plot).Optional(&s.at).Build()
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
 	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
+	if s.onwards != nil {
+		s.onwards.Drain(func(i control.Issued[Onward]) {
+			if i.ByEntity {
+				s.onward(cb, i.Entity)
+			}
+		})
+	}
+}
+
+func (s *moveCommandSystem) onward(cb *goke.CmdBuf, id uid.UID64) {
+	if !s.self.Seek(id) {
+		return
+	}
+	r := s.selfRound.At(s.self.Cursor())
+	if r == nil || r.Count == 0 {
+		return
+	}
+	next := r.Cells[r.Next%r.Count]
+	r.Next = (r.Next + 1) % r.Count
+	s.carryOut(cb, MoveTo{Cell: next}, issuer{entity: id, self: true})
+}
+
+// the cell of the one entity bearing a name To gives: a cell's own, or the one a unit is at
+func (s *moveCommandSystem) find(to entity.Whom) (cell.ID, bool) {
+	var found cell.ID
+	n := 0
+	for s.named.All(); s.named.Next(); {
+		cur := s.named.Cursor()
+		labels, plots, ats := s.label.Slice(cur), s.plot.Slice(cur), s.at.Slice(cur)
+		for i := range cur.IDs {
+			if !to.Holds(labels[i]) {
+				continue
+			}
+			switch {
+			case plots != nil:
+				found = plots[i].Cell
+			case ats != nil:
+				found = ats[i].Cell
+			default:
+				continue
+			}
+			n++
+		}
+	}
+	return found, n == 1
 }
 
 func (s *moveCommandSystem) members(by issuer, fn func(member)) {
@@ -155,6 +211,13 @@ func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
 }
 
 func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
+	if !cmd.To.Nobody() {
+		c, ok := s.find(cmd.To)
+		if !ok {
+			return
+		}
+		cmd.Cell, cmd.To = c, entity.Whom{}
+	}
 	at := s.kind(cmd.Cell)
 	var members []member
 	s.members(by, func(m member) {

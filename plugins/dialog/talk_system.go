@@ -83,7 +83,8 @@ func (s *talkSystem) begin(i control.Issued[Begin]) {
 	b := i.Command
 	speaker, listener := i.Entity, b.with
 	if !i.ByEntity || !b.aimed || speaker == listener {
-		log.Printf("dialog: a Begin is an entity's own, about another (rule.Order on a moment naming somebody)")
+		log.Printf("dialog: a Begin is an entity's own, about another " +
+			"(rule.Apply on a moment naming somebody)")
 		return
 	}
 	var start uint64
@@ -160,7 +161,8 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 func (s *talkSystem) feel(i control.Issued[Feel]) {
 	f := i.Command
 	if !i.ByEntity || !f.aimed {
-		log.Printf("dialog: a Feel is an entity's own, about another (rule.Order on a moment naming somebody)")
+		log.Printf("dialog: a Feel is an entity's own, about another " +
+			"(rule.Apply on a moment naming somebody)")
 		return
 	}
 	change, ok := s.p.changes.byName[f.Change]

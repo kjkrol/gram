@@ -6,78 +6,98 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 func alone(n nudge) bool { return n.nobody }
 
-func TestThen_RunsThePackagesStepsOnItsMoment(t *testing.T) {
-	var carrier control.Carrier
-	var dodges control.Queue[dodge]
-	var braces control.Queue[brace]
-	if err := carrier.Carry(&dodges, &braces); err != nil {
-		t.Fatal(err)
+func TestBranch_RunsItsStepsOnItsMoment(t *testing.T) {
+	ids, dodged, braced := nudged(t, rule.Branch[nudge]{
+		Name: "dodge or brace",
+		On:   rule.Self,
+		Do: rule.OneOf(
+			rule.Branch[nudge]{When: rule.Not(alone), Do: rule.Apply(dodge{})},
+			rule.Apply(brace{}),
+		),
+	}, true, plugin.Tick{Dt: time.Millisecond})
+	var who []uid.UID64
+	for _, d := range dodged {
+		who = append(who, d.Entity)
 	}
-	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Branch[nudge]{Name: "dodge or brace", Do: rule.OneOf(
-		rule.Branch[nudge]{When: rule.Not(alone), Do: rule.Order(dodge{})},
-		rule.Order(brace{}),
-	)}); err != nil {
-		t.Fatal(err)
-	}
-	var ids []uid.UID64
-	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var tokens goke.Comp[token]
-		f := si.NewFactory(&tokens)
-		f.Create(2)
-		f.Next()
-		ids = append(ids, f.Cursor.IDs...)
-		qb := si.NewQueryBuilder(&tokens)
-		h.Bind(qb)
-		q := qb.Build()
-		for q.All(); q.Next(); {
-			cur := q.Cursor()
-			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
-				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: i == 0}
-			})
-		}
-	}})
-	var dodged, braced []uid.UID64
-	dodges.Drain(func(i control.Issued[dodge]) { dodged = append(dodged, i.Entity) })
-	braces.Drain(func(i control.Issued[brace]) { braced = append(braced, i.Entity) })
-	if !slices.Equal(dodged, ids[1:]) || !slices.Equal(braced, ids[:1]) {
-		t.Errorf("dodged %v, braced %v; want %v dodging, %v bracing", dodged, braced, ids[1], ids[0])
+	if !slices.Equal(who, ids[1:]) || !slices.Equal(braced, ids[:1]) {
+		t.Errorf("dodged %v, braced %v; want %v dodging, %v bracing", who, braced, ids[1], ids[0])
 	}
 }
 
-func TestThen_RefusesAStepItsMomentCannotRun(t *testing.T) {
+type ask struct{ rule.From }
+
+func (ask) Command() {}
+
+func TestBranch_RefusesWhatItsMomentCannotRun(t *testing.T) {
 	for name, tc := range map[string]struct {
-		step rule.Step
+		r    rule.Rule
 		want string
 	}{
-		"Around on a moment that is not Placed": {rule.Around(1, rule.Order(brace{})), "Placed"},
-		"Here on a moment that is not Placed":   {rule.Here(rule.Order(brace{})), "Placed"},
-		"a condition on another moment": {rule.Branch[token]{
-			When: func(token) bool { return true },
-			Do:   rule.Order(brace{}),
+		"Around on a moment that is not Placed": {rule.Branch[nudge]{
+			Name: "lost",
+			On:   rule.Around(1),
+			Do:   rule.Apply(brace{}),
+		}, "Placed"},
+		"Here on a moment that is not Placed": {rule.Branch[nudge]{
+			Name: "lost",
+			On:   rule.Self,
+			Do:   rule.Branch[any]{On: rule.Here, Do: rule.Apply(brace{})},
+		}, "Placed"},
+		"a condition on another moment": {rule.Branch[nudge]{
+			Name: "lost",
+			On:   rule.Self,
+			Do: rule.Branch[token]{
+				When: func(token) bool { return true },
+				Do:   rule.Apply(brace{}),
+			},
 		}, "another moment"},
-		"a branch going on past the moment": {rule.Branch[nudge]{
-			Through: true,
-			Do:      rule.Order(brace{}),
-		}, "past its moment"},
+		"a step that lasts": {rule.Branch[nudge]{
+			Name: "lost",
+			On:   rule.Self,
+			Do:   rule.Steps(rule.Apply(brace{}), rule.Wait(time.Second)),
+		}, "lasts over ticks"},
+		"a message": {rule.Branch[nudge]{
+			Name: "lost",
+			On:   rule.Other,
+			Do:   rule.Apply(ask{}),
+		}, "sends a message"},
+		"no On at the top": {rule.Branch[nudge]{
+			Name: "lost",
+			Do:   rule.Apply(brace{}),
+		}, "needs an On"},
+		"no Name at the top": {rule.Branch[nudge]{
+			On: rule.Self,
+			Do: rule.Apply(brace{}),
+		}, "needs a Name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {
 				msg, _ := recover().(string)
-				if !strings.Contains(msg, `"lost"`) || !strings.Contains(msg, tc.want) {
-					t.Errorf("panic %q; want one naming the rule \"lost\" and %q", msg, tc.want)
+				if !strings.Contains(msg, tc.want) {
+					t.Errorf("panic %q; want one saying %q", msg, tc.want)
+				}
+				if tc.want != "needs a Name" && !strings.Contains(msg, `"lost"`) {
+					t.Errorf("panic %q; want one naming the rule \"lost\"", msg)
 				}
 			}()
-			rule.Build(rule.Branch[nudge]{Name: "lost", Do: tc.step})
+			rule.Build(tc.r)
 		})
 	}
+}
+
+func TestToggle_IsACommandNotAStep(t *testing.T) {
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "not a step") {
+			t.Errorf("panic %q; want one saying Toggle is a command, not a step", msg)
+		}
+	}()
+	rule.Build(rule.Branch[nudge]{Name: "toggle", On: rule.Self, Do: rule.Toggle(effect.Effect{})})
 }

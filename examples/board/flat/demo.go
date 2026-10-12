@@ -128,8 +128,9 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
 		Name: "drown",
+		On:   rule.Self,
 		When: unit.Standing.Fallen,
-		Do:   rule.Order(world.Despawn{}),
+		Do:   rule.Apply(world.Despawn{}),
 	})
 }
 

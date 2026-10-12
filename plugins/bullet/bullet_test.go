@@ -279,8 +279,9 @@ func (r *rig) theShot() found {
 var east = geom.NewVec(1, 0)
 
 // round flies ten a step, five times its own cap.
-func round(r *rig, lands bool, tags ...tag.Tag[family]) bullet.Ammo {
-	r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands}, comp.Tagged(tags...))
+func round(r *rig, lands bool, roles ...*rule.Part) bullet.Ammo {
+	r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands},
+		rule.Plays(roles...))
 	return r.arms.Named("round")
 }
 
@@ -340,23 +341,26 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 		{x: 100, y: 100, size: 20, facing: east},
 		{x: 200, y: 105, size: 10},
 	}})
-	roundTag := r.w.Kinds().DefineTag[family]("round")
-	ammo := round(r, true, roundTag)
+	r.w.Roles().Define("round")
+	roundRole := r.w.Roles().Named("round")
+	ammo := round(r, true, roundRole)
 	r.fx.Define("hit", effect.Spec{effect.Lasts(time.Minute)})
 	hit := r.fx.Named("hit")
 	r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
 	told := r.fx.Named("told")
 	if err := r.obey(rule.Branch[collision.Meeting]{
 		Name: "hit",
-		When: rule.Self(roundTag),
-		Do:   rule.ForOther(rule.Apply(hit)),
+		On:   rule.Other,
+		When: rule.Playing(roundRole),
+		Do:   rule.Put(hit),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.obey(rule.Branch[bullet.Landing]{
 		Name: "told",
-		When: rule.All(rule.Self(roundTag), func(l bullet.Landing) bool { return l.Struck }),
-		Do:   rule.ForOther(rule.Apply(told)),
+		On:   rule.Other,
+		When: rule.All(rule.Playing(roundRole), func(l bullet.Landing) bool { return l.Struck }),
+		Do:   rule.Put(told),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -382,14 +386,16 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 		{x: 100, y: 100, size: 20, facing: east},
 		{x: 200, y: 105, size: 10},
 	}})
-	roundTag := r.w.Kinds().DefineTag[family]("round")
-	ammo := round(r, false, roundTag)
+	r.w.Roles().Define("round")
+	roundRole := r.w.Roles().Named("round")
+	ammo := round(r, false, roundRole)
 	r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
 	scored := r.fx.Named("scored")
 	if err := r.obey(rule.Branch[bullet.Landing]{
 		Name: "scored",
-		When: rule.Self(roundTag),
-		Do:   rule.Apply(scored),
+		On:   rule.Self,
+		When: rule.Playing(roundRole),
+		Do:   rule.Put(scored),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -464,21 +470,25 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 		{x: 216, y: 135, size: 10}, // 30 beside it
 		{x: 295, y: 105, size: 10}, // 79 beyond
 	}})
-	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
-	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true}, comp.Tagged(grenadeTag))
+	r.w.Roles().Define("grenade")
+	grenadeRole := r.w.Roles().Named("grenade")
+	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
+		rule.Plays(grenadeRole))
 	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
 	if err := r.obey(
 		rule.Branch[bullet.Resting]{
 			Name: "burst",
-			When: rule.Self(grenadeTag),
-			Do:   rule.Order(bullet.Burst{Radius: 40}),
+			On:   rule.Self,
+			When: rule.Playing(grenadeRole),
+			Do:   rule.Apply(bullet.Burst{Radius: 40}),
 		},
 		rule.Branch[bullet.Blast]{
 			Name: "blast",
-			When: rule.Self(grenadeTag),
-			Do:   rule.ForOther(rule.Apply(hurt)),
+			On:   rule.Other,
+			When: rule.Playing(grenadeRole),
+			Do:   rule.Put(hurt),
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -501,21 +511,27 @@ func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
 		{x: 100, y: 100, size: 20, facing: east},
 		{x: 216, y: 135, size: 10}, // 30 beside where the grenade comes down
 	}})
-	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
+	r.w.Roles().Define("grenade")
+	grenadeRole := r.w.Roles().Named("grenade")
 	fuse := rule.Plan("fuse", rule.Steps(
-		rule.Until[bullet.Flight](bullet.Flight.Lying),
-		rule.Wait(time.Second),
-		rule.Order(bullet.Burst{Radius: 40}),
+		rule.Branch[bullet.Flight]{
+			Name: "lit",
+			When: bullet.Flight.Lying,
+			On:   rule.Self,
+			Do:   rule.Wait(time.Second),
+		},
+		rule.Branch[any]{Name: "burst", On: rule.Self, Do: rule.Apply(bullet.Burst{Radius: 40})},
 	))
 	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
-		comp.Tagged(grenadeTag), fuse)
+		rule.Plays(grenadeRole), fuse)
 	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
 	if err := r.obey(rule.Branch[bullet.Blast]{
 		Name: "blast",
-		When: rule.Self(grenadeTag),
-		Do:   rule.ForOther(rule.Apply(hurt)),
+		On:   rule.Other,
+		When: rule.Playing(grenadeRole),
+		Do:   rule.Put(hurt),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -586,7 +602,8 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		gone := r.fx.Named("gone")
 		if err := r.obey(rule.Branch[world.Leaving]{
 			Name: "leaving",
-			Do:   rule.Apply(gone),
+			On:   rule.Self,
+			Do:   rule.Put(gone),
 		}); err != nil {
 			t.Fatal(err)
 		}

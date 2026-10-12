@@ -98,7 +98,7 @@ func (s *system) Update(cb *goke.CmdBuf, dt time.Duration) {
 			if t == nil {
 				panic(fmt.Sprintf("rule: entity %v runs a plan no kind gave (%x)", id, m.Plan))
 			}
-			c.cur, c.i, c.id, c.entity, c.mind, c.tree = cur, i, id, true, m, t
+			c.cur, c.i, c.id, c.me, c.entity, c.mind, c.tree = cur, i, id, id, true, m, t
 			c.prev, c.next = m.Running, StepSet{}
 			c.run(0)
 			for w := range c.prev {
@@ -127,11 +127,14 @@ type ctx struct {
 	now        time.Duration
 	cur        *goke.Cursor
 	i          int
-	id         uid.UID64
-	entity     bool // false for a rule of a clock.Moment: nobody to act for
+	id         uid.UID64 // whom the steps act on now
+	me         uid.UID64 // the entity the rule or the plan is about
+	entity     bool      // false for a rule of a clock.Moment: nobody to act for
 	mind       *Mind
 	tree       *tree
 	prev, next StepSet
+	hops       uint8        // of the message the branch stands under
+	hopsOf     reflect.Type // its type
 }
 
 func (c *ctx) run(at int) Status {
@@ -206,9 +209,12 @@ func (c *ctx) under(f any, at int) Status {
 	if !about {
 		return c.run(at)
 	}
-	outer, was := c.subject, c.about
+	outer, was, hops, hopsOf := c.subject, c.about, c.hops, c.hopsOf
 	c.subject, c.about = who, true
+	if h, ok := f.(hopped); ok {
+		c.hops, c.hopsOf = h.hops(), reflect.TypeOf(f)
+	}
 	st := c.run(at)
-	c.subject, c.about = outer, was
+	c.subject, c.about, c.hops, c.hopsOf = outer, was, hops, hopsOf
 	return st
 }

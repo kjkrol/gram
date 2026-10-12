@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
@@ -13,8 +14,10 @@ import (
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
 // the orders they already have; given by an entity for itself, it sends that entity alone. At is
 // the world point clicked, where the group stands round or the way one standing on Cell turns.
+// To names the goal in place of Cell: the one entity bearing the name, a cell or a unit.
 type MoveTo struct {
 	Cell   cell.ID
+	To     entity.Whom
 	At     geom.Vec
 	Append bool
 	Level  Level
@@ -99,6 +102,7 @@ var (
 	_ control.Command = Settle{}
 	_ control.Command = Stop{}
 	_ control.Command = Routes{}
+	_ control.Command = Onward{}
 )
 
 // pixels the cursor may move between the button going down and up for a click, not a drag
@@ -112,7 +116,8 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are the queues of every command the plugin carries out, for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
-	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.given.all()...)
+	queues := []control.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
+	return append(queues, p.given.all()...)
 }
 
 // DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift

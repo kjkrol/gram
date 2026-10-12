@@ -11,18 +11,18 @@ import (
 )
 
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
-	keep, put := rule.Keep(glow), rule.Dispel(glow)
+	var keep, put rule.Step = rule.Hold(glow), rule.Take(glow)
 	if shield != (effect.Effect{}) {
-		keep = rule.Branch[any]{When: rule.Free(shield), Do: rule.Keep(glow)}
-		put = rule.Steps(rule.Apply(shield), rule.Dispel(glow))
+		keep = rule.Branch[any]{When: rule.Not(rule.Under(shield)), Do: rule.Hold(glow)}
+		put = rule.Steps(rule.Put(shield), rule.Take(glow))
 	}
 	dousing := func(world.Moving) bool { return *douse }
 	r.rules = append(r.rules,
-		rule.Branch[world.Moving]{Name: "glow", Do: keep},
-		rule.Branch[world.Moving]{Name: "douse", When: dousing, Do: put})
+		rule.Branch[world.Moving]{Name: "glow", On: rule.Self, Do: keep},
+		rule.Branch[world.Moving]{Name: "douse", On: rule.Self, When: dousing, Do: put})
 }
 
-func TestRule_DispelTakesOffWhatAnotherRuleKeepsTillItsNextStep(t *testing.T) {
+func TestRule_TakeTakesOffWhatAnotherRuleHoldsTillItsNextStep(t *testing.T) {
 	var glow effect.Effect
 	douse := false
 	r := newRig(t, true, func(r *rig) {
@@ -76,14 +76,14 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	}
 }
 
-func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
+func TestPlan_TakeTakesAnEffectOff(t *testing.T) {
 	var glow effect.Effect
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
 		r.comps = append(r.comps, asPlan(r.w, "douse in a while", rule.Steps(
 			rule.Wait(3*tick),
-			rule.Dispel(glow),
+			rule.Take(glow),
 			rule.Idle(),
 		)))
 	})
@@ -100,17 +100,25 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	}
 }
 
-func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
+func TestPlan_HoldGivesWayWhenSomeoneElseTakes(t *testing.T) {
 	var glow, gaveWay effect.Effect
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
 		r.fx.Define("gave way", effect.Spec{})
 		gaveWay = r.fx.Named("gave way")
-		r.comps = append(r.comps, asPlan(r.w, "glow till doused", rule.Steps(
-			rule.Invert(rule.Keep(glow)),
-			rule.Apply(gaveWay),
-			rule.Idle(),
+		r.comps = append(r.comps, asPlan(r.w, "glow till doused", rule.OneOf(
+			rule.Branch[any]{
+				Name: "glow",
+				When: rule.Not(rule.Under(gaveWay)),
+				On:   rule.Self,
+				Do:   rule.Hold(glow),
+			},
+			rule.Branch[any]{
+				Name: "gave way",
+				On:   rule.Self,
+				Do:   rule.Steps(rule.Put(gaveWay), rule.Idle()),
+			},
 		)))
 	})
 	for range 3 {
@@ -138,15 +146,21 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			open = r.fx.Named("open")
 			if planned {
 				r.comps = append(r.comps, asPlan(r.w, "open while pulled", rule.OneOf(
-					rule.Branch[any]{When: rule.During(lever), Do: rule.Keep(open)},
-					rule.Idle(),
+					rule.Branch[any]{
+						Name: "open",
+						When: rule.Under(lever).On(entity.World),
+						On:   rule.Self,
+						Do:   rule.Hold(open),
+					},
+					rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
 				)))
 				return
 			}
 			r.rules = append(r.rules, rule.Branch[world.Moving]{
 				Name: "open while pulled",
-				When: rule.During(lever),
-				Do:   rule.Keep(open),
+				On:   rule.Self,
+				When: rule.Under(lever).On(entity.World),
+				Do:   rule.Hold(open),
 			})
 		})
 		if err := r.w.Carry(r.w); err != nil {
@@ -157,7 +171,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		if r.fx.Has(r.id, open) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
-		r.w.Carrier().Put(1, rule.Cast(lever).On(entity.World))
+		r.w.Carrier().Put(1, rule.Put(lever).On(entity.World))
 		r.tick()
 		r.tick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {

@@ -14,6 +14,8 @@ const (
 	TrapdoorKind = "trapdoor"
 	PlateKind    = "plate"
 
+	PatrolPlan = "patrol"
+
 	PlayerSide = "player"
 
 	PressurePlateStage = "pressure-plate-demo"

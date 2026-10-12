@@ -99,13 +99,14 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MoodyRole, rule.Branch[world.Moving]{
 		Name: "rage spreads",
-		When: rule.During(s.world.Effects().Named(RageEf)),
-		Do:   rule.Keep(s.world.Effects().Named(AngryEf)),
+		On:   rule.Self,
+		When: rule.Under(s.world.Effects().Named(RageEf)).On(entity.World),
+		Do:   rule.Hold(s.world.Effects().Named(AngryEf)),
 	})
 }
 
 func (s *arena) defineCommands() {
-	s.world.Commands().Define(RageCmd, rule.Cast(s.world.Effects().Named(RageEf)).On(entity.World))
+	s.world.Commands().Define(RageCmd, rule.Put(s.world.Effects().Named(RageEf)).On(entity.World))
 }
 
 type walker struct {

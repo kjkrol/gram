@@ -97,7 +97,7 @@ func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 	d := dialog.NewPlugin(w, dialog.Config{})
 	d.DefineEffects()
 	w.Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
-	w.Commands().Define("blush", rule.Cast(w.Effects().Named("blush")).On(ui.It))
+	w.Commands().Define("blush", rule.Put(w.Effects().Named("blush")).On(ui.It))
 	d.Changes().Define("warm", dialog.Alter(func(l *liking, _ uid.UID64) { l.N += 40 }))
 	d.Changes().Define("offend", dialog.Alter(func(l *liking, _ uid.UID64) { l.N -= 80 }))
 	d.Changes().Define("flour", dialog.AlterListener(func(s *sacks, _ uid.UID64) { s.N++ }))
@@ -256,7 +256,7 @@ func TestConversation_OnlyAPlayerTheListenerObeysAnswers(t *testing.T) {
 func TestConversation_TakingTalkingOffEndsItWithoutTalked(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
-	r.w.Carrier().Put(control.Nobody, rule.Lift(r.talking).On(entity.ID(r.host)))
+	r.w.Carrier().Put(control.Nobody, rule.Take(r.talking).On(entity.ID(r.host)))
 	r.tick(2)
 	if r.line(r.host) != "" || r.talked.On(r.host) {
 		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.talked.On(r.host))

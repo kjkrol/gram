@@ -152,22 +152,24 @@ func (s *arena) defineRules() {
 	mortal := roles.Named(MortalRole)
 	roles.Define(RoundRole, rule.Branch[collision.Meeting]{
 		Name: "shot",
+		On:   rule.Other,
 		When: collision.Met(mortal),
-		Do: rule.ForOther(rule.OneOf(
-			rule.Branch[any]{When: rule.Under(wounded), Do: rule.Order(world.Despawn{})},
-			rule.Apply(wounded),
-		)),
+		Do: rule.OneOf(
+			rule.Branch[any]{When: rule.Under(wounded), Do: rule.Apply(world.Despawn{})},
+			rule.Put(wounded),
+		),
 	})
 	roles.Define(GrenadeRole, rule.Branch[bullet.Blast]{
 		Name: "blast",
+		On:   rule.Other,
 		When: bullet.Reaching(mortal),
-		Do: rule.ForOther(rule.OneOf(
+		Do: rule.OneOf(
 			rule.Branch[bullet.Blast]{
 				When: bullet.Within(blastKills),
-				Do:   rule.Order(world.Despawn{}),
+				Do:   rule.Apply(world.Despawn{}),
 			},
-			rule.Apply(wounded),
-		)),
+			rule.Put(wounded),
+		),
 	})
 }
 
@@ -203,10 +205,17 @@ func (s *arena) defineKinds() {
 		bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize},
 		rule.Plays(s.world.Roles().Named(RoundRole)))
 	fuse := rule.Plan(FusePlan, rule.Steps(
-		rule.Until[bullet.Flight](bullet.Flight.Lying),
-		rule.Apply(s.world.Effects().Named(FuseEf)),
-		rule.Wait(fuseLength),
-		rule.Order(bullet.Burst{Radius: blastRadius}),
+		rule.Branch[bullet.Flight]{
+			Name: "lit",
+			When: bullet.Flight.Lying,
+			On:   rule.Self,
+			Do:   rule.Steps(rule.Put(s.world.Effects().Named(FuseEf)), rule.Wait(fuseLength)),
+		},
+		rule.Branch[any]{
+			Name: "burst",
+			On:   rule.Self,
+			Do:   rule.Apply(bullet.Burst{Radius: blastRadius}),
+		},
 	))
 	s.bullet.Shots().Define(GrenadeKind,
 		bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true},
@@ -214,15 +223,19 @@ func (s *arena) defineKinds() {
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(SoldierKind, unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
-	units.Define(
-		WandererKind,
-		unit.Mover{Domain: cell.Land},
-		profile,
-		mortal,
-		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.To, u.Start)
-		}),
-	)
+	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
+		Name: "leg",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(navigation.Onward{}),
+			rule.Until[navigation.Arrived](),
+			rule.Wait(time.Second),
+		),
+	})
+	round := comp.Load(func(u unitRow) navigation.Round {
+		return navigation.NewRound(u.To, u.Start)
+	})
+	units.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, mortal, round, patrol)
 }
 
 func (s *arena) bindKeys() error {

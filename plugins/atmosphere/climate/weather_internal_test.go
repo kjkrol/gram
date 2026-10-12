@@ -1,7 +1,6 @@
 package climate
 
 import (
-	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -10,7 +9,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
@@ -47,10 +45,11 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	}
 	if err := r.c.Rules().Add(rule.Branch[Weathering]{
 		Name: "winter",
+		On:   rule.Self,
 		When: func(w Weathering) bool {
 			return w.Season == calendar.Winter && w.Weather == r.c.Air()
 		},
-		Do: rule.Order(winterNow{}),
+		Do: rule.Apply(winterNow{}),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -277,18 +276,14 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 }
 
 // a moment of the world as a whole has no entity's components to read
-func TestClimate_TakesARolesRuleAndRefusesAFilteredOne(t *testing.T) {
+func TestClimate_TakesARolesRule(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cfg := calendar.Config{DayRealTime: time.Minute}
 	c := New(w, calendar.New(clock.New(clock.Config{}), cfg), Config{})
-	every := rule.Branch[Weathering]{Name: "any weather", Do: rule.Order(winterNow{})}
-	having := rule.Branch[Weathering]{
-		Name: "having",
-		When: rule.Carrying[Weather](),
-		Do:   rule.Order(winterNow{}),
-	}
-	if err := c.Rules().Add(having); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Add of a filtered rule = %v; want plugin.ErrUnhosted", err)
+	every := rule.Branch[Weathering]{
+		Name: "any weather",
+		On:   rule.Self,
+		Do:   rule.Apply(winterNow{}),
 	}
 	for name, r := range map[string]rule.Rule{
 		"every":  every,

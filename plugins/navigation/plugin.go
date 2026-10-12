@@ -32,11 +32,12 @@ type Plugin struct {
 	board  *board.Board
 	module *module
 
-	moves  control.Queue[MoveTo]
-	looks  control.Queue[LookAt]
-	routes control.Queue[Routes]
-	given  givenQueues
-	finder *pathFinder
+	moves   control.Queue[MoveTo]
+	looks   control.Queue[LookAt]
+	routes  control.Queue[Routes]
+	onwards control.Queue[Onward]
+	given   givenQueues
+	finder  *pathFinder
 
 	touches  plugin.PairRules[Touch]
 	crowd    []rule.Rule
@@ -101,6 +102,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
+	moveCommandSystem.onwards = &p.onwards
 	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
 	if p.collision != nil {
 		navSys.bumps = anyBump

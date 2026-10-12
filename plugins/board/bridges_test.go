@@ -429,7 +429,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 		t.Fatalf("before: decks of %v over the bridge's middle, want one", got)
 	}
 	carrier := d.w.Carrier()
-	if !carrier.Put(control.Nobody, rule.Cast(d.sag).On(entity.Named("first"))) {
+	if !carrier.Put(control.Nobody, rule.Put(d.sag).On(entity.Named("first"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
 	d.tick()
@@ -440,7 +440,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	if !strings.Contains(out.String(), "a bridge is level") {
 		t.Errorf("the log: %q, want the bridge refused for being uneven", out.String())
 	}
-	carrier.Put(control.Nobody, rule.Lift(d.sag).On(entity.Named("first")))
+	carrier.Put(control.Nobody, rule.Take(d.sag).On(entity.Named("first")))
 	d.tick()
 	d.tick()
 	if got := d.over(middle); len(got) != 1 {

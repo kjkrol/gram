@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -120,10 +121,19 @@ func (s *arena) defineKinds() {
 		V0:       UnitSpeed / 2,
 		TurnRate: 0.08,
 	}
-	round := comp.Load(func(u unitRow) navigation.MoveOrder {
-		return navigation.Patrol(time.Second, u.Round[0], u.Round[1], u.Round[2], u.Round[3])
+	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
+		Name: "leg",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(navigation.Onward{}),
+			rule.Until[navigation.Arrived](),
+			rule.Wait(time.Second),
+		),
 	})
-	units.Define(BugKind, unit.Mover{Domain: cell.Land}, profile, round)
+	round := comp.Load(func(u unitRow) navigation.Round {
+		return navigation.NewRound(u.Round[:]...)
+	})
+	units.Define(BugKind, unit.Mover{Domain: cell.Land}, profile, round, patrol)
 }
 
 func (s *arena) spawn() error {

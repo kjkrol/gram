@@ -11,10 +11,10 @@ import (
 func TestRoles_AreTheStagesOwn(t *testing.T) {
 	forest, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
 	forest.Roles().Define("mortal",
-		rule.Branch[world.Moving]{Name: "drown", Do: rule.Order(world.Despawn{})})
+		rule.Branch[world.Moving]{Name: "drown", On: rule.Self, Do: rule.Apply(world.Despawn{})})
 	arena.Roles().Define("mortal",
-		rule.Branch[world.Moving]{Name: "fall", Do: rule.Order(world.Despawn{})},
-		rule.Branch[world.Leaving]{Name: "leave", Do: rule.Order(world.Despawn{})})
+		rule.Branch[world.Moving]{Name: "fall", On: rule.Self, Do: rule.Apply(world.Despawn{})},
+		rule.Branch[world.Leaving]{Name: "leave", On: rule.Self, Do: rule.Apply(world.Despawn{})})
 
 	a, b := forest.Roles().Named("mortal"), arena.Roles().Named("mortal")
 	if len(a.Rules()) != 1 || len(b.Rules()) != 2 {

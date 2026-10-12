@@ -40,7 +40,7 @@ func (t Touch) Whom(each func(uid.UID64)) { each(t.Other) }
 func (t Touch) Subject() (uid.UID64, bool) { return t.Other, true }
 
 // Touching is the condition that the other plays role, for a rule's When on a Touch.
-func Touching(role *rule.Part) rule.Cond { return rule.Other(role.Tag()) }
+func Touching(role *rule.Part) rule.Cond { return rule.Paired(role) }
 
 // PushedByAlly reports that Self stands and an ally on the move, not of its own group nor giving
 // way, comes at it.

@@ -15,6 +15,9 @@ type Side struct {
 	probe  func() familyProbe
 }
 
+// Anybody reports a side of no tag, which anybody is.
+func (s Side) Anybody() bool { return s.family == nil }
+
 // SideOf is t as a side of a pair rule; tag.Any is anybody.
 func SideOf[F any](t tag.Tag[F]) Side {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
@@ -79,6 +82,9 @@ func (r *PairRules[P]) Add(rule any) error {
 		for _, s := range w.PairWithin() {
 			held.within = append(held.within, s)
 			held.fw = append(held.fw, r.familyOf(s))
+			if s.family == b.family && s.bit == b.bit {
+				held.same = true // the rule's own side is the other's too: once a pair
+			}
 		}
 	}
 	r.rules = append(r.rules, held)

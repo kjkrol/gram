@@ -120,7 +120,7 @@ func (c *effectCommands) carry(cmd rule.Command) {
 			}
 		})
 	}
-	on := cmd.Verb == rule.Casts
+	on := cmd.Verb == rule.Puts
 	if cmd.Verb == rule.Toggles {
 		on = true
 		for _, id := range c.found {

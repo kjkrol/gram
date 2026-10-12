@@ -4,8 +4,9 @@
 // # MoveOrder and Path
 //
 // A [MoveOrder] on an entity sends it to a Target cell and then through up to [MaxWaypoints]
-// queued [Goal]s ([MoveOrder.Enqueue]); the order is removed when the last is reached, unless it
-// has a [Round], a patrol ([Patrol]), which never ends. Its [Path] is the cached route, consumed
+// queued [Goal]s ([MoveOrder.Enqueue]); the order is removed when the last is reached. A patrol
+// is a plan: the unit carries a [Round] of cells and gives itself [Onward] for the next, waiting
+// for [Arrived] between. Its [Path] is the cached route, consumed
 // step by step, planned again when the entity stands off it; its [Leg] is the single step in
 // flight. A navigated entity carries a steering.Steering profile, which navigation asks for a
 // heading and a top speed; a MoveOrder is put on by the MoveTo command, or by the game at spawn.

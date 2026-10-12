@@ -38,7 +38,11 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 			}).
 			Rules(func() {
 				w.Roles().Define("weatherwise",
-					rule.Branch[climate.Weathering]{Name: "note the weather", Do: rule.Keep(noted)})
+					rule.Branch[climate.Weathering]{
+						Name: "note the weather",
+						On:   rule.Self,
+						Do:   rule.Hold(noted),
+					})
 				weatherwise := w.Roles().Named("weatherwise")
 				if plays {
 					a.Plays(weatherwise)

@@ -48,7 +48,8 @@ func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 	if hooked {
 		if err := ew.p.Hook(rule.Branch[Leaving]{
 			Name: "left",
-			Do:   rule.Order(left{}),
+			On:   rule.Self,
+			Do:   rule.Apply(left{}),
 		}); err != nil {
 			t.Fatal(err)
 		}

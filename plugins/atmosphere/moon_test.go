@@ -69,11 +69,11 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 			n.ecs.Tick(tick)
 		}
 	}
-	give(rule.Cast(blood).On(n.a))
+	give(rule.Put(blood).On(n.a))
 	if got := n.a.Sun().Color; got != red {
 		t.Errorf("under the blood moon the night is lit %v, want %v", got, red)
 	}
-	give(rule.Lift(blood).On(n.a))
+	give(rule.Take(blood).On(n.a))
 	if got := n.a.Sun().Color; got != pale {
 		t.Errorf("the blood moon lifted, the night is lit %v, want the %v it was", got, pale)
 	}
@@ -89,11 +89,12 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		full = n.w.Effects().Named("full risen")
 	}, func(n *night) {
 		n.w.Roles().Define("moon watcher",
-			rule.Branch[sky.Moonrise]{Name: "a rise", Do: rule.Apply(risen)},
+			rule.Branch[sky.Moonrise]{Name: "a rise", On: rule.Self, Do: rule.Put(risen)},
 			rule.Branch[sky.Moonrise]{
 				Name: "a full rise",
+				On:   rule.Self,
 				When: sky.Moonrise.Full,
-				Do:   rule.Apply(full),
+				Do:   rule.Put(full),
 			})
 		n.a.Plays(n.w.Roles().Named("moon watcher"))
 	})

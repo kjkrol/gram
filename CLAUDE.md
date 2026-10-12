@@ -34,7 +34,7 @@ make demo-collision                                                # go mod tidy
 make demo-navigation                                               # go mod tidy && run examples/navigation/square (players: bindings for select, move, camera)
 make demo-navigation-hex                                           # the same on a hex board
 make demo-navigation-spawn                                         # walkers spawned under the cursor (N) hold their cells at once; Shift+O shows the cells held
-make demo-guard                                                    # guards on a plan (rule.Plan): patrol, step aside when blocked long, rest on arriving, run to the gate while the alarm (A) is on
+make demo-guard                                                    # guards on a plan (rule.Plan): patrol their own round, step aside when blocked long, rest on arriving, run to the gate (named on the map) while the alarm (A) is on
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
@@ -81,12 +81,14 @@ on Go 1.27.0.
 
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`,
 `WithRenderer`, `Renderer`, `EventHandler`, `Serializable` — is the one extension point. A rule
-(`rule.Branch[P]{Name, When, Do}`, `rule`, a `rule.Rule`) is run inside the pass of the plugin
-that catches its moment `P`; its `When` says when, conditions as values in the moment's own
-words: a predicate of `P` (`unit.Standing.Fallen`), `rule.Self(tag)` the entity carrying a tag,
-the other of a pair playing a role (`vision.Seeing(role)`, `collision.Met(role)`; `rule.Other(tag)`
-underneath, a moment that is `plugin.Met`), `rule.Carrying[T]()` one carrying `T`, `Under`,
-`Free`, `During`, `Playing`, several at once with `rule.All`. A rule holds no Go code of its own
+(`rule.Branch[P]{Name, When, On, Do}`, `rule`, a `rule.Rule`) is run inside the pass of the
+plugin that catches its moment `P`; its `When` says when, conditions as values in the moment's
+own words: a predicate of `P` (`unit.Standing.Fallen`), `rule.Under(e)` the entity under an
+effect (`.On(entity.World)` the world, `.On(plugin)` a plugin's entity), `rule.Playing(role)`,
+`rule.Chance(p)`, the other of a pair playing a role (`vision.Seeing(role)`, `collision.Met(role)`;
+`rule.Paired(role)` underneath, a moment that is `plugin.Met`), `rule.Not`, several at once with
+`rule.All`; its `On` says on whom the steps act (`rule.Self`, `rule.Other`, `rule.Here`,
+`rule.Around(n)`), required at the top. A rule holds no Go code of its own
 but its predicates: what it does is steps, commands and effects (2026-10-02). What a plugin does
 of its own — terrain pace, logging, counting contacts, the weather on the board — is its own work
 in its own pass, never a rule; the one place rules are Go is drawing (`render.Rule`: `render.Over`,
@@ -163,11 +165,11 @@ name (`entity.Label`), carrying its knobs (`comp.Comp`s, listed for the saves by
 effects' markers, `tag.Tags[rule.Roles]` and an `effect.Wide` — a slot for every definable effect,
 where a unit's or a cell's `Active` holds 8; the effect system walks both (`walk`, `slotsOf`).
 The world's first system (`selves.system`) finds them by name in a loaded game, writing the roles
-declared now, and makes the rest. `Self` is a `rule.Router`: `rule.Cast(e).On(s.atmosphere)` is
+declared now, and makes the rest. `Self` is a `rule.Router`: `rule.Put(e).On(s.atmosphere)` is
 routed as a Command for `entity.Named(name)`, which the world carries out; `Self.Entity()`,
 `Self.Changed()` (its `effect.Changed`: the convention by which a plugin works costly things
 anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
-`rule.While(plugin, e, step)` is `During` for a plugin's entity (`steps.NewWhile`). One thing of a
+`rule.Under(e).On(s.atmosphere)` reads it back (`steps.GuardWhile`). One thing of a
 kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
 `rule.NewPart` are for plugins. **What a plugin gives is in its root package** (the user's rule, 2026-10-05):
 `commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `Holds`
@@ -198,13 +200,13 @@ called, written beside the type, and every command type is confirmed where it is
 `_ plugin.Aimed = …`. Whatever takes commands takes a `control.Command`, never `any`: `Queue[C]`,
 `Issued[C]`, `Carrier.Put`, `control.Give`, `control.Build[C]` (the binding built from a `Context`;
 it was `control.Command[C]`; `Binding.Type()` the command's type), `players.Issue`,
-`kind.Entry.Told`, `rule.Order`, `ui.Button`, `ui.Scene.Issue`. A command is still carried by its
+`kind.Entry.Told`, `rule.Apply`, `ui.Button`, `ui.Scene.Issue`. A command is still carried by its
 type to its handler's queue; its traits stay optional, asked for by assertion where they matter
 (`control.Routed`, `control.Contextual`, `plugin.Aimed`, `ui.About`, which is a command too).
 **Commands** ask: what somebody wants done about an effect is one
 `rule.Command` written as a sentence (`rule/command.go`, since 2026-10-05, in place of wires,
-`world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Cast(e)` puts it on,
-`rule.Lift(e)` takes it off, `rule.Toggle(e)` switches it (off them all where any target is under
+`world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Put(e)` puts it on,
+`rule.Take(e)` takes it off, `rule.Toggle(e)` switches it (off them all where any target is under
 it); `.On(target)` says whom, `.For(d)` how long in place of the Spec, `.By(source)` who sets it
 off. A `rule.Target` is `entity.Named(names...)` (one entity a name), `entity.Group(names...)`,
 `entity.World` (an `entity.Whom`; the world carries those out, `plugins/world/effect_commands.go`, the
@@ -213,8 +215,10 @@ step's commands of one effect on one entity netted) or a plugin's own, a `rule.R
 (`selection.Plugin.Selected(roles...)`, `Pointed()`: the selection carries them out).
 `Command.Routed()` is the command its handler takes, and `control.Carrier.Put`/`PutFrom` unwrap a
 `control.Routed`, so a key (`control.Give(trigger, label, cmd)`, which hands a
-`control.Contextual` command its `Context` — the cursor, for `Pointed`), `players.Issue`, `Order`
-and `Trigger` give it one way. `rule.Trigger()` is the step by which an entity gives every
+`control.Contextual` command its `Context` — the cursor, for `Pointed`), `players.Issue` and
+`rule.Apply` give it one way; a `Put` or a `Take` without an `On` is a step, acting on whom the
+branch does (`Cast`/`Lift`/`Apply`/`Dispel` went on 2026-10-12: one pair, the user's word).
+`rule.Apply(rule.Triggered{})` is how an entity gives every
 command whose `By` names it (`rule.Triggered`, an entity's own command): a role says a plate
 stood on triggers, the command what that opens. A Stage hands its commands to
 `s.world.Commands().Define(name, cmd)` (the Commands section; the register was `Castings` and the
@@ -710,9 +714,10 @@ component beside it (`steering.Course` beside `Steering`, `vision.Sighted` besid
 the original, and would put back stale state too. A plugin's own effects stay private. A
 step a rule cannot say is a missing moment, step or knob, not a reason to write Go code in
 a rule (`doc/rule.md`, "A game: states as effects"). A **player acts** the same way, by
-giving a command (see "Plugin system", Commands): `rule.Cast(e).On(sel.Selected(role))` on its own
+giving a command (see "Plugin system", Commands): `rule.Put(e).On(sel.Selected(role))` on its own
 selected units playing a role, `.On(sel.Pointed())` on whoever the cursor points at,
-`.On(entity.World)` for a state of the whole game, which rules and plans read with `During`,
+`.On(entity.World)` for a state of the whole game, which rules and plans read with
+`rule.Under(e).On(entity.World)`,
 `.On(entity.Group(name))` for the cells or entities called so (the wire demo: a lever, a plate and
 a switch each a command for a group of trapdoors or a gate, entities standing on the board; the
 trapdoor and pressure plate demos the same).
@@ -935,8 +940,8 @@ trapdoor and pressure plate demos the same).
   lies under — the box, the `Mover`'s domain, `Airborne`) to the rules of it; `Standing.Fallen()`
   is a land unit in water or in a hole, never one in the air (`unit.Airborne`, the units' marker
   gravity puts on), and the reaction is the game's (the demos:
-  `rule.Branch[unit.Standing]{Name: "drown", When: unit.Standing.Fallen, Do:
-  rule.Order(world.Despawn{})}`,
+  `rule.Branch[unit.Standing]{Name: "drown", When: unit.Standing.Fallen, On: rule.Self, Do:
+  rule.Apply(world.Despawn{})}`,
   `board.Plugin.WithLog(log.Default())` writing a line for each fall). The same pass writes every
   unit with a `unit.Mover` its `steering.Pace{Share}` — 1/`CostFor` its domain of the cell under
   its centre, and the Map's slope the way it goes unless the kind is `Graded` — which the world's
@@ -944,11 +949,12 @@ trapdoor and pressure plate demos the same).
   (its entity, which cell, its kind now; `Trodden`/`Stood` went on 2026-10-10: a plate is an
   entity, pressed in a `collision.Meeting`). Both moments are data alone and `plugin.Placed`: the
   board's `internal/moments.Rules` put their `around` into the `plugin.Tick.Around`, and
-  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own)
+  a branch `On: rule.Here` acts on the entities of the cells under the box (a `cell.Now`'s own)
   and the entities standing on them (`terrain.Cells.Standing`: the world's space asked at the
-  cell's middle, those carrying `cell.On` of that cell — never the units), `rule.Around(rings,
-  step)` on the rings of neighbours too, each cell once (a scratch of passes, not reentrant) — the
-  effect demo's witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a
+  cell's middle, those carrying `cell.On` of that cell — never the units), `On: rule.Around(rings)`
+  on the rings of neighbours too, each cell once (a scratch of passes, not reentrant) — the
+  effect demo's witch freezes `On: rule.Around(1), Do: rule.Put(frost)`, fire spreads cell to cell
+  from a
   `cell.Now`, the wire demo's scout pulls the lever beside it.
   **What stands on the board is an entity, not terrain** (2026-10-10, the user's word: a lever, a
   trapdoor, a gate, a plate "po prostu stoją sobie na terenie"): `board.NewEntities[Row](brd,
@@ -1163,7 +1169,7 @@ trapdoor and pressure plate demos the same).
   under orders glances along the wall, which navigation needs to come round its end.
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
   Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
-  confirmed contact between two tags (`collision.Met(role)`, `rule.Self(a)`; none for every
+  confirmed contact between two roles (`collision.Met(role)`, `rule.Playing(a)`; none for every
   pair), of a
   `Struck` per entity that struck something the tick before, with what it struck (one that struck
   nothing is not told: the walk over the colliders runs `plugin.Rules.RunWhere`; the contacts lie in
@@ -1207,11 +1213,16 @@ trapdoor and pressure plate demos the same).
   roads taken along their links. A navigated unit carries a `steering.Steering` profile: navigation only asks it for a
   heading (at a lookahead point, so turns start before the bend) and for its own top speed, braking
   from the profile before the goal; a waypoint is passed by projection, the goal by radius. A
-  `MoveOrder` queues up to `MaxWaypoints` further goals; one with a `Round`
-  (`navigation.Patrol(pause, cells...)`) never ends: reached or given up — a pit opening ahead,
-  say — it goes on to the round's next goal (`goOn`, in `arrive`), standing `Pause` on each one
-  reached; a step aside on the move carries the round over (the trapdoor and pressure plate demos
-  give each wanderer its round by `comp.Load`, one kind for all). Its `Face` is the point the unit turns
+  `MoveOrder` queues up to `MaxWaypoints` further goals. **A patrol is a plan** (2026-10-13;
+  `MoveOrder.Round`, `goOn`, `Pause`, `Stood` and `navigation.Patrol` went): the unit carries its
+  own `navigation.Round` of cells (`NewRound(cells...)`, from its row by `comp.Load`), the command
+  `navigation.Onward{}`, an entity's own, sends it to the next (`moveCommandSystem.onward`:
+  `carryOut` of a `MoveTo` as if by itself, `Next` advanced; without a `Round` nothing), and the
+  kind's plan is one branch: `Apply(Onward{})`, `Until[Arrived]()`, `Wait(pause)`, begun again as
+  it ends; a step aside carries the goal over by `Enqueue`, so `Arrived` still comes. `MoveTo.To`
+  names the goal in place of `Cell` (`entity.Named`): the one entity bearing the name, a cell
+  (its `cell.Plot`) or a unit (its `unit.At`), found through a query over `entity.Label`; none or
+  two, nothing. Its `Face` is the point the unit turns
   towards on arrival — a right click on the unit's own cell (`MoveTo.At`) or a `LookAt` (finish
   the step, stop, turn). The right button's bindings are a `Drag` (a click is the button up
   within `clickSlop` of where it went down; further, nothing moves) and a `ButtonHeld` past the
@@ -1334,63 +1345,78 @@ trapdoor and pressure plate demos the same).
   animations move every frame, not in the ticks' steps.
 - **`rule`** (core) — how entities behave, one vocabulary (`doc/rule.md`; the package was `act`,
   before it `conduct`): rules and plans (`rule`), effects (`rule/effect`), commands, facts. **One
-  brick** (2026-10-12, the user's word: a rule is a sentence — who, when, what — and the brick
-  is a branch): `rule.Branch[P]{Name, When, Through, Do}` (`branch.go`) is a rule of the moment
-  `P` given to a role, a branch of a plan waiting for the fact `P`, of `any` one asking only of
-  state; `When` holds conditions as values (`cond.go`: `Cond`, `All`, `Not`, `Under`, `Free`,
-  `During`, `While`, `Playing`, `Self`, `Other`, `Carrying`; a predicate `func(P) bool` beside
+  brick** (2026-10-12, the user's word: a rule is a sentence — who, when, on whom, what — and
+  the brick is a branch; the grammar settled on 2026-10-13): `rule.Branch[P]{Name, When, On, Do}`
+  (`branch.go`) is a rule of the moment `P` given to a role, a branch of a plan on the fact `P`,
+  of `any` one asking only of state; `When` holds conditions as values (`cond.go`: `Cond`, `All`,
+  `Not`, `Under(e)` with `.On(whom)` — `entity.World` or a plugin, `UnderCond` — `Playing(role)`,
+  `Chance(p)`, `Paired(role)` the word plugins make theirs of; a predicate `func(P) bool` beside
   them, so `When` is typed `any` and checked as the branch is built: a predicate of another type
-  panics by the branch's name), the moments' own words wrapping `rule.Other` (`vision.Seeing`,
+  panics by the branch's name); the moments' own words wrap `rule.Paired` (`vision.Seeing`,
   `collision.Met`, `bullet.Reaching`, `navigation.Touching`; `bullet.Within`,
-  `gravity.HarderThan` predicates). `Self`, `Other` and `Carrying` are read by the host off its
-  query and are asked at the top of a rule alone (`asked.take`); the rest are `steps.Guard`s in
-  the tree (`internal/steps/branch.go`: `NewBranch`, `GuardUnder`…). Files: `rule.go` (`Rule`,
-  the unexported `within` a role narrows by, `construct` the runner for the host), `runners.go`
-  (the rules as the plugin's hosts run them), `steps.go` (`Step`, an interface over the engine's
-  — `OneOf`, `Steps`, `Apply`, `Keep`, `Dispel`, `Chance`, `Either`, `Once`, `Order`, `ForOther`,
-  `Here`, `Around`), `lasting.go` (a plan's alone: `Ordered` with `Until`/`Stay`, `Until`, `Wait`,
-  `Timeout`, `Cooldown`, `Idle`, `Invert`, `Ask`, `Agree`, `Refuse`, `Relay`, the facts `Asked`
-  and `Replied`, aliases of the engine's so the saves and the facts have one type), `plan.go`
-  (`Plan(name, root)`, a `Planned`: a kind's component holding the `Mind`, defined in the world
-  by `Kinds.Register` — `Planned.Define(plans)` once a world; `world.Plans()` and the package
-  `rule/plan` with its `Actor` went), `role.go` (`Part` with `Obeys`, `NewPart`, `Plays`,
-  `Roles`), `command.go` (`Command`, `Cast`/`Lift`/`Toggle`, `Target`, `Router`, `Trigger`). The
-  hosts are `plugin`'s: `plugin.Rules` (`rules.go`: over entities, `Own`, `Columns`),
-  `plugin.PairRules` (`pair_rules.go`: pairs, `Side`, `Marks`), `plugin.StepRules` (once a step),
-  `plugin.Tick`/`TickSource` (`tick.go`), the moments' faces `About`, `Met`, `Placed`, `Subject`,
-  `Aimed`, `ErrUnhosted`/`ErrHostBuilt` and `Hosted` (`moments.go`: a host builds the Branch it
-  is handed, `rule.Build` the same by hand); `rule` imports `plugin`. A role's `Obeys` builds and
+  `gravity.HarderThan` predicates). `On` (`on.go`: `Self`, `Other`, `Here`, `Around(n)`, zero
+  inherits) is required at the top of a rule and of a plan, with `Name`; inside a `Do` a branch
+  acts on what the outer one does unless it says otherwise (`steps.NewForOther`, `NewAround`,
+  `NewSame` back to the entity; `ctx.me` is the entity, `ctx.id` whom the steps act on now).
+  `Paired` and `Playing` at the top of a rule are read by the host off its query (`asked.take`:
+  `Playing` the self side of a pair rule, else a `within` narrowing; `Paired` the other's side;
+  a pair rule whose other's side is among its own runs once a pair, `paired.same`); elsewhere they
+  are `steps.Guard`s in the tree (`internal/steps/branch.go`: `NewBranch`, `GuardUnder`,
+  `GuardNot`, `GuardDuring`, `GuardWhile`, `GuardPlaying`, `GuardChance`). **A fact is a thing
+  that happened** (`Through` went): a plan's branch of a fact begins once as the fact comes to hold
+  its `When` (one carried already counts once), runs its `Do` to the end though the fact goes,
+  and not again until the fact comes afresh (`branch.tick` on `Mind.Slot`: `armed`, `spent`,
+  `going`; `halt` spends it); a branch of `any` runs while its guards hold. Files: `rule.go`
+  (`Rule`, the unexported `within` a role narrows by, `construct` the runner for the host),
+  `runners.go` (the rules as the plugin's hosts run them), `steps.go` (`Step`, an interface over
+  the engine's — `OneOf`, `Steps` (lazy `group`s, so a plan's top is checked by `topNode`),
+  `Hold(e)`, `Apply(cmd)`), `lasting.go` (a plan's alone: `Until[F]`, `Wait`, `Idle`; `From`,
+  `MaxChain`, `AskLife`), `command.go` (`Command`, `Put`/`Take`/`Toggle` with `On`/`By`/`For`,
+  `Target`, `Router`, `Triggered`; a `Command` without an `On` is a `Step`: `Put` = `NewApply`
+  or `NewApplyFor`, `Take` = `NewDispel`, `Toggle` refused), `plan.go` (`Plan(name, root)`, a
+  `Planned`: a kind's component holding the `Mind`, defined in the world by `Kinds.Register`),
+  `role.go` (`Part` with `Obeys`, `NewPart`, `Plays`, `Roles`). A branch of a plan takes a frame:
+  `.Timeout(d)` fails it once it has run for `d`, `.Every(d)` keeps it from beginning again
+  within `d` (`Framed`; `steps.NewTimeout`, `NewCooldown`). **Messages** (`rule.From`, in place of
+  `Ask`/`Agree`/`Refuse`/`Relay`): a command embedding `From`, given with `Apply` on a branch
+  whose `On` is `Other`, lands on that entity as a fact (`order.send`: `fact.putOn`, the sender
+  `ctx.me`, `At` for the sweep after `AskLife`, `Hops` counted when a message of the same type is
+  passed on under a branch of it, `MaxChain` ending it); one without a `Mind` takes none and the
+  step fails; a rule is refused one. No answer is a frame: `Branch[any]{Do: Until[reply]()}.
+  Timeout(d)` in a `OneOf`, the next branch what then. The hosts are `plugin`'s: `plugin.Rules`
+  (`rules.go`: over entities, `Own`, `Columns`), `plugin.PairRules` (`pair_rules.go`: pairs,
+  `Side` with `Anybody`, `Marks`), `plugin.StepRules` (once a step), `plugin.Tick`/`TickSource`
+  (`tick.go`), the moments' faces `About`, `Met`, `Placed`, `Subject`, `Aimed`,
+  `ErrUnhosted`/`ErrHostBuilt` and `Hosted` (`moments.go`: a host builds the Branch it is
+  handed, `rule.Build` the same by hand); `rule` imports `plugin`. A role's `Obeys` builds and
   narrows (", for the role mortal" in the String, `"fall in" of unit.Standing`); a step the
   moment cannot run — `Here`/`Around` on a moment that is not Placed, a Branch of another moment
-  inside, a lasting step, a `Through` — is refused by `steps.NewInstant` (`momentExec`) as the
+  inside, a lasting step, a message — is refused by `steps.NewInstant` (`momentExec`) as the
   rule is built. There is no step running Go code (`Call` was removed on 2026-10-01: it hid what
   was missing); a rule says what it can in steps, and a missing moment, step or knob is added to
   the plugin. Moments are `plugin.About` (`Who()`), pairs `plugin.Met` (`Whom`), standing on
   places of their own `plugin.Placed` (a marker, `Placed()`; the host tells the places round in
   `plugin.Tick.Around`: `unit.Standing`, `cell.Now`); `Playing` asks the place `Here`/`Around`
-  turned to (`steps.Pass.Roles`/`plugin.Tick.Roles`). A plan's branch on a fact runs while the
-  entity carries it as the predicates say (`Through` once begun until done: the old `On`),
-  `Until[F]` waits for a fact coming afresh or coming to hold a condition, conversation
-  `Ask`/`Agree`/`Refuse`/`Relay` with the facts `Asked[W]`/`Replied[W]`, delivered a tick later,
-  `Chain` ≤ `MaxChain`, dropped after `AskLife`. `Order(cmd)` gives a command for the entity —
-  fire and forget, the handler told `control.Issued{Entity, ByEntity}`; an `Aimed` command gets
-  the subject of the fact it stands under or of the rule's moment, and fails while the rule's
-  moment names nobody (a `vision.Sighting` with none in view) — and hands back an `Ordered` whose
-  `.Until[F](…)` or `.Stay()` keeps a reactive branch from giving it every tick. A plan done
-  begins again the next tick. No plugin ships ready-made rules. Plans run first in every
+  turned to (`steps.Pass.Roles`/`plugin.Tick.Roles`). `Until[F]` waits for a fact coming afresh
+  or coming to hold a condition. `Apply(cmd)` gives a command for whom the branch acts on — fire
+  and forget, the handler told `control.Issued{Entity, ByEntity}`; an `Aimed` command gets the
+  subject of the fact it stands under or of the rule's moment, and fails while the rule's moment
+  names nobody (a `vision.Sighting` with none in view). A plan done begins again the next tick:
+  a patrol of one branch is a loop. No plugin ships ready-made rules. Plans run first in every
   simulation step (`steps.Plans`, made by the world); the world hosts no other decision pass. A
-  `clock.Moment` is the clock's own entity's (`Moment.Clock`): an effect a clock rule applies
+  `clock.Moment` is the clock's own entity's (`Moment.Clock`): an effect a clock rule puts on
   lands there, a phase. `Mind{Plan, Running, Slot, Since}` holds per-step slots in fixed arrays
   (`MaxSteps` 128, `Running` a `StepSet`; goke needs exported, fixed-size fields), by node index:
   a plan's shape changed, its saves do not load. goke registers 512 component types at most —
-  every fact is one.
+  every fact is one. Idioms (`Once`, `Either`, the patrol) are written out of the bricks, not
+  steps of the engine: a dictionary of them is on the roadmap.
 - **`rule/effect`** (core) — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
   Then(next), Grant(tags...), Alter(func(*T))})` registers it and `e.Named(name)` is the `effect.Effect`, carrying its owner
   (`Cast`/`CastFor`/`Dispel`/`On`/`Mark`; `e.Cast`/`CastFor`/`Dispel`/`Has` the same), `Active`
   slots saved with the entity, originals of altered components kept and saved with the game;
   effects last in game time. Every effect has its own marker of `effect.States`, "effect.<name>",
-  on while it runs (`Effect.Mark()`, for `rule.Self` in any plugin; at most 63 effects). `Then`
+  on while it runs (`Effect.Mark()`, for `rule.Under` in any plugin; at most 63 effects). `Then`
   casts the next effect when the time is up, not after a `Dispel`; a cast after a `Dispel` in the
   same step takes the slot back. `Active` stays on an entity once an effect came (empty when none
   runs — a marker's second form); the entity's `effect.States` markers (the world gives them to
@@ -1551,7 +1577,7 @@ trapdoor and pressure plate demos the same).
   `driving.NewPlugin(world, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`,
   `Back`, `Turn{Way}`, `Toward{Way}` (the screen's way) add up a tick into a hand — a player's
   through the camera the command names: on the unit it is fastened to, else on the player's
-  selected units (`owner.Obeys`); an entity's own (`rule.Order`) — written into `steering.Driven`
+  selected units (`owner.Obeys`); an entity's own (`rule.Apply`) — written into `steering.Driven`
   (`Ahead`, `Turn`, `Sprint`, `Face`) with the marker `driving.Driving` (`handSystem`, at once);
   the `driveSystem` (in the simulation; one query both share) turns the
   unit — by `Turn`, or to `Look` (the eye's, a riding camera's) before `Face` — walks, brakes,
@@ -1620,7 +1646,7 @@ trapdoor and pressure plate demos the same).
   observers taking turns (`id.Index() % n` the step: an even share a step); with heights a scan is
   shared among goroutines from 2 observers a worker (`elevatedPerWorker`), flat from 8. It
   hosts rules of a `Sighting` inside the scan's own pass: once
-  a step per observer (`rule.Self(a)`), scanned that step or not, on what it saw at its last
+  a step per observer (`rule.Playing(a)`), scanned that step or not, on what it saw at its last
   scan, with everything in view carrying `b` (`vision.Seeing(role)`)
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
@@ -1878,7 +1904,7 @@ screen), kept on the screen; `OffScreen(ui.PointAtIt
 (`cameras.LookAt{Camera, Entity}`, once, fastened to nothing) through the picture's Input
 (`players` implements `ui.Looker`); an entity with no place (the world's own entity, a plugin's)
 has its element where its parent lays it; a modal pinned element shows one entity at a time. A
-pinned element's button gives every `rule.Command` for `ui.It` (`rule.Lift(greeting).On(ui.It)`,
+pinned element's button gives every `rule.Command` for `ui.It` (`rule.Take(greeting).On(ui.It)`,
 defined in the register as any) for the entity it is shown for — `entity.ID(id)`, a `Whom` of
 identifiers the world finds at once: one window serves every host; a plugin's own command that is
 a `ui.About` (`dialog.Choose`) gets the entity the same way. `Element.Where(ui.Tagged(t))` pins an

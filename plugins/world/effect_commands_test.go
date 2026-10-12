@@ -48,8 +48,8 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 	})
 	g.unit = kind.Named[float64](g.world.Kinds(), "unit")
-	g.world.Commands().Define("alert the captain", rule.Cast(g.alert).On(entity.Named("captain")))
-	g.world.Commands().Define("alert the guards", rule.Cast(g.alert).On(entity.Group("guards")))
+	g.world.Commands().Define("alert the captain", rule.Put(g.alert).On(entity.Named("captain")))
+	g.world.Commands().Define("alert the guards", rule.Put(g.alert).On(entity.Group("guards")))
 	return nil
 }
 
@@ -104,17 +104,17 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	g := &guardStage{}
 	runGuards(t, g)
 
-	g.give(t, rule.Cast(g.alert).On(entity.Named("captain")))
+	g.give(t, rule.Put(g.alert).On(entity.Named("captain")))
 	if on := g.alerted(); len(on) != 1 || !on[100] {
 		t.Fatalf("alert the captain: units at %v alerted, want the one at 100 alone", on)
 	}
-	g.give(t, rule.Lift(g.alert).On(entity.Named("captain")))
-	g.give(t, rule.Cast(g.alert).On(entity.Group("guards")))
+	g.give(t, rule.Take(g.alert).On(entity.Named("captain")))
+	g.give(t, rule.Put(g.alert).On(entity.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
 		t.Fatalf("alert the guards: units at %v alerted, want those at 100 and 200", on)
 	}
-	g.give(t, rule.Lift(g.alert).On(entity.Group("guards")))
-	g.give(t, rule.Cast(g.alert).On(entity.World))
+	g.give(t, rule.Take(g.alert).On(entity.Group("guards")))
+	g.give(t, rule.Put(g.alert).On(entity.World))
 	if on := g.alerted(); len(on) != 0 || !g.alert.On(g.world.Clock().Entity()) {
 		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on, g.alert.On(g.world.Clock().Entity()))
 	}
@@ -132,7 +132,7 @@ func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 			}
 		}
 	}
-	g.give(t, rule.Cast(g.alert).On(entity.ID(passerBy)))
+	g.give(t, rule.Put(g.alert).On(entity.ID(passerBy)))
 	if on := g.alerted(); len(on) != 1 || !on[300] {
 		t.Fatalf("alert the passer-by by its ID: units at %v alerted, want the one at 300 alone", on)
 	}
@@ -145,7 +145,7 @@ func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	}
 	g := &guardStage{load: true}
 	runGuards(t, g)
-	g.give(t, rule.Cast(g.alert).On(entity.Group("guards")))
+	g.give(t, rule.Put(g.alert).On(entity.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
 		t.Errorf("after a load, alert the guards: units at %v alerted, want those at 100 and 200", on)
 	}
@@ -155,7 +155,7 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Effects().Define("alert", effect.Spec{})
 	alert := w.Effects().Named("alert")
-	w.Commands().Define("alarm", rule.Cast(alert).On(entity.World).For(time.Minute))
+	w.Commands().Define("alarm", rule.Put(alert).On(entity.World).For(time.Minute))
 	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(entity.Whom).IsWorld() {
 		t.Errorf("the command found is %+v, want the one defined", got)
 	}
@@ -163,10 +163,14 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 		do   func()
 		want string
 	}{
-		"for nobody":    {func() { w.Commands().Define("idle", rule.Cast(alert)) }, "names nobody"},
-		"defined twice": {func() { w.Commands().Define("alarm", rule.Lift(alert).On(entity.World)) }, `"alarm" is defined already`},
-		"unknown":       {func() { w.Commands().Named("retreat") }, `no command is defined as "retreat"`},
-		"no name":       {func() { w.Commands().Define("", rule.Cast(alert).On(entity.World)) }, "needs a name"},
+		"for nobody": {func() { w.Commands().Define("idle", rule.Put(alert)) }, "names nobody"},
+		"defined twice": {
+			func() { w.Commands().Define("alarm", rule.Take(alert).On(entity.World)) },
+			`"alarm" is defined already`},
+		"unknown": {func() { w.Commands().Named("retreat") }, `no command is defined as "retreat"`},
+		"no name": {
+			func() { w.Commands().Define("", rule.Put(alert).On(entity.World)) },
+			"needs a name"},
 	} {
 		if msg := panicMessage(t, c.do); !strings.Contains(msg, c.want) {
 			t.Errorf("%s: panic %q, want it to say %s", name, msg, c.want)

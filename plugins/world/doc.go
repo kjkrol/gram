@@ -56,7 +56,7 @@
 // The command [Spawn] adds an entity of a kind to the running world at the next step of the
 // simulation ([Plugin.Spawn] gives it as the game's own); one refused is logged, never a panic.
 // An entity gives itself [Despawn] to go. The world carries out the commands about effects
-// (rule.Cast, Lift, Toggle) for the entities named or grouped by their entity.Label and for the
+// (rule.Put, Take, Toggle) for the entities named or grouped by their entity.Label and for the
 // world itself, netting a step's commands of one effect on one entity.
 //
 // # Clock and the tick

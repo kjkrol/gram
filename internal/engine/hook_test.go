@@ -105,7 +105,7 @@ func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 }
 
 func despawning() rule.Rule {
-	return rule.Branch[world.Moving]{Name: "leave", Do: rule.Order(world.Despawn{})}
+	return rule.Branch[world.Moving]{Name: "leave", On: rule.Self, Do: rule.Apply(world.Despawn{})}
 }
 
 type hostPlugin struct {
@@ -155,7 +155,8 @@ func TestEngine_ARolesRuleIsForItsPlayersAlone(t *testing.T) {
 func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 	lost := role{"lost soul", []rule.Rule{rule.Branch[unhostedMoment]{
 		Name: "lost",
-		Do:   rule.Order(world.Despawn{}),
+		On:   rule.Self,
+		Do:   rule.Apply(world.Despawn{}),
 	}}}
 	eng := NewEngine(oneStageGame{stage: &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}}, plays: []role{lost}}})
 	err := eng.Init()

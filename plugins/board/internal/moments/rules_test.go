@@ -147,11 +147,15 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 	for name, grid := range placeGrids() {
 		for _, rings := range []int{0, 1, 2} {
 			pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
-				scorch := rule.Around(rings, rule.Apply(pw.scorched))
+				on := rule.Around(rings)
 				if rings == 0 {
-					scorch = rule.Here(rule.Apply(pw.scorched))
+					on = rule.Here
 				}
-				return []rule.Rule{rule.Branch[unit.Standing]{Name: "scorch", Do: scorch}}
+				return []rule.Rule{rule.Branch[unit.Standing]{
+					Name: "scorch",
+					On:   on,
+					Do:   rule.Put(pw.scorched),
+				}}
 			})
 			pw.tick(3)
 			var seed []cell.ID
@@ -168,7 +172,8 @@ func TestCell_FiresForEveryCell(t *testing.T) {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 			return []rule.Rule{rule.Branch[cell.Now]{
 				Name: "scorch all",
-				Do:   rule.Apply(pw.scorched),
+				On:   rule.Self,
+				Do:   rule.Put(pw.scorched),
 			}}
 		})
 		pw.tick(3)
@@ -183,8 +188,9 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 			return []rule.Rule{rule.Branch[cell.Now]{
 				Name: "fire spreads",
-				When: rule.Self(pw.scorched.Mark()),
-				Do:   rule.Around(1, rule.Apply(pw.scorched)),
+				On:   rule.Around(1),
+				When: rule.Under(pw.scorched),
+				Do:   rule.Put(pw.scorched),
 			}}
 		})
 		start, _ := pw.brd.CellEntity(pw.middle)
@@ -216,7 +222,8 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("marked", rule.Branch[cell.Now]{
 			Name: "scorch the marked",
-			Do:   rule.Apply(pw.scorched),
+			On:   rule.Self,
+			Do:   rule.Put(pw.scorched),
 		})
 		marked := pw.w.Roles().Named("marked")
 		pw.brd.CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
@@ -236,7 +243,8 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("lake", rule.Branch[cell.Now]{
 			Name: "scorch the lake",
-			Do:   rule.Apply(pw.scorched),
+			On:   rule.Self,
+			Do:   rule.Put(pw.scorched),
 		})
 		lake := pw.w.Roles().Named("lake")
 		pw.brd.CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
@@ -260,10 +268,11 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
 		return []rule.Rule{rule.Branch[unit.Standing]{
 			Name: "press",
-			Do: rule.Here(rule.Branch[any]{
+			On:   rule.Here,
+			Do: rule.Branch[any]{
 				When: rule.Playing(plate),
-				Do:   rule.Apply(pw.scorched),
-			}),
+				Do:   rule.Put(pw.scorched),
+			},
 		}}
 	})
 	pw.tick(3)

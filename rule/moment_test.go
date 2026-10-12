@@ -27,51 +27,17 @@ func (dodge) Command() {}
 
 func (d *dodge) Aim(who uid.UID64) { d.Of = who }
 
-func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
-	var carrier control.Carrier
-	var dodges control.Queue[dodge]
-	if err := carrier.Carry(&dodges); err != nil {
-		t.Fatal(err)
-	}
-	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Branch[nudge]{Name: "dodge", Do: rule.Order(dodge{})}); err != nil {
-		t.Fatal(err)
-	}
-	var ids []uid.UID64
-	ecs := goke.New()
-	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var tokens goke.Comp[token]
-		f := si.NewFactory(&tokens)
-		f.Create(2)
-		f.Next()
-		ids = append(ids, f.Cursor.IDs...)
-		qb := si.NewQueryBuilder(&tokens)
-		h.Bind(qb)
-		q := qb.Build()
-		for q.All(); q.Next(); {
-			cur := q.Cursor()
-			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
-				return nudge{self: cur.IDs[i], by: cur.IDs[1-i]}
-			})
-		}
-	}})
-	var got []control.Issued[dodge]
-	dodges.Drain(func(i control.Issued[dodge]) { got = append(got, i) })
-	if len(got) != 2 {
-		t.Fatalf("dodges given: %+v; want two", got)
-	}
-	for i, g := range got {
-		if g.Entity != ids[i] || !g.ByEntity || g.Command.Of != ids[1-i] {
-			t.Errorf("dodge %d: %+v; want by %v, of %v", i, g, ids[i], ids[1-i])
-		}
-	}
-}
-
 type brace struct{}
 
 func (brace) Command() {}
 
-func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
+type token struct{ N int }
+
+// nudged runs the rule once for each of two entities, each nudged by the other, the first by
+// nobody when alone, and hands back whom each command was issued for.
+func nudged(t *testing.T, r rule.Rule, alone bool, tick plugin.Tick) (ids []uid.UID64,
+	dodged []control.Issued[dodge], braced []uid.UID64) {
+	t.Helper()
 	var carrier control.Carrier
 	var dodges control.Queue[dodge]
 	var braces control.Queue[brace]
@@ -79,13 +45,10 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Branch[nudge]{
-		Name: "dodge or brace",
-		Do:   rule.OneOf(rule.Order(dodge{}), rule.Order(brace{})),
-	}); err != nil {
+	if err := h.Add(r); err != nil {
 		t.Fatal(err)
 	}
-	var ids []uid.UID64
+	tick.Commands = &carrier
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var tokens goke.Comp[token]
 		f := si.NewFactory(&tokens)
@@ -97,20 +60,78 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 		q := qb.Build()
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
-			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: &carrier}, cur, func(i int) nudge {
-				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: i == 0}
+			h.Run(tick, cur, func(i int) nudge {
+				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: alone && i == 0}
 			})
 		}
 	}})
-	var dodged, braced []uid.UID64
-	dodges.Drain(func(i control.Issued[dodge]) { dodged = append(dodged, i.Entity) })
+	dodges.Drain(func(i control.Issued[dodge]) { dodged = append(dodged, i) })
 	braces.Drain(func(i control.Issued[brace]) { braced = append(braced, i.Entity) })
-	if !slices.Equal(dodged, ids[1:]) || !slices.Equal(braced, ids[:1]) {
-		t.Errorf("dodged %v, braced %v; want %v dodging, %v bracing", dodged, braced, ids[1], ids[0])
+	return ids, dodged, braced
+}
+
+func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
+	ids, got, _ := nudged(t, rule.Branch[nudge]{
+		Name: "dodge",
+		On:   rule.Self,
+		Do:   rule.Apply(dodge{}),
+	}, false, plugin.Tick{Dt: time.Millisecond})
+	if len(got) != 2 {
+		t.Fatalf("dodges given: %+v; want two", got)
+	}
+	for i, g := range got {
+		if g.Entity != ids[i] || !g.ByEntity || g.Command.Of != ids[1-i] {
+			t.Errorf("dodge %d: %+v; want by %v, of %v", i, g, ids[i], ids[1-i])
+		}
 	}
 }
 
-type token struct{ N int }
+func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
+	ids, dodged, braced := nudged(t, rule.Branch[nudge]{
+		Name: "dodge or brace",
+		On:   rule.Self,
+		Do:   rule.OneOf(rule.Apply(dodge{}), rule.Apply(brace{})),
+	}, true, plugin.Tick{Dt: time.Millisecond})
+	var who []uid.UID64
+	for _, d := range dodged {
+		who = append(who, d.Entity)
+	}
+	if !slices.Equal(who, ids[1:]) || !slices.Equal(braced, ids[:1]) {
+		t.Errorf("dodged %v, braced %v; want %v dodging, %v bracing", who, braced, ids[1], ids[0])
+	}
+}
+
+func TestRule_OnOtherActsForTheMomentsSubject(t *testing.T) {
+	ids, _, braced := nudged(t, rule.Branch[nudge]{
+		Name: "brace the other",
+		On:   rule.Other,
+		Do:   rule.Apply(brace{}),
+	}, true, plugin.Tick{Dt: time.Millisecond})
+	if !slices.Equal(braced, ids[:1]) {
+		t.Errorf("braced %v; want %v alone: the one nudged by nobody acts for nobody",
+			braced, ids[0])
+	}
+}
+
+func TestRule_OnInsideADoSwitchesWhomTheStepsActFor(t *testing.T) {
+	ids, dodged, braced := nudged(t, rule.Branch[nudge]{
+		Name: "dodge, the other braces",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(dodge{}),
+			rule.Branch[any]{On: rule.Other, Do: rule.Apply(brace{})},
+		),
+	}, false, plugin.Tick{Dt: time.Millisecond})
+	var who []uid.UID64
+	for _, d := range dodged {
+		who = append(who, d.Entity)
+	}
+	slices.Sort(braced)
+	if !slices.Equal(who, ids) || !slices.Equal(braced, ids) {
+		t.Errorf("dodged %v, braced %v; want both dodging and both braced by the other",
+			who, braced)
+	}
+}
 
 func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 	const steps, p = 2000, 0.3
@@ -123,13 +144,14 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 		h := &plugin.Rules[nudge]{}
 		if err := h.Add(rule.Branch[nudge]{
 			Name: "dodge now and then",
-			Do:   rule.Chance(p, rule.Order(dodge{})),
+			When: rule.Chance(p),
+			On:   rule.Self,
+			Do:   rule.Apply(dodge{}),
 		}); err != nil {
 			t.Fatal(err)
 		}
 		var got []int // 2×step + 0 or 1, the one who dodged
-		ecs := goke.New()
-		ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			var tokens goke.Comp[token]
 			f := si.NewFactory(&tokens)
 			f.Create(2)
@@ -139,7 +161,8 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			h.Bind(qb)
 			q := qb.Build()
 			for k := range steps {
-				tick := plugin.Tick{Dt: time.Millisecond, Commands: &carrier, Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
+				tick := plugin.Tick{Dt: time.Millisecond, Commands: &carrier,
+					Time: time.Duration(k+1) * time.Millisecond, Seed: seed}
 				for q.All(); q.Next(); {
 					cur := q.Cursor()
 					h.Run(tick, cur, func(i int) nudge { return nudge{self: cur.IDs[i], by: cur.IDs[1-i]} })
@@ -173,5 +196,5 @@ func TestRule_HereNeedsAPlacedMoment(t *testing.T) {
 			t.Errorf("panic %q, want one saying the moment must be Placed", msg)
 		}
 	}()
-	rule.Build(rule.Branch[nudge]{Name: "here", Do: rule.Here(rule.Order(dodge{}))})
+	rule.Build(rule.Branch[nudge]{Name: "here", On: rule.Here, Do: rule.Apply(dodge{})})
 }

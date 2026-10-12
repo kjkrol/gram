@@ -34,4 +34,6 @@ const (
 
 	WireStage = "wire-demo"
 	MainScene = "main"
+
+	PatrolPlan = "patrol"
 )

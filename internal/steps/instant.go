@@ -80,7 +80,7 @@ type subject interface{ Subject() (uid.UID64, bool) }
 func (r *Instant) Fire(p Pass, cb *goke.CmdBuf, id uid.UID64, entity bool, subject uid.UID64, about bool) {
 	c := &r.c
 	c.pass, c.cb, c.prev, c.next = p, cb, StepSet{}, StepSet{}
-	c.id, c.entity, c.subject, c.about = id, entity, subject, about
+	c.id, c.me, c.entity, c.subject, c.about = id, id, entity, subject, about
 	c.run(0)
 }
 
@@ -88,6 +88,23 @@ func (r *Instant) Fire(p Pass, cb *goke.CmdBuf, id uid.UID64, entity bool, subje
 // the entity.
 func NewForOther(step Step) Step {
 	return composite{kids: []Step{step}, sign: "forother", make: func() exec { return forOther{} }}
+}
+
+// NewSame runs step on the entity itself, inside a step acting on others.
+func NewSame(step Step) Step {
+	return composite{kids: []Step{step}, sign: "self", make: func() exec { return same{} }}
+}
+
+type same struct{ basic }
+
+func (same) instant() {}
+
+func (same) tick(c *ctx, _ int, kids []int) Status {
+	was := c.id
+	c.id = c.me
+	st := c.run(kids[0])
+	c.id = was
+	return st
 }
 
 // NewAround runs step on each place within rings of where the entity stands, in place of it.
@@ -130,11 +147,20 @@ type forOther struct{ basic }
 
 func (forOther) instant() {}
 
+// in a plan the other is the subject of the fact the branch stands on
 func (forOther) tick(c *ctx, _ int, kids []int) Status {
 	if !c.entity {
 		return Failure
 	}
 	self, st := c.id, Failure
+	if !c.instant {
+		if c.about {
+			c.id = c.subject
+			st = c.run(kids[0])
+			c.id = self
+		}
+		return st
+	}
 	switch m := c.payload.(type) {
 	case met:
 		m.Whom(func(other uid.UID64) {

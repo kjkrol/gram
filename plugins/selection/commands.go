@@ -96,7 +96,7 @@ func (t target) String() string {
 	return "the selected"
 }
 
-// Selected is whom a command is for (rule.Cast(haste).On(sel.Selected(hasty))): the units the
+// Selected is whom a command is for (rule.Put(haste).On(sel.Selected(hasty))): the units the
 // player who gives it has selected, those playing one of roles alone when any is named.
 func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
 	var only tag.Tags[rule.Roles]
@@ -106,7 +106,7 @@ func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
 	return target{only: only}
 }
 
-// Pointed is whom a command is for (rule.Lift(frozen).On(sel.Pointed())): the entity under the
+// Pointed is whom a command is for (rule.Take(frozen).On(sel.Pointed())): the entity under the
 // cursor as the command's key is pressed. A command given without a cursor reaches nobody.
 func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
 

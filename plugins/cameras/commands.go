@@ -23,7 +23,7 @@ type Zoom struct {
 
 // Follow fastens Camera over Entity, kept in the middle of the screen as it goes
 // (camera.Centred); with On false, or the camera fastened already, it lets go. Given by an entity
-// for itself (kind.Entry.Told, rule.Order), Camera is fastened over that entity.
+// for itself (kind.Entry.Told, rule.Apply), Camera is fastened over that entity.
 type Follow struct {
 	Camera camera.Camera
 	Entity uid.UID64

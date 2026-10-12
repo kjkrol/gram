@@ -79,7 +79,11 @@ func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 }
 
 func TestVelocitySystem_RunsTheMovingRules(t *testing.T) {
-	_, _, gave := velocityTick(t, 0.5, rule.Branch[Moving]{Name: "moving", Do: rule.Order(moved{})})
+	_, _, gave := velocityTick(t, 0.5, rule.Branch[Moving]{
+		Name: "moving",
+		On:   rule.Self,
+		Do:   rule.Apply(moved{}),
+	})
 	if len(gave) != 2 || gave[0] == gave[1] {
 		t.Errorf("moved given by %v, want once by each of the two", gave)
 	}

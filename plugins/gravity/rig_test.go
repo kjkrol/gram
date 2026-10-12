@@ -306,11 +306,11 @@ func awayFrom(from uid.UID64, speed, rise float64) gravity.Away {
 }
 
 func landing() rule.Rule {
-	return rule.Branch[gravity.Landing]{Name: "landed", Do: rule.OneOf(
+	return rule.Branch[gravity.Landing]{Name: "landed", On: rule.Self, Do: rule.OneOf(
 		rule.Branch[gravity.Landing]{
 			When: func(l gravity.Landing) bool { return l.Speed > hard },
-			Do:   rule.Order(landed{Hard: true}),
+			Do:   rule.Apply(landed{Hard: true}),
 		},
-		rule.Order(landed{}),
+		rule.Apply(landed{}),
 	)}
 }

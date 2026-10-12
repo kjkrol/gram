@@ -47,7 +47,7 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 		sentry = write("sentry", rule.Steps(
 			rule.Wait(10*time.Millisecond),
 			rule.Wait(time.Hour),
-			rule.Order(world.Despawn{}),
+			rule.Apply(world.Despawn{}),
 		))
 	}
 	kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
@@ -131,7 +131,7 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 	stage := &treeStage{plan: write("leaver", rule.Steps(
 		rule.Wait(50*time.Millisecond),
-		rule.Order(world.Despawn{}),
+		rule.Apply(world.Despawn{}),
 	))}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})
 	if stage.load {

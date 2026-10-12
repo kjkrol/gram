@@ -184,7 +184,8 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	plays := func(s *sectioned, _ game.Initializer) error {
 		s.world.Roles().Define("sectioned", rule.Branch[clock.Moment]{
 			Name: "leave",
-			Do:   rule.Order(world.Despawn{}),
+			On:   rule.Self,
+			Do:   rule.Apply(world.Despawn{}),
 		})
 		s.world.Plays(s.world.Roles().Named("sectioned"))
 		return nil
@@ -196,7 +197,8 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	kindDefined := func(s *sectioned, _ game.Initializer) error { s.defineUnit(); return nil }
 	commands := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("lit", effect.Spec{})
-		s.world.Commands().Define("light", rule.Cast(s.world.Effects().Named("lit")).On(entity.World))
+		s.world.Commands().Define("light",
+			rule.Put(s.world.Effects().Named("lit")).On(entity.World))
 		return nil
 	}
 	for name, tc := range map[string]struct {

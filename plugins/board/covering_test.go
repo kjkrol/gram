@@ -26,12 +26,14 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 		return []rule.Rule{
 			rule.Branch[unit.Standing]{
 				Name: "freeze",
-				Do:   rule.Here(rule.Branch[any]{When: rule.Free(iced), Do: rule.Apply(iced)}),
+				On:   rule.Here,
+				Do:   rule.Branch[any]{When: rule.Not(rule.Under(iced)), Do: rule.Put(iced)},
 			},
 			rule.Branch[unit.Standing]{
 				Name: "leave the ice",
+				On:   rule.Self,
 				When: unit.Over(iced),
-				Do:   rule.Order(world.Despawn{}),
+				Do:   rule.Apply(world.Despawn{}),
 			},
 		}
 	}, []boardtest.Mover{{Here: here}})

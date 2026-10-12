@@ -103,7 +103,8 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(BodyRole, rule.Branch[collision.Struck]{
 		Name: "hit",
-		Do:   rule.Apply(s.world.Effects().Named(HitEf)),
+		On:   rule.Self,
+		Do:   rule.Put(s.world.Effects().Named(HitEf)),
 	})
 }
 

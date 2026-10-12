@@ -3,12 +3,13 @@ board:
   legend:
     ".": grass
     "#": wall
+    "G": {kind: grass, name: gate}
   # a courtyard with a gate in the north wall; the guards patrol the yard along its middle row,
   # the wanderers cross it, standing in their way
   cells: |
     ........................
     ........................
-    ..#########...#########.
+    ..#########.G.#########.
     ..#...................#.
     ..#...................#.
     ..#...................#.
@@ -23,7 +24,7 @@ board:
     ........................
     ........................
 units:
-  - {kind: guard, side: player, start: [4, 8]}
-  - {kind: guard, side: player, start: [19, 8]}
+  - {kind: guard, side: player, start: [4, 8], round: [[19, 8], [4, 8]]}
+  - {kind: guard, side: player, start: [19, 8], round: [[4, 8], [19, 8]]}
   - {kind: wanderer, side: player, start: [8, 4], to: [8, 11]}
   - {kind: wanderer, side: player, start: [14, 11], to: [14, 4]}

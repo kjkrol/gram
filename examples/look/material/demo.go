@@ -101,7 +101,7 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineCommands() {
 	s.world.Commands().Define(CalmCmd,
-		rule.Cast(s.world.Effects().Named(CalmEf)).On(entity.Named(WardName)))
+		rule.Put(s.world.Effects().Named(CalmEf)).On(entity.Named(WardName)))
 }
 
 func (s *arena) defineCells() {

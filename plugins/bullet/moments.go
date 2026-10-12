@@ -51,7 +51,7 @@ func (b Blast) Whom(each func(uid.UID64)) { each(b.Other) }
 func (b Blast) Subject() (uid.UID64, bool) { return b.Self, true }
 
 // Reaching is the condition that the one reached plays role, for a rule's When on a Blast.
-func Reaching(role *rule.Part) rule.Cond { return rule.Other(role.Tag()) }
+func Reaching(role *rule.Part) rule.Cond { return rule.Paired(role) }
 
 // Within is the condition that the one reached is within d of the shot, for a rule's When on a
 // Blast.

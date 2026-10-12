@@ -8,10 +8,13 @@ const (
 
 	AlarmCmd = "alarm"
 
-	GuardPlan = "guard"
+	GuardPlan  = "guard"
+	PatrolPlan = "patrol"
 
 	GuardKind    = "guard"
 	WandererKind = "wanderer"
+
+	GateName = "gate"
 
 	PlayerSide = "player"
 

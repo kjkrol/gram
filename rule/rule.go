@@ -49,9 +49,12 @@ type narrowing struct {
 	role    uint64
 }
 
-func (n narrowing) label(l string) string { return l + ", " + n.desc }
-
-type having struct{ state func() state }
+func (n narrowing) label(l string) string {
+	if n.desc == "" {
+		return l
+	}
+	return l + ", " + n.desc
+}
 
 type fired[P any] struct {
 	run     *steps.Instant
@@ -83,17 +86,9 @@ func construct[P any](name string, filter sides, root steps.Step) Rule {
 	_, met := any(*new(P)).(plugin.Met)
 	react := func(t plugin.Tick, about P) { f.fire(t, nil, about) }
 	switch {
-	case filter.need != nil:
-		if filter.paired {
-			panic(fmt.Sprintf("rule: %q: Carrying beside Self or Other", name))
-		}
-		return newEachWith(label, react, cond{mk: filter.need.state})
 	case filter.paired && !met:
-		if filter.mine == nil || filter.others {
-			panic(fmt.Sprintf("rule: %q: Other needs a moment with others (Met)", name))
-		}
-		return newEachWith(label, react, filter.mine.cond())
-	case filter.paired || met:
+		panic(fmt.Sprintf("rule: %q: the other's role needs a moment with others (Met)", name))
+	case met:
 		return &pair[P]{label: label, self: filter.self, other: filter.other, react: react}
 	}
 	return &every[P]{label: label, react: react}

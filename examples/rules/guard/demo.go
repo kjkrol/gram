@@ -125,7 +125,8 @@ func (s *arena) defineCells() {
 }
 
 type guardRow struct {
-	Start cell.ID `yaml:"start"`
+	Start cell.ID    `yaml:"start"`
+	Round [2]cell.ID `yaml:"round"`
 }
 
 type wandererRow struct {
@@ -142,41 +143,59 @@ func (s *arena) defineKinds() {
 		V0:       UnitSpeed / 2,
 		TurnRate: 0.15,
 	}
-	east, west, gate := brd.At(19, 8), brd.At(4, 8), brd.At(12, 2)
+	alarm := s.world.Effects().Named(AlarmEf)
 	guard := rule.Plan(GuardPlan, rule.OneOf(
 		rule.Branch[any]{
 			Name: "to the gate",
-			When: rule.During(s.world.Effects().Named(AlarmEf)),
-			Do:   rule.Order(navigation.MoveTo{Cell: gate}).Until[navigation.Arrived](),
-		},
+			When: rule.Under(alarm).On(entity.World),
+			On:   rule.Self,
+			Do: rule.Steps(
+				rule.Apply(navigation.MoveTo{To: entity.Named(GateName)}),
+				rule.Until[navigation.Arrived](),
+			),
+		}.Timeout(20*time.Second),
 		rule.Branch[navigation.Blocked]{
 			Name: "blocked",
 			When: navigation.Blocked.WaitedLong,
-			Do:   rule.Order(navigation.StepAside{}),
+			On:   rule.Self,
+			Do:   rule.Apply(navigation.StepAside{}),
 		},
 		rule.Branch[navigation.Arrived]{
-			Name:    "rest",
-			Through: true,
-			Do:      rule.Wait(2 * time.Second),
+			Name: "rest",
+			On:   rule.Self,
+			Do:   rule.Wait(2 * time.Second),
 		},
 		rule.Branch[any]{
 			Name: "patrol",
+			On:   rule.Self,
 			Do: rule.Steps(
-				rule.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
-				rule.Order(navigation.MoveTo{Cell: west}).Until[navigation.Arrived](),
+				rule.Apply(navigation.Onward{}),
+				rule.Until[navigation.Arrived](),
 			),
 		},
-		rule.Idle(),
+		rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
 	))
 	guards := board.NewUnits[guardRow](s.board, board.Shape{Size: EntitySize},
 		func(g guardRow) geom.Vec { return brd.CellCenter(g.Start) })
-	guards.Define(GuardKind, unit.Mover{Domain: cell.Land}, profile, guard)
+	guards.Define(GuardKind, unit.Mover{Domain: cell.Land}, profile, guard,
+		comp.Load(func(g guardRow) navigation.Round {
+			return navigation.NewRound(g.Round[:]...)
+		}))
 
+	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
+		Name: "leg",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(navigation.Onward{}),
+			rule.Until[navigation.Arrived](),
+			rule.Wait(3*time.Second),
+		),
+	})
 	wanderers := board.NewUnits[wandererRow](s.board, board.Shape{Size: EntitySize},
 		func(w wandererRow) geom.Vec { return brd.CellCenter(w.Start) })
-	wanderers.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile,
-		comp.Load(func(w wandererRow) navigation.MoveOrder {
-			return navigation.Patrol(3*time.Second, w.To, w.Start)
+	wanderers.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, patrol,
+		comp.Load(func(w wandererRow) navigation.Round {
+			return navigation.NewRound(w.To, w.Start)
 		}))
 }
 

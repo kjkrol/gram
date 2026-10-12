@@ -122,8 +122,9 @@ func (s *arena) defineEffects() {
 func (s *arena) defineRules() {
 	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
 		Name: "fall in",
+		On:   rule.Self,
 		When: unit.Standing.Fallen,
-		Do:   rule.Order(world.Despawn{}),
+		Do:   rule.Apply(world.Despawn{}),
 	})
 }
 
@@ -137,12 +138,12 @@ func (s *arena) defineCommands() {
 	for _, l := range levers {
 		cmds.Define(
 			pullCmd(l.name),
-			rule.Cast(s.world.Effects().Named(OpenEf)).
+			rule.Put(s.world.Effects().Named(OpenEf)).
 				On(entity.Group("trapdoors "+l.name)).
 				For(3*time.Second),
 		)
 	}
-	cmds.Define(HastenCmd, rule.Cast(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
+	cmds.Define(HastenCmd, rule.Put(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }
 
 func (s *arena) defineCells() {
@@ -175,15 +176,20 @@ func (s *arena) defineKinds() {
 	}
 	land := unit.Mover{Domain: cell.Land}
 	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
-	units.Define(
-		WandererKind,
-		land,
-		profile,
-		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.To, u.Start)
-		}),
-		rule.Plays(s.world.Roles().Named(MortalRole)),
-	)
+	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
+		Name: "leg",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(navigation.Onward{}),
+			rule.Until[navigation.Arrived](),
+			rule.Wait(time.Second),
+		),
+	})
+	round := comp.Load(func(u unitRow) navigation.Round {
+		return navigation.NewRound(u.To, u.Start)
+	})
+	units.Define(WandererKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)),
+		round, patrol)
 	standing := board.NewEntities(
 		s.board,
 		board.Shape{Size: CellSize},

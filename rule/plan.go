@@ -8,14 +8,15 @@ import (
 )
 
 // Plan is what an entity does over time: root run in every step of the simulation, given to a
-// kind in its Spec. A name defined twice in one world panics.
+// kind in its Spec; a Branch at its top says its Name and its On. A name defined twice in one
+// world panics.
 func Plan(name string, root Step) Planned {
 	if name == "" {
 		panic("rule: a plan needs a name")
 	}
 	return Planned{
 		Template: comp.Const(steps.Mind{Plan: steps.PlanID(name)}),
-		p:        &planned{name: name, root: root.node(), defined: map[*steps.Plans]bool{}},
+		p:        &planned{name: name, root: topNode(root), defined: map[*steps.Plans]bool{}},
 	}
 }
 

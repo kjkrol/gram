@@ -13,4 +13,6 @@ const (
 
 	EmberStage = "ember-demo"
 	MainScene  = "main"
+
+	PatrolPlan = "patrol"
 )

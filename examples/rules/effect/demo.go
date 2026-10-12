@@ -149,31 +149,34 @@ func (s *arena) defineRoles() {
 	roles.Define(LakeRole)
 	roles.Define(WitchRole, rule.Branch[unit.Standing]{
 		Name: "freeze",
-		Do: rule.Around(1, rule.OneOf(
-			rule.Branch[any]{When: rule.Playing(roles.Named(LakeRole)), Do: rule.Apply(iced)},
-			rule.Apply(frost),
-		)),
+		On:   rule.Around(1),
+		Do: rule.OneOf(
+			rule.Branch[any]{When: rule.Playing(roles.Named(LakeRole)), Do: rule.Put(iced)},
+			rule.Put(frost),
+		),
 	})
 	roles.Define(MortalRole,
 		rule.Branch[unit.Standing]{
 			Name: "fallen in",
+			On:   rule.Self,
 			When: unit.Standing.Fallen,
 			Do: rule.OneOf(
-				rule.Branch[unit.Standing]{When: unit.Over(iced), Do: rule.Keep(frozen)},
-				rule.Order(world.Despawn{}),
+				rule.Branch[unit.Standing]{When: unit.Over(iced), Do: rule.Hold(frozen)},
+				rule.Apply(world.Despawn{}),
 			),
 		},
 		rule.Branch[unit.Standing]{
 			Name: "on the ice",
+			On:   rule.Self,
 			When: rule.All(rule.Not(unit.Standing.Fallen), unit.Over(iced)),
-			Do:   rule.Keep(slip),
+			Do:   rule.Hold(slip),
 		},
 	)
 }
 
 func (s *arena) defineCommands() {
 	s.world.Commands().Define(FreezeCmd,
-		rule.Cast(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+		rule.Put(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
 }
 
 func (s *arena) defineCells() {

@@ -54,7 +54,7 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 
 func (s *strip) cast(t *testing.T) {
 	t.Helper()
-	if !s.World.World.Carrier().Put(control.Nobody, rule.Cast(s.open).On(entity.Named("it"))) {
+	if !s.World.World.Carrier().Put(control.Nobody, rule.Put(s.open).On(entity.Named("it"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
 	s.Tick()
@@ -123,11 +123,15 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		open = w.Effects().Named("open")
 		w.Roles().Define("lever")
 		lever := w.Roles().Named("lever")
-		pull := rule.Around(1, rule.Branch[unit.Standing]{
+		pull := rule.Branch[unit.Standing]{
 			When: rule.Playing(lever),
-			Do:   rule.Trigger(),
+			Do:   rule.Apply(rule.Triggered{}),
+		}
+		w.Roles().Define("walker", rule.Branch[unit.Standing]{
+			Name: "pull",
+			On:   rule.Around(1),
+			Do:   pull,
 		})
-		w.Roles().Define("walker", rule.Branch[unit.Standing]{Name: "pull", Do: pull})
 		walker := w.Roles().Named("walker")
 
 		levers := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
@@ -141,9 +145,9 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		w.Seed(units.Named("decoy").Entry(g.At(0, 0)).Named("decoy"))
 
 		w.Commands().Define("open the doors",
-			rule.Cast(open).On(entity.Group("doors")).By(entity.Named("lever")))
+			rule.Put(open).On(entity.Group("doors")).By(entity.Named("lever")))
 		w.Commands().Define("open the decoys",
-			rule.Cast(open).On(entity.Group("decoys")).By(entity.Named("decoy")))
+			rule.Put(open).On(entity.Group("decoys")).By(entity.Named("decoy")))
 		return walker.Rules()
 	}
 	bw := boardtest.NewWorldWith(t, g, 5*boardtest.CellSize, boardtest.CellSize, prepare, nil)

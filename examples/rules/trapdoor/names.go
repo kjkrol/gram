@@ -15,6 +15,8 @@ const (
 	WandererKind = "wanderer"
 	TrapdoorKind = "trapdoor"
 
+	PatrolPlan = "patrol"
+
 	PlayerSide = "player"
 
 	TrapdoorStage = "trapdoor-demo"

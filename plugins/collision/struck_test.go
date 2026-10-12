@@ -23,12 +23,12 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := collision.NewPlugin(w)
-	if err := c.Hook(rule.Branch[collision.Struck]{Name: "struck", Do: rule.OneOf(
+	if err := c.Hook(rule.Branch[collision.Struck]{Name: "struck", On: rule.Self, Do: rule.OneOf(
 		rule.Branch[collision.Struck]{
 			When: func(s collision.Struck) bool { return len(s.Contacts) == 0 },
-			Do:   rule.Order(heard{Rule: "nothing struck"}),
+			Do:   rule.Apply(heard{Rule: "nothing struck"}),
 		},
-		rule.Order(heard{Rule: "struck"}),
+		rule.Apply(heard{Rule: "struck"}),
 	)}); err != nil {
 		t.Fatal(err)
 	}

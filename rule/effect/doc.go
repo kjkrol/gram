@@ -8,7 +8,7 @@
 //
 // [Effects.Define] registers an effect from a Spec under a name and [Effects.Named] is the
 // effect wherever it is built on. Every effect has its own marker of [States], "effect.<name>",
-// on while it runs ([Effect.Mark], for rule.Self in any plugin). [Lasts] is how long a cast
+// on while it runs ([Effect.Mark], for rule.Under in any plugin). [Lasts] is how long a cast
 // holds (without it, until Dispel); [Stacking] lets casts pile up instead of refreshing; [Then]
 // casts another effect when this one's time is up, not when it is dispelled; [Grant] gives tags
 // of a game's family while the effect runs; [Alter] changes a component and restores the

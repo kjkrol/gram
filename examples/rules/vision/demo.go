@@ -111,32 +111,48 @@ func (s *arena) defineRoles() {
 	roles.Define(PredatorRole,
 		rule.Branch[vision.Sighting]{
 			Name: "chase",
+			On:   rule.Self,
 			When: vision.Seeing(prey),
-			Do:   rule.Order(steering.Toward{}),
+			Do:   rule.Apply(steering.Toward{}),
 		},
 		rule.Branch[vision.Sighting]{
 			Name: "search",
+			On:   rule.Self,
 			When: rule.All(vision.Seeing(prey), vision.Sighting.Nobody),
-			Do: rule.Once(effects.Named(TurnedEf),
-				rule.Either(rule.Order(left), rule.Order(right))),
+			Do: rule.Branch[any]{
+				When: rule.Not(rule.Under(effects.Named(TurnedEf))),
+				Do: rule.Steps(
+					rule.Put(effects.Named(TurnedEf)),
+					rule.OneOf(
+						rule.Branch[any]{When: rule.Chance(0.5), Do: rule.Apply(left)},
+						rule.Apply(right),
+					),
+				),
+			},
 		},
 		rule.Branch[collision.Meeting]{
 			Name: "caught",
+			On:   rule.Other,
 			When: collision.Met(prey),
-			Do:   rule.ForOther(rule.Order(world.Despawn{})),
+			Do:   rule.Apply(world.Despawn{}),
 		},
 	)
 	roles.Define(SkittishRole,
 		rule.Branch[vision.Sighting]{
 			Name: "flee the hunter",
+			On:   rule.Self,
 			When: rule.All(vision.Seeing(roles.Named(PredatorRole)),
-				rule.During(effects.Named(FleeingEf))),
-			Do: rule.Order(steering.Away{}),
+				rule.Under(effects.Named(FleeingEf)).On(entity.World)),
+			Do: rule.Apply(steering.Away{}),
 		},
 		rule.Branch[vision.Sighting]{
 			Name: "give way",
-			When: rule.All(rule.During(effects.Named(FleeingEf)), vision.Sighting.Closing),
-			Do:   rule.Order(steering.Away{}),
+			On:   rule.Self,
+			When: rule.All(
+				rule.Under(effects.Named(FleeingEf)).On(entity.World),
+				vision.Sighting.Closing,
+			),
+			Do: rule.Apply(steering.Away{}),
 		},
 	)
 }

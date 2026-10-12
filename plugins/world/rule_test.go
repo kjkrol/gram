@@ -32,12 +32,12 @@ type triggerStage struct {
 	rules          []rule.Rule
 	world          *world.Plugin
 	coll           *collision.Plugin
-	bullet, target tag.Tag[roles]
+	bullet, target *rule.Part
 	unit           kind.Of[spot]
 	base           goke.Comp[world.Base]
 	states         goke.OptComp[tag.Tags[effect.States]]
 	tallies        goke.OptComp[tally]
-	marks          goke.OptComp[tag.Tags[roles]]
+	marks          goke.OptComp[tag.Tags[rule.Roles]]
 	query          *goke.Query
 	stack          game.Scenes
 }
@@ -54,8 +54,9 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	g.bullet = g.world.Kinds().DefineTag[roles]("bullet")
-	g.target = g.world.Kinds().DefineTag[roles]("target")
+	g.world.Roles().Define("bullet")
+	g.world.Roles().Define("target")
+	g.bullet, g.target = g.world.Roles().Named("bullet"), g.world.Roles().Named("target")
 	ctx.Setup(triggerProbe{g})
 	g.coll = collision.NewPlugin(g.world)
 	if err := g.hook(g); err != nil {
@@ -69,12 +70,12 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
 		comp.Const(collision.Collider{}),
 		comp.Const(tally{}),
-		rule.Plays(g.world.Roles().Named("trigger unit")),
-		comp.Load(func(s spot) tag.Tags[roles] {
+		comp.Load(func(s spot) tag.Tags[rule.Roles] {
+			trigger := g.world.Roles().Named("trigger unit")
 			if s.bullet {
-				return tag.Tags[roles](0).With(g.bullet)
+				return rule.Plays(trigger, g.bullet).Resolve(nil)
 			}
-			return tag.Tags[roles](0).With(g.target)
+			return rule.Plays(trigger, g.target).Resolve(nil)
 		}),
 	})
 	g.unit = kind.Named[spot](g.world.Kinds(), "unit")
@@ -113,7 +114,8 @@ func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bu
 		states, marks := g.states.Slice(cur), g.marks.Slice(cur)
 		for i, id := range cur.IDs {
 			under := e != (effect.Effect{}) && states != nil && states[i].Has(e.Mark())
-			fn(id, g.base.Slice(cur)[i].Pos.TopLeft.X, marks != nil && marks[i].Has(g.bullet), under)
+			bullet := marks != nil && marks[i].Has(g.bullet.Tag())
+			fn(id, g.base.Slice(cur)[i].Pos.TopLeft.X, bullet, under)
 		}
 	}
 }
@@ -137,7 +139,7 @@ func runTriggers(t *testing.T, g *triggerStage, d time.Duration) {
 	step(t, e, d)
 }
 
-func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
+func TestRule_PlayingNarrowsToTheRolesPlayers(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
@@ -145,8 +147,9 @@ func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 		marked = g.world.Effects().Named("marked")
 		return g.obey(rule.Branch[world.Moving]{
 			Name: "mark the bullet",
-			When: rule.Self(g.bullet),
-			Do:   rule.Apply(marked),
+			On:   rule.Self,
+			When: rule.Playing(g.bullet),
+			Do:   rule.Put(marked),
 		})
 	}
 	runTriggers(t, g, 300*time.Millisecond)
@@ -157,31 +160,7 @@ func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 	})
 }
 
-func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
-	var marked effect.Effect
-	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
-	g.hook = func(g *triggerStage) error {
-		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Branch[world.Moving]{
-			Name: "mark the colliders",
-			When: rule.Carrying[collision.Collider](),
-			Do:   rule.Apply(marked),
-		})
-	}
-	runTriggers(t, g, 300*time.Millisecond)
-	n := 0
-	g.each(marked, func(_ uid.UID64, _ float64, _ bool, under bool) {
-		if under {
-			n++
-		}
-	})
-	if n != 2 {
-		t.Errorf("%d marked, want both: both carry a Collider", n)
-	}
-}
-
-func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
+func TestRule_OnOtherActsOnWhomTheEntityMet(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 	g.hook = func(g *triggerStage) error {
@@ -189,8 +168,9 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 		marked = g.world.Effects().Named("marked")
 		return g.obey(rule.Branch[collision.Meeting]{
 			Name: "mark the target",
-			When: rule.All(rule.Self(g.bullet), rule.Other(g.target)),
-			Do:   rule.ForOther(rule.Apply(marked)),
+			On:   rule.Other,
+			When: rule.All(rule.Playing(g.bullet), rule.Paired(g.target)),
+			Do:   rule.Put(marked),
 		})
 	}
 	runTriggers(t, g, 700*time.Millisecond)
@@ -211,8 +191,9 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 		tallying = g.world.Effects().Named("tally")
 		return g.obey(rule.Branch[world.Moving]{
 			Name: "once a while",
-			When: rule.Free(mark),
-			Do:   rule.Steps(rule.Apply(mark), rule.Apply(tallying)),
+			On:   rule.Self,
+			When: rule.Not(rule.Under(mark)),
+			Do:   rule.Steps(rule.Put(mark), rule.Put(tallying)),
 		})
 	}
 	runTriggers(t, g, time.Second)
@@ -226,8 +207,9 @@ func TestRule_OrdersCommands(t *testing.T) {
 	g.hook = func(g *triggerStage) error {
 		return g.obey(rule.Branch[world.Moving]{
 			Name: "the bullet leaves",
-			When: rule.Self(g.bullet),
-			Do:   rule.Order(world.Despawn{}),
+			On:   rule.Self,
+			When: rule.Playing(g.bullet),
+			Do:   rule.Apply(world.Despawn{}),
 		})
 	}
 	runTriggers(t, g, 200*time.Millisecond)
@@ -253,16 +235,18 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			if ignite {
 				if err := g.obey(rule.Branch[world.Moving]{
 					Name: "the bullet ignites",
-					When: rule.All(rule.Self(g.bullet), rule.Free(burning)),
-					Do:   rule.Apply(burning),
+					On:   rule.Self,
+					When: rule.All(rule.Playing(g.bullet), rule.Not(rule.Under(burning))),
+					Do:   rule.Put(burning),
 				}); err != nil {
 					return err
 				}
 			}
 			return g.obey(rule.Branch[collision.Meeting]{
 				Name: "fire spreads",
-				When: rule.Self(burning.Mark()),
-				Do:   rule.ForOther(rule.Apply(burning)),
+				On:   rule.Other,
+				When: rule.Under(burning),
+				Do:   rule.Put(burning),
 			})
 		}
 		runTriggers(t, g, 700*time.Millisecond)

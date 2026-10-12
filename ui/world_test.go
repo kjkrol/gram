@@ -79,7 +79,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	}
 
 	tick(1)
-	w.Carrier().Put(control.Nobody, rule.Cast(frozen).On(entity.Named("bob")))
+	w.Carrier().Put(control.Nobody, rule.Put(frozen).On(entity.Named("bob")))
 	tick(2)
 	d.find()
 	spots := d.spots[label]

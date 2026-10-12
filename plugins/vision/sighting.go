@@ -41,7 +41,7 @@ func (s Sighting) Nobody() bool { return len(s.Seen) == 0 }
 
 // Seeing is the condition that the observer sees one playing role, the Sighting then of those
 // alone: a rule's When.
-func Seeing(role *rule.Part) rule.Cond { return rule.Other(role.Tag()) }
+func Seeing(role *rule.Part) rule.Cond { return rule.Paired(role) }
 
 // cos of the widest angle at which one still counts as heading at the other
 const onCourse = 0.5

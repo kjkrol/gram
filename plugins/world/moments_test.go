@@ -40,20 +40,28 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		w.Roles().Define("clockwork",
 			rule.Branch[clock.Moment]{
 				Name: "once",
+				On:   rule.Self,
 				When: clock.At(5 * tick),
-				Do:   rule.Order(heard{Rule: "once"}),
+				Do:   rule.Apply(heard{Rule: "once"}),
 			},
 			rule.Branch[clock.Moment]{
 				Name: "daily",
+				On:   rule.Self,
 				When: clock.Every(4*tick, 2*tick),
-				Do:   rule.Order(heard{Rule: "daily"}),
+				Do:   rule.Apply(heard{Rule: "daily"}),
 			},
-			rule.Branch[clock.Moment]{Name: "dusk", When: clock.At(3 * tick), Do: rule.Apply(dusk)},
+			rule.Branch[clock.Moment]{
+				Name: "dusk",
+				On:   rule.Self,
+				When: clock.At(3 * tick),
+				Do:   rule.Put(dusk),
+			},
 		)
 		w.Plays(w.Roles().Named("clockwork"))
 		w.Roles().Define("unplayed", rule.Branch[clock.Moment]{
 			Name: "never",
-			Do:   rule.Order(heard{Rule: "never"}),
+			On:   rule.Self,
+			Do:   rule.Apply(heard{Rule: "never"}),
 		})
 		unplayed := w.Roles().Named("unplayed")
 		fired := map[string][]time.Duration{}

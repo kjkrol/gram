@@ -13,7 +13,8 @@ func makeWay() rule.Rule {
 	return rule.Branch[Touch]{
 		Name: "navigation.make way",
 		When: Touch.PushedByAlly,
-		Do:   rule.Order(StepAside{}),
+		On:   rule.Self,
+		Do:   rule.Apply(StepAside{}),
 	}
 }
 
@@ -22,19 +23,21 @@ func joinTheGroup() rule.Rule {
 	return rule.Branch[Touch]{
 		Name: "navigation.join the group",
 		When: Touch.ReachedTheGroup,
-		Do:   rule.Order(Stop{}),
+		On:   rule.Self,
+		Do:   rule.Apply(Stop{}),
 	}
 }
 
 func goRound() rule.Rule {
 	return rule.Branch[Touch]{
 		Name: "navigation.go round",
+		On:   rule.Self,
 		Do: rule.OneOf(
-			rule.Branch[Touch]{When: Touch.GoalTaken, Do: rule.Order(Settle{})},
-			rule.Branch[Touch]{When: Touch.WaitsFirst, Do: rule.Order(Hold{})},
-			rule.Branch[Touch]{When: Touch.NoWayRound, Do: rule.Order(StepAside{})},
-			rule.Branch[Touch]{When: Touch.ClearsTheWay, Do: rule.Order(Pass{})},
-			rule.Branch[Touch]{When: Touch.Blocks, Do: rule.Order(Detour{})},
+			rule.Branch[Touch]{When: Touch.GoalTaken, Do: rule.Apply(Settle{})},
+			rule.Branch[Touch]{When: Touch.WaitsFirst, Do: rule.Apply(Hold{})},
+			rule.Branch[Touch]{When: Touch.NoWayRound, Do: rule.Apply(StepAside{})},
+			rule.Branch[Touch]{When: Touch.ClearsTheWay, Do: rule.Apply(Pass{})},
+			rule.Branch[Touch]{When: Touch.Blocks, Do: rule.Apply(Detour{})},
 		),
 	}
 }

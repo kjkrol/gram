@@ -71,7 +71,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
-	if len(got) != 1 || got[0] != (MoveTo{Cell: want, At: geom.NewVec(25, 25)}) {
+	if len(got) != 1 || got[0].Cell != want || got[0].At != geom.NewVec(25, 25) || got[0].Append {
 		t.Errorf("a right click issued %v, want one MoveTo to %v at the point clicked", got, want)
 	}
 

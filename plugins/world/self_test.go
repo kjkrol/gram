@@ -70,8 +70,9 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 	g.world.Roles().Define("sky watcher",
 		rule.Branch[world.Moving]{
 			Name: "lit by the storm",
-			When: rule.While(g.sky, g.storm),
-			Do:   rule.Keep(g.lit),
+			On:   rule.Self,
+			When: rule.Under(g.storm).On(g.sky),
+			Do:   rule.Hold(g.lit),
 		})
 	watcher := g.world.Roles().Named("sky watcher")
 	kind.Define[struct{}](g.world.Kinds(), "scout", kind.Spec{
@@ -160,7 +161,7 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	}
 	scout := g.theScout(t)
 
-	if !g.world.Carrier().Put(control.Nobody, rule.Cast(g.storm).On(g.sky)) {
+	if !g.world.Carrier().Put(control.Nobody, rule.Put(g.storm).On(g.sky)) {
 		t.Fatal("the world carries no command for a plugin")
 	}
 	g.ecs.Tick(time.Second / 60)
@@ -178,7 +179,7 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 		t.Error("the scout is not lit While the sky is under the storm")
 	}
 
-	g.give(t, rule.Lift(g.storm).On(g.sky))
+	g.give(t, rule.Take(g.storm).On(g.sky))
 	if got := g.dialsOf()[sky]; got != 1 || g.storm.On(sky) {
 		t.Errorf("the storm lifted, the dial is %d, want the 1 it was", got)
 	}
@@ -190,11 +191,11 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 	if g.world.Entity() != g.world.Clock().Entity() {
 		t.Fatalf("the world's entity is %d, the clock's %d; want one", g.world.Entity(), g.world.Clock().Entity())
 	}
-	g.give(t, rule.Cast(g.storm).On(g.world))
+	g.give(t, rule.Put(g.storm).On(g.world))
 	if !g.storm.On(g.world.Clock().Entity()) {
 		t.Error("a command for the world plugin did not reach the clock's entity")
 	}
-	g.give(t, rule.Lift(g.storm).On(entity.World))
+	g.give(t, rule.Take(g.storm).On(entity.World))
 	if g.storm.On(g.world.Entity()) {
 		t.Error("a command for entity.World did not reach the world's own entity")
 	}
@@ -205,7 +206,7 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	runSky(t, g)
 	var cmds []control.Command
 	for _, e := range g.states {
-		cmds = append(cmds, rule.Cast(e).On(g.sky), rule.Cast(e).On(entity.Named("scout")))
+		cmds = append(cmds, rule.Put(e).On(g.sky), rule.Put(e).On(entity.Named("scout")))
 	}
 	g.give(t, cmds...)
 	onSky, onScout := 0, 0
@@ -227,7 +228,7 @@ func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
 	t.Chdir(t.TempDir())
 	saver := &skyStage{}
 	eng := runSky(t, saver)
-	saver.give(t, rule.Cast(saver.storm).On(saver.sky))
+	saver.give(t, rule.Put(saver.storm).On(saver.sky))
 	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -241,7 +242,7 @@ func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
 	if g.world.Entity() != g.world.Clock().Entity() {
 		t.Errorf("after the load the world's entity is %d, the clock's %d; want one", g.world.Entity(), g.world.Clock().Entity())
 	}
-	g.give(t, rule.Lift(g.storm).On(g.sky))
+	g.give(t, rule.Take(g.storm).On(g.sky))
 	if got := g.dialsOf()[sky]; got != 1 {
 		t.Errorf("the storm lifted after the load, the dial is %d, want the 1 it was before the storm", got)
 	}

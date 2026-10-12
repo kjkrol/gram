@@ -10,7 +10,8 @@ const (
 	WoundedEf = "wounded"
 	FuseEf    = "fuse"
 
-	FusePlan = "fuse"
+	FusePlan   = "fuse"
+	PatrolPlan = "patrol"
 
 	MortalRole  = "mortal"
 	RoundRole   = "round"

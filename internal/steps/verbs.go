@@ -7,13 +7,21 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
+// NewApply puts e on the entity, lasting as its Spec says.
 func NewApply(e effect.Effect) Step {
 	return leaf{sign: fmt.Sprintf("apply(%d)", e.Mark()), make: func() exec { return apply{e: e} }}
+}
+
+// NewApplyFor puts e on the entity for d.
+func NewApplyFor(e effect.Effect, d time.Duration) Step {
+	return leaf{sign: fmt.Sprintf("apply(%d,%v)", e.Mark(), d),
+		make: func() exec { return apply{e: e, d: d} }}
 }
 
 type apply struct {
 	basic
 	e effect.Effect
+	d time.Duration
 }
 
 func (apply) instant() {}
@@ -22,7 +30,11 @@ func (a apply) tick(c *ctx, _ int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	c.effects().Cast(c.cb, c.id, a.e)
+	if a.d > 0 {
+		c.effects().CastFor(c.cb, c.id, a.e, a.d)
+	} else {
+		c.effects().Cast(c.cb, c.id, a.e)
+	}
 	return Success
 }
 
@@ -90,33 +102,6 @@ func (d dispel) tick(c *ctx, _ int, _ []int) Status {
 	}
 	c.effects().Dispel(c.id, d.e)
 	return Success
-}
-
-func NewChance(p float64, step Step) Step {
-	return composite{kids: []Step{step}, sign: fmt.Sprintf("chance(%g)", p), make: func() exec { return chance{p: p} }}
-}
-
-type chance struct {
-	basic
-	p float64
-}
-
-func (chance) instant() {}
-
-func (ch chance) tick(c *ctx, at int, kids []int) Status {
-	if !c.entity {
-		return Failure
-	}
-	t, seed := c.now, uint64(0)
-	if c.instant {
-		t, seed = c.pass.Time, c.pass.Seed
-	} else if c.sys != nil {
-		seed = c.sys.seed
-	}
-	if draw(seed, t, uint64(c.id), hash(c.tree.name)+uint64(at)) >= ch.p {
-		return Failure
-	}
-	return c.run(kids[0])
 }
 
 // in [0, 1), the same for the same seed, time, entity and place: a load and a replay draw alike

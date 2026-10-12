@@ -1,7 +1,6 @@
 package navigation
 
 import (
-	"fmt"
 	"github.com/kjkrol/gram/internal/steps"
 	"math"
 	"slices"
@@ -74,39 +73,6 @@ type MoveOrder struct {
 	Face geom.Vec
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.
 	Group uint32
-	// Round is a patrol's: with goals in it the order never ends.
-	Round Round
-}
-
-// Round is a patrol: Goals walked to in turn and round again, for ever, Pause stood on each one
-// reached. Next is the goal after the Target, Stood how long the entity has stood on it.
-type Round struct {
-	Goals       [MaxWaypoints]cell.ID
-	Count, Next uint8
-	Pause       time.Duration
-	Stood       time.Duration
-}
-
-// Patrol is the order to walk to cells in turn and round again, for ever, standing pause on each.
-// It panics with no cell or more than MaxWaypoints.
-func Patrol(pause time.Duration, cells ...cell.ID) MoveOrder {
-	if len(cells) == 0 || len(cells) > MaxWaypoints {
-		panic(fmt.Sprintf("navigation: a patrol of %d goals, want 1 to %d", len(cells), MaxWaypoints))
-	}
-	o := MoveOrder{Target: cells[0], Round: Round{Count: uint8(len(cells)), Next: uint8(1 % len(cells)), Pause: pause}}
-	copy(o.Round.Goals[:], cells)
-	return o
-}
-
-func (m *MoveOrder) goOn() bool {
-	r := &m.Round
-	if r.Count == 0 {
-		return false
-	}
-	m.Target, m.Spot, m.At, m.Path = r.Goals[r.Next], geom.Vec{}, geom.Vec{}, Path{}
-	m.Level = EitherLevel
-	r.Next, r.Stood = (r.Next+1)%r.Count, 0
-	return true
 }
 
 // Goal is a goal queued behind a MoveOrder's Target: its Cell, where in it the entity stops (Spot,
@@ -390,9 +356,6 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				cb.RemoveCompOne(id, s.arrivedID)
 			}
 			arrive := func() {
-				if o.goOn() {
-					return
-				}
 				arrivedIDs = append(arrivedIDs, id)
 				switch {
 				case o.Group == 0: // giving way, or looking: the group stays
@@ -684,10 +647,6 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				p.Index++
 			}
 
-			if r := &o.Round; r.Count > 0 && r.Stood < r.Pause {
-				r.Stood += d
-				continue
-			}
 			arrive()
 		}
 
@@ -933,7 +892,7 @@ func (s *navigationSystem) stepAside(m member, o *MoveOrder, of uid.UID64) {
 	if !ok {
 		return
 	}
-	aside.Linger, aside.Face, aside.Group, aside.Round = yieldLinger, o.Face, o.Group, o.Round
+	aside.Linger, aside.Face, aside.Group = yieldLinger, o.Face, o.Group
 	aside.Enqueue(Goal{Cell: o.Target, Spot: o.Spot, At: o.At})
 	for _, g := range o.Waypoints[:o.Queued] {
 		aside.Enqueue(g)

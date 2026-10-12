@@ -8,7 +8,7 @@
 // leap ([JumpKey] binds it). Each is given every tick its key is held, and a tick's commands add
 // up into a hand. A player's hand, through the camera its commands name, is on the unit that
 // camera is fastened to, else on the units the player has selected and owns; an entity's command
-// for itself (rule.Order) is its own hand. The hand is written into the unit's steering.Driven
+// for itself (rule.Apply) is its own hand. The hand is written into the unit's steering.Driven
 // and the unit marked [Driving]; a tick with no hand on it brakes it, and it is let go once it
 // stands.
 //

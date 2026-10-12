@@ -10,6 +10,34 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 `cell.Rail` and `cell.Built` changed shape. Nor those made before a route knew its levels and
 where it begins: `navigation.Path` changed shape.
 
+**The grammar of rules and plans; patrols as plans**
+- A `rule.Branch` says when, on whom and what: `Branch[P]{Name, When, On, Do}`. `On` is required
+  at the top of a rule and of a plan — `rule.Self`, `rule.Other` (the other of the pair, the
+  subject of the fact), `rule.Here`, `rule.Around(n)` — and a branch inside a `Do` acts on what
+  the outer one does unless it says otherwise. `ForOther`, `Here` and `Around` as steps went.
+- Conditions: a predicate, `All`, `Not` (of a predicate or a condition), `Under(e)` with
+  `.On(entity.World)` or `.On(plugin)`, `Playing(role)`, `Chance(p)`, a moment's own word
+  (`rule.Paired(role)` underneath). `Free`, `During`, `While`, `Self(tag)`, `Other(tag)`,
+  `Carrying[T]()` went; `Chance` is a condition, not a step; `Once` and `Either` are written out
+  of the bricks.
+- Steps: `Put(e)`, `Take(e)` (the commands `Put`/`Take`/`Toggle` with an `On`; `Cast`, `Lift`,
+  `Apply` of an effect and `Dispel` went), `Hold(e)` (was `Keep`), `Apply(cmd)` (was `Order`;
+  `Trigger()` is `Apply(rule.Triggered{})`). In a plan `Until`, `Wait`, `Idle`; a branch of a plan
+  takes `.Timeout(d)` and `.Every(d)` (`Timeout`, `Cooldown`, `Invert`, `Ordered.Until`/`Stay`
+  went).
+- A fact is a thing that happened: a plan's branch of a fact begins once as the fact comes to
+  hold its When, runs its Do to the end though the fact goes, and not again until the fact comes
+  afresh. `Through` went. The guard demo's rest, which began again every two seconds on the
+  `Arrived` it kept, is once a coming.
+- Messages: a command embedding `rule.From`, given with `Apply` on a branch whose `On` is
+  `Other`, lands on that entity as a fact; a branch on the command's type answers it. `Ask`,
+  `Agree`, `Refuse`, `Relay`, `Asked`, `Replied` and `Answer` went.
+- A patrol is a plan: the unit carries its own `navigation.Round` (`NewRound(cells...)`), gives
+  itself `navigation.Onward{}` for the next cell and waits for `Arrived`; `navigation.Patrol`,
+  `MoveOrder.Round`, `Pause` and `Stood` went. `navigation.MoveTo.To` names the goal
+  (`entity.Named`): a cell or a unit by name.
+- Saves with a `Mind` written before do not load: the plans' shapes changed.
+
 **Every unit holds the cell it stands on**
 - The board has every unit hold the cell it stands on, every step: one spawned in the game
   (`world.Spawn`) holds its cell from its first step, and one pushed, thrown or moved by a game's

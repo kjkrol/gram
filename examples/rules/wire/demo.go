@@ -126,21 +126,27 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineRoles() {
 	roles := s.world.Roles()
-	roles.Define(PlateRole, rule.Branch[collision.Meeting]{Name: "press", Do: rule.Trigger()})
+	roles.Define(PlateRole, rule.Branch[collision.Meeting]{
+		Name: "press",
+		On:   rule.Self,
+		Do:   rule.Apply(rule.Triggered{}),
+	})
 	roles.Define(LeverRole)
 	roles.Define(HastyRole)
 	roles.Define(HandyRole, rule.Branch[unit.Standing]{
 		Name: "pull the lever beside",
+		On:   rule.Around(1),
 		When: rule.Under(s.world.Effects().Named(PullEf)),
-		Do: rule.Around(1, rule.Branch[any]{
+		Do: rule.Branch[any]{
 			When: rule.Playing(roles.Named(LeverRole)),
-			Do:   rule.Trigger(),
-		}),
+			Do:   rule.Apply(rule.Triggered{}),
+		},
 	})
 	roles.Define(MortalRole, rule.Branch[unit.Standing]{
 		Name: "fall in",
+		On:   rule.Self,
 		When: unit.Standing.Fallen,
-		Do:   rule.Order(world.Despawn{}),
+		Do:   rule.Apply(world.Despawn{}),
 	})
 }
 
@@ -148,22 +154,22 @@ func (s *arena) defineCommands() {
 	fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
 	cmds.Define(
 		OpenWestCmd,
-		rule.Cast(fx.Named(OpenEf)).
+		rule.Put(fx.Named(OpenEf)).
 			On(entity.Group("west trapdoors")).
 			By(entity.Named("west lever")),
 	)
 	cmds.Define(
 		OpenEastCmd,
-		rule.Cast(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).By(entity.Named("plate")),
+		rule.Put(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).By(entity.Named("plate")),
 	)
 	cmds.Define(FlipTheGateCmd, rule.Toggle(fx.Named(AjarEf)).On(entity.Group("gate")))
 	cmds.Define(
 		HastenCmd,
-		rule.Cast(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))),
+		rule.Put(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))),
 	)
 	cmds.Define(
 		ReachCmd,
-		rule.Cast(fx.Named(PullEf)).On(s.selection.Selected(roles.Named(HandyRole))),
+		rule.Put(fx.Named(PullEf)).On(s.selection.Selected(roles.Named(HandyRole))),
 	)
 }
 
@@ -214,15 +220,20 @@ func (s *arena) defineKinds() {
 		),
 	)
 	units.Define(PorterKind, land, laden, rule.Plays(s.world.Roles().Named(MortalRole)))
-	units.Define(
-		WandererKind,
-		land,
-		profile,
-		rule.Plays(s.world.Roles().Named(MortalRole)),
-		comp.Load(func(u unitRow) navigation.MoveOrder {
-			return navigation.Patrol(time.Second, u.To, u.Start)
-		}),
-	)
+	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
+		Name: "leg",
+		On:   rule.Self,
+		Do: rule.Steps(
+			rule.Apply(navigation.Onward{}),
+			rule.Until[navigation.Arrived](),
+			rule.Wait(time.Second),
+		),
+	})
+	round := comp.Load(func(u unitRow) navigation.Round {
+		return navigation.NewRound(u.To, u.Start)
+	})
+	units.Define(WandererKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)),
+		round, patrol)
 	at := func(r standingRow) cell.ID { return r.At }
 	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
 	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))

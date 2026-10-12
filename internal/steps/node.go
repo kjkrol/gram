@@ -158,25 +158,6 @@ func (cd cooldown) tick(c *ctx, at int, kids []int) Status {
 	return s
 }
 
-func NewInvert(node Step) Step {
-	return composite{kids: []Step{node}, sign: "invert", make: func() exec { return invert{} }}
-}
-
-type invert struct{ basic }
-
-func (invert) instant() {}
-
-func (invert) tick(c *ctx, _ int, kids []int) Status {
-	switch s := c.run(kids[0]); s {
-	case Success:
-		return Failure
-	case Failure:
-		return Success
-	default:
-		return s
-	}
-}
-
 func NewIdle() Step { return leaf{sign: "idle", make: func() exec { return idle{} }} }
 
 type idle struct{ basic }

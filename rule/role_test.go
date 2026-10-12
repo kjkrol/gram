@@ -40,29 +40,29 @@ func (heard) Command() {}
 
 func (c *heard) Aim(who uid.UID64) { c.At = who }
 
-type (
-	body struct{ N int }
-	fuel struct{ N int }
-)
+type body struct{ N int }
 
 type being struct {
 	name  string
 	bare  bool // no tag.Tags[rule.Roles] at all
 	plays []*rule.Part
-	fuel  bool
+}
+
+func (b being) roles() uint64 {
+	var bits uint64
+	for _, p := range b.plays {
+		bits |= 1 << p.Tag()
+	}
+	return bits
 }
 
 func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 	var bodies goke.Comp[body]
-	var fuels goke.Comp[fuel]
 	columns := []goke.Addable{&bodies}
 	var plays comp.Spawner
 	if !b.bare {
 		plays = rule.Plays(b.plays...).Spawner()
 		columns = append(columns, plays.Columns()...)
-	}
-	if b.fuel {
-		columns = append(columns, &fuels)
 	}
 	f := si.NewFactory(columns...)
 	f.Create(1)
@@ -75,7 +75,7 @@ func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 }
 
 func tellOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(heard{Rule: name})}
+	return rule.Branch[P]{Name: name, When: when, On: rule.Self, Do: rule.Apply(heard{Rule: name})}
 }
 
 func listen(t *testing.T) (*control.Carrier, *control.Queue[heard]) {
@@ -92,8 +92,7 @@ func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 	hasty := rule.Role("hasty")
 	mortal := rule.Role("mortal").Obeys(
 		tellOf[standing]("fall in", nil),
-		tellOf[standing]("burn", rule.Carrying[fuel]()),
-		tellOf[standing]("rush", rule.Self(hastyTag)),
+		tellOf[standing]("rush", rule.Playing(hasty)),
 	)
 	carrier, q := listen(t)
 	h := &plugin.Rules[standing]{}
@@ -104,28 +103,27 @@ func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 	}
 	beings := []being{
 		{name: "bare", bare: true},
-		{name: "bare with fuel", bare: true, fuel: true},
 		{name: "playing none"},
 		{name: "hasty", plays: []*rule.Part{hasty}},
-		{name: "hasty with fuel", plays: []*rule.Part{hasty}, fuel: true},
 		{name: "mortal", plays: []*rule.Part{mortal}},
-		{name: "mortal with fuel", plays: []*rule.Part{mortal}, fuel: true},
 		{name: "mortal and hasty", plays: []*rule.Part{mortal, hasty}},
 	}
 	names := map[uid.UID64]string{}
+	roles := map[uid.UID64]uint64{}
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for _, b := range beings {
-			names[spawnBeing(si, b)] = b.name
+			id := spawnBeing(si, b)
+			names[id], roles[id] = b.name, b.roles()
 		}
 		var bodies goke.Comp[body]
 		qb := si.NewQueryBuilder(&bodies)
 		h.Bind(qb)
 		walk := qb.Build()
+		tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier,
+			Roles: func(id uid.UID64) uint64 { return roles[id] }}
 		for walk.All(); walk.Next(); {
 			cur := walk.Cursor()
-			h.Run(plugin.Tick{Dt: time.Millisecond, Commands: carrier}, cur, func(i int) standing {
-				return standing{who: cur.IDs[i]}
-			})
+			h.Run(tick, cur, func(i int) standing { return standing{who: cur.IDs[i]} })
 		}
 	}})
 	got := map[string][]string{}
@@ -133,8 +131,7 @@ func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 		got[i.Command.Rule] = append(got[i.Command.Rule], names[i.Entity])
 	})
 	want := map[string][]string{
-		"fall in": {"mortal", "mortal and hasty", "mortal with fuel"},
-		"burn":    {"mortal with fuel"},
+		"fall in": {"mortal", "mortal and hasty"},
 		"rush":    {"mortal and hasty"},
 	}
 	for name, who := range want {
@@ -152,8 +149,8 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 	hasty := rule.Role("hasty")
 	mortal := rule.Role("mortal").Obeys(
 		tellOf[meeting]("flinch", nil),
-		tellOf[meeting]("parry", rule.Other(hastyTag)),
-		tellOf[meeting]("rush", rule.Self(hastyTag)),
+		tellOf[meeting]("parry", rule.Paired(hasty)),
+		tellOf[meeting]("rush", rule.Playing(hasty)),
 	)
 	beings := []being{
 		{name: "bare", bare: true},
@@ -176,12 +173,13 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 				}
 			}
 			names := map[uid.UID64]string{}
+			roles := map[uid.UID64]uint64{}
 			var ids []uid.UID64
 			marks := map[uid.UID64]plugin.Marks{}
 			goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 				for _, b := range beings {
 					id := spawnBeing(si, b)
-					names[id] = b.name
+					names[id], roles[id] = b.name, b.roles()
 					ids = append(ids, id)
 				}
 				var bodies goke.Comp[body]
@@ -194,7 +192,8 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 					}
 				}
 			}})
-			tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier}
+			tick := plugin.Tick{Dt: time.Millisecond, Commands: carrier,
+				Roles: func(id uid.UID64) uint64 { return roles[id] }}
 			for i, a := range ids {
 				for j, b := range ids {
 					switch {
@@ -253,7 +252,7 @@ func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testin
 }
 
 func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
-	a, b := tellOf[standing]("a", nil), tellOf[standing]("b", rule.Carrying[fuel]())
+	a, b := tellOf[standing]("a", nil), tellOf[standing]("b", rule.Playing(rule.Role("hasty")))
 	mortal := rule.Role("mortal").Obeys(a).Obeys(b)
 	got := mortal.Rules()
 	want := []string{`"a" of rule_test.standing, for the role mortal`, `"b" of rule_test.standing, for the role mortal`}
@@ -308,7 +307,8 @@ func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
 	if err := h.Add(rule.Branch[standing]{
 		Name: "pull",
 		When: rule.Playing(lever),
-		Do:   rule.Order(heard{Rule: "pull"}),
+		On:   rule.Self,
+		Do:   rule.Apply(heard{Rule: "pull"}),
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -105,7 +105,7 @@ func (c *camp) reached(by control.PlayerID) map[float64]bool {
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
 	c.w.Carrier().Put(by, selection.Select{Box: everywhere})
 	c.tick()
-	c.w.Carrier().Put(by, rule.Cast(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, rule.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	out := map[float64]bool{}
 	for x, id := range c.ids() {
@@ -113,7 +113,7 @@ func (c *camp) reached(by control.PlayerID) map[float64]bool {
 			out[x] = true
 		}
 	}
-	c.w.Carrier().Put(by, rule.Lift(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, rule.Take(c.haste).On(c.sel.Selected()))
 	c.tick()
 	c.w.Carrier().Put(by, selection.Select{IDs: []uid.UID64{}})
 	c.tick()
@@ -178,7 +178,7 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 		}
 	})
-	c.w.Carrier().Put(c.one.ID, rule.Cast(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(c.one.ID, rule.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
 	if !c.haste.On(ids[100]) || c.haste.On(ids[200]) {

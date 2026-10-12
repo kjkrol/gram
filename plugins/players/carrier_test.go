@@ -39,7 +39,8 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	s.collision = collision.NewPlugin(s.world)
 	s.world.Roles().Define("fragile", rule.Branch[collision.Struck]{
 		Name: "gone when struck",
-		Do:   rule.Order(world.Despawn{}),
+		On:   rule.Self,
+		Do:   rule.Apply(world.Despawn{}),
 	})
 	fragile := s.world.Roles().Named("fragile")
 	at := func(x float64) world.Position {
@@ -50,7 +51,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 		rule.Plan("leaver", rule.Steps(
 			rule.Wait(100*time.Millisecond),
-			rule.Order(world.Despawn{}),
+			rule.Apply(world.Despawn{}),
 		)),
 	})
 	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")

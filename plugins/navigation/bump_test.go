@@ -37,6 +37,7 @@ type roadUnit struct {
 	selected      bool
 	owner         control.PlayerID
 	plan          *writtenPlan
+	round         []cell.ID // its Round, for Onward
 	group         uint32
 	sensor        bool // a Collider without Physics
 	loose         bool // no At, no Mover: a body in the world, not a unit of the board
@@ -140,6 +141,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
+		}
+		if u.round != nil {
+			s = append(s, comp.Load(func(u roadUnit) Round { return NewRound(u.round...) }))
 		}
 		if u.plan != nil {
 			s = append(s, u.plan.planned)

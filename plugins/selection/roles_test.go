@@ -202,7 +202,7 @@ func roster(me, rival control.PlayerID) []soldier {
 func TestSelected_WithoutARoleIsEverySelectedUnitOfMine(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	s.issue(rule.Cast(s.haste).On(s.sel.Selected()))
+	s.issue(rule.Put(s.haste).On(s.sel.Selected()))
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
 }
 
@@ -218,7 +218,7 @@ func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSquad(t)
 			s.start(roster(s.me.ID, s.rival.ID))
-			s.issue(rule.Cast(s.haste).On(s.sel.Selected(c.role(s))))
+			s.issue(rule.Put(s.haste).On(s.sel.Selected(c.role(s))))
 			s.expect(s.haste, c.under...)
 		})
 	}
@@ -227,8 +227,10 @@ func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID),
-		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts", s.named("hasten", rule.Cast(s.haste).On(s.sel.Selected(s.hasty)))),
-		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals", s.named("rally", rule.Cast(s.rally).On(s.sel.Selected(s.mortal)))))
+		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
+			s.named("hasten", rule.Put(s.haste).On(s.sel.Selected(s.hasty)))),
+		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals",
+			s.named("rally", rule.Put(s.rally).On(s.sel.Selected(s.mortal)))))
 	s.press(control.KeyJ)
 	s.expect(s.haste, "my scout", "my veteran")
 	s.expect(s.rally)
@@ -239,20 +241,21 @@ func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 func TestSelected_LiftAndToggle(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	s.issue(rule.Cast(s.haste).On(s.sel.Selected(s.hasty)))
+	s.issue(rule.Put(s.haste).On(s.sel.Selected(s.hasty)))
 	s.expect(s.haste, "my scout", "my veteran")
 	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // some are under it: off them all
 	s.expect(s.haste)
 	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // none is: on them all
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
-	s.issue(rule.Lift(s.haste).On(s.sel.Selected(s.mortal)))
+	s.issue(rule.Take(s.haste).On(s.sel.Selected(s.mortal)))
 	s.expect(s.haste, "my scout", "my peasant")
 }
 
 func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at", s.named("cure", rule.Cast(s.haste).On(s.sel.Pointed())))
+	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at",
+		s.named("cure", rule.Put(s.haste).On(s.sel.Pointed())))
 	point := func(x, y float64) {
 		cmd, ok := cure.Build(control.Context{Player: s.me.ID, Camera: cameras.TopDown()(1000, 1000, 0, camera.Config{}), Cursor: geom.NewVec(x, y)})
 		if !ok {
@@ -262,7 +265,7 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	}
 	point(600, 600) // empty ground
 	s.expect(s.haste)
-	s.issue(rule.Cast(s.haste).On(s.sel.Pointed())) // no cursor
+	s.issue(rule.Put(s.haste).On(s.sel.Pointed())) // no cursor
 	s.expect(s.haste)
 	point(405, 105) // the rival's scout, at 400
 	s.expect(s.haste, "the rival's scout")

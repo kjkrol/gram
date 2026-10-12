@@ -149,7 +149,7 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCo
 	} else {
 		s.eachSelected(by, c.only, func(id uid.UID64) { s.whom = append(s.whom, id) })
 	}
-	on := c.cmd.Verb == rule.Casts
+	on := c.cmd.Verb == rule.Puts
 	if c.cmd.Verb == rule.Toggles {
 		on = true
 		for _, id := range s.whom {

@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -32,6 +33,7 @@ type fieldUnit struct {
 	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
 	owner    control.PlayerID
+	plays    *rule.Part
 }
 
 func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
@@ -126,6 +128,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
+		}
+		if u.plays != nil {
+			s = append(s, rule.Plays(u.plays))
 		}
 		kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i))

@@ -98,7 +98,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 		w.Clock().Replay(rc, d)
 		rc.Sync()
 	})
-	w.Carrier().Put(1, rule.Cast(haste).On(sel.Selected()))
+	w.Carrier().Put(1, rule.Put(haste).On(sel.Selected()))
 	for range 2 {
 		ctx.ecs.Tick(time.Second / 10)
 	}

@@ -24,6 +24,11 @@ const (
 
 type token struct{ N int }
 
+var (
+	hunterPart = rule.NewPart("hunter", 1)
+	huntedPart = rule.NewPart("hunted", 2)
+)
+
 type poke struct{ self uid.UID64 }
 
 func (p poke) Who() uid.UID64 { return p.self }
@@ -42,7 +47,7 @@ type noted struct{}
 func (noted) Command() {}
 
 func noteOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(noted{})}
+	return rule.Branch[P]{Name: name, On: rule.Self, When: when, Do: rule.Apply(noted{})}
 }
 
 func narrowed(r rule.Rule) rule.Rule { return rule.NewPart("hookon scout", 0).Obeys(r).Rules()[0] }
@@ -87,8 +92,8 @@ func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	among := []plugin.Host{glances, dawns, pokes}
 
 	wake := noteOf[dawn]("wake", nil)
-	spot := noteOf[poke]("spot", rule.Self(hunter))
-	stare := noteOf[glance]("stare", rule.All(rule.Self(hunter), rule.Other(hunted)))
+	spot := noteOf[poke]("spot", rule.Playing(hunterPart))
+	stare := noteOf[glance]("stare", rule.All(rule.Playing(hunterPart), rule.Paired(huntedPart)))
 	drown := noteOf[poke]("drown", nil)
 	scouting := narrowed(drown)
 	scoutStare := narrowed(stare)
@@ -130,7 +135,7 @@ func TestDeliver_TheFirstHostToTakeTheRuleHasIt(t *testing.T) {
 func TestDeliver_StopsAtAnotherError(t *testing.T) {
 	b := &broken{}
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
-	drown, spot := noteOf[poke]("drown", nil), noteOf[poke]("spot", rule.Self(hunter))
+	drown, spot := noteOf[poke]("drown", nil), noteOf[poke]("spot", rule.Playing(hunterPart))
 
 	err := hosts.Deliver([]plugin.Host{b, pokes}, drown, spot)
 	if !errors.Is(err, errBroken) || errors.Is(err, plugin.ErrUnhosted) {
@@ -162,7 +167,7 @@ func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	stare := noteOf[glance]("stare", rule.All(rule.Self(hunter), rule.Other(hunted)))
+	stare := noteOf[glance]("stare", rule.All(rule.Playing(hunterPart), rule.Paired(huntedPart)))
 
 	for _, c := range []struct {
 		name  string
@@ -170,8 +175,6 @@ func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 		r     rule.Rule
 	}{
 		{"a moment nobody hosts", []plugin.Host{pokes, dawns}, stare},
-		{"a filtered rule of the world", []plugin.Host{pokes, dawns},
-			noteOf[dawn]("wake", rule.Carrying[token]())},
 		{"no hosts", nil, stare},
 	} {
 		t.Run(c.name, func(t *testing.T) {

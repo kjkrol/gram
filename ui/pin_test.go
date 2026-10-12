@@ -113,7 +113,7 @@ func TestPin_AnEntityWithNoPlaceHasItsElementWhereItsParentLaysIt(t *testing.T) 
 func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 	var issued []control.Command
 	greeting := effect.Effect{}
-	lift := rule.Lift(greeting).On(It)
+	lift := rule.Take(greeting).On(It)
 	answer := Button("hello", lift).Named("answer")
 	window := Window("host", answer).On(nobody)
 	s := built(NewScene("main", Layers(Image(&shifted{}), window)).
@@ -133,7 +133,9 @@ func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 
 func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
 	var issued []control.Command
-	s := built(NewScene("main", Center(Button("lost", rule.Lift(effect.Effect{}).On(It))).Size(100, 40)).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+	button := Center(Button("lost", rule.Take(effect.Effect{}).On(It))).Size(100, 40)
+	s := built(NewScene("main", button).
+		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

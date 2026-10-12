@@ -132,14 +132,16 @@ func (s *arena) defineRoles() {
 	roles.Define(HostRole,
 		rule.Branch[vision.Sighting]{
 			Name: "talk",
+			On:   rule.Self,
 			When: rule.All(vision.Seeing(traveller), rule.Not(vision.Sighting.Nobody),
-				rule.Free(talking, talked)),
-			Do: rule.Order(dialog.Begin{}),
+				rule.All(rule.Not(rule.Under(talking)), rule.Not(rule.Under(talked)))),
+			Do: rule.Apply(dialog.Begin{}),
 		},
 		rule.Branch[vision.Sighting]{
 			Name: "part",
+			On:   rule.Self,
 			When: rule.All(vision.Seeing(traveller), vision.Sighting.Nobody),
-			Do:   rule.Dispel(talking),
+			Do:   rule.Take(talking),
 		},
 	)
 }

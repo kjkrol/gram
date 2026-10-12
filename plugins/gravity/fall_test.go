@@ -183,8 +183,9 @@ func TestFall_InTheAirOverWaterItHasNotFallenIn(t *testing.T) {
 	r := newRig(t, scene{leap: 8, water: true, bodies: []body{{x: 14, y: 15, facing: east}},
 		rules: []rule.Rule{rule.Branch[unit.Standing]{
 			Name: "drown",
+			On:   rule.Self,
 			When: unit.Standing.Fallen,
-			Do:   rule.Order(landed{Hard: true}),
+			Do:   rule.Apply(landed{Hard: true}),
 		}}})
 	r.walk(0, 5)
 	for r.of(0).at.X < 19 {

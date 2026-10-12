@@ -40,7 +40,7 @@
 // played to the plugin that catches their moment; one none catches is an error. What an entity
 // does over time is a plan of the same branches, rule.Plan, carried by its kind. What somebody
 // asks for is a command: a player's key, a rule's Order, and about an effect a sentence —
-// rule.Cast(open).On(entity.Group("trapdoors")).By(entity.Named("lever")).
+// rule.Put(open).On(entity.Group("trapdoors")).By(entity.Named("lever")).
 //
 // # Kinds and spawning
 //
